@@ -2,7 +2,7 @@ import type { Context } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
 import {
@@ -12,6 +12,7 @@ import {
   createAttributedBillingRequestEnvelope,
 } from '@/lib/billing/core/billing-attribution'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import type { AsyncCompletionSignal } from '@/lib/copilot/async-runs/lifecycle'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_VERSION, TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/copilot/constants'
 import {
@@ -562,13 +563,34 @@ export function mergeResumeLegOutputs(
   if (leg.completionStatus) context.completionStatus = leg.completionStatus
 }
 
-async function waitForToolIds(context: StreamingContext, toolIds: string[]): Promise<void> {
+async function waitForToolIds(
+  context: StreamingContext,
+  toolIds: string[],
+  abortSignal?: AbortSignal
+): Promise<boolean> {
   const promises: Promise<unknown>[] = []
   for (const id of toolIds) {
     const p = context.pendingToolPromises.get(id)
     if (p) promises.push(p)
   }
-  if (promises.length > 0) await Promise.allSettled(promises)
+  if (promises.length === 0) return true
+  if (!abortSignal) {
+    await Promise.allSettled(promises)
+    return true
+  }
+  if (abortSignal.aborted) return false
+
+  let onAbort = () => {}
+  const aborted = new Promise<false>((resolve) => {
+    onAbort = () => resolve(false)
+    abortSignal.addEventListener('abort', onAbort, { once: true })
+    if (abortSignal.aborted) onAbort()
+  })
+  try {
+    return await Promise.race([Promise.allSettled(promises).then(() => true as const), aborted])
+  } finally {
+    abortSignal.removeEventListener('abort', onAbort)
+  }
 }
 
 interface ResumeToolResult {
@@ -713,7 +735,8 @@ async function driveOneChildChain(
   for (;;) {
     if (isAborted(options, context)) return null
 
-    await waitForToolIds(context, toolIds)
+    const toolsSettled = await waitForToolIds(context, toolIds, options.abortSignal)
+    if (!toolsSettled || isAborted(options, context)) return null
     const results = collectResultsForToolIds(context, toolIds, checkpointId)
 
     const leg = makeResumeLegContext(context)
@@ -1031,7 +1054,15 @@ async function runCheckpointLoop(
           next = null
           break
         }
-        await waitForToolIds(context, next.pendingToolCallIds)
+        const toolsSettled = await waitForToolIds(
+          context,
+          next.pendingToolCallIds,
+          options.abortSignal
+        )
+        if (!toolsSettled || isAborted(options, context)) {
+          next = null
+          break
+        }
         next = await driveSubagentChains(
           next,
           context,
@@ -1042,71 +1073,138 @@ async function runCheckpointLoop(
           hostedBillingRequest
         )
       }
-      if (!next) break
+      if (!next) {
+        if (isAborted(options, context)) cancelPendingTools(context)
+        break
+      }
       continuation = next
     }
 
     if (context.pendingToolPromises.size > 0) {
-      // Snapshot the gate by tool. Human waits remain durable, but they must
-      // not disable the structural watchdog for an unrelated parallel tool.
-      const pendingTools = Array.from(context.pendingToolPromises.entries()).map(
-        ([toolCallId, promise]) => ({
-          toolCallId,
-          promise,
-          waitBudgetMs: pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId)),
-        })
-      )
-      const durableTools = pendingTools.filter((tool) => tool.waitBudgetMs === null)
-      const boundedTools = pendingTools.flatMap((tool) =>
-        tool.waitBudgetMs === null ? [] : [{ ...tool, waitBudgetMs: tool.waitBudgetMs }]
-      )
-      const boundedWaitBudgetMs =
-        boundedTools.length > 0
-          ? Math.max(...boundedTools.map((tool) => tool.waitBudgetMs)) +
-            TOOL_WATCHDOG_RESUME_GRACE_MS
-          : null
       const waitSpan = context.trace.startSpan('Wait for Tools', 'lifecycle.wait_tools', {
         checkpointId: continuation.checkpointId,
         pendingCount: context.pendingToolPromises.size,
-        durableCount: durableTools.length,
-        ...(boundedWaitBudgetMs !== null ? { waitBudgetMs: boundedWaitBudgetMs } : {}),
       })
-      logger.info('Waiting for in-flight tool executions before resume', {
-        checkpointId: continuation.checkpointId,
-        pendingCount: context.pendingToolPromises.size,
-        durableCount: durableTools.length,
-        waitBudgetMs: boundedWaitBudgetMs,
-      })
-      const boundedSettledInTime =
-        boundedWaitBudgetMs === null
-          ? true
-          : await Promise.race([
-              Promise.allSettled(boundedTools.map((tool) => tool.promise)).then(() => true),
-              sleep(boundedWaitBudgetMs).then(() => false),
-            ])
-      if (!boundedSettledInTime) {
-        const hungToolCallIds = boundedTools
-          .filter(
-            ({ toolCallId, promise }) => context.pendingToolPromises.get(toolCallId) === promise
+      let maximumWaitBudgetMs = 0
+      let timedOutCount = 0
+      const pendingWatchdogs = new Map<
+        string,
+        {
+          promise: Promise<AsyncCompletionSignal>
+          settlement: Promise<{
+            toolCallId: string
+            promise: Promise<AsyncCompletionSignal>
+          }>
+          deadlineAt: number
+          waitBudgetMs: number
+        }
+      >()
+
+      /**
+       * A long-running approval must not lend its deadline to an unrelated
+       * short tool. Wake for the earliest promise settlement or deadline so a
+       * replaced call can receive its own watchdog without waiting for a long
+       * sibling. Unchanged promises retain their absolute deadlines.
+       */
+      while (context.pendingToolPromises.size > 0) {
+        if (isAborted(options, context)) break
+        const now = Date.now()
+        for (const [toolCallId, watchdog] of pendingWatchdogs) {
+          if (context.pendingToolPromises.get(toolCallId) !== watchdog.promise) {
+            pendingWatchdogs.delete(toolCallId)
+          }
+        }
+        for (const [toolCallId, promise] of context.pendingToolPromises) {
+          if (pendingWatchdogs.get(toolCallId)?.promise === promise) continue
+          const waitBudgetMs =
+            pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId)) +
+            TOOL_WATCHDOG_RESUME_GRACE_MS
+          pendingWatchdogs.set(toolCallId, {
+            promise,
+            settlement: promise.then(
+              () => ({ toolCallId, promise }),
+              () => ({ toolCallId, promise })
+            ),
+            deadlineAt: now + waitBudgetMs,
+            waitBudgetMs,
+          })
+          maximumWaitBudgetMs = Math.max(maximumWaitBudgetMs, waitBudgetMs)
+        }
+
+        const expiredTools = Array.from(pendingWatchdogs.entries()).filter(
+          ([toolCallId, watchdog]) =>
+            watchdog.deadlineAt <= now &&
+            context.pendingToolPromises.get(toolCallId) === watchdog.promise
+        )
+        if (expiredTools.length > 0) {
+          await Promise.all(
+            expiredTools.map(async ([toolCallId, watchdog]) => {
+              logger.error(
+                'Pending tool execution exceeded its resume wait budget; force-failing',
+                {
+                  checkpointId: continuation.checkpointId,
+                  toolCallId,
+                  waitBudgetMs: watchdog.waitBudgetMs,
+                }
+              )
+              await forceFailHungToolCall(
+                toolCallId,
+                context,
+                'Tool execution hung on the Sim executor and was abandoned so the conversation could continue.'
+              )
+              if (context.pendingToolPromises.get(toolCallId) === watchdog.promise) {
+                context.pendingToolPromises.delete(toolCallId)
+              }
+              pendingWatchdogs.delete(toolCallId)
+            })
           )
-          .map(({ toolCallId }) => toolCallId)
-        logger.error('Pending tool executions exceeded the resume wait budget; force-failing', {
+          timedOutCount += expiredTools.length
+          continue
+        }
+
+        const activeWatchdogs = Array.from(pendingWatchdogs.entries())
+        if (activeWatchdogs.length === 0) continue
+        const nextDeadlineAt = Math.min(
+          ...activeWatchdogs.map(([, watchdog]) => watchdog.deadlineAt)
+        )
+        logger.info('Waiting for in-flight tool executions before resume', {
           checkpointId: continuation.checkpointId,
-          waitBudgetMs: boundedWaitBudgetMs,
-          hungToolCallIds,
+          pendingCount: activeWatchdogs.length,
+          maximumWaitBudgetMs,
+          nextDeadlineAt,
         })
-        for (const toolCallId of hungToolCallIds) {
-          await forceFailHungToolCall(
-            toolCallId,
-            context,
-            'Tool execution hung on the Sim executor and was abandoned so the conversation could continue.'
-          )
-          context.pendingToolPromises.delete(toolCallId)
+
+        const watchdogController = new AbortController()
+        const waitSignal = options.abortSignal
+          ? AbortSignal.any([watchdogController.signal, options.abortSignal])
+          : watchdogController.signal
+        try {
+          const wake = await Promise.race([
+            ...activeWatchdogs.map(([, watchdog]) => watchdog.settlement),
+            interruptibleSleep(Math.max(0, nextDeadlineAt - Date.now()), waitSignal).then(
+              () => null
+            ),
+          ])
+          if (isAborted(options, context)) break
+          if (wake && context.pendingToolPromises.get(wake.toolCallId) === wake.promise) {
+            context.pendingToolPromises.delete(wake.toolCallId)
+          }
+        } finally {
+          watchdogController.abort()
         }
       }
-      await Promise.allSettled(durableTools.map((tool) => tool.promise))
-      waitSpan.attributes = { ...waitSpan.attributes, settledInTime: boundedSettledInTime }
-      context.trace.endSpan(waitSpan)
+      const waitWasAborted = isAborted(options, context)
+      waitSpan.attributes = {
+        ...waitSpan.attributes,
+        waitBudgetMs: maximumWaitBudgetMs,
+        timedOutCount,
+        aborted: waitWasAborted,
+        settledInTime: timedOutCount === 0 && !waitWasAborted,
+      }
+      context.trace.endSpan(
+        waitSpan,
+        waitWasAborted ? RequestTraceV1SpanStatus.cancelled : RequestTraceV1SpanStatus.ok
+      )
     }
 
     if (isAborted(options, context)) {

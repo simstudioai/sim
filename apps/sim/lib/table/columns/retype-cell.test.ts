@@ -2,12 +2,24 @@
  * @vitest-environment node
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types'
 import { retypeCellRewrite } from '@/lib/table/columns/service'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const column = (over: Partial<ColumnDefinition>): ColumnDefinition =>
   ({ name: 'col', type: 'string', ...over }) as ColumnDefinition
+
+const sourceDefinition = COLUMN_TYPE_REGISTRY.string
+const originalValueForConversion = sourceDefinition.valueForConversion
+
+afterEach(() => {
+  if (originalValueForConversion === undefined) {
+    Reflect.deleteProperty(sourceDefinition, 'valueForConversion')
+    return
+  }
+  Object.assign(sourceDefinition, { valueForConversion: originalValueForConversion })
+})
 
 describe('retypeCellRewrite', () => {
   it('preserves an empty string the target type can hold', () => {
@@ -30,6 +42,29 @@ describe('retypeCellRewrite', () => {
     expect(retypeCellRewrite('42', column({ type: 'number' }))).toEqual({ value: 42 })
     expect(retypeCellRewrite(7, column({ type: 'string' }))).toEqual({ value: '7' })
     expect(retypeCellRewrite('true', column({ type: 'boolean' }))).toEqual({ value: true })
+  })
+
+  it('writes back null produced by source normalization', () => {
+    Object.assign(sourceDefinition, { valueForConversion: () => null })
+
+    expect(
+      retypeCellRewrite('stored-value', column({ type: 'number' }), column({ type: 'string' }))
+    ).toEqual({ value: null })
+  })
+
+  it('coerces source-normalized values into select storage', () => {
+    Object.assign(sourceDefinition, { valueForConversion: () => 'Choice' })
+
+    expect(
+      retypeCellRewrite(
+        'stored-value',
+        column({
+          type: 'select',
+          options: [{ id: 'opt_choice', name: 'Choice' }],
+        }),
+        column({ type: 'string' })
+      )
+    ).toEqual({ value: 'opt_choice' })
   })
 
   it('skips a cell whose stored value already matches the coercion', () => {

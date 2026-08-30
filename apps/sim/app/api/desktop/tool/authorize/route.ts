@@ -1,9 +1,10 @@
-import { isBrowserToolName } from '@sim/browser-protocol'
+import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { isRecordLike } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeDesktopToolContract } from '@/lib/api/contracts/desktop-tool-authorization'
 import { parseRequest } from '@/lib/api/server'
+import { DESKTOP_TOOL_CLAIM_OWNER } from '@/lib/copilot/async-runs/lifecycle'
 import {
   claimPendingAsyncToolCall,
   getAsyncToolCall,
@@ -45,7 +46,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   const args = isRecordLike(toolCall.args) ? (toolCall.args as Record<string, unknown>) : {}
-  const isBrowserTool = isBrowserToolName(toolCall.toolName)
+  const isBrowserTool = isCurrentBrowserToolName(toolCall.toolName)
   const isTerminalTool = isTerminalToolName(toolCall.toolName)
   const authorized =
     isBrowserTool || isTerminalTool || isUserLocalVfsToolCall(toolCall.toolName, args)
@@ -66,7 +67,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     const claimed = await claimPendingAsyncToolCall(
       toolCall.toolCallId,
-      isBrowserTool ? 'desktop-browser' : 'desktop-terminal'
+      isBrowserTool ? DESKTOP_TOOL_CLAIM_OWNER.browser : DESKTOP_TOOL_CLAIM_OWNER.terminal
     )
     if (!claimed) {
       return createNotFoundResponse('Pending client tool call not found')

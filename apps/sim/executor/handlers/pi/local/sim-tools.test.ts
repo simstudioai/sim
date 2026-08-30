@@ -225,6 +225,55 @@ describe('buildSimToolSpecs', () => {
     })
   })
 
+  it('accumulates cost from canonical Function results while preserving failures', async () => {
+    mockTransformBlockTool
+      .mockResolvedValueOnce({
+        id: 'function_execute',
+        name: 'Function Execute',
+        description: 'Execute code',
+        params: {},
+        parameters: { type: 'object', properties: {} },
+      })
+      .mockResolvedValueOnce({
+        id: 'exa_search',
+        name: 'Exa Search',
+        description: 'Search the web',
+        params: {},
+        parameters: { type: 'object', properties: {} },
+      })
+    const functionToolCost = { total: 0 }
+    const [functionSpec, searchSpec] = await buildSimToolSpecs(
+      executionContext(undefined),
+      [
+        { type: 'function', operation: 'execute', usageControl: 'auto' },
+        { type: 'exa', operation: 'exa_search', usageControl: 'auto' },
+      ],
+      functionToolCost
+    )
+
+    mockExecuteTool
+      .mockResolvedValueOnce({
+        success: true,
+        output: { result: 'ok', cost: { total: 0.125 } },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        output: { result: 'search result', cost: { total: 4 } },
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        output: { cost: { total: 8 } },
+        error: 'execution failed',
+      })
+
+    await functionSpec.execute({})
+    await searchSpec.execute({})
+    const failedResult = await functionSpec.execute({})
+
+    expect(functionToolCost.total).toBe(8.125)
+    expect(failedResult).toEqual({ text: 'execution failed', isError: true })
+  })
+
   it('projects named provenance in successful Sim tool output', async () => {
     mockToolAdapter({ apiKey: 'secret-value' })
     encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })

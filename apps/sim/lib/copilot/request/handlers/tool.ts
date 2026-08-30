@@ -1,4 +1,4 @@
-import { isBrowserToolName } from '@sim/browser-protocol'
+import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
@@ -45,7 +45,6 @@ import type {
 import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
-import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
@@ -274,7 +273,7 @@ export async function prePersistClientExecutableToolCall(
     // client tools retain the established "already dispatched" running state.
     // A gated tool is likewise pending: nothing has been dispatched yet.
     status:
-      gated || isBrowserToolName(data.toolName) || isTerminalToolName(data.toolName)
+      gated || isCurrentBrowserToolName(data.toolName) || isTerminalToolName(data.toolName)
         ? MothershipStreamV1AsyncToolRecordStatus.pending
         : MothershipStreamV1AsyncToolRecordStatus.running,
   }).catch((err) => {
@@ -807,14 +806,13 @@ async function dispatchToolExecution(
    */
   function waitForClientExecution(): Promise<AsyncCompletionSignal> {
     toolCall.status = 'executing'
-    const waitsForHuman = toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
-    const timeoutMs = waitsForHuman ? null : options.timeout || STREAM_TIMEOUT_MS
+    const timeoutMs = options.timeout || STREAM_TIMEOUT_MS
     return withCopilotSpan(
       TraceSpan.CopilotToolWaitForClientResult,
       {
         [TraceAttr.ToolName]: toolName,
         [TraceAttr.ToolCallId]: toolCallId,
-        ...(timeoutMs !== null ? { [TraceAttr.ToolTimeoutMs]: timeoutMs } : {}),
+        [TraceAttr.ToolTimeoutMs]: timeoutMs,
         ...(context.runId ? { [TraceAttr.RunId]: context.runId } : {}),
       },
       async (span) => {
@@ -823,7 +821,7 @@ async function dispatchToolExecution(
           const race = await raceWorkflowToolClientPickup({
             toolCallId,
             workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
-            timeoutMs: timeoutMs ?? STREAM_TIMEOUT_MS,
+            timeoutMs,
             graceMs: COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
             abortSignal: options.abortSignal,
             registry: execContext.resolvedSecretTraceRegistry,

@@ -548,6 +548,8 @@ describe('browser-agent screenshot capture', () => {
     expect(shot).toEqual({
       dataUrl: `data:image/jpeg;base64,${Buffer.from('resized').toString('base64')}`,
       scale: 0.5,
+      viewport: { width: 2048, height: 1024 },
+      imageSize: { width: 1024, height: 512 },
     })
   })
 
@@ -558,7 +560,12 @@ describe('browser-agent screenshot capture', () => {
 
     const image = vi.mocked(nativeImage.createFromBuffer).mock.results[0].value
     expect(image.resize).not.toHaveBeenCalled()
-    expect(shot).toEqual({ dataUrl: 'data:image/jpeg;base64,c2lt', scale: 0.5 })
+    expect(shot).toEqual({
+      dataUrl: 'data:image/jpeg;base64,c2lt',
+      scale: 0.5,
+      viewport: { width: 2048, height: 1024 },
+      imageSize: { width: 1024, height: 512 },
+    })
   })
 
   it('returns the raw capture when the image cannot be decoded', async () => {
@@ -566,6 +573,102 @@ describe('browser-agent screenshot capture', () => {
 
     const shot = await captureScreenshot(contents)
 
-    expect(shot).toEqual({ dataUrl: 'data:image/jpeg;base64,c2lt', scale: 0.5 })
+    expect(shot).toEqual({
+      dataUrl: 'data:image/jpeg;base64,c2lt',
+      scale: 0.5,
+      viewport: { width: 2048, height: 1024 },
+      imageSize: null,
+    })
   })
+
+  it('does not expose deprecated device-pixel metrics as a CSS viewport', async () => {
+    const { contents } = captureFixture({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+
+    const shot = await captureScreenshot(contents)
+
+    expect(shot.viewport).toBeNull()
+    expect(shot.imageSize).toEqual({ width: 1024, height: 512 })
+  })
+
+  it('accepts stable finite scroll offsets around the capture', async () => {
+    const { contents } = captureFixture({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({
+          cssLayoutViewport: {
+            clientWidth: 2048,
+            clientHeight: 1024,
+            pageX: 12,
+            pageY: 34,
+          },
+        })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+
+    await expect(captureScreenshot(contents)).resolves.toMatchObject({
+      viewport: { width: 2048, height: 1024 },
+      imageSize: { width: 1024, height: 512 },
+    })
+  })
+
+  it.each([
+    [
+      'dimensions',
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 } },
+      { cssLayoutViewport: { clientWidth: 1024, clientHeight: 512 } },
+    ],
+    [
+      'metric units',
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 } },
+      { layoutViewport: { clientWidth: 2048, clientHeight: 1024 } },
+    ],
+    [
+      'horizontal scroll offset',
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024, pageX: 0, pageY: 20 } },
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024, pageX: 10, pageY: 20 } },
+    ],
+    [
+      'vertical scroll offset',
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024, pageX: 10, pageY: 20 } },
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024, pageX: 10, pageY: 30 } },
+    ],
+    [
+      'offset validity',
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024, pageX: 0, pageY: 0 } },
+      {
+        cssLayoutViewport: {
+          clientWidth: 2048,
+          clientHeight: 1024,
+          pageX: 0,
+          pageY: Number.NaN,
+        },
+      },
+    ],
+    ['availability', {}, {}],
+  ])(
+    'rejects a capture when viewport %s change during CDP capture',
+    async (_label, before, after) => {
+      const { contents } = captureFixture({ width: 1024, height: 512 })
+      let metricsRead = 0
+      vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+        if (method === 'Page.getLayoutMetrics') {
+          metricsRead++
+          return Promise.resolve(metricsRead === 1 ? before : after)
+        }
+        if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+        return Promise.resolve(undefined)
+      })
+
+      await expect(captureScreenshot(contents)).rejects.toThrow(/viewport changed/)
+    }
+  )
 })

@@ -31,7 +31,7 @@ const {
   mockPrepareCopilotEnvironmentContext: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
-  mockPendingToolWaitBudgetMs: vi.fn((_toolCall?: { name?: string }) => 60_000 as number | null),
+  mockPendingToolWaitBudgetMs: vi.fn((_toolCall?: { name?: string; status?: string }) => 60_000),
   mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
   mockGetUserPermissionConfig: vi.fn(async () => null),
   mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
@@ -1995,114 +1995,6 @@ describe('runCopilotLifecycle', () => {
     expect(result.errors).toEqual(['The provider is overloaded'])
   })
 
-  it('keeps a human wait durable while force-failing a hung parallel tool', async () => {
-    vi.useFakeTimers()
-    try {
-      let releaseTakeover = () => {}
-      let lifecycleSettled = false
-      const fetchUrls: string[] = []
-      const executionContext: ExecutionContext = {
-        userId: 'user-1',
-        workflowId: '',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-      }
-
-      mockPendingToolWaitBudgetMs.mockImplementation((toolCall) =>
-        toolCall?.name === 'browser_request_takeover' ? null : 60_000
-      )
-      mockForceFailHungToolCall.mockImplementation(
-        async (toolCallId: string, context: StreamingContext, message: string) => {
-          const tool = context.toolCalls.get(toolCallId)
-          if (!tool) return
-          tool.status = MothershipStreamV1ToolOutcome.error
-          tool.endTime = Date.now()
-          tool.result = { success: false }
-          tool.error = message
-        }
-      )
-
-      mockRunStreamLoop.mockImplementationOnce(
-        async (
-          fetchUrl: string,
-          _fetchOptions: RequestInit,
-          context: StreamingContext
-        ): Promise<void> => {
-          fetchUrls.push(fetchUrl)
-          const takeoverId = 'tool-takeover'
-          context.toolCalls.set(takeoverId, {
-            id: takeoverId,
-            name: 'browser_request_takeover',
-            status: 'executing',
-          })
-          const takeover = new Promise<{ status: 'success' }>((resolve) => {
-            releaseTakeover = () => {
-              const tool = context.toolCalls.get(takeoverId)
-              if (tool) {
-                tool.status = MothershipStreamV1ToolOutcome.success
-                tool.endTime = Date.now()
-                tool.result = { success: true, output: { completed: true } }
-              }
-              context.pendingToolPromises.delete(takeoverId)
-              resolve({ status: 'success' })
-            }
-          })
-          context.pendingToolPromises.set(takeoverId, takeover)
-
-          context.toolCalls.set('tool-hung', {
-            id: 'tool-hung',
-            name: 'read',
-            status: 'executing',
-          })
-          context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
-          context.awaitingAsyncContinuation = {
-            checkpointId: 'ckpt-1',
-            pendingToolCallIds: [takeoverId, 'tool-hung'],
-          }
-        }
-      )
-      mockRunStreamLoop.mockImplementationOnce(
-        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
-          fetchUrls.push(fetchUrl)
-          context.accumulatedContent = 'Continued after browser control resumed.'
-        }
-      )
-
-      const lifecycle = runCopilotLifecycle(
-        { message: 'hello', messageId: 'stream-1' },
-        {
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          chatId: 'chat-1',
-          executionId: 'exec-1',
-          runId: 'run-1',
-          executionContext,
-        }
-      ).finally(() => {
-        lifecycleSettled = true
-      })
-
-      await vi.advanceTimersByTimeAsync(91_000)
-      expect(mockForceFailHungToolCall).toHaveBeenCalledTimes(1)
-      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
-        'tool-hung',
-        expect.anything(),
-        expect.stringContaining('hung')
-      )
-      expect(lifecycleSettled).toBe(false)
-      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
-
-      releaseTakeover()
-      await vi.advanceTimersByTimeAsync(0)
-      const result = await lifecycle
-
-      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
-      expect(result.success).toBe(true)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it('force-fails a hung tool promise and resumes with an error result instead of wedging', async () => {
     vi.useFakeTimers()
     try {
@@ -2199,6 +2091,380 @@ describe('runCopilotLifecycle', () => {
       vi.useRealTimers()
     }
   })
+
+  it('cancels promptly while a sequential tool promise remains unsettled', async () => {
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const fetchUrls: string[] = []
+      let capturedContext: StreamingContext | null = null
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+
+      mockPendingToolWaitBudgetMs.mockReturnValue(3_600_000)
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          capturedContext = context
+          context.toolCalls.set('tool-hung', {
+            id: 'tool-hung',
+            name: 'terminal',
+            status: 'awaiting_approval',
+          })
+          context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-hung'],
+          }
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-aborted-tool-wait' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+          abortSignal: controller.signal,
+        }
+      )
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockPendingToolWaitBudgetMs).toHaveBeenCalled()
+      controller.abort('user_stop')
+      await vi.advanceTimersByTimeAsync(0)
+      const result = await lifecycle
+
+      expect(result.success).toBe(false)
+      expect(result.cancelled).toBe(true)
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(capturedContext?.toolCalls.get('tool-hung')).toMatchObject({
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        error: 'Stopped by user',
+      })
+
+      await vi.advanceTimersByTimeAsync(3_700_000)
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('force-fails each hung tool on its own budget while awaiting a long approval', async () => {
+    vi.useFakeTimers()
+    try {
+      let releaseApproval = () => {}
+      let lifecycleSettled = false
+      const fetchUrls: string[] = []
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+
+      mockPendingToolWaitBudgetMs.mockImplementation((toolCall) =>
+        toolCall?.status === 'awaiting_approval' ? 3_600_000 : 60_000
+      )
+      mockForceFailHungToolCall.mockImplementation(
+        async (toolCallId: string, context: StreamingContext, message: string) => {
+          const tool = context.toolCalls.get(toolCallId)
+          if (!tool) return
+          tool.status = MothershipStreamV1ToolOutcome.error
+          tool.endTime = Date.now()
+          tool.result = { success: false }
+          tool.error = message
+        }
+      )
+
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          const approvalId = 'tool-approval'
+          context.toolCalls.set(approvalId, {
+            id: approvalId,
+            name: 'terminal',
+            status: 'awaiting_approval',
+          })
+          context.pendingToolPromises.set(
+            approvalId,
+            new Promise<{ status: 'success' }>((resolve) => {
+              releaseApproval = () => {
+                const tool = context.toolCalls.get(approvalId)
+                if (tool) {
+                  tool.status = MothershipStreamV1ToolOutcome.success
+                  tool.endTime = Date.now()
+                  tool.result = { success: true, output: { approved: true } }
+                }
+                context.pendingToolPromises.delete(approvalId)
+                resolve({ status: 'success' })
+              }
+            })
+          )
+          context.toolCalls.set('tool-hung', {
+            id: 'tool-hung',
+            name: 'read',
+            status: 'executing',
+          })
+          context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: [approvalId, 'tool-hung'],
+          }
+        }
+      )
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          context.accumulatedContent = 'Continued after approval.'
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+        }
+      ).finally(() => {
+        lifecycleSettled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(mockForceFailHungToolCall).toHaveBeenCalledTimes(1)
+      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
+        'tool-hung',
+        expect.anything(),
+        expect.stringContaining('hung')
+      )
+      expect(lifecycleSettled).toBe(false)
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+
+      releaseApproval()
+      await vi.advanceTimersByTimeAsync(0)
+      const result = await lifecycle
+
+      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+      expect(result.success).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let a stale watchdog fail or delete a replacement promise', async () => {
+    vi.useFakeTimers()
+    try {
+      let capturedContext: StreamingContext | null = null
+      let releaseReplacement = () => {}
+      let lifecycleSettled = false
+      const fetchUrls: string[] = []
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          capturedContext = context
+          context.toolCalls.set('tool-replaced', {
+            id: 'tool-replaced',
+            name: 'read',
+            status: 'executing',
+          })
+          context.pendingToolPromises.set('tool-replaced', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-replaced'],
+          }
+        }
+      )
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          context.accumulatedContent = 'Continued after the replacement completed.'
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+        }
+      ).finally(() => {
+        lifecycleSettled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(0)
+      if (!capturedContext) throw new Error('Initial stream did not establish its context')
+      const context: StreamingContext = capturedContext
+      const replacement = new Promise<{ status: 'success' }>((resolve) => {
+        releaseReplacement = () => {
+          const tool = context.toolCalls.get('tool-replaced')
+          if (tool) {
+            tool.status = MothershipStreamV1ToolOutcome.success
+            tool.endTime = Date.now()
+            tool.result = { success: true, output: { replacement: true } }
+          }
+          context.pendingToolPromises.delete('tool-replaced')
+          resolve({ status: 'success' })
+        }
+      })
+      context.pendingToolPromises.set('tool-replaced', replacement)
+
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(context.pendingToolPromises.get('tool-replaced')).toBe(replacement)
+      expect(lifecycleSettled).toBe(false)
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+
+      releaseReplacement()
+      await vi.advanceTimersByTimeAsync(0)
+      const result = await lifecycle
+
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+      expect(result.success).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds a replaced short promise without waiting for a parallel long approval', async () => {
+    vi.useFakeTimers()
+    try {
+      let capturedContext: StreamingContext | null = null
+      let releaseApproval = () => {}
+      let lifecycleSettled = false
+      const fetchUrls: string[] = []
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+
+      mockPendingToolWaitBudgetMs.mockImplementation((toolCall) =>
+        toolCall?.status === 'awaiting_approval' ? 3_600_000 : 60_000
+      )
+      mockForceFailHungToolCall.mockImplementation(
+        async (toolCallId: string, context: StreamingContext, message: string) => {
+          const tool = context.toolCalls.get(toolCallId)
+          if (!tool) return
+          tool.status = MothershipStreamV1ToolOutcome.error
+          tool.endTime = Date.now()
+          tool.result = { success: false }
+          tool.error = message
+        }
+      )
+
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          capturedContext = context
+          context.toolCalls.set('tool-approval', {
+            id: 'tool-approval',
+            name: 'terminal',
+            status: 'awaiting_approval',
+          })
+          context.pendingToolPromises.set(
+            'tool-approval',
+            new Promise<{ status: 'success' }>((resolve) => {
+              releaseApproval = () => {
+                const tool = context.toolCalls.get('tool-approval')
+                if (tool) {
+                  tool.status = MothershipStreamV1ToolOutcome.success
+                  tool.endTime = Date.now()
+                  tool.result = { success: true, output: { approved: true } }
+                }
+                context.pendingToolPromises.delete('tool-approval')
+                resolve({ status: 'success' })
+              }
+            })
+          )
+          context.toolCalls.set('tool-replaced', {
+            id: 'tool-replaced',
+            name: 'read',
+            status: 'executing',
+          })
+          context.pendingToolPromises.set('tool-replaced', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-approval', 'tool-replaced'],
+          }
+        }
+      )
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          context.accumulatedContent = 'Continued after approval.'
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+        }
+      ).finally(() => {
+        lifecycleSettled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(0)
+      if (!capturedContext) throw new Error('Initial stream did not establish its context')
+      const context: StreamingContext = capturedContext
+      context.pendingToolPromises.set('tool-replaced', new Promise(() => {}))
+
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(lifecycleSettled).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(90_000)
+      expect(mockForceFailHungToolCall).toHaveBeenCalledTimes(1)
+      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
+        'tool-replaced',
+        expect.anything(),
+        expect.stringContaining('hung')
+      )
+      expect(lifecycleSettled).toBe(false)
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+
+      releaseApproval()
+      await vi.advanceTimersByTimeAsync(0)
+      const result = await lifecycle
+
+      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+      expect(result.success).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('completes the turn when a pending subagent tool has no result', async () => {
     // A tool that never reached a terminal state used to throw
     // "Cannot resume subagent chain ...: missing result for tool call ...",
@@ -2248,6 +2514,57 @@ describe('runCopilotLifecycle', () => {
       }),
     ])
     expect(result.success).toBe(true)
+  })
+
+  it('cancels promptly while a per-subagent tool promise remains unsettled', async () => {
+    const controller = new AbortController()
+    const addAbortListener = vi.spyOn(controller.signal, 'addEventListener')
+    const fetchUrls: string[] = []
+    let capturedContext: StreamingContext | null = null
+    mockRunStreamLoop.mockImplementationOnce(
+      async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+        fetchUrls.push(fetchUrl)
+        capturedContext = context
+        context.toolCalls.set('tool-hung', {
+          id: 'tool-hung',
+          name: 'read',
+          status: 'executing',
+        })
+        context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'cp-root',
+          pendingToolCallIds: ['tool-hung'],
+          frames: [
+            {
+              parentToolCallId: 'subagent-file',
+              parentToolName: 'file',
+              pendingToolIds: ['tool-hung'],
+              checkpointId: 'cp-file',
+            },
+          ],
+        }
+      }
+    )
+
+    const lifecycle = runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-aborted-subagent-wait' },
+      { userId: 'user-1', workspaceId: 'ws-1', abortSignal: controller.signal }
+    )
+
+    await vi.waitFor(() => {
+      expect(addAbortListener).toHaveBeenCalledWith('abort', expect.any(Function), { once: true })
+    })
+    controller.abort('user_stop')
+    const result = await lifecycle
+
+    expect(result.success).toBe(false)
+    expect(result.cancelled).toBe(true)
+    expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+    expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+    expect(capturedContext?.toolCalls.get('tool-hung')).toMatchObject({
+      status: MothershipStreamV1ToolOutcome.cancelled,
+      error: 'Stopped by user',
+    })
   })
 
   it('classifies a Stop landing during a subagent fanout as cancelled', async () => {

@@ -4,9 +4,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
-const { mockWithLockedTable, mockGetTableById } = vi.hoisted(() => ({
+const { mockWithLockedTable, mockGetTableById, mockAssertTableRowTtlEnabled } = vi.hoisted(() => ({
   mockWithLockedTable: vi.fn(),
   mockGetTableById: vi.fn(),
+  mockAssertTableRowTtlEnabled: vi.fn(),
 }))
 
 vi.mock('@/lib/table/service', () => ({
@@ -19,6 +20,9 @@ vi.mock('@/lib/table/mutation-locks', () => ({
 }))
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   updateTableRowsWithDerivedSecretProvenance: vi.fn(),
+}))
+vi.mock('@/lib/table/ttl-availability', () => ({
+  assertTableRowTtlEnabled: mockAssertTableRowTtlEnabled,
 }))
 vi.mock('@/lib/table/workflow-columns', () => ({
   runWorkflowColumn: vi.fn().mockResolvedValue(undefined),
@@ -34,7 +38,11 @@ vi.mock('@/lib/table/schema-invariants', () => ({
 }))
 
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { addWorkflowGroup } from '@/lib/table/workflow-groups/service'
+import {
+  addWorkflowGroup,
+  addWorkflowGroupOutput,
+  updateWorkflowGroup,
+} from '@/lib/table/workflow-groups/service'
 
 function groupAt(index: number): WorkflowGroup {
   return {
@@ -73,6 +81,7 @@ function tableWithGroups(count: number): TableDefinition {
 describe('addWorkflowGroup group ceiling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
   })
 
   function add(existingGroups: number) {
@@ -106,5 +115,59 @@ describe('addWorkflowGroup group ceiling', () => {
 
   it('allows the create that lands exactly on the ceiling', async () => {
     await expect(add(TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE - 1)).resolves.toBeDefined()
+  })
+})
+
+describe('workflow group TTL availability', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('Expiration columns are not enabled'))
+  })
+
+  it.each([
+    [
+      'group creation',
+      () =>
+        addWorkflowGroup(
+          {
+            tableId: 'table-1',
+            workspaceId: 'workspace-1',
+            group: groupAt(1),
+            outputColumns: [{ name: 'expires_at', type: 'ttl' }],
+          } as Parameters<typeof addWorkflowGroup>[0],
+          'request-1'
+        ),
+    ],
+    [
+      'group update',
+      () =>
+        updateWorkflowGroup(
+          {
+            tableId: 'table-1',
+            workspaceId: 'workspace-1',
+            groupId: 'group-1',
+            newOutputColumns: [{ name: 'expires_at', type: 'ttl' }],
+          } as Parameters<typeof updateWorkflowGroup>[0],
+          'request-1'
+        ),
+    ],
+    [
+      'single output addition',
+      () =>
+        addWorkflowGroupOutput(
+          {
+            tableId: 'table-1',
+            workspaceId: 'workspace-1',
+            groupId: 'group-1',
+            blockId: 'block-1',
+            path: 'expiresAt',
+            resolvedOutput: { workflowId: 'workflow-1', columnType: 'ttl', order: [] },
+          },
+          'request-1'
+        ),
+    ],
+  ])('rejects TTL introduction through %s while disabled', async (_label, introduceTtl) => {
+    await expect(introduceTtl()).rejects.toThrow('Expiration columns are not enabled')
+    expect(mockWithLockedTable).not.toHaveBeenCalled()
   })
 })

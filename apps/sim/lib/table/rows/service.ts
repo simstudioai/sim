@@ -51,6 +51,7 @@ import {
 } from '@/lib/table/rows/executions'
 import {
   acquireRowOrderLock,
+  type DeletedTableRow,
   deleteOrderedRow,
   deleteOrderedRowsByIds,
   insertOrderedRow,
@@ -109,6 +110,24 @@ import {
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableRowsService')
+
+async function dispatchDeleteTriggers(
+  table: TableDefinition,
+  deletedRows: DeletedTableRow[],
+  requestId: string
+): Promise<void> {
+  if (deletedRows.length === 0) return
+  await fireTableTrigger(
+    table.id,
+    table.workspaceId,
+    table.name,
+    'delete',
+    deletedRows,
+    null,
+    table.schema,
+    requestId
+  )
+}
 
 /**
  * Inserts a single row into a table.
@@ -207,6 +226,7 @@ export async function insertRow(
 
   void fireTableTrigger(
     data.tableId,
+    table.workspaceId,
     table.name,
     'insert',
     [insertedRow],
@@ -383,7 +403,16 @@ export function dispatchAfterBatchInsert(
   requestId: string,
   actorUserId?: string | null
 ): void {
-  void fireTableTrigger(table.id, table.name, 'insert', result, null, table.schema, requestId)
+  void fireTableTrigger(
+    table.id,
+    table.workspaceId,
+    table.name,
+    'insert',
+    result,
+    null,
+    table.schema,
+    requestId
+  )
   // Scope to the newly-inserted row ids so the dispatcher doesn't walk every
   // row in the table. After the sidecar migration, all existing rows have
   // zero entries → `mode:'new'`'s `NOT EXISTS` filter would otherwise include
@@ -865,6 +894,7 @@ export async function upsertRow(
     })
     void fireTableTrigger(
       data.tableId,
+      table.workspaceId,
       table.name,
       'insert',
       [result.row],
@@ -876,6 +906,7 @@ export async function upsertRow(
     const oldRows = new Map([[result.row.id, result.previousData]])
     void fireTableTrigger(
       data.tableId,
+      table.workspaceId,
       table.name,
       'update',
       [result.row],
@@ -1801,6 +1832,7 @@ export async function updateRow(
   const oldRows = new Map([[data.rowId, existingRow.data as RowData]])
   void fireTableTrigger(
     data.tableId,
+    table.workspaceId,
     table.name,
     'update',
     [updatedRow],
@@ -1886,6 +1918,7 @@ export async function deleteRow(
   if (!deleted) throw new OrchestrationError('not_found', 'Row not found')
 
   logger.info(`[${requestId}] Deleted row ${rowId} from table ${table.id}`)
+  await dispatchDeleteTriggers(table, [deleted], requestId)
 }
 
 type BulkUpdateMatch = { id: string; data: RowData }
@@ -2061,6 +2094,7 @@ function dispatchBulkUpdateEffects(
   }))
   void fireTableTrigger(
     table.id,
+    table.workspaceId,
     table.name,
     'update',
     updatedRows,
@@ -2483,6 +2517,7 @@ export async function batchUpdateRows(
   if (updatedRowsForTrigger.length > 0) {
     void fireTableTrigger(
       data.tableId,
+      table.workspaceId,
       table.name,
       'update',
       updatedRowsForTrigger,
@@ -2573,7 +2608,7 @@ export async function deleteRowsByFilter(
   )
 
   const limit = data.limit
-  const deletedRows: { id: string }[] = []
+  const deletedRowIds: string[] = []
   if (limit === undefined) {
     const cutoff = new Date()
     let afterId: string | undefined
@@ -2589,14 +2624,14 @@ export async function deleteRowsByFilter(
       if (page.length === 0) break
       const nextAfterId = page[page.length - 1]
       for (let index = 0; index < page.length; index += TABLE_LIMITS.DELETE_BATCH_SIZE) {
-        deletedRows.push(
-          ...(await deleteOrderedRowsByIds({
-            tableId: table.id,
-            workspaceId: table.workspaceId,
-            rowIds: page.slice(index, index + TABLE_LIMITS.DELETE_BATCH_SIZE),
-            proof,
-          }))
-        )
+        const deletedIds = await deleteOrderedRowsByIds({
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          rowIds: page.slice(index, index + TABLE_LIMITS.DELETE_BATCH_SIZE),
+          proof,
+          onDeleted: (rows) => dispatchDeleteTriggers(table, rows, requestId),
+        })
+        deletedRowIds.push(...deletedIds)
       }
       afterId = nextAfterId
       if (page.length < TABLE_LIMITS.DELETE_PAGE_SIZE) break
@@ -2612,19 +2647,18 @@ export async function deleteRowsByFilter(
     )
     const rowIds = matchingRows.map((row) => row.id)
     if (rowIds.length > 0) {
-      deletedRows.push(
-        ...(await deleteOrderedRowsByIds({
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          rowIds,
-          proof,
-        }))
-      )
+      const deletedIds = await deleteOrderedRowsByIds({
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        rowIds,
+        proof,
+        onDeleted: (rows) => dispatchDeleteTriggers(table, rows, requestId),
+      })
+      deletedRowIds.push(...deletedIds)
     }
   }
 
-  if (deletedRows.length === 0) return { affectedCount: 0, affectedRowIds: [] }
-  const deletedRowIds = deletedRows.map((row) => row.id)
+  if (deletedRowIds.length === 0) return { affectedCount: 0, affectedRowIds: [] }
 
   logger.info(`[${requestId}] Deleted ${deletedRowIds.length} rows from table ${table.id}`)
 
@@ -2650,19 +2684,18 @@ export async function deleteRowsByIds(
 
   const uniqueRequestedRowIds = Array.from(new Set(data.rowIds))
 
-  const deletedRows = await deleteOrderedRowsByIds({
+  const deletedIds = await deleteOrderedRowsByIds({
     tableId: data.tableId,
     workspaceId: data.workspaceId,
     rowIds: uniqueRequestedRowIds,
     proof,
+    onDeleted: (rows) => dispatchDeleteTriggers(table, rows, requestId),
   })
 
-  const deletedIds = deletedRows.map((r) => r.id)
   const deletedIdSet = new Set(deletedIds)
   const missingRowIds = uniqueRequestedRowIds.filter((id) => !deletedIdSet.has(id))
 
   logger.info(`[${requestId}] Deleted ${deletedIds.length} rows by ID from table ${data.tableId}`)
-
   return {
     deletedCount: deletedIds.length,
     deletedRowIds: deletedIds,

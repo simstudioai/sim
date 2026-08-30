@@ -20,7 +20,10 @@ vi.mock('@/lib/resource-policies/repository', () => ({
   requireResourcePolicy: mocks.requirePolicy,
 }))
 
-import { requireCredentialGroupCredentialAccess } from '@/lib/credential-groups/application/authorization'
+import {
+  requireCredentialGroupCredentialAccess,
+  requireCredentialGroupWorkflowActor,
+} from '@/lib/credential-groups/application/authorization'
 
 const context = {
   workspaceId: 'workspace-1',
@@ -214,5 +217,62 @@ describe('requireCredentialGroupCredentialAccess', () => {
 
     await expect(requireAccess(executorPrincipal())).rejects.toThrow('Malformed resource policy')
     expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
+  })
+})
+
+describe('requireCredentialGroupWorkflowActor', () => {
+  it('returns the external subject a Slack-triggered run acts as', () => {
+    expect(requireCredentialGroupWorkflowActor(executorPrincipal())).toEqual({
+      kind: 'external_user',
+      provider: 'slack',
+      tenantId: 'T123',
+      subjectId: 'U123',
+    })
+  })
+
+  it('returns no subject for an actorless deployed run', () => {
+    const principal = executorPrincipal()
+    principal.delegationContext!.principal = {
+      kind: 'system',
+      serviceId: 'schedule',
+      workspaceId: 'workspace-1',
+      workflowId: 'root-workflow',
+    }
+
+    expect(requireCredentialGroupWorkflowActor(principal)).toBeNull()
+  })
+
+  it('returns the Sim subject a session-actor run acts as', () => {
+    const principal = executorPrincipal()
+    principal.subjectUserId = 'user-1'
+    principal.delegationContext!.principal = {
+      kind: 'session',
+      userId: 'user-1',
+      sessionId: 'session-1',
+    }
+
+    expect(requireCredentialGroupWorkflowActor(principal)).toEqual({
+      kind: 'sim_user',
+      userId: 'user-1',
+    })
+  })
+
+  it('rejects a delegation whose asserted subject contradicts its run', () => {
+    const invented = executorPrincipal()
+    invented.subjectUserId = 'invented-user'
+    expect(() => requireCredentialGroupWorkflowActor(invented)).toThrow(
+      'Credential Group actor access required'
+    )
+
+    const mismatched = executorPrincipal()
+    mismatched.subjectUserId = 'user-2'
+    mismatched.delegationContext!.principal = {
+      kind: 'session',
+      userId: 'user-1',
+      sessionId: 'session-1',
+    }
+    expect(() => requireCredentialGroupWorkflowActor(mismatched)).toThrow(
+      'Credential Group actor access required'
+    )
   })
 })

@@ -489,6 +489,40 @@ describe('browser panel transport', () => {
     }
   })
 
+  it('cancels the exact native tool when the renderer response watchdog expires', async () => {
+    vi.useFakeTimers()
+    let settleNative: (response: { ok: boolean; error?: string }) => void = () => {}
+    try {
+      executeTool.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            settleNative = resolve
+          })
+      )
+      const onCancel = vi.fn()
+      const execution = executeBrowserTool(
+        'tool-timeout',
+        'browser_snapshot',
+        {},
+        1_000,
+        'chat-timeout',
+        onCancel
+      )
+      const timedOut = expect(execution).rejects.toThrow(
+        'The browser did not respond within 1000ms. Its outcome is unknown'
+      )
+
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await timedOut
+      expect(cancelTool).toHaveBeenCalledWith('tool-timeout', 'chat-timeout')
+      expect(onCancel).not.toHaveBeenCalled()
+    } finally {
+      settleNative({ ok: false, error: 'cancelled' })
+      vi.useRealTimers()
+    }
+  })
+
   it('starts the native scope boundary without waiting for exact cancellation', async () => {
     let settleNative: (response: { ok: boolean; error?: string }) => void = () => {}
     let settleExactCancellation: (cancelled: boolean) => void = () => {}

@@ -53,6 +53,8 @@ interface ResolveCellRenderInput {
   /** Current workspace id — a URL pointing to a resource in this workspace
    *  renders as a tagged-resource chip rather than a plain external link. */
   currentWorkspaceId?: string
+  /** Effective viewer timezone for instant-like column presentations. */
+  timeZone?: string
 }
 
 export function resolveCellRender({
@@ -62,6 +64,7 @@ export function resolveCellRender({
   waitingOnLabels,
   isEnrichmentOutput,
   currentWorkspaceId,
+  timeZone,
 }: ResolveCellRenderInput): CellRenderKind {
   const isNull = value === null || value === undefined
   const isEmpty = isNull || value === ''
@@ -137,7 +140,10 @@ export function resolveCellRender({
     return { kind: 'text', text: columnTypeOf(column).formatForDisplay(value, column) }
   }
   if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
-  if (column.type === 'date') return { kind: 'date', text: String(value) }
+  const definition = columnTypeOf(column)
+  if (definition.editor === 'date') {
+    return { kind: 'date', text: definition.formatForInput(value, column, { timezone: timeZone }) }
+  }
   if (column.type === 'string') {
     const text = stringifyValue(value)
     return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'text', text }

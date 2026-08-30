@@ -382,6 +382,71 @@ const SCREENSHOT_CAPTURE_QUALITY = 90
 interface CdpViewport {
   clientWidth: number
   clientHeight: number
+  pageX?: number
+  pageY?: number
+}
+
+interface ScreenshotViewportMetrics extends ScreenshotSize {
+  pageX: number | null
+  pageY: number | null
+  unit: 'css' | 'device'
+}
+
+interface ScreenshotSize {
+  width: number
+  height: number
+}
+
+export interface ScreenshotCapture {
+  dataUrl: string
+  scale: number
+  viewport: ScreenshotSize | null
+  imageSize: ScreenshotSize | null
+}
+
+function screenshotViewportMetrics(
+  metrics: {
+    cssLayoutViewport?: CdpViewport
+    layoutViewport?: CdpViewport
+  } | null
+): ScreenshotViewportMetrics | null {
+  const viewport = metrics?.cssLayoutViewport ?? metrics?.layoutViewport
+  const width = viewport?.clientWidth ?? 0
+  const height = viewport?.clientHeight ?? 0
+  if (width <= 0 || height <= 0) return null
+  const pageX = viewport?.pageX
+  const pageY = viewport?.pageY
+  const hasPagePosition = pageX !== undefined || pageY !== undefined
+  if (
+    hasPagePosition &&
+    (pageX === undefined ||
+      pageY === undefined ||
+      !Number.isFinite(pageX) ||
+      !Number.isFinite(pageY))
+  ) {
+    return null
+  }
+  return {
+    width,
+    height,
+    pageX: pageX ?? null,
+    pageY: pageY ?? null,
+    unit: metrics?.cssLayoutViewport ? 'css' : 'device',
+  }
+}
+
+function sameScreenshotViewport(
+  before: ScreenshotViewportMetrics | null,
+  after: ScreenshotViewportMetrics | null
+): boolean {
+  if (!before || !after) return false
+  return (
+    before.unit === after.unit &&
+    before.width === after.width &&
+    before.height === after.height &&
+    before.pageX === after.pageX &&
+    before.pageY === after.pageY
+  )
 }
 
 /**
@@ -401,17 +466,18 @@ interface CdpViewport {
  * (cssX = imageX / scale) — including on a 2x display, where an unclipped
  * capture arrives at device resolution and this is what brings it back down.
  */
-export async function captureScreenshot(
-  contents: WebContents
-): Promise<{ dataUrl: string; scale: number }> {
+export async function captureScreenshot(contents: WebContents): Promise<ScreenshotCapture> {
   const metrics = await send<{
     cssLayoutViewport?: CdpViewport
     layoutViewport?: CdpViewport
   }>(contents, 'Page.getLayoutMetrics').catch(() => null)
 
-  const viewport = metrics?.cssLayoutViewport ?? metrics?.layoutViewport
-  const width = viewport?.clientWidth ?? 0
-  const height = viewport?.clientHeight ?? 0
+  const captureViewport = screenshotViewportMetrics(metrics)
+  const width = captureViewport?.width ?? 0
+  const height = captureViewport?.height ?? 0
+  const cssWidth = metrics?.cssLayoutViewport?.clientWidth ?? 0
+  const cssHeight = metrics?.cssLayoutViewport?.clientHeight ?? 0
+  const cssViewport = cssWidth > 0 && cssHeight > 0 ? { width: cssWidth, height: cssHeight } : null
   const scale =
     width > 0 && height > 0 ? Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(width, height)) : 1
 
@@ -419,26 +485,32 @@ export async function captureScreenshot(
     format: 'jpeg',
     quality: SCREENSHOT_CAPTURE_QUALITY,
   })
+  const metricsAfterCapture = await send<{
+    cssLayoutViewport?: CdpViewport
+    layoutViewport?: CdpViewport
+  }>(contents, 'Page.getLayoutMetrics').catch(() => null)
+  if (!sameScreenshotViewport(captureViewport, screenshotViewportMetrics(metricsAfterCapture))) {
+    throw new Error('The page viewport changed or could not be verified during screenshot capture')
+  }
   const captured = `data:image/jpeg;base64,${result.data}`
 
   const targetWidth = Math.round(width * scale)
   const targetHeight = Math.round(height * scale)
-  // Without layout metrics there is no CSS frame of reference to resize
-  // against, so the raw capture is the honest answer — the same fallback the
-  // clipped path took.
-  if (targetWidth <= 0 || targetHeight <= 0) return { dataUrl: captured, scale }
-
   const image = nativeImage.createFromBuffer(Buffer.from(result.data, 'base64'))
   const size = image.isEmpty() ? { width: 0, height: 0 } : image.getSize()
-  if (size.width === 0 || size.height === 0) return { dataUrl: captured, scale }
+  if (size.width === 0 || size.height === 0) {
+    return { dataUrl: captured, scale, viewport: cssViewport, imageSize: null }
+  }
   if (size.width === targetWidth && size.height === targetHeight) {
-    return { dataUrl: captured, scale }
+    return { dataUrl: captured, scale, viewport: cssViewport, imageSize: size }
   }
 
   const resized = image.resize({ width: targetWidth, height: targetHeight, quality: 'good' })
   return {
     dataUrl: `data:image/jpeg;base64,${resized.toJPEG(SCREENSHOT_QUALITY).toString('base64')}`,
     scale,
+    viewport: cssViewport,
+    imageSize: { width: targetWidth, height: targetHeight },
   }
 }
 

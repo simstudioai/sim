@@ -26,6 +26,8 @@ export interface HTTPError extends Error {
   status?: number
   statusText?: string
   retryAfterMs?: number
+  /** Provider-normalized signal for throttles that do not carry standard HTTP evidence. */
+  rateLimited?: boolean
   /**
    * Response headers carried onto the error so the retry loop can re-evaluate
    * rate-limit evidence (`isRetryableError` runs again on the thrown error).
@@ -225,6 +227,32 @@ export function hasRateLimitEvidence(headers: HeaderReader | undefined): boolean
   if (!headers) return false
   if (headers.get('retry-after')) return true
   return RATE_LIMIT_REMAINING_HEADERS.some((name) => headers.get(name) === '0')
+}
+
+/**
+ * Reports whether an error or one of its causes is a structured HTTP rate-limit
+ * rejection. A bare 403 is intentionally excluded because it normally means the
+ * caller lacks access; GitHub identifies the rate-limit form through response
+ * headers, while 429 is unambiguous on its own.
+ */
+export function isRateLimitError(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  let current = error
+
+  while (isRetryableErrorType(current) && !seen.has(current) && seen.size < 10) {
+    seen.add(current)
+    if ((current as HTTPError).rateLimited === true) return true
+    if (
+      hasStatus(current) &&
+      (current.status === 429 ||
+        (current.status === 403 && hasRateLimitEvidence(readHeaders(current))))
+    ) {
+      return true
+    }
+    current = current instanceof Error ? current.cause : undefined
+  }
+
+  return false
 }
 
 function parseRateLimitResetMs(value: string, nowMs: number): number | undefined {

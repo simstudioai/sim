@@ -12,13 +12,12 @@ const PERMISSION_REASONS = new Set([
 const POLICY_REASONS = new Set(['domainPolicy', 'download_restricted_for_revision'])
 const UNSUPPORTED_EXPORT_REASONS = new Set(['fileNotDownloadable', 'fileNotExportable'])
 const QUOTA_REASONS = new Set(['dailyLimitExceeded', 'quotaExceeded'])
-const TRANSIENT_REASONS = new Set([
-  'backendError',
-  'internalError',
+const RATE_LIMIT_REASONS = new Set([
   'rateLimitExceeded',
   'sharingRateLimitExceeded',
   'userRateLimitExceeded',
 ])
+const TRANSIENT_REASONS = new Set(['backendError', 'internalError', ...RATE_LIMIT_REASONS])
 
 export type GoogleDriveErrorKind =
   | 'authorization'
@@ -99,15 +98,22 @@ function classifyGoogleDriveError(
 
 export class GoogleDriveApiError extends Error {
   retryAfterMs?: number
+  readonly reasons: readonly string[]
+  readonly kind: GoogleDriveErrorKind
+  readonly rateLimited: boolean
 
   constructor(
     readonly status: number,
-    readonly reasons: readonly string[],
-    readonly kind: GoogleDriveErrorKind
+    normalizedReasons: readonly string[]
   ) {
-    const reasonSuffix = reasons.length > 0 ? ` (${reasons.join(', ')})` : ''
+    const diagnosticReasons = normalizedReasons.slice(0, GOOGLE_ERROR_REASON_MAX_COUNT)
+    const reasonSuffix = diagnosticReasons.length > 0 ? ` (${diagnosticReasons.join(', ')})` : ''
     super(`Google Drive API request failed with HTTP ${status}${reasonSuffix}`)
     this.name = 'GoogleDriveApiError'
+    this.reasons = diagnosticReasons
+    this.kind = classifyGoogleDriveError(status, normalizedReasons)
+    this.rateLimited =
+      status === 429 || normalizedReasons.some((reason) => RATE_LIMIT_REASONS.has(reason))
   }
 }
 
@@ -130,13 +136,8 @@ export async function readGoogleDriveApiError(response: Response): Promise<Googl
 
   const entries = parsedBody?.error?.errors ?? []
   const rawReasons = [...new Set(entries.flatMap((entry) => (entry.reason ? [entry.reason] : [])))]
-  const reasons = [...new Set(rawReasons.flatMap((reason) => normalizeReason(reason) ?? []))].slice(
-    0,
-    GOOGLE_ERROR_REASON_MAX_COUNT
-  )
-  return new GoogleDriveApiError(
-    response.status,
-    reasons,
-    classifyGoogleDriveError(response.status, rawReasons)
-  )
+  const normalizedReasons = [
+    ...new Set(rawReasons.flatMap((reason) => normalizeReason(reason) ?? [])),
+  ]
+  return new GoogleDriveApiError(response.status, normalizedReasons)
 }

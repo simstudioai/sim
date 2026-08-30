@@ -72,7 +72,8 @@ interface IssuedInvitation {
 }
 
 export interface PublicCredentialGroupEnrollment {
-  inviterName: string
+  /** Null when the invitation was issued by a workflow or a since-deleted user. */
+  inviterName: string | null
   workspaceName: string
   credentialGroupName: string
   options: Array<
@@ -426,8 +427,10 @@ async function issueInvitation(
 
 async function sendInvitation(
   context: InvitationContext,
-  userId: string,
-  inviterName: string,
+  /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
+  userId: string | undefined,
+  /** Absent when a workflow issued the invitation — the copy drops the inviter. */
+  inviterName: string | undefined,
   email: string,
   options: SendInvitationOptions
 ): Promise<CredentialGroupEnrollmentRecord> {
@@ -658,8 +661,10 @@ export async function loadCredentialGroupInviterIdentity(
 export async function inviteCredentialGroupEnrollment(
   workspaceId: string,
   groupId: string,
-  userId: string,
-  inviterName: string,
+  /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
+  userId: string | undefined,
+  /** See {@link sendInvitation}: absent for a workflow-issued invitation. */
+  inviterName: string | undefined,
   email: string
 ): Promise<CredentialGroupEnrollmentRecord> {
   const context = await getInvitationContext(workspaceId, groupId)
@@ -789,7 +794,7 @@ async function buildPublicCredentialGroupEnrollment(
     )
 
   return {
-    inviterName: row.inviterName ?? 'A workspace admin',
+    inviterName: row.inviterName,
     workspaceName: row.workspaceName,
     credentialGroupName: row.groupName,
     options: await Promise.all(
