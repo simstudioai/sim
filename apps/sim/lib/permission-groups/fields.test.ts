@@ -326,6 +326,22 @@ describe('permission group config key coverage', () => {
     )
   })
 
+  /**
+   * Both keys gate an action that names no workspace, so both are read from the
+   * organization's default group only — a group scoped to specific workspaces
+   * cannot deny an account-level login or a workspace that does not exist yet.
+   * The editor still offers the checkbox on such a group, so the hint is the
+   * only place an admin learns where it applies; it shipped saying nothing.
+   */
+  it.each(['disableWorkspaceCreation', 'disableCliAccess'] as const)(
+    "tells an admin that %s is read from the organization's default group",
+    (configKey) => {
+      const feature = PLATFORM_FEATURES.find((entry) => entry.configKey === configKey)
+
+      expect(feature?.hint).toContain("organization's default group")
+    }
+  )
+
   it('gives every platform feature a unique id', () => {
     const ids = PLATFORM_FEATURES.map((feature) => feature.id)
     expect(new Set(ids).size).toBe(ids.length)
