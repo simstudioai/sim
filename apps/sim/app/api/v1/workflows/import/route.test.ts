@@ -214,6 +214,7 @@ describe('POST /api/v1/workflows/import', () => {
       expect.anything(),
       'user-1',
       WORKSPACE_ID,
+      'none',
       'write'
     )
     expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()

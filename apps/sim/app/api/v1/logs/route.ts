@@ -42,7 +42,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const params = parsed.data.query
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      params.workspaceId,
+      'none',
+      'read'
+    )
     if (accessError) return accessError
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {

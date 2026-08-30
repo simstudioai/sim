@@ -229,6 +229,7 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
       expect.objectContaining({ allowed: true }),
       'user-1',
       'ws-1',
+      'deploy.api',
       'admin'
     )
     expect(mockPerformActivateVersion).not.toHaveBeenCalled()

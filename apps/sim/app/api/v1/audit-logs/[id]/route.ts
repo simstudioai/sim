@@ -31,6 +31,12 @@ const logger = createLogger('V1AuditLogDetailAPI')
 
 export const revalidate = 0
 
+/**
+ * GET /api/v1/audit-logs/[id] — Read one audit log entry.
+ *
+ * permission-group-exempt: none — same as the list. `audit_logs.read_detail` is
+ * an organization-admin operation and declares no capability.
+ */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)

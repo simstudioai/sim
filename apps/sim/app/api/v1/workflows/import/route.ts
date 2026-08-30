@@ -62,7 +62,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       folderId,
     })
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      workspaceId,
+      'none',
+      'write'
+    )
     if (accessError) return accessError
 
     const result = await importWorkflowIntoWorkspace({
