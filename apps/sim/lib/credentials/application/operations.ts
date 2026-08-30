@@ -1,5 +1,9 @@
 import type { ApplicationOperation } from '@/lib/core/application'
 import { defineWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
+import {
+  CAPABILITY_RULES,
+  type StaticPermissionGroupCapability,
+} from '@/lib/permission-groups/capabilities'
 import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
 
 export type CredentialRole = 'member' | 'admin'
@@ -183,22 +187,81 @@ export const credentialOperations = {
   }),
 } as const
 
+/**
+ * A credential operation whose resource is the acting user's own account rather
+ * than a workspace, so it carries no role and no workspace-key policy.
+ *
+ * It still carries a `capability`, and required rather than optional for the
+ * same reason `defineWorkspaceOperation` requires one: an absent field cannot be
+ * told apart from an unreviewed one. Listing and disconnecting a user's OAuth
+ * connections is exactly what `hideIntegrationsTab` claims to revoke, and these
+ * operations shipped with no capability at all — invisibly, because this factory
+ * does not call `defineWorkspaceOperation` and so is read by neither that
+ * builder's definition-time guard nor `check:permission-group-enforcement`,
+ * which parses `defineWorkspaceOperation` call sites out of the source text.
+ */
 export interface CredentialUserOperation<Id extends string = string>
   extends ApplicationOperation<Id> {
   readonly principalKinds: readonly ['session']
+  readonly capability: StaticPermissionGroupCapability | 'none'
 }
 
 function defineCredentialUserOperation<const Id extends string>(
-  id: Id
+  id: Id,
+  capability: StaticPermissionGroupCapability | 'none'
 ): CredentialUserOperation<Id> {
   if (!id.trim()) throw new Error('Credential user operation ID must not be empty')
-  return Object.freeze({ id, principalKinds: Object.freeze(['session'] as const) })
+  if (capability === undefined) {
+    throw new Error(
+      `Credential user operation ${id} declares no capability; name one, or 'none' with a reason`
+    )
+  }
+  if (capability !== 'none') {
+    const rule = CAPABILITY_RULES[capability]
+    if (!rule)
+      throw new Error(`Credential user operation ${id} names unknown capability ${capability}`)
+    /**
+     * A parameterized rule reads a value only the request carries, which
+     * `defineAuthorizedCredentialUserUseCase` never sees; declared here it would
+     * read as enforced while nothing applied it.
+     */
+    if (rule.kind !== 'static') {
+      throw new Error(
+        `Credential user operation ${id} declares parameterized capability ${capability}; assert it from the use case instead`
+      )
+    }
+  }
+  return Object.freeze({ id, capability, principalKinds: Object.freeze(['session'] as const) })
 }
 
+/**
+ * All five take `integrations.manage`, matching every other credential
+ * operation that is not personal-scope by construction — `credentials.list`,
+ * `credentials.connections.list`, `credentials.members.list` and the rest above.
+ * Not `credentials.personal`: that one is reserved for the OAuth *connect* flow,
+ * whose credential is personal by construction, and an organization that
+ * revokes the Integrations module means members cannot see or remove a
+ * connection either.
+ */
 export const credentialUserOperations = {
-  listMemberships: defineCredentialUserOperation('credentials.memberships.list'),
-  leaveMembership: defineCredentialUserOperation('credentials.memberships.leave'),
-  listOAuthConnections: defineCredentialUserOperation('credentials.oauth_connections.list'),
-  listConnectedAccounts: defineCredentialUserOperation('credentials.accounts.list'),
-  disconnectOAuth: defineCredentialUserOperation('credentials.oauth_connections.disconnect'),
+  listMemberships: defineCredentialUserOperation(
+    'credentials.memberships.list',
+    'integrations.manage'
+  ),
+  leaveMembership: defineCredentialUserOperation(
+    'credentials.memberships.leave',
+    'integrations.manage'
+  ),
+  listOAuthConnections: defineCredentialUserOperation(
+    'credentials.oauth_connections.list',
+    'integrations.manage'
+  ),
+  listConnectedAccounts: defineCredentialUserOperation(
+    'credentials.accounts.list',
+    'integrations.manage'
+  ),
+  disconnectOAuth: defineCredentialUserOperation(
+    'credentials.oauth_connections.disconnect',
+    'integrations.manage'
+  ),
 } as const
