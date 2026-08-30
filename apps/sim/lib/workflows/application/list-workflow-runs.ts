@@ -1,3 +1,5 @@
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { resolveLogFieldProjection } from '@/lib/logs/log-projection'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -14,7 +16,22 @@ export const listWorkflowRuns = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.listRuns,
   resolveContext: ({ input }: { input: ListWorkflowRunsInput }) =>
     resolveActiveWorkflowApplicationContext({ workflowId: input.workflowId }),
-  async execute({ context, input }) {
+  async execute({ principal, context, input }) {
+    /**
+     * The per-run total this listing carries is the same figure `hideCostInfo`
+     * withholds on every other log surface, so it is projected here rather than
+     * in the presenter — the withholding travels with the read.
+     *
+     * `resolvePrincipalSubjectUserId` returns `undefined` for a workspace API
+     * key, which represents no user and therefore no group; the key's creator is
+     * never substituted. This listing publishes no cost sort or filter, so there
+     * is no query surface to refuse alongside the value.
+     */
+    const projection = await resolveLogFieldProjection(
+      resolvePrincipalSubjectUserId(principal),
+      context.workspaceId,
+      context.workspaceOrganizationId
+    )
     const result = await listWorkflowExecutions({
       workflowId: context.workflowId,
       status: input.status,
@@ -25,6 +42,13 @@ export const listWorkflowRuns = defineAuthorizedWorkflowUseCase({
       cursor: input.cursor,
       order: input.order,
     })
-    return { ...result, workflowId: context.workflowId, order: input.order }
+    return {
+      ...result,
+      data: projection.hideCostInfo
+        ? result.data.map((row) => ({ ...row, costTotal: null }))
+        : result.data,
+      workflowId: context.workflowId,
+      order: input.order,
+    }
   },
 })
