@@ -8,6 +8,13 @@ import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { getUserPermissionConfigForOrganization } from '@/ee/access-control/utils/permission-check'
 
 /**
+ * Re-exported so a caller that gates inline reaches the refusal sentence and the
+ * assertions through one module; {@link CAPABILITY_RULES} remains its only
+ * definition.
+ */
+export { capabilityRefusal } from '@/lib/permission-groups/capabilities'
+
+/**
  * The one way to ask whether a permission group withholds a capability.
  *
  * The authorization funnel decides from the operation alone, which is right when
@@ -29,17 +36,6 @@ export function capabilityDeniedBy(
 }
 
 /**
- * The one sentence every capability refusal uses, wherever it is raised.
- *
- * Shared so a raw route that gates inline cannot drift from what the
- * authorization funnel tells a caller refused for the same reason. Each rule's
- * `describe` is written to read as this sentence's subject.
- */
-export function capabilityRefusal(capability: StaticPermissionGroupCapability): string {
-  return `${CAPABILITY_RULES[capability].describe} is not available under your organization's permission group`
-}
-
-/**
  * Throws when `userId`'s group in `workspaceId` withholds `capability`.
  *
  * A no-op when no group governs the user, so a personal workspace or a
@@ -54,22 +50,6 @@ export async function assertWorkspaceCapability(
   organizationId?: string | null
 ): Promise<void> {
   const config = await resolvePermissionGroupConfig(userId, workspaceId, organizationId)
-  if (capabilityDeniedBy(capability, config)) refuseCapability(capability)
-}
-
-/**
- * The same refusal for an action that names an organization rather than a
- * workspace — creating one, or reading its member directory.
- *
- * Resolves the organization's default group, which is what governs a member for
- * an action no workspace scopes; a non-default group targets specific
- * workspaces and has nothing to say here.
- */
-export async function assertOrganizationCapability(
-  organizationId: string,
-  capability: StaticPermissionGroupCapability
-): Promise<void> {
-  const config = await getUserPermissionConfigForOrganization(organizationId)
   if (capabilityDeniedBy(capability, config)) refuseCapability(capability)
 }
 
@@ -91,7 +71,15 @@ export async function isWorkspaceCapabilityWithheld(
   )
 }
 
-/** The organization-scoped counterpart of {@link isWorkspaceCapabilityWithheld}. */
+/**
+ * The organization-scoped counterpart of {@link isWorkspaceCapabilityWithheld}.
+ *
+ * Outside the per-request memo on purpose. That memo is keyed by user and
+ * workspace, and this decision is keyed by organization alone, so sharing it
+ * would need a second key vocabulary in the store. No request asks an
+ * organization-scoped capability twice — each of the four call sites gates one
+ * listing — so the memo would never be hit. Key it if that changes.
+ */
 export async function isOrganizationCapabilityWithheld(
   organizationId: string,
   capability: StaticPermissionGroupCapability
