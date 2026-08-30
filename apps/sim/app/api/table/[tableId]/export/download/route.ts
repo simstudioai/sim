@@ -5,10 +5,15 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityDeniedBy,
+  capabilityRefusal,
+} from '@/lib/permission-groups/capability-assertions'
 import { getTableJob } from '@/lib/table/jobs/service'
 import type { TableExportJobPayload } from '@/lib/table/types'
 import { generatePresignedDownloadUrl } from '@/lib/uploads/core/storage-service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('TableExportDownload')
 
@@ -43,6 +48,17 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   if (!access.ok) return accessError(access, requestId, tableId)
   if (access.table.workspaceId !== workspaceId) {
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+  }
+
+  /**
+   * permission-group-enforced: tables.export — the second door to a finished
+   * export. Gating only the job that produces one leaves this route handing the
+   * file to anyone who can name a `jobId`, and the workspace job listing names
+   * every colleague's.
+   */
+  const permissionConfig = await getUserPermissionConfig(authResult.userId, workspaceId)
+  if (capabilityDeniedBy('tables.export', permissionConfig)) {
+    return NextResponse.json({ error: capabilityRefusal('tables.export') }, { status: 403 })
   }
 
   const job = await getTableJob(tableId, jobId)

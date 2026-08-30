@@ -1,8 +1,8 @@
 import {
   CAPABILITY_RULES,
+  refuseCapability,
   type StaticPermissionGroupCapability,
 } from '@/lib/permission-groups/capabilities'
-import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { getUserPermissionConfigForOrganization } from '@/ee/access-control/utils/permission-check'
@@ -39,14 +39,6 @@ export function capabilityRefusal(capability: StaticPermissionGroupCapability): 
   return `${CAPABILITY_RULES[capability].describe} is not available under your organization's permission group`
 }
 
-function refuse(capability: StaticPermissionGroupCapability): never {
-  throw new PermissionGroupCapabilityError(
-    capability,
-    CAPABILITY_RULES[capability].detailCode,
-    capabilityRefusal(capability)
-  )
-}
-
 /**
  * Throws when `userId`'s group in `workspaceId` withholds `capability`.
  *
@@ -62,7 +54,7 @@ export async function assertWorkspaceCapability(
   organizationId?: string | null
 ): Promise<void> {
   const config = await resolvePermissionGroupConfig(userId, workspaceId, organizationId)
-  if (capabilityDeniedBy(capability, config)) refuse(capability)
+  if (capabilityDeniedBy(capability, config)) refuseCapability(capability)
 }
 
 /**
@@ -78,7 +70,7 @@ export async function assertOrganizationCapability(
   capability: StaticPermissionGroupCapability
 ): Promise<void> {
   const config = await getUserPermissionConfigForOrganization(organizationId)
-  if (capabilityDeniedBy(capability, config)) refuse(capability)
+  if (capabilityDeniedBy(capability, config)) refuseCapability(capability)
 }
 
 /**

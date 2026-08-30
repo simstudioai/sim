@@ -192,11 +192,13 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      // permission-group-enforced: api_keys.manage — raw handler with inline queries, which the authorization funnel never sees
-      if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'api_keys.manage')) {
-        return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
-      }
-
+      /**
+       * Deliberately not capability-gated, unlike the read and the mint above.
+       * Withholding key *management* must never withhold key *revocation*: a
+       * workspace admin whose group hides the API Keys tab would otherwise be
+       * unable to revoke a leaked credential, turning a policy into a security
+       * hazard. The personal-key delete route is ungated for the same reason.
+       */
       const parsed = await parseRequest(deleteWorkspaceApiKeysContract, request, context)
       if (!parsed.success) return parsed.response
       const { keys } = parsed.data.body

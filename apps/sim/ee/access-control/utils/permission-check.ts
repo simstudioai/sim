@@ -17,11 +17,9 @@ import {
 } from '@/lib/permission-groups/block-access'
 import {
   CAPABILITY_RULES,
-  capabilityRefusalMessage,
-  type PermissionGroupCapability,
+  refuseCapability,
   type StaticCapabilityRule,
 } from '@/lib/permission-groups/capabilities'
-import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import {
@@ -102,24 +100,6 @@ export class PublicApiNotAllowedError extends Error {
     super('Public API access is not allowed based on your permission group settings')
     this.name = 'PublicApiNotAllowedError'
   }
-}
-
-/**
- * Refuses with the sentence and detail code the authorization funnel raises for
- * the same capability.
- *
- * The gates below decide from a request value the funnel never sees, so they
- * cannot ride on an operation's declared capability — but the refusal a caller
- * reads, and the code a client branches on, still come from
- * {@link CAPABILITY_RULES} rather than being spelled out here.
- */
-function refuseCapability(capability: PermissionGroupCapability): never {
-  const rule = CAPABILITY_RULES[capability]
-  throw new PermissionGroupCapabilityError(
-    capability,
-    rule.detailCode,
-    capabilityRefusalMessage(rule.describe)
-  )
 }
 
 /**

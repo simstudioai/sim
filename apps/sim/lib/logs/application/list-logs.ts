@@ -9,8 +9,8 @@ import {
 import { logOperations } from '@/lib/logs/application/operations'
 import { type ListLogsParams, readLogs } from '@/lib/logs/list-logs'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const authorizedListLogsUseCase = defineAuthorizedWorkspaceUseCase({
   operation: logOperations.list,
@@ -26,7 +26,11 @@ const authorizedListLogsUseCase = defineAuthorizedWorkspaceUseCase({
      */
     const viewerUserId = resolvePrincipalSubjectUserId(principal)
     const permissionConfig = viewerUserId
-      ? await getUserPermissionConfig(viewerUserId, context.workspaceId)
+      ? await resolvePermissionGroupConfig(
+          viewerUserId,
+          context.workspaceId,
+          context.workspaceOrganizationId
+        )
       : null
 
     return readLogs({

@@ -53,8 +53,17 @@ export const GET = withRouteHandler(
         )
       }
 
-      // permission-group-enforced: organization.member_directory — an organization-scoped read with no workspace or resource for the funnel to authorize
-      if (await isOrganizationCapabilityWithheld(organizationId, 'organization.member_directory')) {
+      /**
+       * permission-group-enforced: organization.member_directory — an
+       * organization-scoped read with no workspace for the funnel to authorize.
+       *
+       * Admins and owners are exempt, for the reason the members route records:
+       * this feeds the page an admin would use to change the setting.
+       */
+      if (
+        !isOrgAdminRole(callerMembership.role) &&
+        (await isOrganizationCapabilityWithheld(organizationId, 'organization.member_directory'))
+      ) {
         logger.warn('Organization roster blocked by permission group', {
           organizationId,
           userId: session.user.id,

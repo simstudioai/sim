@@ -586,7 +586,16 @@ async function runWorkflowAndWriteTerminal(
             tableId,
             rowId,
             workspaceId,
-            userId: enrichmentBillingAttribution.actorUserId,
+            /**
+             * The person who asked, not who pays. For a system-triggered cell
+             * the billing attribution names the workspace's billing owner, and
+             * running a member's tool denylist against a bystander is wrong in
+             * both directions: it fails cells nobody meant to govern, and it
+             * skips the denylist for the person who actually triggered one.
+             * Absent means no per-tool gate applies, which is the documented
+             * behavior for an actorless run.
+             */
+            userId: payload.triggeredByUserId ?? undefined,
             signal: attemptSignal,
             resolvedSecretTraceRegistry: enrichmentRegistry,
           })

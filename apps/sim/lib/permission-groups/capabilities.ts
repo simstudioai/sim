@@ -1,4 +1,5 @@
 import type { ForbiddenDetailCode } from '@/lib/core/application/forbidden'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import type {
   FILE_SHARE_AUTH_TYPES,
   PermissionGroupConfig,
@@ -95,6 +96,23 @@ export interface ParameterizedCapabilityRule extends CapabilityRuleBase {
 }
 
 export type CapabilityRule = StaticCapabilityRule | ParameterizedCapabilityRule
+
+/**
+ * The one sentence every capability refusal uses, and the error that carries it.
+ *
+ * Shared so the funnel, a raw route gating inline, and a parameterized rule
+ * asserted from a use case cannot word the same refusal three ways. Accepts any
+ * capability, static or parameterized, because a parameterized one is refused
+ * from a call site rather than by the funnel and still has to read identically.
+ */
+export function refuseCapability(capability: PermissionGroupCapability): never {
+  const rule = CAPABILITY_RULES[capability]
+  throw new PermissionGroupCapabilityError(
+    capability,
+    rule.detailCode,
+    `${rule.describe} is not available under your organization's permission group`
+  )
+}
 
 function authModeDeniedBy(allowed: ShareAuthMode[] | null, mode: string): boolean {
   return allowed !== null && !allowed.some((allowedMode) => allowedMode === mode)
@@ -317,19 +335,26 @@ export const CAPABILITY_RULES = {
     deniedBy: (config, connectorType) =>
       allowlistDenies(config.allowedKnowledgeConnectors, connectorType),
   },
+  /**
+   * Also reads `hideTablesTab`, for the reason `knowledge.create` does: an
+   * operation declares exactly one capability, so the narrower one replacing the
+   * broader one on `tables.create` would otherwise let a group that withholds
+   * the whole module still create tables through the API.
+   */
   'tables.create': {
     kind: 'static',
-    configKeys: ['disableTableCreation'],
+    configKeys: ['disableTableCreation', 'hideTablesTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
     describe: 'Creating a table',
-    deniedBy: (config) => config.disableTableCreation,
+    deniedBy: (config) => config.disableTableCreation || config.hideTablesTab,
   },
+  /** Subsumes `hideTablesTab` for the same reason as `tables.create`. */
   'tables.export': {
     kind: 'static',
-    configKeys: ['disableTableExport'],
+    configKeys: ['disableTableExport', 'hideTablesTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
     describe: 'Exporting a table',
-    deniedBy: (config) => config.disableTableExport,
+    deniedBy: (config) => config.disableTableExport || config.hideTablesTab,
   },
   'files.bulk_download': {
     kind: 'static',

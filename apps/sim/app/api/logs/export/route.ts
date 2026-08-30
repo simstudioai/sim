@@ -172,7 +172,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             let message: unknown = ''
             let tracesJson = ''
             try {
-              if (executionData.finalOutput) {
+              /**
+               * `finalOutput` is one of the payloads the log-detail projection
+               * deletes for this viewer, so exporting it here would hand back in
+               * bulk exactly what the detail view withholds one run at a time.
+               */
+              if (executionData.finalOutput && !hideTraceSpans) {
                 message =
                   typeof executionData.finalOutput === 'string'
                     ? executionData.finalOutput

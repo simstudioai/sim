@@ -5,10 +5,20 @@ import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckAccess, mockGetTableJob, mockGeneratePresignedDownloadUrl } = vi.hoisted(() => ({
+const {
+  mockCheckAccess,
+  mockGetTableJob,
+  mockGeneratePresignedDownloadUrl,
+  mockGetUserPermissionConfig,
+} = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockGetTableJob: vi.fn(),
   mockGeneratePresignedDownloadUrl: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 
 vi.mock('@/lib/table/jobs/service', () => ({ getTableJob: mockGetTableJob }))
@@ -24,6 +34,7 @@ vi.mock('@/app/api/table/utils', async () => {
   }
 })
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/table/[tableId]/export/download/route'
 
 function makeRequest(query: Record<string, string>, tableId = 'tbl_1') {
@@ -101,5 +112,56 @@ describe('GET /api/table/[tableId]/export/download', () => {
   it('returns 400 on workspace mismatch', async () => {
     const response = await makeRequest({ ...validQuery, workspaceId: 'other-ws' })
     expect(response.status).toBe(400)
+  })
+})
+
+/**
+ * The second door to a finished export. Gating only the job that produces one
+ * left this route handing the file to anyone who could name a `jobId`, and the
+ * workspace job listing names every colleague's.
+ */
+describe('tables.export capability', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+    })
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: createTableDefinition({ id: 'tbl_1', workspaceId: 'workspace-1' }),
+    })
+    mockGetTableJob.mockResolvedValue({
+      type: 'export',
+      status: 'ready',
+      payload: { resultKey: 'exports/tbl_1.csv' },
+    })
+    mockGeneratePresignedDownloadUrl.mockResolvedValue('https://example.test/signed')
+    mockGetUserPermissionConfig.mockResolvedValue(null)
+  })
+
+  it('refuses when the group withholds table export', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableTableExport: true,
+    })
+
+    const response = await makeRequest(validQuery)
+
+    expect(response.status).toBe(403)
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+  })
+
+  it('refuses a group that withholds the Tables module outright', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideTablesTab: true,
+    })
+
+    expect((await makeRequest(validQuery)).status).toBe(403)
+  })
+
+  it('allows an ungoverned caller', async () => {
+    expect((await makeRequest(validQuery)).status).toBe(200)
   })
 })

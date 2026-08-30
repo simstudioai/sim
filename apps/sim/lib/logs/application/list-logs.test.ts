@@ -26,8 +26,8 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  getUserPermissionConfig: mocks.getUserPermissionConfig,
+vi.mock('@/lib/permission-groups/config-scope.server', () => ({
+  resolvePermissionGroupConfig: mocks.getUserPermissionConfig,
 }))
 
 import { listLogsUseCase } from '@/lib/logs/application/list-logs'

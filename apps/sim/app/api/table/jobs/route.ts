@@ -5,8 +5,10 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { listWorkspaceExportJobs } from '@/lib/table/jobs/service'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('TableJobsAPI')
 
@@ -34,6 +36,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const { hasAccess } = await checkWorkspaceAccess(workspaceId, authResult.userId)
   if (!hasAccess) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
+
+  /**
+   * permission-group-enforced: tables.export — this listing is exports and
+   * nothing else, and each row names a `jobId` that resolves to a finished
+   * export file. Withheld as an empty list rather than a refusal: the caller has
+   * no exports they may act on, and erroring the tray would report a failure
+   * where the honest answer is that there is nothing to show.
+   */
+  const permissionConfig = await getUserPermissionConfig(authResult.userId, workspaceId)
+  if (capabilityDeniedBy('tables.export', permissionConfig)) {
+    return NextResponse.json({ success: true, data: { jobs: [] } })
   }
 
   const jobs = await listWorkspaceExportJobs(workspaceId)

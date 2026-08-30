@@ -67,8 +67,22 @@ export const GET = withRouteHandler(
         )
       }
 
-      // permission-group-enforced: organization.member_directory — an organization-scoped read with no workspace or resource for the funnel to authorize
-      if (await isOrganizationCapabilityWithheld(organizationId, 'organization.member_directory')) {
+      const userRole = memberEntry[0].role
+      const hasAdminAccess = isOrgAdminRole(userRole)
+
+      /**
+       * permission-group-enforced: organization.member_directory — an
+       * organization-scoped read with no workspace for the funnel to authorize.
+       *
+       * Admins and owners are exempt. This response is the only source for the
+       * team-management page and the seat-usage snapshot it renders, so
+       * withholding it from an admin would take away the page they would use to
+       * change the setting, and their seat management with it.
+       */
+      if (
+        !hasAdminAccess &&
+        (await isOrganizationCapabilityWithheld(organizationId, 'organization.member_directory'))
+      ) {
         logger.warn('Organization member directory blocked by permission group', {
           organizationId,
           userId: session.user.id,
@@ -78,9 +92,6 @@ export const GET = withRouteHandler(
           { status: 403 }
         )
       }
-
-      const userRole = memberEntry[0].role
-      const hasAdminAccess = isOrgAdminRole(userRole)
 
       // Get organization members
       const memberPageQuery = db

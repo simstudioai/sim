@@ -22,8 +22,8 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  getUserPermissionConfig: mocks.getUserPermissionConfig,
+vi.mock('@/lib/permission-groups/config-scope.server', () => ({
+  resolvePermissionGroupConfig: mocks.getUserPermissionConfig,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({

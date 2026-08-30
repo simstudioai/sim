@@ -12,11 +12,11 @@ import {
 import { logOperations } from '@/lib/logs/application/operations'
 import { readLogDetail } from '@/lib/logs/fetch-log-detail'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/workspace-context'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 export interface ReadLogDetailInput {
   workspaceId: string
@@ -95,7 +95,11 @@ const authorizedReadLogDetailUseCase = defineAuthorizedWorkspaceUseCase({
      * visibility to admins asked for.
      */
     const permissionConfig = viewerUserId
-      ? await getUserPermissionConfig(viewerUserId, context.workspaceId)
+      ? await resolvePermissionGroupConfig(
+          viewerUserId,
+          context.workspaceId,
+          context.workspaceOrganizationId
+        )
       : null
 
     const detail = await readLogDetail({

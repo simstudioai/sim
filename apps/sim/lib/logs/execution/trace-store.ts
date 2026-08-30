@@ -109,8 +109,14 @@ export function stripSpanCosts(spans: unknown): void {
   if (!Array.isArray(spans)) return
   for (const span of spans) {
     if (!span || typeof span !== 'object') continue
-    const record = span as { cost?: unknown; children?: unknown }
+    const record = span as { cost?: unknown; tokens?: unknown; children?: unknown }
     if ('cost' in record) record.cost = undefined
+    /**
+     * Tokens as well as dollars: a span's token counts are the spend in another
+     * unit, so clearing only `cost` left the amount recoverable by anyone who
+     * knows the model's rate.
+     */
+    if ('tokens' in record) record.tokens = undefined
     if (Array.isArray(record.children)) stripSpanCosts(record.children)
   }
 }

@@ -19,8 +19,13 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityDeniedBy,
+  capabilityRefusal,
+} from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('WebhookAPI')
 
@@ -139,6 +144,26 @@ export const PATCH = withRouteHandler(
 
       const setClause: Partial<typeof webhook.$inferInsert> = {}
       if (isActive !== undefined && isActive !== webhooks[0].webhook.isActive) {
+        /**
+         * permission-group-enforced: triggers.webhook — reactivating is the act
+         * the key names, "prevent making a workflow reachable from an inbound
+         * webhook", so gating creation alone left it reachable by flipping a
+         * dormant webhook back on. Only this direction: deactivating must stay
+         * open, or a policy change would strand a member with a live webhook
+         * they cannot turn off.
+         */
+        if (isActive) {
+          const permissionConfig = await getUserPermissionConfig(
+            userId,
+            webhooks[0].workflow.workspaceId ?? ''
+          )
+          if (capabilityDeniedBy('triggers.webhook', permissionConfig)) {
+            return NextResponse.json(
+              { error: capabilityRefusal('triggers.webhook') },
+              { status: 403 }
+            )
+          }
+        }
         setClause.isActive = isActive
       }
       if (failedCount !== undefined && failedCount !== webhooks[0].webhook.failedCount) {
