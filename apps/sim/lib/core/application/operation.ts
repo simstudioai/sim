@@ -1,8 +1,34 @@
 import type { Principal } from '@sim/auth/principal'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import {
+  CAPABILITY_RULES,
+  type StaticPermissionGroupCapability,
+} from '@/lib/permission-groups/capabilities'
 
 export interface ApplicationOperation<Id extends string = string> {
   readonly id: Id
+  /**
+   * The capability a permission group must not have withheld, or `'none'` when
+   * no group governs this operation.
+   *
+   * `'none'` is spelled out rather than left as an omission, because an absent
+   * field cannot be told apart from an unreviewed one — and unreviewed omission
+   * is exactly how twelve config keys shipped with an admin checkbox and no
+   * server gate.
+   *
+   * It lives on the base rather than on {@link WorkspaceOperation} because
+   * requiring it only there is what let five OAuth-connection operations ship
+   * with no capability at all: their domain minted them from a bare object
+   * literal that satisfied `ApplicationOperation`, so neither the builder's
+   * definition-time guard nor the type reached them. Declared here, an operation
+   * that answers the question nowhere does not compile.
+   *
+   * The type is not the whole guarantee — `apps/sim/tsconfig.json` excludes test
+   * files, so a fixture can still construct one — which is why
+   * `defineWorkspaceOperation` and {@link defineOperation} keep runtime guards
+   * and `check:permission-group-enforcement` keeps reading the source.
+   */
+  readonly capability: StaticPermissionGroupCapability | 'none'
 }
 
 /**
@@ -37,6 +63,31 @@ export interface PrincipalScopedOperation<
   readonly principalKinds: PrincipalKinds
 }
 
+/**
+ * Refuses a capability the registry does not know, and one whose rule needs a
+ * request value the funnel never sees.
+ *
+ * Shared by every builder, because the guard has to hold wherever an operation
+ * is minted: a domain builder that skipped it is how the hole opened last time.
+ */
+export function assertOperationCapability(operation: ApplicationOperation): void {
+  if (operation.capability === undefined) {
+    throw new Error(
+      `Operation ${operation.id} declares no capability; name one, or 'none' with a reason`
+    )
+  }
+  if (operation.capability === 'none') return
+  const rule = CAPABILITY_RULES[operation.capability]
+  if (!rule) {
+    throw new Error(`Operation ${operation.id} names unknown capability ${operation.capability}`)
+  }
+  if (rule.kind !== 'static') {
+    throw new Error(
+      `Operation ${operation.id} declares parameterized capability ${operation.capability}; assert it from the use case instead`
+    )
+  }
+}
+
 export function defineOperation<
   const Id extends string,
   const PrincipalKinds extends readonly UndelegatedPrincipalKind[],
@@ -49,6 +100,7 @@ export function defineOperation<
   if (new Set(operation.principalKinds).size !== operation.principalKinds.length) {
     throw new Error(`Operation ${operation.id} declares duplicate principal kinds`)
   }
+  assertOperationCapability(operation)
   Object.freeze(operation.principalKinds)
   Object.freeze(operation)
   return operation

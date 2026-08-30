@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application'
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { assertOperationCapability, defineWorkspaceOperation } from '@/lib/core/application'
 
 export type OrganizationByokPrincipal = Extract<Principal, { kind: 'session' }>
 
@@ -16,6 +16,7 @@ export interface OrganizationByokOperation<Id extends string = string>
 function defineOrganizationByokOperation<const Id extends string>(
   operation: OrganizationByokOperation<Id>
 ): OrganizationByokOperation<Id> {
+  assertOperationCapability(operation)
   Object.freeze(operation.organizationRoles)
   Object.freeze(operation.principalKinds)
   return Object.freeze(operation)
@@ -33,24 +34,30 @@ export const apiKeyOperations = {
 } as const
 
 export const byokKeyOperations = {
+  // permission-group-exempt: BYOK is its own entitlement-gated section, and api_keys.manage names the Sim API Keys tab instead
   listOrganization: defineOrganizationByokOperation({
     id: 'byok_keys.organization.list',
+    capability: 'none',
     authority: 'organization_admin',
     organizationRoles: ['admin', 'owner'],
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
     entitlement: 'cleanup_allowed',
   }),
+  // permission-group-exempt: BYOK is its own entitlement-gated section, and api_keys.manage names the Sim API Keys tab instead
   saveOrganization: defineOrganizationByokOperation({
     id: 'byok_keys.organization.save',
+    capability: 'none',
     authority: 'organization_admin',
     organizationRoles: ['admin', 'owner'],
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
     entitlement: 'required',
   }),
+  // permission-group-exempt: BYOK is its own entitlement-gated section, and api_keys.manage names the Sim API Keys tab instead
   deleteOrganization: defineOrganizationByokOperation({
     id: 'byok_keys.organization.delete',
+    capability: 'none',
     authority: 'organization_admin',
     organizationRoles: ['admin', 'owner'],
     workspaceApiKey: 'deny',
