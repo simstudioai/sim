@@ -16,6 +16,7 @@ describe('Slack stream response config', () => {
       streamOutputs: ['block-1_content', 'block-2_result.value'],
       streamIncludeThinking: true,
       streamIncludeToolCalls: false,
+      streamTaskTitle: '  Working  ',
       streamTaskDisplayMode: 'plan',
     }
     const normalized = normalizeSlackStreamResponseConfig(providerConfig)
@@ -29,11 +30,45 @@ describe('Slack stream response config', () => {
       ],
       includeThinking: true,
       includeToolCalls: false,
+      taskTitle: 'Working',
       taskDisplayMode: 'plan',
     })
     expect(readSlackStreamResponseConfig(providerConfig)).toEqual(normalized)
     expect(providerConfig.streamResponse).toBeUndefined()
     expect(providerConfig.streamOutputs).toBeUndefined()
+    expect(providerConfig.streamTaskTitle).toBeUndefined()
+  })
+
+  it('defaults the response status label to Running and rejects invalid labels', () => {
+    expect(
+      normalizeSlackStreamResponseConfig({
+        eventType: 'message',
+        streamResponse: true,
+        streamOutputs: ['block_content'],
+      })?.taskTitle
+    ).toBe('Running')
+    expect(() =>
+      normalizeSlackStreamResponseConfig({
+        eventType: 'message',
+        streamResponse: true,
+        streamOutputs: ['block_content'],
+        streamTaskTitle: '   ',
+      })
+    ).toThrow('status label is required')
+  })
+
+  it('upgrades persisted configs created before response status labels existed', () => {
+    expect(
+      readSlackStreamResponseConfig({
+        streamResponseConfig: {
+          enabled: true,
+          outputConfigs: [{ blockId: 'block', path: 'content' }],
+          includeThinking: false,
+          includeToolCalls: true,
+          taskDisplayMode: 'timeline',
+        },
+      })?.taskTitle
+    ).toBe('Running')
   })
 
   it('rejects non-reply events and malformed output selectors', () => {

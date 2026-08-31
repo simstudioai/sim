@@ -48,6 +48,7 @@ const BASE_CONFIG: SlackStreamResponseConfig = {
   outputConfigs: [{ blockId: 'agent', path: 'content' }],
   includeThinking: true,
   includeToolCalls: true,
+  taskTitle: 'Running',
   taskDisplayMode: 'plan',
 }
 
@@ -65,6 +66,22 @@ function createByteStream(text = ''): ReadableStream<Uint8Array> {
       controller.close()
     },
   })
+}
+
+function createOpenByteStream(): { stream: ReadableStream<Uint8Array>; close: () => void } {
+  let closeStream: (() => void) | undefined
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      closeStream = () => controller.close()
+    },
+  })
+  return {
+    stream,
+    close: () => {
+      if (!closeStream) throw new Error('Test stream was not initialized')
+      closeStream()
+    },
+  }
 }
 
 async function createController(
@@ -106,8 +123,8 @@ describe('SlackExecutionStreamController', () => {
     const { controller } = await createController()
     const events: AgentStreamEvent[] = [
       { type: 'thinking_delta', text: 'Checking context' },
-      { type: 'tool_call_start', id: 'tool-1', name: 'Search' },
-      { type: 'tool_call_end', id: 'tool-1', name: 'Search', status: 'success' },
+      { type: 'tool_call_start', id: 'tool-1', name: 'slack_send_message' },
+      { type: 'tool_call_end', id: 'tool-1', name: 'slack_send_message', status: 'success' },
       { type: 'text_delta', text: 'Hello ', turn: 'pending' },
       { type: 'text_delta', text: 'world', turn: 'pending' },
       { type: 'turn_end', turn: 'final' },
@@ -153,7 +170,7 @@ describe('SlackExecutionStreamController', () => {
         {
           type: 'task_update',
           id: 'sim-execution-1-4',
-          title: 'Generating agent',
+          title: 'Running',
           status: 'in_progress',
         },
       ],
@@ -166,11 +183,16 @@ describe('SlackExecutionStreamController', () => {
         expect.objectContaining({ type: 'task_update', title: 'Thinking', status: 'complete' }),
         expect.objectContaining({
           type: 'task_update',
-          title: 'Search',
+          title: 'Slack Send Message',
           status: 'in_progress',
         }),
-        expect.objectContaining({ type: 'task_update', title: 'Search', status: 'complete' }),
-        { type: 'markdown_text', text: 'Hello world' },
+        expect.objectContaining({
+          type: 'task_update',
+          title: 'Slack Send Message',
+          status: 'complete',
+        }),
+        { type: 'markdown_text', text: 'Hello ' },
+        { type: 'markdown_text', text: 'world' },
         expect.objectContaining({
           type: 'task_update',
           id: 'sim-execution-1-4',
@@ -209,6 +231,36 @@ describe('SlackExecutionStreamController', () => {
       },
       'execution-1'
     )
+  })
+
+  it('appends pending answer text before the model turn is classified', async () => {
+    const { controller } = await createController()
+    const { stream, close } = createOpenByteStream()
+    const streaming = controller.callbacks.onStream?.({
+      blockId: 'agent',
+      executionOrder: 5,
+      stream,
+      streamFormat: 'text',
+      clientStreamTransformed: false,
+      subscribe: ({ onEvent }) => {
+        void onEvent({ type: 'text_delta', text: 'Once upon a time', turn: 'pending' })
+        return vi.fn()
+      },
+    })
+
+    await vi.waitFor(() => {
+      expect(mockAppendSlackAgentStream).toHaveBeenCalledWith(
+        'xoxb-token',
+        'C123',
+        '1700000001.000002',
+        [{ type: 'markdown_text', text: 'Once upon a time' }],
+        undefined
+      )
+    })
+    expect(mockStopSlackAgentStream).not.toHaveBeenCalled()
+
+    close()
+    await streaming
   })
 
   it('sends selected non-streaming outputs after block completion', async () => {

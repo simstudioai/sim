@@ -32,9 +32,10 @@ In Sim, the Slack integration enables your agents to programmatically interact w
 
 Custom-bot Slack triggers can stream workflow outputs directly back into the conversation that started a run. Enable **Stream response to Slack** on a Message, App Mention, or Assistant Thread Started trigger, then select the outputs to deliver.
 
-- A selected Agent output streams as it is generated. Intermediate pre-tool turns are held back so only the final answer is appended.
+- A selected Agent output streams immediately as it is generated. If the Agent later calls a tool, any pre-tool commentary already streamed remains visible.
 - A selected non-streaming block output is sent when that block invocation completes.
 - Loop and parallel invocations each create their own Slack response.
+- The response status label defaults to `Running` and can be customized in the trigger's advanced settings.
 - Optional thinking and tool-call updates appear as Slack tasks in a timeline or plan.
 - Slack Agent Sessions remain in processing state for the run, return to active when it finishes, and the native Slack stop button cancels active workflow executions.
 
@@ -2007,6 +2008,7 @@ Trigger from Slack events (mentions, messages, reactions)
 | `streamResponse` | boolean | No | Stream selected workflow outputs into the Slack conversation that started this run. Custom bots only. |
 | `streamOutputs` | workflow-output-selector | No | Each selected block invocation creates its own Slack response. Agent outputs stream live; other outputs are sent when the block completes. |
 | `streamIncludeThinking` | boolean | No | Show agent thinking as Slack task updates while the response is generated. |
+| `streamTaskTitle` | string | No | The status Slack shows while each selected response is being produced. |
 | `streamIncludeToolCalls` | boolean | No | Show tool execution lifecycle as Slack task updates. |
 | `streamTaskDisplayMode` | string | No | Choose how Slack displays thinking and tool progress. |
 | `source` | string | No | Restrict to direct messages, public channels, or private channels. Leave empty to match any. |

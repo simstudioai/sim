@@ -167,6 +167,26 @@ export const slackOAuthTrigger: TriggerConfig = {
       reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
     },
     {
+      id: 'streamTaskTitle',
+      title: 'Response status label',
+      type: 'short-input',
+      value: () => 'Running',
+      placeholder: 'Running',
+      description: 'The status Slack shows while each selected response is being produced.',
+      required: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      mode: 'trigger-advanced',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
       id: 'streamIncludeToolCalls',
       title: 'Include tool calls',
       type: 'switch',

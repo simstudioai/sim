@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import { pluckByPath } from '@/lib/table/pluck'
@@ -25,7 +26,7 @@ import type { BlockCompletionCallbackData, ExecutionCallbacks } from '@/executor
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 
-const TEXT_FLUSH_SIZE = 512
+const TEXT_FLUSH_SIZE = 128
 const SLACK_MARKDOWN_LIMIT = 12_000
 const TASK_TEXT_LIMIT = 256
 
@@ -104,7 +105,6 @@ class SlackInvocationStream {
   private channel?: string
   private ts?: string
   private answerBuffer = ''
-  private pendingTurn = ''
   private fullAnswer = ''
   private thinking = ''
   private emittedAnswer = false
@@ -135,7 +135,7 @@ class SlackInvocationStream {
         {
           type: 'task_update',
           id: this.taskId,
-          title: truncate(this.title, TASK_TEXT_LIMIT),
+          title: this.title,
           status: 'in_progress',
         },
       ],
@@ -166,7 +166,7 @@ class SlackInvocationStream {
     if (!text) return
     this.fullAnswer += text
     this.answerBuffer += text
-    await this.flushAnswer(force)
+    await this.flushAnswer(force || !this.emittedAnswer)
   }
 
   private async flushThinking(): Promise<void> {
@@ -190,16 +190,13 @@ class SlackInvocationStream {
     return this.enqueue(async () => {
       switch (event.type) {
         case 'text_delta':
-          if (event.turn === 'pending') {
-            this.pendingTurn += event.text
-          } else if (event.turn !== 'intermediate') {
+          if (event.turn !== 'intermediate') {
             await this.appendAnswer(event.text)
           }
           return
         case 'turn_end':
           await this.flushThinking()
-          if (event.turn === 'final') await this.appendAnswer(this.pendingTurn, true)
-          this.pendingTurn = ''
+          await this.flushAnswer(true)
           return
         case 'thinking_delta':
           if (this.config.includeThinking) this.thinking += event.text
@@ -211,7 +208,7 @@ class SlackInvocationStream {
               {
                 type: 'task_update',
                 id: `${this.taskId}-tool-${event.id}`,
-                title: truncate(event.name, TASK_TEXT_LIMIT),
+                title: truncate(humanizeToolName(event.name), TASK_TEXT_LIMIT),
                 status: 'in_progress',
               },
             ])
@@ -223,7 +220,7 @@ class SlackInvocationStream {
               {
                 type: 'task_update',
                 id: `${this.taskId}-tool-${event.id}`,
-                title: truncate(event.name, TASK_TEXT_LIMIT),
+                title: truncate(humanizeToolName(event.name), TASK_TEXT_LIMIT),
                 status: event.status === 'success' ? 'complete' : 'error',
               },
             ])
@@ -251,7 +248,7 @@ class SlackInvocationStream {
         {
           type: 'task_update',
           id: this.taskId,
-          title: truncate(this.title, TASK_TEXT_LIMIT),
+          title: this.title,
           status: 'complete',
         },
       ])
@@ -267,7 +264,7 @@ class SlackInvocationStream {
         {
           type: 'task_update',
           id: this.taskId,
-          title: truncate(this.title, TASK_TEXT_LIMIT),
+          title: this.title,
           status: 'complete',
         },
       ])
@@ -297,8 +294,8 @@ export class SlackExecutionStreamController {
     )
     this.callbacks = {
       onStream: (stream) => this.onStream(stream),
-      onBlockComplete: (blockId, blockName, _blockType, data) =>
-        this.onBlockComplete(blockId, blockName, data),
+      onBlockComplete: (blockId, _blockName, _blockType, data) =>
+        this.onBlockComplete(blockId, data),
     }
   }
 
@@ -382,7 +379,7 @@ export class SlackExecutionStreamController {
         this.target,
         this.options.config,
         `sim-${this.options.executionId}-${stream.executionOrder}`,
-        `Generating ${stream.blockId}`,
+        this.options.config.taskTitle,
         (text) => this.projectLiveText(text, stream.displayResolvedSecretTraceProvenance),
         (text) => this.projectFinalText(text, stream.displayResolvedSecretTraceProvenance),
         this.options.abortSignal
@@ -416,11 +413,7 @@ export class SlackExecutionStreamController {
     }
   }
 
-  private async onBlockComplete(
-    blockId: string,
-    blockName: string,
-    data: BlockCompletionCallbackData
-  ): Promise<void> {
+  private async onBlockComplete(blockId: string, data: BlockCompletionCallbackData): Promise<void> {
     try {
       const selected = this.selectedForBlock(blockId)
       if (selected.length === 0) return
@@ -446,7 +439,7 @@ export class SlackExecutionStreamController {
         this.target,
         this.options.config,
         `sim-${this.options.executionId}-${data.executionOrder}`,
-        blockName,
+        this.options.config.taskTitle,
         async (value) => value,
         async (value) => value,
         this.options.abortSignal

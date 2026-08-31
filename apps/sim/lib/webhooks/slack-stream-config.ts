@@ -16,8 +16,11 @@ export interface SlackStreamResponseConfig {
   outputConfigs: SlackStreamOutputConfig[]
   includeThinking: boolean
   includeToolCalls: boolean
+  taskTitle: string
   taskDisplayMode: 'timeline' | 'plan'
 }
+
+const SLACK_TASK_TITLE_LIMIT = 256
 
 function parseOutputSelector(selector: string): SlackStreamOutputConfig {
   const separatorIndex = selector.indexOf('_')
@@ -57,12 +60,26 @@ export function normalizeSlackStreamResponseConfig(
   if (taskDisplayMode !== 'timeline' && taskDisplayMode !== 'plan') {
     throw new Error('Slack stream task display mode must be timeline or plan')
   }
+  const rawTaskTitle = providerConfig.streamTaskTitle ?? 'Running'
+  if (typeof rawTaskTitle !== 'string') {
+    throw new Error('Slack stream response status label must be a string')
+  }
+  const taskTitle = rawTaskTitle.trim()
+  if (!taskTitle) {
+    throw new Error('Slack stream response status label is required')
+  }
+  if (taskTitle.length > SLACK_TASK_TITLE_LIMIT) {
+    throw new Error(
+      `Slack stream response status label must be ${SLACK_TASK_TITLE_LIMIT} characters or fewer`
+    )
+  }
 
   return {
     enabled: true,
     outputConfigs: selectors.map(parseOutputSelector),
     includeThinking: providerConfig.streamIncludeThinking === true,
     includeToolCalls: providerConfig.streamIncludeToolCalls !== false,
+    taskTitle,
     taskDisplayMode,
   }
 }
@@ -91,6 +108,13 @@ export function readSlackStreamResponseConfig(
   if (typeof value.includeThinking !== 'boolean' || typeof value.includeToolCalls !== 'boolean') {
     throw new Error('Persisted Slack stream visibility settings are invalid')
   }
+  const taskTitle = value.taskTitle === undefined ? 'Running' : value.taskTitle
+  if (typeof taskTitle !== 'string' || !taskTitle.trim()) {
+    throw new Error('Persisted Slack stream response status label is invalid')
+  }
+  if (taskTitle.length > SLACK_TASK_TITLE_LIMIT) {
+    throw new Error('Persisted Slack stream response status label is too long')
+  }
   if (value.taskDisplayMode !== 'timeline' && value.taskDisplayMode !== 'plan') {
     throw new Error('Persisted Slack stream task display mode is invalid')
   }
@@ -99,6 +123,7 @@ export function readSlackStreamResponseConfig(
     outputConfigs,
     includeThinking: value.includeThinking,
     includeToolCalls: value.includeToolCalls,
+    taskTitle,
     taskDisplayMode: value.taskDisplayMode,
   }
 }
@@ -122,5 +147,6 @@ export function replaceSlackStreamAuthoringConfig(
   providerConfig.streamOutputs = undefined
   providerConfig.streamIncludeThinking = undefined
   providerConfig.streamIncludeToolCalls = undefined
+  providerConfig.streamTaskTitle = undefined
   providerConfig.streamTaskDisplayMode = undefined
 }
