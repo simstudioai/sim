@@ -202,6 +202,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
     const workspaceId = context.workspaceId
     const assertNotAborted = () =>
       assertServerToolNotAborted(context, 'Request aborted before table mutation could be applied.')
+
+    // A stale Mothership may still send the removed selector. Never report success
+    // after silently changing its requested semantics from draft to deployed.
+    if (
+      (operation === 'add_workflow_group' || operation === 'update_workflow_group') &&
+      args.deploymentMode === 'live'
+    ) {
+      return {
+        success: false,
+        message:
+          'deploymentMode "live" is not supported; table workflow groups only run the latest active deployment. Deploy the workflow, then retry without deploymentMode.',
+      }
+    }
+
     try {
       switch (operation) {
         case 'create': {

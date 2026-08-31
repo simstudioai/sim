@@ -960,23 +960,40 @@ describe('userTableServerTool workflow scope', () => {
     expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
   })
 
-  it('does not pass a legacy deployment mode into workflow group creation', async () => {
+  it.each([
+    {
+      operation: 'add_workflow_group',
+      args: {
+        tableId: 'tbl_1',
+        workflowId: 'workflow-1',
+        outputs: [{ blockId: 'block-1', path: 'content' }],
+        deploymentMode: 'live',
+      },
+    },
+    {
+      operation: 'update_workflow_group',
+      args: {
+        tableId: 'tbl_1',
+        groupId: 'group-1',
+        deploymentMode: 'live',
+      },
+    },
+  ])('rejects a legacy live deployment mode for $operation', async ({ operation, args }) => {
     const result = await userTableServerTool.execute(
       {
-        operation: 'add_workflow_group',
-        args: {
-          tableId: 'tbl_1',
-          workflowId: 'workflow-1',
-          outputs: [{ blockId: 'block-1', path: 'content' }],
-          deploymentMode: 'live',
-        },
+        operation,
+        args,
       },
       buildToolContext()
     )
 
-    expect(result.success).toBe(true)
-    expect(mockAddWorkflowGroup).toHaveBeenCalledTimes(1)
-    expect(mockAddWorkflowGroup.mock.calls[0][0].group).not.toHaveProperty('deploymentMode')
+    expect(result).toEqual({
+      success: false,
+      message:
+        'deploymentMode "live" is not supported; table workflow groups only run the latest active deployment. Deploy the workflow, then retry without deploymentMode.',
+    })
+    expect(mockResolveWorkflowContext).not.toHaveBeenCalled()
+    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
   })
 
   it('conceals unknown application failures from tool output', async () => {
