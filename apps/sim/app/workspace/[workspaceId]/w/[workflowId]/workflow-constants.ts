@@ -44,6 +44,7 @@ export const reactFlowStyles = [
   '[&_.react-flow__selectionpane]:select-none',
   String.raw`[&_.react-flow\_\_selection]:!border-[var(--text-secondary)]`,
   String.raw`[&_.react-flow\_\_selection]:!bg-[color-mix(in_oklch,var(--text-secondary)_8%,transparent)]`,
+  String.raw`[&_.react-flow\_\_edge:focus-visible_.react-flow\_\_edge-path]:drop-shadow-[0_0_2px_var(--text-secondary)]`,
   '[&_.react-flow__background]:hidden',
   '[&_.react-flow__node-subflowNode.selected]:!shadow-none',
 ].join(' ')

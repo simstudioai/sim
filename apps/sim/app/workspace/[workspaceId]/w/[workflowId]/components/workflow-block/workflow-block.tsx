@@ -757,6 +757,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               edge.source,
               edge.target
             ),
+            isEdgeSelected: (edge.data as { isSelected?: boolean } | undefined)?.isSelected,
           })
           if (!isHighlighted) continue
           if (edge.source === id) keys.push(edge.sourceHandle || 'source')
