@@ -11,6 +11,8 @@ import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/applica
 export interface ReadWorkspaceFileSecretProvenanceInput {
   fileId: string
   assertedWorkspaceId?: string
+  /** Fails closed when the caller's derived content no longer matches the canonical file revision. */
+  expectedContentUpdatedAt?: Date
 }
 
 export const readWorkspaceFileSecretProvenance = defineAuthorizedWorkspaceFileUseCase({
@@ -28,6 +30,7 @@ export const readWorkspaceFileSecretProvenance = defineAuthorizedWorkspaceFileUs
         fileId: file.id,
         key: file.key,
         context: 'workspace',
+        contentUpdatedAt: input.expectedContentUpdatedAt,
       }),
       ownerUserId: file.uploadedBy,
     }

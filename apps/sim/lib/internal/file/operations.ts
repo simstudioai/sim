@@ -305,10 +305,13 @@ const extractUserFileTextContent = async (
   return `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`
 }
 
-interface FileContentSource {
-  file: UserFile
+export interface FileContentProvenanceSource {
   identity?: WorkspaceFileSecretProvenanceIdentity
   ownerUserId?: string
+}
+
+interface FileContentSource extends FileContentProvenanceSource {
+  file: UserFile
 }
 
 async function bindSelectedContentFile(
@@ -334,16 +337,23 @@ async function bindSelectedContentFile(
 
   return {
     file,
-    identity: { fileId: metadata.id, key: metadata.key, context: 'workspace' },
+    identity: {
+      fileId: metadata.id,
+      key: metadata.key,
+      context: 'workspace',
+      contentUpdatedAt: metadata.contentUpdatedAt ?? undefined,
+    },
     ownerUserId: metadata.uploadedBy,
   }
 }
 
-async function getFileContentProvenance(
+export async function getFileContentProvenance(
   principal: Principal,
   workspaceId: string,
-  sources: readonly FileContentSource[]
+  sources: readonly FileContentProvenanceSource[],
+  signal?: AbortSignal
 ): Promise<ResolvedSecretTraceProvenanceV1> {
+  signal?.throwIfAborted()
   const ownerIds = new Set(
     sources
       .map((source) => source.ownerUserId)
@@ -356,14 +366,20 @@ async function getFileContentProvenance(
   const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
 
   for (const source of sources) {
+    signal?.throwIfAborted()
     if (!source.identity || !source.ownerUserId) {
       accumulator.markIncomplete('file-source-unidentified')
       continue
     }
     const { provenance } = await readWorkspaceFileSecretProvenance.execute({
       principal,
-      input: { fileId: source.identity.fileId, assertedWorkspaceId: workspaceId },
+      input: {
+        fileId: source.identity.fileId,
+        assertedWorkspaceId: workspaceId,
+        expectedContentUpdatedAt: source.identity.contentUpdatedAt,
+      },
     })
+    signal?.throwIfAborted()
     /**
      * `unrecorded` is a more specific `unknown`, and this accumulator has not opted into the
      * workspace file surface's policy, so it latches exactly as it did before.
@@ -493,7 +509,7 @@ async function deriveWorkspaceFileSecretProvenance(options: {
   return mergeWorkspaceFileSecretProvenance(...provenances)
 }
 
-function fileContentJsonResponse(
+export function fileContentJsonResponse(
   body: Record<string, unknown>,
   includePrivateProvenance: boolean,
   init?: ResponseInit,
@@ -715,7 +731,12 @@ export async function executeFileManageOperation(
           return [
             {
               file: userFile,
-              identity: { fileId: file.id, key: file.key, context: 'workspace' },
+              identity: {
+                fileId: file.id,
+                key: file.key,
+                context: 'workspace',
+                contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+              },
               ownerUserId: file.uploadedBy,
             },
           ]
@@ -759,7 +780,7 @@ export async function executeFileManageOperation(
 
         logger.info('File content extracted', { count: contents.length })
         const provenance = includePrivateContentProvenance
-          ? await getFileContentProvenance(principal, workspaceId, sources)
+          ? await getFileContentProvenance(principal, workspaceId, sources, signal)
           : undefined
 
         return contentResponse({ success: true, data: { contents } }, undefined, provenance)

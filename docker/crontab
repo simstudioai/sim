@@ -30,6 +30,9 @@ SHELL=/bin/sh
 */1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/resume/poll"
 */1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/webhooks/outbox/process"
 
+# Workspace file search indexing dispatcher
+*/1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/workspace-file-search-dispatch"
+
 # Knowledge base connector syncs
 */5 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/knowledge/connectors/sync"
 
