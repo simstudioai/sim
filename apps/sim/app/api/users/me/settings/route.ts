@@ -8,6 +8,7 @@ import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { invalidateSuperUserGate } from '@/lib/mothership/server/agent-url'
 import { getCurrentUserSettingsUseCase } from '@/lib/users/application/read-current-user'
 import { defaultUserSettings } from '@/lib/users/queries'
 
@@ -67,6 +68,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest) => {
           updatedAt: new Date(),
         },
       })
+
+    /* Chat-turn routing caches the superuser gate; a toggle here must reach the very
+       next turn, so drop this user's cached entry (same-process write → reader). */
+    if ('superUserModeEnabled' in validatedData) invalidateSuperUserGate(userId)
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
