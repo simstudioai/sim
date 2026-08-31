@@ -40,7 +40,8 @@ describe('GrafanaClient', () => {
 
     expect(mocks.validateUrlWithDNS).toHaveBeenCalledWith(
       'https://grafana.example.com/api/folders/folder-1',
-      'baseUrl'
+      'baseUrl',
+      'configuredEndpoint'
     )
     expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://grafana.example.com/api/folders/folder-1',

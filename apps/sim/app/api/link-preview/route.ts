@@ -53,6 +53,9 @@ function parsePreview(html: string): LinkPreview {
 
 async function fetchPreview(url: string): Promise<LinkPreview> {
   const response = await secureFetchWithValidation(url, {
+    // The URL is harvested from a rendered link rather than authored as a
+    // destination, so it gets no reach into a private network.
+    profile: 'contentFetch',
     timeout: FETCH_TIMEOUT_MS,
     maxRedirects: MAX_REDIRECTS,
     maxResponseBytes: MAX_RESPONSE_BYTES,

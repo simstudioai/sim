@@ -79,7 +79,8 @@ describe('executeAgiloftRequest', () => {
 
     expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'https://example.agiloft.com',
-      'instanceUrl'
+      'instanceUrl',
+      'configuredEndpoint'
     )
 
     const calls = mockSecureFetch.mock.calls

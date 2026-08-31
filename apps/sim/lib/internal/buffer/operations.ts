@@ -1,11 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { BufferOperationError } from '@/lib/internal/buffer/errors'
 import type { BufferCreatePostInput, BufferEditPostInput } from '@/lib/internal/buffer/input'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
 import {
   BUFFER_API_URL,
@@ -63,19 +65,25 @@ async function resolveMediaKind(args: {
   mimeType?: string
   pathOrName: string
   fileUrl: string
+  profile: EgressProfile
   context: BufferOperationContext
 }): Promise<'image' | 'video' | null> {
-  const { mimeType, pathOrName, fileUrl, context } = args
+  const { mimeType, pathOrName, fileUrl, profile, context } = args
   if (mimeType?.startsWith('video/')) return 'video'
   if (mimeType?.startsWith('image/')) return 'image'
   const extensionKind = mediaKindFromExtension(pathOrName)
   if (extensionKind) return extensionKind
 
+  // An uploaded file resolves to a presigned URL against Sim's own storage,
+  // which on a self-hosted deployment legitimately sits on a private address
+  // (`configuredEndpoint`); a caller-supplied URL stays content (`contentFetch`)
+  // so a rebinding host cannot steer this probe onto a private address.
   try {
-    const validation = await validateUrlWithDNS(fileUrl, 'media')
+    const validation = await validateUrlWithDNS(fileUrl, 'media', profile)
     context.signal?.throwIfAborted()
-    if (validation.isValid && validation.resolvedIP) {
+    if (validation.isValid) {
       const probe = await secureFetchWithPinnedIP(fileUrl, validation.resolvedIP, {
+        profile,
         method: 'HEAD',
         timeout: MEDIA_PROBE_TIMEOUT_MS,
         signal: context.signal,
@@ -101,6 +109,10 @@ async function resolveMediaAsset(
   context.signal?.throwIfAborted()
   const media = input.media
   const isFileInput = typeof media === 'object'
+  // An uploaded file, or a path that names Sim's own storage, is internal; any
+  // other string is a caller-supplied URL and stays content.
+  const mediaProfile: EgressProfile =
+    isFileInput || isInternalFileUrl(media) ? 'configuredEndpoint' : 'contentFetch'
   const resolution = await resolveFileInputToUrl({
     file: isFileInput ? media : undefined,
     filePath: isFileInput ? undefined : media,
@@ -124,6 +136,7 @@ async function resolveMediaAsset(
           mimeType: isFileInput ? media.type : undefined,
           pathOrName: isFileInput ? media.name || '' : media,
           fileUrl: resolution.fileUrl,
+          profile: mediaProfile,
           context,
         })
   if (!kind) {

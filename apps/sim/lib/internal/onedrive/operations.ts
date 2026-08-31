@@ -104,14 +104,14 @@ async function readGraphJson(
 
 async function graphRequest(
   url: string,
-  init: Parameters<typeof secureFetchWithValidation>[1],
+  init: Omit<Parameters<typeof secureFetchWithValidation>[1], 'profile'>,
   label: string,
   signal?: AbortSignal
 ): Promise<SecureFetchResponse> {
   signal?.throwIfAborted()
   return secureFetchWithValidation(
     url,
-    { ...init, maxResponseBytes: MAX_GRAPH_JSON_BYTES, signal },
+    { ...init, profile: 'configuredEndpoint', maxResponseBytes: MAX_GRAPH_JSON_BYTES, signal },
     label
   )
 }
@@ -427,12 +427,13 @@ async function fetchGraph(
   maxResponseBytes: number,
   signal?: AbortSignal
 ) {
-  const validation = await validateUrlWithDNS(url, label)
+  const validation = await validateUrlWithDNS(url, label, 'contentFetch')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new OneDriveOperationError(validation.error || `Invalid ${label}`, 400)
   }
   return secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    profile: 'contentFetch',
     headers: { Authorization: `Bearer ${accessToken}` },
     maxResponseBytes,
     signal,

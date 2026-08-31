@@ -786,13 +786,18 @@ describe('secureFetchWithRetry', () => {
     const response = await secureFetchWithRetry('https://example.com/api', {
       method: 'GET',
       headers: { Accept: 'application/json' },
+      profile: 'configuredEndpoint',
     })
 
     expect(response.status).toBe(200)
     expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
     const [url, options, paramName] = mockSecureFetchWithValidation.mock.calls[0]
     expect(url).toBe('https://example.com/api')
-    expect(options).toMatchObject({ method: 'GET', headers: { Accept: 'application/json' } })
+    expect(options).toMatchObject({
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      profile: 'configuredEndpoint',
+    })
     expect(paramName).toBe('url')
   })
 
@@ -802,7 +807,11 @@ describe('secureFetchWithRetry', () => {
     )
 
     await expect(
-      secureFetchWithRetry('https://attacker.test', { method: 'GET' }, FAST_RETRY)
+      secureFetchWithRetry(
+        'https://attacker.test',
+        { method: 'GET', profile: 'configuredEndpoint' },
+        FAST_RETRY
+      )
     ).rejects.toThrow('blocked IP address')
 
     expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
@@ -815,7 +824,7 @@ describe('secureFetchWithRetry', () => {
 
     const response = await secureFetchWithRetry(
       'https://example.com/api',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       FAST_RETRY
     )
 
@@ -828,7 +837,7 @@ describe('secureFetchWithRetry', () => {
 
     const response = await secureFetchWithRetry(
       'https://example.com/api',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       FAST_RETRY
     )
 
@@ -836,17 +845,21 @@ describe('secureFetchWithRetry', () => {
     expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
   })
 
-  it('forwards allowHttp / timeout / maxResponseBytes to the pinned fetch', async () => {
+  it('forwards the egress profile, timeout and maxResponseBytes to the pinned fetch', async () => {
     mockSecureFetchWithValidation.mockResolvedValue(fakeResponse(200))
 
     await secureFetchWithRetry(
       'http://localhost:9000',
-      { method: 'GET' },
-      { allowHttp: true, timeout: 5000, maxResponseBytes: 1024, ...FAST_RETRY }
+      { method: 'GET', profile: 'configuredEndpoint' },
+      { timeout: 5000, maxResponseBytes: 1024, ...FAST_RETRY }
     )
 
     const [, options] = mockSecureFetchWithValidation.mock.calls[0]
-    expect(options).toMatchObject({ allowHttp: true, timeout: 5000, maxResponseBytes: 1024 })
+    expect(options).toMatchObject({
+      profile: 'configuredEndpoint',
+      timeout: 5000,
+      maxResponseBytes: 1024,
+    })
   })
 
   /**
@@ -868,7 +881,7 @@ describe('secureFetchWithRetry', () => {
 
     const response = await secureFetchWithRetry(
       'https://api.github.com/repos',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       FAST_RETRY
     )
 
@@ -883,7 +896,7 @@ describe('secureFetchWithRetry', () => {
 
     const response = await secureFetchWithRetry(
       'https://api.github.com/repos',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       FAST_RETRY
     )
 
@@ -898,7 +911,7 @@ describe('secureFetchWithRetry', () => {
 
     const response = await secureFetchWithRetry(
       'https://example.com/api',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       FAST_RETRY
     )
 
@@ -914,7 +927,7 @@ describe('secureFetchWithRetry', () => {
 
     const error = await secureFetchWithRetry(
       'https://gitlab.example.com/api/v4/projects',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       { ...FAST_RETRY, maxRetries: 0 }
     ).then(
       () => undefined,

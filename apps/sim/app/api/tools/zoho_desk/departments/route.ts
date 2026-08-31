@@ -78,6 +78,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // IP, block private/reserved hops, and drop the token if a Zoho-side
       // redirect leaves the original origin.
       const response = await secureFetchWithValidation(departmentsUrl.toString(), {
+        profile: 'configuredEndpoint',
         method: 'GET',
         headers,
         timeout: 15_000,

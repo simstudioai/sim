@@ -25,7 +25,7 @@ export async function requestGoogleDrive(
   options: GoogleDriveRequestOptions
 ): Promise<SecureFetchResponse> {
   options.signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(options.url, options.label)
+  const validation = await validateUrlWithDNS(options.url, options.label, 'configuredEndpoint')
   options.signal?.throwIfAborted()
   if (!validation.isValid) {
     throw new GoogleDriveOperationError(400, {
@@ -34,7 +34,8 @@ export async function requestGoogleDrive(
     })
   }
 
-  return secureFetchWithPinnedIP(options.url, validation.resolvedIP!, {
+  return secureFetchWithPinnedIP(options.url, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: options.method,
     headers: {
       Authorization: `Bearer ${options.accessToken}`,

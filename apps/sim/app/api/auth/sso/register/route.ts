@@ -56,13 +56,18 @@ type DiscoveryResult =
 const OIDC_DISCOVERY_TIMEOUT_MS = 10000
 
 async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<DiscoveryResult> {
-  const urlValidation = await validateUrlWithDNS(discoveryUrl, 'OIDC discovery URL')
-  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
-    return { ok: false, error: urlValidation.error ?? 'SSRF validation failed' }
+  const urlValidation = await validateUrlWithDNS(
+    discoveryUrl,
+    'OIDC discovery URL',
+    'configuredEndpoint'
+  )
+  if (!urlValidation.isValid) {
+    return { ok: false, error: urlValidation.error }
   }
 
   try {
     const response = await secureFetchWithPinnedIP(discoveryUrl, urlValidation.resolvedIP, {
+      profile: 'configuredEndpoint',
       headers: { Accept: 'application/json' },
       timeout: OIDC_DISCOVERY_TIMEOUT_MS,
     })
@@ -317,7 +322,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       for (const [name, endpointUrl] of Object.entries(userProvidedEndpoints)) {
         if (endpointUrl) {
-          const endpointValidation = await validateUrlWithDNS(endpointUrl, `OIDC ${name}`)
+          const endpointValidation = await validateUrlWithDNS(
+            endpointUrl,
+            `OIDC ${name}`,
+            'configuredEndpoint'
+          )
           if (!endpointValidation.isValid) {
             logger.warn('Explicitly provided OIDC endpoint failed SSRF validation', {
               endpoint: name,
@@ -369,7 +378,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         for (const [key, value] of Object.entries(discoveredEndpoints)) {
           if (typeof value === 'string') {
-            const endpointValidation = await validateUrlWithDNS(value, `OIDC ${key}`)
+            const endpointValidation = await validateUrlWithDNS(
+              value,
+              `OIDC ${key}`,
+              'contentFetch'
+            )
             if (!endpointValidation.isValid) {
               logger.warn('OIDC discovered endpoint failed SSRF validation', {
                 endpoint: key,

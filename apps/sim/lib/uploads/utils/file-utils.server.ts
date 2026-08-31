@@ -199,9 +199,9 @@ export async function resolveFileInputToUrl(
         },
       }
     } else {
-      const urlValidation = await validateUrlWithDNS(fileUrl, 'filePath')
+      const urlValidation = await validateUrlWithDNS(fileUrl, 'filePath', 'contentFetch')
       if (!urlValidation.isValid) {
-        return { error: { status: 400, message: urlValidation.error || 'Invalid URL' } }
+        return { error: { status: 400, message: urlValidation.error } }
       }
     }
 
@@ -276,12 +276,13 @@ export async function downloadFileFromUrl(
     return downloadFile({ key, context, maxBytes, signal })
   }
 
-  const urlValidation = await validateUrlWithDNS(fileUrl, 'fileUrl')
+  const urlValidation = await validateUrlWithDNS(fileUrl, 'fileUrl', 'contentFetch')
   if (!urlValidation.isValid) {
     throw new Error(`Invalid file URL: ${urlValidation.error}`)
   }
 
-  const response = await secureFetchWithPinnedIP(fileUrl, urlValidation.resolvedIP!, {
+  const response = await secureFetchWithPinnedIP(fileUrl, urlValidation.resolvedIP, {
+    profile: 'contentFetch',
     timeout: timeoutMs,
     maxResponseBytes: maxBytes,
     signal,

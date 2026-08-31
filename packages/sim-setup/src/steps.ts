@@ -1,3 +1,5 @@
+import { createEgressPolicy } from '@sim/security/egress'
+import { getErrorMessage } from '@sim/utils/errors'
 import { KNOWLEDGE_EMBEDDINGS_SETUP } from './capability-config'
 import {
   type CapabilitySetupContext,
@@ -48,6 +50,26 @@ export function collectSecrets(existing: EnvFile): Record<string, string> {
     p.log.step(`Generated ${generated.join(', ')}`)
   }
   return secrets
+}
+
+/**
+ * Runs an allowlist answer through the same parser the app uses, so a malformed
+ * entry is caught at the prompt rather than at the first outbound request.
+ */
+function validateEgressEntries(spec: {
+  allowedHosts?: string
+  allowedRanges?: string
+}): string | undefined {
+  try {
+    createEgressPolicy({
+      allowedHosts: spec.allowedHosts?.trim() || undefined,
+      allowedRanges: spec.allowedRanges?.trim() || undefined,
+      sourceNames: { hosts: 'EGRESS_ALLOWED_HOSTS', ranges: 'EGRESS_ALLOWED_IP_RANGES' },
+    })
+    return undefined
+  } catch (error) {
+    return getErrorMessage(error, 'invalid entry')
+  }
 }
 
 export async function promptCopilotKey(existing?: string): Promise<string | null> {
@@ -236,12 +258,31 @@ export async function promptSecurity(vars: Map<string, string>): Promise<Securit
     mirrorToRealtime.DISABLE_AUTH = 'true'
   }
 
-  const privateHosts = await p.confirm({
+  const existingEgressHosts = vars.get('EGRESS_ALLOWED_HOSTS')
+  const egressHosts = await p.text({
     message:
-      'Allow DB/connector tools to reach private hosts? (Docker/K8s service names, localhost — loosens the SSRF guard)',
-    initialValue: isTruthy(vars.get('ALLOW_PRIVATE_DATABASE_HOSTS')),
+      'Hosts on your private network that workflows may reach? (comma-separated, blank for none — widens the SSRF guard)',
+    placeholder: 'host.docker.internal,*.svc.cluster.local',
+    initialValue: existingEgressHosts ?? '',
+    defaultValue: '',
+    validate: (value) => validateEgressEntries({ allowedHosts: value }),
   })
-  if (privateHosts) sim.ALLOW_PRIVATE_DATABASE_HOSTS = 'true'
+  if (typeof egressHosts === 'string' && egressHosts.trim()) {
+    sim.EGRESS_ALLOWED_HOSTS = egressHosts.trim()
+  }
+
+  const existingEgressRanges = vars.get('EGRESS_ALLOWED_IP_RANGES')
+  const egressRanges = await p.text({
+    message:
+      'Address ranges on your private network that workflows may reach? (CIDRs, comma-separated)',
+    placeholder: '10.0.0.0/8,192.168.65.254/32',
+    initialValue: existingEgressRanges ?? '',
+    defaultValue: '',
+    validate: (value) => validateEgressEntries({ allowedRanges: value }),
+  })
+  if (typeof egressRanges === 'string' && egressRanges.trim()) {
+    sim.EGRESS_ALLOWED_IP_RANGES = egressRanges.trim()
+  }
 
   const existingAdminKey = vars.get('ADMIN_API_KEY')
   if (!existingAdminKey || isPlaceholder(existingAdminKey)) {

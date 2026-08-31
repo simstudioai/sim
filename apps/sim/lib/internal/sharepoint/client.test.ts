@@ -42,6 +42,7 @@ describe('SharePointClient', () => {
       {
         headers: { Authorization: 'Bearer token' },
         stripAuthOnRedirect: true,
+        profile: 'configuredEndpoint',
         maxResponseBytes: MAX_FILE_SIZE,
         signal: controller.signal,
       }
@@ -63,6 +64,7 @@ describe('SharePointClient', () => {
     expect(mocks.validatedFetch).toHaveBeenCalledWith(
       'https://graph.microsoft.com/upload',
       {
+        profile: 'contentFetch',
         method: 'PUT',
         headers: {
           Authorization: 'Bearer token',

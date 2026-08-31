@@ -19,9 +19,9 @@ export async function submitPulseParse(
   signal?: AbortSignal
 ): Promise<unknown> {
   signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(PULSE_ENDPOINT, 'Pulse API URL')
+  const validation = await validateUrlWithDNS(PULSE_ENDPOINT, 'Pulse API URL', 'configuredEndpoint')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new PulseOperationError(502, { success: false, error: 'Failed to reach Pulse API' })
   }
 
@@ -30,6 +30,7 @@ export async function submitPulseParse(
   const body = Buffer.from(await payload.arrayBuffer())
   signal?.throwIfAborted()
   const response = await secureFetchWithPinnedIP(PULSE_ENDPOINT, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'POST',
     headers: { 'x-api-key': apiKey, 'Content-Type': contentType },
     body,
