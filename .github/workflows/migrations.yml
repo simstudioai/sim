@@ -81,6 +81,7 @@ jobs:
               exit 1
             fi
             bun run ./scripts/apply-dev-workspace-file-size-cutover.ts
+  bun run ./scripts/apply-dev-table-triggers.ts
           else
             echo "Applying versioned migrations (db:migrate)"
             bun run ./scripts/migrate.ts
