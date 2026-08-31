@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-28",
+  "updatedAt": "2026-08-31",
   "integrations": [
     {
       "type": "onepassword",
@@ -8013,7 +8013,7 @@
         },
         {
           "name": "List workflow runs",
-          "description": "List workflow runs for a repository. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links."
+          "description": "List workflow runs for a repository, or for a single workflow when a workflow ID or filename is given. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links."
         },
         {
           "name": "Get workflow run",
