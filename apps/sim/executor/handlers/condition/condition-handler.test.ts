@@ -232,10 +232,13 @@ describe('ConditionBlockHandler', () => {
     expect(toolParams.mountedSecrets).toEqual([])
   })
 
-  it('does not let resolved data widen the mounted secrets by naming the environment', async () => {
+  it('does not let resolved data decide which secrets the sandbox holds', async () => {
+    // The script carries the source block's output as data. Reading that data for either
+    // signal would let a caller pick what materializes beside it — the whole map by naming
+    // the global, or one secret by naming its placeholder.
     mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
     mockContext.blockStates.set('source-block-1', {
-      output: { text: 'environmentVariables.OPENAI_API_KEY' },
+      output: { text: 'environmentVariables.OPENAI_API_KEY {{OPENAI_API_KEY}}' },
       executed: true,
       executionTime: 0,
     } as BlockState)
@@ -248,7 +251,7 @@ describe('ConditionBlockHandler', () => {
     await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
 
     const [, toolParams] = mockExecuteTool.mock.calls[0]
-    expect(toolParams.code).toContain('environmentVariables.OPENAI_API_KEY')
+    expect(toolParams.code).toContain('{{OPENAI_API_KEY}}')
     expect(toolParams.secretScope).toBe('selected')
     expect(toolParams.mountedSecrets).toEqual([])
   })

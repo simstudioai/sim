@@ -97,23 +97,22 @@ function buildConditionScript(expressions: string[], evalContext: Record<string,
  * sandbox the full environment only widens what a future defect in this path could reach —
  * the whole map was readable as the `environmentVariables` global.
  *
- * The two scans read different text on purpose. Placeholders are read from the built script,
- * which is exactly what the compiler substitutes over, so a mounted set derived from anything
- * narrower would silently stop resolving a placeholder the compiler still expands. The direct
- * `environmentVariables` read is looked for in the expressions alone: the script also carries
- * the source block's output as data, so scanning that too would let a payload which merely
- * contains the word restore the full map.
+ * Both scans read the expressions rather than the built script, which also carries the source
+ * block's output as data. Reading that data would let it decide what the sandbox holds: a
+ * payload containing the word `environmentVariables` would restore the whole map, and one
+ * containing `{{SECRET}}` would mount that secret and have the compiler expand it into the
+ * data — a caller choosing which secret materializes next to it. Every legitimate route to a
+ * secret runs through an expression, including a workflow variable holding `{{NAME}}`, because
+ * the resolver inlines that value into the expression before this runs.
  *
- * Within an expression the bare identifier is enough, rather than a member access. Narrowing
- * the secrets an expression can see when it does reach for the map by some shape the pattern
- * did not anticipate — `environmentVariables?.FLAG`, or a read through `Object.keys` — would
- * route the run down a branch the author did not write, silently. Matching too widely only
- * costs the narrowing itself, and never mounts more than this path already mounted.
+ * Within an expression the bare `environmentVariables` identifier is enough, rather than a
+ * member access. Narrowing the secrets an expression can see when it does reach for the map by
+ * some shape the pattern did not anticipate — `environmentVariables?.FLAG`, or a read through
+ * `Object.keys` — would route the run down a branch the author did not write, silently.
+ * Matching too widely only costs the narrowing itself, and never mounts more than this path
+ * already mounted.
  */
-function scopeConditionSecrets(
-  code: string,
-  expressions: string[]
-): {
+function scopeConditionSecrets(expressions: string[]): {
   secretScope: 'all' | 'selected'
   mountedSecrets: string[]
 } {
@@ -122,8 +121,10 @@ function scopeConditionSecrets(
   }
 
   const named = new Set<string>()
-  for (const match of code.matchAll(createEnvVarPattern())) {
-    named.add(String(match[1]).trim())
+  for (const expression of expressions) {
+    for (const match of expression.matchAll(createEnvVarPattern())) {
+      named.add(String(match[1]).trim())
+    }
   }
   return { secretScope: 'selected', mountedSecrets: [...named] }
 }
@@ -144,7 +145,7 @@ async function runConditionCode(
   currentNodeId?: string
 ): Promise<ToolResponse> {
   const { blockNameMapping, blockOutputSchemas } = collectBlockData(ctx, currentNodeId)
-  const { secretScope, mountedSecrets } = scopeConditionSecrets(code, expressions)
+  const { secretScope, mountedSecrets } = scopeConditionSecrets(expressions)
 
   return executeTool(
     'function_execute',

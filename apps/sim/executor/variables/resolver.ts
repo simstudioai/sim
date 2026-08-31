@@ -188,6 +188,7 @@ const JAVASCRIPT_REGEX_ALLOWED_AFTER_KEYWORDS = new Set([
   'delete',
   'void',
   'case',
+  'throw',
   'do',
   'else',
   'yield',
