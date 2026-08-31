@@ -100,12 +100,10 @@ describe('Chat API Utils', () => {
       } as any
 
       const result = await validateChatAuth('request-id', deployment, mockRequest)
-      expect(mockValidateAuthToken).toHaveBeenCalledWith(
-        'valid-token',
-        'chat-id',
-        'password',
-        'encrypted-password'
-      )
+      expect(mockValidateAuthToken).toHaveBeenCalledWith({
+        token: 'valid-token',
+        resource: deployment,
+      })
       expect(result.authorized).toBe(true)
     })
 
@@ -136,15 +134,19 @@ describe('Chat API Utils', () => {
         cookies: { set: vi.fn() },
       } as unknown as NextResponse
 
-      setChatAuthCookie(mockResponse, 'test-chat-id', 'password')
+      const deployment = {
+        id: 'test-chat-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+      setChatAuthCookie(mockResponse, deployment)
 
-      expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith(
-        mockResponse,
-        'chat',
-        'test-chat-id',
-        'password',
-        undefined
-      )
+      expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith({
+        response: mockResponse,
+        cookiePrefix: 'chat',
+        resource: deployment,
+        verifiedEmail: undefined,
+      })
     })
   })
 

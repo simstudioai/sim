@@ -65,13 +65,11 @@ const createMockStream = () => {
   })
 }
 
-const { mockValidateChatAuth, mockSetChatAuthCookie, mockValidateAuthToken, mockProcessChatFiles } =
-  vi.hoisted(() => ({
-    mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
-    mockSetChatAuthCookie: vi.fn(),
-    mockValidateAuthToken: vi.fn().mockReturnValue(false),
-    mockProcessChatFiles: vi.fn(),
-  }))
+const { mockValidateChatAuth, mockSetChatAuthCookie, mockProcessChatFiles } = vi.hoisted(() => ({
+  mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
+  mockSetChatAuthCookie: vi.fn(),
+  mockProcessChatFiles: vi.fn(),
+}))
 
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
@@ -80,12 +78,6 @@ vi.mock('@sim/db', () => ({
   ...dbChainMock,
   chat: {},
   workflow: {},
-}))
-
-vi.mock('@/lib/core/security/deployment', () => ({
-  validateAuthToken: mockValidateAuthToken,
-  setDeploymentAuthCookie: vi.fn(),
-  isEmailAllowed: vi.fn().mockReturnValue(false),
 }))
 
 vi.mock('@/app/api/chat/utils', () => ({
@@ -190,7 +182,6 @@ describe('Chat Identifier API Route', () => {
     })
 
     mockValidateChatAuth.mockResolvedValue({ authorized: true })
-    mockValidateAuthToken.mockReturnValue(false)
     mockProcessChatFiles.mockResolvedValue([])
     mockCreateErrorResponse.mockImplementation((message: string, status: number, code?: string) => {
       return new Response(
@@ -316,6 +307,18 @@ describe('Chat Identifier API Route', () => {
 
   describe('POST endpoint', () => {
     it('should return chat config on successful authentication', async () => {
+      const passwordDeployment = {
+        ...mockChatResult[0],
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+      dbChainMockFns.select.mockImplementation(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue([passwordDeployment]),
+          }),
+        }),
+      }))
       const req = createMockNextRequest('POST', { password: 'test-password' })
       const params = Promise.resolve({ identifier: 'password-protected-chat' })
 
@@ -329,7 +332,7 @@ describe('Chat Identifier API Route', () => {
       expect(data).toHaveProperty('customizations')
       expect(data.customizations).toHaveProperty('welcomeMessage', 'Welcome to the test chat')
 
-      expect(mockSetChatAuthCookie).toHaveBeenCalled()
+      expect(mockSetChatAuthCookie).toHaveBeenCalledWith(expect.anything(), passwordDeployment)
     })
 
     it('should return 400 for requests without input', async () => {
