@@ -13,6 +13,8 @@ const { fetched } = vi.hoisted(() => ({
     isLoadingOptions: false,
     hasLoadedOptions: true,
     fetchError: null as string | null,
+    hydratedOptions: [] as { id: string; label: string }[],
+    selectedValues: ['col_a', 'col_gone'] as string[],
   },
 }))
 
@@ -52,6 +54,7 @@ vi.mock(
       hasLoadedOptions: fetched.hasLoadedOptions,
       fetchError: fetched.fetchError,
       hydratedOption: null,
+      hydratedOptions: fetched.hydratedOptions,
       missingOptionId: null,
       refetch: () => {},
     }),
@@ -59,7 +62,7 @@ vi.mock(
 )
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value',
-  () => ({ useSubBlockValue: () => [['col_a', 'col_gone'], () => {}] })
+  () => ({ useSubBlockValue: () => [fetched.selectedValues, () => {}] })
 )
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider',
@@ -139,6 +142,38 @@ describe('Dropdown multi-select stale selections', () => {
       expect(html).toContain('data-value="col_gone"')
     } finally {
       fetched.options = previous
+    }
+  })
+
+  it('uses hydrated labels for selected values missing from the loaded list', () => {
+    fetched.hydratedOptions = [{ id: 'col_gone', label: 'Former column' }]
+    try {
+      const html = render()
+      expect(html).toContain('Former column [selected]')
+      expect(html).toContain('<span class="truncate">Former column</span>')
+    } finally {
+      fetched.hydratedOptions = []
+    }
+  })
+
+  it('preserves selected value order when hydrating multiple missing options', () => {
+    const previousOptions = fetched.options
+    const previousSelectedValues = fetched.selectedValues
+    fetched.options = []
+    fetched.selectedValues = ['col_first', 'col_second']
+    fetched.hydratedOptions = [
+      { id: 'col_first', label: 'First column' },
+      { id: 'col_second', label: 'Second column' },
+    ]
+    try {
+      const html = render()
+      expect(html.indexOf('data-value="col_first"')).toBeLessThan(
+        html.indexOf('data-value="col_second"')
+      )
+    } finally {
+      fetched.options = previousOptions
+      fetched.selectedValues = previousSelectedValues
+      fetched.hydratedOptions = []
     }
   })
 })

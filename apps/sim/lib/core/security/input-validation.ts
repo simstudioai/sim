@@ -414,6 +414,13 @@ export function validateSharePointSiteId(
     }
   }
 
+  if (value === '.' || value === '..') {
+    return {
+      isValid: false,
+      error: `${paramName} cannot be a dot segment`,
+    }
+  }
+
   return { isValid: true, sanitized: value }
 }
 

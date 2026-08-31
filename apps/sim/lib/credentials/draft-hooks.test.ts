@@ -23,6 +23,7 @@ import {
   handleCreateCredentialFromDraft,
   handleReconnectCredential,
 } from '@/lib/credentials/draft-hooks'
+import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 
 describe('handleCreateCredentialFromDraft', () => {
   beforeEach(() => {
@@ -55,7 +56,9 @@ describe('handleCreateCredentialFromDraft', () => {
 
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.credential)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ updatedAt: now })
-    expect(mocks.clearDeadFlag).toHaveBeenCalledWith('account-1')
+    expect(mocks.clearDeadFlag).toHaveBeenCalledWith(
+      getOAuthRefreshCoordinationIdentity('account-1')
+    )
     expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'credential.reconnected',
@@ -109,6 +112,9 @@ describe('handleReconnectCredential', () => {
       now: new Date('2026-08-14T18:00:00.000Z'),
     })
 
+    expect(mocks.clearDeadFlag).toHaveBeenCalledWith(
+      getOAuthRefreshCoordinationIdentity('account-new')
+    )
     expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         resourceId: 'credential-1',

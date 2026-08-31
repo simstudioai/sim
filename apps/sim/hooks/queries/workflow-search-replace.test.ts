@@ -94,17 +94,13 @@ describe('workflowSearchReplaceKeys', () => {
   })
 
   it('builds scoped selector replacement option keys', () => {
-    expect(
-      workflowSearchReplaceKeys.selectorReplacementOptions(
-        'gmail.labels',
-        '{"oauthCredential":"credential-1","workspaceId":"workspace-1"}'
-      )
-    ).toEqual([
+    expect(workflowSearchReplaceKeys.selectorReplacementOptions('gmail.labels', 2, 4)).toEqual([
       'workflow-search-replace',
       'replacement-options',
       'selector',
       'gmail.labels',
-      '{"oauthCredential":"credential-1","workspaceId":"workspace-1"}',
+      2,
+      4,
     ])
   })
 })

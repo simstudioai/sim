@@ -37,6 +37,7 @@ import {
   refreshTokenIfNeeded,
   resolveServiceAccountToken,
 } from '@/lib/oauth/credential-service'
+import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -326,9 +327,11 @@ describe('OAuth Utils', () => {
       const result = await refreshTokenIfNeeded('request-id', slackCredential(), 'row-1')
 
       expect(result).toEqual({ accessToken: 'new-at', refreshed: true })
+      const installationIdentity = getOAuthRefreshCoordinationIdentity('slack:T08CM6ZNYBE')
       expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe(
-        'oauth:refresh:slack:T08CM6ZNYBE'
+        `oauth:refresh:${installationIdentity}`
       )
+      expect(installationIdentity).not.toContain('T08CM6ZNYBE')
       expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][2]).toBe(30)
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('slack', 'live-rt')
       expect(mockSet).toHaveBeenCalledWith(
@@ -367,7 +370,11 @@ describe('OAuth Utils', () => {
       )
 
       expect(result).toEqual({ accessToken: 'new-at', refreshed: true })
-      expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe('oauth:refresh:row-1')
+      const rowIdentity = getOAuthRefreshCoordinationIdentity('row-1')
+      expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe(
+        `oauth:refresh:${rowIdentity}`
+      )
+      expect(rowIdentity).not.toContain('row-1')
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('slack', 'stale-rt')
     })
 
@@ -391,8 +398,9 @@ describe('OAuth Utils', () => {
         'Failed to refresh token'
       )
 
+      const installationIdentity = getOAuthRefreshCoordinationIdentity('slack:T08CM6ZNYBE')
       expect(fakeRedis.set).toHaveBeenCalledWith(
-        'oauth:dead:slack:T08CM6ZNYBE',
+        `oauth:dead:${installationIdentity}`,
         'token_revoked',
         'EX',
         3600

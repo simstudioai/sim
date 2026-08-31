@@ -1,9 +1,15 @@
+import { db } from '@sim/db'
+import { workflowDeploymentVersion } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { FetchMessageObject, MailboxLockObject } from 'imapflow'
-import { ImapFlow } from 'imapflow'
+import { and, eq } from 'drizzle-orm'
+import type { FetchMessageObject, ImapFlow, MailboxLockObject } from 'imapflow'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import {
+  createSecureImapClient,
+  hasImapEnvironmentReferences,
+  normalizeLiteralImapConnection,
+  resolveImapConnectionForActor,
+} from '@/lib/imap/connection.server'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -71,6 +77,38 @@ interface ImapWebhookPayload {
   timestamp: string
 }
 
+async function resolvePollingConnection(
+  webhookData: PollWebhookContext['webhookData'],
+  workflowData: PollWebhookContext['workflowData'],
+  config: ImapWebhookConfig
+) {
+  if (!hasImapEnvironmentReferences(config)) {
+    return normalizeLiteralImapConnection(config)
+  }
+
+  if (!webhookData.deploymentVersionId) {
+    throw new Error('Referenced IMAP authentication requires redeployment')
+  }
+  const [deployment] = await db
+    .select({ createdBy: workflowDeploymentVersion.createdBy })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.id, webhookData.deploymentVersionId),
+        eq(workflowDeploymentVersion.workflowId, workflowData.id)
+      )
+    )
+    .limit(1)
+  if (!deployment?.createdBy) {
+    throw new Error('Referenced IMAP authentication requires redeployment')
+  }
+  return resolveImapConnectionForActor({
+    connection: config,
+    actorUserId: deployment.createdBy,
+    workspaceId: workflowData.workspaceId,
+  })
+}
+
 export const imapPollingHandler: PollingProviderHandler = {
   provider: 'imap',
   label: 'IMAP',
@@ -88,27 +126,8 @@ export const imapPollingHandler: PollingProviderHandler = {
         return 'failure'
       }
 
-      const hostValidation = await validateDatabaseHost(config.host, 'host')
-      if (!hostValidation.isValid) {
-        logger.error(
-          `[${requestId}] IMAP host validation failed for webhook ${webhookId}: ${hostValidation.error}`
-        )
-        await markWebhookFailed(webhookId, logger)
-        return 'failure'
-      }
-
-      const client = new ImapFlow({
-        host: hostValidation.resolvedIP,
-        servername: config.host,
-        port: config.port || 993,
-        secure: config.secure ?? true,
-        auth: {
-          user: config.username,
-          pass: config.password,
-        },
-        tls: { rejectUnauthorized: true },
-        logger: false,
-      })
+      const resolvedConnection = await resolvePollingConnection(webhookData, workflowData, config)
+      const client = await createSecureImapClient(resolvedConnection)
 
       let emails: Awaited<ReturnType<typeof fetchNewEmails>>['emails'] = []
       let latestUidByMailbox: Record<string, number> = {}
@@ -182,7 +201,7 @@ export const imapPollingHandler: PollingProviderHandler = {
         throw innerError
       }
     } catch (error) {
-      logger.error(`[${requestId}] Error processing IMAP webhook ${webhookId}:`, error)
+      logger.error(`[${requestId}] Error processing IMAP webhook ${webhookId}`)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -333,8 +352,8 @@ async function fetchNewEmails(
         }
         totalEmailsCollected++
       }
-    } catch (mailboxError) {
-      logger.warn(`[${requestId}] Error processing mailbox ${mailboxPath}:`, mailboxError)
+    } catch {
+      logger.warn(`[${requestId}] Error processing mailbox ${mailboxPath}`)
     }
   }
 
@@ -574,11 +593,8 @@ async function processEmails(
                   currentOpenMailbox = email.mailboxPath
                 }
                 await client.messageFlagsAdd(email.uid, ['\\Seen'], { uid: true })
-              } catch (flagError) {
-                logger.warn(
-                  `[${requestId}] Failed to mark message ${email.uid} as read:`,
-                  flagError
-                )
+              } catch {
+                logger.warn(`[${requestId}] Failed to mark message ${email.uid} as read`)
               }
             }
 
@@ -590,9 +606,8 @@ async function processEmails(
           `[${requestId}] Successfully processed email ${email.uid} from ${email.mailboxPath} for webhook ${webhookData.id}`
         )
         processedCount++
-      } catch (error) {
-        const errorMessage = getErrorMessage(error, 'Unknown error')
-        logger.error(`[${requestId}] Error processing email ${email.uid}:`, errorMessage)
+      } catch {
+        logger.error(`[${requestId}] Error processing email ${email.uid}`)
         failedCount++
       }
     }

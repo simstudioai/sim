@@ -47,6 +47,7 @@ async function revertSavedWebhook(
       .update(webhook)
       .set({
         workflowId: existingWebhook.workflowId,
+        deploymentVersionId: existingWebhook.deploymentVersionId,
         blockId: existingWebhook.blockId,
         path: existingWebhook.path,
         provider: existingWebhook.provider,
@@ -271,8 +272,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         id: workflow.id,
         userId: workflow.userId,
         workspaceId: workflow.workspaceId,
+        deploymentVersionId: workflowDeploymentVersion.id,
       })
       .from(workflow)
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
       .where(eq(workflow.id, workflowId))
       .limit(1)
 
@@ -340,6 +349,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
+      const imapDeploymentCondition =
+        provider === 'imap'
+          ? workflowRecord.deploymentVersionId
+            ? eq(webhook.deploymentVersionId, workflowRecord.deploymentVersionId)
+            : isNull(webhook.deploymentVersionId)
+          : undefined
       const ownExisting = await db
         .select({ id: webhook.id })
         .from(webhook)
@@ -347,7 +362,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           and(
             eq(webhook.path, finalPath),
             eq(webhook.workflowId, workflowId),
-            isNull(webhook.archivedAt)
+            isNull(webhook.archivedAt),
+            imapDeploymentCondition
           )
         )
         .limit(1)
@@ -468,6 +484,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .set({
             blockId,
             provider,
+            ...(provider === 'imap'
+              ? { deploymentVersionId: workflowRecord.deploymentVersionId ?? null }
+              : {}),
             providerConfig: configToSave,
             isActive: true,
             updatedAt: new Date(),
@@ -488,6 +507,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .values({
             id: webhookId,
             workflowId,
+            ...(provider === 'imap'
+              ? { deploymentVersionId: workflowRecord.deploymentVersionId ?? null }
+              : {}),
             blockId,
             path: finalPath,
             provider,
@@ -539,6 +561,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const success = await pollingHandler.configurePolling({
             webhook: savedWebhook,
             requestId,
+            userId,
+            workspaceId:
+              typeof workflowRecord.workspaceId === 'string' ? workflowRecord.workspaceId : null,
+            deploymentVersionId: savedWebhook.deploymentVersionId ?? null,
           })
 
           if (!success) {

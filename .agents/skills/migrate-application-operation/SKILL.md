@@ -167,6 +167,22 @@ Choose principal kinds from actual behavior. Do not accept every principal merel
 
 Route declarations, tool adapters, and use cases must use the same literal operation. Runtime operation selection is permitted only from a trusted, code-defined registry. Never accept an operation ID or permission tag from an HTTP body, model argument, or other untrusted input.
 
+### Unified selector execution is one operation
+
+Dynamic selector dispatch is the deliberate instance of trusted runtime selection. Define and
+authorize `selectors.execute` once: it means "enumerate options while configuring a workflow or
+workspace resource." The browser supplies only a selector key from the exhaustive browser-safe
+manifest, scope, allowlisted context, and list/detail request. After canonical scope authorization,
+the application use case selects the matching attachment from the exhaustive server-only registry.
+
+Provider and internal attachments are trusted implementation adapters under that semantic operation,
+not separate application operations. Do not create one operation per selector, provider, or listing
+endpoint. Attachments may choose only code-defined credential/service binding, destination policy,
+provider primitive, and projection behavior; they must not accept a module, provider, service,
+operation kind, origin, or permission tag from the request. The `selectors.execute` use case owns
+reference resolution, credential authorization, provider invocation, sanitization, and safe result
+projection end to end.
+
 ## Implement the application use case
 
 Use `defineAuthorizedWorkspaceUseCase` directly or a thin domain binding that supplies domain-specific authorization options:

@@ -21,9 +21,9 @@
  * behind a route. Scanning the source text instead would have to re-implement a
  * TypeScript lexer to know which braces are code and which sit inside a string,
  * template literal, regex or comment, and it could only ever see contracts whose
- * `method`/`path` are inline literals — the 70-plus built through helpers like
- * `definePostSelector(path, …)` would be invisible. Route files stay a static
- * scan on purpose: importing one drags in `@sim/db`, auth and `next/server`,
+ * `method`/`path` are inline literals — helper-built contracts such as
+ * `defineJsmToolContract(path, …)` would be invisible. Route files stay a
+ * static scan on purpose: importing one drags in `@sim/db`, auth and `next/server`,
  * whereas contract modules are pure Zod.
  */
 import { existsSync } from 'node:fs'

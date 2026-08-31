@@ -14,7 +14,7 @@ import {
   jsmRequestTypesToolBodySchema,
   jsmServiceDeskScopedBodySchema,
   jsmServiceDesksBodySchema,
-} from '@/lib/api/contracts/selectors/jsm'
+} from '@/lib/api/contracts/tools/jsm'
 import { JiraServiceManagementBlock } from '@/blocks/blocks/jira_service_management'
 import {
   jsmGetApprovalsTool,

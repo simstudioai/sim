@@ -42,19 +42,25 @@ export interface EgressValidationFailure {
 
 export type EgressValidationResult = EgressValidationSuccess | EgressValidationFailure
 
+export interface EgressValidationOptions {
+  /** Omit destination-derived values from logs when the URL contains protected context. */
+  logDetails?: boolean
+}
+
 type EgressDenial = Extract<EgressDecision, { allowed: false }>
 
 function fail(
   decision: EgressDenial,
   paramName: string,
-  profile: EgressProfile
+  profile: EgressProfile,
+  options: EgressValidationOptions
 ): EgressValidationFailure {
-  logger.warn('Blocked outbound request', {
-    profile,
-    reason: decision.reason,
-    detail: decision.detail,
-    paramName,
-  })
+  logger.warn(
+    'Blocked outbound request',
+    options.logDetails === false
+      ? { profile, reason: decision.reason, paramName }
+      : { profile, reason: decision.reason, detail: decision.detail, paramName }
+  )
   return { isValid: false, error: describeEgressDenial(decision, paramName, profile) }
 }
 
@@ -68,7 +74,8 @@ function fail(
 export async function validateEgressUrl(
   url: string | null | undefined,
   paramName: string,
-  profile: EgressProfile
+  profile: EgressProfile,
+  options: EgressValidationOptions = {}
 ): Promise<EgressValidationResult> {
   if (!url || typeof url !== 'string') {
     return { isValid: false, error: `${paramName} is required and must be a string` }
@@ -95,7 +102,7 @@ export async function validateEgressUrl(
     // destination that is already refused.
     const final =
       isLiteral || !policyDefersToAddress(policy) || !isLiftableByVouching(preflight.reason)
-    if (final) return fail(preflight, paramName, profile)
+    if (final) return fail(preflight, paramName, profile, options)
   }
 
   // An IP literal was already classified by evaluateUrl; resolving it would only
@@ -108,7 +115,12 @@ export async function validateEgressUrl(
   try {
     addresses = (await resolveHostAddresses(host)).addresses
   } catch (error) {
-    logger.warn('DNS lookup failed', { paramName, host, error: toError(error).message })
+    logger.warn(
+      'DNS lookup failed',
+      options.logDetails === false
+        ? { profile, paramName }
+        : { profile, paramName, host, error: toError(error).message }
+    )
     return { isValid: false, error: `${paramName} hostname could not be resolved` }
   }
 
@@ -128,7 +140,8 @@ export async function validateEgressUrl(
     return fail(
       refusal ?? { allowed: false, reason: 'address-blocked', detail: 'no addresses resolved' },
       paramName,
-      profile
+      profile,
+      options
     )
   }
 

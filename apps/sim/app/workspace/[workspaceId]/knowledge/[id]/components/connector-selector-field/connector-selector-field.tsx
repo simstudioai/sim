@@ -2,22 +2,22 @@
 
 import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
-import { Loader } from '@sim/emcn/icons'
+import { useParams } from 'next/navigation'
+import { projectSelectorContext } from '@/lib/selectors/context'
+import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
+import type { SelectorContext } from '@/lib/selectors/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import type { ConnectorConfigField } from '@/connectors/types'
-import { getSelectorDefinition } from '@/hooks/selectors/registry'
-import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import {
   useSelectorOptionDetail,
   useSelectorOptionDetails,
   useSelectorOptions,
-} from '@/hooks/selectors/use-selector-query'
+} from '@/hooks/queries/selectors'
 import { useDebounce } from '@/hooks/use-debounce'
 
 interface ConnectorSelectorFieldProps {
@@ -41,84 +41,100 @@ export function ConnectorSelectorField({
   canonicalModes,
   disabled,
 }: ConnectorSelectorFieldProps) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
   const isMulti = Boolean(field.multi)
   const [searchTerm, setSearchTerm] = useState('')
 
   const context = useMemo<SelectorContext>(() => {
-    const ctx: SelectorContext = {}
-    if (credentialId) ctx.oauthCredential = credentialId
-    if (field.mimeType) ctx.mimeType = field.mimeType
+    const candidate: Record<string, string> = {}
+    if (credentialId) candidate.oauthCredential = credentialId
+    if (field.mimeType) candidate.mimeType = field.mimeType
 
     const fieldsById = new Map(configFields.map((f) => [f.id, f]))
     for (const depFieldId of getDependsOnFields(field.dependsOn)) {
       const depField = fieldsById.get(depFieldId)
       const canonicalId = depField?.canonicalParamId ?? depFieldId
       const depValue = resolveDepValue(depFieldId, configFields, canonicalModes, sourceConfig)
-      if (depValue && SELECTOR_CONTEXT_FIELDS.has(canonicalId as keyof SelectorContext)) {
-        ctx[canonicalId as keyof SelectorContext] = depValue
-      }
+      if (depValue) candidate[canonicalId] = depValue
     }
 
-    return ctx
-  }, [credentialId, field.mimeType, field.dependsOn, sourceConfig, configFields, canonicalModes])
+    return projectSelectorContext(field.selectorKey, candidate)
+  }, [
+    credentialId,
+    field.mimeType,
+    field.dependsOn,
+    field.selectorKey,
+    sourceConfig,
+    configFields,
+    canonicalModes,
+  ])
 
   const depsResolved = useMemo(() => {
     if (!field.dependsOn) return true
-    const deps = Array.isArray(field.dependsOn) ? field.dependsOn : (field.dependsOn.all ?? [])
-    return deps.every((depId) =>
+    const all = Array.isArray(field.dependsOn) ? field.dependsOn : (field.dependsOn.all ?? [])
+    const any = Array.isArray(field.dependsOn) ? [] : (field.dependsOn.any ?? [])
+    const hasValue = (depId: string) =>
       Boolean(resolveDepValue(depId, configFields, canonicalModes, sourceConfig)?.trim())
-    )
+    return all.every(hasValue) && (any.length === 0 || any.some(hasValue))
   }, [field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const isEnabled = !disabled && !!credentialId && depsResolved
+  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
   const {
     data: options = [],
     isLoading,
     hasMore,
     isFetchingMore,
+    isLoadingAll,
     truncated,
+    loadMore,
+    loadAll,
     error,
   } = useSelectorOptions(field.selectorKey, {
     context,
+    scope: { kind: 'workspace', workspaceId },
+    search: debouncedSearch,
     enabled: isEnabled,
+    surfaceId: `connector:${field.id}`,
   })
 
   /**
    * Label every selected value, including values restored from saved config that no
-   * in-session search would have resolved. Queries are keyed on `context`, so a label
-   * can never outlive the context that produced it, and they share keys with the
-   * speculative lookup below so an already-resolved id costs no extra request.
+   * in-session search would have resolved. Opaque revisions bind each label request to
+   * the active context without placing credential or dependency values in its query key.
    */
   const singleValue = Array.isArray(value) ? value[0] : value
   const selectedIds = useMemo(
     () => (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean),
     [value]
   )
-  const selectedOptions = useSelectorOptionDetails(field.selectorKey, {
-    context,
-    detailIds: isEnabled ? selectedIds : [],
-  })
+  const { data: selectedOptions, isLoading: isLoadingSelectedOptions } = useSelectorOptionDetails(
+    field.selectorKey,
+    {
+      context,
+      scope: { kind: 'workspace', workspaceId },
+      detailIds: isEnabled ? selectedIds : [],
+      surfaceId: `connector:${field.id}`,
+    }
+  )
 
   /**
-   * The option list fills by draining pages in the background and the combobox filters
-   * it client-side, so an option is only findable once its page has arrived. Where the
-   * selector's `fetchById` tolerates an unknown id, whatever the user typed is resolved
-   * directly so an exact key is selectable immediately. Gated on that flag because most
-   * implementations resolve a record by id, where a partial keystroke is a guaranteed
-   * failed upstream request rather than an empty result.
+   * Loaded pages are filtered client-side. Where `fetchById` tolerates an unknown id,
+   * resolve the typed value directly so an exact key is selectable before its page is
+   * loaded. Most implementations treat partial text as a record id, so this remains
+   * gated to selectors that explicitly support unknown-id resolution.
    */
-  const resolvesUnknownIds = Boolean(getSelectorDefinition(field.selectorKey).resolvesUnknownIds)
-  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
+  const resolvesUnknownIds = getSelectorManifestEntry(field.selectorKey).resolvesUnknownIds
   const { data: searchedOption } = useSelectorOptionDetail(field.selectorKey, {
     context,
+    scope: { kind: 'workspace', workspaceId },
     detailId:
       resolvesUnknownIds && isEnabled && debouncedSearch.length > 0 ? debouncedSearch : undefined,
+    surfaceId: `connector:${field.id}`,
   })
 
   const emptyMessage = getEmptyMessage(field.title.toLowerCase(), {
     error,
-    hasMore,
-    isFetchingMore,
     truncated,
   })
 
@@ -133,15 +149,6 @@ export function ConnectorSelectorField({
     }
     return extras.length > 0 ? [...extras, ...base] : base
   }, [options, selectedOptions, searchedOption])
-
-  if (isLoading && isEnabled) {
-    return (
-      <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 text-[var(--text-muted)] text-small dark:bg-[var(--surface-4)]'>
-        <Loader className='size-3.5' animate />
-        Loading…
-      </div>
-    )
-  }
 
   if (isMulti) {
     const multiValues = Array.isArray(value) ? value : value ? [value] : []
@@ -162,6 +169,13 @@ export function ConnectorSelectorField({
               : field.placeholder || `Select ${field.title.toLowerCase()}`
         }
         disabled={disabled || !credentialId || !depsResolved}
+        isLoading={isEnabled && (isLoading || isLoadingSelectedOptions)}
+        hasMore={hasMore}
+        isLoadingMore={isFetchingMore}
+        isLoadingAll={isLoadingAll}
+        truncated={truncated}
+        onLoadMore={loadMore}
+        onLoadAll={loadAll}
         emptyMessage={emptyMessage}
       />
     )
@@ -183,33 +197,27 @@ export function ConnectorSelectorField({
             : field.placeholder || `Select ${field.title.toLowerCase()}`
       }
       disabled={disabled || !credentialId || !depsResolved}
+      isLoading={isEnabled && (isLoading || isLoadingSelectedOptions)}
+      hasMore={hasMore}
+      isLoadingMore={isFetchingMore}
+      isLoadingAll={isLoadingAll}
+      truncated={truncated}
+      onLoadMore={loadMore}
+      onLoadAll={loadAll}
       emptyMessage={emptyMessage}
     />
   )
 }
 
-/**
- * Only visible once the first page has landed (`isLoading` renders a spinner
- * before that), so "no match" here means no match among the options drained
- * *so far* — a flat "none found" would wrongly read as "does not exist".
- *
- * `error` is checked before `hasMore`: a failed page halts the drain but leaves
- * `hasMore` set, which would otherwise claim to be loading forever.
- */
 function getEmptyMessage(
   noun: string,
   state: {
     error: Error | null
-    hasMore: boolean
-    isFetchingMore: boolean
     truncated: boolean
   }
 ): string {
   if (state.error) return 'No match — the list failed to load. Try reopening'
-  if (state.hasMore || state.isFetchingMore) return 'No match yet — still loading…'
   if (state.truncated) return 'No match — too many to list. Try a more exact term'
-  // `noun` is singular on some connectors ("Base") and plural on others ("Spaces"),
-  // so only this settled message puts it behind a quantifier.
   return `No ${noun} found`
 }
 

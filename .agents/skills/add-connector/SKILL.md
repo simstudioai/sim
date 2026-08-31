@@ -197,7 +197,14 @@ Three field types are supported: `short-input`, `dropdown`, and `selector`.
 
 ## Dynamic Selectors (Canonical Pairs)
 
-Use `type: 'selector'` to fetch options dynamically from the existing selector registry (`hooks/selectors/registry.ts`). Selectors are always paired with a manual fallback input using the **canonical pair** pattern — a `selector` field (basic mode) and a `short-input` field (advanced mode) linked by `canonicalParamId`.
+Use `type: 'selector'` for a key declared in the browser-safe selector manifest at
+`apps/sim/lib/selectors/manifest.ts`. Remote selectors execute through the authorized
+`selectors.execute` server operation and a server attachment; connectors never call providers or
+resolve credentials in the browser. Apply the `add-selector` skill when the key does not exist.
+
+Selectors are paired with a manual fallback input using the **canonical pair** pattern — a
+`selector` field (basic mode) and a `short-input` field (advanced mode) linked by
+`canonicalParamId`.
 
 The user sees a toggle button (ArrowLeftRight) to switch between the selector dropdown and manual text input. On submit, the modal resolves each canonical pair to the active mode's value, keyed by `canonicalParamId`.
 
@@ -217,7 +224,7 @@ configFields: [
     id: 'baseSelector',
     title: 'Base',
     type: 'selector',
-    selectorKey: 'airtable.bases',     // Must exist in hooks/selectors/registry.ts
+    selectorKey: 'airtable.bases',     // Must exist in lib/selectors/manifest.ts
     canonicalParamId: 'baseId',
     mode: 'basic',
     placeholder: 'Select a base',
@@ -260,7 +267,9 @@ configFields: [
 
 ### Selector with domain dependency (Jira/Confluence pattern)
 
-When a selector depends on a plain `short-input` field (no canonical pair), `dependsOn` references that field's `id` directly. The `domain` field's value maps to `SelectorContext.domain` automatically via `SELECTOR_CONTEXT_FIELDS`.
+When a selector depends on a plain `short-input` field (no canonical pair), `dependsOn` references
+that field's `id` directly. Exact references such as `{{JIRA_DOMAIN}}` remain unresolved in the
+browser and are resolved only after workspace authorization on the server.
 
 ```typescript
 configFields: [
@@ -296,16 +305,16 @@ configFields: [
 
 ### How `dependsOn` maps to `SelectorContext`
 
-The connector selector field builds a `SelectorContext` from dependency values. For the mapping to work, each dependency's `canonicalParamId` (or field `id` for non-canonical fields) must exist in `SELECTOR_CONTEXT_FIELDS` (`lib/workflows/subblocks/context.ts`):
-
-```
-oauthCredential, domain, teamId, projectId, knowledgeBaseId, planId,
-siteId, collectionId, spreadsheetId, fileId, baseId, datasetId, serviceDeskId
-```
+The shared connector context builder projects only active dependencies. A canonical dependency uses
+its active basic or advanced value under `canonicalParamId`; a non-canonical dependency uses its
+field `id`. The resulting key must be a `SelectorContextKey` in
+`apps/sim/lib/selectors/types.ts` and must be explicitly allowed by that selector's manifest entry.
+The browser sends the connector's workspace scope, not the complete connector configuration.
 
 ### Available selector keys
 
-Check `hooks/selectors/types.ts` for the full `SelectorKey` union. Common ones for connectors:
+Check `apps/sim/lib/selectors/manifest.ts` for the exhaustive selector keys. Common ones for
+connectors:
 
 | SelectorKey | Context Deps | Returns |
 |-------------|-------------|---------|
@@ -607,9 +616,13 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
 - [ ] **Selector fields configured correctly (if applicable):**
   - Every `type: 'selector'` field has a canonical pair (`short-input` or `dropdown` with same `canonicalParamId` and `mode: 'advanced'`)
   - `required` is identical on both fields in each canonical pair
-  - `selectorKey` exists in `hooks/selectors/registry.ts`
+  - `selectorKey` exists in `apps/sim/lib/selectors/manifest.ts`
   - `dependsOn` references selector field IDs (not `canonicalParamId`)
-  - Dependency `canonicalParamId` values exist in `SELECTOR_CONTEXT_FIELDS`
+  - Each projected dependency key is a `SelectorContextKey` allowed by the selector manifest
+  - Every remote key has one server attachment with credential provider binding and a reviewed
+    `fixed`, `credential-bound`, or `user-controlled` destination policy
+  - No connector selector adds a client provider module, browser token request, or selector-only
+    API route
 - [ ] `listDocuments` handles pagination with metadata-based content hashes
 - [ ] `syncContext.listingCapped = true` set whenever the listing is truncated (max-items cap or transient per-item error) — required to prevent the engine's deletion reconciliation from removing unseen documents
 - [ ] `contentDeferred: true` used if content requires per-doc API calls (file download, export, blocks fetch)

@@ -12,7 +12,7 @@ import type {
   JsmReopenFormBody,
   JsmSaveFormAnswersBody,
   JsmSubmitFormBody,
-} from '@/lib/api/contracts/selectors/jsm'
+} from '@/lib/api/contracts/tools/jsm'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { asArray, asObject, createJsmClient, nested } from '@/lib/internal/jsm/client'
 import { JsmOperationError } from '@/lib/internal/jsm/errors'

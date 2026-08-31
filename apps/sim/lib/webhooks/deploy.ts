@@ -660,14 +660,15 @@ export async function resolveWebhookConfigForBlock(input: {
 async function configurePollingIfNeeded(
   provider: string,
   savedWebhook: Record<string, unknown>,
-  requestId: string
+  requestId: string,
+  actor: { userId: string; workspaceId: string | null; deploymentVersionId?: string | null }
 ): Promise<TriggerSaveError | null> {
   const handler = getProviderHandler(provider)
   if (!handler.configurePolling) {
     return null
   }
 
-  const success = await handler.configurePolling({ webhook: savedWebhook, requestId })
+  const success = await handler.configurePolling({ webhook: savedWebhook, requestId, ...actor })
   if (!success) {
     await db.delete(webhook).where(eq(webhook.id, savedWebhook.id as string))
     return {
@@ -1058,7 +1059,12 @@ export async function saveTriggerWebhooksForDeploy({
       const pollingError = await configurePollingIfNeeded(
         sub.provider,
         { id: sub.webhookId, path: sub.triggerPath, providerConfig: sub.updatedProviderConfig },
-        requestId
+        requestId,
+        {
+          userId,
+          workspaceId: typeof workflow.workspaceId === 'string' ? workflow.workspaceId : null,
+          deploymentVersionId,
+        }
       )
       if (pollingError) {
         logger.error(
