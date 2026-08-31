@@ -9,13 +9,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   executionStoreState,
   mockCancel,
+  mockAdoptScopedExecution,
+  mockBeginScopedExecution,
+  mockEndScopedExecution,
   mockExecute,
   mockExecuteFromBlock,
   mockFetch,
   mockHandleExecutionCancelledConsole,
   mockHandleExecutionErrorConsole,
-  mockPersistenceExecutionEnded,
-  mockPersistenceExecutionStarted,
+  mockLoadExecutionPointer,
+  mockReconnect,
   mockRequestJson,
   mockResolveStartCandidates,
   mockSelectBestTrigger,
@@ -86,13 +89,16 @@ const {
   return {
     executionStoreState,
     mockCancel: vi.fn(),
+    mockAdoptScopedExecution: vi.fn(),
+    mockBeginScopedExecution: vi.fn(() => ({})),
+    mockEndScopedExecution: vi.fn(() => true),
     mockExecute: vi.fn(),
     mockExecuteFromBlock: vi.fn(),
     mockFetch: vi.fn(),
     mockHandleExecutionCancelledConsole: vi.fn(),
     mockHandleExecutionErrorConsole: vi.fn(),
-    mockPersistenceExecutionEnded: vi.fn(),
-    mockPersistenceExecutionStarted: vi.fn(() => ({})),
+    mockLoadExecutionPointer: vi.fn(),
+    mockReconnect: vi.fn(),
     mockRequestJson: vi.fn(),
     mockResolveStartCandidates: vi.fn(),
     mockSelectBestTrigger: vi.fn(),
@@ -210,7 +216,7 @@ vi.mock('@/hooks/use-execution-stream', () => {
     useExecutionStream: () => ({
       execute: mockExecute,
       executeFromBlock: mockExecuteFromBlock,
-      reconnect: vi.fn(),
+      reconnect: mockReconnect,
       cancel: mockCancel,
       cancelExecute: vi.fn(),
       cancelReconnect: vi.fn(),
@@ -241,11 +247,12 @@ vi.mock('@/stores/execution', () => ({
 vi.mock('@/stores/terminal', () => ({
   clearExecutionPointer: vi.fn(),
   consolePersistence: {
-    executionStarted: mockPersistenceExecutionStarted,
-    executionEnded: mockPersistenceExecutionEnded,
+    adoptScopedExecution: mockAdoptScopedExecution,
+    beginScopedExecution: mockBeginScopedExecution,
+    endScopedExecution: mockEndScopedExecution,
     persist: vi.fn(),
   },
-  loadExecutionPointer: vi.fn(),
+  loadExecutionPointer: mockLoadExecutionPointer,
   saveExecutionPointer: vi.fn(),
   useTerminalConsoleStore: Object.assign(
     (selector: (state: typeof terminalStoreState) => unknown) => selector(terminalStoreState),
@@ -406,10 +413,14 @@ describe('useWorkflowExecution cancellation', () => {
 describe('useWorkflowExecution attachment uploads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    terminalStoreState._hasHydrated = false
     executionStoreState.getWorkflowExecution.mockReturnValue(
       executionStoreState.workflowExecutions.get('workflow-1')!
     )
     executionStoreState.getCurrentExecutionId.mockReturnValue(null)
+    mockAdoptScopedExecution.mockReturnValue(undefined)
+    mockLoadExecutionPointer.mockResolvedValue(null)
+    mockReconnect.mockResolvedValue(undefined)
     mockResolveStartCandidates.mockReturnValue([])
     mockSelectBestTrigger.mockReturnValue([])
     vi.stubGlobal('fetch', mockFetch)
@@ -548,7 +559,7 @@ describe('useWorkflowExecution attachment uploads', () => {
   it('does not let an overlapping run without lifecycle ownership end the active run', async () => {
     const persistenceExecution = {}
     let resolveActiveRun: (() => void) | undefined
-    mockPersistenceExecutionStarted.mockReturnValueOnce(persistenceExecution)
+    mockBeginScopedExecution.mockReturnValueOnce(persistenceExecution)
     mockExecute.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
@@ -571,16 +582,49 @@ describe('useWorkflowExecution attachment uploads', () => {
       await result().handleRunWorkflow()
     })
 
-    expect(mockPersistenceExecutionStarted).toHaveBeenCalledTimes(1)
-    expect(mockPersistenceExecutionEnded).not.toHaveBeenCalled()
+    expect(mockBeginScopedExecution).toHaveBeenCalledTimes(1)
+    expect(mockEndScopedExecution).not.toHaveBeenCalled()
 
     await act(async () => {
       resolveActiveRun?.()
       await drainStream(activeRun)
     })
 
-    expect(mockPersistenceExecutionEnded).toHaveBeenCalledOnce()
-    expect(mockPersistenceExecutionEnded).toHaveBeenCalledWith(persistenceExecution)
+    expect(mockEndScopedExecution).toHaveBeenCalledOnce()
+    expect(mockEndScopedExecution).toHaveBeenCalledWith('workflow-1', persistenceExecution)
+
+    unmount()
+  })
+
+  it('adopts and finishes persistence ownership created before the hook mounted', async () => {
+    const persistenceExecution = {}
+    terminalStoreState._hasHydrated = true
+    executionStoreState.getWorkflowExecution.mockReturnValue({
+      ...executionStoreState.getWorkflowExecution(),
+      status: 'running',
+      isExecuting: true,
+      currentExecutionId: 'execution-1',
+    })
+    executionStoreState.getCurrentExecutionId.mockReturnValue('execution-1')
+    mockLoadExecutionPointer.mockResolvedValue({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      lastEventId: 0,
+    })
+    mockAdoptScopedExecution.mockReturnValue(persistenceExecution)
+    mockReconnect.mockImplementationOnce(async ({ callbacks }) => {
+      callbacks.onExecutionCompleted({ finalBlockLogs: [] })
+    })
+
+    const { unmount } = renderWorkflowExecutionHook()
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockBeginScopedExecution).not.toHaveBeenCalled()
+    expect(mockAdoptScopedExecution).toHaveBeenCalledWith('workflow-1')
+    expect(mockEndScopedExecution).toHaveBeenCalledWith('workflow-1', persistenceExecution)
 
     unmount()
   })

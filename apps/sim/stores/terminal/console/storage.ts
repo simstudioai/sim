@@ -253,6 +253,8 @@ class ConsolePersistenceManager {
   private dataProvider: (() => PersistedConsoleData) | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
   private activeExecutions = new Set<ConsolePersistenceExecution>()
+  private scopedExecutions = new Map<string, ConsolePersistenceExecution>()
+  private executionScopes = new Map<ConsolePersistenceExecution, string>()
   private needsInitialPersist = false
 
   /**
@@ -277,6 +279,24 @@ class ConsolePersistenceManager {
     return execution
   }
 
+  /** Starts a lifecycle that another owner can recover by its stable scope. */
+  beginScopedExecution(scope: string): ConsolePersistenceExecution {
+    const existingExecution = this.scopedExecutions.get(scope)
+    if (existingExecution) {
+      this.executionEnded(existingExecution)
+    }
+
+    const execution = this.executionStarted()
+    this.scopedExecutions.set(scope, execution)
+    this.executionScopes.set(execution, scope)
+    return execution
+  }
+
+  /** Returns the active lifecycle for a stable scope without creating a new one. */
+  adoptScopedExecution(scope: string): ConsolePersistenceExecution | undefined {
+    return this.scopedExecutions.get(scope)
+  }
+
   /**
    * Called by the store when a running entry is added during an active execution.
    * Triggers one immediate persist so refreshes can hydrate visible terminal rows,
@@ -294,10 +314,22 @@ class ConsolePersistenceManager {
    */
   executionEnded(execution: ConsolePersistenceExecution): void {
     if (!this.activeExecutions.delete(execution)) return
+    const scope = this.executionScopes.get(execution)
+    if (scope !== undefined && this.scopedExecutions.get(scope) === execution) {
+      this.scopedExecutions.delete(scope)
+    }
+    this.executionScopes.delete(execution)
     this.persist()
     if (this.activeExecutions.size === 0) {
       this.stopSafetyTimer()
     }
+  }
+
+  /** Ends a scoped lifecycle only when the caller still owns its exact token. */
+  endScopedExecution(scope: string, execution: ConsolePersistenceExecution): boolean {
+    if (this.scopedExecutions.get(scope) !== execution) return false
+    this.executionEnded(execution)
+    return true
   }
 
   /**
@@ -312,6 +344,8 @@ class ConsolePersistenceManager {
   /** Stops persistence work owned by the previous authenticated session. */
   reset(): void {
     this.activeExecutions.clear()
+    this.scopedExecutions.clear()
+    this.executionScopes.clear()
     this.needsInitialPersist = false
     this.stopSafetyTimer()
   }

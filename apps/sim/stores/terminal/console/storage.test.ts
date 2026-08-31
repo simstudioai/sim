@@ -153,4 +153,38 @@ describe('console persistence execution lifecycle', () => {
 
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it('lets a new owner adopt and finish a scoped execution', () => {
+    const execution = consolePersistence.beginScopedExecution('workflow-1')
+
+    expect(consolePersistence.adoptScopedExecution('workflow-1')).toBe(execution)
+    expect(consolePersistence.endScopedExecution('workflow-1', execution)).toBe(true)
+    expect(consolePersistence.adoptScopedExecution('workflow-1')).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not let a stale scoped completion end its replacement', () => {
+    const staleExecution = consolePersistence.beginScopedExecution('workflow-1')
+    const currentExecution = consolePersistence.beginScopedExecution('workflow-1')
+
+    expect(consolePersistence.endScopedExecution('workflow-1', staleExecution)).toBe(false)
+    expect(consolePersistence.adoptScopedExecution('workflow-1')).toBe(currentExecution)
+    expect(vi.getTimerCount()).toBe(1)
+
+    expect(consolePersistence.endScopedExecution('workflow-1', currentExecution)).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('clears scoped ownership across authenticated-session resets', () => {
+    const previousSessionExecution = consolePersistence.beginScopedExecution('workflow-1')
+
+    consolePersistence.reset()
+    const currentSessionExecution = consolePersistence.beginScopedExecution('workflow-1')
+
+    expect(consolePersistence.endScopedExecution('workflow-1', previousSessionExecution)).toBe(
+      false
+    )
+    expect(consolePersistence.adoptScopedExecution('workflow-1')).toBe(currentSessionExecution)
+    expect(vi.getTimerCount()).toBe(1)
+  })
 })

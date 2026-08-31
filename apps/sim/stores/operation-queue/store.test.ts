@@ -425,7 +425,7 @@ describe('operation queue room gating', () => {
     const drained = useOperationQueueStore.getState().waitForWorkflowOperations('workflow-a')
     useOperationQueueStore.getState().confirmOperation('op-1')
 
-    await expect(drained).resolves.toBe(true)
+    await expect(drained).resolves.toBe('drained')
   })
 
   it('does not wait on operations from other workflows', async () => {
@@ -442,7 +442,7 @@ describe('operation queue room gating', () => {
 
     await expect(
       useOperationQueueStore.getState().waitForWorkflowOperations('workflow-b')
-    ).resolves.toBe(true)
+    ).resolves.toBe('drained')
   })
 
   it('stops waiting when an operation error is reported', async () => {
@@ -460,7 +460,7 @@ describe('operation queue room gating', () => {
     const drained = useOperationQueueStore.getState().waitForWorkflowOperations('workflow-a')
     useOperationQueueStore.setState({ hasOperationError: true })
 
-    await expect(drained).resolves.toBe(false)
+    await expect(drained).resolves.toBe('failed')
   })
 
   it('stops waiting when matching workflow operations do not drain before timeout', async () => {
@@ -480,7 +480,7 @@ describe('operation queue room gating', () => {
       const drained = useOperationQueueStore.getState().waitForWorkflowOperations('workflow-a', 100)
       await vi.advanceTimersByTimeAsync(100)
 
-      await expect(drained).resolves.toBe(false)
+      await expect(drained).resolves.toBe('failed')
     } finally {
       vi.useRealTimers()
     }
@@ -533,6 +533,24 @@ describe('operation queue room gating', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('reports an in-flight workflow drain as cancelled when the queue resets', async () => {
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'replace-state',
+        target: 'workflow',
+        payload: { state: {} },
+      },
+    })
+
+    const drainResult = useOperationQueueStore.getState().waitForWorkflowOperations('workflow-a')
+    useOperationQueueStore.getState().reset()
+
+    await expect(drainResult).resolves.toBe('cancelled')
   })
 
   it('reset cancels a scheduled retry', async () => {

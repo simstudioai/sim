@@ -6,6 +6,7 @@ import type {
   SubblockUpdateEmit,
   VariableUpdateEmit,
   WorkflowOperationEmit,
+  WorkflowOperationsDrainResult,
 } from './types'
 
 function isBlockStillPresent(blockId: string | undefined): boolean {
@@ -57,6 +58,7 @@ function clearOperationQueueTimers(): void {
 let emitWorkflowOperation: WorkflowOperationEmit | null = null
 let emitSubblockUpdate: SubblockUpdateEmit | null = null
 let emitVariableUpdate: VariableUpdateEmit | null = null
+let resetVersion = 0
 
 export function registerEmitFunctions(
   workflowEmit: WorkflowOperationEmit,
@@ -472,29 +474,37 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     workflowId: string,
     timeoutMs = DEFAULT_WORKFLOW_DRAIN_TIMEOUT_MS
   ) => {
+    const waitResetVersion = resetVersion
     if (!get().hasPendingOperations(workflowId)) {
-      return Promise.resolve(true)
+      return Promise.resolve('drained' as const)
     }
 
-    return new Promise((resolve) => {
+    return new Promise<WorkflowOperationsDrainResult>((resolve) => {
       let unsubscribe = () => {}
       const timeout = setTimeout(() => {
         unsubscribe()
-        resolve(false)
+        resolve('failed')
       }, timeoutMs)
 
       unsubscribe = useOperationQueueStore.subscribe((state) => {
+        if (resetVersion !== waitResetVersion) {
+          clearTimeout(timeout)
+          unsubscribe()
+          resolve('cancelled')
+          return
+        }
+
         if (state.hasOperationError) {
           clearTimeout(timeout)
           unsubscribe()
-          resolve(false)
+          resolve('failed')
           return
         }
 
         if (!state.operations.some((op) => op.workflowId === workflowId)) {
           clearTimeout(timeout)
           unsubscribe()
-          resolve(true)
+          resolve('drained')
         }
       })
     })
@@ -662,6 +672,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
   reset: () => {
     clearOperationQueueTimers()
+    resetVersion += 1
 
     emitWorkflowOperation = null
     emitSubblockUpdate = null

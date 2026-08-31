@@ -62,7 +62,7 @@ export const getOrganizationBillingSummary = defineAuthorizedOrganizationBilling
       billingStatus,
       upgradeWorkspaceId,
     ] = await Promise.all([
-      dbReplica
+      db
         .select({
           id: organization.id,
           orgUsageLimit: organization.orgUsageLimit,
@@ -72,16 +72,16 @@ export const getOrganizationBillingSummary = defineAuthorizedOrganizationBilling
         .where(eq(organization.id, organizationId))
         .limit(1),
       getOrganizationSubscription(organizationId, {
-        executor: dbReplica,
+        executor: db,
         onError: 'throw',
       }),
-      dbReplica
+      db
         .select()
         .from(subscriptionTable)
         .where(eq(subscriptionTable.referenceId, organizationId))
         .orderBy(desc(subscriptionTable.periodStart), desc(subscriptionTable.id))
         .limit(1),
-      getOrganizationBillingBlockState(organizationId, actorUserId, dbReplica),
+      getOrganizationBillingBlockState(organizationId, actorUserId, db),
       getUpgradeWorkspaceId({ type: 'organization', id: organizationId }, db),
     ])
 

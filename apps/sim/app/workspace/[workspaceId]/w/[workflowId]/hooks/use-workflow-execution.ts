@@ -432,13 +432,11 @@ export function useWorkflowExecution() {
   const setCurrentExecutionId = useExecutionStore((s) => s.setCurrentExecutionId)
   const getCurrentExecutionId = useExecutionStore((s) => s.getCurrentExecutionId)
   const rawSetIsExecuting = useExecutionStore((s) => s.setIsExecuting)
-  const persistenceExecutionsRef = useRef(new Map<string, ConsolePersistenceExecution>())
 
   const endPersistenceExecution = useCallback((workflowId: string) => {
-    const persistenceExecution = persistenceExecutionsRef.current.get(workflowId)
+    const persistenceExecution = consolePersistence.adoptScopedExecution(workflowId)
     if (!persistenceExecution) return
-    persistenceExecutionsRef.current.delete(workflowId)
-    consolePersistence.executionEnded(persistenceExecution)
+    consolePersistence.endScopedExecution(workflowId, persistenceExecution)
   }, [])
 
   const setIsExecuting = useCallback(
@@ -446,8 +444,7 @@ export function useWorkflowExecution() {
       const wasExecuting = useExecutionStore.getState().getWorkflowExecution(workflowId).isExecuting
       if (executing) {
         if (!wasExecuting) {
-          const startedExecution = consolePersistence.executionStarted()
-          persistenceExecutionsRef.current.set(workflowId, startedExecution)
+          const startedExecution = consolePersistence.beginScopedExecution(workflowId)
           rawSetIsExecuting(workflowId, true)
           return startedExecution
         }
@@ -465,12 +462,11 @@ export function useWorkflowExecution() {
   const finishOwnedExecution = useCallback(
     (workflowId: string, persistenceExecution: ConsolePersistenceExecution | undefined) => {
       if (!persistenceExecution) return
-      if (persistenceExecutionsRef.current.get(workflowId) !== persistenceExecution) return
-      endPersistenceExecution(workflowId)
+      if (!consolePersistence.endScopedExecution(workflowId, persistenceExecution)) return
       clearExecutionPointer(workflowId)
       rawSetIsExecuting(workflowId, false)
     },
-    [endPersistenceExecution, rawSetIsExecuting]
+    [rawSetIsExecuting]
   )
   const setIsDebugging = useExecutionStore((s) => s.setIsDebugging)
   const setPendingBlocks = useExecutionStore((s) => s.setPendingBlocks)
@@ -2490,7 +2486,7 @@ export function useWorkflowExecution() {
           setCurrentExecutionId(reconnectWorkflowId, capturedExecutionId)
           reconnectPersistenceExecution =
             setIsExecuting(reconnectWorkflowId, true) ??
-            persistenceExecutionsRef.current.get(reconnectWorkflowId)
+            consolePersistence.adoptScopedExecution(reconnectWorkflowId)
           activationOwnsPersistence = Boolean(reconnectPersistenceExecution)
           if (fromEventId === 0) {
             clearExecutionEntries(capturedExecutionId)
