@@ -401,22 +401,30 @@ export async function resolveWorkspaceScope(
  * `roleVerifiedFor` is the user id a caller has already checked, not a boolean,
  * so a caller that verified some OTHER subject's role cannot vouch for this
  * one. When it does not match, the role is resolved here instead, and a caller
- * with no read access is handed back `null` so the surface's own role failure —
- * the concealed one — is what it answers with. That second lookup is free:
- * `getUserEntityPermissions` for a workspace goes through the request-scoped
- * memo the role check itself uses.
+ * who does not reach `requiredLevel` is handed back `null` so the surface's own
+ * role failure — the concealed one — is what it answers with. That second
+ * lookup is free: `getUserEntityPermissions` for a workspace goes through the
+ * request-scoped memo the role check itself uses.
+ *
+ * `requiredLevel` is the level the SURFACE will demand, not a floor of `read`.
+ * The funnel runs this key after `requireCurrentHumanRole(operation.minimumRole)`,
+ * so a read-only member calling a write route is refused on role there. Checked
+ * at `read` here, the same person on the same route was told instead how their
+ * organization configured personal keys — the disclosure the ordering exists to
+ * prevent, one level in.
  */
 async function resolvePersonalKeyGroupRefusal(
   rateLimit: RateLimitResult,
   workspaceId: string,
-  roleVerifiedFor: string | null
+  roleVerifiedFor: string | null,
+  requiredLevel: PermissionType = 'read'
 ): Promise<WorkspaceAccessError | null> {
   const governedUserId = capabilityGovernedUserId(rateLimit)
   if (!governedUserId) return null
 
   if (roleVerifiedFor !== governedUserId) {
     const permission = await getUserEntityPermissions(governedUserId, 'workspace', workspaceId)
-    if (!permissionSatisfies(permission, 'read')) return null
+    if (!permissionSatisfies(permission, requiredLevel)) return null
   }
 
   // permission-group-enforced: personal_api_key.use — v1 authorizes in this middleware, not through the funnel
@@ -424,10 +432,17 @@ async function resolvePersonalKeyGroupRefusal(
     return null
   }
 
+  /**
+   * The detail code separates this from the workspace-column refusal above,
+   * which shares the sentence but is a different setting with a different
+   * remedy. Read off the rule rather than spelled out, exactly as
+   * {@link resolveCapabilityRefusal} does.
+   */
   return {
     status: 403,
     code: 'FORBIDDEN',
     message: PERSONAL_KEY_DENIED,
+    details: { code: CAPABILITY_RULES['personal_api_key.use'].detailCode },
   }
 }
 
@@ -476,14 +491,19 @@ export async function resolveWorkspaceAccess(
  * module, not the key kind — so it is asked here, and
  * {@link resolvePersonalKeyGroupRefusal} resolves the caller's role itself
  * before answering rather than relying on a role check this wrapper never runs.
+ *
+ * `requiredLevel` must be the level the caller will hand `checkAccess` a moment
+ * later. Left at `read` on a write route, the group refusal answers a read-only
+ * member before the role failure that actually applies to them does.
  */
 export async function checkWorkspaceScope(
   rateLimit: RateLimitResult,
-  requestedWorkspaceId: string
+  requestedWorkspaceId: string,
+  requiredLevel: PermissionType = 'read'
 ): Promise<NextResponse | null> {
   const failure =
     (await resolveWorkspaceScope(rateLimit, requestedWorkspaceId)) ??
-    (await resolvePersonalKeyGroupRefusal(rateLimit, requestedWorkspaceId, null))
+    (await resolvePersonalKeyGroupRefusal(rateLimit, requestedWorkspaceId, null, requiredLevel))
   return failure ? workspaceAccessErrorResponse(failure) : null
 }
 

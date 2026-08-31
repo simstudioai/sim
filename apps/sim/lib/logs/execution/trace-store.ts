@@ -109,7 +109,12 @@ export function stripSpanCosts(spans: unknown): void {
   if (!Array.isArray(spans)) return
   for (const span of spans) {
     if (!span || typeof span !== 'object') continue
-    const record = span as { cost?: unknown; tokens?: unknown; children?: unknown }
+    const record = span as {
+      cost?: unknown
+      tokens?: unknown
+      children?: unknown
+      providerTiming?: unknown
+    }
     if ('cost' in record) record.cost = undefined
     /**
      * Tokens as well as dollars: a span's token counts are the spend in another
@@ -117,7 +122,28 @@ export function stripSpanCosts(spans: unknown): void {
      * knows the model's rate.
      */
     if ('tokens' in record) record.tokens = undefined
+    stripProviderTimingSegmentCosts(record.providerTiming)
     if (Array.isArray(record.children)) stripSpanCosts(record.children)
+  }
+}
+
+/**
+ * The same removal one level down, in `providerTiming.segments`.
+ *
+ * A `ProviderTimingSegment` carries its own `tokens` and `cost` — the per-model
+ * iteration breakdown behind the span's roll-up — so clearing the span alone
+ * left the whole figure itemized underneath it, which is strictly more than the
+ * span published in the first place.
+ */
+function stripProviderTimingSegmentCosts(providerTiming: unknown): void {
+  if (!providerTiming || typeof providerTiming !== 'object') return
+  const segments = (providerTiming as { segments?: unknown }).segments
+  if (!Array.isArray(segments)) return
+  for (const segment of segments) {
+    if (!segment || typeof segment !== 'object') continue
+    const record = segment as { cost?: unknown; tokens?: unknown }
+    if ('cost' in record) record.cost = undefined
+    if ('tokens' in record) record.tokens = undefined
   }
 }
 

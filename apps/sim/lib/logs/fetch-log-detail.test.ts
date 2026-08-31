@@ -62,6 +62,16 @@ function queueWorkflowLogRow(overrides: Record<string, unknown> = {}): void {
 }
 
 const SPEND_BEARING_EXECUTION_DATA = {
+  /**
+   * The run-level roll-up `buildCompletedExecutionData` writes on every
+   * completed run. `models` is the per-model dollar breakdown itself, so it is
+   * finer-grained than the total the projection blanks.
+   */
+  tokens: { input: 500, output: 400, total: 900 },
+  models: {
+    'gpt-4': { input: 0.4, output: 0.35, total: 0.75, tokens: { total: 900 } },
+  },
+  cost: { total: 0.75 },
   traceSpans: [
     {
       id: 'span-1',
@@ -72,6 +82,23 @@ const SPEND_BEARING_EXECUTION_DATA = {
       endTime: '2026-01-01T00:00:00.005Z',
       cost: { total: 0.75 },
       tokens: { total: 900 },
+      /** A span's own itemization, one level below its roll-up. */
+      providerTiming: {
+        duration: 5,
+        startTime: '2026-01-01T00:00:00.000Z',
+        endTime: '2026-01-01T00:00:00.005Z',
+        segments: [
+          {
+            type: 'model',
+            name: 'gpt-4',
+            startTime: 0,
+            endTime: 5,
+            duration: 5,
+            tokens: { total: 900 },
+            cost: { total: 0.75 },
+          },
+        ],
+      },
       children: [
         {
           id: 'span-2',
@@ -264,6 +291,20 @@ describe('readLogDetail', () => {
       expect(span?.children?.[0]).not.toHaveProperty('cost')
       expect(result?.executionData.blockExecutions?.[0]).not.toHaveProperty('cost')
 
+      // The run's own roll-up. `models` is the per-model dollar breakdown, so
+      // leaving it published the finest figure of all next to a blanked total.
+      expect(result?.executionData).not.toHaveProperty('tokens')
+      expect(result?.executionData).not.toHaveProperty('models')
+      expect(result?.executionData).not.toHaveProperty('cost')
+
+      // Provider-timing segments itemize the span's own roll-up, so stripping
+      // the span alone leaves the amount recoverable one level down.
+      const [segment] = (span as { providerTiming?: { segments?: unknown[] } })?.providerTiming
+        ?.segments as Array<Record<string, unknown>>
+      expect(segment).toMatchObject({ name: 'gpt-4' })
+      expect(segment).not.toHaveProperty('cost')
+      expect(segment).not.toHaveProperty('tokens')
+
       // Everything the restriction does not cover is untouched.
       expect(result).toMatchObject({ id: 'log-1', status: 'completed' })
       expect(span).toMatchObject({ id: 'span-1', name: 'Agent 1' })
@@ -281,6 +322,7 @@ describe('readLogDetail', () => {
 
       expect(result?.cost).toEqual({ total: 1.25 })
       expect(result?.executionData.traceSpans?.[0]).toHaveProperty('cost')
+      expect(result?.executionData).toHaveProperty('models')
     })
   })
 })

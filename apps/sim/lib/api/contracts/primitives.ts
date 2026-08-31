@@ -555,3 +555,22 @@ export const booleanQueryFlagSchema = z.preprocess(
   },
   z.boolean({ error: 'must be a boolean (true/false)' })
 )
+
+/**
+ * An optional numeric query parameter that treats a present-but-empty value as
+ * omitted.
+ *
+ * `z.coerce.number().optional()` does not: a query string carrying `?minCost=`
+ * reaches the schema as `''`, `Number('')` is `0`, and the parameter arrives as
+ * a real zero. That is wrong twice — `maxCost=` silently narrows the page to
+ * free runs, and `minCost=` reads as a cost *selector*, which is what
+ * `assertLogCostQueryAllowed` refuses for a member whose group withholds spend.
+ * An empty value is a caller sending an unfilled form field, not a question
+ * about cost.
+ *
+ * An explicit `0` is preserved: `?minCost=0` is a real bound the caller typed.
+ */
+export const optionalNumberQuerySchema = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.coerce.number().optional()
+)

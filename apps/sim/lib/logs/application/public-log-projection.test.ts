@@ -83,6 +83,13 @@ const workspaceContext = {
 }
 
 const EXECUTION_DATA = {
+  /**
+   * The run-level roll-up every completed run carries. `models` is the
+   * per-model dollar breakdown, so a projection that blanks the total and
+   * leaves this published the finer figure it was hiding.
+   */
+  tokens: { input: 60, output: 30, total: 90 },
+  models: { 'gpt-4': { input: 0.4, output: 0.35, total: 0.75 } },
   finalOutput: { answer: 'a customer address' },
   workflowInput: { question: 'who?' },
   blockInput: { prompt: 'who?' },
@@ -212,6 +219,7 @@ describe('listPublicLogs field projection', () => {
     })
     const [span] = result.items[0].executionData?.traceSpans as Array<Record<string, unknown>>
 
+    expect(result.items[0].executionData).not.toHaveProperty('models')
     expect(span.name).toBe('agent')
     expect(span).not.toHaveProperty('cost')
     expect(span).not.toHaveProperty('tokens')
@@ -234,10 +242,32 @@ describe('listPublicLogs field projection', () => {
 
     expect(result.includeTraceSpans).toBe(false)
     expect(result.includeFinalOutput).toBe(false)
-    expect(result.items[0].executionData).not.toHaveProperty('traceSpans')
-    expect(result.items[0].executionData).not.toHaveProperty('finalOutput')
-    expect(result.items[0].executionData).not.toHaveProperty('blockExecutions')
-    expect(result.items[0].executionData).not.toHaveProperty('workflowInput')
+    expect(result.items[0].executionData).toBeUndefined()
+  })
+
+  /**
+   * The page is withheld whole, so the object-store read and the secret
+   * projection behind every payload buy nothing. Asserted on the read itself,
+   * not only on `materializeExecutionDataForDisplay`, because the column is
+   * what the work hangs off.
+   */
+  it('materializes nothing when the group withholds execution detail', async () => {
+    governedBy({ hideTraceSpans: true })
+
+    await listPublicLogs.execute({ principal: personalPrincipal, input: listInput() })
+
+    expect(mocks.materialize).not.toHaveBeenCalled()
+    expect(mocks.listLogs).toHaveBeenCalledWith(
+      expect.objectContaining({ includeExecutionData: false })
+    )
+  })
+
+  it('still materializes for a group that withholds only spend', async () => {
+    governedBy({ hideCostInfo: true })
+
+    await listPublicLogs.execute({ principal: personalPrincipal, input: listInput() })
+
+    expect(mocks.materialize).toHaveBeenCalledTimes(1)
   })
 
   it('withholds nothing from a caller no group governs', async () => {
@@ -347,6 +377,8 @@ describe('getPublicLog field projection', () => {
     expect(
       (result.executionData.blockExecutions as Array<Record<string, unknown>>)[0]
     ).not.toHaveProperty('tokens')
+    expect(result.executionData).not.toHaveProperty('tokens')
+    expect(result.executionData).not.toHaveProperty('models')
   })
 
   it('withholds the execution payloads when the group hides trace spans', async () => {
@@ -372,6 +404,7 @@ describe('getPublicLog field projection', () => {
     expect(result.log.costTotal).toBe('0.75')
     expect(result.costLedger).toEqual(COST_LEDGER)
     expect(result.executionData.finalOutput).toEqual(EXECUTION_DATA.finalOutput)
+    expect(result.executionData.models).toEqual(EXECUTION_DATA.models)
   })
 
   it('withholds nothing from a workspace API key', async () => {

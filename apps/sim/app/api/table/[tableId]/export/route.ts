@@ -5,10 +5,8 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { sanitizeExportFilename } from '@/lib/table/export-format'
 import { createTableExportStream, exportContentType } from '@/lib/table/export-stream'
@@ -50,7 +48,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
     table.workspaceId &&
     (await isWorkspaceCapabilityWithheld(userId, table.workspaceId, 'tables.export'))
   ) {
-    return NextResponse.json({ error: capabilityRefusal('tables.export') }, { status: 403 })
+    return capabilityRefusalResponse('tables.export')
   }
 
   // Audit before streaming: rows leave incrementally, so a mid-stream failure still exfiltrates partial data.

@@ -64,7 +64,10 @@ describe('GET /api/logs/stats', () => {
     const response = await GET(makeRequest('&costOperator=%3E&costValue=0.5'))
 
     expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ error: capabilityRefusal('logs.cost') })
+    await expect(response.json()).resolves.toEqual({
+      error: capabilityRefusal('logs.cost'),
+      details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+    })
     expect(mocks.readLogStatsBounds).not.toHaveBeenCalled()
   })
 

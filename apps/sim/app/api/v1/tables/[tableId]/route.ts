@@ -130,7 +130,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
     const { tableId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId, 'write')
     if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')

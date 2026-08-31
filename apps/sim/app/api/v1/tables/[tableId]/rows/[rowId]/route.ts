@@ -132,7 +132,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     const { tableId, rowId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
     if (scopeError) return scopeError
     const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
     if (!actorUserId) {
@@ -226,7 +226,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     const { tableId, rowId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId, 'write')
     if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')

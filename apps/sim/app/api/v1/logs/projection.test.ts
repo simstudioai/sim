@@ -284,6 +284,38 @@ describe('GET /api/v1/logs cost-selective queries', () => {
     expect(mockListPublicWorkflowLogs).toHaveBeenCalled()
   })
 
+  /**
+   * An unfilled form field is not a question about cost. `?minCost=` reaches
+   * the schema as `''`, and `z.coerce.number()` reads `Number('')` as a real
+   * zero — which made an innocent request look like a cost selector and refused
+   * it. Normalized to omitted before the assertion runs.
+   */
+  it.each([['minCost='], ['maxCost='], ['minCost=&maxCost=']])(
+    'answers %s for a group that withholds spend, because it selects nothing',
+    async (query) => {
+      governedBy({ hideCostInfo: true })
+
+      const response = await listFiltered(query)
+
+      expect(response.status).toBe(200)
+      expect(mockListPublicWorkflowLogs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ minCost: undefined, maxCost: undefined }),
+        })
+      )
+    }
+  )
+
+  /** An explicit zero is a bound the caller typed, and still selects on cost. */
+  it('still refuses an explicit minCost=0', async () => {
+    governedBy({ hideCostInfo: true })
+
+    const response = await listFiltered('minCost=0')
+
+    expect(response.status).toBe(403)
+    expect(mockListPublicWorkflowLogs).not.toHaveBeenCalled()
+  })
+
   /** Only the spend filter is refused; the rest of the query is unaffected. */
   it('still answers a non-cost filter for a group that withholds spend', async () => {
     governedBy({ hideCostInfo: true })

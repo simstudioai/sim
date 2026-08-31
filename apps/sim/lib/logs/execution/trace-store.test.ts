@@ -31,6 +31,7 @@ import {
   projectExecutionDataForDisplay,
   RESOLVED_SECRET_PROVENANCE_KEY,
   SECRET_PROJECTION_VERSION,
+  stripSpanCosts,
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
 
@@ -770,5 +771,77 @@ describe('stored provenance display reporting', () => {
         parts: ['blockOutput:block-1'],
       })
     )
+  })
+})
+
+/**
+ * `stripSpanCosts` is what stands between a joined cross-workspace child run and
+ * the parent's reader: the child's spend is billed to the SOURCE workspace and
+ * was never rolled into this run's total, so anything it leaves behind is spend
+ * the reader was never meant to see.
+ */
+describe('stripSpanCosts', () => {
+  function spanWithSpend() {
+    return [
+      {
+        id: 'span-1',
+        name: 'agent',
+        cost: { total: 0.5 },
+        tokens: { total: 900 },
+        providerTiming: {
+          duration: 5,
+          segments: [
+            { type: 'model', name: 'gpt-4', tokens: { total: 900 }, cost: { total: 0.5 } },
+            { type: 'tool', name: 'search' },
+          ],
+        },
+        children: [
+          {
+            id: 'span-2',
+            name: 'model',
+            cost: { total: 0.2 },
+            tokens: { total: 400 },
+            providerTiming: { segments: [{ type: 'model', tokens: { total: 400 } }] },
+          },
+        ],
+      },
+    ]
+  }
+
+  it('clears the span roll-up and the provider-timing segments that itemize it', () => {
+    const spans = spanWithSpend()
+
+    stripSpanCosts(spans)
+
+    expect(spans[0].cost).toBeUndefined()
+    expect(spans[0].tokens).toBeUndefined()
+    const [modelSegment, toolSegment] = spans[0].providerTiming.segments as Array<
+      Record<string, unknown>
+    >
+    expect(modelSegment.tokens).toBeUndefined()
+    expect(modelSegment.cost).toBeUndefined()
+    // Structure and identity are what the waterfall renders; only spend goes.
+    expect(modelSegment).toMatchObject({ type: 'model', name: 'gpt-4' })
+    expect(toolSegment).toMatchObject({ type: 'tool', name: 'search' })
+  })
+
+  it('reaches the segments of nested children too', () => {
+    const spans = spanWithSpend()
+
+    stripSpanCosts(spans)
+
+    const child = spans[0].children[0]
+    expect(child.cost).toBeUndefined()
+    expect(child.tokens).toBeUndefined()
+    expect(
+      (child.providerTiming.segments as Array<Record<string, unknown>>)[0].tokens
+    ).toBeUndefined()
+  })
+
+  it('leaves a span with no provider timing alone', () => {
+    const spans = [{ id: 'span-1', name: 'api', cost: { total: 0.1 } }]
+
+    expect(() => stripSpanCosts(spans)).not.toThrow()
+    expect(spans[0]).toMatchObject({ id: 'span-1', name: 'api' })
   })
 })
