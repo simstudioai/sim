@@ -8,9 +8,10 @@ type CompleteEvent = Extract<PersistedStreamEventEnvelope, { type: 'complete' }>
  * still-open node are folded into the model by `reduceEvent` (which skips an
  * async pause). This handler only records the terminal flag and flushes.
  */
-export function handleCompleteEvent(ctx: StreamLoopContext, _parsed: CompleteEvent): void {
+export function handleCompleteEvent(ctx: StreamLoopContext, parsed: CompleteEvent): void {
   ctx.deps.clearBrowserAgentRuns()
   ctx.state.browserAgentRunIds.clear()
   ctx.state.sawCompleteEvent = true
+  ctx.state.completionStatus = parsed.payload.status ?? null
   ctx.ops.flush()
 }
