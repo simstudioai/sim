@@ -38,6 +38,7 @@ export interface AuthorizedSelectorCredential {
 export interface SelectorProtectedValues {
   add(value: string | null | undefined, kind?: SelectorProtectedValueKind): void
   contains(value: string): boolean
+  containsExceptExact(value: string, allowedExactValue: string): boolean
 }
 
 export interface ResolvedSelectorReference {

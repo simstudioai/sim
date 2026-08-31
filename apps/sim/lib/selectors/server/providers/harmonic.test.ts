@@ -54,8 +54,13 @@ describe('Harmonic server selector adapter', () => {
     ).resolves.toMatchObject({
       kind: 'detail',
       item: {
-        id: 'urn:harmonic:saved_search:501',
+        id: '501',
         label: 'Search 501',
+        meta: {
+          id: '501',
+          urn: 'urn:harmonic:saved_search:501',
+          name: 'Search 501',
+        },
       },
       diagnostics: { truncated: { reason: 'provider-cap', limit: 500 } },
     })

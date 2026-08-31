@@ -151,6 +151,36 @@ describe('Microsoft server selector adapters', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
+  it('includes folders unless the selector explicitly requests files only', async () => {
+    const response = () =>
+      new Response(
+        JSON.stringify({
+          value: [
+            { id: 'file-1', name: 'Report.pdf', file: {} },
+            { id: 'folder-1', name: 'Reports', folder: {} },
+          ],
+        }),
+        { status: 200 }
+      )
+    mockFetch.mockResolvedValueOnce(response()).mockResolvedValueOnce(response())
+
+    const allItems = await microsoftSelectorAttachments['onedrive.files'].execute(
+      listArgs('onedrive.files')
+    )
+    const filesOnly = await microsoftSelectorAttachments['onedrive.files'].execute({
+      ...listArgs('onedrive.files'),
+      context: { oauthCredential: 'credential-1', mimeType: 'file' },
+    })
+
+    expect(allItems.kind === 'list' ? allItems.items.map((item) => item.id) : []).toEqual([
+      'file-1',
+      'folder-1',
+    ])
+    expect(filesOnly.kind === 'list' ? filesOnly.items.map((item) => item.id) : []).toEqual([
+      'file-1',
+    ])
+  })
+
   it('rejects a planner task detail from another plan', async () => {
     mockFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ id: 'task-1', title: 'Task', planId: 'plan-2' }), {

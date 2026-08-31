@@ -76,4 +76,20 @@ describe('Jira server selector adapter', () => {
     expect(url.searchParams.get('maxResults')).toBe('50')
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
+
+  it('preserves a requested project key when hydrating its label', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: '10001', name: 'Engineering' }), { status: 200 })
+    )
+
+    await expect(
+      jiraSelectorAttachments['jira.projects'].execute({
+        ...args(),
+        request: { kind: 'detail', id: 'ENG' },
+      })
+    ).resolves.toEqual({
+      kind: 'detail',
+      item: { id: 'ENG', label: 'Engineering' },
+    })
+  })
 })

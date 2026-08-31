@@ -49,7 +49,7 @@ export function useDynamicSubBlockOptionDisplayName({
       selectorKey,
       blockType: block.type,
       subBlocks: merged,
-      dependsOn: getDependsOnFields(subBlock.dependsOn),
+      dependsOn: subBlock.dependsOn ? getDependsOnFields(subBlock.dependsOn) : undefined,
       canonicalModes: block.data?.canonicalModes,
       triggerMode: block.triggerMode,
       staticContext: {

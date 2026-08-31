@@ -378,6 +378,7 @@ interface DriveItem {
 }
 
 async function listOneDriveFiles(args: ExecuteServerSelectorArgs) {
+  const filesOnly = args.context.mimeType === 'file'
   const query = new URLSearchParams()
   query.set(
     '$select',
@@ -388,7 +389,7 @@ async function listOneDriveFiles(args: ExecuteServerSelectorArgs) {
     args,
     serviceId: 'onedrive',
     initialUrl: `https://graph.microsoft.com/v1.0/me/drive/root/children?${query}`,
-    includeItem: (item) => Boolean(item.file && !item.folder),
+    includeItem: (item) => (filesOnly ? Boolean(item.file && !item.folder) : true),
   })
   return {
     items: page.items.map((item) => ({ id: item.id, label: item.name })),

@@ -1,11 +1,15 @@
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
-import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
+import {
+  SelectorContextUnavailableError,
+  SelectorOptionsUnavailableError,
+} from '@/lib/selectors/server/errors'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
-import type {
-  ExecuteServerSelectorArgs,
-  ServerSelectorAttachmentMap,
+import {
+  detailSelectorResult,
+  type ExecuteServerSelectorArgs,
+  type ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
 import { extractTitleFromItem } from '@/tools/notion/utils'
@@ -27,16 +31,57 @@ interface NotionSearchPage {
   next_cursor?: string | null
 }
 
-async function listNotionObjects(
-  args: ExecuteServerSelectorArgs,
-  object: 'database' | 'page'
-): Promise<{ items: SafeSelectorOption[]; truncated: boolean }> {
+async function notionToken(args: ExecuteServerSelectorArgs): Promise<string> {
   if (!args.credential) throw new SelectorOptionsUnavailableError()
-  const token = await resolveSelectorOAuthAccessToken({
+  return resolveSelectorOAuthAccessToken({
     credential: args.credential,
     serviceId: 'notion',
     protectedValues: args.protectedValues,
   })
+}
+
+function notionHeaders(token: string) {
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'Notion-Version': '2022-06-28',
+  }
+}
+
+function toNotionOption(value: unknown, requestedId?: string): SafeSelectorOption | null {
+  if (!value || typeof value !== 'object' || typeof (value as { id?: unknown }).id !== 'string') {
+    return null
+  }
+  return {
+    id: requestedId ?? (value as { id: string }).id,
+    label: extractTitleFromItem(value),
+  }
+}
+
+async function getNotionObject(
+  args: ExecuteServerSelectorArgs,
+  object: 'database' | 'page',
+  id: string
+): Promise<SafeSelectorOption> {
+  const token = await notionToken(args)
+  const value = await fetchProviderJson<unknown>(
+    `https://api.notion.com/v1/${object === 'database' ? 'databases' : 'pages'}/${encodeURIComponent(id)}`,
+    {
+      headers: notionHeaders(token),
+      signal: args.signal,
+      redirect: 'error',
+    }
+  )
+  const option = toNotionOption(value, id)
+  if (!option) throw new SelectorOptionsUnavailableError()
+  return option
+}
+
+async function listNotionObjects(
+  args: ExecuteServerSelectorArgs,
+  object: 'database' | 'page'
+): Promise<{ items: SafeSelectorOption[]; truncated: boolean }> {
+  const token = await notionToken(args)
   const results: unknown[] = []
   let cursor: string | undefined
   let truncated = false
@@ -44,11 +89,7 @@ async function listNotionObjects(
   for (let page = 0; page < MAX_PAGES; page++) {
     const data = await fetchProviderJson<NotionSearchPage>('https://api.notion.com/v1/search', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Notion-Version': '2022-06-28',
-      },
+      headers: notionHeaders(token),
       body: JSON.stringify({
         filter: { value: object, property: 'object' },
         page_size: PAGE_SIZE,
@@ -70,20 +111,19 @@ async function listNotionObjects(
 
   return {
     items: results.flatMap((value) => {
-      if (
-        !value ||
-        typeof value !== 'object' ||
-        typeof (value as { id?: unknown }).id !== 'string'
-      ) {
-        return []
-      }
-      return [{ id: (value as { id: string }).id, label: extractTitleFromItem(value) }]
+      const option = toNotionOption(value)
+      return option ? [option] : []
     }),
     truncated,
   }
 }
 
 async function executeNotionObjects(args: ExecuteServerSelectorArgs, object: 'database' | 'page') {
+  if (args.request.kind === 'detail') {
+    const id = args.request.id.trim()
+    if (!/^[0-9a-f-]{32,36}$/i.test(id)) throw new SelectorContextUnavailableError()
+    return detailSelectorResult(await getNotionObject(args, object, id))
+  }
   const { items, truncated } = await listNotionObjects(args, object)
   return flatSelectorResult(
     args.request,

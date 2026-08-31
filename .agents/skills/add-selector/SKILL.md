@@ -59,7 +59,9 @@ For `provider-server`, add the service's attachment map under
 the exhaustive browser-safe registry in `apps/sim/lib/selectors/client/local.ts` and never enter the
 server registry. A provider attachment declares:
 
-- Credential policy, including the exact context field and trusted `serviceIds`.
+- For stored credentials, a credential policy with the exact context field and trusted
+  `serviceIds`. Raw-connection selectors instead validate the connection material projected from
+  their allowed context and bind it to a deliberate destination policy.
 - Destination policy: `fixed`, `credential-bound`, or `user-controlled`.
 - A list/detail adapter that explicitly projects `id`, `label`, and allowlisted scalar `meta`.
 

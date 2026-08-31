@@ -204,6 +204,26 @@ describe('sanitizeSelectorResult', () => {
     ).toThrow(SelectorOptionsUnavailableError)
   })
 
+  it('rejects an allowed detail ID that embeds another protected value', () => {
+    const protectedValues = createSelectorProtectedValues()
+    protectedValues.add('resolved-another-secret-id')
+    protectedValues.add('another-secret')
+
+    expect(() =>
+      sanitizeSelectorResult(
+        {
+          kind: 'detail',
+          item: {
+            id: 'resolved-another-secret-id',
+            label: 'Resolved item',
+          },
+        },
+        protectedValues,
+        { allowedDetailExactProtectedValue: 'resolved-another-secret-id' }
+      )
+    ).toThrow(SelectorOptionsUnavailableError)
+  })
+
   it('rejects protected plaintext in metadata keys without applying the detail exemption', () => {
     const protectedValues = createSelectorProtectedValues()
     protectedValues.add('resolved-id')

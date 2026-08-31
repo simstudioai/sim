@@ -1,15 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import {
-  ChipCombobox,
-  type ComboboxOption,
-  chipFieldSurfaceClass,
-  chipFieldTextClass,
-  chipGeometryClass,
-  cn,
-  Loader,
-} from '@sim/emcn'
+import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext } from '@/lib/selectors/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -93,22 +85,6 @@ export function DependentFieldSelector({
 
   const noun = dependentFieldNoun(title)
 
-  if ((isLoading || isLoadingSelectedOption) && enabled) {
-    return (
-      <div
-        className={cn(
-          'flex w-full text-[var(--text-muted)]',
-          chipGeometryClass,
-          chipFieldSurfaceClass,
-          chipFieldTextClass
-        )}
-      >
-        <Loader className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' animate />
-        Loading…
-      </div>
-    )
-  }
-
   return (
     <ChipCombobox
       className='w-full'
@@ -120,6 +96,7 @@ export function DependentFieldSelector({
       searchPlaceholder={`Search ${noun}...`}
       placeholder={`Select ${noun}`}
       disabled={!enabled}
+      isLoading={enabled && (isLoading || isLoadingSelectedOption)}
       hasMore={hasMore}
       isLoadingMore={isFetchingMore}
       isLoadingAll={isLoadingAll}

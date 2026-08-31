@@ -3,7 +3,11 @@
  */
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
-import { invalidateSelectorQueries, selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
+import {
+  invalidateSelectorQueries,
+  selectorKeys,
+  selectorQueryRoots,
+} from '@/hooks/queries/utils/selector-keys'
 
 describe('invalidateSelectorQueries', () => {
   it('invalidates both privacy-safe selector roots without touching unrelated queries', async () => {
@@ -28,5 +32,22 @@ describe('invalidateSelectorQueries', () => {
     expect(queryClient.getQueryState(selectorKey)?.isInvalidated).toBe(true)
     expect(queryClient.getQueryState(searchReplaceKey)?.isInvalidated).toBe(true)
     expect(queryClient.getQueryState(unrelatedKey)?.isInvalidated).toBe(false)
+  })
+})
+
+describe('selectorKeys', () => {
+  it('separates workflow requests with different asserted workspaces', () => {
+    const first = selectorKeys.scoped(
+      'gmail.labels',
+      { kind: 'workflow', workflowId: 'workflow-1', workspaceId: 'workspace-1' },
+      'surface-1'
+    )
+    const second = selectorKeys.scoped(
+      'gmail.labels',
+      { kind: 'workflow', workflowId: 'workflow-1', workspaceId: 'workspace-2' },
+      'surface-1'
+    )
+
+    expect(first).not.toEqual(second)
   })
 })

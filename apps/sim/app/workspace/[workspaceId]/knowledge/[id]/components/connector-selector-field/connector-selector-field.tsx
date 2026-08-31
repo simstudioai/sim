@@ -1,15 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import {
-  ChipCombobox,
-  type ComboboxOption,
-  chipFieldSurfaceClass,
-  chipFieldTextClass,
-  chipGeometryClass,
-  cn,
-} from '@sim/emcn'
-import { Loader } from '@sim/emcn/icons'
+import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { projectSelectorContext } from '@/lib/selectors/context'
 import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
@@ -158,22 +150,6 @@ export function ConnectorSelectorField({
     return extras.length > 0 ? [...extras, ...base] : base
   }, [options, selectedOptions, searchedOption])
 
-  if ((isLoading || isLoadingSelectedOptions) && isEnabled) {
-    return (
-      <div
-        className={cn(
-          'flex w-full text-[var(--text-muted)]',
-          chipGeometryClass,
-          chipFieldSurfaceClass,
-          chipFieldTextClass
-        )}
-      >
-        <Loader className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' animate />
-        Loading…
-      </div>
-    )
-  }
-
   if (isMulti) {
     const multiValues = Array.isArray(value) ? value : value ? [value] : []
     return (
@@ -193,6 +169,7 @@ export function ConnectorSelectorField({
               : field.placeholder || `Select ${field.title.toLowerCase()}`
         }
         disabled={disabled || !credentialId || !depsResolved}
+        isLoading={isEnabled && (isLoading || isLoadingSelectedOptions)}
         hasMore={hasMore}
         isLoadingMore={isFetchingMore}
         isLoadingAll={isLoadingAll}
@@ -220,6 +197,7 @@ export function ConnectorSelectorField({
             : field.placeholder || `Select ${field.title.toLowerCase()}`
       }
       disabled={disabled || !credentialId || !depsResolved}
+      isLoading={isEnabled && (isLoading || isLoadingSelectedOptions)}
       hasMore={hasMore}
       isLoadingMore={isFetchingMore}
       isLoadingAll={isLoadingAll}

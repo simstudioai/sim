@@ -22,7 +22,9 @@ function containsProtectedValue(
   protectedValues: SelectorProtectedValues,
   allowedExactValue?: string
 ): boolean {
-  if (protectedValues.contains(value)) return value !== allowedExactValue
+  if (protectedValues.contains(value)) {
+    return !allowedExactValue || protectedValues.containsExceptExact(value, allowedExactValue)
+  }
 
   let decoded = value
   for (let round = 0; round < MAX_PERCENT_DECODE_ROUNDS; round += 1) {

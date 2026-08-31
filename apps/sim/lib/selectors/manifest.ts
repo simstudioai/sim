@@ -252,7 +252,7 @@ export const selectorManifest = {
     listMode: 'paginated',
     detail: true,
   }),
-  'onedrive.files': providerSelector([], { listMode: 'paginated', detail: true }),
+  'onedrive.files': providerSelector(['mimeType'], { listMode: 'paginated', detail: true }),
   'onedrive.folders': providerSelector(['driveId'], { listMode: 'paginated', detail: true }),
   'sharepoint.sites': providerSelector([], { detail: true }),
   'microsoft.excel': providerSelector(['driveId'], {

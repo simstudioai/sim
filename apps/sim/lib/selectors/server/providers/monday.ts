@@ -53,7 +53,7 @@ async function listBoards(args: ExecuteServerSelectorArgs) {
   let truncated = false
   for (let page = 1; page <= MAX_PAGES; page++) {
     const response = await fetchProviderJson<
-      MondayResponse<{ boards?: Array<{ id: string; name: string }> }>
+      MondayResponse<{ boards?: Array<{ id: string; name?: string | null }> }>
     >(MONDAY_API_URL, {
       method: 'POST',
       headers: mondayHeaders(token),
@@ -64,7 +64,7 @@ async function listBoards(args: ExecuteServerSelectorArgs) {
       redirect: 'error',
     })
     const boards = requireMondayData(response).boards ?? []
-    items.push(...boards.map((board) => ({ id: board.id, label: board.name })))
+    items.push(...boards.map((board) => ({ id: board.id, label: board.name?.trim() || board.id })))
     if (boards.length < PAGE_SIZE) break
     if (page === MAX_PAGES) truncated = true
   }
@@ -78,7 +78,9 @@ async function listGroups(args: ExecuteServerSelectorArgs): Promise<SafeSelector
   if (!validated.isValid) throw new SelectorContextUnavailableError()
   const token = await accessToken(args)
   const response = await fetchProviderJson<
-    MondayResponse<{ boards?: Array<{ groups?: Array<{ id: string; title: string }> }> }>
+    MondayResponse<{
+      boards?: Array<{ groups?: Array<{ id: string; title?: string | null }> }>
+    }>
   >(MONDAY_API_URL, {
     method: 'POST',
     headers: mondayHeaders(token),
@@ -89,7 +91,7 @@ async function listGroups(args: ExecuteServerSelectorArgs): Promise<SafeSelector
     redirect: 'error',
   })
   const groups = requireMondayData(response).boards?.[0]?.groups ?? []
-  return groups.map((group) => ({ id: group.id, label: group.title }))
+  return groups.map((group) => ({ id: group.id, label: group.title?.trim() || group.id }))
 }
 
 export const mondaySelectorAttachments = {

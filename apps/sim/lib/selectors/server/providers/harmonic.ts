@@ -136,9 +136,9 @@ async function listSavedSearches(
   }
 }
 
-function toOption(search: SavedSearch) {
+function toOption(search: SavedSearch, id = search.urn) {
   return {
-    id: search.urn,
+    id,
     label: search.name,
     meta: { id: search.id, urn: search.urn, name: search.name },
   }
@@ -148,7 +148,7 @@ async function executeSavedSearches(args: ExecuteServerSelectorArgs) {
   const { items: searches, detailItem, truncated } = await listSavedSearches(args)
   if (args.request.kind === 'detail') {
     return {
-      ...detailSelectorResult(detailItem ? toOption(detailItem) : null),
+      ...detailSelectorResult(detailItem ? toOption(detailItem, args.request.id) : null),
       ...(truncated
         ? {
             diagnostics: {
@@ -162,7 +162,7 @@ async function executeSavedSearches(args: ExecuteServerSelectorArgs) {
     }
   }
   return listSelectorResult(
-    searches.map(toOption),
+    searches.map((search) => toOption(search)),
     undefined,
     truncated
       ? {

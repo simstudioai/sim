@@ -143,7 +143,7 @@ async function getProject(args: ExecuteServerSelectorArgs, projectId: string) {
   )
   const parsed = jiraProjectSchema.safeParse(body)
   if (!parsed.success) throw new SelectorOptionsUnavailableError()
-  return { id: parsed.data.id, label: parsed.data.name }
+  return { id: projectId, label: parsed.data.name }
 }
 
 async function fetchIssues(
