@@ -246,7 +246,7 @@ describe('SSO JIT admission', () => {
 
   it('uses elastic Team seats and reconciles the billed count after admission', async () => {
     queueIdentity()
-    queueTableRows(schemaMock.subscription, [{ plan: 'team' }])
+    queueTableRows(schemaMock.subscription, [{ id: 'subscription-current', plan: 'team' }])
 
     await expect(execute()).resolves.toEqual({
       kind: 'provisioned',
@@ -258,11 +258,30 @@ describe('SSO JIT admission', () => {
       organizationId: 'org-1',
       role: 'member',
       skipSeatValidation: true,
+      organizationSubscriptionId: 'subscription-current',
     })
     expect(mockReconcileOrganizationSeats).toHaveBeenCalledWith({
       organizationId: 'org-1',
       reason: 'sso-jit-member-added',
       actorId: 'user-1',
+      subscriptionId: 'subscription-current',
+    })
+  })
+
+  it('pins fixed Enterprise capacity checks to the subscription used for plan classification', async () => {
+    queueIdentity()
+    queueTableRows(schemaMock.subscription, [{ id: 'subscription-current', plan: 'enterprise' }])
+
+    await expect(execute()).resolves.toEqual({
+      kind: 'provisioned',
+      organizationId: 'org-1',
+      memberId: 'member-1',
+    })
+    expect(mockEnsureUserInOrganizationTx).toHaveBeenCalledWith(dbChainMock.db, {
+      userId: 'user-1',
+      organizationId: 'org-1',
+      role: 'member',
+      organizationSubscriptionId: 'subscription-current',
     })
   })
 

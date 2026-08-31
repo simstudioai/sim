@@ -64,6 +64,7 @@ interface SuccessfulAdmission {
   result: SsoJitAdmissionResult
   userName?: string
   userEmail?: string
+  organizationSubscriptionId?: string
 }
 
 async function runAdmissionTransaction(
@@ -225,7 +226,7 @@ async function runAdmissionTransaction(
     }
 
     const [organizationSubscription] = await tx
-      .select({ plan: subscription.plan })
+      .select({ id: subscription.id, plan: subscription.plan })
       .from(subscription)
       .where(
         and(
@@ -233,7 +234,7 @@ async function runAdmissionTransaction(
           inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
         )
       )
-      .orderBy(desc(subscription.periodStart))
+      .orderBy(desc(subscription.periodStart), desc(subscription.id))
       .limit(1)
 
     const membershipResult = await ensureUserInOrganizationTx(tx, {
@@ -242,6 +243,9 @@ async function runAdmissionTransaction(
       role: 'member',
       /** Team seats grow to the committed member count; Enterprise remains fixed-capacity. */
       ...(isTeam(organizationSubscription?.plan) ? { skipSeatValidation: true } : {}),
+      ...(organizationSubscription?.id
+        ? { organizationSubscriptionId: organizationSubscription.id }
+        : {}),
     })
 
     if (!membershipResult.success || !membershipResult.memberId) {
@@ -258,6 +262,9 @@ async function runAdmissionTransaction(
 
     return {
       ...attribution,
+      ...(organizationSubscription?.id
+        ? { organizationSubscriptionId: organizationSubscription.id }
+        : {}),
       result: {
         kind: membershipResult.alreadyMember ? 'already-member' : 'provisioned',
         organizationId: provider.organizationId,
@@ -315,6 +322,9 @@ async function runProvisioningPostCommitEffects(
       organizationId,
       reason: 'sso-jit-member-added',
       actorId: userId,
+      ...(admission.organizationSubscriptionId
+        ? { subscriptionId: admission.organizationSubscriptionId }
+        : {}),
     })
   } catch (error) {
     logger.error('Failed to reconcile organization seats after SSO JIT admission', {

@@ -13,7 +13,7 @@ import { AuthFormMessage, AuthSubmitButton } from '@/app/(auth)/components'
 
 const logger = createLogger('SSOForm')
 const SSO_SIGN_IN_ERROR = 'Unable to start SSO. Check your email and try again.'
-const SSO_ERROR_MESSAGES: Record<string, string> = {
+const SSO_ERROR_MESSAGES = {
   account_not_found: 'No account found. Please contact your administrator to set up SSO access.',
   sso_failed: 'SSO authentication failed. Please try again.',
   invalid_provider: 'SSO provider not configured correctly.',
@@ -23,7 +23,7 @@ const SSO_ERROR_MESSAGES: Record<string, string> = {
     'This Sim account is already a member of another organization. Leave that organization before trying again, or ask an administrator for external workspace access.',
   sso_provisioning_failed:
     'SSO succeeded, but organization access could not be set up safely. No session was created; please try again or contact your administrator.',
-}
+} as const
 
 const validateEmailField = (emailValue: string): string[] => {
   const errors: string[] = []
@@ -50,7 +50,9 @@ export default function SSOForm({ registrationDisabled }: SSOFormProps) {
   const searchParams = useSearchParams()
   const errorCode = searchParams?.get('error') ?? null
   const initialError = errorCode
-    ? SSO_ERROR_MESSAGES[errorCode] || 'SSO authentication failed. Please try again.'
+    ? Object.hasOwn(SSO_ERROR_MESSAGES, errorCode)
+      ? SSO_ERROR_MESSAGES[errorCode as keyof typeof SSO_ERROR_MESSAGES]
+      : 'SSO authentication failed. Please try again.'
     : null
 
   return (
