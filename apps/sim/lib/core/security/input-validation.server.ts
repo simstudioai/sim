@@ -1078,7 +1078,10 @@ export async function secureFetchWithPinnedIP(
           settledReject(error)
           return
         }
-        validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp })
+        validateUrlWithDNS(redirectUrl, 'redirectUrl', {
+          allowHttp: options.allowHttp,
+          logDetails: options.logUrlValidationDetails,
+        })
           .then((validation) => {
             if (!validation.isValid) {
               settledReject(new Error(`Redirect blocked: ${validation.error}`))

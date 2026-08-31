@@ -45,6 +45,8 @@ only declared, active dependencies:
 - Exact environment references such as `{{GMAIL_CREDENTIAL_ID}}` remain unresolved in the browser.
 - Runtime block-output references are not selector context.
 - Embedded environment interpolation such as `https://{{HOST}}/path` is unsupported.
+- `impersonateUserEmail` is the one explicit compatibility hint projected when the manifest allows
+  it, even when it is absent from `dependsOn`.
 
 Add a new `SelectorContextKey` only when the value is a real, reusable selector dependency. Allow it
 explicitly on each relevant manifest entry. Never send a full block or connector configuration.

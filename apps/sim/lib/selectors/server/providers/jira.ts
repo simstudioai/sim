@@ -119,7 +119,11 @@ async function listProjects(args: ExecuteServerSelectorArgs) {
   const values = parsed.data.values ?? []
   const pageSize = parsed.data.maxResults ?? JIRA_PROJECTS_PAGE_SIZE
   const nextStartAt = startAt + values.length
-  const hasMore = parsed.data.isLast !== true && values.length > 0 && values.length >= pageSize
+  if (parsed.data.isLast === false && values.length === 0) {
+    throw new SelectorOptionsUnavailableError()
+  }
+  const hasMore =
+    parsed.data.isLast === false || (parsed.data.isLast === undefined && values.length >= pageSize)
 
   return {
     items: values.map((project) => ({ id: project.id, label: project.name })),
@@ -194,7 +198,8 @@ async function executeProjects(args: ExecuteServerSelectorArgs) {
 async function executeIssues(args: ExecuteServerSelectorArgs) {
   if (args.request.kind === 'detail') {
     const issues = await fetchIssues(args, requireIssueKey(args.request.id))
-    return detailSelectorResult(issues[0] ?? null)
+    const issue = issues[0]
+    return detailSelectorResult(issue ? { ...issue, id: args.request.id } : null)
   }
   return listSelectorResult(await fetchIssues(args))
 }

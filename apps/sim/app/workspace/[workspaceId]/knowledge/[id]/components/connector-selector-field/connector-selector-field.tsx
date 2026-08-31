@@ -1,7 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
+import {
+  ChipCombobox,
+  type ComboboxOption,
+  chipFieldSurfaceClass,
+  chipFieldTextClass,
+  chipGeometryClass,
+  cn,
+} from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { projectSelectorContext } from '@/lib/selectors/context'
@@ -60,7 +67,15 @@ export function ConnectorSelectorField({
     }
 
     return projectSelectorContext(field.selectorKey, candidate)
-  }, [credentialId, field.mimeType, field.dependsOn, sourceConfig, configFields, canonicalModes])
+  }, [
+    credentialId,
+    field.mimeType,
+    field.dependsOn,
+    field.selectorKey,
+    sourceConfig,
+    configFields,
+    canonicalModes,
+  ])
 
   const depsResolved = useMemo(() => {
     if (!field.dependsOn) return true
@@ -101,12 +116,15 @@ export function ConnectorSelectorField({
     () => (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean),
     [value]
   )
-  const selectedOptions = useSelectorOptionDetails(field.selectorKey, {
-    context,
-    scope: { kind: 'workspace', workspaceId },
-    detailIds: isEnabled ? selectedIds : [],
-    surfaceId: `connector:${field.id}`,
-  })
+  const { data: selectedOptions, isLoading: isLoadingSelectedOptions } = useSelectorOptionDetails(
+    field.selectorKey,
+    {
+      context,
+      scope: { kind: 'workspace', workspaceId },
+      detailIds: isEnabled ? selectedIds : [],
+      surfaceId: `connector:${field.id}`,
+    }
+  )
 
   /**
    * Loaded pages are filtered client-side. Where `fetchById` tolerates an unknown id,
@@ -140,10 +158,17 @@ export function ConnectorSelectorField({
     return extras.length > 0 ? [...extras, ...base] : base
   }, [options, selectedOptions, searchedOption])
 
-  if (isLoading && isEnabled) {
+  if ((isLoading || isLoadingSelectedOptions) && isEnabled) {
     return (
-      <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 text-[var(--text-muted)] text-small dark:bg-[var(--surface-4)]'>
-        <Loader className='size-3.5' animate />
+      <div
+        className={cn(
+          'flex w-full text-[var(--text-muted)]',
+          chipGeometryClass,
+          chipFieldSurfaceClass,
+          chipFieldTextClass
+        )}
+      >
+        <Loader className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' animate />
         Loading…
       </div>
     )

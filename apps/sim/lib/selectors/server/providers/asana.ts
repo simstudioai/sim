@@ -26,7 +26,7 @@ const asanaWorkspaceSchema = z.object({
 const asanaPageSchema = z.object({
   data: z.array(asanaWorkspaceSchema).max(ASANA_PAGE_LIMIT).optional(),
   next_page: z
-    .object({ offset: z.string().min(1).max(4_096).optional() })
+    .object({ offset: z.string().min(1).max(4_096) })
     .nullable()
     .optional(),
 })

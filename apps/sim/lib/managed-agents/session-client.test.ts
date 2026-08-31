@@ -245,6 +245,30 @@ describe('managedAgentsList — selector collection bounds', () => {
     expect(cancelled).toBe(true)
   })
 
+  it('enforces the response-byte budget across the whole paginated collection', async () => {
+    const firstBody = `${JSON.stringify({ data: [{ id: 'agent-1' }], next_page: 'page-2' })}${' '.repeat(8 * 1024 * 1024)}`
+    let secondCancelled = false
+    const secondStream = new ReadableStream({
+      cancel() {
+        secondCancelled = true
+      },
+    })
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(firstBody))
+      .mockResolvedValueOnce(
+        new Response(secondStream, {
+          headers: { 'content-length': String(9 * 1024 * 1024) },
+        })
+      ) as unknown as typeof fetch
+
+    await expect(managedAgentsList({ apiKey: 'sk-ant-fake', path: '/v1/agents' })).rejects.toThrow(
+      'Managed Agents collection response is unavailable'
+    )
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(secondCancelled).toBe(true)
+  })
+
   it('preserves a caller cancellation instead of mapping it to a collection failure', async () => {
     const controller = new AbortController()
     const cancelled = new Error('caller cancelled')

@@ -39,7 +39,10 @@ const workspaceSlugPattern = /^[a-z0-9][a-z0-9_-]*$/i
 const workspaceSlugSchema = bitbucketSlugSchema.refine(
   (slug) => workspaceSlugPattern.test(slug) && !workspaceUuidPattern.test(slug)
 )
+const workspaceUuidSchema = bitbucketUuidSchema.refine((uuid) => workspaceUuidPattern.test(uuid))
+const workspaceIdentifierSchema = z.union([workspaceSlugSchema, workspaceUuidSchema])
 const repositorySlugSchema = bitbucketSlugSchema.max(62)
+const repositoryIdentifierSchema = z.union([repositorySlugSchema, workspaceUuidSchema])
 
 const workspacePageSchema = z.object({
   values: z
@@ -89,10 +92,18 @@ function requireCredential(args: ExecuteServerSelectorArgs) {
   return args.credential
 }
 
-function requireWorkspaceSlug(value: string | undefined): string {
-  const parsed = workspaceSlugSchema.safeParse(value)
+function requireWorkspaceIdentifier(value: string | undefined): string {
+  const parsed = workspaceIdentifierSchema.safeParse(value)
   if (!parsed.success) throw new SelectorContextUnavailableError()
   return parsed.data
+}
+
+function isBitbucketUuid(value: string): boolean {
+  return workspaceUuidPattern.test(value)
+}
+
+function normalizeBitbucketUuid(value: string): string {
+  return value.replace(/^\{?|\}?$/g, '').toLowerCase()
 }
 
 function requireCursorParams(cursor: string): URLSearchParams {
@@ -177,6 +188,39 @@ async function getAccessToken(args: ExecuteServerSelectorArgs): Promise<string> 
   })
 }
 
+async function getWorkspace(
+  args: ExecuteServerSelectorArgs,
+  identifier: string,
+  accessToken: string
+): Promise<z.infer<typeof workspaceDetailSchema>> {
+  const url = new URL(`/2.0/workspaces/${encodeURIComponent(identifier)}`, BITBUCKET_API_ORIGIN)
+  url.searchParams.set('fields', 'slug,uuid,name')
+  const body = await fetchProviderJson<unknown>(url, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    redirect: 'error',
+    signal: args.signal,
+  })
+  const parsed = workspaceDetailSchema.safeParse(body)
+  if (!parsed.success) throw new SelectorOptionsUnavailableError()
+  if (
+    isBitbucketUuid(identifier)
+      ? normalizeBitbucketUuid(parsed.data.uuid) !== normalizeBitbucketUuid(identifier)
+      : parsed.data.slug.toLowerCase() !== identifier.toLowerCase()
+  ) {
+    throw new SelectorOptionsUnavailableError()
+  }
+  return parsed.data
+}
+
+async function resolveWorkspaceSlug(
+  args: ExecuteServerSelectorArgs,
+  identifier: string,
+  accessToken: string
+): Promise<string> {
+  if (!isBitbucketUuid(identifier)) return identifier
+  return (await getWorkspace(args, identifier, accessToken)).slug
+}
+
 async function listWorkspaces(args: ExecuteServerSelectorArgs) {
   const request = requireListRequest(args.selectorKey, args.request)
   const url = buildPageUrl(BITBUCKET_WORKSPACES_PATH, BITBUCKET_WORKSPACE_FIELDS, request.cursor)
@@ -209,26 +253,16 @@ async function listWorkspaces(args: ExecuteServerSelectorArgs) {
 
 async function executeWorkspaces(args: ExecuteServerSelectorArgs) {
   if (args.request.kind === 'list') return listWorkspaces(args)
-  const slug = requireWorkspaceSlug(args.request.id)
+  const identifier = requireWorkspaceIdentifier(args.request.id)
   const accessToken = await getAccessToken(args)
-  const url = new URL(`/2.0/workspaces/${encodeURIComponent(slug)}`, BITBUCKET_API_ORIGIN)
-  url.searchParams.set('fields', 'slug,uuid,name')
-  const body = await fetchProviderJson<unknown>(url, {
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-    redirect: 'error',
-    signal: args.signal,
-  })
-  const parsed = workspaceDetailSchema.safeParse(body)
-  if (!parsed.success || parsed.data.slug.toLowerCase() !== slug.toLowerCase()) {
-    throw new SelectorOptionsUnavailableError()
-  }
+  const workspace = await getWorkspace(args, identifier, accessToken)
   return detailSelectorResult({
-    id: parsed.data.slug,
-    label: parsed.data.name ?? parsed.data.slug,
+    id: identifier,
+    label: workspace.name ?? workspace.slug,
     meta: {
-      slug: parsed.data.slug,
-      uuid: parsed.data.uuid,
-      fullName: parsed.data.name ?? parsed.data.slug,
+      slug: workspace.slug,
+      uuid: workspace.uuid,
+      fullName: workspace.name ?? workspace.slug,
     },
   })
 }
@@ -236,7 +270,8 @@ async function executeWorkspaces(args: ExecuteServerSelectorArgs) {
 function normalizeRepository(
   args: ExecuteServerSelectorArgs,
   workspaceSlug: string,
-  repository: z.infer<typeof repositoryDetailSchema>
+  repository: z.infer<typeof repositoryDetailSchema>,
+  requestedId?: string
 ) {
   const separator = repository.full_name.indexOf('/')
   if (separator <= 0 || separator !== repository.full_name.lastIndexOf('/')) {
@@ -254,7 +289,7 @@ function normalizeRepository(
   }
 
   return {
-    id: slug,
+    id: requestedId ?? slug,
     label: repository.name ?? slug,
     meta: {
       slug,
@@ -268,10 +303,12 @@ function normalizeRepository(
 
 async function listRepositories(args: ExecuteServerSelectorArgs) {
   const request = requireListRequest(args.selectorKey, args.request)
-  const workspaceSlug = requireWorkspaceSlug(args.context.workspaceSlug)
+  if (request.cursor) requireCursorParams(request.cursor)
+  const workspaceIdentifier = requireWorkspaceIdentifier(args.context.workspaceSlug)
+  const accessToken = await getAccessToken(args)
+  const workspaceSlug = await resolveWorkspaceSlug(args, workspaceIdentifier, accessToken)
   const path = `${BITBUCKET_REPOSITORIES_PATH}/${workspaceSlug}`
   const url = buildPageUrl(path, BITBUCKET_REPOSITORY_FIELDS, request.cursor)
-  const accessToken = await getAccessToken(args)
   const body = await fetchProviderJson<unknown>(url, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -295,12 +332,13 @@ async function listRepositories(args: ExecuteServerSelectorArgs) {
 
 async function executeRepositories(args: ExecuteServerSelectorArgs) {
   if (args.request.kind === 'list') return listRepositories(args)
-  const workspaceSlug = requireWorkspaceSlug(args.context.workspaceSlug)
-  const repositorySlug = repositorySlugSchema.safeParse(args.request.id)
-  if (!repositorySlug.success) throw new SelectorContextUnavailableError()
+  const workspaceIdentifier = requireWorkspaceIdentifier(args.context.workspaceSlug)
+  const repositoryIdentifier = repositoryIdentifierSchema.safeParse(args.request.id)
+  if (!repositoryIdentifier.success) throw new SelectorContextUnavailableError()
   const accessToken = await getAccessToken(args)
+  const workspaceSlug = await resolveWorkspaceSlug(args, workspaceIdentifier, accessToken)
   const url = new URL(
-    `/2.0/repositories/${encodeURIComponent(workspaceSlug)}/${encodeURIComponent(repositorySlug.data)}`,
+    `/2.0/repositories/${encodeURIComponent(workspaceSlug)}/${encodeURIComponent(repositoryIdentifier.data)}`,
     BITBUCKET_API_ORIGIN
   )
   url.searchParams.set('fields', 'slug,uuid,name,full_name')
@@ -311,7 +349,15 @@ async function executeRepositories(args: ExecuteServerSelectorArgs) {
   })
   const parsed = repositoryDetailSchema.safeParse(body)
   if (!parsed.success) throw new SelectorOptionsUnavailableError()
-  return detailSelectorResult(normalizeRepository(args, workspaceSlug, parsed.data))
+  if (
+    isBitbucketUuid(repositoryIdentifier.data) &&
+    normalizeBitbucketUuid(parsed.data.uuid) !== normalizeBitbucketUuid(repositoryIdentifier.data)
+  ) {
+    throw new SelectorOptionsUnavailableError()
+  }
+  return detailSelectorResult(
+    normalizeRepository(args, workspaceSlug, parsed.data, repositoryIdentifier.data)
+  )
 }
 
 const credential = {

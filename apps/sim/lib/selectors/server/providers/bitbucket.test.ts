@@ -149,4 +149,49 @@ describe('Bitbucket server selector adapters', () => {
     )
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
+
+  it('resolves a workspace UUID before listing its repositories', async () => {
+    const workspaceUuid = '{a15fb181-db1f-48f7-b41f-e1eff06929d6}'
+    mockFetch
+      .mockResolvedValueOnce(
+        providerResponse({ slug: 'acme-platform', uuid: workspaceUuid, name: 'Acme' })
+      )
+      .mockResolvedValueOnce(providerResponse({ values: [] }))
+
+    await expect(
+      bitbucketSelectorAttachments['bitbucket.repositories'].execute(
+        repositoryArgs({
+          context: { oauthCredential: 'credential-1', workspaceSlug: workspaceUuid },
+        })
+      )
+    ).resolves.toEqual({ kind: 'list', items: [] })
+
+    expect(new URL(String(mockFetch.mock.calls[0]?.[0])).pathname).toBe(
+      `/2.0/workspaces/${encodeURIComponent(workspaceUuid)}`
+    )
+    expect(new URL(String(mockFetch.mock.calls[1]?.[0])).pathname).toBe(
+      '/2.0/repositories/acme-platform'
+    )
+  })
+
+  it('preserves a repository UUID while hydrating its canonical slug', async () => {
+    const repositoryUuid = '{470c176d-3574-44ea-bb41-89e8638bcca4}'
+    mockFetch.mockResolvedValueOnce(
+      providerResponse({
+        slug: 'payments-api',
+        uuid: repositoryUuid,
+        name: 'Payments API',
+        full_name: 'acme-platform/payments-api',
+      })
+    )
+
+    await expect(
+      bitbucketSelectorAttachments['bitbucket.repositories'].execute(
+        repositoryArgs({ request: { kind: 'detail', id: repositoryUuid } })
+      )
+    ).resolves.toMatchObject({
+      kind: 'detail',
+      item: { id: repositoryUuid, label: 'Payments API', meta: { slug: 'payments-api' } },
+    })
+  })
 })

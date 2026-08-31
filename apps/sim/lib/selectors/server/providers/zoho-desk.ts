@@ -91,13 +91,16 @@ async function fetchZoho(
     await response.body?.cancel().catch(() => undefined)
     throw selectorProviderStatusError(response.status)
   }
-  const body = await response
-    .json()
-    .then((value) =>
-      value && typeof value === 'object' ? (value as { data?: unknown }) : undefined
-    )
-    .catch(() => undefined)
-  return { status: response.status, data: Array.isArray(body?.data) ? body.data : [] }
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
+    throw new SelectorOptionsUnavailableError()
+  }
+  if (!body || typeof body !== 'object' || !Array.isArray((body as { data?: unknown }).data)) {
+    throw new SelectorOptionsUnavailableError()
+  }
+  return { status: response.status, data: (body as { data: unknown[] }).data }
 }
 
 async function listOrganizations(

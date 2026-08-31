@@ -30,8 +30,8 @@ or contract is unused.
 - List, pagination, search, detail, unknown-detail, scope, and stale-time metadata match actual UX.
 - `dependsOn` names the required source fields; canonical pairs contribute only their active member.
 - Action/trigger and connector surfaces build the same canonical context.
-- Exact `{{KEY}}` references remain unresolved in the browser; runtime references and embedded
-  interpolation are not sent.
+- Exact `{{KEY}}` references remain unresolved in the browser; runtime references are omitted,
+  while embedded interpolation is forwarded unresolved and rejected by the server executor.
 - Query keys contain no context value, reference, credential ID, secret, or hash of one.
 
 ## Validate the server boundary

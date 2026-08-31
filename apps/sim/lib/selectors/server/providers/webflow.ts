@@ -4,6 +4,7 @@ import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credenti
 import {
   SelectorConnectionUnavailableError,
   SelectorContextUnavailableError,
+  SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
@@ -99,12 +100,17 @@ async function listItems(
       redirect: 'error',
     })
     const pageItems = data.items ?? []
+    const reportedTotal = data.pagination?.total
+    if (reportedTotal !== undefined && (!Number.isInteger(reportedTotal) || reportedTotal < 0)) {
+      throw new SelectorOptionsUnavailableError()
+    }
     items.push(...pageItems)
     offset += pageItems.length
-    if (
-      pageItems.length === 0 ||
-      (typeof data.pagination?.total === 'number' && items.length >= data.pagination.total)
-    ) {
+    if (reportedTotal !== undefined && items.length >= reportedTotal) {
+      break
+    }
+    if (pageItems.length === 0) {
+      if (reportedTotal !== undefined && items.length < reportedTotal) truncated = true
       break
     }
     if (page === WEBFLOW_MAX_ITEM_PAGES - 1) truncated = true

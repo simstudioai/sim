@@ -1,12 +1,20 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
+import {
+  ChipCombobox,
+  type ComboboxOption,
+  chipFieldSurfaceClass,
+  chipFieldTextClass,
+  chipGeometryClass,
+  cn,
+  Loader,
+} from '@sim/emcn'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext } from '@/lib/selectors/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { dependentFieldNoun } from '@/ee/workspace-forking/components/fork-sync/dependent-field-noun'
-import { useSelectorOptions } from '@/hooks/queries/selectors'
+import { useSelectorOptionDetail, useSelectorOptions } from '@/hooks/queries/selectors'
 import { useDebounce } from '@/hooks/use-debounce'
 
 interface DependentFieldSelectorProps {
@@ -45,6 +53,8 @@ export function DependentFieldSelector({
 
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
+  const activeSearch = searchTerm.trim() === '' ? '' : debouncedSearch
+  const surfaceId = `fork:${title}`
 
   const {
     data: options = [],
@@ -58,22 +68,42 @@ export function DependentFieldSelector({
   } = useSelectorOptions(selectorKey, {
     context: selectorContext,
     scope: { kind: 'workspace', workspaceId },
-    search: debouncedSearch,
+    search: activeSearch,
     enabled,
-    surfaceId: `fork:${title}`,
+    surfaceId,
   })
-
-  const comboboxOptions = useMemo<ComboboxOption[]>(
-    () => options.map((option) => ({ label: option.label, value: option.id })),
-    [options]
+  const { data: selectedOption, isLoading: isLoadingSelectedOption } = useSelectorOptionDetail(
+    selectorKey,
+    {
+      context: selectorContext,
+      scope: { kind: 'workspace', workspaceId },
+      detailId: value || undefined,
+      enabled: enabled && Boolean(value),
+      surfaceId,
+    }
   )
+
+  const comboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const mapped = options.map((option) => ({ label: option.label, value: option.id }))
+    if (!selectedOption || mapped.some((option) => option.value === selectedOption.id)) {
+      return mapped
+    }
+    return [{ label: selectedOption.label, value: selectedOption.id }, ...mapped]
+  }, [options, selectedOption])
 
   const noun = dependentFieldNoun(title)
 
-  if (isLoading && enabled) {
+  if ((isLoading || isLoadingSelectedOption) && enabled) {
     return (
-      <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 text-[var(--text-muted)] text-small dark:bg-[var(--surface-4)]'>
-        <Loader className='size-3.5' animate />
+      <div
+        className={cn(
+          'flex w-full text-[var(--text-muted)]',
+          chipGeometryClass,
+          chipFieldSurfaceClass,
+          chipFieldTextClass
+        )}
+      >
+        <Loader className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' animate />
         Loading…
       </div>
     )

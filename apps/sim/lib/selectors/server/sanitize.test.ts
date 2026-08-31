@@ -38,6 +38,42 @@ describe('sanitizeSelectorResult', () => {
     }
   })
 
+  it('fails closed when protected plaintext is percent encoded', () => {
+    const protectedValues = createSelectorProtectedValues()
+    protectedValues.add('selector secret/canary')
+
+    for (const value of [
+      'selector%20secret%2Fcanary',
+      'selector%2520secret%252Fcanary',
+      'prefix-selector%20secret%2Fcanary-suffix',
+    ]) {
+      expect(() =>
+        sanitizeSelectorResult(
+          { kind: 'list', items: [{ id: 'safe-id', label: value }] },
+          protectedValues
+        )
+      ).toThrow(SelectorOptionsUnavailableError)
+    }
+  })
+
+  it('rejects malformed encoded output without treating literal percentages as encoding', () => {
+    const protectedValues = createSelectorProtectedValues()
+    protectedValues.add('secret')
+
+    expect(() =>
+      sanitizeSelectorResult(
+        { kind: 'list', items: [{ id: 'safe-id', label: '%73ecret%ZZ' }] },
+        protectedValues
+      )
+    ).toThrow(SelectorOptionsUnavailableError)
+    expect(
+      sanitizeSelectorResult(
+        { kind: 'list', items: [{ id: 'safe-id', label: 'Save 50% today' }] },
+        protectedValues
+      )
+    ).toEqual({ kind: 'list', items: [{ id: 'safe-id', label: 'Save 50% today' }] })
+  })
+
   it('distinguishes short identifiers from raw secrets when checking substrings', () => {
     const referenceValues = createSelectorProtectedValues()
     referenceValues.add('a', 'reference')

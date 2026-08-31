@@ -142,6 +142,7 @@ export const ComboBox = memo(function ComboBox({
 
   const [selectorSearch, setSelectorSearch] = useState('')
   const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const activeSelectorSearch = selectorSearch.trim() === '' ? '' : debouncedSelectorSearch
 
   const {
     fetchedOptions,
@@ -165,7 +166,7 @@ export const ComboBox = memo(function ComboBox({
     selectorExcludeSelf,
     isPreview: Boolean(isPreview),
     disabled: Boolean(disabled),
-    search: debouncedSelectorSearch,
+    search: activeSelectorSearch,
     valueToHydrate: value as string | null | undefined,
     localOptions: staticOptions,
   })

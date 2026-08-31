@@ -15,7 +15,10 @@ import {
   type ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
 
-type ConfluenceSelectorKey = Extract<ServerSelectorKey, 'confluence.spaces' | 'confluence.pages'>
+type ConfluenceSelectorKey = Extract<
+  ServerSelectorKey,
+  'confluence.spaces' | 'confluence.spacesById' | 'confluence.pages'
+>
 
 const CONFLUENCE_SCOPES = getScopesForService('confluence')
 const SPACE_PAGE_LIMIT = 250
@@ -66,11 +69,15 @@ function parseSpaceCursor(raw: string | undefined): { status: SpaceStatus; inner
   return { status, ...(inner ? { inner } : {}) }
 }
 
-function spaceOption(space: ConfluenceSpace, fallbackStatus: SpaceStatus) {
+function spaceOption(
+  space: ConfluenceSpace,
+  fallbackStatus: SpaceStatus,
+  identifier: 'key' | 'id'
+) {
   const status = space.status ?? fallbackStatus
   const base = `${space.name} (${space.key})`
   return {
-    id: space.key,
+    id: identifier === 'id' ? space.id : space.key,
     label: status === 'archived' ? `${base} — archived` : base,
   }
 }
@@ -111,12 +118,25 @@ async function requestSpaces(input: {
   })
 }
 
-async function executeSpaces(args: ExecuteServerSelectorArgs) {
+async function executeSpaces(args: ExecuteServerSelectorArgs, identifier: 'key' | 'id') {
   const auth = await resolveConfluenceAuth(args)
 
   if (args.request.kind === 'detail') {
-    const key = args.request.id.trim()
-    if (!key || key.length > 255) throw new SelectorContextUnavailableError()
+    const requestedId = args.request.id.trim()
+    if (!requestedId || requestedId.length > 255) throw new SelectorContextUnavailableError()
+    if (identifier === 'id' && /^[1-9][0-9]{0,19}$/.test(requestedId)) {
+      const space = await fetchProviderJson<ConfluenceSpace>(
+        `https://api.atlassian.com/ex/confluence/${auth.cloudId}/wiki/api/v2/spaces/${requestedId}`,
+        {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${auth.accessToken}` },
+          signal: args.signal,
+        }
+      )
+      if (!space.id || !space.key || !space.name) throw new SelectorOptionsUnavailableError()
+      return detailSelectorResult(spaceOption(space, space.status ?? 'current', 'id'))
+    }
+
+    const key = requestedId
     const paramsFor = (status: SpaceStatus) =>
       new URLSearchParams({
         keys: key,
@@ -143,7 +163,14 @@ async function executeSpaces(args: ExecuteServerSelectorArgs) {
         : []),
     ]
     const match = spaces.find(({ space }) => space.key === key)
-    return detailSelectorResult(match ? spaceOption(match.space, match.status) : null)
+    return detailSelectorResult(
+      match
+        ? {
+            ...spaceOption(match.space, match.status, identifier),
+            id: requestedId,
+          }
+        : null
+    )
   }
 
   const { status, inner } = parseSpaceCursor(args.request.cursor)
@@ -167,7 +194,7 @@ async function executeSpaces(args: ExecuteServerSelectorArgs) {
       ? 'archived:'
       : undefined
   return listSelectorResult(
-    (data.results ?? []).map((space) => spaceOption(space, status)),
+    (data.results ?? []).map((space) => spaceOption(space, status, identifier)),
     nextCursor
   )
 }
@@ -216,7 +243,16 @@ async function executePages(args: ExecuteServerSelectorArgs) {
 const credential = { kind: 'stored', field: 'oauthCredential', serviceIds: ['confluence'] } as const
 
 export const confluenceSelectorAttachments = {
-  'confluence.spaces': { credential, destination: 'fixed', execute: executeSpaces },
+  'confluence.spaces': {
+    credential,
+    destination: 'fixed',
+    execute: (args) => executeSpaces(args, 'key'),
+  },
+  'confluence.spacesById': {
+    credential,
+    destination: 'fixed',
+    execute: (args) => executeSpaces(args, 'id'),
+  },
   'confluence.pages': {
     credential,
     destination: 'fixed',

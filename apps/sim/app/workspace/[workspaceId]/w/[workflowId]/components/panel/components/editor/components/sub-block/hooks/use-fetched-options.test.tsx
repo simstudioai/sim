@@ -47,8 +47,10 @@ beforeEach(() => {
     isLoading: false,
   }))
   mockUseSelectorOptionDetails.mockImplementation(
-    (_key: string, args: { detailIds: string[]; enabled: boolean }) =>
-      args.enabled ? args.detailIds.map((id) => ({ id, label: `Hydrated ${id}` })) : []
+    (_key: string, args: { detailIds: string[]; enabled: boolean }) => ({
+      data: args.enabled ? args.detailIds.map((id) => ({ id, label: `Hydrated ${id}` })) : [],
+      isLoading: false,
+    })
   )
 })
 

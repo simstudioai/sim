@@ -83,6 +83,19 @@ describe('CloudWatch server selector adapter errors', () => {
     ).rejects.toBe(abortError)
   })
 
+  it('returns null when a selected log group no longer exists', async () => {
+    mockListCloudWatchLogGroups.mockResolvedValue({ items: [], pages: 1, truncated: false })
+    const args = logGroupArgs()
+    args.request = { kind: 'detail', id: '/aws/missing' }
+
+    await expect(
+      cloudWatchSelectorAttachments['cloudwatch.logGroups'].execute(args)
+    ).resolves.toEqual({ kind: 'detail', item: null })
+    expect(mockListCloudWatchLogGroups).toHaveBeenCalledWith(
+      expect.objectContaining({ prefix: '/aws/missing' })
+    )
+  })
+
   it('rejects an invalid region before invoking the AWS listing helper', async () => {
     const args = logGroupArgs()
     args.context.awsRegion = 'not-a-region'

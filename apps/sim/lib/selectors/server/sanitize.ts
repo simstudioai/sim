@@ -10,9 +10,34 @@ import type {
 
 const MAX_OPTION_TEXT = 16 * 1024
 const MAX_META_FIELDS = 32
+const MAX_PERCENT_DECODE_ROUNDS = 3
+const PERCENT_ESCAPE_PATTERN = /%[0-9a-f]{2}/i
 
 export interface SanitizeSelectorResultOptions {
   allowedDetailExactProtectedValue?: string
+}
+
+function containsProtectedValue(
+  value: string,
+  protectedValues: SelectorProtectedValues,
+  allowedExactValue?: string
+): boolean {
+  if (protectedValues.contains(value)) return value !== allowedExactValue
+
+  let decoded = value
+  for (let round = 0; round < MAX_PERCENT_DECODE_ROUNDS; round += 1) {
+    if (!PERCENT_ESCAPE_PATTERN.test(decoded)) return false
+    let next: string
+    try {
+      next = decodeURIComponent(decoded)
+    } catch {
+      return true
+    }
+    if (next === decoded) return false
+    if (protectedValues.contains(next)) return true
+    decoded = next
+  }
+  return PERCENT_ESCAPE_PATTERN.test(decoded)
 }
 
 function requireSafeString(
@@ -23,7 +48,7 @@ function requireSafeString(
   if (typeof value !== 'string' || value.length === 0 || value.length > MAX_OPTION_TEXT) {
     throw new SelectorOptionsUnavailableError()
   }
-  if (protectedValues.contains(value) && value !== allowedExactValue) {
+  if (containsProtectedValue(value, protectedValues, allowedExactValue)) {
     throw new SelectorOptionsUnavailableError()
   }
   return value
@@ -44,7 +69,9 @@ function sanitizeMeta(
   const meta: SafeOptionMeta = {}
   for (const [key, entry] of entries) {
     if (!key || key.length > 128) throw new SelectorOptionsUnavailableError()
-    if (protectedValues.contains(key)) throw new SelectorOptionsUnavailableError()
+    if (containsProtectedValue(key, protectedValues)) {
+      throw new SelectorOptionsUnavailableError()
+    }
     if (
       entry !== null &&
       typeof entry !== 'string' &&
@@ -61,7 +88,7 @@ function sanitizeMeta(
     }
     if (typeof entry === 'string') {
       if (entry.length > MAX_OPTION_TEXT) throw new SelectorOptionsUnavailableError()
-      if (protectedValues.contains(entry) && entry !== allowedExactValue) {
+      if (containsProtectedValue(entry, protectedValues, allowedExactValue)) {
         throw new SelectorOptionsUnavailableError()
       }
     }

@@ -1,6 +1,10 @@
+import { z } from 'zod'
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
-import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
+import {
+  SelectorConnectionUnavailableError,
+  SelectorOptionsUnavailableError,
+} from '@/lib/selectors/server/errors'
 import { appendSelectorOptions } from '@/lib/selectors/server/option-budget'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
@@ -14,12 +18,25 @@ type PipedriveSelectorKey = Extract<ServerSelectorKey, 'pipedrive.pipelines'>
 const PAGE_SIZE = 500
 const MAX_PAGES = 50
 
-interface PipedrivePage {
-  data?: Array<{ id: number | string; name: string }>
-  additional_data?: {
-    pagination?: { more_items_in_collection?: boolean; next_start?: number }
-  }
-}
+const pipedrivePageSchema = z.object({
+  success: z.literal(true),
+  data: z.array(
+    z.object({
+      id: z.union([z.number().finite(), z.string().min(1)]),
+      name: z.string().min(1),
+    })
+  ),
+  additional_data: z
+    .object({
+      pagination: z
+        .object({
+          more_items_in_collection: z.boolean().optional(),
+          next_start: z.number().int().nonnegative().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+})
 
 export const pipedriveSelectorAttachments = {
   'pipedrive.pipelines': {
@@ -42,7 +59,7 @@ export const pipedriveSelectorAttachments = {
         const url = new URL('https://api.pipedrive.com/v1/pipelines')
         url.searchParams.set('start', String(start))
         url.searchParams.set('limit', String(PAGE_SIZE))
-        const data = await fetchProviderJson<PipedrivePage>(url, {
+        const body = await fetchProviderJson<unknown>(url, {
           headers: getPipedriveAuthHeaders({
             accessToken: token.accessToken,
             authStyle: token.authStyle,
@@ -50,6 +67,9 @@ export const pipedriveSelectorAttachments = {
           signal: args.signal,
           redirect: 'error',
         })
+        const parsed = pipedrivePageSchema.safeParse(body)
+        if (!parsed.success) throw new SelectorOptionsUnavailableError()
+        const data = parsed.data
         const appended = appendSelectorOptions(
           items,
           (data.data ?? []).map((pipeline) => ({

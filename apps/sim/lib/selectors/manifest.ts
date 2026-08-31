@@ -117,13 +117,19 @@ export const selectorManifest = {
   'clickup.folders': providerSelector(['spaceId', 'listSpaceId'], {
     readiness: { all: ['oauthCredential'], any: ['spaceId', 'listSpaceId'] },
   }),
-  'clickup.lists': providerSelector(['folderId', 'spaceId'], {
+  'clickup.lists': providerSelector(['folderId', 'spaceId', 'listSpaceId'], {
     readiness: {
       all: ['oauthCredential'],
-      any: ['folderId', 'spaceId'],
+      any: ['folderId', 'spaceId', 'listSpaceId'],
     },
   }),
   'confluence.spaces': providerSelector(['domain'], {
+    readiness: { all: ['oauthCredential', 'domain'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'confluence.spacesById': providerSelector(['domain'], {
     readiness: { all: ['oauthCredential', 'domain'] },
     listMode: 'paginated',
     detail: true,
@@ -261,6 +267,7 @@ export const selectorManifest = {
   }),
   'microsoft.excel.sheets': providerSelector(['driveId', 'spreadsheetId'], {
     readiness: { all: ['oauthCredential', 'spreadsheetId'] },
+    listMode: 'paginated',
   }),
   'microsoft.word': providerSelector(['driveId'], {
     listMode: 'paginated',

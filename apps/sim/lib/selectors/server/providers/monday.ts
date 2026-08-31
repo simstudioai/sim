@@ -31,8 +31,8 @@ interface MondayResponse<T> {
   data?: T
 }
 
-function requireMondayData<T>(response: MondayResponse<T>): T | undefined {
-  if (response.errors?.length || response.error_message) {
+function requireMondayData<T>(response: MondayResponse<T>): T {
+  if (response.errors?.length || response.error_message || response.data === undefined) {
     throw new SelectorOptionsUnavailableError()
   }
   return response.data
@@ -63,7 +63,7 @@ async function listBoards(args: ExecuteServerSelectorArgs) {
       signal: args.signal,
       redirect: 'error',
     })
-    const boards = requireMondayData(response)?.boards ?? []
+    const boards = requireMondayData(response).boards ?? []
     items.push(...boards.map((board) => ({ id: board.id, label: board.name })))
     if (boards.length < PAGE_SIZE) break
     if (page === MAX_PAGES) truncated = true
@@ -88,7 +88,7 @@ async function listGroups(args: ExecuteServerSelectorArgs): Promise<SafeSelector
     signal: args.signal,
     redirect: 'error',
   })
-  const groups = requireMondayData(response)?.boards?.[0]?.groups ?? []
+  const groups = requireMondayData(response).boards?.[0]?.groups ?? []
   return groups.map((group) => ({ id: group.id, label: group.title }))
 }
 

@@ -71,13 +71,16 @@ export function useDynamicSubBlockOptionDisplayName({
     return workspaceId ? { kind: 'workspace', workspaceId } : undefined
   }, [activeWorkflowId, workspaceId])
 
-  const selectedOptions = useSelectorOptionDetails(selectorKey ?? 'workspace.triggerTypes', {
-    context,
-    scope,
-    detailIds: selectorKey && blockId ? optionIds : [],
-    enabled: Boolean(selectorKey && blockId && optionIds.length > 0),
-    surfaceId: `canvas:${blockId ?? 'none'}:${subBlock?.id ?? 'none'}`,
-  })
+  const { data: selectedOptions } = useSelectorOptionDetails(
+    selectorKey ?? 'workspace.triggerTypes',
+    {
+      context,
+      scope,
+      detailIds: selectorKey && blockId ? optionIds : [],
+      enabled: Boolean(selectorKey && blockId && optionIds.length > 0),
+      surfaceId: `canvas:${blockId ?? 'none'}:${subBlock?.id ?? 'none'}`,
+    }
+  )
 
   return useMemo(() => {
     if (!selectorKey || optionIds.length === 0) return null

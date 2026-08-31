@@ -343,10 +343,11 @@ async function fetchDriveDetail(
     return file
   }
   try {
-    return await fetchProviderJson<DriveFile>(
+    const target = await fetchProviderJson<DriveFile>(
       `https://www.googleapis.com/drive/v3/files/${validatedTargetId}?fields=id,name,mimeType&supportsAllDrives=true`,
       { headers, signal: args.signal }
     )
+    return { ...target, id: file.id }
   } catch (error) {
     if (args.signal?.aborted) throw error
     return file

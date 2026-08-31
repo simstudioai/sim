@@ -17,7 +17,7 @@ import { microsoftSelectorAttachments } from '@/lib/selectors/server/providers/m
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
 function listArgs(
-  selectorKey: 'microsoft.chats' | 'onedrive.files',
+  selectorKey: 'microsoft.chats' | 'onedrive.files' | 'microsoft.excel.sheets',
   cursor?: string
 ): ExecuteServerSelectorArgs {
   return {
@@ -31,6 +31,15 @@ function listArgs(
     credential: { suppliedId: 'credential-1' },
     references: new Map(),
     protectedValues: createSelectorProtectedValues(),
+  }
+}
+
+function plannerTaskDetailArgs(): ExecuteServerSelectorArgs {
+  return {
+    ...listArgs('microsoft.chats'),
+    selectorKey: 'microsoft.planner',
+    context: { oauthCredential: 'credential-1', planId: 'plan-1' },
+    request: { kind: 'detail', id: 'task-1' },
   }
 }
 
@@ -140,5 +149,42 @@ describe('Microsoft server selector adapters', () => {
     })
     expect(String(mockFetch.mock.calls[0]?.[0])).toContain('/me/drive/items/file-1')
     expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a planner task detail from another plan', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: 'task-1', title: 'Task', planId: 'plan-2' }), {
+        status: 200,
+      })
+    )
+
+    await expect(
+      microsoftSelectorAttachments['microsoft.planner'].execute(plannerTaskDetailArgs())
+    ).resolves.toEqual({ kind: 'detail', item: null })
+  })
+
+  it('paginates workbook worksheets through Graph continuation URLs', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          value: [{ id: 'sheet-1', name: 'Sheet 1', position: 0 }],
+          '@odata.nextLink':
+            'https://graph.microsoft.com/v1.0/me/drive/items/workbook-1/workbook/worksheets?$skiptoken=next',
+        }),
+        { status: 200 }
+      )
+    )
+
+    await expect(
+      microsoftSelectorAttachments['microsoft.excel.sheets'].execute({
+        ...listArgs('microsoft.excel.sheets'),
+        context: { oauthCredential: 'credential-1', spreadsheetId: 'workbook-1' },
+      })
+    ).resolves.toEqual({
+      kind: 'list',
+      items: [{ id: 'Sheet 1', label: 'Sheet 1' }],
+      nextCursor:
+        'https://graph.microsoft.com/v1.0/me/drive/items/workbook-1/workbook/worksheets?$skiptoken=next',
+    })
   })
 })

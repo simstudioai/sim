@@ -68,9 +68,10 @@ describe('useDynamicSubBlockOptionDisplayName', () => {
   })
 
   it('hydrates a stored dynamic dropdown id to its label', async () => {
-    mockUseSelectorOptionDetails.mockReturnValue([
-      { id: 'group-uuid', label: 'Customer support accounts' },
-    ])
+    mockUseSelectorOptionDetails.mockReturnValue({
+      data: [{ id: 'group-uuid', label: 'Customer support accounts' }],
+      isLoading: false,
+    })
     const subBlock = {
       id: 'credentialGroup',
       title: 'Credential Group',
@@ -100,10 +101,13 @@ describe('useDynamicSubBlockOptionDisplayName', () => {
   })
 
   it('summarizes every selected dynamic option without dropping ids', async () => {
-    mockUseSelectorOptionDetails.mockReturnValue([
-      { id: 'gmail', label: 'Gmail' },
-      { id: 'slack', label: 'Slack' },
-    ])
+    mockUseSelectorOptionDetails.mockReturnValue({
+      data: [
+        { id: 'gmail', label: 'Gmail' },
+        { id: 'slack', label: 'Slack' },
+      ],
+      isLoading: false,
+    })
     const subBlock = {
       id: 'providerFilter',
       title: 'Provider',

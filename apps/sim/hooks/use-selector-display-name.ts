@@ -130,9 +130,9 @@ export function useSelectorDisplayName({
 
   const resolvedOptions = useMemo(() => {
     const merged = new Map(options.map((option) => [option.id, option]))
-    for (const option of detailOptions) merged.set(option.id, option)
+    for (const option of detailOptions.data) merged.set(option.id, option)
     return [...merged.values()]
-  }, [detailOptions, options])
+  }, [detailOptions.data, options])
 
   const optionMap = useSelectorOptionMap(resolvedOptions, detailOption ?? undefined)
 
@@ -146,6 +146,6 @@ export function useSelectorDisplayName({
 
   return {
     displayName: enabled ? displayName : null,
-    isLoading: enabled ? listLoading || detailLoading : false,
+    isLoading: enabled ? listLoading || detailLoading || detailOptions.isLoading : false,
   }
 }

@@ -54,6 +54,23 @@ interface CollectedSelectorOptions {
   overflowed: boolean
 }
 
+interface SelectorOptionDetailsResult {
+  data: SelectorOption[]
+  isLoading: boolean
+}
+
+function combineSelectorOptionDetails(
+  results: readonly {
+    data: SelectorOption | null | undefined
+    isLoading: boolean
+  }[]
+): SelectorOptionDetailsResult {
+  return {
+    data: results.flatMap((result) => (result.data ? [result.data] : [])),
+    isLoading: results.some((result) => result.isLoading),
+  }
+}
+
 function collectSelectorOptions(
   pages: readonly SelectorPage[] | undefined
 ): CollectedSelectorOptions {
@@ -361,10 +378,10 @@ export function useSelectorOptionDetail(
 export function useSelectorOptionDetails(
   key: SelectorKey,
   args: SelectorHookArgs & { detailIds: string[] }
-): SelectorOption[] {
+): SelectorOptionDetailsResult {
   const uniqueIds = useMemo(() => [...new Set(args.detailIds.filter(Boolean))], [args.detailIds])
   const prepared = usePreparedSelector(key, args, uniqueIds)
-  const results = useQueries({
+  return useQueries({
     queries: uniqueIds.map((detailId, ordinal) => ({
       // rq-lint-allow: ids and context are represented by an opaque privacy revision and ordinal.
       queryKey: selectorKeys.request(
@@ -390,8 +407,8 @@ export function useSelectorOptionDetails(
       staleTime: prepared.manifest.staleTime,
       gcTime: 0,
     })),
+    combine: combineSelectorOptionDetails,
   })
-  return useMemo(() => results.flatMap((result) => (result.data ? [result.data] : [])), [results])
 }
 
 export function useSelectorOptionMap(options: SelectorOption[], extra?: SelectorOption | null) {

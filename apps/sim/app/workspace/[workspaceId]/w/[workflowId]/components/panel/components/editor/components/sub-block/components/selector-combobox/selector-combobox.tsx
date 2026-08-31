@@ -125,12 +125,15 @@ export function SelectorCombobox({
     enabled: manifest.supportsDetail && Boolean(detailId),
     surfaceId,
   })
-  const detailOptions = useSelectorOptionDetails(selectorKey, {
-    context: selectorContext,
-    detailIds: multiDetailIds,
-    enabled: manifest.supportsDetail && multiSelect && multiDetailIds.length > 0,
-    surfaceId,
-  })
+  const { data: detailOptions, isLoading: isLoadingDetails } = useSelectorOptionDetails(
+    selectorKey,
+    {
+      context: selectorContext,
+      detailIds: multiDetailIds,
+      enabled: manifest.supportsDetail && multiSelect && multiDetailIds.length > 0,
+      surfaceId,
+    }
+  )
   const optionsWithDetails = useMemo(() => {
     const merged = new Map(options.map((option) => [option.id, option]))
     for (const option of detailOptions) {
@@ -237,7 +240,7 @@ export function SelectorCombobox({
           disabled={disabled || readOnly}
           editable={allowSearch}
           filterOptions={allowSearch}
-          isLoading={isLoading}
+          isLoading={isLoading || isLoadingDetails}
           isLoadingMore={isFetchingMore}
           isLoadingAll={isLoadingAll}
           hasMore={hasMore}
@@ -315,7 +318,7 @@ export function SelectorCombobox({
                 onDragOver: onDragOver as (e: React.DragEvent<HTMLInputElement>) => void,
                 className: showClearButton ? 'pr-[60px]' : undefined,
               }}
-              isLoading={isLoading}
+              isLoading={isLoading || isLoadingDetails}
               isLoadingMore={isFetchingMore}
               isLoadingAll={isLoadingAll}
               hasMore={hasMore}

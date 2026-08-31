@@ -69,7 +69,7 @@ async function listLists(args: ExecuteServerSelectorArgs) {
     list?: { hidden?: boolean }
   }>(
     args,
-    `https://graph.microsoft.com/v1.0/sites/${validation.sanitized}/lists?$select=id,displayName,description,webUrl&$expand=list($select=hidden)&$top=999`
+    `https://graph.microsoft.com/v1.0/sites/${validation.sanitized}/lists?$select=id,displayName,description,webUrl,list&$top=999`
   )
   return {
     items: result.values

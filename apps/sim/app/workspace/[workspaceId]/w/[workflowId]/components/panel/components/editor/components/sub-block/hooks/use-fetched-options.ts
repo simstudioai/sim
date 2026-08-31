@@ -142,7 +142,7 @@ export function useFetchedOptions({
   )
   const list = useSelectorOptions(effectiveKey, {
     context,
-    search,
+    ...(search !== undefined ? { search } : {}),
     enabled: listInteractionEnabled || listHydrationEnabled,
     surfaceId,
   })
@@ -162,7 +162,7 @@ export function useFetchedOptions({
   return {
     fetchedOptions: list.data ?? [],
     isDynamic: Boolean(selectorKey),
-    isLoadingOptions: list.isLoading,
+    isLoadingOptions: list.isLoading || details.isLoading,
     isFetchingMore: list.isFetchingMore,
     isLoadingAll: list.isLoadingAll,
     hasMore: list.hasMore,
@@ -170,7 +170,7 @@ export function useFetchedOptions({
     hasLoadedOptions: list.isSuccess,
     fetchError: list.error ? getErrorMessage(list.error, 'Failed to fetch options') : null,
     hydratedOption: detail.data ?? null,
-    hydratedOptions: details,
+    hydratedOptions: details.data,
     missingOptionId:
       hydrate && detail.isFetched && !detail.isLoading && detail.data === null
         ? (valueToHydrate ?? null)

@@ -58,8 +58,13 @@ async function listNotionObjects(
       redirect: 'error',
     })
     if (Array.isArray(data.results)) results.push(...data.results)
-    if (!data.has_more || !data.next_cursor) break
-    cursor = data.next_cursor
+    if (!data.has_more) break
+    const nextCursor = data.next_cursor?.trim()
+    if (!nextCursor) {
+      truncated = true
+      break
+    }
+    cursor = nextCursor
     if (page === MAX_PAGES - 1) truncated = true
   }
 

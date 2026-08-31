@@ -57,11 +57,23 @@ export const cloudWatchSelectorAttachments = {
   'cloudwatch.logGroups': {
     destination: 'fixed',
     async execute(args) {
+      const listingCredentials = credentials(args.context)
       if (args.request.kind === 'detail') {
-        return detailSelectorResult({ id: args.request.id, label: args.request.id })
+        const detailId = args.request.id
+        const groups = await executeCloudWatchListing(args.signal, () =>
+          listCloudWatchLogGroups({
+            credentials: listingCredentials,
+            prefix: detailId,
+            signal: args.signal,
+            suppressTruncationLog: true,
+          })
+        )
+        const match = groups.items.find((group) => group.logGroupName === detailId)
+        return detailSelectorResult(
+          match?.logGroupName ? { id: match.logGroupName, label: match.logGroupName } : null
+        )
       }
       const search = args.request.search
-      const listingCredentials = credentials(args.context)
       const groups = await executeCloudWatchListing(args.signal, () =>
         listCloudWatchLogGroups({
           credentials: listingCredentials,
@@ -84,11 +96,24 @@ export const cloudWatchSelectorAttachments = {
   'cloudwatch.logStreams': {
     destination: 'fixed',
     async execute(args) {
+      const listingCredentials = credentials(args.context)
       if (args.request.kind === 'detail') {
-        return detailSelectorResult({ id: args.request.id, label: args.request.id })
+        const detailId = args.request.id
+        const streams = await executeCloudWatchListing(args.signal, () =>
+          listCloudWatchLogStreams({
+            credentials: listingCredentials,
+            logGroupName: args.context.logGroupName!,
+            prefix: detailId,
+            signal: args.signal,
+            suppressTruncationLog: true,
+          })
+        )
+        const match = streams.items.find((stream) => stream.logStreamName === detailId)
+        return detailSelectorResult(
+          match?.logStreamName ? { id: match.logStreamName, label: match.logStreamName } : null
+        )
       }
       const search = args.request.search
-      const listingCredentials = credentials(args.context)
       const streams = await executeCloudWatchListing(args.signal, () =>
         listCloudWatchLogStreams({
           credentials: listingCredentials,

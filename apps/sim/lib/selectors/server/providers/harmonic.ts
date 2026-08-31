@@ -44,13 +44,18 @@ interface SavedSearch {
   name: string
 }
 
-function normalizeSavedSearches(value: unknown): { items: SavedSearch[]; truncated: boolean } {
+function normalizeSavedSearches(
+  value: unknown,
+  requestedId?: string
+): { items: SavedSearch[]; detailItem?: SavedSearch; truncated: boolean } {
   if (!Array.isArray(value) || value.length > MAX_PROVIDER_ROWS) {
     throw new SelectorOptionsUnavailableError()
   }
 
   const byUrn = new Map<string, SavedSearch>()
   const urnById = new Map<string, string>()
+  const items: SavedSearch[] = []
+  let detailItem: SavedSearch | undefined
   let truncated = false
   for (const item of value) {
     if (!isPlainRecord(item) || item.type !== 'PERSONS') continue
@@ -69,25 +74,28 @@ function normalizeSavedSearches(value: unknown): { items: SavedSearch[]; truncat
     ) {
       throw new SelectorOptionsUnavailableError()
     }
-    if (existing) continue
-    if (byUrn.size >= HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS) {
-      truncated = true
-      break
+    if (existing) {
+      if (requestedId === existing.urn || requestedId === existing.id) detailItem = existing
+      continue
     }
     byUrn.set(option.urn, option)
     urnById.set(option.id, option.urn)
+    if (requestedId === option.urn || requestedId === option.id) detailItem = option
+    if (items.length < HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS) items.push(option)
+    else truncated = true
   }
   return {
-    items: [...byUrn.values()].sort(
+    items: items.sort(
       (left, right) => left.name.localeCompare(right.name) || left.urn.localeCompare(right.urn)
     ),
+    ...(detailItem ? { detailItem } : {}),
     truncated,
   }
 }
 
 async function listSavedSearches(
   args: ExecuteServerSelectorArgs
-): Promise<{ items: SavedSearch[]; truncated: boolean }> {
+): Promise<{ items: SavedSearch[]; detailItem?: SavedSearch; truncated: boolean }> {
   const { accessToken } = await resolveSelectorCredentialBundle({
     credential: args.credential,
     protectedValues: args.protectedValues,
@@ -117,7 +125,10 @@ async function listSavedSearches(
       maxBytes: MAX_RESPONSE_BYTES,
       signal,
     })
-    return normalizeSavedSearches(body)
+    return normalizeSavedSearches(
+      body,
+      args.request.kind === 'detail' ? args.request.id.trim() : undefined
+    )
   } catch (error) {
     if (args.signal?.aborted) throw error
     if (error instanceof SelectorOptionsUnavailableError) throw error
@@ -134,12 +145,10 @@ function toOption(search: SavedSearch) {
 }
 
 async function executeSavedSearches(args: ExecuteServerSelectorArgs) {
-  const { items: searches, truncated } = await listSavedSearches(args)
+  const { items: searches, detailItem, truncated } = await listSavedSearches(args)
   if (args.request.kind === 'detail') {
-    const id = args.request.id.trim()
-    const match = searches.find((search) => search.urn === id || search.id === id)
     return {
-      ...detailSelectorResult(match ? toOption(match) : null),
+      ...detailSelectorResult(detailItem ? toOption(detailItem) : null),
       ...(truncated
         ? {
             diagnostics: {

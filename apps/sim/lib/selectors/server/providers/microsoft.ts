@@ -450,7 +450,9 @@ async function executeOneDriveFolders(args: ExecuteServerSelectorArgs) {
   return listSelectorResult(page.items, page.nextCursor)
 }
 
-async function listWorksheets(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listWorksheets(
+  args: ExecuteServerSelectorArgs
+): Promise<GraphPage<SafeSelectorOption>> {
   const spreadsheetId = requireGraphId(args.context.spreadsheetId, 'spreadsheetId')
   const driveId = requireDriveId(args.context.driveId)
   let basePath: string
@@ -459,17 +461,17 @@ async function listWorksheets(args: ExecuteServerSelectorArgs): Promise<SafeSele
   } catch {
     throw new SelectorContextUnavailableError()
   }
-  const token = await graphToken(args, 'microsoft-excel')
-  const data = await fetchProviderJson<{
-    value?: Array<{ id: string; name: string; position: number }>
-  }>(`${basePath}/workbook/worksheets`, {
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    signal: args.signal,
-    redirect: 'error',
+  const page = await fetchGraphPage<{ id: string; name: string; position: number }>({
+    args,
+    serviceId: 'microsoft-excel',
+    initialUrl: `${basePath}/workbook/worksheets?$select=id,name,position&$orderby=position`,
   })
-  return (data.value ?? [])
-    .sort((left, right) => left.position - right.position)
-    .map((sheet) => ({ id: sheet.name, label: sheet.name }))
+  return {
+    items: page.items
+      .sort((left, right) => left.position - right.position)
+      .map((sheet) => ({ id: sheet.name, label: sheet.name })),
+    nextCursor: page.nextCursor,
+  }
 }
 
 function requireSiteId(value: string | undefined): string {
@@ -575,16 +577,18 @@ async function executePlannerPlans(args: ExecuteServerSelectorArgs) {
 
 async function executePlannerTasks(args: ExecuteServerSelectorArgs) {
   if (args.request.kind === 'detail') {
+    const planId = requireGraphId(args.context.planId, 'planId')
     const taskId = requireGraphId(args.request.id, 'taskId')
     const token = await graphToken(args, 'microsoft-planner')
-    const task = await fetchProviderJson<{ id: string; title: string }>(
-      `https://graph.microsoft.com/v1.0/planner/tasks/${encodeURIComponent(taskId)}`,
+    const task = await fetchProviderJson<{ id: string; title: string; planId: string }>(
+      `https://graph.microsoft.com/v1.0/planner/tasks/${encodeURIComponent(taskId)}?$select=id,title,planId`,
       {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         signal: args.signal,
         redirect: 'error',
       }
     )
+    if (task.planId !== planId) return detailSelectorResult(null)
     return detailSelectorResult({ id: task.id, label: task.title })
   }
   const page = await listPlannerTasks(args)
@@ -652,7 +656,10 @@ export const microsoftSelectorAttachments = {
   'microsoft.excel.sheets': {
     credential: excelCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listWorksheets(args)),
+    execute: async (args) => {
+      const page = await listWorksheets(args)
+      return listSelectorResult(page.items, page.nextCursor)
+    },
   },
   'microsoft.excel.drives': {
     credential: excelCredential,

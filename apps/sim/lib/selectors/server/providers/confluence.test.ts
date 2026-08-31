@@ -50,6 +50,14 @@ function spaceDetailArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
   }
 }
 
+function spaceIdDetailArgs(): ExecuteServerSelectorArgs {
+  return {
+    ...pageDetailArgs(),
+    selectorKey: 'confluence.spacesById',
+    request: { kind: 'detail', id: '12345' },
+  }
+}
+
 describe('Confluence server selector adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -101,6 +109,49 @@ describe('Confluence server selector adapters', () => {
     await expect(
       confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs(controller.signal))
     ).rejects.toBe(abortError)
+  })
+
+  it('hydrates block space selections by provider resource ID', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: '12345', key: 'ENG', name: 'Engineering' }), {
+        status: 200,
+      })
+    )
+
+    await expect(
+      confluenceSelectorAttachments['confluence.spacesById'].execute(spaceIdDetailArgs())
+    ).resolves.toEqual({
+      kind: 'detail',
+      item: { id: '12345', label: 'Engineering (ENG)' },
+    })
+    expect(String(mockFetch.mock.calls[0]?.[0])).toContain('/wiki/api/v2/spaces/12345')
+  })
+
+  it('projects provider IDs for block space lists while key selectors remain unchanged', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ results: [{ id: '12345', key: 'ENG', name: 'Engineering' }] }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ results: [{ id: '12345', key: 'ENG', name: 'Engineering' }] }),
+          { status: 200 }
+        )
+      )
+
+    const args = { ...spaceDetailArgs(), request: { kind: 'list' } as const }
+    await expect(
+      confluenceSelectorAttachments['confluence.spacesById'].execute({
+        ...args,
+        selectorKey: 'confluence.spacesById',
+      })
+    ).resolves.toMatchObject({ items: [{ id: '12345', label: 'Engineering (ENG)' }] })
+    await expect(
+      confluenceSelectorAttachments['confluence.spaces'].execute(args)
+    ).resolves.toMatchObject({ items: [{ id: 'ENG', label: 'Engineering (ENG)' }] })
   })
 
   it('preserves the first safe provider failure when both space detail requests fail', async () => {

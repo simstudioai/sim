@@ -500,7 +500,8 @@ const MAX_LIST_PAGES = 1000
  * exhaustive event reads used by the run loop.
  */
 const SELECTOR_LIST_TIMEOUT_MS = 30_000
-const MAX_SELECTOR_LIST_RESPONSE_BYTES = 16 * 1024 * 1024
+const MAX_SELECTOR_LIST_TOTAL_BYTES = 16 * 1024 * 1024
+const MAX_SELECTOR_LIST_PAGES = 100
 
 async function cancelResponseBody(response: Response): Promise<void> {
   try {
@@ -510,9 +511,12 @@ async function cancelResponseBody(response: Response): Promise<void> {
   }
 }
 
-async function readBoundedSelectorListJson<T>(response: Response): Promise<T> {
+async function readBoundedSelectorListJson<T>(
+  response: Response,
+  maxBytes: number
+): Promise<{ value: T; bytesRead: number }> {
   const declaredLength = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_SELECTOR_LIST_RESPONSE_BYTES) {
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     await cancelResponseBody(response)
     throw new Error('Managed Agents collection response is unavailable')
   }
@@ -525,7 +529,7 @@ async function readBoundedSelectorListJson<T>(response: Response): Promise<T> {
     const { done, value } = await reader.read()
     if (done) break
     total += value.byteLength
-    if (total > MAX_SELECTOR_LIST_RESPONSE_BYTES) {
+    if (total > maxBytes) {
       await reader.cancel().catch(() => undefined)
       throw new Error('Managed Agents collection response is unavailable')
     }
@@ -538,25 +542,28 @@ async function readBoundedSelectorListJson<T>(response: Response): Promise<T> {
     bytes.set(chunk, offset)
     offset += chunk.byteLength
   }
-  return JSON.parse(new TextDecoder().decode(bytes)) as T
+  return { value: JSON.parse(new TextDecoder().decode(bytes)) as T, bytesRead: total }
 }
 
 async function fetchSelectorListPage<T>(
-  input: SessionAuth & { path: string; beta?: string; page: string | null }
-): Promise<AnthropicListPage<T>> {
+  input: SessionAuth & {
+    path: string
+    beta?: string
+    page: string | null
+    maxResponseBytes: number
+  }
+): Promise<{ page: AnthropicListPage<T>; bytesRead: number }> {
   const url = new URL(`${ANTHROPIC_API_BASE}${input.path}`)
   url.searchParams.set('limit', '100')
   if (input.page) url.searchParams.set('page', input.page)
 
-  const timeoutSignal = AbortSignal.timeout(SELECTOR_LIST_TIMEOUT_MS)
-  const signal = input.signal ? AbortSignal.any([input.signal, timeoutSignal]) : timeoutSignal
   let response: Response
   try {
     response = await fetch(url.toString(), {
       method: 'GET',
       headers: managedAgentsHeaders(input.apiKey, { beta: input.beta }),
       redirect: 'error',
-      signal,
+      signal: input.signal,
     })
   } catch (error) {
     if (input.signal?.aborted) throw error
@@ -569,7 +576,11 @@ async function fetchSelectorListPage<T>(
   }
 
   try {
-    return await readBoundedSelectorListJson<AnthropicListPage<T>>(response)
+    const result = await readBoundedSelectorListJson<AnthropicListPage<T>>(
+      response,
+      input.maxResponseBytes
+    )
+    return { page: result.value, bytesRead: result.bytesRead }
   } catch (error) {
     if (input.signal?.aborted) throw error
     throw new Error('Managed Agents collection response is unavailable')
@@ -733,10 +744,23 @@ export async function managedAgentsList<T>(
 ): Promise<T[]> {
   const collected: T[] = []
   let page: string | null = null
-  // Keep the editor's established 2,000-item / 1,000-page behavior while
-  // applying selector-only time and response-size limits to every page.
-  for (let pageCount = 0; pageCount < MAX_LIST_PAGES && collected.length < 2000; pageCount++) {
-    const pageBody: AnthropicListPage<T> = await fetchSelectorListPage<T>({ ...input, page })
+  let remainingBytes = MAX_SELECTOR_LIST_TOTAL_BYTES
+  const timeoutSignal = AbortSignal.timeout(SELECTOR_LIST_TIMEOUT_MS)
+  const signal = input.signal ? AbortSignal.any([input.signal, timeoutSignal]) : timeoutSignal
+  for (
+    let pageCount = 0;
+    pageCount < MAX_SELECTOR_LIST_PAGES && collected.length < 2000;
+    pageCount++
+  ) {
+    const result: { page: AnthropicListPage<T>; bytesRead: number } =
+      await fetchSelectorListPage<T>({
+        ...input,
+        page,
+        signal,
+        maxResponseBytes: remainingBytes,
+      })
+    remainingBytes -= result.bytesRead
+    const pageBody: AnthropicListPage<T> = result.page
     const items = Array.isArray(pageBody.data) ? pageBody.data : []
     collected.push(...items)
     if (!pageBody.next_page || items.length === 0) break

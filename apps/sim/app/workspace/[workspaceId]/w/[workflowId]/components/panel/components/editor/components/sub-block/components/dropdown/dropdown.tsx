@@ -160,6 +160,7 @@ export const Dropdown = memo(function Dropdown({
 
   const [selectorSearch, setSelectorSearch] = useState('')
   const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const activeSelectorSearch = selectorSearch.trim() === '' ? '' : debouncedSelectorSearch
 
   const {
     fetchedOptions,
@@ -184,7 +185,7 @@ export const Dropdown = memo(function Dropdown({
     selectorExcludeSelf,
     isPreview: Boolean(isPreview),
     disabled: Boolean(disabled),
-    search: debouncedSelectorSearch,
+    search: activeSelectorSearch,
     valueToHydrate: singleValue,
     valuesToHydrate: multiValues ?? undefined,
     localOptions: evaluatedOptions,
