@@ -6,11 +6,12 @@ import {
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import {
-  intersectIntegrationAllowlists,
-  toAllowedIntegrationTypes,
-} from '@/lib/permission-groups/integration-allowlist'
+  resolveAccessControlBlockType,
+  toAccessControlAllowlist,
+} from '@/lib/permission-groups/block-access'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import {
   collectDeniedOperationIds,
   createToolAccessGate,
@@ -54,7 +55,7 @@ export function projectIntegrationToolsForViewer(
   vis: BlockVisibilityState | null,
   permissionConfig: IntegrationGateConfig | null | undefined
 ): ViewerIntegrationProjection {
-  const allowedBlockTypes = toAllowedIntegrationTypes(
+  const allowedBlockTypes = toAccessControlAllowlist(
     intersectIntegrationAllowlists(
       permissionConfig?.allowedIntegrations ?? null,
       getAllowedIntegrationsFromEnv()
@@ -67,7 +68,8 @@ export function projectIntegrationToolsForViewer(
     vis,
     (owner) =>
       isIntegrationDeploymentAvailableForVisibility(owner.blockType, vis) &&
-      (allowedBlockTypes === null || allowedBlockTypes.has(owner.blockType.toLowerCase())),
+      (allowedBlockTypes === null ||
+        allowedBlockTypes.has(resolveAccessControlBlockType(owner.blockType).toLowerCase())),
     isToolAllowed
   )
 

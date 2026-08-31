@@ -2,7 +2,14 @@
  * @vitest-environment node
  */
 import type { SessionPrincipal } from '@sim/auth/principal'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  resetPermissionGroupScopeMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 const mocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
@@ -78,6 +85,8 @@ vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
 
 import { getBillingStatus } from '@/lib/billing/application/get-billing-status'
 import { listBillingLogs } from '@/lib/billing/application/list-billing-logs'
+import { PersonalApiKeysDisabledError } from '@/lib/core/application'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -99,6 +108,7 @@ const workspacePrincipal = {
 describe('billing application use cases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetPermissionGroupScopeMock()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.canUserManageWorkspaceBilling.mockResolvedValue(false)
@@ -192,6 +202,26 @@ describe('billing application use cases', () => {
     expect(result.credits).toBeNull()
     expect(result.storage).toBeNull()
     expect(mocks.canUserManageWorkspaceBilling).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The billing reads resolve their own workspace scope instead of running
+   * through `authorizeWorkspaceOperation`, so the funnel's personal-key refusal
+   * has to be repeated here — otherwise the same key v2 refuses everywhere else
+   * still reads a workspace's plan and ledger.
+   */
+  it('refuses a personal key whose group withholds personal keys', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disablePersonalApiKeys: true,
+    })
+
+    await expect(
+      getBillingStatus.execute({
+        principal: personalPrincipal,
+        input: { workspaceId: 'workspace-1' },
+      })
+    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
   })
 
   it('never reads the payer storage pool it may not disclose', async () => {

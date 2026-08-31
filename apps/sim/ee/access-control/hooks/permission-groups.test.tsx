@@ -151,6 +151,25 @@ describe('useUserPermissionConfig retry policy', () => {
     unmount()
   })
 
+  /**
+   * `requestJson` raises an `ApiClientError` carrying the response status when a
+   * 2xx body fails contract validation, so the failure arrives as a `200`.
+   * Asking again produces the same body; a "not a 4xx" test sent four.
+   */
+  it('does not retry a contract-validation failure, which arrives as a 200', async () => {
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ status: 200, message: 'Invalid response' })
+    )
+
+    const { mount } = makeHarness()
+    const { result, unmount } = mount(() => useUserPermissionConfig(WORKSPACE_ID))
+    await settle(() => result().isError)
+
+    expect(mockRequestJson).toHaveBeenCalledTimes(1)
+
+    unmount()
+  })
+
   it('retries again on remount, so reopening settings is a real retry', async () => {
     mockRequestJson.mockRejectedValue(refusal())
 

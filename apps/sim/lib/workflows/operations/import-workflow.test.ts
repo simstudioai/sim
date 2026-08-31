@@ -53,6 +53,7 @@ function params(workflowPayload: Record<string, unknown>) {
   return {
     workspaceId: 'workspace-1',
     userId: 'user-1',
+    capabilityUserId: 'user-1',
     requestId: 'request-1',
     workflow: workflowPayload,
   }
@@ -113,5 +114,23 @@ describe('importWorkflowIntoWorkspace block access', () => {
 
     expect(result.success).toBe(true)
     expect(mocks.performCreateWorkflow).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * `workflows.import` allows a workspace API key, which has no user and so no
+   * permission group. The attribution field still names someone — the billing
+   * owner, or the key's creator — and judging the payload against that
+   * bystander's allowlist is what this separates.
+   */
+  it('judges no allowlist for a caller no permission group governs', async () => {
+    mocks.getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+
+    const result = await importWorkflowIntoWorkspace({
+      ...params(payload(block('b1', 'gmail'))),
+      capabilityUserId: null,
+    })
+
+    expect(result.success).toBe(true)
+    expect(mocks.getUserPermissionConfig).not.toHaveBeenCalled()
   })
 })

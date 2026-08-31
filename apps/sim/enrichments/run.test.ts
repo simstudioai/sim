@@ -43,7 +43,7 @@ function config(providers: EnrichmentProvider[]): EnrichmentConfig {
   }
 }
 
-const ctx = { workspaceId: 'ws-1' }
+const ctx = { workspaceId: 'ws-1', userId: null }
 
 beforeEach(() => {
   mockExecuteTool.mockReset()

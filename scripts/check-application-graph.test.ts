@@ -13,7 +13,21 @@ describe('runtimeSpecifiers', () => {
       runtimeSpecifiers(
         "import { a } from '@/lib/a'\nexport { b } from '@/lib/b'\nimport '@/lib/c'\n"
       )
-    ).toEqual(['@/lib/a', '@/lib/b'])
+    ).toEqual(['@/lib/a', '@/lib/b', '@/lib/c'])
+  })
+
+  /**
+   * The heaviest edge of all — the module is loaded purely to run — and the one
+   * nothing in the importing file names, so it was walked straight past.
+   */
+  it('collects a side-effect import, in source order', () => {
+    expect(
+      runtimeSpecifiers("import '@/lib/uploads/core/setup.server'\nimport { a } from '@/lib/a'\n")
+    ).toEqual(['@/lib/uploads/core/setup.server', '@/lib/a'])
+  })
+
+  it('ignores a dynamic import, which is a call rather than a load', () => {
+    expect(runtimeSpecifiers("const a = await import('@/lib/a')\n")).toEqual([])
   })
 
   it('ignores type-only statements, which the compiler erases', () => {

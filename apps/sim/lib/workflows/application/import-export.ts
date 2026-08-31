@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -71,6 +72,7 @@ export const importWorkflow = defineAuthorizedWorkflowUseCase({
       description: input.description,
       workflow: input.workflow,
       userId: attribution.attributedUserId,
+      capabilityUserId: capabilityGovernedPrincipalUserId(principal),
       requestId: generateRequestId(),
     })
     if (!result.success) {

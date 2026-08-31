@@ -127,13 +127,17 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
    * refetch on focus outside the desktop app. `useUserPermissionConfig` raises
    * both, which is what makes this gate self-healing rather than sticky.
    *
-   * The `!workspaceId` arm is defense, not a live case: this component ships
-   * only from the workspace settings panel, always as `scope='combined'`, and
-   * `workspaceId` is that route's own param, so the query always runs. It
-   * covers the `|| ''` fallback above — a render outside the route would
-   * disable the hook, and `isSuccess` on a query that never runs is false
-   * forever, which would present as a dead button rather than a refusal. The
-   * server is the enforcement either way; this gate is the affordance.
+   * The `!workspaceId` arm covers the account plane, which renders this
+   * component as `scope='personal'` outside `/workspace/[workspaceId]`: the
+   * `|| ''` fallback above disables the hook, and `isSuccess` on a query that
+   * never runs is false forever, so failing closed there would present as a
+   * dead button rather than a refusal. Nothing reads the result on that plane —
+   * `createButtonDisabled` has a workspace arm and a combined arm and no
+   * personal one, because a personal key is not a workspace's to withhold.
+   * `api_keys.manage` is, and it is user-global: `/api/users/me/api-keys`
+   * refuses on it, and this page has no workspace to read the governing group
+   * through. The server is the enforcement; this gate is only the affordance,
+   * and it is deliberately not claiming to be one here.
    */
   const permissionPolicyReady = !workspaceId || permissionConfigQuery.isSuccess
 

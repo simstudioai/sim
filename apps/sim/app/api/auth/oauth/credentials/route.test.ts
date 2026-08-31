@@ -255,5 +255,40 @@ describe('OAuth Credentials API Route', () => {
         undefined
       )
     })
+
+    /**
+     * The asserted `workspaceId` is the caller's to choose. Pairing one their
+     * group leaves alone with a credential from one it governs must not read
+     * the credential out.
+     */
+    it('refuses a credential whose own workspace is withheld, whatever workspace is asserted', async () => {
+      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockImplementation(
+        async (_userId: string, workspaceId: string) =>
+          workspaceId === 'workspace-1' ? INTEGRATIONS_WITHHELD : DEFAULT_PERMISSION_GROUP_CONFIG
+      )
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        {
+          id: 'credential-1',
+          workspaceId: 'workspace-1',
+          type: 'oauth',
+          displayName: 'Gmail',
+          providerId: 'google-email',
+          accountId: 'account-1',
+          updatedAt: new Date('2026-01-01T00:00:00Z'),
+          accountProviderId: 'google-email',
+          accountScope: 'email',
+          accountUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+        },
+      ])
+
+      const response = await GET(
+        createMockRequestWithQuery(
+          'GET',
+          '?credentialId=credential-1&workspaceId=3f1c8a54-1c2e-4a1b-9d6e-2b7c5a9f0e11'
+        )
+      )
+
+      expect(response.status).toBe(403)
+    })
   })
 })

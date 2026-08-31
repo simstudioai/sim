@@ -31,6 +31,10 @@ const {
 
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
+  /** The use case passes the organization the authorized context already loaded. */
+  resolveVerifiedUserAccessControlContext: async (userId: string, workspaceId: string) => ({
+    config: await mockGetUserPermissionConfig(userId, workspaceId),
+  }),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
@@ -304,6 +308,25 @@ describe('downloadWorkspaceFileItems', () => {
           input: { workspaceId: 'ws-1', fileIds: ['f1', 'f2'], folderIds: [] },
         })
       ).rejects.toMatchObject({ capability: 'files.bulk_download' })
+    })
+
+    /**
+     * A run carries the role of whoever triggered it but not their capabilities
+     * — `authorizeWorkspaceOperation` exempts a subject-bearing executor — and
+     * an assertion that read the subject straight off the principal re-applied
+     * here exactly what the funnel exempts.
+     */
+    it('does not apply the capability to a delegated executor carrying a subject', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal: {
+            ...delegatedPrincipal,
+            serviceId: 'executor' as const,
+            resourceScope: {},
+          },
+          input: { workspaceId: 'ws-1', fileIds: [], folderIds: ['folder-1'] },
+        })
+      ).resolves.toMatchObject({ filesToZip: [expect.objectContaining({ id: 'f2' })] })
     })
 
     it('still allows downloading a single named file, which the key does not withhold', async () => {

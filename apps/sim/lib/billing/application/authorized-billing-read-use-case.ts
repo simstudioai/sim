@@ -7,7 +7,7 @@ import type {
   BillingReadOperation,
   BillingReadPrincipal,
 } from '@/lib/billing/application/operations'
-import type { OperationUseCase } from '@/lib/core/application'
+import { type OperationUseCase, requirePersonalApiKeysAllowed } from '@/lib/core/application'
 import {
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
@@ -87,6 +87,18 @@ async function resolveBillingReadScope(
     if (!permissionSatisfies(permission, operation.workspaceMinimumRole)) {
       throw new InsufficientWorkspacePermissionsError()
     }
+    /**
+     * permission-group-enforced: personal_api_key.use — this path resolves its
+     * own workspace scope instead of running through
+     * `authorizeWorkspaceOperation`, so the funnel's personal-key refusal has to
+     * be repeated here or the same key the funnel refuses still reads billing.
+     *
+     * After the role check, like the funnel: it answers with a 403 naming how an
+     * organization configured one cohort, and running it ahead of the concealed
+     * no-access refusal would hand that to a caller with no reach into the
+     * workspace at all.
+     */
+    await requirePersonalApiKeysAllowed(principal.userId, workspace)
   }
 
   return { kind: 'workspace', workspace }

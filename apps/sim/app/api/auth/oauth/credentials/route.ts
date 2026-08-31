@@ -185,21 +185,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
       if (platformCredential) {
         /**
-         * A `credentialId` lookup may arrive with neither `workflowId` nor
-         * `workspaceId`, in which case the workspace gate above never ran. The
-         * credential still names a workspace, and that is the scope whose group
-         * governs it. Asked after each branch's own access check, never before:
-         * a caller who may not reach this credential at all must not learn from
-         * the refusal wording that the workspace it belongs to is one their
-         * group governs.
+         * The credential names the workspace whose group governs it, and that is
+         * asked unconditionally — not only when the query named no workspace.
+         * The asserted `workspaceId` is the caller's to choose, so gating on it
+         * alone let a caller who reaches two workspaces pair the ungoverned one
+         * with a credential from the workspace whose group withholds
+         * Integrations, and read it. Both are checked; either withholding is a
+         * refusal, and the resolver memoizes the repeat when they are the same.
+         *
+         * Asked after each branch's own access check, never before: a caller who
+         * may not reach this credential at all must not learn from the refusal
+         * wording that the workspace it belongs to is one their group governs.
          */
-        const credentialScopeWithheld = async () =>
-          !effectiveWorkspaceId &&
-          (await integrationsWithheldFromSession(
+        const credentialScopeWithheld = () =>
+          integrationsWithheldFromSession(
             authResult.authType,
             requesterUserId,
             platformCredential.workspaceId
-          ))
+          )
 
         if (platformCredential.type === 'service_account') {
           if (

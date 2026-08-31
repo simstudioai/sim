@@ -63,7 +63,21 @@ export interface ImportWorkflowParams {
   description?: string
   /** Export envelope, bare state, or a JSON string of either. */
   workflow: string | Record<string, unknown>
+  /** Legacy attribution field: who the created workflow is recorded against. */
   userId: string
+  /**
+   * The person whose permission group judges the payload's block types, or
+   * `null` when no group governs the caller — a workspace API key, which
+   * `workflows.import` allows and which has no user at all.
+   *
+   * Deliberately not {@link ImportWorkflowParams.userId}. That one is an
+   * attribution field: for a workspace key it holds the billing owner (the
+   * application path) or the key's creator (v1), and running either one's
+   * integration allowlist against a shared key's import would refuse it on a
+   * bystander's policy — and break the key outright once that person's group
+   * changed.
+   */
+  capabilityUserId: string | null
   requestId: string
 }
 
@@ -180,7 +194,7 @@ async function executeImportWorkflowIntoWorkspace(
   params: ImportWorkflowParams,
   createWorkflow: (params: PerformCreateWorkflowParams) => Promise<PerformCreateWorkflowResult>
 ): Promise<ImportWorkflowResult> {
-  const { workspaceId, folderId, userId, requestId } = params
+  const { workspaceId, folderId, userId, capabilityUserId, requestId } = params
 
   const [workspaceData] = await db
     .select({ id: workspace.id })
@@ -266,11 +280,13 @@ async function executeImportWorkflowIntoWorkspace(
    * this is the only place the workspace's integration allowlist is consulted
    * before the graph becomes a stored workflow.
    */
-  const withheldBlockType = await findWithheldBlockType({
-    userId,
-    workspaceId,
-    blocks: Object.values(workflowState.blocks),
-  })
+  const withheldBlockType = capabilityUserId
+    ? await findWithheldBlockType({
+        userId: capabilityUserId,
+        workspaceId,
+        blocks: Object.values(workflowState.blocks),
+      })
+    : null
   if (withheldBlockType) {
     return {
       success: false,

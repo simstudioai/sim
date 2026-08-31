@@ -14,6 +14,7 @@ import {
 } from '@/lib/workflows/operations/import-workflow'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
+  capabilityGovernedUserId,
   checkRateLimit,
   createRateLimitResponse,
   v1ValidationErrorResponse,
@@ -78,6 +79,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       description,
       workflow: parsed.data.body.workflow,
       userId,
+      capabilityUserId: capabilityGovernedUserId(rateLimit),
       requestId,
     })
 

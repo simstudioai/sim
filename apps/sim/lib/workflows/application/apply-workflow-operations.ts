@@ -274,7 +274,11 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
     const baseGraph = await resolveBaseGraph(principal, input, context)
 
     const [permissionConfig, blockVisibility] = await Promise.all([
-      resolvePermissionGroupConfig(subjectUserId, context.workspaceId, undefined),
+      resolvePermissionGroupConfig(
+        subjectUserId,
+        context.workspaceId,
+        context.workspaceOrganizationId
+      ),
       getBlockVisibility({ userId: subjectUserId, orgId: context.workspaceOrganizationId }),
     ])
 
