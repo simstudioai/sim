@@ -18,6 +18,8 @@ export interface AgentCliClient {
 export interface AgentCliRuntime {
   client: AgentCliClient
   workspaceId: string
+  /** The human the command acts as — reference resolution and grants scope to them. */
+  userId: string
 }
 
 export interface AgentCliResult {
