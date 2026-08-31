@@ -60,5 +60,6 @@ describe('GET /api/users/me/settings', () => {
     await expect(response.json()).resolves.toMatchObject({
       data: { theme: 'system', autoConnect: true },
     })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

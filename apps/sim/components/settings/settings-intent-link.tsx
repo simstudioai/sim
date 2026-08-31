@@ -37,7 +37,9 @@ function isUnmodifiedPrimaryPointer(event: ReactPointerEvent<HTMLAnchorElement>)
 export function SettingsIntentLink(props: SettingsIntentLinkProps) {
   const pathname = usePathname()
   const destinationPathname = hrefPathname(props.href)
-  const isCurrentRoute = destinationPathname !== null && destinationPathname === pathname
+  const isCurrentRoute =
+    destinationPathname !== null &&
+    (destinationPathname === pathname || pathname.startsWith(`${destinationPathname}/`))
   const routeRole = isCurrentRoute ? 'current' : 'destination'
 
   return (

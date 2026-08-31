@@ -168,4 +168,17 @@ describe('SettingsIntentLink', () => {
     expect(link).toHaveAttribute('data-prefetch', 'false')
     expect(onIntent).not.toHaveBeenCalled()
   })
+
+  it('treats a descendant page as the current settings section', () => {
+    mockPathname.mockReturnValue('/settings/billing/credit-usage')
+    const { link, onIntent } = renderLink({ href: '/settings/billing' })
+
+    act(() => {
+      link.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+      vi.runAllTimers()
+    })
+
+    expect(link).toHaveAttribute('data-prefetch', 'false')
+    expect(onIntent).not.toHaveBeenCalled()
+  })
 })
