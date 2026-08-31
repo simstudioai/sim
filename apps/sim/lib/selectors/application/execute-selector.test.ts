@@ -61,6 +61,7 @@ vi.mock('@/lib/selectors/server/sanitize', () => ({
   sanitizeSelectorResult: mocks.sanitize,
 }))
 
+import { selectorScopeSchema } from '@/lib/api/contracts/selectors/execute'
 import { executeSelector } from '@/lib/selectors/application/execute-selector'
 import { getSelectorManifestEntry } from '@/lib/selectors/manifest'
 import {
@@ -256,6 +257,76 @@ describe('executeSelector', () => {
     expect(mocks.executeAttachment).not.toHaveBeenCalled()
   })
 
+  it('rejects oversized resolved context before credentials, destinations, or providers', async () => {
+    const prepare = vi.fn(async () => ({ baseUrl: 'https://example.com' }))
+    mocks.getAttachment.mockReturnValueOnce({
+      destination: { kind: 'credential-bound', prepare },
+      credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['gmail'] },
+      execute: mocks.executeAttachment,
+    })
+    mocks.resolveReferences.mockImplementationOnce(async () => {
+      mocks.events.push('reference-resolution')
+      return {
+        context: { oauthCredential: 'x'.repeat(16_385) },
+        request: { kind: 'list' },
+        references: new Map(),
+      }
+    })
+
+    await expect(execute()).rejects.toEqual(new SelectorContextUnavailableError())
+
+    expect(mocks.authorizeCredential).not.toHaveBeenCalled()
+    expect(prepare).not.toHaveBeenCalled()
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
+    expect(mocks.logger.warn).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['empty', ''],
+    ['oversized', 'x'.repeat(16_385)],
+  ])(
+    'rejects %s resolved detail ids before credentials, destinations, or providers',
+    async (_case, resolvedId) => {
+      const prepare = vi.fn(async () => ({ baseUrl: 'https://example.com' }))
+      mocks.resolveScope.mockImplementationOnce(async () => {
+        mocks.events.push('canonical-scope')
+        return {
+          workspaceId: 'workspace-1',
+          workspaceOrganizationId: null,
+          allowPersonalApiKeys: true,
+          selectorKey: 'google.drive',
+          selectorManifest: getSelectorManifestEntry('google.drive'),
+          selectorScope: scope,
+        }
+      })
+      mocks.getAttachment.mockReturnValueOnce({
+        destination: { kind: 'credential-bound', prepare },
+        credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['google-drive'] },
+        execute: mocks.executeAttachment,
+      })
+      mocks.resolveReferences.mockImplementationOnce(async () => {
+        mocks.events.push('reference-resolution')
+        return {
+          context: { oauthCredential: 'credential-1' },
+          request: { kind: 'detail', id: resolvedId },
+          references: new Map(),
+        }
+      })
+
+      await expect(
+        execute({
+          selectorKey: 'google.drive',
+          request: { kind: 'detail', id: '{{GOOGLE_FILE_ID}}' },
+        })
+      ).rejects.toEqual(new SelectorContextUnavailableError())
+
+      expect(mocks.authorizeCredential).not.toHaveBeenCalled()
+      expect(prepare).not.toHaveBeenCalled()
+      expect(mocks.executeAttachment).not.toHaveBeenCalled()
+      expect(mocks.logger.warn).not.toHaveBeenCalled()
+    }
+  )
+
   it('projects provider failures to a safe error and never logs request context', async () => {
     mocks.executeAttachment.mockRejectedValueOnce(
       new Error('upstream leaked selector-secret-canary for {{GMAIL_CREDENTIAL_ID}}')
@@ -357,5 +428,16 @@ describe('executeSelector', () => {
         meta: { resourceId: originalId, mimeType: 'application/pdf' },
       },
     })
+  })
+})
+
+describe('selector scope contract', () => {
+  it('rejects workflow ids longer than 128 characters', () => {
+    expect(
+      selectorScopeSchema.safeParse({ kind: 'workflow', workflowId: 'w'.repeat(128) }).success
+    ).toBe(true)
+    expect(
+      selectorScopeSchema.safeParse({ kind: 'workflow', workflowId: 'w'.repeat(129) }).success
+    ).toBe(false)
   })
 })

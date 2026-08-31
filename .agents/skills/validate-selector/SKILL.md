@@ -57,9 +57,18 @@ Review its destination classification:
   network safety.
 
 Missing and inaccessible references, and missing, unauthorized, or provider-mismatched credentials,
-must not become existence oracles. Resolved plaintext, credentials, tokens, and raw upstream errors
-must not enter responses, query/cache/rate keys, logs, audit metadata, redirects, or error messages.
-Only normalized `{ id, label, meta? }` options and bounded cursors may cross the boundary.
+must not become existence oracles. Hidden/server-only resolved plaintext, credentials, authentication
+material, and raw upstream errors must not enter responses, query/cache/rate keys, selector result
+caches, logs, audit metadata, redirects, or error messages. Browser-known literals and viewable
+personal/shared values are not automatically protected plaintext, but the executor must still never
+deliberately or wholesale echo selector context. Only intentionally projected, normalized
+`{ id, label, meta? }` options and bounded cursors may cross the boundary.
+
+Selector code must not introduce a context, token, or result cache. The sole existing cache
+exception is authorized client-credential resolution after authorization and provider binding,
+which may reuse the credential service's TTL-governed, lazily pruned process-local token cache. The
+cache is not hard-bounded, the exception requires explicit security-owner acceptance, and selector
+work must not expand it.
 
 ## Validate provider reuse and browser boundaries
 

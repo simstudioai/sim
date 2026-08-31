@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
-import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { MAX_ID_LENGTH, workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { type SelectorKey, selectorManifest } from '@/lib/selectors/manifest'
 import { selectorContextKeys } from '@/lib/selectors/types'
 
@@ -16,7 +16,7 @@ export const selectorScopeSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('workflow'),
-      workflowId: workflowIdSchema,
+      workflowId: workflowIdSchema.max(MAX_ID_LENGTH, 'Workflow ID is too long'),
       workspaceId: workspaceIdSchema.optional(),
     })
     .strict(),

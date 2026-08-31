@@ -17,9 +17,13 @@ vi.mock('@/lib/selectors/server/providers/atlassian', () => ({
   resolveSelectorAtlassianCloudId: mockResolveCloudId,
 }))
 
-import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
+import {
+  SelectorConnectionUnavailableError,
+  SelectorOptionsUnavailableError,
+} from '@/lib/selectors/server/errors'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { confluenceSelectorAttachments } from '@/lib/selectors/server/providers/confluence'
+import * as providerHttp from '@/lib/selectors/server/providers/provider-http'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
 function pageDetailArgs(): ExecuteServerSelectorArgs {
@@ -97,5 +101,30 @@ describe('Confluence server selector adapters', () => {
     await expect(
       confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs(controller.signal))
     ).rejects.toBe(abortError)
+  })
+
+  it('preserves the first safe provider failure when both space detail requests fail', async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+
+    const result = confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs())
+    await expect(result).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
+    await expect(result).rejects.toMatchObject({ status: 401 })
+  })
+
+  it('skips an arbitrary failure and preserves the next typed space-detail failure', async () => {
+    const fetchProviderJson = vi
+      .spyOn(providerHttp, 'fetchProviderJson')
+      .mockRejectedValueOnce(new Error('raw provider failure'))
+      .mockRejectedValueOnce(new SelectorConnectionUnavailableError(403))
+
+    const result = confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs())
+    await expect(result).rejects.toMatchObject({
+      name: 'SelectorConnectionUnavailableError',
+      status: 403,
+    })
+
+    fetchProviderJson.mockRestore()
   })
 })

@@ -77,10 +77,14 @@ non-selector callers, keep the route as a thin caller of that primitive. If it i
 move the logic and remove the obsolete route and contract. Never import a route handler or make an
 internal HTTP request from an attachment.
 
-The attachment must return normalized selector results only. It must not return provider payloads,
-resolved context, credential IDs, tokens, or secrets. Let the shared executor own scope
-authorization, exact-reference resolution, credential authorization, error projection, output
-sanitization, and abort propagation.
+The attachment must return normalized selector results only. It must never deliberately or
+wholesale echo selector context, and hidden/server-only resolved material, credential IDs, tokens,
+and authentication secrets must never cross the response boundary. Browser-known literals and
+viewable personal/shared values are not automatically server-only secrets, but they may appear in
+an option only when the adapter intentionally projects them as provider resource metadata. Let the
+shared executor own scope authorization, exact-reference resolution, credential authorization,
+error projection, and output sanitization; adapters must pass and preserve the executor's abort
+signal during provider work.
 
 ## Wire the UI declaration
 
@@ -97,6 +101,10 @@ Do not add:
 
 All server selectors use the shared POST contract and React Query facade. Query identities must stay
 opaque and must not include context values, references, credential IDs, secrets, or their hashes.
+Selector code must not add context, token, or result caches. The sole existing cache exception is
+authorized client-credential resolution after authorization and provider binding: it may reuse the
+credential service's TTL-governed, lazily pruned process-local token cache. This exception requires
+explicit security-owner acceptance; do not broaden it or describe it as hard-bounded.
 
 ## Focused validation
 

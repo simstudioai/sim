@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type { ExecuteSelectorRequest } from '@/lib/api/contracts/selectors/execute'
+import {
+  type ExecuteSelectorRequest,
+  selectorContextSchema,
+  selectorRequestSchema,
+} from '@/lib/api/contracts/selectors/execute'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { type CredentialAuditRequest, recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import { selectorOperations } from '@/lib/selectors/application/operations'
@@ -129,14 +133,22 @@ async function executeAuthorizedSelector(args: {
       workspaceId: args.context.workspaceId,
       protectedValues,
     })
-    if (!isSelectorReady(args.input.selectorKey, resolved.context)) {
+    const parsedContext = selectorContextSchema.safeParse(resolved.context)
+    const parsedRequest = selectorRequestSchema.safeParse(resolved.request)
+    if (!parsedContext.success || !parsedRequest.success) {
+      throw new SelectorContextUnavailableError()
+    }
+    const resolvedContext = parsedContext.data
+    const resolvedRequest = parsedRequest.data
+
+    if (!isSelectorReady(args.input.selectorKey, resolvedContext)) {
       throw new SelectorContextUnavailableError()
     }
 
     const credential = attachment.credential
       ? await authorizeSelectorCredential({
           principal: args.principal,
-          context: resolved.context,
+          context: resolvedContext,
           scope: args.input.scope,
           workspaceId: args.context.workspaceId,
           policy: attachment.credential,
@@ -166,8 +178,8 @@ async function executeAuthorizedSelector(args: {
 
     const selectorArgs = {
       selectorKey: args.input.selectorKey as ServerSelectorKey,
-      context: resolved.context,
-      request: resolved.request,
+      context: resolvedContext,
+      request: resolvedRequest,
       scope: args.input.scope,
       workspaceId: args.context.workspaceId,
       principal: args.principal,
@@ -196,7 +208,7 @@ async function executeAuthorizedSelector(args: {
     }
     const referencedDetailResolvedId = getReferencedDetailResolvedId({
       originalRequest: args.input.request,
-      resolvedRequest: resolved.request,
+      resolvedRequest,
       references: resolved.references,
     })
     const sanitizedProviderResult = sanitizeSelectorResult(
@@ -208,7 +220,7 @@ async function executeAuthorizedSelector(args: {
     )
     const result = restoreReferencedDetailValues({
       originalRequest: args.input.request,
-      resolvedRequest: resolved.request,
+      resolvedRequest,
       result: sanitizedProviderResult,
       references: resolved.references,
     })

@@ -1,6 +1,7 @@
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
+  SelectorConnectionUnavailableError,
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
@@ -41,6 +42,19 @@ interface ConfluencePage {
 
 interface ConfluencePagesResponse {
   results?: ConfluencePage[]
+}
+
+function isPublicSelectorError(
+  error: unknown
+): error is
+  | SelectorContextUnavailableError
+  | SelectorConnectionUnavailableError
+  | SelectorOptionsUnavailableError {
+  return (
+    error instanceof SelectorContextUnavailableError ||
+    error instanceof SelectorConnectionUnavailableError ||
+    error instanceof SelectorOptionsUnavailableError
+  )
 }
 
 function parseSpaceCursor(raw: string | undefined): { status: SpaceStatus; inner?: string } {
@@ -115,6 +129,9 @@ async function executeSpaces(args: ExecuteServerSelectorArgs) {
     ])
     args.signal?.throwIfAborted()
     if (current.status === 'rejected' && archived.status === 'rejected') {
+      for (const result of [current, archived]) {
+        if (isPublicSelectorError(result.reason)) throw result.reason
+      }
       throw new SelectorOptionsUnavailableError()
     }
     const spaces = [

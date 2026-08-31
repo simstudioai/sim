@@ -1,5 +1,4 @@
-import type { Project, Team } from '@linear/sdk'
-import { LinearClient } from '@linear/sdk'
+import { LinearClient, LinearError, type Project, type Team } from '@linear/sdk'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
@@ -8,6 +7,7 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
+import { selectorProviderStatusError } from '@/lib/selectors/server/providers/provider-http'
 import {
   type ExecuteServerSelectorArgs,
   listSelectorResult,
@@ -21,6 +21,14 @@ const LINEAR_SCOPES = getScopesForService('linear')
 const LINEAR_PAGE_SIZE = 250
 const MAX_LINEAR_PAGES = 10
 const MAX_SELECTED_TEAMS = 100
+
+function throwLinearSelectorError(error: unknown, signal?: AbortSignal): never {
+  if (signal?.aborted) throw error
+  if (error instanceof LinearError && typeof error.status === 'number') {
+    throw selectorProviderStatusError(error.status)
+  }
+  throw new SelectorOptionsUnavailableError()
+}
 
 async function linearClient(args: ExecuteServerSelectorArgs) {
   if (!args.credential) throw new SelectorConnectionUnavailableError()
@@ -87,8 +95,7 @@ async function executeTeams(args: ExecuteServerSelectorArgs) {
       truncated ? { truncated: { reason: 'provider-cap', pages: MAX_LINEAR_PAGES } } : undefined
     )
   } catch (error) {
-    if (args.signal?.aborted) throw error
-    throw new SelectorOptionsUnavailableError()
+    throwLinearSelectorError(error, args.signal)
   }
 }
 
@@ -117,8 +124,7 @@ async function executeProjects(args: ExecuteServerSelectorArgs) {
         : undefined
     )
   } catch (error) {
-    if (args.signal?.aborted) throw error
-    throw new SelectorOptionsUnavailableError()
+    throwLinearSelectorError(error, args.signal)
   }
 }
 
