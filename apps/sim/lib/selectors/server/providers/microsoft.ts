@@ -3,12 +3,15 @@ import {
   validatePathSegment,
   validateSharePointSiteId,
 } from '@/lib/core/security/input-validation'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
 import {
   SelectorConnectionUnavailableError,
   SelectorContextUnavailableError,
 } from '@/lib/selectors/server/errors'
+import { appendSelectorOptions } from '@/lib/selectors/server/option-budget'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
 import type {
@@ -37,6 +40,8 @@ type MicrosoftSelectorKey = Extract<
   | 'microsoft.word'
 >
 
+const CHAT_LABEL_CONCURRENCY = 10
+
 function microsoftCredential(serviceId: string): SelectorCredentialPolicy {
   return { kind: 'stored', field: 'oauthCredential', serviceIds: [serviceId] }
 }
@@ -57,26 +62,45 @@ async function drainGraph<T>(input: {
   maxPages: number
   token?: string
   truncation?: { truncated: boolean }
+  includeItem?(item: T): boolean
 }): Promise<T[]> {
   const token = input.token ?? (await graphToken(input.args, input.serviceId))
   const values: T[] = []
   let nextUrl: string | undefined = input.initialUrl
+  let budgetTruncated = false
   for (let page = 0; page < input.maxPages && nextUrl; page++) {
     const data = await fetchProviderJson<{ value?: T[] } & Record<string, unknown>>(nextUrl, {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       signal: input.args.signal,
       redirect: 'error',
     })
-    if (Array.isArray(data.value)) values.push(...data.value)
+    const pageValues = Array.isArray(data.value)
+      ? input.includeItem
+        ? data.value.filter(input.includeItem)
+        : data.value
+      : []
+    const appended = appendSelectorOptions(values, pageValues)
     const nextLink = getGraphNextPageUrl(data)
     nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
+    if (appended.overflow || (appended.full && nextUrl)) {
+      budgetTruncated = true
+      break
+    }
   }
-  if (input.truncation) input.truncation.truncated = Boolean(nextUrl)
+  if (input.truncation) input.truncation.truncated = budgetTruncated || Boolean(nextUrl)
   return values
 }
 
 function graphCapDiagnostics(truncated: boolean, pages: number) {
-  return truncated ? { truncated: { reason: 'provider-cap' as const, pages } } : undefined
+  return truncated
+    ? {
+        truncated: {
+          reason: 'provider-cap' as const,
+          limit: MAX_SELECTOR_OPTIONS,
+          pages,
+        },
+      }
+    : undefined
 }
 
 function requireGraphId(value: string | undefined, label: string): string {
@@ -264,12 +288,10 @@ async function listChats(args: ExecuteServerSelectorArgs) {
     truncation,
   })
   return {
-    items: await Promise.all(
-      chats.map(async (chat) => ({
-        id: chat.id,
-        label: await chatDisplayName(chat, token, args.signal),
-      }))
-    ),
+    items: await mapWithConcurrency(chats, CHAT_LABEL_CONCURRENCY, async (chat) => ({
+      id: chat.id,
+      label: await chatDisplayName(chat, token, args.signal),
+    })),
     truncated: truncation.truncated,
   }
 }
@@ -296,11 +318,10 @@ async function listOneDriveFiles(args: ExecuteServerSelectorArgs) {
     initialUrl: `https://graph.microsoft.com/v1.0/me/drive/root/children?${query}`,
     maxPages: 20,
     truncation,
+    includeItem: (item) => Boolean(item.file && !item.folder),
   })
   return {
-    items: files
-      .filter((item) => item.file && !item.folder)
-      .map((item) => ({ id: item.id, label: item.name })),
+    items: files.map((item) => ({ id: item.id, label: item.name })),
     truncated: truncation.truncated,
   }
 }
@@ -315,9 +336,10 @@ async function listOneDriveFolders(args: ExecuteServerSelectorArgs) {
     initialUrl: `https://graph.microsoft.com/v1.0/${drivePath}/root/children?$filter=folder ne null&$select=id,name,folder,webUrl,createdDateTime,lastModifiedDateTime&$top=999`,
     maxPages: 20,
     truncation,
+    includeItem: (item) => Boolean(item.folder),
   })
   return {
-    items: folders.filter((item) => item.folder).map((item) => ({ id: item.id, label: item.name })),
+    items: folders.map((item) => ({ id: item.id, label: item.name })),
     truncated: truncation.truncated,
   }
 }
@@ -415,14 +437,11 @@ async function listOfficeFiles(
     initialUrl: `https://graph.microsoft.com/v1.0/${drivePath}/root/search(q='${encodeGraphSearch(searchQuery)}')?${params}`,
     maxPages: 20,
     truncation,
+    includeItem: (file) =>
+      file.name?.toLowerCase().endsWith(config.extension) || file.mimeType === config.mimeType,
   })
   return {
-    items: files
-      .filter(
-        (file) =>
-          file.name?.toLowerCase().endsWith(config.extension) || file.mimeType === config.mimeType
-      )
-      .map((file) => ({ id: file.id, label: file.name })),
+    items: files.map((file) => ({ id: file.id, label: file.name })),
     truncated: truncation.truncated,
   }
 }

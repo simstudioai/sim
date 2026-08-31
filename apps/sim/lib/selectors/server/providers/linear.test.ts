@@ -25,6 +25,7 @@ vi.mock('@/lib/selectors/server/credentials', () => ({
   resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
 }))
 
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { linearSelectorAttachments } from '@/lib/selectors/server/providers/linear'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
@@ -42,6 +43,14 @@ function teamArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
     references: new Map(),
     protectedValues: createSelectorProtectedValues(),
     signal,
+  }
+}
+
+function projectArgs(teamIds: string): ExecuteServerSelectorArgs {
+  return {
+    ...teamArgs(),
+    selectorKey: 'linear.projects',
+    context: { oauthCredential: 'credential-1', teamId: teamIds },
   }
 }
 
@@ -88,5 +97,42 @@ describe('Linear server selector adapter errors', () => {
     await expect(
       linearSelectorAttachments['linear.teams'].execute(teamArgs(controller.signal))
     ).rejects.toBe(abortError)
+  })
+
+  it('bounds team fan-out and stops scheduling batches after filling the option budget', async () => {
+    let activeProjectRequests = 0
+    let maxActiveProjectRequests = 0
+    mockTeam.mockImplementation(async (teamId: string) => ({
+      projects: async ({ after }: { after?: string }) => {
+        activeProjectRequests += 1
+        maxActiveProjectRequests = Math.max(maxActiveProjectRequests, activeProjectRequests)
+        await Promise.resolve()
+        activeProjectRequests -= 1
+        const page = Number(after ?? '0')
+        return {
+          nodes: Array.from({ length: 250 }, (_, index) => ({
+            id: `project-${teamId}-${page}-${index}`,
+            name: `Project ${teamId}-${page}-${index}`,
+          })),
+          pageInfo: {
+            hasNextPage: page < 9,
+            endCursor: page < 9 ? String(page + 1) : undefined,
+          },
+        }
+      },
+    }))
+    const teamIds = Array.from({ length: 100 }, (_, index) => `team-${index}`).join(',')
+
+    const result = await linearSelectorAttachments['linear.projects'].execute(projectArgs(teamIds))
+
+    expect(result).toMatchObject({
+      kind: 'list',
+      diagnostics: {
+        truncated: { reason: 'provider-cap', limit: MAX_SELECTOR_OPTIONS, pages: 10 },
+      },
+    })
+    expect(result.kind === 'list' ? result.items : []).toHaveLength(MAX_SELECTOR_OPTIONS)
+    expect(mockTeam).toHaveBeenCalledTimes(5)
+    expect(maxActiveProjectRequests).toBeLessThanOrEqual(5)
   })
 })

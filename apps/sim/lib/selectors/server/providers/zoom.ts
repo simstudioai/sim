@@ -1,6 +1,8 @@
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
+import { appendSelectorOptions } from '@/lib/selectors/server/option-budget'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
 import type { ServerSelectorAttachmentMap } from '@/lib/selectors/server/types'
@@ -44,19 +46,31 @@ export const zoomSelectorAttachments = {
           signal: args.signal,
           redirect: 'error',
         })
-        for (const meeting of data.meetings ?? []) {
+        const pageMeetings = (data.meetings ?? []).map((meeting) => {
           const id = String(meeting.id)
-          meetings.push({ id, label: meeting.topic || `Meeting ${id}` })
-        }
+          return { id, label: meeting.topic || `Meeting ${id}` }
+        })
+        const appended = appendSelectorOptions(meetings, pageMeetings)
         nextPageToken = data.next_page_token?.trim() ?? ''
         if (!nextPageToken) break
-        if (page === MAX_PAGES - 1) truncated = true
+        if (appended.overflow || appended.full || page === MAX_PAGES - 1) {
+          truncated = true
+          break
+        }
       }
       return flatSelectorResult(
         args.request,
         meetings,
         true,
-        truncated ? { truncated: { reason: 'provider-cap', pages: MAX_PAGES } } : undefined
+        truncated
+          ? {
+              truncated: {
+                reason: 'provider-cap',
+                limit: MAX_SELECTOR_OPTIONS,
+                pages: MAX_PAGES,
+              },
+            }
+          : undefined
       )
     },
   },

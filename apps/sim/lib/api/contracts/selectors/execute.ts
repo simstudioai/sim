@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { MAX_ID_LENGTH, workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import { type SelectorKey, selectorManifest } from '@/lib/selectors/manifest'
 import { selectorContextKeys } from '@/lib/selectors/types'
 
@@ -113,7 +114,7 @@ export const executeSelectorResponseSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('list'),
-      items: z.array(selectorOptionSchema).max(10_000),
+      items: z.array(selectorOptionSchema).max(MAX_SELECTOR_OPTIONS),
       nextCursor: z
         .string()
         .min(1)

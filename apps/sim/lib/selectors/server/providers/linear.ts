@@ -1,5 +1,7 @@
 import { LinearClient, LinearError, type Project, type Team } from '@linear/sdk'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
 import {
@@ -21,6 +23,7 @@ const LINEAR_SCOPES = getScopesForService('linear')
 const LINEAR_PAGE_SIZE = 250
 const MAX_LINEAR_PAGES = 10
 const MAX_SELECTED_TEAMS = 100
+const LINEAR_TEAM_CONCURRENCY = 5
 
 function throwLinearSelectorError(error: unknown, signal?: AbortSignal): never {
   if (signal?.aborted) throw error
@@ -104,23 +107,48 @@ async function executeProjects(args: ExecuteServerSelectorArgs) {
   const teamIds = selectedTeamIds(args.context.teamId)
   const client = await linearClient(args)
   try {
-    const perTeam = await Promise.all(
-      teamIds.map(async (teamId) => fetchAllProjects(await client.team(teamId)))
-    )
     const seen = new Set<string>()
     const options: Array<{ id: string; label: string }> = []
-    for (const result of perTeam) {
-      for (const project of result.items) {
-        if (seen.has(project.id)) continue
-        seen.add(project.id)
-        options.push({ id: project.id, label: project.name })
+    let truncated = false
+
+    for (let start = 0; start < teamIds.length; start += LINEAR_TEAM_CONCURRENCY) {
+      const batch = teamIds.slice(start, start + LINEAR_TEAM_CONCURRENCY)
+      const perTeam = await mapWithConcurrency(batch, LINEAR_TEAM_CONCURRENCY, async (teamId) =>
+        fetchAllProjects(await client.team(teamId))
+      )
+      if (perTeam.some((result) => result.truncated)) truncated = true
+
+      let overflow = false
+      for (const result of perTeam) {
+        for (const project of result.items) {
+          if (seen.has(project.id)) continue
+          seen.add(project.id)
+          if (options.length >= MAX_SELECTOR_OPTIONS) {
+            overflow = true
+            break
+          }
+          options.push({ id: project.id, label: project.name })
+        }
+        if (overflow) break
+      }
+
+      const hasUnprocessedTeams = start + batch.length < teamIds.length
+      if (overflow || (options.length >= MAX_SELECTOR_OPTIONS && hasUnprocessedTeams)) {
+        truncated = true
+        break
       }
     }
     return listSelectorResult(
       options,
       undefined,
-      perTeam.some((result) => result.truncated)
-        ? { truncated: { reason: 'provider-cap', pages: MAX_LINEAR_PAGES } }
+      truncated
+        ? {
+            truncated: {
+              reason: 'provider-cap',
+              limit: MAX_SELECTOR_OPTIONS,
+              pages: MAX_LINEAR_PAGES,
+            },
+          }
         : undefined
     )
   } catch (error) {

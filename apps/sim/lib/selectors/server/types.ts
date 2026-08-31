@@ -1,5 +1,6 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import type { CredentialAccessResult } from '@/lib/auth/credential-access'
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { SelectorKey, ServerSelectorKey } from '@/lib/selectors/manifest'
 import type {
   SafeSelectorOption,
@@ -97,11 +98,23 @@ export function listSelectorResult(
   nextCursor?: string,
   diagnostics?: SelectorServerDiagnostics
 ): ServerSelectorExecutionResult {
+  const overBudget = items.length > MAX_SELECTOR_OPTIONS
+  const boundedItems = overBudget ? items.slice(0, MAX_SELECTOR_OPTIONS) : items
+  const boundedDiagnostics = overBudget
+    ? {
+        ...diagnostics,
+        truncated: {
+          ...diagnostics?.truncated,
+          reason: 'provider-cap' as const,
+          limit: MAX_SELECTOR_OPTIONS,
+        },
+      }
+    : diagnostics
   return {
     kind: 'list',
-    items,
+    items: boundedItems,
     ...(nextCursor ? { nextCursor } : {}),
-    ...(diagnostics ? { diagnostics } : {}),
+    ...(boundedDiagnostics ? { diagnostics: boundedDiagnostics } : {}),
   }
 }
 

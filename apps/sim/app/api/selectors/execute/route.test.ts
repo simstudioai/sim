@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   status: 200,
+  userRateLimit: vi.fn(() => ({ kind: 'user' as const })),
   errorPolicy: undefined as
     | {
         project(error: unknown): { body: unknown; status: number; headers?: HeadersInit } | null
@@ -63,7 +64,7 @@ vi.mock('@/lib/api/server/routes', () => {
     ),
     internalErrorResponse,
     internalOrchestrationErrorPolicy,
-    internalRateLimits: { none: vi.fn(() => ({ kind: 'none' })) },
+    internalRateLimits: { user: mocks.userRateLimit },
     internalSessionAuth: {},
   }
 })
@@ -84,6 +85,10 @@ function project(error: unknown) {
 }
 
 describe('POST /api/selectors/execute', () => {
+  it('uses authenticated per-user admission control', () => {
+    expect(mocks.userRateLimit).toHaveBeenCalledWith({ bucketName: 'selectors.execute' })
+  })
+
   it('marks success, authentication, parse, and unhandled responses private and non-cacheable', async () => {
     for (const status of [200, 400, 401, 500]) {
       mocks.status = status

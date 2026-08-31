@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
 import {
@@ -6,6 +7,7 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
+import { appendSelectorOptions } from '@/lib/selectors/server/option-budget'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
 import type {
@@ -65,10 +67,16 @@ async function listBases(args: ExecuteServerSelectorArgs, accessToken: string) {
     const parsed = airtableBasesPageSchema.safeParse(body)
     if (!parsed.success) throw new SelectorOptionsUnavailableError()
 
-    bases.push(...(parsed.data.bases ?? []))
+    const appended = appendSelectorOptions(bases, parsed.data.bases ?? [])
     offset = parsed.data.offset
-    if (!offset) break
-    if (page === AIRTABLE_MAX_BASE_PAGES - 1) truncated = true
+    if (!offset) {
+      if (appended.overflow) truncated = true
+      break
+    }
+    if (appended.full || page === AIRTABLE_MAX_BASE_PAGES - 1) {
+      truncated = true
+      break
+    }
   }
 
   return {
@@ -119,7 +127,13 @@ export const airtableSelectorAttachments = {
         items,
         true,
         truncated
-          ? { truncated: { reason: 'provider-cap', pages: AIRTABLE_MAX_BASE_PAGES } }
+          ? {
+              truncated: {
+                reason: 'provider-cap',
+                limit: MAX_SELECTOR_OPTIONS,
+                pages: AIRTABLE_MAX_BASE_PAGES,
+              },
+            }
           : undefined
       )
     },

@@ -1,4 +1,5 @@
 import { getScopesForService } from '@/lib/oauth/utils'
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
 import {
@@ -6,6 +7,7 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
+import { appendSelectorOptions } from '@/lib/selectors/server/option-budget'
 import {
   fetchProviderJson,
   fetchProviderJsonWithStatus,
@@ -51,6 +53,12 @@ interface Sheet {
   properties: { sheetId: number; title: string; index: number }
 }
 
+interface GooglePageDrainResult<T> {
+  items: T[]
+  pages: number
+  truncated: boolean
+}
+
 async function googleAccessToken(args: ExecuteServerSelectorArgs, serviceId: string) {
   if (!args.credential) throw new SelectorConnectionUnavailableError()
   try {
@@ -70,25 +78,49 @@ async function googleAccessToken(args: ExecuteServerSelectorArgs, serviceId: str
 async function drainGooglePages<T, R extends { nextPageToken?: string }>(input: {
   accessToken: string
   maxPages: number
+  maxItems?: number
   buildUrl(pageToken: string | undefined): URL
   getItems(page: R): T[] | undefined
   signal?: AbortSignal
-}): Promise<T[]> {
+}): Promise<GooglePageDrainResult<T>> {
   const items: T[] = []
   let pageToken: string | undefined
+  let pages = 0
   for (let page = 0; page < input.maxPages; page++) {
     const body = await fetchProviderJson<R>(input.buildUrl(pageToken), {
       headers: { Authorization: `Bearer ${input.accessToken}` },
       signal: input.signal,
     })
-    items.push(...(input.getItems(body) ?? []))
+    pages = page + 1
+    const appended = appendSelectorOptions(
+      items,
+      input.getItems(body) ?? [],
+      input.maxItems ?? MAX_SELECTOR_OPTIONS
+    )
     pageToken = body.nextPageToken?.trim() || undefined
-    if (!pageToken) break
+    if (appended.overflow || (appended.full && pageToken)) {
+      return { items, pages, truncated: true }
+    }
+    if (!pageToken) return { items, pages, truncated: false }
   }
-  return items
+  return { items, pages, truncated: Boolean(pageToken) }
 }
 
-async function listTaskLists(args: ExecuteServerSelectorArgs): Promise<GoogleTaskList[]> {
+function googleDrainDiagnostics(result: GooglePageDrainResult<unknown>) {
+  return result.truncated
+    ? {
+        truncated: {
+          reason: 'provider-cap' as const,
+          limit: MAX_SELECTOR_OPTIONS,
+          pages: result.pages,
+        },
+      }
+    : undefined
+}
+
+async function listTaskLists(
+  args: ExecuteServerSelectorArgs
+): Promise<GooglePageDrainResult<GoogleTaskList>> {
   const accessToken = await googleAccessToken(args, 'google-tasks')
   return drainGooglePages<GoogleTaskList, { items?: GoogleTaskList[]; nextPageToken?: string }>({
     accessToken,
@@ -105,19 +137,24 @@ async function listTaskLists(args: ExecuteServerSelectorArgs): Promise<GoogleTas
 }
 
 async function executeTaskLists(args: ExecuteServerSelectorArgs) {
-  const taskLists = await listTaskLists(args)
+  const result = await listTaskLists(args)
   if (args.request.kind === 'detail') {
     const detailId = args.request.id
-    const match = taskLists.find((list) => list.id === detailId)
-    return detailSelectorResult(match ? { id: match.id, label: match.title } : null)
+    const match = result.items.find((list) => list.id === detailId)
+    return {
+      ...detailSelectorResult(match ? { id: match.id, label: match.title } : null),
+      ...(result.truncated ? { diagnostics: googleDrainDiagnostics(result) } : {}),
+    }
   }
   return listSelectorResult(
-    taskLists
+    result.items
       .filter((list) => list.id && list.title)
       .map((list) => ({
         id: list.id,
         label: list.title,
-      }))
+      })),
+    undefined,
+    googleDrainDiagnostics(result)
   )
 }
 
@@ -147,7 +184,7 @@ async function executeGmailLabels(args: ExecuteServerSelectorArgs) {
 async function executeCalendars(args: ExecuteServerSelectorArgs) {
   requireListRequest(args.selectorKey, args.request)
   const accessToken = await googleAccessToken(args, 'google-calendar')
-  const calendars = await drainGooglePages<
+  const result = await drainGooglePages<
     CalendarListItem,
     { items?: CalendarListItem[]; nextPageToken?: string }
   >({
@@ -162,6 +199,7 @@ async function executeCalendars(args: ExecuteServerSelectorArgs) {
     getItems: (page) => page.items,
     signal: args.signal,
   })
+  const calendars = result.items
   calendars.sort((a, b) => {
     if (a.primary && !b.primary) return -1
     if (!a.primary && b.primary) return 1
@@ -173,7 +211,9 @@ async function executeCalendars(args: ExecuteServerSelectorArgs) {
       .map((calendar) => ({
         id: calendar.id,
         label: calendar.summary,
-      }))
+      })),
+    undefined,
+    googleDrainDiagnostics(result)
   )
 }
 
@@ -209,7 +249,7 @@ async function fetchSharedDrives(accessToken: string, signal?: AbortSignal): Pro
 async function listDriveFiles(
   args: ExecuteServerSelectorArgs,
   accessToken: string
-): Promise<DriveFile[]> {
+): Promise<GooglePageDrainResult<DriveFile>> {
   const folderId = args.context.fileId?.trim()
   if (folderId) requireGoogleId(folderId, 50)
 
@@ -220,28 +260,35 @@ async function listDriveFiles(
   if (mimeType) clauses.push(`mimeType = '${escapeDriveQuery(mimeType)}'`)
   if (search) clauses.push(`name contains '${escapeDriveQuery(search)}'`)
 
-  let files = await drainGooglePages<DriveFile, { files?: DriveFile[]; nextPageToken?: string }>({
-    accessToken,
-    maxPages: 20,
-    buildUrl: (pageToken) => {
-      const url = new URL('https://www.googleapis.com/drive/v3/files')
-      url.searchParams.set('q', clauses.join(' and '))
-      url.searchParams.set('corpora', 'allDrives')
-      url.searchParams.set('supportsAllDrives', 'true')
-      url.searchParams.set('includeItemsFromAllDrives', 'true')
-      url.searchParams.set('pageSize', '100')
-      url.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType)')
-      if (pageToken) url.searchParams.set('pageToken', pageToken)
-      return url
-    },
-    getItems: (page) => page.files,
-    signal: args.signal,
-  })
+  const includeSharedDrives =
+    !folderId && mimeType === 'application/vnd.google-apps.folder' && !search
+  const sharedDrives = includeSharedDrives ? await fetchSharedDrives(accessToken, args.signal) : []
+  const result = await drainGooglePages<DriveFile, { files?: DriveFile[]; nextPageToken?: string }>(
+    {
+      accessToken,
+      maxPages: 20,
+      maxItems: MAX_SELECTOR_OPTIONS - sharedDrives.length,
+      buildUrl: (pageToken) => {
+        const url = new URL('https://www.googleapis.com/drive/v3/files')
+        url.searchParams.set('q', clauses.join(' and '))
+        url.searchParams.set('corpora', 'allDrives')
+        url.searchParams.set('supportsAllDrives', 'true')
+        url.searchParams.set('includeItemsFromAllDrives', 'true')
+        url.searchParams.set('pageSize', '100')
+        url.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType)')
+        if (pageToken) url.searchParams.set('pageToken', pageToken)
+        return url
+      },
+      getItems: (page) => page.files,
+      signal: args.signal,
+    }
+  )
 
-  if (!folderId && mimeType === 'application/vnd.google-apps.folder' && !search) {
-    files = [...(await fetchSharedDrives(accessToken, args.signal)), ...files]
+  return {
+    items: [...sharedDrives, ...result.items],
+    pages: result.pages,
+    truncated: result.truncated,
   }
-  return files
 }
 
 async function fetchDriveDetail(
@@ -295,14 +342,16 @@ async function executeDrive(args: ExecuteServerSelectorArgs) {
     if (!file.id || !file.name) throw new SelectorOptionsUnavailableError()
     return detailSelectorResult({ id: file.id, label: file.name })
   }
-  const files = await listDriveFiles(args, accessToken)
+  const result = await listDriveFiles(args, accessToken)
   return listSelectorResult(
-    files
+    result.items
       .filter((file) => file.id && file.name)
       .map((file) => ({
         id: file.id,
         label: file.name,
-      }))
+      })),
+    undefined,
+    googleDrainDiagnostics(result)
   )
 }
 

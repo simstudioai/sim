@@ -1,0 +1,1 @@
+export const MAX_SELECTOR_OPTIONS = 10_000

@@ -1,3 +1,4 @@
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
 import type { SelectorProtectedValues } from '@/lib/selectors/server/types'
 import type {
@@ -7,7 +8,6 @@ import type {
   SelectorExecutionResult,
 } from '@/lib/selectors/types'
 
-const MAX_OPTIONS = 10_000
 const MAX_OPTION_TEXT = 16 * 1024
 const MAX_META_FIELDS = 32
 
@@ -106,7 +106,7 @@ export function sanitizeSelectorResult(
     }
   }
 
-  if (result.items.length > MAX_OPTIONS) throw new SelectorOptionsUnavailableError()
+  if (result.items.length > MAX_SELECTOR_OPTIONS) throw new SelectorOptionsUnavailableError()
   if (result.nextCursor !== undefined) {
     requireSafeString(result.nextCursor, protectedValues)
   }
