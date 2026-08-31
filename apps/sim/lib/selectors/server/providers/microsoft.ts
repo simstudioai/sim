@@ -4,20 +4,23 @@ import {
   validateSharePointSiteId,
 } from '@/lib/core/security/input-validation'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
 import {
   SelectorConnectionUnavailableError,
   SelectorContextUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { appendSelectorOptions } from '@/lib/selectors/server/option-budget'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
 import type {
   ExecuteServerSelectorArgs,
   SelectorCredentialPolicy,
   ServerSelectorAttachmentMap,
+} from '@/lib/selectors/server/types'
+import {
+  detailSelectorResult,
+  listSelectorResult,
+  requireListRequest,
 } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
 import { GRAPH_ID_PATTERN, getItemBasePath } from '@/tools/microsoft_excel/utils'
@@ -55,52 +58,64 @@ async function graphToken(args: ExecuteServerSelectorArgs, serviceId: string): P
   })
 }
 
-async function drainGraph<T>(input: {
+interface GraphPage<T> {
+  items: T[]
+  nextCursor?: string
+}
+
+function graphPageUrl(cursor: string | undefined, initialUrl: string): string {
+  if (!cursor) return initialUrl
+  let cursorUrl: string
+  try {
+    cursorUrl = assertGraphNextPageUrl(cursor)
+  } catch {
+    throw new SelectorContextUnavailableError()
+  }
+  if (new URL(cursorUrl).pathname !== new URL(initialUrl).pathname) {
+    throw new SelectorContextUnavailableError()
+  }
+  return cursorUrl
+}
+
+async function fetchGraphPage<T>(input: {
   args: ExecuteServerSelectorArgs
   serviceId: string
   initialUrl: string
-  maxPages: number
   token?: string
-  truncation?: { truncated: boolean }
   includeItem?(item: T): boolean
-}): Promise<T[]> {
+}): Promise<GraphPage<T>> {
+  const request = requireListRequest(input.args.selectorKey, input.args.request)
   const token = input.token ?? (await graphToken(input.args, input.serviceId))
-  const values: T[] = []
-  let nextUrl: string | undefined = input.initialUrl
-  let budgetTruncated = false
-  for (let page = 0; page < input.maxPages && nextUrl; page++) {
-    const data = await fetchProviderJson<{ value?: T[] } & Record<string, unknown>>(nextUrl, {
+  const data = await fetchProviderJson<{ value?: T[] } & Record<string, unknown>>(
+    graphPageUrl(request.cursor, input.initialUrl),
+    {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       signal: input.args.signal,
       redirect: 'error',
-    })
-    const pageValues = Array.isArray(data.value)
-      ? input.includeItem
-        ? data.value.filter(input.includeItem)
-        : data.value
-      : []
-    const appended = appendSelectorOptions(values, pageValues)
-    const nextLink = getGraphNextPageUrl(data)
-    nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
-    if (appended.overflow || (appended.full && nextUrl)) {
-      budgetTruncated = true
-      break
     }
-  }
-  if (input.truncation) input.truncation.truncated = budgetTruncated || Boolean(nextUrl)
-  return values
+  )
+  const values = Array.isArray(data.value)
+    ? input.includeItem
+      ? data.value.filter(input.includeItem)
+      : data.value
+    : []
+  const nextLink = getGraphNextPageUrl(data)
+  const nextCursor = nextLink ? graphPageUrl(nextLink, input.initialUrl) : undefined
+  return { items: values, ...(nextCursor ? { nextCursor } : {}) }
 }
 
-function graphCapDiagnostics(truncated: boolean, pages: number) {
-  return truncated
-    ? {
-        truncated: {
-          reason: 'provider-cap' as const,
-          limit: MAX_SELECTOR_OPTIONS,
-          pages,
-        },
-      }
-    : undefined
+async function fetchGraphDetail<T>(input: {
+  args: ExecuteServerSelectorArgs
+  serviceId: string
+  url: string
+  token?: string
+}): Promise<T> {
+  const token = input.token ?? (await graphToken(input.args, input.serviceId))
+  return fetchProviderJson<T>(input.url, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    signal: input.args.signal,
+    redirect: 'error',
+  })
 }
 
 function requireGraphId(value: string | undefined, label: string): string {
@@ -125,98 +140,140 @@ function encodeGraphSearch(value: string): string {
 }
 
 async function listPlannerPlans(args: ExecuteServerSelectorArgs) {
-  const truncation = { truncated: false }
-  const plans = await drainGraph<{ id: string; title: string }>({
+  const page = await fetchGraphPage<{ id: string; title: string }>({
     args,
     serviceId: 'microsoft-planner',
     initialUrl: 'https://graph.microsoft.com/v1.0/me/planner/plans',
-    maxPages: 20,
-    truncation,
   })
   return {
-    items: plans.map((plan) => ({ id: plan.id, label: plan.title })),
-    truncated: truncation.truncated,
+    items: page.items.map((plan) => ({ id: plan.id, label: plan.title })),
+    nextCursor: page.nextCursor,
   }
 }
 
 async function listPlannerTasks(args: ExecuteServerSelectorArgs) {
   const planId = requireGraphId(args.context.planId, 'planId')
-  const truncation = { truncated: false }
-  const tasks = await drainGraph<{ id: string; title: string }>({
+  const page = await fetchGraphPage<{ id: string; title: string }>({
     args,
     serviceId: 'microsoft-planner',
     initialUrl: `https://graph.microsoft.com/v1.0/planner/plans/${encodeURIComponent(planId)}/tasks`,
-    maxPages: 20,
-    truncation,
   })
   return {
-    items: tasks.map((task) => ({ id: task.id, label: task.title })),
-    truncated: truncation.truncated,
+    items: page.items.map((task) => ({ id: task.id, label: task.title })),
+    nextCursor: page.nextCursor,
   }
 }
 
 async function listOutlookFolders(args: ExecuteServerSelectorArgs) {
-  const truncation = { truncated: false }
-  const folders = await drainGraph<{ id: string; displayName: string }>({
+  const page = await fetchGraphPage<{ id: string; displayName: string }>({
     args,
     serviceId: 'outlook',
     initialUrl: 'https://graph.microsoft.com/v1.0/me/mailFolders?$top=999',
-    maxPages: 20,
-    truncation,
   })
   return {
-    items: folders.map((folder) => ({ id: folder.id, label: folder.displayName })),
-    truncated: truncation.truncated,
+    items: page.items.map((folder) => ({ id: folder.id, label: folder.displayName })),
+    nextCursor: page.nextCursor,
   }
+}
+
+async function executeOutlookFolders(args: ExecuteServerSelectorArgs) {
+  if (args.request.kind === 'detail') {
+    const folderId = requireGraphId(args.request.id, 'folderId')
+    const folder = await fetchGraphDetail<{ id: string; displayName: string }>({
+      args,
+      serviceId: 'outlook',
+      url: `https://graph.microsoft.com/v1.0/me/mailFolders/${encodeURIComponent(folderId)}?$select=id,displayName`,
+    })
+    return detailSelectorResult({ id: folder.id, label: folder.displayName })
+  }
+  const page = await listOutlookFolders(args)
+  return listSelectorResult(page.items, page.nextCursor)
 }
 
 async function listOutlookCalendars(args: ExecuteServerSelectorArgs) {
-  const truncation = { truncated: false }
-  const calendars = await drainGraph<{ id: string; name: string }>({
+  const page = await fetchGraphPage<{ id: string; name: string }>({
     args,
     serviceId: 'outlook',
     initialUrl: 'https://graph.microsoft.com/v1.0/me/calendars?$top=100',
-    maxPages: 10,
-    truncation,
   })
   return {
-    items: calendars.map((calendar) => ({ id: calendar.id, label: calendar.name })),
-    truncated: truncation.truncated,
+    items: page.items.map((calendar) => ({ id: calendar.id, label: calendar.name })),
+    nextCursor: page.nextCursor,
   }
 }
 
+async function executeOutlookCalendars(args: ExecuteServerSelectorArgs) {
+  if (args.request.kind === 'detail') {
+    const calendarId = requireGraphId(args.request.id, 'calendarId')
+    const calendar = await fetchGraphDetail<{ id: string; name: string }>({
+      args,
+      serviceId: 'outlook',
+      url: `https://graph.microsoft.com/v1.0/me/calendars/${encodeURIComponent(calendarId)}?$select=id,name`,
+    })
+    return detailSelectorResult({ id: calendar.id, label: calendar.name })
+  }
+  const page = await listOutlookCalendars(args)
+  return listSelectorResult(page.items, page.nextCursor)
+}
+
 async function listTeams(args: ExecuteServerSelectorArgs) {
-  const truncation = { truncated: false }
-  const teams = await drainGraph<{ id: string; displayName?: string }>({
+  const page = await fetchGraphPage<{ id: string; displayName?: string }>({
     args,
     serviceId: 'microsoft-teams',
     initialUrl: 'https://graph.microsoft.com/v1.0/me/joinedTeams',
-    maxPages: 20,
-    truncation,
   })
   return {
-    items: teams.map((team) => ({ id: team.id, label: team.displayName || team.id })),
-    truncated: truncation.truncated,
+    items: page.items.map((team) => ({ id: team.id, label: team.displayName || team.id })),
+    nextCursor: page.nextCursor,
   }
+}
+
+async function executeTeams(args: ExecuteServerSelectorArgs) {
+  if (args.request.kind === 'detail') {
+    const teamId = requireGraphId(args.request.id, 'teamId')
+    const team = await fetchGraphDetail<{ id: string; displayName?: string }>({
+      args,
+      serviceId: 'microsoft-teams',
+      url: `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}?$select=id,displayName`,
+    })
+    return detailSelectorResult({ id: team.id, label: team.displayName || team.id })
+  }
+  const page = await listTeams(args)
+  return listSelectorResult(page.items, page.nextCursor)
 }
 
 async function listChannels(args: ExecuteServerSelectorArgs) {
   const teamId = requireGraphId(args.context.teamId, 'teamId')
-  const truncation = { truncated: false }
-  const channels = await drainGraph<{ id: string; displayName?: string }>({
+  const page = await fetchGraphPage<{ id: string; displayName?: string }>({
     args,
     serviceId: 'microsoft-teams',
     initialUrl: `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels`,
-    maxPages: 20,
-    truncation,
   })
   return {
-    items: channels.map((channel) => ({
+    items: page.items.map((channel) => ({
       id: channel.id,
       label: channel.displayName || channel.id,
     })),
-    truncated: truncation.truncated,
+    nextCursor: page.nextCursor,
   }
+}
+
+async function executeChannels(args: ExecuteServerSelectorArgs) {
+  const teamId = requireGraphId(args.context.teamId, 'teamId')
+  if (args.request.kind === 'detail') {
+    const channelId = requireGraphId(args.request.id, 'channelId')
+    const channel = await fetchGraphDetail<{ id: string; displayName?: string }>({
+      args,
+      serviceId: 'microsoft-teams',
+      url: `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}?$select=id,displayName`,
+    })
+    return detailSelectorResult({
+      id: channel.id,
+      label: channel.displayName || channel.id,
+    })
+  }
+  const page = await listChannels(args)
+  return listSelectorResult(page.items, page.nextCursor)
 }
 
 async function chatDisplayName(
@@ -278,22 +335,38 @@ async function chatDisplayName(
 
 async function listChats(args: ExecuteServerSelectorArgs) {
   const token = await graphToken(args, 'microsoft-teams')
-  const truncation = { truncated: false }
-  const chats = await drainGraph<{ id: string; topic?: string }>({
+  const page = await fetchGraphPage<{ id: string; topic?: string }>({
     args,
     serviceId: 'microsoft-teams',
     token,
     initialUrl: 'https://graph.microsoft.com/v1.0/me/chats?$top=50',
-    maxPages: 20,
-    truncation,
   })
   return {
-    items: await mapWithConcurrency(chats, CHAT_LABEL_CONCURRENCY, async (chat) => ({
+    items: await mapWithConcurrency(page.items, CHAT_LABEL_CONCURRENCY, async (chat) => ({
       id: chat.id,
       label: await chatDisplayName(chat, token, args.signal),
     })),
-    truncated: truncation.truncated,
+    nextCursor: page.nextCursor,
   }
+}
+
+async function executeChats(args: ExecuteServerSelectorArgs) {
+  if (args.request.kind === 'detail') {
+    const chatId = requireGraphId(args.request.id, 'chatId')
+    const token = await graphToken(args, 'microsoft-teams')
+    const chat = await fetchGraphDetail<{ id: string; topic?: string }>({
+      args,
+      serviceId: 'microsoft-teams',
+      token,
+      url: `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}`,
+    })
+    return detailSelectorResult({
+      id: chat.id,
+      label: await chatDisplayName(chat, token, args.signal),
+    })
+  }
+  const page = await listChats(args)
+  return listSelectorResult(page.items, page.nextCursor)
 }
 
 interface DriveItem {
@@ -311,37 +384,70 @@ async function listOneDriveFiles(args: ExecuteServerSelectorArgs) {
     'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,createdBy,thumbnails'
   )
   query.set('$top', '999')
-  const truncation = { truncated: false }
-  const files = await drainGraph<DriveItem>({
+  const page = await fetchGraphPage<DriveItem>({
     args,
     serviceId: 'onedrive',
     initialUrl: `https://graph.microsoft.com/v1.0/me/drive/root/children?${query}`,
-    maxPages: 20,
-    truncation,
     includeItem: (item) => Boolean(item.file && !item.folder),
   })
   return {
-    items: files.map((item) => ({ id: item.id, label: item.name })),
-    truncated: truncation.truncated,
+    items: page.items.map((item) => ({ id: item.id, label: item.name })),
+    nextCursor: page.nextCursor,
   }
 }
 
 async function listOneDriveFolders(args: ExecuteServerSelectorArgs) {
   const driveId = requireDriveId(args.context.driveId)
   const drivePath = driveId ? `drives/${encodeURIComponent(driveId)}` : 'me/drive'
-  const truncation = { truncated: false }
-  const folders = await drainGraph<DriveItem>({
+  const page = await fetchGraphPage<DriveItem>({
     args,
     serviceId: 'onedrive',
     initialUrl: `https://graph.microsoft.com/v1.0/${drivePath}/root/children?$filter=folder ne null&$select=id,name,folder,webUrl,createdDateTime,lastModifiedDateTime&$top=999`,
-    maxPages: 20,
-    truncation,
     includeItem: (item) => Boolean(item.folder),
   })
   return {
-    items: folders.map((item) => ({ id: item.id, label: item.name })),
-    truncated: truncation.truncated,
+    items: page.items.map((item) => ({ id: item.id, label: item.name })),
+    nextCursor: page.nextCursor,
   }
+}
+
+async function getDriveItem(
+  args: ExecuteServerSelectorArgs,
+  serviceId: string
+): Promise<SafeSelectorOption> {
+  const itemId = requireGraphId(
+    args.request.kind === 'detail' ? args.request.id : undefined,
+    'itemId'
+  )
+  const driveId = requireDriveId(args.context.driveId)
+  let basePath: string
+  try {
+    basePath = getItemBasePath(itemId, driveId)
+  } catch {
+    throw new SelectorContextUnavailableError()
+  }
+  const item = await fetchGraphDetail<{ id: string; name: string }>({
+    args,
+    serviceId,
+    url: `${basePath}?$select=id,name,file,folder`,
+  })
+  return { id: item.id, label: item.name }
+}
+
+async function executeOneDriveFiles(args: ExecuteServerSelectorArgs) {
+  if (args.request.kind === 'detail') {
+    return detailSelectorResult(await getDriveItem(args, 'onedrive'))
+  }
+  const page = await listOneDriveFiles(args)
+  return listSelectorResult(page.items, page.nextCursor)
+}
+
+async function executeOneDriveFolders(args: ExecuteServerSelectorArgs) {
+  if (args.request.kind === 'detail') {
+    return detailSelectorResult(await getDriveItem(args, 'onedrive'))
+  }
+  const page = await listOneDriveFolders(args)
+  return listSelectorResult(page.items, page.nextCursor)
 }
 
 async function listWorksheets(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
@@ -385,20 +491,15 @@ async function executeDrives(args: ExecuteServerSelectorArgs) {
     )
     return flatSelectorResult(args.request, [{ id: drive.id, label: drive.name }], true)
   }
-  const truncation = { truncated: false }
-  const drives = await drainGraph<{ id: string; name: string }>({
+  const page = await fetchGraphPage<{ id: string; name: string }>({
     args,
     serviceId: 'microsoft-excel',
     token,
     initialUrl: `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/drives?$select=id,name,driveType,webUrl&$top=999`,
-    maxPages: 10,
-    truncation,
   })
-  return flatSelectorResult(
-    args.request,
-    drives.map((drive) => ({ id: drive.id, label: drive.name })),
-    true,
-    graphCapDiagnostics(truncation.truncated, 10)
+  return listSelectorResult(
+    page.items.map((drive) => ({ id: drive.id, label: drive.name })),
+    page.nextCursor
   )
 }
 
@@ -430,20 +531,64 @@ async function listOfficeFiles(
     'id,name,mimeType,webUrl,thumbnails,createdDateTime,lastModifiedDateTime,size,createdBy'
   )
   params.set('$top', '999')
-  const truncation = { truncated: false }
-  const files = await drainGraph<DriveItem>({
+  const page = await fetchGraphPage<DriveItem>({
     args,
     serviceId: config.serviceId,
     initialUrl: `https://graph.microsoft.com/v1.0/${drivePath}/root/search(q='${encodeGraphSearch(searchQuery)}')?${params}`,
-    maxPages: 20,
-    truncation,
     includeItem: (file) =>
       file.name?.toLowerCase().endsWith(config.extension) || file.mimeType === config.mimeType,
   })
   return {
-    items: files.map((file) => ({ id: file.id, label: file.name })),
-    truncated: truncation.truncated,
+    items: page.items.map((file) => ({ id: file.id, label: file.name })),
+    nextCursor: page.nextCursor,
   }
+}
+
+async function executeOfficeFiles(
+  args: ExecuteServerSelectorArgs,
+  fileType: keyof typeof OFFICE_FILE_TYPES
+) {
+  if (args.request.kind === 'detail') {
+    return detailSelectorResult(await getDriveItem(args, OFFICE_FILE_TYPES[fileType].serviceId))
+  }
+  const page = await listOfficeFiles(args, fileType)
+  return listSelectorResult(page.items, page.nextCursor)
+}
+
+async function executePlannerPlans(args: ExecuteServerSelectorArgs) {
+  if (args.request.kind === 'detail') {
+    const planId = requireGraphId(args.request.id, 'planId')
+    const token = await graphToken(args, 'microsoft-planner')
+    const plan = await fetchProviderJson<{ id: string; title: string }>(
+      `https://graph.microsoft.com/v1.0/planner/plans/${encodeURIComponent(planId)}`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        signal: args.signal,
+        redirect: 'error',
+      }
+    )
+    return detailSelectorResult({ id: plan.id, label: plan.title })
+  }
+  const page = await listPlannerPlans(args)
+  return listSelectorResult(page.items, page.nextCursor)
+}
+
+async function executePlannerTasks(args: ExecuteServerSelectorArgs) {
+  if (args.request.kind === 'detail') {
+    const taskId = requireGraphId(args.request.id, 'taskId')
+    const token = await graphToken(args, 'microsoft-planner')
+    const task = await fetchProviderJson<{ id: string; title: string }>(
+      `https://graph.microsoft.com/v1.0/planner/tasks/${encodeURIComponent(taskId)}`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        signal: args.signal,
+        redirect: 'error',
+      }
+    )
+    return detailSelectorResult({ id: task.id, label: task.title })
+  }
+  const page = await listPlannerTasks(args)
+  return listSelectorResult(page.items, page.nextCursor)
 }
 
 const plannerCredential = microsoftCredential('microsoft-planner')
@@ -462,74 +607,47 @@ export const microsoftSelectorAttachments = {
   'microsoft.planner.plans': {
     credential: plannerCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listPlannerPlans(args)
-      return flatSelectorResult(args.request, items, true, graphCapDiagnostics(truncated, 20))
-    },
+    execute: executePlannerPlans,
   },
   'microsoft.planner': {
     credential: plannerCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listPlannerTasks(args)
-      return flatSelectorResult(args.request, items, true, graphCapDiagnostics(truncated, 20))
-    },
+    execute: executePlannerTasks,
   },
   'outlook.folders': {
     credential: outlookCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listOutlookFolders(args)
-      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
-    },
+    execute: executeOutlookFolders,
   },
   'outlook.calendars': {
     credential: outlookCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listOutlookCalendars(args)
-      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 10))
-    },
+    execute: executeOutlookCalendars,
   },
   'microsoft.teams': {
     credential: teamsCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listTeams(args)
-      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
-    },
+    execute: executeTeams,
   },
   'microsoft.chats': {
     credential: teamsCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listChats(args)
-      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
-    },
+    execute: executeChats,
   },
   'microsoft.channels': {
     credential: teamsCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listChannels(args)
-      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
-    },
+    execute: executeChannels,
   },
   'onedrive.files': {
     credential: oneDriveCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listOneDriveFiles(args)
-      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
-    },
+    execute: executeOneDriveFiles,
   },
   'onedrive.folders': {
     credential: oneDriveFolderCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listOneDriveFolders(args)
-      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
-    },
+    execute: executeOneDriveFolders,
   },
   'microsoft.excel.sheets': {
     credential: excelCredential,
@@ -544,17 +662,11 @@ export const microsoftSelectorAttachments = {
   'microsoft.excel': {
     credential: excelCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listOfficeFiles(args, 'excel')
-      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
-    },
+    execute: async (args) => executeOfficeFiles(args, 'excel'),
   },
   'microsoft.word': {
     credential: wordCredential,
     destination: 'fixed',
-    execute: async (args) => {
-      const { items, truncated } = await listOfficeFiles(args, 'word')
-      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
-    },
+    execute: async (args) => executeOfficeFiles(args, 'word'),
   },
 } satisfies ServerSelectorAttachmentMap<MicrosoftSelectorKey>

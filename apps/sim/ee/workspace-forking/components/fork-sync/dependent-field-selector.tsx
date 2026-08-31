@@ -1,11 +1,13 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext } from '@/lib/selectors/types'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { dependentFieldNoun } from '@/ee/workspace-forking/components/fork-sync/dependent-field-noun'
 import { useSelectorOptions } from '@/hooks/queries/selectors'
+import { useDebounce } from '@/hooks/use-debounce'
 
 interface DependentFieldSelectorProps {
   selectorKey: SelectorKey
@@ -41,9 +43,22 @@ export function DependentFieldSelector({
     return ctx
   }, [context])
 
-  const { data: options = [], isLoading } = useSelectorOptions(selectorKey, {
+  const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
+
+  const {
+    data: options = [],
+    isLoading,
+    isFetchingMore,
+    isLoadingAll,
+    hasMore,
+    truncated,
+    loadMore,
+    loadAll,
+  } = useSelectorOptions(selectorKey, {
     context: selectorContext,
     scope: { kind: 'workspace', workspaceId },
+    search: debouncedSearch,
     enabled,
     surfaceId: `fork:${title}`,
   })
@@ -71,9 +86,16 @@ export function DependentFieldSelector({
       value={value || undefined}
       onChange={(next) => onChange(next)}
       searchable
+      onSearchChange={setSearchTerm}
       searchPlaceholder={`Search ${noun}...`}
       placeholder={`Select ${noun}`}
       disabled={!enabled}
+      hasMore={hasMore}
+      isLoadingMore={isFetchingMore}
+      isLoadingAll={isLoadingAll}
+      truncated={truncated}
+      onLoadMore={loadMore}
+      onLoadAll={loadAll}
       emptyMessage={`No ${noun} found`}
     />
   )

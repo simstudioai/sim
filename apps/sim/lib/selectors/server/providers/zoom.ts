@@ -1,21 +1,38 @@
-import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
-import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
-import { appendSelectorOptions } from '@/lib/selectors/server/option-budget'
-import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
+import {
+  SelectorConnectionUnavailableError,
+  SelectorContextUnavailableError,
+} from '@/lib/selectors/server/errors'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
-import type { ServerSelectorAttachmentMap } from '@/lib/selectors/server/types'
-import type { SafeSelectorOption } from '@/lib/selectors/types'
+import {
+  detailSelectorResult,
+  listSelectorResult,
+  requireListRequest,
+  type ServerSelectorAttachmentMap,
+} from '@/lib/selectors/server/types'
 
 type ZoomSelectorKey = Extract<ServerSelectorKey, 'zoom.meetings'>
 
 const PAGE_SIZE = 300
-const MAX_PAGES = 50
 
 interface ZoomMeetingsPage {
   meetings?: Array<{ id: number | string; topic?: string }>
   next_page_token?: string
+}
+
+interface ZoomMeeting {
+  id: number | string
+  topic?: string
+}
+
+function encodeZoomMeetingId(value: string): string {
+  const id = value.trim()
+  if (!id || id.length > 256 || /[\u0000-\u001F\u007F]/.test(id)) {
+    throw new SelectorContextUnavailableError()
+  }
+  const encoded = encodeURIComponent(id)
+  return id.startsWith('/') || id.includes('//') ? encodeURIComponent(encoded) : encoded
 }
 
 export const zoomSelectorAttachments = {
@@ -33,44 +50,32 @@ export const zoomSelectorAttachments = {
         serviceId: 'zoom',
         protectedValues: args.protectedValues,
       })
-      const meetings: SafeSelectorOption[] = []
-      let nextPageToken = ''
-      let truncated = false
-      for (let page = 0; page < MAX_PAGES; page++) {
-        const url = new URL('https://api.zoom.us/v2/users/me/meetings')
-        url.searchParams.set('page_size', String(PAGE_SIZE))
-        url.searchParams.set('type', 'scheduled')
-        if (nextPageToken) url.searchParams.set('next_page_token', nextPageToken)
-        const data = await fetchProviderJson<ZoomMeetingsPage>(url, {
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          signal: args.signal,
-          redirect: 'error',
-        })
-        const pageMeetings = (data.meetings ?? []).map((meeting) => {
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      if (args.request.kind === 'detail') {
+        const meeting = await fetchProviderJson<ZoomMeeting>(
+          `https://api.zoom.us/v2/meetings/${encodeZoomMeetingId(args.request.id)}`,
+          { headers, signal: args.signal, redirect: 'error' }
+        )
+        const id = String(meeting.id)
+        return detailSelectorResult({ id, label: meeting.topic || `Meeting ${id}` })
+      }
+
+      const request = requireListRequest(args.selectorKey, args.request)
+      const url = new URL('https://api.zoom.us/v2/users/me/meetings')
+      url.searchParams.set('page_size', String(PAGE_SIZE))
+      url.searchParams.set('type', 'scheduled')
+      if (request.cursor) url.searchParams.set('next_page_token', request.cursor)
+      const data = await fetchProviderJson<ZoomMeetingsPage>(url, {
+        headers,
+        signal: args.signal,
+        redirect: 'error',
+      })
+      return listSelectorResult(
+        (data.meetings ?? []).map((meeting) => {
           const id = String(meeting.id)
           return { id, label: meeting.topic || `Meeting ${id}` }
-        })
-        const appended = appendSelectorOptions(meetings, pageMeetings)
-        nextPageToken = data.next_page_token?.trim() ?? ''
-        if (!nextPageToken) break
-        if (appended.overflow || appended.full || page === MAX_PAGES - 1) {
-          truncated = true
-          break
-        }
-      }
-      return flatSelectorResult(
-        args.request,
-        meetings,
-        true,
-        truncated
-          ? {
-              truncated: {
-                reason: 'provider-cap',
-                limit: MAX_SELECTOR_OPTIONS,
-                pages: MAX_PAGES,
-              },
-            }
-          : undefined
+        }),
+        data.next_page_token?.trim() || undefined
       )
     },
   },

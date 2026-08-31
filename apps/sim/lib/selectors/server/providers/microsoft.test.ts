@@ -12,16 +12,18 @@ vi.mock('@/lib/selectors/server/credentials', () => ({
   resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
 }))
 
-import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { microsoftSelectorAttachments } from '@/lib/selectors/server/providers/microsoft'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
-function listArgs(selectorKey: 'microsoft.chats' | 'onedrive.files'): ExecuteServerSelectorArgs {
+function listArgs(
+  selectorKey: 'microsoft.chats' | 'onedrive.files',
+  cursor?: string
+): ExecuteServerSelectorArgs {
   return {
     selectorKey,
     context: { oauthCredential: 'credential-1' },
-    request: { kind: 'list' },
+    request: { kind: 'list', ...(cursor ? { cursor } : {}) },
     scope: { kind: 'workspace', workspaceId: 'workspace-1' },
     workspaceId: 'workspace-1',
     principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
@@ -74,7 +76,7 @@ describe('Microsoft server selector adapters', () => {
     expect(maxActiveEnrichments).toBeLessThanOrEqual(10)
   })
 
-  it('stops Graph pagination when the selector option budget is full', async () => {
+  it('returns one Graph page and follows the continuation URL only on demand', async () => {
     mockFetch.mockImplementation(async (input) => {
       const url = new URL(String(input))
       const page = Number(url.searchParams.get('page') ?? '0')
@@ -92,17 +94,51 @@ describe('Microsoft server selector adapters', () => {
       )
     })
 
-    const result = await microsoftSelectorAttachments['onedrive.files'].execute(
+    const first = await microsoftSelectorAttachments['onedrive.files'].execute(
       listArgs('onedrive.files')
     )
 
-    expect(result).toMatchObject({
+    expect(first).toMatchObject({
       kind: 'list',
-      diagnostics: {
-        truncated: { reason: 'provider-cap', limit: MAX_SELECTOR_OPTIONS, pages: 20 },
-      },
+      nextCursor: 'https://graph.microsoft.com/v1.0/me/drive/root/children?page=1',
     })
-    expect(result.kind === 'list' ? result.items : []).toHaveLength(MAX_SELECTOR_OPTIONS)
-    expect(mockFetch).toHaveBeenCalledTimes(11)
+    expect(first.kind === 'list' ? first.items : []).toHaveLength(999)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+
+    const second = await microsoftSelectorAttachments['onedrive.files'].execute(
+      listArgs('onedrive.files', 'https://graph.microsoft.com/v1.0/me/drive/root/children?page=1')
+    )
+
+    expect(second.kind === 'list' ? second.items[0]?.id : undefined).toBe('file-1-0')
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects a Graph cursor for another operation', async () => {
+    await expect(
+      microsoftSelectorAttachments['onedrive.files'].execute(
+        listArgs('onedrive.files', 'https://graph.microsoft.com/v1.0/me/chats?$skiptoken=1')
+      )
+    ).rejects.toMatchObject({ name: 'SelectorContextUnavailableError' })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('hydrates a selected drive item without listing its siblings', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: 'file-1', name: 'Quarterly report.xlsx' }), {
+        status: 200,
+      })
+    )
+
+    await expect(
+      microsoftSelectorAttachments['onedrive.files'].execute({
+        ...listArgs('onedrive.files'),
+        request: { kind: 'detail', id: 'file-1' },
+      })
+    ).resolves.toEqual({
+      kind: 'detail',
+      item: { id: 'file-1', label: 'Quarterly report.xlsx' },
+    })
+    expect(String(mockFetch.mock.calls[0]?.[0])).toContain('/me/drive/items/file-1')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })

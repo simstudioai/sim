@@ -30,6 +30,7 @@ interface UseFetchedOptionsProps {
   selectorExcludeSelf?: boolean
   isPreview: boolean
   disabled: boolean
+  search?: string
   valueToHydrate: string | null | undefined
   valuesToHydrate?: readonly string[]
   localOptions: readonly LocalOption[]
@@ -39,11 +40,17 @@ export interface UseFetchedOptionsResult {
   fetchedOptions: FetchedOption[]
   isDynamic: boolean
   isLoadingOptions: boolean
+  isFetchingMore: boolean
+  isLoadingAll: boolean
+  hasMore: boolean
+  truncated: boolean
   hasLoadedOptions: boolean
   fetchError: string | null
   hydratedOption: FetchedOption | null
   hydratedOptions: FetchedOption[]
   missingOptionId: string | null
+  loadMore: () => void
+  loadAll: () => void
   refetch: () => void
 }
 
@@ -64,6 +71,7 @@ export function useFetchedOptions({
   selectorExcludeSelf,
   isPreview,
   disabled,
+  search,
   valueToHydrate,
   valuesToHydrate,
   localOptions,
@@ -134,6 +142,7 @@ export function useFetchedOptions({
   )
   const list = useSelectorOptions(effectiveKey, {
     context,
+    search,
     enabled: listInteractionEnabled || listHydrationEnabled,
     surfaceId,
   })
@@ -154,6 +163,10 @@ export function useFetchedOptions({
     fetchedOptions: list.data ?? [],
     isDynamic: Boolean(selectorKey),
     isLoadingOptions: list.isLoading,
+    isFetchingMore: list.isFetchingMore,
+    isLoadingAll: list.isLoadingAll,
+    hasMore: list.hasMore,
+    truncated: list.truncated,
     hasLoadedOptions: list.isSuccess,
     fetchError: list.error ? getErrorMessage(list.error, 'Failed to fetch options') : null,
     hydratedOption: detail.data ?? null,
@@ -162,6 +175,8 @@ export function useFetchedOptions({
       hydrate && detail.isFetched && !detail.isLoading && detail.data === null
         ? (valueToHydrate ?? null)
         : null,
+    loadMore: list.loadMore,
+    loadAll: list.loadAll,
     refetch: list.refetch,
   }
 }

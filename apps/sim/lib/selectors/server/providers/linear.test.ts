@@ -4,11 +4,14 @@
 import { LinearError } from '@linear/sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveSelectorOAuthAccessToken, mockTeams, mockTeam } = vi.hoisted(() => ({
-  mockResolveSelectorOAuthAccessToken: vi.fn(),
-  mockTeams: vi.fn(),
-  mockTeam: vi.fn(),
-}))
+const { mockResolveSelectorOAuthAccessToken, mockTeams, mockTeam, mockProject } = vi.hoisted(
+  () => ({
+    mockResolveSelectorOAuthAccessToken: vi.fn(),
+    mockTeams: vi.fn(),
+    mockTeam: vi.fn(),
+    mockProject: vi.fn(),
+  })
+)
 
 vi.mock('@linear/sdk', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@linear/sdk')>()
@@ -17,6 +20,7 @@ vi.mock('@linear/sdk', async (importOriginal) => {
     LinearClient: class LinearClient {
       teams = mockTeams
       team = mockTeam
+      project = mockProject
     },
   }
 })
@@ -25,7 +29,6 @@ vi.mock('@/lib/selectors/server/credentials', () => ({
   resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
 }))
 
-import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { linearSelectorAttachments } from '@/lib/selectors/server/providers/linear'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
@@ -46,11 +49,12 @@ function teamArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
   }
 }
 
-function projectArgs(teamIds: string): ExecuteServerSelectorArgs {
+function projectArgs(teamIds: string, cursor?: string): ExecuteServerSelectorArgs {
   return {
     ...teamArgs(),
     selectorKey: 'linear.projects',
     context: { oauthCredential: 'credential-1', teamId: teamIds },
+    request: { kind: 'list', ...(cursor ? { cursor } : {}) },
   }
 }
 
@@ -99,40 +103,70 @@ describe('Linear server selector adapter errors', () => {
     ).rejects.toBe(abortError)
   })
 
-  it('bounds team fan-out and stops scheduling batches after filling the option budget', async () => {
-    let activeProjectRequests = 0
-    let maxActiveProjectRequests = 0
+  it('fetches one selected team page at a time', async () => {
     mockTeam.mockImplementation(async (teamId: string) => ({
       projects: async ({ after }: { after?: string }) => {
-        activeProjectRequests += 1
-        maxActiveProjectRequests = Math.max(maxActiveProjectRequests, activeProjectRequests)
-        await Promise.resolve()
-        activeProjectRequests -= 1
-        const page = Number(after ?? '0')
         return {
-          nodes: Array.from({ length: 250 }, (_, index) => ({
-            id: `project-${teamId}-${page}-${index}`,
-            name: `Project ${teamId}-${page}-${index}`,
-          })),
+          nodes: [{ id: `project-${teamId}-${after ?? '0'}`, name: `Project ${teamId}` }],
           pageInfo: {
-            hasNextPage: page < 9,
-            endCursor: page < 9 ? String(page + 1) : undefined,
+            hasNextPage: teamId === 'team-1' && !after,
+            endCursor: teamId === 'team-1' && !after ? 'team-1-page-2' : undefined,
           },
         }
       },
     }))
-    const teamIds = Array.from({ length: 100 }, (_, index) => `team-${index}`).join(',')
+    const teamIds = 'team-1,team-2'
 
-    const result = await linearSelectorAttachments['linear.projects'].execute(projectArgs(teamIds))
-
-    expect(result).toMatchObject({
+    const first = await linearSelectorAttachments['linear.projects'].execute(projectArgs(teamIds))
+    expect(first).toEqual({
       kind: 'list',
-      diagnostics: {
-        truncated: { reason: 'provider-cap', limit: MAX_SELECTOR_OPTIONS, pages: 10 },
-      },
+      items: [{ id: 'project-team-1-0', label: 'Project team-1' }],
+      nextCursor: 'team=0&after=team-1-page-2',
     })
-    expect(result.kind === 'list' ? result.items : []).toHaveLength(MAX_SELECTOR_OPTIONS)
-    expect(mockTeam).toHaveBeenCalledTimes(5)
-    expect(maxActiveProjectRequests).toBeLessThanOrEqual(5)
+    expect(mockTeam).toHaveBeenCalledTimes(1)
+
+    const second = await linearSelectorAttachments['linear.projects'].execute(
+      projectArgs(teamIds, 'team=0&after=team-1-page-2')
+    )
+    expect(second).toEqual({
+      kind: 'list',
+      items: [{ id: 'project-team-1-team-1-page-2', label: 'Project team-1' }],
+      nextCursor: 'team=1',
+    })
+    expect(mockTeam).toHaveBeenCalledTimes(2)
+
+    const third = await linearSelectorAttachments['linear.projects'].execute(
+      projectArgs(teamIds, 'team=1')
+    )
+    expect(third).toEqual({
+      kind: 'list',
+      items: [{ id: 'project-team-2-0', label: 'Project team-2' }],
+    })
+    expect(mockTeam).toHaveBeenCalledTimes(3)
+  })
+
+  it('rejects malformed multi-team cursors before requesting a team', async () => {
+    await expect(
+      linearSelectorAttachments['linear.projects'].execute(
+        projectArgs('team-1,team-2', 'team=0&operation=teams')
+      )
+    ).rejects.toMatchObject({ name: 'SelectorContextUnavailableError' })
+    expect(mockTeam).not.toHaveBeenCalled()
+  })
+
+  it('hydrates a selected project without traversing its teams', async () => {
+    mockProject.mockResolvedValueOnce({ id: 'project-1', name: 'Project One' })
+
+    await expect(
+      linearSelectorAttachments['linear.projects'].execute({
+        ...projectArgs('team-1,team-2'),
+        request: { kind: 'detail', id: 'project-1' },
+      })
+    ).resolves.toEqual({
+      kind: 'detail',
+      item: { id: 'project-1', label: 'Project One' },
+    })
+    expect(mockProject).toHaveBeenCalledWith('project-1')
+    expect(mockTeam).not.toHaveBeenCalled()
   })
 })

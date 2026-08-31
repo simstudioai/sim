@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
@@ -7,6 +7,7 @@ import {
   OPERATION_SUBBLOCK_ID,
 } from '@/lib/permission-groups/operation-access'
 import type { SelectorKey } from '@/lib/selectors/manifest'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { staleSelectionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/dropdown/stale-selections'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -17,6 +18,7 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useOperationAccess } from '@/hooks/use-operation-access'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -156,14 +158,23 @@ export const Dropdown = memo(function Dropdown({
     return options ?? EMPTY_OPTIONS
   }, [options, blockValues])
 
+  const [selectorSearch, setSelectorSearch] = useState('')
+  const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)
+
   const {
     fetchedOptions,
     isLoadingOptions,
+    isFetchingMore,
+    isLoadingAll,
+    hasMore,
+    truncated,
     hasLoadedOptions,
     fetchError,
     hydratedOption,
     hydratedOptions,
     isDynamic,
+    loadMore,
+    loadAll,
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
@@ -173,6 +184,7 @@ export const Dropdown = memo(function Dropdown({
     selectorExcludeSelf,
     isPreview: Boolean(isPreview),
     disabled: Boolean(disabled),
+    search: debouncedSelectorSearch,
     valueToHydrate: singleValue,
     valuesToHydrate: multiValues ?? undefined,
     localOptions: evaluatedOptions,
@@ -491,8 +503,15 @@ export const Dropdown = memo(function Dropdown({
       overlayContent={multiSelectOverlay ?? singleSelectOverlay}
       multiSelect={multiSelect}
       isLoading={isLoadingOptions}
+      isLoadingMore={isFetchingMore}
+      isLoadingAll={isLoadingAll}
+      hasMore={hasMore}
+      truncated={truncated}
+      onLoadMore={loadMore}
+      onLoadAll={loadAll}
       error={fetchError}
       searchable={isSearchable}
+      onSearchChange={setSelectorSearch}
       searchPlaceholder='Search...'
     />
   )

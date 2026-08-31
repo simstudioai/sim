@@ -72,16 +72,21 @@ export function ConnectorSelectorField({
   }, [field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const isEnabled = !disabled && !!credentialId && depsResolved
+  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
   const {
     data: options = [],
     isLoading,
     hasMore,
     isFetchingMore,
+    isLoadingAll,
     truncated,
+    loadMore,
+    loadAll,
     error,
   } = useSelectorOptions(field.selectorKey, {
     context,
     scope: { kind: 'workspace', workspaceId },
+    search: debouncedSearch,
     enabled: isEnabled,
     surfaceId: `connector:${field.id}`,
   })
@@ -104,15 +109,12 @@ export function ConnectorSelectorField({
   })
 
   /**
-   * The option list fills by draining pages in the background and the combobox filters
-   * it client-side, so an option is only findable once its page has arrived. Where the
-   * selector's `fetchById` tolerates an unknown id, whatever the user typed is resolved
-   * directly so an exact key is selectable immediately. Gated on that flag because most
-   * implementations resolve a record by id, where a partial keystroke is a guaranteed
-   * failed upstream request rather than an empty result.
+   * Loaded pages are filtered client-side. Where `fetchById` tolerates an unknown id,
+   * resolve the typed value directly so an exact key is selectable before its page is
+   * loaded. Most implementations treat partial text as a record id, so this remains
+   * gated to selectors that explicitly support unknown-id resolution.
    */
   const resolvesUnknownIds = getSelectorManifestEntry(field.selectorKey).resolvesUnknownIds
-  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
   const { data: searchedOption } = useSelectorOptionDetail(field.selectorKey, {
     context,
     scope: { kind: 'workspace', workspaceId },
@@ -123,8 +125,6 @@ export function ConnectorSelectorField({
 
   const emptyMessage = getEmptyMessage(field.title.toLowerCase(), {
     error,
-    hasMore,
-    isFetchingMore,
     truncated,
   })
 
@@ -168,6 +168,12 @@ export function ConnectorSelectorField({
               : field.placeholder || `Select ${field.title.toLowerCase()}`
         }
         disabled={disabled || !credentialId || !depsResolved}
+        hasMore={hasMore}
+        isLoadingMore={isFetchingMore}
+        isLoadingAll={isLoadingAll}
+        truncated={truncated}
+        onLoadMore={loadMore}
+        onLoadAll={loadAll}
         emptyMessage={emptyMessage}
       />
     )
@@ -189,33 +195,26 @@ export function ConnectorSelectorField({
             : field.placeholder || `Select ${field.title.toLowerCase()}`
       }
       disabled={disabled || !credentialId || !depsResolved}
+      hasMore={hasMore}
+      isLoadingMore={isFetchingMore}
+      isLoadingAll={isLoadingAll}
+      truncated={truncated}
+      onLoadMore={loadMore}
+      onLoadAll={loadAll}
       emptyMessage={emptyMessage}
     />
   )
 }
 
-/**
- * Only visible once the first page has landed (`isLoading` renders a spinner
- * before that), so "no match" here means no match among the options drained
- * *so far* — a flat "none found" would wrongly read as "does not exist".
- *
- * `error` is checked before `hasMore`: a failed page halts the drain but leaves
- * `hasMore` set, which would otherwise claim to be loading forever.
- */
 function getEmptyMessage(
   noun: string,
   state: {
     error: Error | null
-    hasMore: boolean
-    isFetchingMore: boolean
     truncated: boolean
   }
 ): string {
   if (state.error) return 'No match — the list failed to load. Try reopening'
-  if (state.hasMore || state.isFetchingMore) return 'No match yet — still loading…'
   if (state.truncated) return 'No match — too many to list. Try a more exact term'
-  // `noun` is singular on some connectors ("Base") and plural on others ("Spaces"),
-  // so only this settled message puts it behind a quantifier.
   return `No ${noun} found`
 }
 

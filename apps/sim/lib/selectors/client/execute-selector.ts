@@ -3,6 +3,7 @@
 import { requestJson } from '@/lib/api/client/request'
 import { executeSelectorContract } from '@/lib/api/contracts/selectors/execute'
 import { localSelectorAttachments } from '@/lib/selectors/client/local'
+import { MAX_SELECTOR_OPTIONS, MAX_SELECTOR_PAGES } from '@/lib/selectors/limits'
 import {
   getSelectorManifestEntry,
   type LocalSelectorKey,
@@ -43,8 +44,6 @@ export async function executeSelectorRequest(
   })
 }
 
-const MAX_LOAD_ALL_PAGES = 50
-
 export async function loadAllSelectorOptions(
   input: Omit<ExecuteSelectorClientInput, 'request'> & { search?: string }
 ) {
@@ -54,8 +53,9 @@ export async function loadAllSelectorOptions(
     label: string
     meta?: Record<string, string | number | boolean | null>
   }> = []
+  const seen = new Set<string>()
   let cursor: string | undefined
-  for (let page = 0; page < MAX_LOAD_ALL_PAGES; page += 1) {
+  for (let page = 0; page < MAX_SELECTOR_PAGES; page += 1) {
     const result = await executeSelectorRequest({
       ...input,
       request: {
@@ -65,7 +65,12 @@ export async function loadAllSelectorOptions(
       },
     })
     if (result.kind !== 'list') throw new Error('Selector returned an unexpected detail result')
-    items.push(...result.items)
+    for (const item of result.items) {
+      if (seen.has(item.id)) continue
+      seen.add(item.id)
+      items.push(item)
+      if (items.length >= MAX_SELECTOR_OPTIONS) return items
+    }
     cursor = result.nextCursor
     if (!cursor) break
   }

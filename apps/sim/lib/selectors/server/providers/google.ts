@@ -1,5 +1,4 @@
 import { getScopesForService } from '@/lib/oauth/utils'
-import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
 import {
@@ -7,7 +6,6 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { appendSelectorOptions } from '@/lib/selectors/server/option-budget'
 import {
   fetchProviderJson,
   fetchProviderJsonWithStatus,
@@ -36,6 +34,14 @@ interface CalendarListItem {
   primary?: boolean
 }
 
+function requireGoogleCalendarId(value: string): string {
+  const id = value.trim()
+  if (!id || id.length > 1_024 || /[\u0000-\u001F\u007F]/.test(id)) {
+    throw new SelectorContextUnavailableError()
+  }
+  return id
+}
+
 interface DriveFile {
   id: string
   name: string
@@ -53,10 +59,9 @@ interface Sheet {
   properties: { sheetId: number; title: string; index: number }
 }
 
-interface GooglePageDrainResult<T> {
+interface GooglePage<T> {
   items: T[]
-  pages: number
-  truncated: boolean
+  nextCursor?: string
 }
 
 async function googleAccessToken(args: ExecuteServerSelectorArgs, serviceId: string) {
@@ -75,56 +80,29 @@ async function googleAccessToken(args: ExecuteServerSelectorArgs, serviceId: str
   }
 }
 
-async function drainGooglePages<T, R extends { nextPageToken?: string }>(input: {
+async function fetchGooglePage<T, R extends { nextPageToken?: string }>(input: {
+  args: ExecuteServerSelectorArgs
   accessToken: string
-  maxPages: number
-  maxItems?: number
   buildUrl(pageToken: string | undefined): URL
   getItems(page: R): T[] | undefined
-  signal?: AbortSignal
-}): Promise<GooglePageDrainResult<T>> {
-  const items: T[] = []
-  let pageToken: string | undefined
-  let pages = 0
-  for (let page = 0; page < input.maxPages; page++) {
-    const body = await fetchProviderJson<R>(input.buildUrl(pageToken), {
-      headers: { Authorization: `Bearer ${input.accessToken}` },
-      signal: input.signal,
-    })
-    pages = page + 1
-    const appended = appendSelectorOptions(
-      items,
-      input.getItems(body) ?? [],
-      input.maxItems ?? MAX_SELECTOR_OPTIONS
-    )
-    pageToken = body.nextPageToken?.trim() || undefined
-    if (appended.overflow || (appended.full && pageToken)) {
-      return { items, pages, truncated: true }
-    }
-    if (!pageToken) return { items, pages, truncated: false }
+}): Promise<GooglePage<T>> {
+  const request = requireListRequest(input.args.selectorKey, input.args.request)
+  const body = await fetchProviderJson<R>(input.buildUrl(request.cursor), {
+    headers: { Authorization: `Bearer ${input.accessToken}` },
+    signal: input.args.signal,
+  })
+  const nextCursor = body.nextPageToken?.trim() || undefined
+  return {
+    items: input.getItems(body) ?? [],
+    ...(nextCursor ? { nextCursor } : {}),
   }
-  return { items, pages, truncated: Boolean(pageToken) }
 }
 
-function googleDrainDiagnostics(result: GooglePageDrainResult<unknown>) {
-  return result.truncated
-    ? {
-        truncated: {
-          reason: 'provider-cap' as const,
-          limit: MAX_SELECTOR_OPTIONS,
-          pages: result.pages,
-        },
-      }
-    : undefined
-}
-
-async function listTaskLists(
-  args: ExecuteServerSelectorArgs
-): Promise<GooglePageDrainResult<GoogleTaskList>> {
+async function listTaskLists(args: ExecuteServerSelectorArgs): Promise<GooglePage<GoogleTaskList>> {
   const accessToken = await googleAccessToken(args, 'google-tasks')
-  return drainGooglePages<GoogleTaskList, { items?: GoogleTaskList[]; nextPageToken?: string }>({
+  return fetchGooglePage<GoogleTaskList, { items?: GoogleTaskList[]; nextPageToken?: string }>({
+    args,
     accessToken,
-    maxPages: 20,
     buildUrl: (pageToken) => {
       const url = new URL('https://tasks.googleapis.com/tasks/v1/users/@me/lists')
       url.searchParams.set('maxResults', '1000')
@@ -132,20 +110,20 @@ async function listTaskLists(
       return url
     },
     getItems: (page) => page.items,
-    signal: args.signal,
   })
 }
 
 async function executeTaskLists(args: ExecuteServerSelectorArgs) {
-  const result = await listTaskLists(args)
   if (args.request.kind === 'detail') {
-    const detailId = args.request.id
-    const match = result.items.find((list) => list.id === detailId)
-    return {
-      ...detailSelectorResult(match ? { id: match.id, label: match.title } : null),
-      ...(result.truncated ? { diagnostics: googleDrainDiagnostics(result) } : {}),
-    }
+    const accessToken = await googleAccessToken(args, 'google-tasks')
+    const detailId = requireGoogleId(args.request.id)
+    const list = await fetchProviderJson<GoogleTaskList>(
+      `https://tasks.googleapis.com/tasks/v1/users/@me/lists/${detailId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, signal: args.signal }
+    )
+    return detailSelectorResult(list.id && list.title ? { id: list.id, label: list.title } : null)
   }
+  const result = await listTaskLists(args)
   return listSelectorResult(
     result.items
       .filter((list) => list.id && list.title)
@@ -153,8 +131,7 @@ async function executeTaskLists(args: ExecuteServerSelectorArgs) {
         id: list.id,
         label: list.title,
       })),
-    undefined,
-    googleDrainDiagnostics(result)
+    result.nextCursor
   )
 }
 
@@ -182,14 +159,21 @@ async function executeGmailLabels(args: ExecuteServerSelectorArgs) {
 }
 
 async function executeCalendars(args: ExecuteServerSelectorArgs) {
-  requireListRequest(args.selectorKey, args.request)
   const accessToken = await googleAccessToken(args, 'google-calendar')
-  const result = await drainGooglePages<
+  if (args.request.kind === 'detail') {
+    const calendar = await fetchProviderJson<CalendarListItem>(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(requireGoogleCalendarId(args.request.id))}`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, signal: args.signal }
+    )
+    return detailSelectorResult({ id: calendar.id, label: calendar.summary })
+  }
+  requireListRequest(args.selectorKey, args.request)
+  const result = await fetchGooglePage<
     CalendarListItem,
     { items?: CalendarListItem[]; nextPageToken?: string }
   >({
+    args,
     accessToken,
-    maxPages: 20,
     buildUrl: (pageToken) => {
       const url = new URL('https://www.googleapis.com/calendar/v3/users/me/calendarList')
       url.searchParams.set('maxResults', '250')
@@ -197,7 +181,6 @@ async function executeCalendars(args: ExecuteServerSelectorArgs) {
       return url
     },
     getItems: (page) => page.items,
-    signal: args.signal,
   })
   const calendars = result.items
   calendars.sort((a, b) => {
@@ -212,8 +195,7 @@ async function executeCalendars(args: ExecuteServerSelectorArgs) {
         id: calendar.id,
         label: calendar.summary,
       })),
-    undefined,
-    googleDrainDiagnostics(result)
+    result.nextCursor
   )
 }
 
@@ -229,27 +211,53 @@ function requireGoogleId(value: string | undefined, maxLength = 255): string {
   return trimmed
 }
 
-async function fetchSharedDrives(accessToken: string, signal?: AbortSignal): Promise<DriveFile[]> {
+async function fetchSharedDrivePage(
+  accessToken: string,
+  pageToken: string | undefined,
+  signal?: AbortSignal
+): Promise<GooglePage<DriveFile>> {
   try {
-    const data = await fetchProviderJson<{ drives?: Array<{ id: string; name: string }> }>(
-      'https://www.googleapis.com/drive/v3/drives?pageSize=100&fields=drives(id,name)',
-      { headers: { Authorization: `Bearer ${accessToken}` }, signal }
-    )
-    return (data.drives ?? []).map((drive) => ({
-      id: drive.id,
-      name: drive.name,
-      mimeType: 'application/vnd.google-apps.folder',
-    }))
+    const url = new URL('https://www.googleapis.com/drive/v3/drives')
+    url.searchParams.set('pageSize', '100')
+    url.searchParams.set('fields', 'nextPageToken,drives(id,name)')
+    if (pageToken) url.searchParams.set('pageToken', pageToken)
+    const data = await fetchProviderJson<{
+      drives?: Array<{ id: string; name: string }>
+      nextPageToken?: string
+    }>(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal })
+    const nextCursor = data.nextPageToken?.trim()
+    return {
+      items: (data.drives ?? []).map((drive) => ({
+        id: drive.id,
+        name: drive.name,
+        mimeType: 'application/vnd.google-apps.folder',
+      })),
+      ...(nextCursor ? { nextCursor } : {}),
+    }
   } catch (error) {
     if (signal?.aborted) throw error
-    return []
+    return { items: [] }
   }
+}
+
+type DriveCursor = { source: 'drives' | 'files'; pageToken?: string }
+
+function parseDriveCursor(cursor: string | undefined): DriveCursor | undefined {
+  if (!cursor) return undefined
+  const source = cursor.slice(0, 2)
+  if (source !== 'd:' && source !== 'f:') throw new SelectorContextUnavailableError()
+  const pageToken = cursor.slice(2) || undefined
+  return { source: source === 'd:' ? 'drives' : 'files', pageToken }
+}
+
+function driveCursor(source: DriveCursor['source'], pageToken?: string): string {
+  return `${source === 'drives' ? 'd' : 'f'}:${pageToken ?? ''}`
 }
 
 async function listDriveFiles(
   args: ExecuteServerSelectorArgs,
   accessToken: string
-): Promise<GooglePageDrainResult<DriveFile>> {
+): Promise<GooglePage<DriveFile>> {
   const folderId = args.context.fileId?.trim()
   if (folderId) requireGoogleId(folderId, 50)
 
@@ -262,32 +270,42 @@ async function listDriveFiles(
 
   const includeSharedDrives =
     !folderId && mimeType === 'application/vnd.google-apps.folder' && !search
-  const sharedDrives = includeSharedDrives ? await fetchSharedDrives(accessToken, args.signal) : []
-  const result = await drainGooglePages<DriveFile, { files?: DriveFile[]; nextPageToken?: string }>(
-    {
-      accessToken,
-      maxPages: 20,
-      maxItems: MAX_SELECTOR_OPTIONS - sharedDrives.length,
-      buildUrl: (pageToken) => {
-        const url = new URL('https://www.googleapis.com/drive/v3/files')
-        url.searchParams.set('q', clauses.join(' and '))
-        url.searchParams.set('corpora', 'allDrives')
-        url.searchParams.set('supportsAllDrives', 'true')
-        url.searchParams.set('includeItemsFromAllDrives', 'true')
-        url.searchParams.set('pageSize', '100')
-        url.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType)')
-        if (pageToken) url.searchParams.set('pageToken', pageToken)
-        return url
-      },
-      getItems: (page) => page.files,
-      signal: args.signal,
+  const request = requireListRequest(args.selectorKey, args.request)
+  const cursor = parseDriveCursor(request.cursor)
+  if (cursor?.source === 'drives' && !includeSharedDrives) {
+    throw new SelectorContextUnavailableError()
+  }
+
+  if (includeSharedDrives && (!cursor || cursor.source === 'drives')) {
+    const drives = await fetchSharedDrivePage(accessToken, cursor?.pageToken, args.signal)
+    if (drives.items.length > 0 || drives.nextCursor) {
+      return {
+        items: drives.items,
+        nextCursor: drives.nextCursor
+          ? driveCursor('drives', drives.nextCursor)
+          : driveCursor('files'),
+      }
     }
-  )
+  }
+
+  const pageToken = cursor?.source === 'files' ? cursor.pageToken : undefined
+  const url = new URL('https://www.googleapis.com/drive/v3/files')
+  url.searchParams.set('q', clauses.join(' and '))
+  url.searchParams.set('corpora', 'allDrives')
+  url.searchParams.set('supportsAllDrives', 'true')
+  url.searchParams.set('includeItemsFromAllDrives', 'true')
+  url.searchParams.set('pageSize', '100')
+  url.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType)')
+  if (pageToken) url.searchParams.set('pageToken', pageToken)
+  const data = await fetchProviderJson<{ files?: DriveFile[]; nextPageToken?: string }>(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: args.signal,
+  })
+  const nextPageToken = data.nextPageToken?.trim()
 
   return {
-    items: [...sharedDrives, ...result.items],
-    pages: result.pages,
-    truncated: result.truncated,
+    items: data.files ?? [],
+    ...(nextPageToken ? { nextCursor: driveCursor('files', nextPageToken) } : {}),
   }
 }
 
@@ -350,8 +368,7 @@ async function executeDrive(args: ExecuteServerSelectorArgs) {
         id: file.id,
         label: file.name,
       })),
-    undefined,
-    googleDrainDiagnostics(result)
+    result.nextCursor
   )
 }
 

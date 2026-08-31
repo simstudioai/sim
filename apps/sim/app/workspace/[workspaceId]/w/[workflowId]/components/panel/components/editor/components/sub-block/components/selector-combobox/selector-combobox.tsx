@@ -106,7 +106,12 @@ export function SelectorCombobox({
   const {
     data: options = [],
     isLoading,
+    isFetchingMore,
+    isLoadingAll,
     hasMore,
+    truncated,
+    loadMore,
+    loadAll,
     error,
   } = useSelectorOptions(selectorKey, {
     context: selectorContext,
@@ -233,6 +238,13 @@ export function SelectorCombobox({
           editable={allowSearch}
           filterOptions={allowSearch}
           isLoading={isLoading}
+          isLoadingMore={isFetchingMore}
+          isLoadingAll={isLoadingAll}
+          hasMore={hasMore}
+          truncated={truncated}
+          searchActive={Boolean(activeSearch)}
+          onLoadMore={loadMore}
+          onLoadAll={loadAll}
           error={error instanceof Error ? error.message : null}
         />
         {selectedValues.length > 0 && (
@@ -304,6 +316,13 @@ export function SelectorCombobox({
                 className: showClearButton ? 'pr-[60px]' : undefined,
               }}
               isLoading={isLoading}
+              isLoadingMore={isFetchingMore}
+              isLoadingAll={isLoadingAll}
+              hasMore={hasMore}
+              truncated={truncated}
+              searchActive={Boolean(activeSearch)}
+              onLoadMore={loadMore}
+              onLoadAll={loadAll}
               error={error instanceof Error ? error.message : null}
               overlayContent={
                 workflowSearchHighlight ? (

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
   SelectorContextUnavailableError,
@@ -19,7 +20,6 @@ type JiraSelectorKey = Extract<ServerSelectorKey, 'jira.projects' | 'jira.issues
 
 const JIRA_SCOPES = getScopesForService('jira')
 const JIRA_PROJECTS_PAGE_SIZE = 50
-const MAX_JIRA_PROJECTS_PAGES = 40
 const JIRA_ISSUES_LIMIT = 25
 
 const jiraProjectSchema = z.object({
@@ -91,41 +91,39 @@ function jiraHeaders(accessToken: string) {
 
 async function listProjects(args: ExecuteServerSelectorArgs) {
   const auth = await resolveJiraAuth(args)
-  const projects: z.infer<typeof jiraProjectSchema>[] = []
-  let startAt = 0
-  let truncated = false
-
-  for (let page = 0; page < MAX_JIRA_PROJECTS_PAGES; page++) {
-    const url = new URL(
-      `https://api.atlassian.com/ex/jira/${auth.cloudId}/rest/api/3/project/search`
-    )
-    if (args.request.kind === 'list' && args.request.search) {
-      url.searchParams.set('query', args.request.search)
-    }
-    url.searchParams.set('orderBy', 'name')
-    url.searchParams.set('expand', 'description,lead,url,projectKeys')
-    url.searchParams.set('startAt', String(startAt))
-    url.searchParams.set('maxResults', String(JIRA_PROJECTS_PAGE_SIZE))
-
-    const body = await fetchProviderJson<unknown>(url, {
-      headers: jiraHeaders(auth.accessToken),
-      redirect: 'error',
-      signal: args.signal,
-    })
-    const parsed = jiraProjectPageSchema.safeParse(body)
-    if (!parsed.success) throw new SelectorOptionsUnavailableError()
-    const values = parsed.data.values ?? []
-    projects.push(...values)
-
-    const pageSize = parsed.data.maxResults ?? JIRA_PROJECTS_PAGE_SIZE
-    if (parsed.data.isLast === true || values.length < pageSize || values.length === 0) break
-    startAt += values.length
-    if (page === MAX_JIRA_PROJECTS_PAGES - 1) truncated = true
+  const cursor = args.request.kind === 'list' ? args.request.cursor : undefined
+  if (cursor && !/^\d{1,10}$/.test(cursor)) {
+    throw new SelectorContextUnavailableError()
+  }
+  const startAt = cursor ? Number(cursor) : 0
+  if (!Number.isSafeInteger(startAt) || startAt < 0 || startAt > MAX_SELECTOR_OPTIONS) {
+    throw new SelectorContextUnavailableError()
   }
 
+  const url = new URL(`https://api.atlassian.com/ex/jira/${auth.cloudId}/rest/api/3/project/search`)
+  if (args.request.kind === 'list' && args.request.search) {
+    url.searchParams.set('query', args.request.search)
+  }
+  url.searchParams.set('orderBy', 'name')
+  url.searchParams.set('expand', 'description,lead,url,projectKeys')
+  url.searchParams.set('startAt', String(startAt))
+  url.searchParams.set('maxResults', String(JIRA_PROJECTS_PAGE_SIZE))
+
+  const body = await fetchProviderJson<unknown>(url, {
+    headers: jiraHeaders(auth.accessToken),
+    redirect: 'error',
+    signal: args.signal,
+  })
+  const parsed = jiraProjectPageSchema.safeParse(body)
+  if (!parsed.success) throw new SelectorOptionsUnavailableError()
+  const values = parsed.data.values ?? []
+  const pageSize = parsed.data.maxResults ?? JIRA_PROJECTS_PAGE_SIZE
+  const nextStartAt = startAt + values.length
+  const hasMore = parsed.data.isLast !== true && values.length > 0 && values.length >= pageSize
+
   return {
-    items: projects.map((project) => ({ id: project.id, label: project.name })),
-    truncated,
+    items: values.map((project) => ({ id: project.id, label: project.name })),
+    nextCursor: hasMore ? String(nextStartAt) : undefined,
   }
 }
 
@@ -190,13 +188,7 @@ async function executeProjects(args: ExecuteServerSelectorArgs) {
     return detailSelectorResult(await getProject(args, requirePathId(args.request.id)))
   }
   const result = await listProjects(args)
-  return listSelectorResult(
-    result.items,
-    undefined,
-    result.truncated
-      ? { truncated: { reason: 'provider-cap', pages: MAX_JIRA_PROJECTS_PAGES } }
-      : undefined
-  )
+  return listSelectorResult(result.items, result.nextCursor)
 }
 
 async function executeIssues(args: ExecuteServerSelectorArgs) {

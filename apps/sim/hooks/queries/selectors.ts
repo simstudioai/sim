@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useId, useMemo, useRef } from 'react'
-import { createLogger } from '@sim/logger'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query'
 import { executeSelectorRequest } from '@/lib/selectors/client/execute-selector'
 import { projectSelectorContext } from '@/lib/selectors/context'
+import { MAX_SELECTOR_OPTIONS, MAX_SELECTOR_PAGES } from '@/lib/selectors/limits'
 import {
   getSelectorManifestEntry,
   isSelectorReady,
@@ -18,8 +18,6 @@ import type {
 } from '@/lib/selectors/types'
 import { selectorKeys } from '@/hooks/queries/utils/selector-keys'
 
-const logger = createLogger('SelectorQuery')
-const MAX_AUTO_DRAIN_PAGES = 50
 const EMPTY_PAGE: SelectorPage = { items: [] }
 let nextOpaqueRevision = 1
 
@@ -41,11 +39,38 @@ export interface SelectorOptionsResult {
   isLoading: boolean
   isFetching: boolean
   isFetchingMore: boolean
+  isLoadingAll: boolean
   hasMore: boolean
   truncated: boolean
   error: Error | null
   isSuccess: boolean
+  loadMore(): void
+  loadAll(): void
   refetch(): void
+}
+
+interface CollectedSelectorOptions {
+  options: SelectorOption[]
+  overflowed: boolean
+}
+
+function collectSelectorOptions(
+  pages: readonly SelectorPage[] | undefined
+): CollectedSelectorOptions {
+  if (!pages) return { options: [], overflowed: false }
+  const seen = new Set<string>()
+  const options: SelectorOption[] = []
+  for (const page of pages) {
+    for (const option of page.items) {
+      if (seen.has(option.id)) continue
+      seen.add(option.id)
+      if (options.length >= MAX_SELECTOR_OPTIONS) {
+        return { options, overflowed: true }
+      }
+      options.push(option)
+    }
+  }
+  return { options, overflowed: false }
 }
 
 export function selectorScopeFromContext(
@@ -172,45 +197,86 @@ export function useSelectorOptions(
     gcTime: 0,
   })
 
-  const pageCount = pagedQuery.data?.pages.length ?? 0
-  const reachedDrainCap = pageCount >= MAX_AUTO_DRAIN_PAGES
-  useEffect(() => {
-    if (!supportsPagination || pagedQuery.isError || !pagedQuery.hasNextPage) return
-    if (reachedDrainCap) {
-      logger.warn('Selector hit auto-drain cap; option list is truncated', {
-        selectorKey: key,
-        pages: pageCount,
-      })
-      return
-    }
-    if (!pagedQuery.isFetchingNextPage) void pagedQuery.fetchNextPage()
-  }, [
-    key,
-    pageCount,
-    pagedQuery.fetchNextPage,
-    pagedQuery.hasNextPage,
-    pagedQuery.isError,
-    pagedQuery.isFetchingNextPage,
-    reachedDrainCap,
-    supportsPagination,
-  ])
-
-  const pagedOptions = useMemo(
-    () => pagedQuery.data?.pages.flatMap((page) => page.items),
-    [pagedQuery.data]
+  const collectedOptions = useMemo(
+    () => collectSelectorOptions(pagedQuery.data?.pages),
+    [pagedQuery.data?.pages]
   )
+  const pagedOptions = collectedOptions.options
+  const pageCount = pagedQuery.data?.pages.length ?? 0
+  const reachedPageCap = pageCount >= MAX_SELECTOR_PAGES
+  const reachedOptionCap = pagedOptions.length >= MAX_SELECTOR_OPTIONS
+  const reachedLoadCap = reachedPageCap || reachedOptionCap
+  const canLoadMore =
+    supportsPagination && prepared.ready && Boolean(pagedQuery.hasNextPage) && !reachedLoadCap
+  const loadGenerationRef = useRef(0)
+  const pageFetchInFlightRef = useRef(false)
+  const [isLoadingAll, setIsLoadingAll] = useState(false)
+
+  useEffect(() => {
+    loadGenerationRef.current += 1
+    pageFetchInFlightRef.current = false
+    setIsLoadingAll(false)
+  }, [key, prepared.revision])
+
+  const loadMore = useCallback(() => {
+    if (!canLoadMore || pageFetchInFlightRef.current) return
+    pageFetchInFlightRef.current = true
+    void pagedQuery.fetchNextPage().finally(() => {
+      pageFetchInFlightRef.current = false
+    })
+  }, [canLoadMore, pagedQuery.fetchNextPage])
+
+  const loadAll = useCallback(() => {
+    if (!canLoadMore || pageFetchInFlightRef.current) return
+    const generation = loadGenerationRef.current + 1
+    loadGenerationRef.current = generation
+    pageFetchInFlightRef.current = true
+    setIsLoadingAll(true)
+
+    void (async () => {
+      let hasNextPage = Boolean(pagedQuery.hasNextPage)
+      let pages = pagedQuery.data?.pages
+      try {
+        while (hasNextPage) {
+          if (
+            (pages?.length ?? 0) >= MAX_SELECTOR_PAGES ||
+            collectSelectorOptions(pages).options.length >= MAX_SELECTOR_OPTIONS
+          ) {
+            break
+          }
+          const result = await pagedQuery.fetchNextPage()
+          if (loadGenerationRef.current !== generation) return
+          if (result.isError) break
+          hasNextPage = Boolean(result.hasNextPage)
+          pages = result.data?.pages
+        }
+      } finally {
+        if (loadGenerationRef.current === generation) {
+          pageFetchInFlightRef.current = false
+          setIsLoadingAll(false)
+        }
+      }
+    })()
+  }, [canLoadMore, pagedQuery.data?.pages, pagedQuery.fetchNextPage, pagedQuery.hasNextPage])
+
   if (supportsPagination) {
     return {
       data: pagedOptions,
       isLoading: pagedQuery.isLoading,
       isFetching: pagedQuery.isFetching,
-      isFetchingMore: pagedQuery.isFetchingNextPage,
-      hasMore: Boolean(pagedQuery.hasNextPage) && !reachedDrainCap,
-      truncated: Boolean(pagedQuery.hasNextPage) && reachedDrainCap,
+      isFetchingMore: pagedQuery.isFetchingNextPage || isLoadingAll,
+      isLoadingAll,
+      hasMore: canLoadMore,
+      truncated: collectedOptions.overflowed || (Boolean(pagedQuery.hasNextPage) && reachedLoadCap),
       error: (pagedQuery.error as Error | null) ?? null,
       isSuccess: pagedQuery.isSuccess,
+      loadMore,
+      loadAll,
       refetch: () => {
         if (!prepared.ready) return
+        loadGenerationRef.current += 1
+        pageFetchInFlightRef.current = false
+        setIsLoadingAll(false)
         void pagedQuery.refetch()
       },
     }
@@ -220,10 +286,13 @@ export function useSelectorOptions(
     isLoading: flatQuery.isLoading,
     isFetching: flatQuery.isFetching,
     isFetchingMore: false,
+    isLoadingAll: false,
     hasMore: false,
     truncated: false,
     error: (flatQuery.error as Error | null) ?? null,
     isSuccess: flatQuery.isSuccess,
+    loadMore: () => undefined,
+    loadAll: () => undefined,
     refetch: () => {
       if (!prepared.ready) return
       void flatQuery.refetch()

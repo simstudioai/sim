@@ -116,4 +116,37 @@ describe('Bitbucket server selector adapters', () => {
     expect(mockResolveSelectorOAuthAccessToken).not.toHaveBeenCalled()
     expect(mockFetch).not.toHaveBeenCalled()
   })
+
+  it('hydrates a selected repository without traversing its workspace pages', async () => {
+    mockFetch.mockResolvedValueOnce(
+      providerResponse({
+        slug: 'payments-api',
+        uuid: '{repository-uuid}',
+        name: 'Payments API',
+        full_name: 'acme-platform/payments-api',
+      })
+    )
+
+    await expect(
+      bitbucketSelectorAttachments['bitbucket.repositories'].execute(
+        repositoryArgs({ request: { kind: 'detail', id: 'payments-api' } })
+      )
+    ).resolves.toEqual({
+      kind: 'detail',
+      item: {
+        id: 'payments-api',
+        label: 'Payments API',
+        meta: {
+          slug: 'payments-api',
+          uuid: '{repository-uuid}',
+          fullName: 'acme-platform/payments-api',
+          workspaceSlug: 'acme-platform',
+        },
+      },
+    })
+    expect(new URL(String(mockFetch.mock.calls[0]?.[0])).pathname).toBe(
+      '/2.0/repositories/acme-platform/payments-api'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
 })

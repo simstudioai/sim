@@ -7,17 +7,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteSelectorRequest, mockLoggerWarn } = vi.hoisted(() => ({
+const { mockExecuteSelectorRequest } = vi.hoisted(() => ({
   mockExecuteSelectorRequest: vi.fn(),
-  mockLoggerWarn: vi.fn(),
 }))
 
 vi.mock('@/lib/selectors/client/execute-selector', () => ({
   executeSelectorRequest: mockExecuteSelectorRequest,
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ warn: mockLoggerWarn }),
 }))
 
 import { useSelectorOptionDetail, useSelectorOptions } from '@/hooks/queries/selectors'
@@ -240,7 +235,7 @@ describe('generic selector queries', () => {
     }
   )
 
-  it('progressively drains paginated selectors without putting cursors in the base key', async () => {
+  it('loads paginated selectors on demand without putting cursors in the base key', async () => {
     mockExecuteSelectorRequest.mockImplementation(
       async ({ request }: { request: { cursor?: string } }) =>
         request.cursor
@@ -259,6 +254,12 @@ describe('generic selector queries', () => {
       })
     )
 
+    await waitFor(() => expect(hook.getResult().data).toEqual([{ id: 'repo-1', label: 'First' }]))
+
+    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(1)
+    expect(hook.getResult()).toMatchObject({ hasMore: true, truncated: false })
+
+    act(() => hook.getResult().loadMore())
     await waitFor(() =>
       expect(hook.getResult().data).toEqual([
         { id: 'repo-1', label: 'First' },
@@ -275,12 +276,20 @@ describe('generic selector queries', () => {
     expect(hook.getResult()).toMatchObject({ hasMore: false, truncated: false })
   })
 
-  it('stops automatic pagination at the 50-page safety cap', async () => {
-    mockExecuteSelectorRequest.mockImplementation(async () => ({
-      kind: 'list',
-      items: [{ id: 'workspace', label: 'Workspace' }],
-      nextCursor: `cursor-${mockExecuteSelectorRequest.mock.calls.length}`,
-    }))
+  it('searches every remaining page only after an explicit load-all request', async () => {
+    mockExecuteSelectorRequest.mockImplementation(
+      async ({ request }: { request: { cursor?: string } }) => {
+        const page = Number(request.cursor ?? '0')
+        return {
+          kind: 'list',
+          items: [
+            { id: `workspace-${page}`, label: `Workspace ${page}` },
+            ...(page === 1 ? [{ id: 'workspace-0', label: 'Duplicate' }] : []),
+          ],
+          ...(page < 2 ? { nextCursor: String(page + 1) } : {}),
+        }
+      }
+    )
 
     const hook = renderHookWithClient(() =>
       useSelectorOptions('bitbucket.workspaces', {
@@ -289,14 +298,42 @@ describe('generic selector queries', () => {
       })
     )
 
-    await waitFor(() => expect(hook.getResult().truncated).toBe(true), 5_000)
+    await waitFor(() => expect(hook.getResult().hasMore).toBe(true))
+    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(1)
 
-    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(50)
-    expect(hook.getResult()).toMatchObject({ hasMore: false, truncated: true })
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      'Selector hit auto-drain cap; option list is truncated',
-      { selectorKey: 'bitbucket.workspaces', pages: 50 }
+    act(() => hook.getResult().loadAll())
+    await waitFor(() => expect(hook.getResult().isLoadingAll).toBe(false))
+
+    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(3)
+    expect(hook.getResult().data).toEqual([
+      { id: 'workspace-0', label: 'Workspace 0' },
+      { id: 'workspace-1', label: 'Workspace 1' },
+      { id: 'workspace-2', label: 'Workspace 2' },
+    ])
+    expect(hook.getResult()).toMatchObject({ hasMore: false, truncated: false })
+  })
+
+  it('stops exposing continuation once 10,000 unique options are loaded', async () => {
+    mockExecuteSelectorRequest.mockResolvedValue({
+      kind: 'list',
+      items: Array.from({ length: 10_000 }, (_, index) => ({
+        id: `workspace-${index}`,
+        label: `Workspace ${index}`,
+      })),
+      nextCursor: 'provider-has-more',
+    })
+
+    const hook = renderHookWithClient(() =>
+      useSelectorOptions('bitbucket.workspaces', {
+        context: { workspaceId: 'workspace-1', oauthCredential: 'credential-1' },
+        surfaceId: 'canvas:block-1:workspace',
+      })
     )
+
+    await waitFor(() => expect(hook.getResult().data).toHaveLength(10_000))
+
+    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(1)
+    expect(hook.getResult()).toMatchObject({ hasMore: false, truncated: true })
   })
 
   it('hydrates detail options while keeping the detail id and references out of its key', async () => {

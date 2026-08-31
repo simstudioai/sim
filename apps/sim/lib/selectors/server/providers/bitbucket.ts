@@ -8,6 +8,7 @@ import {
 } from '@/lib/selectors/server/errors'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
 import {
+  detailSelectorResult,
   type ExecuteServerSelectorArgs,
   listSelectorResult,
   requireListRequest,
@@ -68,6 +69,19 @@ const repositoryPageSchema = z.object({
     )
     .max(BITBUCKET_PAGE_SIZE),
   next: z.string().min(1).max(BITBUCKET_CURSOR_MAX_LENGTH).optional(),
+})
+
+const workspaceDetailSchema = z.object({
+  slug: workspaceSlugSchema,
+  uuid: bitbucketUuidSchema,
+  name: bitbucketNameSchema.optional(),
+})
+
+const repositoryDetailSchema = z.object({
+  slug: repositorySlugSchema.optional(),
+  uuid: bitbucketUuidSchema,
+  name: bitbucketNameSchema.optional(),
+  full_name: bitbucketNameSchema,
 })
 
 function requireCredential(args: ExecuteServerSelectorArgs) {
@@ -193,6 +207,65 @@ async function listWorkspaces(args: ExecuteServerSelectorArgs) {
   )
 }
 
+async function executeWorkspaces(args: ExecuteServerSelectorArgs) {
+  if (args.request.kind === 'list') return listWorkspaces(args)
+  const slug = requireWorkspaceSlug(args.request.id)
+  const accessToken = await getAccessToken(args)
+  const url = new URL(`/2.0/workspaces/${encodeURIComponent(slug)}`, BITBUCKET_API_ORIGIN)
+  url.searchParams.set('fields', 'slug,uuid,name')
+  const body = await fetchProviderJson<unknown>(url, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    redirect: 'error',
+    signal: args.signal,
+  })
+  const parsed = workspaceDetailSchema.safeParse(body)
+  if (!parsed.success || parsed.data.slug.toLowerCase() !== slug.toLowerCase()) {
+    throw new SelectorOptionsUnavailableError()
+  }
+  return detailSelectorResult({
+    id: parsed.data.slug,
+    label: parsed.data.name ?? parsed.data.slug,
+    meta: {
+      slug: parsed.data.slug,
+      uuid: parsed.data.uuid,
+      fullName: parsed.data.name ?? parsed.data.slug,
+    },
+  })
+}
+
+function normalizeRepository(
+  args: ExecuteServerSelectorArgs,
+  workspaceSlug: string,
+  repository: z.infer<typeof repositoryDetailSchema>
+) {
+  const separator = repository.full_name.indexOf('/')
+  if (separator <= 0 || separator !== repository.full_name.lastIndexOf('/')) {
+    throw new SelectorOptionsUnavailableError()
+  }
+  const responseWorkspace = repository.full_name.slice(0, separator)
+  const fullNameSlug = repository.full_name.slice(separator + 1)
+  const slug = repository.slug ?? fullNameSlug
+  if (
+    responseWorkspace.toLowerCase() !== workspaceSlug.toLowerCase() ||
+    slug !== fullNameSlug ||
+    !repositorySlugSchema.safeParse(slug).success
+  ) {
+    throw new SelectorOptionsUnavailableError()
+  }
+
+  return {
+    id: slug,
+    label: repository.name ?? slug,
+    meta: {
+      slug,
+      uuid: repository.uuid,
+      ...(!args.references.has('workspaceSlug')
+        ? { fullName: repository.full_name, workspaceSlug }
+        : {}),
+    },
+  }
+}
+
 async function listRepositories(args: ExecuteServerSelectorArgs) {
   const request = requireListRequest(args.selectorKey, args.request)
   const workspaceSlug = requireWorkspaceSlug(args.context.workspaceSlug)
@@ -210,40 +283,35 @@ async function listRepositories(args: ExecuteServerSelectorArgs) {
   const parsed = repositoryPageSchema.safeParse(body)
   if (!parsed.success) throw new SelectorOptionsUnavailableError()
 
-  const normalized = parsed.data.values.map((repository) => {
-    const separator = repository.full_name.indexOf('/')
-    if (separator <= 0 || separator !== repository.full_name.lastIndexOf('/')) {
-      throw new SelectorOptionsUnavailableError()
-    }
-    const responseWorkspace = repository.full_name.slice(0, separator)
-    const fullNameSlug = repository.full_name.slice(separator + 1)
-    const slug = repository.slug ?? fullNameSlug
-    if (
-      responseWorkspace.toLowerCase() !== workspaceSlug.toLowerCase() ||
-      slug !== fullNameSlug ||
-      !repositorySlugSchema.safeParse(slug).success
-    ) {
-      throw new SelectorOptionsUnavailableError()
-    }
-
-    const meta = {
-      slug,
-      uuid: repository.uuid,
-      ...(!args.references.has('workspaceSlug')
-        ? { fullName: repository.full_name, workspaceSlug }
-        : {}),
-    }
-    return {
-      id: slug,
-      label: repository.name ?? slug,
-      meta,
-    }
-  })
+  const normalized = parsed.data.values.map((repository) =>
+    normalizeRepository(args, workspaceSlug, repository)
+  )
 
   return listSelectorResult(
     normalized,
     parsed.data.next ? encodeNextCursor(parsed.data.next, path) : undefined
   )
+}
+
+async function executeRepositories(args: ExecuteServerSelectorArgs) {
+  if (args.request.kind === 'list') return listRepositories(args)
+  const workspaceSlug = requireWorkspaceSlug(args.context.workspaceSlug)
+  const repositorySlug = repositorySlugSchema.safeParse(args.request.id)
+  if (!repositorySlug.success) throw new SelectorContextUnavailableError()
+  const accessToken = await getAccessToken(args)
+  const url = new URL(
+    `/2.0/repositories/${encodeURIComponent(workspaceSlug)}/${encodeURIComponent(repositorySlug.data)}`,
+    BITBUCKET_API_ORIGIN
+  )
+  url.searchParams.set('fields', 'slug,uuid,name,full_name')
+  const body = await fetchProviderJson<unknown>(url, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    redirect: 'error',
+    signal: args.signal,
+  })
+  const parsed = repositoryDetailSchema.safeParse(body)
+  if (!parsed.success) throw new SelectorOptionsUnavailableError()
+  return detailSelectorResult(normalizeRepository(args, workspaceSlug, parsed.data))
 }
 
 const credential = {
@@ -256,11 +324,11 @@ export const bitbucketSelectorAttachments = {
   'bitbucket.workspaces': {
     credential,
     destination: 'fixed',
-    execute: listWorkspaces,
+    execute: executeWorkspaces,
   },
   'bitbucket.repositories': {
     credential,
     destination: 'fixed',
-    execute: listRepositories,
+    execute: executeRepositories,
   },
 } satisfies ServerSelectorAttachmentMap<BitbucketSelectorKey>

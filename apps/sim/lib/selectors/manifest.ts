@@ -102,10 +102,11 @@ export const selectorManifest = {
     readiness: { all: ['oauthCredential', 'projectId', 'datasetId'] },
     detail: true,
   }),
-  'bitbucket.workspaces': providerSelector([], { listMode: 'paginated' }),
+  'bitbucket.workspaces': providerSelector([], { listMode: 'paginated', detail: true }),
   'bitbucket.repositories': providerSelector(['workspaceSlug'], {
     readiness: { all: ['oauthCredential', 'workspaceSlug'] },
     listMode: 'paginated',
+    detail: true,
   }),
   'calcom.eventTypes': providerSelector([], { detail: true }),
   'calcom.schedules': providerSelector([], { detail: true }),
@@ -133,10 +134,17 @@ export const selectorManifest = {
     search: true,
     detail: true,
   }),
-  'google.tasks.lists': providerSelector(['impersonateUserEmail'], { detail: true }),
+  'google.tasks.lists': providerSelector(['impersonateUserEmail'], {
+    listMode: 'paginated',
+    detail: true,
+  }),
   'gmail.labels': providerSelector(['impersonateUserEmail']),
-  'google.calendar': providerSelector(['impersonateUserEmail']),
+  'google.calendar': providerSelector(['impersonateUserEmail'], {
+    listMode: 'paginated',
+    detail: true,
+  }),
   'google.drive': providerSelector(['mimeType', 'fileId', 'impersonateUserEmail'], {
+    listMode: 'paginated',
     search: true,
     detail: true,
     staleTime: SEARCH_SELECTOR_STALE_TIME,
@@ -160,7 +168,7 @@ export const selectorManifest = {
     readiness: { all: ['oauthCredential', 'domain'] },
     detail: true,
   }),
-  'microsoft.planner.plans': providerSelector([], { detail: true }),
+  'microsoft.planner.plans': providerSelector([], { listMode: 'paginated', detail: true }),
   'notion.databases': providerSelector([], { detail: true }),
   'notion.pages': providerSelector([], { detail: true }),
   'netsuite.recordTypes': providerSelector(['jobId'], {
@@ -185,7 +193,7 @@ export const selectorManifest = {
   'zoho_desk.agents': providerSelector(['orgId'], {
     readiness: { all: ['oauthCredential', 'orgId'] },
   }),
-  'zoom.meetings': providerSelector([], { detail: true }),
+  'zoom.meetings': providerSelector([], { listMode: 'paginated', detail: true }),
   'slack.channels': providerSelector([], {
     sourceFields: { oauthCredential: ['botToken'] },
   }),
@@ -224,29 +232,41 @@ export const selectorManifest = {
   'slack.users': providerSelector([], {
     sourceFields: { oauthCredential: ['botToken'] },
   }),
-  'outlook.folders': providerSelector(),
-  'outlook.calendars': providerSelector(),
-  'microsoft.teams': providerSelector(),
-  'microsoft.chats': providerSelector(),
+  'outlook.folders': providerSelector([], { listMode: 'paginated', detail: true }),
+  'outlook.calendars': providerSelector([], { listMode: 'paginated', detail: true }),
+  'microsoft.teams': providerSelector([], { listMode: 'paginated', detail: true }),
+  'microsoft.chats': providerSelector([], { listMode: 'paginated', detail: true }),
   'microsoft.channels': providerSelector(['teamId'], {
     readiness: { all: ['oauthCredential', 'teamId'] },
+    listMode: 'paginated',
+    detail: true,
   }),
   'microsoft.planner': providerSelector(['planId'], {
     readiness: { all: ['oauthCredential', 'planId'] },
+    listMode: 'paginated',
     detail: true,
   }),
-  'onedrive.files': providerSelector(),
-  'onedrive.folders': providerSelector(['driveId']),
+  'onedrive.files': providerSelector([], { listMode: 'paginated', detail: true }),
+  'onedrive.folders': providerSelector(['driveId'], { listMode: 'paginated', detail: true }),
   'sharepoint.sites': providerSelector([], { detail: true }),
-  'microsoft.excel': providerSelector(['driveId'], { search: true }),
+  'microsoft.excel': providerSelector(['driveId'], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
   'microsoft.excel.drives': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
+    listMode: 'paginated',
     detail: true,
   }),
   'microsoft.excel.sheets': providerSelector(['driveId', 'spreadsheetId'], {
     readiness: { all: ['oauthCredential', 'spreadsheetId'] },
   }),
-  'microsoft.word': providerSelector(['driveId'], { search: true }),
+  'microsoft.word': providerSelector(['driveId'], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
   'wealthbox.contacts': providerSelector([], { search: true }),
   'jira.issues': providerSelector(['domain', 'projectId'], {
     readiness: { all: ['oauthCredential', 'domain'] },
@@ -256,13 +276,16 @@ export const selectorManifest = {
   }),
   'jira.projects': providerSelector(['domain'], {
     readiness: { all: ['oauthCredential', 'domain'] },
+    listMode: 'paginated',
     search: true,
     detail: true,
   }),
   'linear.projects': providerSelector(['teamId'], {
     readiness: { all: ['oauthCredential', 'teamId'] },
+    listMode: 'paginated',
+    detail: true,
   }),
-  'linear.teams': providerSelector(),
+  'linear.teams': providerSelector([], { listMode: 'paginated', detail: true }),
   'monday.boards': providerSelector([], { detail: true }),
   'monday.groups': providerSelector(['boardId'], {
     readiness: { all: ['oauthCredential', 'boardId'] },
