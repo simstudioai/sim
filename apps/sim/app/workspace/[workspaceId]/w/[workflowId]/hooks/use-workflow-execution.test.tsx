@@ -11,6 +11,7 @@ const {
   mockCancel,
   mockAdoptScopedExecution,
   mockBeginScopedExecution,
+  mockClearExecutionPointer,
   mockEndScopedExecution,
   mockExecute,
   mockExecuteFromBlock,
@@ -91,6 +92,7 @@ const {
     mockCancel: vi.fn(),
     mockAdoptScopedExecution: vi.fn(),
     mockBeginScopedExecution: vi.fn(() => ({})),
+    mockClearExecutionPointer: vi.fn(),
     mockEndScopedExecution: vi.fn(() => true),
     mockExecute: vi.fn(),
     mockExecuteFromBlock: vi.fn(),
@@ -245,7 +247,7 @@ vi.mock('@/stores/execution', () => ({
 }))
 
 vi.mock('@/stores/terminal', () => ({
-  clearExecutionPointer: vi.fn(),
+  clearExecutionPointer: mockClearExecutionPointer,
   consolePersistence: {
     adoptScopedExecution: mockAdoptScopedExecution,
     beginScopedExecution: mockBeginScopedExecution,
@@ -625,6 +627,54 @@ describe('useWorkflowExecution attachment uploads', () => {
     expect(mockBeginScopedExecution).not.toHaveBeenCalled()
     expect(mockAdoptScopedExecution).toHaveBeenCalledWith('workflow-1')
     expect(mockEndScopedExecution).toHaveBeenCalledWith('workflow-1', persistenceExecution)
+
+    unmount()
+  })
+
+  it('releases only its persistence ownership when a reconnect retry is superseded', async () => {
+    const persistenceExecution = {}
+    terminalStoreState._hasHydrated = true
+    executionStoreState.getWorkflowExecution.mockReturnValue({
+      ...executionStoreState.getWorkflowExecution(),
+      status: 'running',
+      isExecuting: true,
+      currentExecutionId: 'execution-1',
+    })
+    executionStoreState.getCurrentExecutionId.mockReturnValue('execution-1')
+    mockLoadExecutionPointer.mockResolvedValue({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      lastEventId: 0,
+    })
+    mockAdoptScopedExecution.mockReturnValue(persistenceExecution)
+    mockReconnect.mockImplementationOnce(async ({ callbacks }) => {
+      callbacks.onBlockStarted({
+        blockId: 'start',
+        blockName: 'Start',
+        blockType: 'starter',
+        executionOrder: 1,
+      })
+      executionStoreState.getWorkflowExecution.mockReturnValue({
+        ...executionStoreState.getWorkflowExecution(),
+        status: 'running',
+        isExecuting: true,
+        currentExecutionId: 'execution-2',
+      })
+      executionStoreState.getCurrentExecutionId.mockReturnValue('execution-2')
+      throw new Error('Reconnect failed after replacement started')
+    })
+
+    const { unmount } = renderWorkflowExecutionHook()
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockEndScopedExecution).toHaveBeenCalledWith('workflow-1', persistenceExecution)
+    expect(executionStoreState.setCurrentExecutionId).not.toHaveBeenCalledWith('workflow-1', null)
+    expect(executionStoreState.setIsExecuting).not.toHaveBeenCalledWith('workflow-1', false)
+    expect(executionStoreState.setActiveBlocks).not.toHaveBeenCalled()
+    expect(mockClearExecutionPointer).not.toHaveBeenCalled()
 
     unmount()
   })

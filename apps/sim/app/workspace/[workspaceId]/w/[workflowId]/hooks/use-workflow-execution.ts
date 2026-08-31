@@ -2425,6 +2425,13 @@ export function useWorkflowExecution() {
       let activated = false
       let activationOwnsPersistence = false
       let reconnectPersistenceExecution: ConsolePersistenceExecution | undefined
+      const releaseReconnectPersistenceOwnership = () => {
+        const persistenceExecution = reconnectPersistenceExecution
+        reconnectPersistenceExecution = undefined
+        activationOwnsPersistence = false
+        if (!persistenceExecution) return
+        consolePersistence.endScopedExecution(reconnectWorkflowId, persistenceExecution)
+      }
       const isReconnectStillCurrent = canReconnectClaimWorkflow
       const finishReconnectExecution = () => {
         if (reconnectPersistenceExecution) {
@@ -2440,12 +2447,16 @@ export function useWorkflowExecution() {
         if (ownedReconnectExecutionId) {
           executionStream.cancelReconnect(reconnectWorkflowId, ownedReconnectExecutionId)
         }
+        releaseReconnectPersistenceOwnership()
         releaseReconnectOwnership()
       }
       const releaseActivatedReconnectState = () => {
         if (!activated) return
         const currentId = useExecutionStore.getState().getCurrentExecutionId(reconnectWorkflowId)
-        if (currentId !== capturedExecutionId) return
+        if (currentId !== capturedExecutionId) {
+          releaseReconnectPersistenceOwnership()
+          return
+        }
         setCurrentExecutionId(reconnectWorkflowId, null)
         if (activationOwnsPersistence) finishReconnectExecution()
         else rawSetIsExecuting(reconnectWorkflowId, false)
@@ -2456,7 +2467,10 @@ export function useWorkflowExecution() {
           .getState()
           .getWorkflowExecution(reconnectWorkflowId)
         const currentId = executionState?.currentExecutionId ?? null
-        if (currentId && currentId !== capturedExecutionId) return
+        if (currentId && currentId !== capturedExecutionId) {
+          releaseReconnectPersistenceOwnership()
+          return
+        }
         handleExecutionErrorConsole({
           workflowId: reconnectWorkflowId,
           executionId: capturedExecutionId,
@@ -2470,9 +2484,12 @@ export function useWorkflowExecution() {
       const scheduleRetryableReconnect = () => {
         releaseReconnectOwnership()
         retryTimeoutId = setTimeout(() => {
-          if (!cleanupRan && !reconnectionComplete) {
-            setReconnectAttemptNonce((nonce) => nonce + 1)
+          if (cleanupRan || reconnectionComplete) return
+          if (!isReconnectStillCurrent()) {
+            stopStaleReconnect()
+            return
           }
+          setReconnectAttemptNonce((nonce) => nonce + 1)
         }, MAX_DELAY_MS)
       }
       const ensureActivated = () => {
@@ -2509,6 +2526,10 @@ export function useWorkflowExecution() {
           const delay = Math.min(BASE_DELAY_MS * 2 ** (attempt - 1), MAX_DELAY_MS)
           await sleep(delay)
           if (cleanupRan || reconnectionComplete) return
+          if (!isReconnectStillCurrent()) {
+            stopStaleReconnect()
+            return
+          }
         }
 
         try {
@@ -2543,7 +2564,10 @@ export function useWorkflowExecution() {
                 const currentId = useExecutionStore
                   .getState()
                   .getCurrentExecutionId(reconnectWorkflowId)
-                if (currentId !== capturedExecutionId) return
+                if (currentId !== capturedExecutionId) {
+                  releaseReconnectPersistenceOwnership()
+                  return
+                }
                 reconcileFinalBlockLogs(
                   updateConsole,
                   reconnectWorkflowId,
@@ -2562,7 +2586,10 @@ export function useWorkflowExecution() {
                 const currentId = useExecutionStore
                   .getState()
                   .getCurrentExecutionId(reconnectWorkflowId)
-                if (currentId !== capturedExecutionId) return
+                if (currentId !== capturedExecutionId) {
+                  releaseReconnectPersistenceOwnership()
+                  return
+                }
                 reconcileFinalBlockLogs(
                   updateConsole,
                   reconnectWorkflowId,
@@ -2591,7 +2618,10 @@ export function useWorkflowExecution() {
                 const currentId = useExecutionStore
                   .getState()
                   .getCurrentExecutionId(reconnectWorkflowId)
-                if (currentId !== capturedExecutionId) return
+                if (currentId !== capturedExecutionId) {
+                  releaseReconnectPersistenceOwnership()
+                  return
+                }
                 handleExecutionErrorConsole({
                   workflowId: reconnectWorkflowId,
                   executionId: capturedExecutionId,
@@ -2611,7 +2641,10 @@ export function useWorkflowExecution() {
                 const currentId = useExecutionStore
                   .getState()
                   .getCurrentExecutionId(reconnectWorkflowId)
-                if (currentId !== capturedExecutionId) return
+                if (currentId !== capturedExecutionId) {
+                  releaseReconnectPersistenceOwnership()
+                  return
+                }
                 handleExecutionCancelledConsole({
                   workflowId: reconnectWorkflowId,
                   executionId: capturedExecutionId,
@@ -2625,6 +2658,10 @@ export function useWorkflowExecution() {
             },
           })
         } catch (error) {
+          if (!isReconnectStillCurrent()) {
+            stopStaleReconnect()
+            return
+          }
           if (isReconnectNonRetryable(error)) {
             logger.info('Reconnection skipped; run buffer no longer exists', {
               executionId: capturedExecutionId,
