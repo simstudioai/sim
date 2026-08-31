@@ -947,6 +947,23 @@ describe('VariableResolver function block inputs', () => {
     expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_1"]) + '')`)
   })
 
+  it('does not read a method named after a keyword as a control-flow head', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: `const n = params.p.catch(() => 0) / 2 + Number('<producer.result>')` },
+      block
+    )
+
+    // `.catch(…)` is a call, so the slash after it divides — it must not open a regex that
+    // runs over the quotes around the reference.
+    expect(result.resolvedInputs.code).toContain(
+      `Number('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`
+    )
+  })
+
   it('binds a workflow variable carrying quote characters instead of splicing it into code', async () => {
     // A Variables block can assign trigger data at runtime, so a variable's value is not
     // necessarily the author's. Inlined as a literal it closed the string it landed in.

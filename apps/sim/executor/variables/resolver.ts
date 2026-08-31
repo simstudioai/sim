@@ -1191,7 +1191,17 @@ export class VariableResolver {
     while (start > 0 && this.isJavaScriptIdentifierChar(template[start - 1])) {
       start--
     }
-    return CONTROL_FLOW_HEAD_KEYWORDS.has(template.slice(start, end))
+    if (!CONTROL_FLOW_HEAD_KEYWORDS.has(template.slice(start, end))) {
+      return false
+    }
+
+    // `p.catch(fn)` is a method call whose name happens to be a keyword, and what follows its
+    // `)` is an operator, not a statement. A control-flow head can never be a property access.
+    let before = start
+    while (before > 0 && WHITESPACE_CHAR.test(template[before - 1])) {
+      before--
+    }
+    return template[before - 1] !== '.'
   }
 
   private matchesKeywordAt(template: string, index: number, keyword: string): boolean {
