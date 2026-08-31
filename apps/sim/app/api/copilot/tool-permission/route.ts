@@ -81,9 +81,27 @@ async function applyDecision(
    * runs the tool the user just allowed — only the memory of it is refused, so
    * the next call prompts again. Not a 403: the answer to *this* prompt was
    * legitimate, and failing the request would strand the waiting orchestrator.
+   *
+   * A failed lookup reads as withheld for the same reason, rather than throwing
+   * past the publish below. The row is already claimed by the time this runs,
+   * so an exception here answers 500 while leaving the decision unpublished —
+   * and the retry lands on the already-answered branch, which deliberately does
+   * not republish, so the turn waits out its permission timeout over a database
+   * hiccup. Withholding is also the fail-closed reading of the capability: the
+   * always-allow is simply not remembered, and the user is asked again.
    */
   const mayRemember = run.workspaceId
-    ? !(await isWorkspaceCapabilityWithheld(userId, run.workspaceId, 'copilot.tool_auto_approval'))
+    ? !(await isWorkspaceCapabilityWithheld(
+        userId,
+        run.workspaceId,
+        'copilot.tool_auto_approval'
+      ).catch((err) => {
+        logger.warn('Could not resolve the tool auto-approval capability; not remembering', {
+          toolCallId,
+          error: getErrorMessage(err),
+        })
+        return true
+      }))
     : true
 
   // Best-effort: failing to remember the preference must not block the tool the

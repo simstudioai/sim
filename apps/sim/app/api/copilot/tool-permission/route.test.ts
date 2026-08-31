@@ -175,6 +175,32 @@ describe('Copilot tool permission API', () => {
       }
     )
 
+    /**
+     * The row is claimed before this lookup runs, so a rejection that escaped
+     * would answer 500 with the decision unpublished — and the retry lands on
+     * the already-answered branch, which does not republish, leaving the turn
+     * to wait out its permission timeout.
+     */
+    it('answers the prompt when the lookup itself fails, remembering nothing', async () => {
+      getUserPermissionConfig.mockRejectedValue(new Error('permission group lookup failed'))
+      recordToolPermissionDecision.mockResolvedValueOnce({
+        toolCallId: 'tool-1',
+        runId: 'run-1',
+        toolName: 'run_workflow',
+        status: 'pending',
+        permissionDecision: 'always_allow',
+        permissionDecidedAt: new Date('2026-08-01T00:00:00.000Z'),
+      })
+
+      const response = await POST(createRequest('always_allow'))
+
+      expect(response.status).toBe(200)
+      expect(publishToolPermissionDecision).toHaveBeenCalledWith(
+        expect.objectContaining({ toolCallId: 'tool-1', decision: 'always_allow' })
+      )
+      expect(addAutoAllowedTool).not.toHaveBeenCalled()
+    })
+
     it('remembers it again once the group allows it', async () => {
       getUserPermissionConfig.mockResolvedValue({ disableToolAutoApproval: false })
       recordToolPermissionDecision.mockResolvedValueOnce({

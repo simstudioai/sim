@@ -1060,20 +1060,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
 
     const body = ChatMessageSchema.parse(await req.json())
 
-    /**
-     * permission-group-enforced: copilot.use — Chat is a raw handler rather
-     * than a workspace operation, so the authorization funnel never sees it.
-     * Checked before the send is claimed or a run is created, which also
-     * settles the resume stream: with no run there is nothing to replay. A
-     * request naming no workspace is governed by no group.
-     */
-    if (
-      body.workspaceId &&
-      (await isWorkspaceCapabilityWithheld(authenticatedUserId, body.workspaceId, 'copilot.use'))
-    ) {
-      return createForbiddenResponse(capabilityRefusal('copilot.use'))
-    }
-
     const userMetadata = {
       ...(authenticatedUserName ? { name: authenticatedUserName } : {}),
       ...(authenticatedUserEmail ? { email: authenticatedUserEmail } : {}),
@@ -1140,6 +1126,37 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, branch.status)
         activeOtelRoot.finish('error')
         return branch
+      }
+
+      /**
+       * permission-group-enforced: copilot.use — Chat is a raw handler rather
+       * than a workspace operation, so the authorization funnel never sees it.
+       *
+       * Gated on the workspace the turn actually lands in, which is the one
+       * `resolveBranch` just resolved rather than the one the request asked
+       * for. A send naming `workflowId` resolves the workflow's own workspace
+       * and ignores any `workspaceId` beside it, so reading the request's copy
+       * would aim the check at a workspace the chat never touches — or, with
+       * no `workspaceId` sent at all, skip it entirely. A branch that resolves
+       * no workspace is governed by no group.
+       *
+       * Still ahead of everything durable: no chat is resolved, no pending
+       * stream lock is taken and no run is created, which also settles the
+       * resume stream — with no run there is nothing to replay. The send claim
+       * taken above is released by the `finally`, so a refused send leaves a
+       * later retry free to start a turn.
+       */
+      if (
+        branch.workspaceId &&
+        (await isWorkspaceCapabilityWithheld(
+          authenticatedUserId,
+          branch.workspaceId,
+          'copilot.use'
+        ))
+      ) {
+        activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 403)
+        activeOtelRoot.finish('error')
+        return createForbiddenResponse(capabilityRefusal('copilot.use'))
       }
 
       let currentChat: ChatLoadResult['chat'] = null
