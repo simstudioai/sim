@@ -42,6 +42,7 @@ interface SearchWorkspaceFileIndexInput {
   query: string
   maxResults: number
   caseSensitive: boolean
+  signal?: AbortSignal
 }
 
 export async function searchWorkspaceFileIndex({
@@ -49,7 +50,9 @@ export async function searchWorkspaceFileIndex({
   query,
   maxResults,
   caseSensitive,
+  signal,
 }: SearchWorkspaceFileIndexInput): Promise<WorkspaceFileSearchResult> {
+  signal?.throwIfAborted()
   const escapedPattern = `%${escapeFileSearchLikePattern(query)}%`
   const matchExpression = caseSensitive
     ? sql`${workspaceFileSearchSegment.content} LIKE ${escapedPattern} ESCAPE '\\'`
@@ -110,6 +113,7 @@ export async function searchWorkspaceFileIndex({
     )
     .limit(maxResults + 1)
 
+  signal?.throwIfAborted()
   const coverageRows = await db
     .select({
       readyFiles: sql<number>`count(*) filter (where ${workspaceFileSearchIndex.status} = 'ready')::int`,
@@ -134,6 +138,7 @@ export async function searchWorkspaceFileIndex({
       )
     )
 
+  signal?.throwIfAborted()
   const resultRows = rows.slice(0, maxResults)
   const indexStatus = coverageRows[0] ?? {
     readyFiles: 0,
@@ -163,6 +168,7 @@ export async function searchWorkspaceFileIndex({
       suffixOmitted: row.segmentStart + row.content.length < row.lineLength,
     }),
   }))
+  signal?.throwIfAborted()
   return {
     results,
     count: results.length,

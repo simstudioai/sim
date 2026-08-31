@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   createFileSearchPreview,
   escapeFileSearchLikePattern,
@@ -49,6 +49,22 @@ describe('workspace file search text utilities', () => {
 
     expect(preview).toContain('needle')
     expect(Buffer.byteLength(preview, 'utf8')).toBeLessThanOrEqual(2048)
+  })
+
+  it('centers previews with locale-independent case folding', () => {
+    const localeLowerCase = vi
+      .spyOn(String.prototype, 'toLocaleLowerCase')
+      .mockImplementation(function (this: string) {
+        return String(this).replaceAll('I', 'ı').toLowerCase()
+      })
+
+    try {
+      const line = `${'x'.repeat(1500)}I${'y'.repeat(1500)}`
+      const preview = createFileSearchPreview(line, 'i', false, 128)
+      expect(preview).toContain('I')
+    } finally {
+      localeLowerCase.mockRestore()
+    }
   })
 
   it('shows omitted logical-line content beyond the selected segment', () => {

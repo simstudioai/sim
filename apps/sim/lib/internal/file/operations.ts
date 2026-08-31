@@ -345,8 +345,10 @@ async function bindSelectedContentFile(
 export async function getFileContentProvenance(
   principal: Principal,
   workspaceId: string,
-  sources: readonly FileContentProvenanceSource[]
+  sources: readonly FileContentProvenanceSource[],
+  signal?: AbortSignal
 ): Promise<ResolvedSecretTraceProvenanceV1> {
+  signal?.throwIfAborted()
   const ownerIds = new Set(
     sources
       .map((source) => source.ownerUserId)
@@ -359,6 +361,7 @@ export async function getFileContentProvenance(
   const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
 
   for (const source of sources) {
+    signal?.throwIfAborted()
     if (!source.identity || !source.ownerUserId) {
       accumulator.markIncomplete('file-source-unidentified')
       continue
@@ -371,6 +374,7 @@ export async function getFileContentProvenance(
         expectedContentUpdatedAt: source.identity.contentUpdatedAt,
       },
     })
+    signal?.throwIfAborted()
     /**
      * `unrecorded` is a more specific `unknown`, and this accumulator has not opted into the
      * workspace file surface's policy, so it latches exactly as it did before.
@@ -766,7 +770,7 @@ export async function executeFileManageOperation(
 
         logger.info('File content extracted', { count: contents.length })
         const provenance = includePrivateContentProvenance
-          ? await getFileContentProvenance(principal, workspaceId, sources)
+          ? await getFileContentProvenance(principal, workspaceId, sources, signal)
           : undefined
 
         return contentResponse({ success: true, data: { contents } }, undefined, provenance)

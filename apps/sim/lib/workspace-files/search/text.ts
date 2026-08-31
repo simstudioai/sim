@@ -120,8 +120,8 @@ function findFileSearchMatchRange(
     return { start, end: Math.min(line.length, start + query.length) }
   }
 
-  const searchableLine = line.toLocaleLowerCase()
-  const searchableQuery = query.toLocaleLowerCase()
+  const searchableLine = line.toLowerCase()
+  const searchableQuery = query.toLowerCase()
   const foldedStart = searchableLine.indexOf(searchableQuery)
   if (foldedStart < 0) return { start: 0, end: Math.min(line.length, query.length) }
 
@@ -131,7 +131,7 @@ function findFileSearchMatchRange(
     const codePoint = line.codePointAt(offset)
     if (codePoint === undefined) break
     const character = String.fromCodePoint(codePoint)
-    const foldedCharacter = character.toLocaleLowerCase()
+    const foldedCharacter = character.toLowerCase()
     const end = offset + character.length
     for (let foldedOffset = 0; foldedOffset < foldedCharacter.length; foldedOffset += 1) {
       originalStarts.push(offset)

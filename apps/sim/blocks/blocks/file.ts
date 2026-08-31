@@ -1254,7 +1254,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         const operation = params.operation || 'file_read'
 
         if (operation === 'file_search') {
-          const maxResults = Number(params.maxResults ?? '50')
+          const maxResultsInput =
+            params.maxResults == null || params.maxResults === '' ? 50 : params.maxResults
+          const maxResults = Number(maxResultsInput)
           if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > 200) {
             throw new Error('Maximum Results must be an integer between 1 and 200')
           }

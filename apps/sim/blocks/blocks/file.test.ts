@@ -83,6 +83,16 @@ describe('FileV5Block', () => {
     expect(maxResults?.value?.()).toBe('50')
   })
 
+  it('uses the default search cap when the builder field is cleared', () => {
+    expect(
+      buildParams({
+        operation: 'file_search',
+        query: 'needle',
+        maxResults: '',
+      })
+    ).toEqual({ query: 'needle', maxResults: 50 })
+  })
+
   it.each(['10.5', '10results', '0', '201'])(
     'rejects invalid builder-configured search cap %s',
     (maxResults) => {

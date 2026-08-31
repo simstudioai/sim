@@ -9,10 +9,13 @@ export interface SearchWorkspaceFileContentInput {
   workspaceId: string
   query: string
   maxResults: number
+  signal?: AbortSignal
 }
 
-async function resolveSearchWorkspaceFileContext(workspaceId: string) {
-  const workspace = await loadActiveWorkspaceContext(workspaceId)
+async function resolveSearchWorkspaceFileContext(input: SearchWorkspaceFileContentInput) {
+  input.signal?.throwIfAborted()
+  const workspace = await loadActiveWorkspaceContext(input.workspaceId)
+  input.signal?.throwIfAborted()
   if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
   return workspace
 }
@@ -20,12 +23,13 @@ async function resolveSearchWorkspaceFileContext(workspaceId: string) {
 export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.searchContent,
   resolveContext: ({ input }: { input: SearchWorkspaceFileContentInput }) =>
-    resolveSearchWorkspaceFileContext(input.workspaceId),
+    resolveSearchWorkspaceFileContext(input),
   execute: ({ input, context }) =>
     searchWorkspaceFileIndex({
       workspaceId: context.workspaceId,
       query: input.query,
       maxResults: input.maxResults,
       caseSensitive: isFileSearchCaseSensitive(input.query),
+      signal: input.signal,
     }),
 })

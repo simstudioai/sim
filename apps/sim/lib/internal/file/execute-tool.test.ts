@@ -70,6 +70,26 @@ const BILLING_ATTRIBUTION = {
   payerSubscription: null,
 } satisfies BillingAttributionSnapshot
 
+const SEARCH_RESULT = {
+  results: [{ fileId: 'file-1', lineNumber: 2, text: 'needle' }],
+  count: 1,
+  truncated: false,
+  complete: true,
+  indexStatus: {
+    readyFiles: 1,
+    pendingFiles: 0,
+    failedFiles: 0,
+    skippedFiles: 0,
+    partialFiles: 0,
+  },
+  sources: [
+    {
+      identity: { fileId: 'file-1', key: 'workspace/workspace-1/file.txt' },
+      ownerUserId: 'user-1',
+    },
+  ],
+}
+
 function request(
   toolId: string,
   input: unknown,
@@ -109,25 +129,7 @@ describe('executeFileTool', () => {
     })
     mocks.executeManage.mockResolvedValue(Response.json({ success: true }))
     mocks.executeParser.mockResolvedValue(Response.json({ success: true }))
-    mocks.searchContent.mockResolvedValue({
-      results: [{ fileId: 'file-1', lineNumber: 2, text: 'needle' }],
-      count: 1,
-      truncated: false,
-      complete: true,
-      indexStatus: {
-        readyFiles: 1,
-        pendingFiles: 0,
-        failedFiles: 0,
-        skippedFiles: 0,
-        partialFiles: 0,
-      },
-      sources: [
-        {
-          identity: { fileId: 'file-1', key: 'workspace/workspace-1/file.txt' },
-          ownerUserId: 'user-1',
-        },
-      ],
-    })
+    mocks.searchContent.mockResolvedValue(SEARCH_RESULT)
     mocks.getProvenance.mockResolvedValue({ version: 1, complete: true, entries: [] })
   })
 
@@ -146,7 +148,7 @@ describe('executeFileTool', () => {
     })
     expect(mocks.searchContent).toHaveBeenCalledWith({
       principal: expect.objectContaining({ serviceId: 'executor' }),
-      input: { workspaceId: 'workspace-1', query: 'needle', maxResults: 25 },
+      input: { workspaceId: 'workspace-1', query: 'needle', maxResults: 25, signal: undefined },
     })
     expect(mocks.executeManage).not.toHaveBeenCalled()
   })
@@ -176,7 +178,8 @@ describe('executeFileTool', () => {
         expect.objectContaining({
           identity: expect.objectContaining({ fileId: 'file-1' }),
         }),
-      ])
+      ]),
+      undefined
     )
     const body = await response.json()
     expect(body.data.sources).toBeUndefined()
@@ -205,6 +208,47 @@ describe('executeFileTool', () => {
       success: false,
       error: 'Failed to search workspace files',
     })
+  })
+
+  it('propagates cancellation that arrives while search work is running', async () => {
+    const controller = new AbortController()
+    mocks.searchContent.mockImplementationOnce(async () => {
+      controller.abort(new DOMException('cancelled', 'AbortError'))
+      return SEARCH_RESULT
+    })
+
+    await expect(
+      executeFileTool(request('file_search', { query: 'needle' }, { signal: controller.signal }))
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mocks.searchContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ signal: controller.signal }),
+      })
+    )
+    expect(mocks.getProvenance).not.toHaveBeenCalled()
+  })
+
+  it('propagates cancellation that arrives while search provenance is loading', async () => {
+    const controller = new AbortController()
+    mocks.getProvenance.mockImplementationOnce(async () => {
+      controller.abort(new DOMException('cancelled', 'AbortError'))
+      return { version: 1, complete: true, entries: [] }
+    })
+
+    await expect(
+      executeFileTool(
+        request(
+          'file_search',
+          { query: 'needle' },
+          {
+            signal: controller.signal,
+            headers: new Headers({
+              'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
+            }),
+          }
+        )
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it.each(Object.entries(MANAGE_INPUTS))('validates and dispatches %s', async (toolId, input) => {

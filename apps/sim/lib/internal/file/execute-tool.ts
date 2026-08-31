@@ -107,16 +107,19 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
           workspaceId,
           query: searchInput.data.query,
           maxResults: searchInput.data.maxResults,
+          signal: request.signal,
         },
       })
+      request.signal?.throwIfAborted()
       const { sources, ...data } = result
       const includePrivateProvenance = requestsPrivateToolMetadata(
         request.headers,
         RESOLVED_SECRET_PROVENANCE_METADATA_V1
       )
       const provenance = includePrivateProvenance
-        ? await getFileContentProvenance(principal, workspaceId, sources)
+        ? await getFileContentProvenance(principal, workspaceId, sources, request.signal)
         : undefined
+      request.signal?.throwIfAborted()
       return fileContentJsonResponse(
         { success: true, data },
         includePrivateProvenance,
