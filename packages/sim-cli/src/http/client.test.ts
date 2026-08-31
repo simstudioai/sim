@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { sleep } from '../helpers'
-import { USER_AGENT } from '../version'
+import { userAgent } from '../version'
 import {
   formatApiErrorDetails,
   redirectEndpoint,
@@ -496,10 +496,10 @@ describe('request identity', () => {
     await client().request('/api/v2/workflows')
 
     const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
-    expect(headers['user-agent']).toBe(USER_AGENT)
-    expect(USER_AGENT).toMatch(/^sim-cli\/\d+\.\d+\.\d+/)
-    expect(USER_AGENT).toContain(`node/${process.versions.node}`)
-    expect(USER_AGENT).toContain(process.platform)
+    expect(headers['user-agent']).toBe(userAgent())
+    expect(userAgent()).toMatch(/^sim-cli\/\d+\.\d+\.\d+/)
+    expect(userAgent()).toContain(`node/${process.versions.node}`)
+    expect(userAgent()).toContain(process.platform)
   })
 })
 

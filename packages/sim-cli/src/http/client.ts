@@ -1,6 +1,6 @@
 import chalk from 'chalk'
 import type { ResolvedProfile } from '../config/index'
-import { USER_AGENT } from '../version'
+import { userAgent } from '../version'
 import { warnIfKeyOverCleartext, warnIfProxyIgnored } from './environment'
 
 /**
@@ -511,7 +511,7 @@ export class SimClient {
         headers: {
           ...(apiKey ? { 'x-api-key': apiKey } : {}),
           accept: 'application/json',
-          'user-agent': USER_AGENT,
+          'user-agent': userAgent(),
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
           ...options.headers,
         },
