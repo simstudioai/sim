@@ -2133,7 +2133,16 @@ export function useChat(
           streamReaderRef.current = null
         }
       }
-      return { sawStreamError: state.sawStreamError, sawComplete: state.sawCompleteEvent }
+      // The server's verdict priority (its backendFinishedTurn rule): a terminal
+      // complete{status:complete} outranks any non-fatal mid-stream error frame —
+      // subagent hiccups the orchestrator recovered from are inline content, not the
+      // turn's outcome. Conversely complete{status:error} is an error even when no
+      // error frame preceded it. Deciding here means every consumer (send path,
+      // reconnect replay, live tail) inherits the same rule.
+      const terminalStatus = state.completionStatus
+      const settledError =
+        terminalStatus === 'complete' ? false : state.sawStreamError || terminalStatus === 'error'
+      return { sawStreamError: settledError, sawComplete: state.sawCompleteEvent }
     },
     [
       workspaceId,

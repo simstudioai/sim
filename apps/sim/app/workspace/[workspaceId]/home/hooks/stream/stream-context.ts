@@ -68,6 +68,8 @@ export interface StreamLoopState {
   streamRequestId: string | undefined
   sawStreamError: boolean
   sawCompleteEvent: boolean
+  /** The terminal complete frame's status — the SERVER's verdict on the turn. */
+  completionStatus: 'complete' | 'error' | 'cancelled' | null
   browserAgentRunIds: Set<string>
   scheduledTextFlushFrame: number | null
   /** Trailing timer for the min-interval text-flush gate (see flushText). */
@@ -209,6 +211,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     streamRequestId: undefined,
     sawStreamError: false,
     sawCompleteEvent: false,
+    completionStatus: null,
     browserAgentRunIds: new Set(),
     scheduledTextFlushFrame: null,
     scheduledTextFlushTimer: null,
