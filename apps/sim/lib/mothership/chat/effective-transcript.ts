@@ -13,7 +13,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import { isTerminalStreamStatus } from '@/lib/mothership/request/session'
+import { isTerminalStreamStatus } from '@/lib/mothership/request/session/contract'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import {
