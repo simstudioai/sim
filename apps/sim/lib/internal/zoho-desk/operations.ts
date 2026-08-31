@@ -37,6 +37,7 @@ export async function getZohoDeskAttachment(
   }
 
   const response = await secureFetchWithValidation(downloadUrl.toString(), {
+    profile: 'contentFetch',
     method: 'GET',
     headers: buildZohoDeskHeaders({ accessToken: input.accessToken, orgId: input.orgId }),
     timeout: 30_000,

@@ -307,6 +307,7 @@ async function requestAccessToken(
   const response = await secureFetchWithValidation(
     tokenUrl,
     {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -426,6 +427,7 @@ export async function invokeSapConcur(
   const response = await secureFetchWithValidation(
     url,
     {
+      profile: 'configuredEndpoint',
       method: input.method,
       headers,
       body: hasBody
@@ -498,6 +500,7 @@ export async function invokeSapConcurMultipart(
   const response = await secureFetchWithValidation(
     url,
     {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers,
       body: bodyBuffer,

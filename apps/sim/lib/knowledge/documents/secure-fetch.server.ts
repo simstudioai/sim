@@ -11,7 +11,6 @@ import {
 } from '@/lib/knowledge/documents/utils'
 
 export interface SecureFetchRetryOptions extends RetryOptions {
-  allowHttp?: boolean
   timeout?: number
   maxResponseBytes?: number
 }
@@ -28,16 +27,15 @@ export interface SecureFetchRetryOptions extends RetryOptions {
  */
 export async function secureFetchWithRetry(
   url: string,
-  options: SecureFetchOptions = {},
+  options: SecureFetchOptions,
   retryOptions: SecureFetchRetryOptions = {}
 ): Promise<SecureFetchResponse> {
-  const { allowHttp, timeout, maxResponseBytes, ...retry } = retryOptions
+  const { timeout, maxResponseBytes, ...retry } = retryOptions
   return retryWithExponentialBackoff(async () => {
     const response = await secureFetchWithValidation(
       url,
       {
         ...options,
-        ...(allowHttp !== undefined ? { allowHttp } : {}),
         ...(timeout !== undefined ? { timeout } : {}),
         ...(maxResponseBytes !== undefined ? { maxResponseBytes } : {}),
       },

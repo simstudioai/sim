@@ -134,6 +134,7 @@ function parseNextLink(linkHeader: string | null): string | undefined {
  */
 async function fetchListing(url: string, accessToken: string): Promise<SecureFetchResponse> {
   const response = await secureFetchWithRetry(url, {
+    profile: 'configuredEndpoint',
     method: 'GET',
     headers: authHeaders(accessToken),
   })
@@ -150,7 +151,11 @@ async function fetchListing(url: string, accessToken: string): Promise<SecureFet
   }
 
   logger.warn('GitLab rejected keyset pagination; retrying with offset pagination', { url })
-  return secureFetchWithRetry(offsetUrl, { method: 'GET', headers: authHeaders(accessToken) })
+  return secureFetchWithRetry(offsetUrl, {
+    profile: 'configuredEndpoint',
+    method: 'GET',
+    headers: authHeaders(accessToken),
+  })
 }
 
 /**
@@ -547,7 +552,7 @@ async function fetchProject(
 ): Promise<SecureFetchResponse> {
   return secureFetchWithRetry(
     `${apiBase}/projects/${encodedProject}`,
-    { method: 'GET', headers: authHeaders(accessToken) },
+    { profile: 'configuredEndpoint', method: 'GET', headers: authHeaders(accessToken) },
     retryOptions
   )
 }
@@ -816,6 +821,7 @@ export const gitlabConnector: ConnectorConfig = {
       logger.info('Listing GitLab wiki pages', { host, project: encodedProject })
 
       const response = await secureFetchWithRetry(url, {
+        profile: 'configuredEndpoint',
         method: 'GET',
         headers: authHeaders(accessToken),
       })
@@ -965,6 +971,7 @@ export const gitlabConnector: ConnectorConfig = {
 
         const url = `${apiBase}/projects/${encodedProject}/wikis/${encodeURIComponent(slug)}?render_html=false`
         const response = await secureFetchWithRetry(url, {
+          profile: 'configuredEndpoint',
           method: 'GET',
           headers: authHeaders(accessToken),
         })
@@ -986,6 +993,7 @@ export const gitlabConnector: ConnectorConfig = {
 
         const url = `${apiBase}/projects/${encodedProject}/issues/${iid}`
         const response = await secureFetchWithRetry(url, {
+          profile: 'configuredEndpoint',
           method: 'GET',
           headers: authHeaders(accessToken),
         })
@@ -1013,6 +1021,7 @@ export const gitlabConnector: ConnectorConfig = {
         )
         const url = `${apiBase}/projects/${encodedProject}/repository/files/${encodeURIComponent(path)}?ref=${encodeURIComponent(ref)}`
         const response = await secureFetchWithRetry(url, {
+          profile: 'configuredEndpoint',
           method: 'GET',
           headers: authHeaders(accessToken),
         })
@@ -1108,7 +1117,7 @@ export const gitlabConnector: ConnectorConfig = {
       if (userRef && activePhases(choice).includes('repo')) {
         const refResponse = await secureFetchWithRetry(
           `${apiBase}/projects/${encodedProject}/repository/commits/${encodeURIComponent(userRef)}`,
-          { method: 'GET', headers: authHeaders(accessToken) },
+          { profile: 'configuredEndpoint', method: 'GET', headers: authHeaders(accessToken) },
           VALIDATE_RETRY_OPTIONS
         )
         if (refResponse.status === 404) {

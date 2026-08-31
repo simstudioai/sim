@@ -84,6 +84,17 @@ app:
     # these hops, and uses the first untrusted address as the client IP. Required for correct
     # session IPs and rate-limit keying behind a multi-hop proxy chain (e.g. "10.0.0.0/16").
     AUTH_TRUSTED_PROXIES: ""
+    # EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES: destinations on your private network that
+    # workflows may reach. Outbound requests to private, reserved, and loopback addresses are
+    # blocked by default; naming a destination here permits it, allows plain HTTP to it, and lifts
+    # the blocked-port list for it. In-cluster services can be named by hostname, e.g.
+    # "*.svc.cluster.local" or "vllm.ai.svc.cluster.local", or covered by the pod/service CIDR in
+    # EGRESS_ALLOWED_IP_RANGES. Cloud metadata endpoints stay blocked however broad the list is,
+    # and neither setting is honored for URLs harvested from content or for a proxy. Pair with a
+    # NetworkPolicy that constrains what the pod can reach — note networkPolicy.enabled grants
+    # broad egress on 443 only, so a target on another port also needs a networkPolicy.egress rule.
+    EGRESS_ALLOWED_HOSTS: ""
+    EGRESS_ALLOWED_IP_RANGES: ""
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
     # NEXT_PUBLIC_SOCKET_URL: public WebSocket URL for browsers. Leave empty to default to the
     # page's own origin (assumes the ingress/reverse proxy routes /socket.io to the realtime service).

@@ -101,6 +101,9 @@ const SERVER_ROW = {
 }
 
 vi.mock('@/lib/mcp/domain-check', () => ({
+  MCP_EGRESS_PROFILE: 'selfHostedService',
+  OAUTH_EGRESS_PROFILE: 'contentFetch',
+  McpSsrfError: class McpSsrfError extends Error {},
   isMcpDomainAllowed: () => true,
   validateMcpDomain: () => {},
   validateMcpServerSsrf: async () => '203.0.113.10',

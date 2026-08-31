@@ -12,7 +12,9 @@ vi.mock('@sim/security/dns', () => ({
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   isHosted: false,
-  isPrivateDatabaseHostsAllowed: false,
+  getEgressAllowedHosts: () => undefined,
+  getEgressAllowedIpRanges: () => undefined,
+  isLegacyPrivateDatabaseAccessAllowed: () => false,
   getProxyUrl: () => undefined,
 }))
 
@@ -45,6 +47,7 @@ describe('secureFetchWithPinnedIP response cap', () => {
     })
 
     const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
+      profile: 'configuredEndpoint',
       maxResponseBytes: 64 * 1024,
     })
 
@@ -60,7 +63,9 @@ describe('secureFetchWithPinnedIP response cap', () => {
       res.end('{}')
     })
 
-    await expect(secureFetchWithPinnedIP(origin, '127.0.0.1', {})).rejects.toThrow(/response body/i)
+    await expect(
+      secureFetchWithPinnedIP(origin, '127.0.0.1', { profile: 'configuredEndpoint' })
+    ).rejects.toThrow(/response body/i)
   })
 
   it('reads a body that fits under the default cap', async () => {
@@ -69,7 +74,9 @@ describe('secureFetchWithPinnedIP response cap', () => {
       res.end('{"ok":true}')
     })
 
-    const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {})
+    const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
+      profile: 'configuredEndpoint',
+    })
 
     expect(await response.text()).toBe('{"ok":true}')
   })
@@ -83,7 +90,10 @@ describe('secureFetchWithPinnedIP response cap', () => {
       res.end()
     })
 
-    const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', { method: 'HEAD' })
+    const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
+      profile: 'configuredEndpoint',
+      method: 'HEAD',
+    })
 
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toBe('video/mp4')
@@ -95,7 +105,9 @@ describe('secureFetchWithPinnedIP response cap', () => {
       res.end()
     })
 
-    const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {})
+    const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
+      profile: 'configuredEndpoint',
+    })
 
     expect(response.status).toBe(304)
   })

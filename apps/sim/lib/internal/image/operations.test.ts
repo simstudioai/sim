@@ -9,9 +9,16 @@ const mocks = vi.hoisted(() => ({
   uploadCopilotFile: vi.fn(),
   uploadExecutionFile: vi.fn(),
   getFalAICostMetadata: vi.fn(),
+  validateUrlWithDNS: vi.fn(),
+  secureFetchWithPinnedIP: vi.fn(),
 }))
 
 vi.stubGlobal('fetch', mocks.fetch)
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  validateUrlWithDNS: mocks.validateUrlWithDNS,
+  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
+}))
 
 vi.mock('@sim/utils/helpers', () => ({
   interruptibleSleep: mocks.interruptibleSleep,
@@ -48,18 +55,26 @@ describe('image operations', () => {
     vi.stubGlobal('fetch', mocks.fetch)
     mocks.interruptibleSleep.mockResolvedValue(undefined)
     mocks.uploadCopilotFile.mockResolvedValue({ url: 'https://sim.test/generated.png' })
+    // Content-derived queue URLs are validated and pinned; default to allowed.
+    mocks.validateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.1',
+      originalHostname: 'queue.fal.run',
+    })
   })
 
   it('submits a Fal.ai job once and only polls the created job', async () => {
     const inlineImage = `data:image/png;base64,${Buffer.from('png').toString('base64')}`
-    mocks.fetch
-      .mockResolvedValueOnce(
-        Response.json({
-          request_id: 'job-1',
-          status_url: 'https://queue.fal.run/status/job-1',
-          response_url: 'https://queue.fal.run/result/job-1',
-        })
-      )
+    // The job is created against the fixed public queue host over plain fetch.
+    mocks.fetch.mockResolvedValueOnce(
+      Response.json({
+        request_id: 'job-1',
+        status_url: 'https://queue.fal.run/status/job-1',
+        response_url: 'https://queue.fal.run/result/job-1',
+      })
+    )
+    // The response-derived status/result URLs are polled over the guarded path.
+    mocks.secureFetchWithPinnedIP
       .mockResolvedValueOnce(Response.json({ status: 'IN_QUEUE' }))
       .mockResolvedValueOnce(Response.json({ status: 'COMPLETED' }))
       .mockResolvedValueOnce(Response.json({ images: [{ url: inlineImage }] }))
@@ -71,12 +86,10 @@ describe('image operations', () => {
 
     expect(response.status).toBe(200)
     expect((await response.json()).imageUrl).toBe('https://sim.test/generated.png')
-    const urls = mocks.fetch.mock.calls.map(([url]) => String(url))
-    expect(urls.filter((url) => url === 'https://queue.fal.run/fal-ai/nano-banana-2')).toHaveLength(
-      1
-    )
-    expect(urls).toEqual([
+    expect(mocks.fetch.mock.calls.map(([url]) => String(url))).toEqual([
       'https://queue.fal.run/fal-ai/nano-banana-2',
+    ])
+    expect(mocks.secureFetchWithPinnedIP.mock.calls.map(([url]) => String(url))).toEqual([
       'https://queue.fal.run/status/job-1',
       'https://queue.fal.run/status/job-1',
       'https://queue.fal.run/result/job-1',
@@ -103,6 +116,7 @@ describe('image operations', () => {
     ).rejects.toMatchObject({ name: 'AbortError' })
 
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    expect(mocks.secureFetchWithPinnedIP).not.toHaveBeenCalled()
     expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
   })
 })

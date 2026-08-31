@@ -147,7 +147,11 @@ Without a remote provider, user code runs in an in-process V8 isolate inside the
 | `WEBHOOK_EXECUTION_CONCURRENCY_LIMIT` | `75` | Webhook-triggered executions in parallel |
 | `SCHEDULE_EXECUTION_CONCURRENCY_LIMIT` | `30` | Scheduled executions in parallel |
 | `RESUME_EXECUTION_CONCURRENCY_LIMIT` | `50` | Resumed executions in parallel |
-| `ALLOW_PRIVATE_DATABASE_HOSTS` | unset | Let database/connector tools reach private, reserved, and loopback hosts. Loosens the SSRF boundary |
+| `EGRESS_ALLOWED_HOSTS` | unset | Comma-separated hostnames outbound requests may reach on a private network. Leading wildcard allowed, e.g. `host.docker.internal,*.svc.cluster.local`. Not honored for URLs harvested from content or a third-party response, nor for an HTTP block's `proxyUrl` |
+| `EGRESS_ALLOWED_IP_RANGES` | unset | Comma-separated CIDRs or IPs outbound requests may reach on a private network, e.g. `10.0.0.0/8`. Same exclusions |
+| `ALLOW_PRIVATE_DATABASE_HOSTS` | unset | **Deprecated.** Vouches for the entire private address space, for database, cache, and mail connector hosts only. Replace it with the two settings above naming specific destinations |
+
+A malformed entry in either allowlist stops the app at startup with a message naming the setting. See [the SSRF boundary](/platform/self-hosting/security#the-ssrf-boundary) for the accepted syntax and for what the allowlist does and does not reach.
 
 Your reverse proxy's body-size limit must be at least as large as the app limits above. See [Networking](/platform/self-hosting/networking).
 

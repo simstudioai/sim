@@ -178,6 +178,7 @@ describe('Agiloft operations', () => {
       expect.stringContaining('/ewws/EWRetrieve'),
       '203.0.113.10',
       {
+        profile: 'configuredEndpoint',
         method: 'GET',
         maxResponseBytes: 25 * 1024 * 1024,
         signal: controller.signal,

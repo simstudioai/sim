@@ -202,12 +202,13 @@ export async function downloadFalMedia(
     return { contentType: match[1], buffer }
   }
 
-  const validation = await validateUrlWithDNS(url, 'mediaUrl')
-  if (!validation.isValid || !validation.resolvedIP) {
-    throw new Error(validation.error || 'Generated media URL failed validation')
+  const validation = await validateUrlWithDNS(url, 'mediaUrl', 'contentFetch')
+  if (!validation.isValid) {
+    throw new Error(validation.error)
   }
 
   const response = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    profile: 'contentFetch',
     method: 'GET',
     maxResponseBytes: MAX_MEDIA_BYTES,
   })

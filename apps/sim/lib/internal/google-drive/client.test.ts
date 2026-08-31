@@ -36,7 +36,8 @@ describe('requestGoogleDrive', () => {
 
     expect(mocks.validateUrl).toHaveBeenCalledWith(
       'https://www.googleapis.com/drive/v3/files/file-1',
-      'metadataUrl'
+      'metadataUrl',
+      'configuredEndpoint'
     )
     expect(mocks.secureFetch).toHaveBeenCalledWith(
       'https://www.googleapis.com/drive/v3/files/file-1',

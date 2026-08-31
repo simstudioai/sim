@@ -87,15 +87,16 @@ export async function fetchExternalUrlToWorkspace(
     timeoutMs = DEFAULT_TIMEOUT_MS,
   } = options
 
-  const urlValidation = await validateUrlWithDNS(url, 'fileUrl')
-  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
-    throw new ExternalUrlValidationError(urlValidation.error || 'Invalid external URL')
+  const urlValidation = await validateUrlWithDNS(url, 'fileUrl', 'contentFetch')
+  if (!urlValidation.isValid) {
+    throw new ExternalUrlValidationError(urlValidation.error)
   }
 
   const filename = new URL(url).pathname.split('/').pop() || 'download'
   const extension = path.extname(filename).toLowerCase().substring(1)
 
   const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
+    profile: 'contentFetch',
     timeout: timeoutMs,
     maxResponseBytes: maxDownloadBytes,
     signal,

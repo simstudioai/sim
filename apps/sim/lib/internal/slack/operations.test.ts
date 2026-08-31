@@ -229,6 +229,7 @@ describe('Slack operations', () => {
       '93.184.216.34',
       {
         headers: { Authorization: 'Bearer token' },
+        profile: 'contentFetch',
         maxResponseBytes: MAX_FILE_SIZE,
         signal: controller.signal,
       }
