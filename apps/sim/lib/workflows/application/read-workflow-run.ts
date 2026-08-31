@@ -1,3 +1,4 @@
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { isValidUuid } from '@sim/utils/id'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -59,16 +60,31 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
       runId: input.runId,
       assertedWorkflowId: input.workflowId,
     }),
-  async execute({ context, input }) {
+  async execute({ principal, context, input }) {
     try {
+      /**
+       * The projection subject, not an attribution: a workspace API key
+       * authorizes as the workspace and represents no user, so it resolves to
+       * `undefined` and reads the run whole. Substituting the key's creator would
+       * apply a bystander's group to every caller of a shared credential.
+       */
       const status = await getWorkflowExecutionStatus({
         workflowId: context.workflowId,
         executionId: context.runId,
         includeOutput: input.includeOutput,
         selectedOutputs: input.selectedOutputs,
+        workspaceId: context.workspaceId,
+        workspaceOrganizationId: context.workspaceOrganizationId,
+        viewerUserId: resolvePrincipalSubjectUserId(principal),
       })
       if (!status) throw new OrchestrationError('not_found', 'Run not found')
 
+      /**
+       * A run whose `blockOutputs` the viewer's group withholds joins the same
+       * set as a queued or `includeOutput: false` run: the selector is judged on
+       * its shape alone. A block *name* still hears that this resource matches
+       * ids, and a well-formed id still gets the legitimate empty answer.
+       */
       const unresolvable = unresolvableSelectors(input.selectedOutputs, status.blockOutputs)
       if (unresolvable.length > 0) {
         throw new OrchestrationError(
