@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { readSSELines } from '@/lib/core/utils/sse'
 
 const logger = createLogger('CopilotSseParser')
 
@@ -10,116 +11,58 @@ function createParseFailure(message: string, preview: string): FatalSseEventErro
   return new FatalSseEventError(message)
 }
 
-function normalizeSseLine(line: string): string {
-  return line.endsWith('\r') ? line.slice(0, -1) : line
-}
-
 /**
- * Processes an SSE stream by calling onEvent for each parsed event.
+ * The mothership layer over the one SSE decode engine ({@link readSSELines}):
+ * JSON-parses each `data:` payload, treats an unparseable payload as FATAL (the
+ * wire is a typed protocol — garbage means the stream is broken, not skippable),
+ * and contains per-event handler failures to a warn unless the handler itself
+ * declares them fatal. Framing, `\r`, `[DONE]`, abort, and tail-flush behavior
+ * all come from the shared engine.
  *
  * @param onEvent Called per parsed event. Return true to stop processing.
  */
 export async function processSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  decoder: TextDecoder,
   abortSignal: AbortSignal | undefined,
   onEvent: (event: unknown) => boolean | undefined | Promise<boolean | undefined>
 ): Promise<void> {
-  let buffer = ''
-
   try {
-    try {
-      while (true) {
-        if (abortSignal?.aborted) {
-          logger.info('SSE stream aborted by signal')
-          break
+    await readSSELines(reader, {
+      signal: abortSignal,
+      onData: async (jsonStr) => {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(jsonStr)
+        } catch (error) {
+          const detail = toError(error).message
+          throw createParseFailure(
+            `Failed to parse SSE event JSON: ${detail}`,
+            jsonStr.slice(0, 200)
+          )
         }
-
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        let stopped = false
-        for (const line of lines) {
-          const normalizedLine = normalizeSseLine(line)
-          if (abortSignal?.aborted) {
-            logger.info('SSE stream aborted mid-chunk (between events)')
-            return
-          }
-          if (!normalizedLine.trim()) continue
-          if (!normalizedLine.startsWith('data: ')) continue
-
-          const jsonStr = normalizedLine.slice(6)
-          if (jsonStr === '[DONE]') continue
-
-          let parsed: unknown
-          try {
-            parsed = JSON.parse(jsonStr)
-          } catch (error) {
-            const preview = jsonStr.slice(0, 200)
-            const detail = toError(error).message
-            throw createParseFailure(`Failed to parse SSE event JSON: ${detail}`, preview)
-          }
-
-          try {
-            if (await onEvent(parsed)) {
-              stopped = true
-              break
-            }
-          } catch (error) {
-            if (error instanceof FatalSseEventError) {
-              throw error
-            }
-            logger.warn('Failed to handle SSE event', {
-              preview: jsonStr.slice(0, 200),
-              error: toError(error).message,
-            })
-          }
+        try {
+          return (await onEvent(parsed)) === true
+        } catch (error) {
+          if (error instanceof FatalSseEventError) throw error
+          logger.warn('Failed to handle SSE event', {
+            preview: jsonStr.slice(0, 200),
+            error: toError(error).message,
+          })
+          return false
         }
-        if (stopped) break
-      }
-    } catch (error) {
-      const aborted =
-        abortSignal?.aborted || (error instanceof DOMException && error.name === 'AbortError')
-      if (aborted) {
-        logger.info('SSE stream read aborted')
-        return
-      }
-      throw error
+      },
+    })
+  } catch (error) {
+    const aborted =
+      abortSignal?.aborted || (error instanceof DOMException && error.name === 'AbortError')
+    if (aborted) {
+      logger.info('SSE stream read aborted')
+      return
     }
-
-    const normalizedBuffer = normalizeSseLine(buffer)
-    if (normalizedBuffer.trim() && normalizedBuffer.startsWith('data: ')) {
-      const jsonStr = normalizedBuffer.slice(6)
-      if (jsonStr === '[DONE]') {
-        return
-      }
-
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(jsonStr)
-      } catch (error) {
-        const preview = normalizedBuffer.slice(0, 200)
-        const detail = toError(error).message
-        throw createParseFailure(`Failed to parse final SSE buffer JSON: ${detail}`, preview)
-      }
-
-      try {
-        await onEvent(parsed)
-      } catch (error) {
-        if (error instanceof FatalSseEventError) {
-          throw error
-        }
-        logger.warn('Failed to handle final SSE event', {
-          preview: normalizedBuffer.slice(0, 200),
-          error: toError(error).message,
-        })
-      }
-    }
+    throw error
   } finally {
+    // The engine only releases locks it acquired; this reader is caller-supplied,
+    // and the pre-unification behavior (always release here) is part of the contract.
     try {
       reader.releaseLock()
     } catch {
