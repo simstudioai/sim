@@ -7,6 +7,7 @@ import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { handleUnifiedChatPost, maxDuration } from '@/lib/mothership/chat/post'
+import { validateShimEnvelope } from '@/lib/mothership/request/http'
 import { GET as copilotChatGet } from '@/app/api/copilot/chat/queries'
 
 export { maxDuration }
@@ -27,15 +28,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // boundary-raw-json: shim pre-validates the mothership envelope before delegating to the copilot handler that consumes the body
-  const body = await request
-    .clone()
-    .json()
-    .catch(() => undefined)
-  if (body !== undefined) {
-    const validation = mothershipChatPostEnvelopeSchema.safeParse(body)
-    if (!validation.success) return validationErrorResponse(validation.error)
-  }
+  const invalid = await validateShimEnvelope(request, mothershipChatPostEnvelopeSchema)
+  if (invalid) return invalid
 
   return handleUnifiedChatPost(request)
 })
