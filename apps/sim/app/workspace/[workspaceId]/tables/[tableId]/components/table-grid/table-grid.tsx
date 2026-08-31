@@ -344,6 +344,7 @@ function cellToText(value: unknown, column?: DisplayColumn): string {
  */
 function writeLoadedRowsWithChip(opts: {
   clipboardData: DataTransfer | null
+  workspaceId: string
   rows: TableRowType[]
   complete: boolean
   buildCells: (row: TableRowType) => string[]
@@ -364,7 +365,7 @@ function writeLoadedRowsWithChip(opts: {
     'text/plain',
     rows.map((row) => opts.buildCells(row).join('\t')).join('\n')
   )
-  attachSelectionContextToClipboard(opts.clipboardData, context)
+  attachSelectionContextToClipboard(opts.clipboardData, context, opts.workspaceId)
   toast.success(`Copied ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`)
   return true
 }
@@ -3402,6 +3403,7 @@ export function TableGrid({
           const selectedRows = currentRows.filter((row) => rowSelectionIncludes(rowSel, row.id))
           const handled = writeLoadedRowsWithChip({
             clipboardData: e.clipboardData,
+            workspaceId,
             rows: selectedRows,
             complete: true,
             buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
@@ -3449,6 +3451,7 @@ export function TableGrid({
         // in the rest — so the chip path applies only once all of them are here.
         const handled = writeLoadedRowsWithChip({
           clipboardData: e.clipboardData,
+          workspaceId,
           rows: currentRows,
           complete: currentRows.length >= selectAllTotalRef.current,
           buildCells: (row) =>
@@ -3486,7 +3489,9 @@ export function TableGrid({
         rowIds: rangeRowIds,
         columnIds: selectedColumnIds(cols, sel),
       })
-      if (rangeContext) attachSelectionContextToClipboard(e.clipboardData, rangeContext)
+      if (rangeContext) {
+        attachSelectionContextToClipboard(e.clipboardData, rangeContext, workspaceId)
+      }
 
       const lines: string[] = []
       for (let r = sel.startRow; r <= sel.endRow; r++) {
