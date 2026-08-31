@@ -440,10 +440,12 @@ export const workflowOperations = {
     capability: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  // permission-group-exempt: a paused execution's detail is pause points and resume state, not the run's execution data — the fields logs.cost and logs.trace_spans withhold never appear here
   readPausedExecution: defineWorkspaceOperation({
     id: 'workflows.paused_executions.read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /**
