@@ -15,30 +15,30 @@
  * instead of undefined behavior.
  */
 
-export const PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 1;
 
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest {
-  message: string
-  userId: string
+  message: string;
+  userId: string;
   /** Bump-gated (S43): senders include it; the worker 426s on mismatch. */
-  protocolVersion?: number | undefined
-  messageId?: string | undefined
-  chatId?: string | undefined
-  workspaceId?: string | undefined
+  protocolVersion?: number | undefined;
+  messageId?: string | undefined;
+  chatId?: string | undefined;
+  workspaceId?: string | undefined;
   /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
-  workflowId?: string | undefined
+  workflowId?: string | undefined;
   /** Connected-service operation schemas served by the integration gateway. */
-  integrationTools?: unknown[] | undefined
+  integrationTools?: unknown[] | undefined;
   /** User-configured MCP tool schemas — same shape as integrationTools. */
-  mothershipTools?: unknown[] | undefined
+  mothershipTools?: unknown[] | undefined;
   /** D23: sim-minted run-scoped credential. In-memory only on the worker (S44). */
-  delegationToken?: string | undefined
+  delegationToken?: string | undefined;
   /** Enterprise BYOK: customer's own key; per-run instance, zero retention (S27). */
-  byokApiKey?: string | undefined
+  byokApiKey?: string | undefined;
   /** User attachments / @-mentions packed with the message. */
-  context?: ChatContextItem[] | undefined
-  userTimezone?: string | undefined
+  context?: ChatContextItem[] | undefined;
+  userTimezone?: string | undefined;
   /**
    * What the CALLER can execute client-side. PRESENT = an explicit declaration — an
    * empty array means "I pick up nothing", so sim-side dispatch must skip client-pickup
@@ -46,61 +46,61 @@ export interface ChatRequest {
    * dispatch keeps its conservative grace (deploy-skew safe: a stale tab that predates
    * this field still gets waited on). Known capability: "workflow-tool-pickup".
    */
-  clientCapabilities?: string[] | undefined
+  clientCapabilities?: string[] | undefined;
 }
 
 export interface ChatContextItem {
-  type: string
-  content: string
-  tag?: string | undefined
-  path?: string | undefined
+  type: string;
+  content: string;
+  tag?: string | undefined;
+  path?: string | undefined;
 }
 
 /** POST /api/tools/resume — deferred tool results. */
 export interface ResumeRequest {
-  streamId: string
-  results: ResumeResult[]
+  streamId: string;
+  results: ResumeResult[];
 }
 
 export interface ResumeResult {
-  callId: string
-  name?: string | undefined
-  data?: unknown | undefined
-  success?: boolean | undefined
+  callId: string;
+  name?: string | undefined;
+  data?: unknown | undefined;
+  success?: boolean | undefined;
 }
 
 /** POST /api/streams/explicit-abort */
 export interface AbortRequest {
-  messageId: string
+  messageId: string;
 }
 
 /** POST /api/streams/steer. Acceptance means "queued"; application is acknowledged by a
  * `run`/`steering_applied` frame carrying the steeringId — a caller that never sees the
  * ack re-sends the content as an ordinary message (loss-free without liveness proof). */
 export interface SteerRequest {
-  messageId: string
-  steeringId?: string | undefined
-  content: string
+  messageId: string;
+  steeringId?: string | undefined;
+  content: string;
 }
 
 /** POST /api/generate-chat-title */
 export interface TitleRequest {
-  message: string
+  message: string;
 }
 
 /** The 409 body for a duplicate send while a sibling instance streams (S32). */
 export interface ActiveStreamConflict {
-  error: 'active_stream'
-  streamId: string
-  status: string
+  error: "active_stream";
+  streamId: string;
+  status: string;
 }
 
 /** The 426 body for protocol version skew (S43). */
 export interface ProtocolMismatch {
-  error: 'protocol_version_mismatch'
-  expected: number
-  got: number
-  message: string
+  error: "protocol_version_mismatch";
+  expected: number;
+  got: number;
+  message: string;
 }
 
 /**
@@ -111,22 +111,22 @@ export interface ProtocolMismatch {
  * surface is exactly what the caller passes.
  */
 export interface ExecuteRequest {
-  messages: ExecuteMessage[]
+  messages: ExecuteMessage[];
   /** JSON schema for structured output; enforced by instruction + caller-side validation. */
-  responseFormat?: unknown | undefined
-  userId: string
-  protocolVersion?: number | undefined
-  workspaceId?: string | undefined
-  chatId?: string | undefined
-  messageId?: string | undefined
-  integrationTools?: unknown[] | undefined
-  mothershipTools?: unknown[] | undefined
-  delegationToken?: string | undefined
+  responseFormat?: unknown | undefined;
+  userId: string;
+  protocolVersion?: number | undefined;
+  workspaceId?: string | undefined;
+  chatId?: string | undefined;
+  messageId?: string | undefined;
+  integrationTools?: unknown[] | undefined;
+  mothershipTools?: unknown[] | undefined;
+  delegationToken?: string | undefined;
 }
 
 export interface ExecuteMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string
+  role: "system" | "user" | "assistant";
+  content: string;
 }
 
 /**
@@ -135,12 +135,12 @@ export interface ExecuteMessage {
  * worker's emitter is compile-locked to this; sim's parser adopts it at the client rework.
  */
 export interface StreamEnvelope {
-  v: 1
-  type: 'session' | 'text' | 'tool' | 'run' | 'resource' | 'error' | 'complete'
-  seq: number
+  v: 1;
+  type: "session" | "text" | "tool" | "run" | "resource" | "error" | "complete";
+  seq: number;
   /** ISO timestamp. */
-  ts: string
-  stream: { streamId: string; chatId?: string | undefined; cursor?: string | undefined }
-  trace?: { requestId?: string | undefined } | undefined
-  payload: Record<string, unknown>
+  ts: string;
+  stream: { streamId: string; chatId?: string | undefined; cursor?: string | undefined };
+  trace?: { requestId?: string | undefined } | undefined;
+  payload: Record<string, unknown>;
 }
