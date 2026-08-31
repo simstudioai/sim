@@ -110,11 +110,9 @@ const ALL_CHAT_DEPLOY_AUTH_TYPES: ShareAuthType[] = CHAT_DEPLOY_AUTH_TYPE_OPTION
 /**
  * Knowledge base connectors an admin can allow or disallow. `null` config = all
  * allowed. Sorted by display name because the picker is read alphabetically,
- * while the registry is keyed by the snake_case id the server stores.
- *
- * The registry is the metadata half of the connector split — one small `meta.ts`
- * per connector, deliberately client-safe — not the executable half, so the page
- * weight it adds is sixty-eight tiny modules rather than connector runtimes.
+ * while the registry is keyed by the snake_case id the server stores. Reads
+ * {@link CONNECTOR_META_REGISTRY}, the client-safe metadata half of the
+ * connector split.
  */
 const KNOWLEDGE_CONNECTOR_OPTIONS: { value: string; label: string }[] = Object.values(
   CONNECTOR_META_REGISTRY
@@ -1214,11 +1212,13 @@ export function GroupDetail({
     [editingConfig.allowedKnowledgeConnectors]
   )
 
+  /**
+   * At least one connector must stay allowed while the Knowledge Base module is
+   * visible — an empty allow-list would silently block every connector while
+   * the add-connector button still offered them. To withhold connectors along
+   * with the rest of the module, uncheck Knowledge Base instead.
+   */
   const setKnowledgeConnectors = useCallback((values: string[]) => {
-    // At least one connector must stay allowed while the Knowledge Base module
-    // is visible — an empty allow-list would silently block every connector
-    // while the add-connector button still offered them. To withhold connectors
-    // along with the rest of the module, uncheck Knowledge Base instead.
     if (values.length === 0) return
     setEditingConfig((prev) => ({
       ...prev,

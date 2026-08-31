@@ -115,11 +115,6 @@ export function withRouteHandler<T>(
     return runWithRequestContext({ requestId, method, path, traceId }, async () => {
       let response: NextResponse | Response
       try {
-        /**
-         * One permission-group memo per request. A handler that authorizes
-         * several operations — a bulk mutation, or a route running two use
-         * cases — would otherwise resolve the same group once per operation.
-         */
         response = await withPermissionGroupScope(() => handler(request, context))
       } catch (error) {
         const duration = Date.now() - startTime

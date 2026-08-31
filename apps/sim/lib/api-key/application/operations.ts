@@ -64,12 +64,6 @@ export const byokKeyOperations = {
     principalKinds: ['session'],
     entitlement: 'cleanup_allowed',
   }),
-  /**
-   * Not `api_keys.manage`: that capability hides the API Keys settings tab,
-   * which holds Sim's own keys. BYOK is a separate, entitlement-gated section
-   * for provider keys, and this read only reports which providers the
-   * organization already supplies — no group key names it.
-   */
   // permission-group-exempt: BYOK is its own entitlement-gated section, and api_keys.manage names the Sim API Keys tab instead
   readInheritedStatus: defineWorkspaceOperation({
     id: 'byok_keys.inherited_status.read',

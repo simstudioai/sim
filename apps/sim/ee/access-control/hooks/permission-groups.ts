@@ -111,7 +111,6 @@ export function useUserPermissionConfig(workspaceId?: string) {
   })
 }
 
-/** The create body, plus the organization the route params name. */
 type CreatePermissionGroupVariables = CreatePermissionGroupBody & { organizationId: string }
 
 export function useCreatePermissionGroup() {
@@ -132,7 +131,6 @@ export function useCreatePermissionGroup() {
   })
 }
 
-/** The update body, plus the group and organization the route params name. */
 type UpdatePermissionGroupVariables = UpdatePermissionGroupBody & {
   id: string
   organizationId: string
@@ -157,7 +155,6 @@ export function useUpdatePermissionGroup() {
   })
 }
 
-/** Route params only — the delete carries no wire payload of its own. */
 interface DeletePermissionGroupVariables {
   permissionGroupId: string
   organizationId: string
@@ -178,7 +175,6 @@ export function useDeletePermissionGroup() {
   })
 }
 
-/** The remove query (`memberId`), plus the group and organization it targets. */
 type RemovePermissionGroupMemberVariables = RemovePermissionGroupMemberQuery & {
   organizationId: string
   permissionGroupId: string
@@ -200,7 +196,6 @@ export function useRemovePermissionGroupMember() {
   })
 }
 
-/** The bulk-add body, plus the group and organization the route params name. */
 type BulkAddPermissionGroupMembersVariables = BulkAddPermissionGroupMembersBody & {
   organizationId: string
   permissionGroupId: string

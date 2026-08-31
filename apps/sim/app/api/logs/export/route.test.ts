@@ -245,11 +245,6 @@ describe('GET /api/logs/export', () => {
     await expect(Promise.all([pendingRead, cancellation])).resolves.toBeDefined()
   })
 
-  /**
-   * A whole-workspace CSV of run spend is the widest disclosure of the figures
-   * the detail view already withholds. The header keeps its column so the file
-   * shape does not depend on who downloaded it.
-   */
   it('blanks the cost column and span spend when the group withholds cost', async () => {
     mockGetUserPermissionConfig.mockResolvedValue({ hideCostInfo: true })
     queueTableRows(workflowExecutionLogs, [
@@ -270,10 +265,6 @@ describe('GET /api/logs/export', () => {
     expect(lines[1]).not.toContain('0.01')
   })
 
-  /**
-   * One download carries every execution payload the workspace ever recorded,
-   * which is why the export is withheld separately from reading a single log.
-   */
   it('refuses the download when the group withholds log export', async () => {
     mockGetUserPermissionConfig.mockResolvedValue({ disableLogExport: true })
     queueTableRows(workflowExecutionLogs, [logRow(0)])
@@ -296,11 +287,6 @@ describe('GET /api/logs/export', () => {
     expect(await response.text()).toContain('execution-0')
   })
 
-  /**
-   * Blanking the column while still answering `costOperator`/`costValue`
-   * faithfully leaves the CSV itself a bisection oracle over the figures it
-   * just withheld — one download per probe, the row count as the answer.
-   */
   it('refuses a cost-filtered export when the group withholds spend', async () => {
     mockGetUserPermissionConfig.mockResolvedValue({ hideCostInfo: true })
     queueTableRows(workflowExecutionLogs, [logRow(0)])

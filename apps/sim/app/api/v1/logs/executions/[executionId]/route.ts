@@ -58,18 +58,18 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Workflow execution not found' }, { status: 404 })
       }
 
-      /**
-       * The stored snapshot carries `password: true` sub-block values and `oauth-input`
-       * credential ids, so it is redacted before it reaches this public wire — the same
-       * treatment the v2 run detail applies. A snapshot the sanitizer cannot walk projects
-       * as `null`, which keeps the pre-existing "not found" outcome for an absent one.
-       */
       /** `logs.cost` is a projection, not a gate — see `resolveLogFieldProjection`. */
       const projection = await resolveLogFieldProjection(
         capabilityGovernedUserId(rateLimit),
         workflowLog.workspaceId
       )
 
+      /**
+       * The stored snapshot carries `password: true` sub-block values and `oauth-input`
+       * credential ids, so it is redacted before it reaches this public wire — the same
+       * treatment the v2 run detail applies. A snapshot the sanitizer cannot walk projects
+       * as `null`, which keeps the pre-existing "not found" outcome for an absent one.
+       */
       const workflowState = sanitizeExecutionSnapshotState(workflowLog.workflowState)
       if (!workflowState) {
         return NextResponse.json({ error: 'Workflow state snapshot not found' }, { status: 404 })

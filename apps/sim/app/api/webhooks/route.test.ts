@@ -100,7 +100,6 @@ describe('POST /api/webhooks', () => {
     const response = await POST(upsertRequest())
 
     expect(response.status).toBe(403)
-    // Refused before the provider is told to start delivering.
     expect(mocks.createExternalWebhookSubscription).not.toHaveBeenCalled()
   })
 

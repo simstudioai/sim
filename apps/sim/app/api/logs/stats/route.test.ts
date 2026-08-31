@@ -58,11 +58,6 @@ describe('GET /api/logs/stats', () => {
     resolveGroupConfigMock.mockResolvedValue(null)
   })
 
-  /**
-   * The response carries no spend at all, but `costOperator`/`costValue` reach
-   * the same indexed column the list filters on, and the run counts answered
-   * under them are a bisection oracle over exactly what the group withholds.
-   */
   it('refuses a cost-filtered read when the group withholds spend', async () => {
     resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
 

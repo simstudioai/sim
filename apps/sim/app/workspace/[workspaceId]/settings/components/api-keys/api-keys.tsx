@@ -111,17 +111,33 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
    * block and model availability, which would pull the block registry into this
    * settings page's module graph for one boolean.
    */
-  const { data: permissionData } = useUserPermissionConfig(workspaceId)
+  const permissionConfigQuery = useUserPermissionConfig(workspaceId)
 
   /**
    * Both layers have to agree. The workspace column is the coarse switch every
    * workspace has; the permission group narrows it for one cohort inside an
    * enterprise organization. The server combines them the same way, so offering
-   * a key type here that it would refuse is the only failure worth avoiding.
+   * a key type here that it would refuse is the only failure worth avoiding —
+   * which is why the policy fails closed while its query is pending or errored,
+   * rather than treating an unanswered question as an unrestricted answer. In
+   * personal scope the hook is disabled (no `workspaceId`) and no group
+   * applies, so `isSuccess` is only required when the query actually runs.
    */
+  const permissionPolicyReady = !workspaceId || permissionConfigQuery.isSuccess
+
+  /**
+   * The stored workspace column alone. The admin switch below binds to this,
+   * not to the combined policy — a group's `disablePersonalApiKeys` must not
+   * render the stored setting as off, or toggling it "on" fires a successful
+   * mutation with no visible effect.
+   */
+  const storedAllowPersonalApiKeys =
+    workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
+
   const allowPersonalApiKeys =
-    (workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true) &&
-    !permissionData?.config?.disablePersonalApiKeys
+    storedAllowPersonalApiKeys &&
+    permissionPolicyReady &&
+    !permissionConfigQuery.data?.config?.disablePersonalApiKeys
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
@@ -351,7 +367,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                 {isLoadingSettings ? null : (
                   <Switch
                     id='allow-personal-api-keys'
-                    checked={allowPersonalApiKeys}
+                    checked={storedAllowPersonalApiKeys}
                     disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
                     onCheckedChange={async (checked) => {
                       try {

@@ -115,11 +115,6 @@ describe('GET /api/table/[tableId]/export/download', () => {
   })
 })
 
-/**
- * The second door to a finished export. Gating only the job that produces one
- * left this route handing the file to anyone who could name a `jobId`, and the
- * workspace job listing names every colleague's.
- */
 describe('tables.export capability', () => {
   beforeEach(() => {
     vi.clearAllMocks()

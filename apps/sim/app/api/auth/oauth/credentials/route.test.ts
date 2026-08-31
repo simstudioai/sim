@@ -146,13 +146,7 @@ describe('OAuth Credentials API Route', () => {
     await expect(response.json()).resolves.toEqual({ credentials: [] })
   })
 
-  /**
-   * The split this route exists to make. It authenticates through
-   * `checkSessionOrInternalAuth`, so one handler answers both a person opening
-   * the credential selector and the executor resolving a credential mid-run.
-   * Gating both would 403 a deployed workflow whose group permits it, hours
-   * after an admin ticked a box and with nothing connecting the two.
-   */
+  /** The session/executor split documented on {@link integrationsWithheldFromSession} in the route. */
   describe('integrations.manage', () => {
     const INTEGRATIONS_WITHHELD = {
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
