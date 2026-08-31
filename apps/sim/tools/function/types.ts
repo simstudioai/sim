@@ -46,6 +46,11 @@ export interface CodeExecutionInput {
   /** Workspace sandbox whose dependency set this execution runs against. */
   sandboxId?: string
   /**
+   * Reusable session-sandbox identity (one per Mothership chat). Honored only
+   * for trusted Mothership executions; workspace callers cannot opt in.
+   */
+  sandboxSessionKey?: string
+  /**
    * Which workspace secrets the code may read. Unset and `'all'` both mean every
    * secret, resolved at execution so ones added later are included.
    */
@@ -91,5 +96,10 @@ export interface CodeExecutionOutput extends ToolResponse {
       output: number
       total: number
     }
+    /**
+     * Present for session-sandbox executions (Mothership chats): `reused` means
+     * earlier state in the sandbox survived; `created` means it started fresh.
+     */
+    sandboxSession?: 'created' | 'reused'
   }
 }

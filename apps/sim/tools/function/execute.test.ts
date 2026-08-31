@@ -157,4 +157,30 @@ describe('Function Execute Tool', () => {
       error: 'boom',
     })
   })
+
+  it('preserves sandboxSession in successful and failed Function results', async () => {
+    const success = await functionExecuteTool.transformResponse?.(
+      Response.json({
+        success: true,
+        output: { result: 1, stdout: 'ok', sandboxSession: 'reused' },
+      }),
+      { code: 'return 1' }
+    )
+    expect(success?.output.sandboxSession).toBe('reused')
+
+    const failure = await functionExecuteTool.transformResponse?.(
+      Response.json(
+        { success: false, error: 'boom', output: { stdout: 'trace', sandboxSession: 'created' } },
+        { status: 422 }
+      ),
+      { code: 'throw new Error("boom")' }
+    )
+    expect(failure?.output.sandboxSession).toBe('created')
+
+    const oneShot = await functionExecuteTool.transformResponse?.(
+      Response.json({ success: true, output: { result: 1, stdout: 'ok' } }),
+      { code: 'return 1' }
+    )
+    expect(oneShot?.output.sandboxSession).toBeUndefined()
+  })
 })

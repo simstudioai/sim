@@ -523,13 +523,28 @@ export async function executeFunctionExecute(
   const enrichedParams = omit(params, [
     'sandboxProfile',
     'internalSandboxProfile',
+    // Server-derived below — a model-supplied value must never select a session.
+    'sandboxSessionKey',
     PRIVATE_SECRET_PROVENANCE_FIELD,
   ])
+  // One persistent session sandbox per chat: files and installed packages
+  // survive across run_code calls for iterative work, and the sim CLI is
+  // bootstrapped into it. Chat-less executions (one-shot, headless) stay
+  // ephemeral.
+  if (context.chatId) {
+    enrichedParams.sandboxSessionKey = `mothership-chat:${context.chatId}`
+  }
   // The copilot tool doc promises `timeout` in SECONDS ("Sim converts to
   // milliseconds", default 10, cap 300); the underlying function tool takes
   // MILLISECONDS. Nothing converted, so `timeout: 120` armed a 120ms abort.
   // Values ≤ 600 are read as seconds; larger values are assumed to already be
   // milliseconds (a model habit worth tolerating). Both clamp to the 300s cap.
+  // Models also send the value as a STRING ("90") — without the tolerant parse
+  // here, the body schema's z.coerce turned that into a 90ms budget.
+  if (typeof enrichedParams.timeout === 'string' && enrichedParams.timeout.trim() !== '') {
+    const parsed = Number(enrichedParams.timeout)
+    if (Number.isFinite(parsed)) enrichedParams.timeout = parsed
+  }
   if (typeof enrichedParams.timeout === 'number' && Number.isFinite(enrichedParams.timeout)) {
     const raw = enrichedParams.timeout
     const ms = raw <= 600 ? raw * 1000 : raw
