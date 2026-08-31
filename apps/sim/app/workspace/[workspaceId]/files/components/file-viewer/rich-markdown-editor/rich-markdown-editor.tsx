@@ -1213,7 +1213,7 @@ export function LoadedRichMarkdownEditor({
     if (context) addToChat(context)
   }
 
-  useSelectionCopyBridge(containerRef, buildSelectionContext)
+  useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId)
 
   // Show the read-only placeholder (the already-fetched markdown) whenever a collaborative doc has not yet
   // seeded — including during an agent stream that begins before the seed lands. Streamed diffs are held

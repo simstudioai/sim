@@ -33,7 +33,7 @@ export const oktaRemoveUserRoleTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID or login to revoke the admin role from',
+      description: 'Okta user ID (not a login or email) to revoke the admin role from',
     },
     roleAssignmentId: {
       type: 'string',
