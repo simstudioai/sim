@@ -1114,6 +1114,7 @@ export const schemaMock = {
     providerId: 'ssoProvider.providerId',
     organizationId: 'ssoProvider.organizationId',
     domainVerified: 'ssoProvider.domainVerified',
+    jitProvisioningEnabled: 'ssoProvider.jitProvisioningEnabled',
   },
   ssoDomain: {
     id: 'ssoDomain.id',

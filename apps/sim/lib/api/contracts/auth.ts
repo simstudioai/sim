@@ -34,6 +34,7 @@ export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
     orgId: z.string().optional(),
+    jitProvisioningEnabled: z.boolean().default(true),
     mapping: ssoMappingSchema,
     clientId: z.string().min(1, 'Client ID is required for OIDC'),
     clientSecret: z.string().min(1, 'Client Secret is required for OIDC'),
@@ -61,6 +62,7 @@ export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
     orgId: z.string().optional(),
+    jitProvisioningEnabled: z.boolean().default(true),
     mapping: ssoMappingSchema,
     entryPoint: z.string().url('Entry point must be a valid URL for SAML'),
     cert: z.string().min(1, 'Certificate is required for SAML'),
@@ -100,6 +102,7 @@ const ssoProviderListEntrySchema = z.object({
   samlConfig: z.string().nullable().optional(),
   userId: z.string().nullable().optional(),
   organizationId: z.string().nullable().optional(),
+  jitProvisioningEnabled: z.boolean().optional(),
   providerType: z.enum(['oidc', 'saml']).optional(),
 })
 

@@ -75,6 +75,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           samlConfig: ssoProvider.samlConfig,
           userId: ssoProvider.userId,
           organizationId: ssoProvider.organizationId,
+          jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
         })
         .from(ssoProvider)
         .where(whereClause)

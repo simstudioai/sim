@@ -3,7 +3,7 @@ slug: enterprise
 title: 'Sim for Enterprise'
 description: 'Access control, BYOK, self-hosted deployments, on-prem Copilot, SSO & SAML, whitelabeling, Admin API, and flexible data retention—enterprise features for teams with strict security and compliance requirements.'
 date: 2026-02-11
-updated: 2026-08-27
+updated: 2026-08-31
 authors:
   - vik
 readingTime: 10
@@ -35,7 +35,7 @@ faq:
   - q: "Can Copilot be used without sending workflow data to an external AI service?"
     a: "Yes. Copilot can run entirely within a self-hosted deployment using your own LLM keys, so prompts containing context from your workflows, execution logs, and workspace configuration route directly to your chosen provider and never leave your network."
   - q: "What identity providers does Sim support for SSO, and what happens when an employee is deprovisioned?"
-    a: "Sim integrates with Okta, Azure AD (Entra ID), Google Workspace, OneLogin, Auth0, JumpCloud, Ping Identity, ADFS, and any SAML 2.0 or OIDC compliant identity provider. Session management ties to your IdP, so logging out there terminates Sim sessions, and account deprovisioning immediately revokes access."
+    a: "Sim integrates with Okta, Azure AD (Entra ID), Google Workspace, OneLogin, Auth0, JumpCloud, Ping Identity, ADFS, and any SAML 2.0 or OIDC compliant identity provider. IdP deprovisioning blocks future SSO authentication but does not currently remove Sim membership or revoke active Sim sessions, so offboarding must also remove or suspend access in Sim."
 ---
 
 We've been working with security teams at larger organizations to bring Sim into environments with strict compliance and data handling requirements. This post covers the enterprise capabilities we've built: granular access control, bring-your-own-keys, self-hosted deployments, on-prem Copilot, SSO & SAML, whitelabeling, compliance, and programmatic management via the Admin API.
@@ -121,9 +121,9 @@ This is particularly relevant for organizations where the context Copilot needs 
 
 Integrate with your existing identity provider through SAML 2.0 or OIDC. We support Okta, Azure AD (Entra ID), Google Workspace, OneLogin, Auth0, JumpCloud, Ping Identity, ADFS, and any compliant identity provider.
 
-Once enabled, users authenticate through your IdP instead of Sim credentials. Your MFA policies apply automatically. Session management ties to your IdP—logout there terminates Sim sessions. Account deprovisioning immediately revokes access.
+Once enabled, users authenticate through your IdP, so its MFA and sign-in policies apply to the authentication event. Sim sessions have their own lifecycle: IdP logout or deprovisioning does not currently revoke an active Sim session or remove organization membership, so those are explicit Sim admin steps during offboarding.
 
-New users are provisioned on first SSO login based on IdP attributes. No invitation emails, no password setup, no manual account creation required.
+Administrators choose how first-time users enter the organization. For a user without a pending invitation or existing external workspace access, **Automatic** provisioning adds them through the verified SSO connection as a Member and consumes a billed seat; Team seat counts grow with membership, while fixed-seat plans require available capacity. **Invite only** authenticates the user but requires access to be granted separately. Existing membership and workspace access remain available. Automatic provisioning never promotes IdP claims into Sim roles and never grants workspace access implicitly.
 
 This centralizes your authentication and audit trail. Your security team's policies apply to Sim access through the same system that tracks everything else.
 

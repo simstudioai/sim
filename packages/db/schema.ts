@@ -3766,6 +3766,13 @@ export const ssoProvider = pgTable(
      * Defaults to true so pre-existing providers keep signing in across deploy.
      */
     domainVerified: boolean('domain_verified').notNull().default(true),
+    /**
+     * Whether a successful SSO sign-in may provision a new organization
+     * membership. Sim owns this admission path so seat checks, billing effects,
+     * session policy, and audit all use the same transaction as every other join.
+     * Defaults to true to preserve existing providers during a rolling deploy.
+     */
+    jitProvisioningEnabled: boolean('jit_provisioning_enabled').notNull().default(true),
   },
   (table) => ({
     // Better Auth resolves providers by `providerId` alone (no org scoping), so
