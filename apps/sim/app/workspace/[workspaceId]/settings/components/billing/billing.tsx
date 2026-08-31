@@ -48,7 +48,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/credit-usage-section/credit-usage-section'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -56,10 +56,8 @@ import {
   useBillingUsageNotifications,
   useUpdateGeneralSetting,
 } from '@/hooks/queries/general-settings'
-import {
-  useOrganizationBilling,
-  useUpdateOrganizationUsageLimit,
-} from '@/hooks/queries/organization'
+import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
+import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import {
   useInvoices,
   useOpenBillingPortal,
@@ -69,7 +67,10 @@ import {
 
 const logger = createLogger('Billing')
 
-type InvoiceStatusBadge = { variant: 'green' | 'amber' | 'red' | 'gray'; label: string }
+type InvoiceStatusBadge = {
+  variant: 'green' | 'amber' | 'red' | 'gray'
+  label: string
+}
 
 const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
   paid: { variant: 'green', label: 'Paid' },
@@ -80,7 +81,12 @@ const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
 
 /** Resolve a Stripe invoice status to its badge presentation. */
 function getInvoiceStatusBadge(status: string | null): InvoiceStatusBadge {
-  return INVOICE_STATUS_BADGES[status ?? ''] ?? { variant: 'gray', label: status ?? 'Unknown' }
+  return (
+    INVOICE_STATUS_BADGES[status ?? ''] ?? {
+      variant: 'gray',
+      label: status ?? 'Unknown',
+    }
+  )
 }
 
 /** Cached currency formatters, keyed by upper-cased ISO currency code. */
@@ -91,7 +97,10 @@ function getInvoiceAmountFormatter(currency: string): Intl.NumberFormat {
   const code = currency.toUpperCase()
   let formatter = invoiceAmountFormatters.get(code)
   if (!formatter) {
-    formatter = new Intl.NumberFormat(undefined, { style: 'currency', currency: code })
+    formatter = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: code,
+    })
     invoiceAmountFormatters.set(code, formatter)
   }
   return formatter
@@ -115,6 +124,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const {
     data: subscriptionData,
     error: subscriptionError,
+    isFetchedAfterMount: isSubscriptionFetchedAfterMount,
+    isFetching: isSubscriptionFetching,
     isLoading: isSubscriptionLoading,
     refetch: refetchSubscription,
   } = useSubscriptionData({
@@ -126,9 +137,13 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const {
     data: organizationBillingData,
     error: organizationBillingError,
+    isFetchedAfterMount: isOrganizationBillingFetchedAfterMount,
+    isFetching: isOrganizationBillingFetching,
     isLoading: isOrgBillingLoading,
     refetch: refetchOrganizationBilling,
-  } = useOrganizationBilling(billingOrganizationId || '', { enabled: isOrganizationScope })
+  } = useOrganizationBillingSummary(billingOrganizationId || '', {
+    enabled: isOrganizationScope,
+  })
 
   const updateUserLimit = useUpdateUsageLimit()
   const updateOrgLimit = useUpdateOrganizationUsageLimit()
@@ -156,6 +171,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     ? (organizationBilling?.subscriptionStatus ?? 'inactive')
     : (subscriptionData?.data?.status ?? 'inactive')
   const isLoading = isOrganizationScope ? isOrgBillingLoading : isSubscriptionLoading
+  const isFetchedAfterMount = isOrganizationScope
+    ? isOrganizationBillingFetchedAfterMount
+    : isSubscriptionFetchedAfterMount
+  const isFetching = isOrganizationScope ? isOrganizationBillingFetching : isSubscriptionFetching
   const billingError = isOrganizationScope ? organizationBillingError : subscriptionError
 
   const subscription = {
@@ -195,7 +214,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     ? Boolean(organizationBilling?.billingBlocked)
     : Boolean(subscriptionData?.data?.billingBlocked)
 
-  const userRole = isOrganizationScope ? (organizationBillingData?.userRole ?? 'member') : 'owner'
+  const userRole = isOrganizationScope ? (organizationBilling?.userRole ?? 'member') : 'owner'
   const isTeamAdmin = isOrgAdminRole(userRole)
   const shouldUseOrganizationBillingContext = isOrganizationScope
 
@@ -367,7 +386,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       }
       const referenceId = subscription.isOrgScoped ? billingOrganizationId : session?.user?.id
       const returnUrl = getBaseUrl() + window.location.pathname
-      await betterAuthSubscription.cancel({ returnUrl, referenceId: referenceId || '' })
+      await betterAuthSubscription.cancel({
+        returnUrl,
+        referenceId: referenceId || '',
+      })
     } catch (error) {
       logger.error('Failed to cancel subscription', { error })
       toast.error("Couldn't cancel subscription", {
@@ -402,13 +424,19 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     }
   }
 
-  if (isLoading) return null
+  if (isLoading && !isFetchedAfterMount) return null
   if (isOrganizationScope ? !organizationBilling : !subscriptionData?.data) {
     return (
       <SettingsPanel>
-        <SettingsEmptyState tone='error'>
-          {getErrorMessage(billingError, 'Failed to load billing information')}
-        </SettingsEmptyState>
+        <SettingsQueryErrorState
+          error={billingError}
+          fallback='Failed to load billing information'
+          isRetrying={isFetching}
+          onRetry={() => {
+            if (isOrganizationScope) void refetchOrganizationBilling()
+            else void refetchSubscription()
+          }}
+        />
       </SettingsPanel>
     )
   }

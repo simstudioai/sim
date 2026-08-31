@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -100,14 +101,17 @@ vi.mock('@/hooks/queries/general-settings', () => ({
 }))
 
 vi.mock('@/hooks/queries/organization', () => ({
-  useOrganizationBilling: (...args: unknown[]) => {
-    mockUseOrganizationBilling(...args)
-    return mockOrganizationQuery.current
-  },
   useUpdateOrganizationUsageLimit: () => ({
     isPending: false,
     mutateAsync: mockUpdateOrganizationLimit,
   }),
+}))
+
+vi.mock('@/hooks/queries/organization-billing-summary', () => ({
+  useOrganizationBillingSummary: (...args: unknown[]) => {
+    mockUseOrganizationBilling(...args)
+    return mockOrganizationQuery.current
+  },
 }))
 
 vi.mock('@/hooks/queries/subscription', () => ({
@@ -183,6 +187,24 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
       {children}
     </div>
   ),
+  SettingsQueryErrorState: ({
+    error,
+    fallback,
+    isRetrying,
+    onRetry,
+  }: {
+    error: unknown
+    fallback: string
+    isRetrying: boolean
+    onRetry: () => void
+  }) => (
+    <div data-testid='settings-empty-state' data-tone='error'>
+      {getErrorMessage(error, fallback)}
+      <button type='button' disabled={isRetrying} onClick={onRetry}>
+        {isRetrying ? 'Retrying…' : 'Try again'}
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock(
@@ -216,14 +238,8 @@ const PERSONAL_DATA = {
 function organizationResponse(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     success: true,
-    context: 'organization',
-    userRole: 'owner',
-    billingBlocked: false,
-    billingBlockedReason: null,
-    blockedByOrgOwner: false,
     data: {
       organizationId: 'org-target',
-      organizationName: 'Target organization',
       subscriptionState: 'active',
       hasSubscription: true,
       subscriptionPlan: 'team_25000',
@@ -245,6 +261,7 @@ function organizationResponse(overrides: Record<string, unknown> = {}): Record<s
       billingBlockedReason: null,
       blockedByOrgOwner: false,
       upgradeWorkspaceId: 'organization-workspace',
+      userRole: 'owner',
       ...overrides,
     },
   }
@@ -434,11 +451,14 @@ describe('Billing payer scope', () => {
   })
 
   it('renders the canonical error state when the active billing query fails', async () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
     mockPersonalQuery.current = {
       data: undefined,
       error: new Error('Billing temporarily unavailable'),
+      isFetchedAfterMount: true,
+      isFetching: false,
       isLoading: false,
-      refetch: vi.fn(),
+      refetch,
     }
 
     await act(async () => {
@@ -447,7 +467,26 @@ describe('Billing payer scope', () => {
 
     const errorState = container.querySelector('[data-testid="settings-empty-state"]')
     expect(errorState).toHaveAttribute('data-tone', 'error')
-    expect(errorState?.textContent).toBe('Billing temporarily unavailable')
+    expect(errorState?.textContent).toContain('Billing temporarily unavailable')
+    expect(errorState?.textContent).toContain('Try again')
+
+    act(() => {
+      errorState?.querySelector('button')?.click()
+    })
+    expect(refetch).toHaveBeenCalledOnce()
+
+    mockPersonalQuery.current = {
+      data: undefined,
+      error: null,
+      isFetchedAfterMount: true,
+      isFetching: true,
+      isLoading: true,
+      refetch,
+    }
+    await act(async () => root.render(<Billing scope='account' />))
+    expect(container.textContent).toContain('Failed to load billing information')
+    expect(container.textContent).toContain('Retrying…')
+    expect(container.querySelector('button')).toBeDisabled()
   })
 
   it('keeps cached billing content visible when a background refresh fails', async () => {
@@ -480,6 +519,7 @@ describe('Billing payer scope', () => {
 
     const errorState = container.querySelector('[data-testid="settings-empty-state"]')
     expect(errorState).toHaveAttribute('data-tone', 'error')
-    expect(errorState?.textContent).toBe('Failed to load billing information')
+    expect(errorState?.textContent).toContain('Failed to load billing information')
+    expect(errorState?.textContent).toContain('Try again')
   })
 })

@@ -16,7 +16,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { copilotToolPermissionContract } from '@/lib/api/contracts/copilot'
-import { generalSettingsKeys } from '@/hooks/queries/general-settings'
+import { generalSettingsKeys } from '@/hooks/queries/current-user-data'
 import { useToolPermissionStore } from '@/stores/tool-permission/store'
 
 const logger = createLogger('ToolPermissionCard')

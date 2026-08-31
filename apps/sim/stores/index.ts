@@ -1,64 +1,55 @@
 'use client'
 
 import { createLogger } from '@sim/logger'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { environmentKeys } from '@/hooks/queries/environment'
-import { useExecutionStore } from '@/stores/execution'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
-import { consolePersistence, useTerminalConsoleStore } from '@/stores/terminal'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Stores')
 
-/** localStorage key for the admin recent-impersonations list; kept through clearUserData. */
 export const RECENT_IMPERSONATIONS_STORAGE_KEY = 'recent-impersonations'
 
-/**
- * Reset all Zustand stores and React Query caches to initial state.
- */
-export const resetAllStores = () => {
-  useWorkflowRegistry.setState({
-    activeWorkflowId: null,
-    error: null,
-    hydration: {
-      phase: 'idle',
-      workspaceId: null,
-      workflowId: null,
-      requestId: null,
-      error: null,
-    },
-  })
-  useWorkflowStore.getState().clear()
-  useSubBlockStore.getState().clear()
-  getQueryClient().removeQueries({ queryKey: environmentKeys.all })
-  useExecutionStore.getState().reset()
-  useTerminalConsoleStore.setState({
-    workflowEntries: {},
-    entryIdsByBlockExecution: {},
-    entryLocationById: {},
-    isOpen: false,
-  })
-  consolePersistence.persist()
-  useMothershipDraftsStore.setState({ drafts: {} })
+interface ClearUserDataOptions {
+  preserveRecentImpersonations?: boolean
 }
 
 /**
- * Clear all user data when signing out.
+ * Clears browser and in-memory data at an authenticated identity boundary.
+ * Returns whether the in-memory reset completed, so SPA callers can fall back
+ * to a full document navigation when the reset chunk is unavailable.
  */
-export async function clearUserData(): Promise<void> {
-  if (typeof window === 'undefined') return
+export async function clearUserData(options: ClearUserDataOptions = {}): Promise<boolean> {
+  if (typeof window === 'undefined') return true
+
+  let cleanupFailed = false
+  let inMemoryResetSucceeded = true
 
   try {
-    resetAllStores()
-
-    const keysToKeep = ['next-favicon', 'theme', RECENT_IMPERSONATIONS_STORAGE_KEY]
+    const keysToKeep = [
+      'next-favicon',
+      'sim-theme',
+      ...(options.preserveRecentImpersonations ? [RECENT_IMPERSONATIONS_STORAGE_KEY] : []),
+    ]
     const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))
     keysToRemove.forEach((key) => localStorage.removeItem(key))
-
-    logger.info('User data cleared successfully')
   } catch (error) {
-    logger.error('Error clearing user data:', { error })
+    cleanupFailed = true
+    logger.error('Error clearing local user data:', { error })
   }
+
+  try {
+    sessionStorage.clear()
+  } catch (error) {
+    cleanupFailed = true
+    logger.error('Error clearing tab-scoped user data:', { error })
+  }
+
+  try {
+    const { resetAllStores } = await import('@/stores/reset-all-stores')
+    await resetAllStores()
+  } catch (error) {
+    cleanupFailed = true
+    inMemoryResetSucceeded = false
+    logger.error('Error resetting in-memory user data:', { error })
+  }
+
+  if (!cleanupFailed) logger.info('User data cleared successfully')
+  return inMemoryResetSucceeded
 }

@@ -1,1 +1,1 @@
-export { SettingsEmptyState } from './settings-empty-state'
+export { SettingsEmptyState, SettingsQueryErrorState } from './settings-empty-state'

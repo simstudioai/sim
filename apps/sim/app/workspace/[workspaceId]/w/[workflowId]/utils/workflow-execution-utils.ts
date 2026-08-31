@@ -1000,7 +1000,7 @@ export async function executeWorkflowWithFullLogging(
     if (!isCurrentExecution()) return
     setCurrentExecutionId(wfId, null)
     clearExecutionPointer(wfId)
-    consolePersistence.executionEnded()
+    consolePersistence.persist()
     useExecutionStore.getState().setIsExecuting(wfId, false)
     setActiveBlocks(wfId, new Set())
   }

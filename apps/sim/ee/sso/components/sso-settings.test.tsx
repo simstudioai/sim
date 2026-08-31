@@ -197,6 +197,7 @@ beforeEach(() => {
   mockUseSession.mockReturnValue({ data: { user: { id: 'user-1' } } })
   mockUseOrganizationBilling.mockReturnValue({
     data: { data: { subscriptionPlan: 'enterprise' } },
+    error: null,
     isLoading: false,
   })
   mockUseConfigureSSO.mockReturnValue({
@@ -205,6 +206,7 @@ beforeEach(() => {
   })
   mockUseSSOProviders.mockImplementation(({ organizationId }: { organizationId: string }) => ({
     data: { providers: [provider(organizationId)] },
+    error: null,
     isLoading: false,
   }))
 })
@@ -229,6 +231,19 @@ describe('SSO organization transitions', () => {
     expect(container).toHaveTextContent('org-b.example.com')
     expect(container).not.toHaveTextContent('org-a.example.com')
     expect(container.querySelector('input[value="client-a"]')).toBeNull()
+  })
+
+  it('shows a billing failure instead of an Enterprise upsell', () => {
+    mockUseOrganizationBilling.mockReturnValue({
+      data: undefined,
+      error: new Error('Billing entitlement failed'),
+      isLoading: false,
+    })
+
+    renderSso('org-a')
+
+    expect(container).toHaveTextContent('Billing entitlement failed')
+    expect(container).not.toHaveTextContent('available on Enterprise plans only')
   })
 })
 

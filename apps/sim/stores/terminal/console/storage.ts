@@ -148,6 +148,12 @@ interface PersistOptions {
   merge?: boolean
 }
 
+declare const consolePersistenceExecutionBrand: unique symbol
+
+export interface ConsolePersistenceExecution {
+  readonly [consolePersistenceExecutionBrand]: never
+}
+
 function entryTimestamp(entry: ConsoleEntry): number {
   return Date.parse(entry.endedAt ?? entry.startedAt ?? entry.timestamp)
 }
@@ -246,7 +252,9 @@ function writeToIndexedDB(
 class ConsolePersistenceManager {
   private dataProvider: (() => PersistedConsoleData) | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
-  private activeExecutions = 0
+  private activeExecutions = new Set<ConsolePersistenceExecution>()
+  private scopedExecutions = new Map<string, ConsolePersistenceExecution>()
+  private executionScopes = new Map<ConsolePersistenceExecution, string>()
   private needsInitialPersist = false
 
   /**
@@ -261,12 +269,32 @@ class ConsolePersistenceManager {
    * Signals that a workflow execution has started.
    * Starts the long-execution safety-net timer if this is the first active execution.
    */
-  executionStarted(): void {
-    this.activeExecutions++
+  executionStarted(): ConsolePersistenceExecution {
+    const execution = {} as ConsolePersistenceExecution
+    this.activeExecutions.add(execution)
     this.needsInitialPersist = true
-    if (this.activeExecutions === 1) {
+    if (this.activeExecutions.size === 1) {
       this.startSafetyTimer()
     }
+    return execution
+  }
+
+  /** Starts a lifecycle that another owner can recover by its stable scope. */
+  beginScopedExecution(scope: string): ConsolePersistenceExecution {
+    const existingExecution = this.scopedExecutions.get(scope)
+    if (existingExecution) {
+      this.executionEnded(existingExecution)
+    }
+
+    const execution = this.executionStarted()
+    this.scopedExecutions.set(scope, execution)
+    this.executionScopes.set(execution, scope)
+    return execution
+  }
+
+  /** Returns the active lifecycle for a stable scope without creating a new one. */
+  adoptScopedExecution(scope: string): ConsolePersistenceExecution | undefined {
+    return this.scopedExecutions.get(scope)
   }
 
   /**
@@ -284,12 +312,24 @@ class ConsolePersistenceManager {
    * Signals that a workflow execution has ended (success, error, or cancel).
    * Triggers an immediate persist and stops the safety timer if no executions remain.
    */
-  executionEnded(): void {
-    this.activeExecutions = Math.max(0, this.activeExecutions - 1)
+  executionEnded(execution: ConsolePersistenceExecution): void {
+    if (!this.activeExecutions.delete(execution)) return
+    const scope = this.executionScopes.get(execution)
+    if (scope !== undefined && this.scopedExecutions.get(scope) === execution) {
+      this.scopedExecutions.delete(scope)
+    }
+    this.executionScopes.delete(execution)
     this.persist()
-    if (this.activeExecutions === 0) {
+    if (this.activeExecutions.size === 0) {
       this.stopSafetyTimer()
     }
+  }
+
+  /** Ends a scoped lifecycle only when the caller still owns its exact token. */
+  endScopedExecution(scope: string, execution: ConsolePersistenceExecution): boolean {
+    if (this.scopedExecutions.get(scope) !== execution) return false
+    this.executionEnded(execution)
+    return true
   }
 
   /**
@@ -299,6 +339,15 @@ class ConsolePersistenceManager {
   persist(options?: PersistOptions): Promise<void> {
     if (!this.dataProvider) return Promise.resolve()
     return writeToIndexedDB(this.dataProvider(), options)
+  }
+
+  /** Stops persistence work owned by the previous authenticated session. */
+  reset(): void {
+    this.activeExecutions.clear()
+    this.scopedExecutions.clear()
+    this.executionScopes.clear()
+    this.needsInitialPersist = false
+    this.stopSafetyTimer()
   }
 
   private startSafetyTimer(): void {
@@ -366,4 +415,19 @@ export function clearExecutionPointer(workflowId: string): Promise<void> {
     return Promise.resolve()
   }
   return Promise.resolve()
+}
+
+/** Removes every reconnect pointer owned by the current browser tab. */
+export function clearAllExecutionPointers(): void {
+  if (typeof window === 'undefined') return
+  try {
+    const pointerKeys: string[] = []
+    for (let index = 0; index < window.sessionStorage.length; index++) {
+      const key = window.sessionStorage.key(index)
+      if (key?.startsWith(EXEC_POINTER_PREFIX)) pointerKeys.push(key)
+    }
+    for (const key of pointerKeys) window.sessionStorage.removeItem(key)
+  } catch {
+    return
+  }
 }

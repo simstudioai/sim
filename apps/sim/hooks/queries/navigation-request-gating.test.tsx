@@ -22,7 +22,8 @@ import {
   listWorkspaceApiKeysContract,
 } from '@/lib/api/contracts'
 import { listWorkflowMcpServersContract } from '@/lib/api/contracts/workflow-mcp-servers'
-import { apiKeysQueryOptions, useApiKeys } from '@/hooks/queries/api-keys'
+import { apiKeysQueryOptions } from '@/hooks/queries/api-key-list'
+import { useApiKeys } from '@/hooks/queries/api-keys'
 import {
   useWorkflowMcpServers,
   workflowMcpServersQueryOptions,

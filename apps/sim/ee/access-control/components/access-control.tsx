@@ -64,12 +64,18 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
    * id and the caller's admin status server-side from the workspace so gating is
    * never keyed off the session's active org.
    */
-  const { data: userPermissionConfig, isPending: entitlementLoading } =
-    useUserPermissionConfig(workspaceId)
-  const { data: organizationBillingData, isPending: organizationBillingLoading } =
-    useOrganizationBilling(organizationId, {
-      enabled: !isAccessControlEnabled && !userPermissionConfig?.entitled,
-    })
+  const {
+    data: userPermissionConfig,
+    isPending: entitlementLoading,
+    error: entitlementError,
+  } = useUserPermissionConfig(workspaceId)
+  const {
+    data: organizationBillingData,
+    isPending: organizationBillingLoading,
+    error: organizationBillingError,
+  } = useOrganizationBilling(organizationId, {
+    enabled: !isAccessControlEnabled && !userPermissionConfig?.entitled,
+  })
   const currentUserIsOrgAdmin = isOrganizationAdmin
 
   const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
@@ -224,6 +230,18 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
 
   if (isLoading) {
     return <SettingsPanel search={listSearch} actions={listActions} />
+  }
+
+  const entitlementLoadError = isEntitled
+    ? null
+    : ((userPermissionConfig === undefined ? entitlementError : null) ??
+      (organizationBillingData === undefined ? organizationBillingError : null))
+  if (entitlementLoadError) {
+    return (
+      <SettingsEmptyState tone='error'>
+        {getErrorMessage(entitlementLoadError, 'Failed to load Access Control access')}
+      </SettingsEmptyState>
+    )
   }
 
   if (!canManage) {

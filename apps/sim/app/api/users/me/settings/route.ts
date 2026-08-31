@@ -5,10 +5,12 @@ import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateUserSettingsContract } from '@/lib/api/contracts'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { defaultUserSettings, getUserSettings } from '@/lib/users/queries'
+import { getCurrentUserSettingsUseCase } from '@/lib/users/application/read-current-user'
+import { defaultUserSettings } from '@/lib/users/queries'
 
 const logger = createLogger('UserSettingsAPI')
 
@@ -16,10 +18,13 @@ export const GET = withRouteHandler(async () => {
   const requestId = generateRequestId()
 
   try {
-    const session = await getSession()
-    const data = await getUserSettings(session?.user?.id ?? null)
+    const principal = await internalSessionAuth.authenticate()
+    const data = await getCurrentUserSettingsUseCase.execute({ principal, input: {} })
     return NextResponse.json({ data }, { status: 200 })
   } catch (error: any) {
+    if (error instanceof InternalUnauthenticatedError) {
+      return NextResponse.json({ data: defaultUserSettings }, { status: 200 })
+    }
     logger.error(`[${requestId}] Settings fetch error`, error)
     return NextResponse.json({ data: defaultUserSettings }, { status: 200 })
   }
