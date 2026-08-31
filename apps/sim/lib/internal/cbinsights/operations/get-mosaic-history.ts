@@ -1,6 +1,12 @@
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsMosaicHistoryParams } from '@/tools/cbinsights/get_mosaic_history'
-import { asArray, cbInsightsRequest, compactBody, requireOrgId } from '@/tools/cbinsights/utils'
+import {
+  asArray,
+  cbInsightsRequest,
+  compactBody,
+  parseOptionalStringParam,
+  requireOrgId,
+} from '@/tools/cbinsights/utils'
 
 export const executeCbinsightsGetMosaicHistoryOperation: InternalToolOperationImplementation<
   CbInsightsMosaicHistoryParams
@@ -16,7 +22,7 @@ export const executeCbinsightsGetMosaicHistoryOperation: InternalToolOperationIm
     params,
     {
       path: `/v2/organizations/${orgId}/mosaichistory`,
-      body: compactBody({ startDate: params.startDate?.trim() }),
+      body: compactBody({ startDate: parseOptionalStringParam(params.startDate, 'startDate') }),
     },
     (data) => ({
       overall: asArray(data.overall),

@@ -9,6 +9,44 @@ import { getTrigger } from '@/triggers'
 /** Reviewers can be named individually or by team slug; either identifies the request. */
 const REVIEWER_FIELD = ['reviewers', 'team_reviewers'] as const
 
+/**
+ * Block subBlock ids that differ from the tool param they feed, each scoped to
+ * the operations whose tool declares that target. `sort` has two sources and
+ * `title`/`description`/`state` share their names with fields on other
+ * operations, so the scoping is what keeps them from colliding.
+ *
+ * `toBoolean` marks a dropdown feeding a boolean tool param: a dropdown stores
+ * its option id, so the value arrives as the string 'true'/'false' and the
+ * generic handler only JSON-parses `json`/`array` inputs.
+ */
+const GITHUB_PARAM_ALIASES: ReadonlyArray<{
+  from: string
+  to: string
+  operations: readonly string[]
+  toBoolean?: true
+}> = [
+  {
+    from: 'reaction_content',
+    to: 'content',
+    operations: ['github_create_issue_reaction', 'github_create_comment_reaction'],
+  },
+  {
+    from: 'milestone_title',
+    to: 'title',
+    operations: ['github_create_milestone', 'github_update_milestone'],
+  },
+  {
+    from: 'milestone_description',
+    to: 'description',
+    operations: ['github_create_milestone', 'github_update_milestone'],
+  },
+  { from: 'milestone_state', to: 'state', operations: ['github_list_milestones'] },
+  { from: 'milestone_sort', to: 'sort', operations: ['github_list_milestones'] },
+  { from: 'fork_name', to: 'name', operations: ['github_fork_repo'] },
+  { from: 'fork_sort', to: 'sort', operations: ['github_list_forks'] },
+  { from: 'gist_public', to: 'public', operations: ['github_create_gist'], toBoolean: true },
+]
+
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',
   name: 'GitHub (Legacy)',
@@ -2278,6 +2316,58 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           default:
             return 'github_repo_info'
         }
+      },
+      /**
+       * Bridges the subBlock ids that do not match their tool's param name.
+       *
+       * A tool param is populated only when a subBlock's `id` equals it — the
+       * serializer keys values by subBlock id, and nothing else renames them.
+       * Each aliased field below renders, accepts input, and then arrives under
+       * a name its tool never reads.
+       *
+       * Every alias is scoped to the operations whose tool actually declares
+       * the target param, and that scoping is load-bearing. Seven of these
+       * sources are `mode: 'advanced'`, and `shouldSerializeSubBlock`
+       * (`serializer/index.ts:91-93`) serializes a non-empty advanced field
+       * WITHOUT evaluating its condition. So a `milestone_title` left over from
+       * an earlier operation is still in `params` after the user switches to,
+       * say, Update PR — and an unscoped alias would rewrite it to `title` and
+       * clobber the PR's own title with stale milestone data.
+       *
+       * Presence is tested rather than truthiness so that a deliberate `false`
+       * or `'false'` is not mistaken for an unset field; only nullish and empty
+       * defer to the tool's own default.
+       *
+       * `generic-handler.ts` merges `{ ...inputs, ...params(inputs) }` and
+       * `providers/utils.ts` installs this as the provider `paramsTransform`,
+       * spreading over the model's tool-call arguments — so emitting a key the
+       * block did not supply would clobber a model-supplied value on the agent
+       * path.
+       *
+       * On the agent tool-calling path `operation` is not part of the params
+       * this receives: `providers/utils.ts` spreads it in for the tool-selection
+       * call (`:736-739`) but builds the transform's input from `block.params`
+       * alone (`:776`). Every alias therefore skips there, which is the same
+       * behaviour as before this mapper existed - the agent path already works
+       * because a model supplies `content`/`title`/`sort` by their real names.
+       * That gap is shared by every block whose mapper branches on
+       * `params.operation`, so closing it belongs in the provider layer rather
+       * than here.
+       */
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        const operation = typeof params.operation === 'string' ? params.operation : ''
+
+        const isSet = (value: unknown) => value !== undefined && value !== null && value !== ''
+
+        for (const alias of GITHUB_PARAM_ALIASES) {
+          if (!alias.operations.includes(operation)) continue
+          const value = params[alias.from]
+          if (!isSet(value)) continue
+          result[alias.to] = alias.toBoolean ? value === true || value === 'true' : value
+        }
+
+        return result
       },
     },
   },

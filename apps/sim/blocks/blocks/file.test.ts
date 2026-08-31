@@ -62,11 +62,54 @@ describe('FileV5Block', () => {
     expect(FileV5Block.tools.config.tool({ operation: 'file_fetch' })).toBe('file_fetch')
     expect(FileV5Block.tools.config.tool({ operation: 'file_write' })).toBe('file_write')
     expect(FileV5Block.tools.config.tool({ operation: 'file_append' })).toBe('file_append')
+    expect(FileV5Block.tools.config.tool({ operation: 'file_search' })).toBe('file_search')
   })
+
+  it('keeps the builder-configured search limit as a fixed hard cap', () => {
+    expect(
+      buildParams({
+        operation: 'file_search',
+        query: '',
+        maxResults: '25',
+      })
+    ).toEqual({ query: '', maxResults: 25 })
+
+    const query = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'query')
+    const maxResults = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'maxResults')
+    expect(query?.paramVisibility).toBe('user-or-llm')
+    expect(maxResults?.paramVisibility).toBe('user-only')
+    expect(query?.canonicalParamId).toBeUndefined()
+    expect(maxResults?.canonicalParamId).toBeUndefined()
+    expect(maxResults?.value?.()).toBe('50')
+  })
+
+  it('uses the default search cap when the builder field is cleared', () => {
+    expect(
+      buildParams({
+        operation: 'file_search',
+        query: 'needle',
+        maxResults: '',
+      })
+    ).toEqual({ query: 'needle', maxResults: 50 })
+  })
+
+  it.each(['10.5', '10results', '0', '201'])(
+    'rejects invalid builder-configured search cap %s',
+    (maxResults) => {
+      expect(() =>
+        buildParams({
+          operation: 'file_search',
+          query: 'needle',
+          maxResults,
+        })
+      ).toThrow('Maximum Results must be an integer between 1 and 200')
+    }
+  )
 
   it('read returns only the files output (no redundant file)', () => {
     expect(FileV5Block.outputs.files).toBeDefined()
     expect(FileV5Block.outputs.contents).toBeDefined()
+    expect(FileV5Block.outputs.results).toBeDefined()
     expect(FileV5Block.outputs.file).toBeUndefined()
   })
 

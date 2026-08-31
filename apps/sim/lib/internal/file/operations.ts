@@ -12,6 +12,7 @@ import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
+import { isUserFile } from '@/lib/core/utils/user-file'
 import { durableSecretProvenanceFromPrivateBundle } from '@/lib/execution/durable-secret-provenance'
 import {
   inspectPrivateSecretProvenanceRequest,
@@ -43,7 +44,7 @@ import {
 import {
   getFileExtension,
   getMimeTypeFromExtension,
-  inferContextFromKey,
+  tryInferContextFromKey,
 } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
@@ -158,6 +159,12 @@ const fileInputToUserFile = (fileInput: unknown) => {
 
   if (!fileUrl && !key) return null
 
+  // A key this normalizer cannot classify is request input we cannot use, which
+  // is what `null` already means here — the throwing form would turn a malformed
+  // client value into a 500 from every operation that normalizes a file input.
+  const context = key ? tryInferContextFromKey(key) : null
+  if (key && !context) return null
+
   return {
     id: key || fileUrl,
     name:
@@ -169,7 +176,9 @@ const fileInputToUserFile = (fileInput: unknown) => {
         ? record.type.trim()
         : 'application/octet-stream',
     key,
-    context: inferContextFromKey(key),
+    // Only absent when there is no key at all — an unclassifiable one returned
+    // above rather than reaching here.
+    context: context ?? undefined,
   }
 }
 
@@ -219,6 +228,14 @@ const extractFileIdsFromInput = (fileInput: unknown): string[] => {
 const MAX_GET_CONTENT_FILE_BYTES = 64 * 1024 * 1024
 /** Combined extracted-text cap so the content array stays within the large-value-ref ceiling. */
 const MAX_GET_CONTENT_TOTAL_BYTES = 64 * 1024 * 1024
+
+/**
+ * Cap on a file stored through `write`'s `fileInput`, pinned to the destination's
+ * own ceiling. A larger cap here would let a 50–100MB file be downloaded and
+ * base64-encoded in this process only for `createWorkspaceFile` to reject it, so
+ * the expensive transfer is refused up front instead.
+ */
+const MAX_WRITE_FILE_INPUT_BYTES = MAX_WORKSPACE_FILE_CONTENT_BYTES
 
 /** Per-file download cap for the compress operation. */
 const MAX_COMPRESS_FILE_BYTES = 100 * 1024 * 1024
@@ -288,10 +305,13 @@ const extractUserFileTextContent = async (
   return `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`
 }
 
-interface FileContentSource {
-  file: UserFile
+export interface FileContentProvenanceSource {
   identity?: WorkspaceFileSecretProvenanceIdentity
   ownerUserId?: string
+}
+
+interface FileContentSource extends FileContentProvenanceSource {
+  file: UserFile
 }
 
 async function bindSelectedContentFile(
@@ -317,16 +337,23 @@ async function bindSelectedContentFile(
 
   return {
     file,
-    identity: { fileId: metadata.id, key: metadata.key, context: 'workspace' },
+    identity: {
+      fileId: metadata.id,
+      key: metadata.key,
+      context: 'workspace',
+      contentUpdatedAt: metadata.contentUpdatedAt ?? undefined,
+    },
     ownerUserId: metadata.uploadedBy,
   }
 }
 
-async function getFileContentProvenance(
+export async function getFileContentProvenance(
   principal: Principal,
   workspaceId: string,
-  sources: readonly FileContentSource[]
+  sources: readonly FileContentProvenanceSource[],
+  signal?: AbortSignal
 ): Promise<ResolvedSecretTraceProvenanceV1> {
+  signal?.throwIfAborted()
   const ownerIds = new Set(
     sources
       .map((source) => source.ownerUserId)
@@ -339,14 +366,20 @@ async function getFileContentProvenance(
   const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
 
   for (const source of sources) {
+    signal?.throwIfAborted()
     if (!source.identity || !source.ownerUserId) {
       accumulator.markIncomplete('file-source-unidentified')
       continue
     }
     const { provenance } = await readWorkspaceFileSecretProvenance.execute({
       principal,
-      input: { fileId: source.identity.fileId, assertedWorkspaceId: workspaceId },
+      input: {
+        fileId: source.identity.fileId,
+        assertedWorkspaceId: workspaceId,
+        expectedContentUpdatedAt: source.identity.contentUpdatedAt,
+      },
     })
+    signal?.throwIfAborted()
     /**
      * `unrecorded` is a more specific `unknown`, and this accumulator has not opted into the
      * workspace file surface's policy, so it latches exactly as it did before.
@@ -476,7 +509,7 @@ async function deriveWorkspaceFileSecretProvenance(options: {
   return mergeWorkspaceFileSecretProvenance(...provenances)
 }
 
-function fileContentJsonResponse(
+export function fileContentJsonResponse(
   body: Record<string, unknown>,
   includePrivateProvenance: boolean,
   init?: ResponseInit,
@@ -698,7 +731,12 @@ export async function executeFileManageOperation(
           return [
             {
               file: userFile,
-              identity: { fileId: file.id, key: file.key, context: 'workspace' },
+              identity: {
+                fileId: file.id,
+                key: file.key,
+                context: 'workspace',
+                contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+              },
               ownerUserId: file.uploadedBy,
             },
           ]
@@ -742,14 +780,14 @@ export async function executeFileManageOperation(
 
         logger.info('File content extracted', { count: contents.length })
         const provenance = includePrivateContentProvenance
-          ? await getFileContentProvenance(principal, workspaceId, sources)
+          ? await getFileContentProvenance(principal, workspaceId, sources, signal)
           : undefined
 
         return contentResponse({ success: true, data: { contents } }, undefined, provenance)
       }
 
       case 'write': {
-        const { fileName, content, contentType } = body
+        const { fileName, content, fileInput, contentType } = body
         signal?.throwIfAborted()
         const provenanceResolution = resolveFileWriteSecretProvenance({
           headers,
@@ -763,33 +801,109 @@ export async function executeFileManageOperation(
             { status: 400 }
           )
         }
-        const { folderSegments, leafName } = splitWorkspaceFilePath(fileName)
+
+        // Storing an existing file object rather than text: read its bytes under
+        // the caller's own authorization, then write them unchanged. Base64 so a
+        // binary payload survives — decoding it as UTF-8 would corrupt it.
+        let sourceEncoding: 'utf-8' | 'base64' = 'utf-8'
+        let sourceContent = content ?? ''
+        let sourceName = fileName
+        let sourceContentType = contentType
+        /**
+         * Copying bytes carries the source's secret lineage, exactly as archiving
+         * does. Without this the copy would land with no provenance row — the
+         * "safe" state — and a file the platform had locked as secret-derived
+         * would be readable again under its new id.
+         *
+         * A source with no workspace row resolves to `unknown` rather than empty,
+         * because nothing durable records what went into it.
+         */
+        let inputProvenance: WorkspaceFileSecretProvenance | undefined
+        if (fileInput !== undefined && fileInput !== null) {
+          /**
+           * Two shapes reach here and only one already identifies a file. A block
+           * reference, or an id the tool layer resolved through the execution
+           * index or workspace metadata, arrives carrying `id`/`key`/`url`/`name`.
+           * The file picker instead stores `{name, path, key, size, type}` with no
+           * `id` or `url`, which the shared normalizer turns into one — the same
+           * conversion every other operation in this file applies to its input.
+           *
+           * Identity is all that is demanded, deliberately. `size` is never read
+           * before the download and the download reports the real content type, so
+           * requiring them would reject an otherwise usable reference over two
+           * fields nothing depends on.
+           */
+          const sourceFile: UserFile | null = isUserFile(fileInput)
+            ? {
+                ...fileInput,
+                size: fileInput.size ?? 0,
+                type: fileInput.type ?? 'application/octet-stream',
+              }
+            : fileInputToUserFile(fileInput)
+          if (!sourceFile) {
+            return Response.json(
+              { success: false, error: 'fileInput must be a file object' },
+              { status: 400 }
+            )
+          }
+          const denied = await assertOperationFileAccess(sourceFile, context)
+          if (denied) return denied
+
+          inputProvenance = await deriveWorkspaceFileSecretProvenance({
+            principal,
+            workspaceId,
+            targetOwnerUserId: userId,
+            sources: [await bindSelectedContentFile(principal, workspaceId, sourceFile)],
+          })
+
+          const downloaded = await downloadServableFileFromStorage(sourceFile, requestId, logger, {
+            maxBytes: MAX_WRITE_FILE_INPUT_BYTES,
+            signal,
+            // A generated document that references other files needs a principal
+            // to resolve them; without one the resolver can only serve an
+            // already-published artifact and throws when there is none.
+            filePrincipal: principal,
+          })
+          sourceEncoding = 'base64'
+          sourceContent = downloaded.buffer.toString('base64')
+          sourceName = fileName?.trim() || sourceFile.name
+          sourceContentType = contentType || downloaded.contentType || sourceFile.type
+        }
+        const writeProvenanceSources = [
+          provenanceResolution.contentProvenance,
+          inputProvenance,
+        ].filter((entry): entry is WorkspaceFileSecretProvenance => entry !== undefined)
+        // Left undefined when neither side recorded anything, so a plain text
+        // write still stores no provenance row rather than an empty one.
+        const writeProvenance = writeProvenanceSources.length
+          ? mergeWorkspaceFileSecretProvenance(...writeProvenanceSources)
+          : undefined
+
+        const { folderSegments, leafName } = splitWorkspaceFilePath(sourceName ?? '')
         await admitCreateWorkspaceFile(principal, workspaceId)
         const { folderId } = await ensureWorkspaceFileFolderPathOperation.execute({
           principal,
           input: { workspaceId, pathSegments: folderSegments },
         })
-        const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(leafName))
+        const mimeType = sourceContentType || getMimeTypeFromExtension(getFileExtension(leafName))
         const result = await createWorkspaceFile.execute({
           principal,
           input: {
             workspaceId,
             name: leafName,
             contentType: mimeType,
-            content: content ?? '',
-            encoding: 'utf-8',
+            content: sourceContent,
+            encoding: sourceEncoding,
             folderId,
             exactName: false,
-            ...(provenanceResolution.contentProvenance
-              ? { secretProvenance: provenanceResolution.contentProvenance }
-              : {}),
+            ...(writeProvenance ? { secretProvenance: writeProvenance } : {}),
           },
         })
-        const fileBuffer = Buffer.from(content ?? '', 'utf-8')
+        const fileBuffer = Buffer.from(sourceContent, sourceEncoding)
 
         logger.info('File created', {
           fileId: result.file.id,
-          name: fileName,
+          name: sourceName,
           size: fileBuffer.length,
         })
 

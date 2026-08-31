@@ -266,12 +266,23 @@ export function resolveProxiedModelCost(cost: unknown): ModelCost {
  */
 export function installStreamingCostPolicy(
   output: NormalizedBlockOutput,
-  policy: ModelCostPolicy
+  policy: ModelCostPolicy,
+  additionalToolCost?: () => number
 ): void {
   let raw = output.cost as ModelCost | undefined
 
   Object.defineProperty(output, 'cost', {
-    get: () => applyModelCostPolicy(raw, policy),
+    get: () => {
+      const projected = applyModelCostPolicy(raw, policy)
+      const additional = additionalToolCost?.() ?? 0
+      if (!Number.isFinite(additional) || additional <= 0) return projected
+
+      return {
+        ...projected,
+        toolCost: roundCost((projected.toolCost ?? 0) + additional),
+        total: roundCost(projected.total + additional),
+      }
+    },
     set: (value: ModelCost | undefined) => {
       raw = value
     },

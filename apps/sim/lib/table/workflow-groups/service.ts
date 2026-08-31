@@ -26,6 +26,7 @@ import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { getTableById, withLockedTable } from '@/lib/table/service'
+import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type {
   AddWorkflowGroupData,
@@ -132,6 +133,10 @@ export async function addWorkflowGroup(
   data: AddWorkflowGroupData,
   requestId: string
 ): Promise<TableDefinition> {
+  if (data.outputColumns.some((column) => column.type === 'ttl')) {
+    await assertTableRowTtlEnabled()
+  }
+
   const updatedTable = await withLockedTable(
     data.tableId,
     async (table, trx) => {
@@ -258,6 +263,10 @@ export async function updateWorkflowGroup(
   requestId: string
 ): Promise<TableDefinition> {
   const mappingUpdates = data.mappingUpdates ?? []
+  const introducesTtl =
+    data.newOutputColumns?.some((column) => column.type === 'ttl') === true ||
+    data.resolvedMappingTypes?.columns.some((column) => column.type === 'ttl') === true
+  if (introducesTtl) await assertTableRowTtlEnabled()
 
   // Phase 1 (no lock): consume the output types resolved and authorized by the
   // application command. Resolution stays outside the advisory-lock critical
@@ -640,6 +649,8 @@ export async function addWorkflowGroupOutput(
   },
   requestId: string
 ): Promise<TableDefinition> {
+  if (data.resolvedOutput.columnType === 'ttl') await assertTableRowTtlEnabled()
+
   // Phase 1 (no lock): validate the authorized workflow metadata against the
   // group's current workflow. Phase 2 re-validates the same binding under the
   // table lock before applying the mutation.

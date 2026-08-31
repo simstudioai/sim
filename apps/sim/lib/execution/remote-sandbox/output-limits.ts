@@ -1,4 +1,26 @@
+import type { SandboxExecutionCost } from '@/lib/execution/remote-sandbox/types'
+
 export const MAX_SANDBOX_OUTPUT_BYTES = 50 * 1024 * 1024
+
+/**
+ * Hard ceiling on a single URL-mounted input, enforced inside the sandbox by
+ * `curl --max-filesize` against the bytes actually served.
+ *
+ * The planner checks a recorded size first for a fast, well-worded failure; this
+ * is the backstop for when that size understates the stored object, and it is
+ * what a URL mount falls back to when the caller declares no ceiling of its own.
+ * URL bytes never enter the web process, so the resource being bounded is
+ * sandbox disk.
+ */
+export const MAX_SANDBOX_URL_MOUNT_BYTES = 500 * 1024 * 1024
+
+/**
+ * How many files one execution may export, whether declared by path or
+ * discovered by harvesting the output directory. Exceeding it is an error rather
+ * than a truncation: silently returning the first 20 of 100 files reads as
+ * success while losing the rest.
+ */
+export const MAX_SANDBOX_OUTPUT_FILES = 20
 
 /**
  * Maximum combined stdout, stderr, result text, and structured error text kept
@@ -52,6 +74,51 @@ export function appendStreamedSandboxOutput(current: string, chunk: string): str
 
 export const SANDBOX_OUTPUT_LIMIT_CODE = 'sandbox_output_limit_exceeded' as const
 export const SANDBOX_OUTPUT_FILE_INVALID_CODE = 'sandbox_output_file_invalid' as const
+/**
+ * The harvest cannot return what the run produced — too many files, or nested
+ * past what the listing reaches. Both are the caller's to fix and neither is
+ * retryable, so they share a code and are reported as one 400.
+ */
+export const SANDBOX_OUTPUT_NOT_EXPORTABLE_CODE = 'sandbox_output_not_exportable' as const
+
+/** More files in the harvest directory than one execution may export. */
+export class SandboxOutputFileCountError extends Error {
+  readonly code = SANDBOX_OUTPUT_NOT_EXPORTABLE_CODE
+
+  constructor(observedFiles: number, directory: string, limit = MAX_SANDBOX_OUTPUT_FILES) {
+    super(
+      `Sandbox produced ${observedFiles} files in ${directory}, over the ${limit}-file export limit. Write fewer files, or archive them into a single .zip.`
+    )
+    this.name = 'SandboxOutputFileCountError'
+  }
+}
+
+/** Harvest directory nested deeper than the listing can reach. */
+export class SandboxOutputDepthError extends Error {
+  readonly code = SANDBOX_OUTPUT_NOT_EXPORTABLE_CODE
+
+  constructor(directoryPath: string, maxDepth: number) {
+    super(
+      `Sandbox output "${directoryPath}" is nested deeper than ${maxDepth} levels, so its contents cannot be returned. Write results closer to the top of the output directory, or archive the tree into a single file.`
+    )
+    this.name = 'SandboxOutputDepthError'
+  }
+}
+
+const trustedSandboxOutputCosts = new WeakMap<object, SandboxExecutionCost>()
+
+/** Associates Sim-calculated cost with a trusted post-execution output error. */
+export function attachTrustedSandboxOutputCost(error: unknown, cost: SandboxExecutionCost): void {
+  if (typeof error !== 'object' || error === null) return
+  trustedSandboxOutputCosts.set(error, cost)
+}
+
+/** Reads cost only when the sandbox lifecycle attached it after a completed execution. */
+export function readTrustedSandboxOutputCost(error: unknown): SandboxExecutionCost | undefined {
+  return typeof error === 'object' && error !== null
+    ? trustedSandboxOutputCosts.get(error)
+    : undefined
+}
 
 export class SandboxOutputFileError extends Error {
   readonly code = SANDBOX_OUTPUT_FILE_INVALID_CODE
@@ -134,5 +201,30 @@ export function isSandboxOutputFileError(error: unknown): error is SandboxOutput
     (typeof error === 'object' &&
       error !== null &&
       (error as { code?: unknown }).code === SANDBOX_OUTPUT_FILE_INVALID_CODE)
+  )
+}
+
+/** The harvest directory was removed by the code that was supposed to fill it. */
+export class SandboxOutputDirectoryMissingError extends Error {
+  readonly code = SANDBOX_OUTPUT_NOT_EXPORTABLE_CODE
+
+  constructor(directoryPath: string) {
+    super(
+      `The sandbox output directory ${directoryPath} no longer exists — the code deleted it. Write files into it rather than replacing it; no files could be returned from this run.`
+    )
+    this.name = 'SandboxOutputDirectoryMissingError'
+  }
+}
+
+export function isSandboxOutputNotExportableError(
+  error: unknown
+): error is
+  | SandboxOutputFileCountError
+  | SandboxOutputDepthError
+  | SandboxOutputDirectoryMissingError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === SANDBOX_OUTPUT_NOT_EXPORTABLE_CODE
   )
 }

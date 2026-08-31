@@ -17,7 +17,7 @@ const PublishVersionSchema = z.object({
     .min(1, 'functionName is required')
     .max(256, 'functionName cannot exceed 256 characters'),
   codeSha256: z.string().optional(),
-  description: z.string().optional(),
+  description: z.string().max(256, 'description cannot exceed 256 characters').optional(),
   revisionId: z.string().optional(),
 })
 

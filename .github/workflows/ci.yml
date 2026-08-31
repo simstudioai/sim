@@ -630,7 +630,7 @@ jobs:
         with:
           filters: |
             docs:
-              - 'apps/docs/content/docs/en/**'
+              - 'apps/docs/content/docs/**'
               - 'apps/sim/scripts/process-docs.ts'
               - 'apps/sim/lib/chunkers/**'
 

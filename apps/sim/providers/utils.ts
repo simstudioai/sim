@@ -816,16 +816,18 @@ export async function transformBlockTool(
         toolDescription = workflowMetadata.description
       }
     }
-  } else if (toolId === 'function_execute' && resolvedResourceParams.secretScope === 'selected') {
-    // Scoping alone would leave the model guessing: the secrets are injected
-    // server-side and nothing else advertises them. Names only — values never
-    // enter the provider request, matching the copilot's workspace-context rule.
-    // `StoredTool.params` holds strings, so a multi-select arrives JSON-encoded;
-    // the executor's paramsTransform parses it later, but this runs before that.
-    const mounted = readMountedSecretNames(resolvedResourceParams.mountedSecrets)
-    toolDescription = mounted.length
-      ? `${toolDescription}\n\nWorkspace secret names available to this code: ${mounted.join(', ')}. Reference one with the exact {{NAME}} syntax. Its value is bound only while the code executes and is not included in the model request. No other secrets are readable.`
-      : `${toolDescription}\n\nThis code has no access to workspace secrets.`
+  } else if (toolId === 'function_execute') {
+    if (resolvedResourceParams.secretScope === 'selected') {
+      // Scoping alone would leave the model guessing: the secrets are injected
+      // server-side and nothing else advertises them. Names only — values never
+      // enter the provider request, matching the copilot's workspace-context rule.
+      // `StoredTool.params` holds strings, so a multi-select arrives JSON-encoded;
+      // the executor's paramsTransform parses it later, but this runs before that.
+      const mounted = readMountedSecretNames(resolvedResourceParams.mountedSecrets)
+      toolDescription = mounted.length
+        ? `${toolDescription}\n\nWorkspace secret names available to this code: ${mounted.join(', ')}. Reference one with the exact {{NAME}} syntax. Its value is bound only while the code executes and is not included in the model request. No other secrets are readable.`
+        : `${toolDescription}\n\nThis code has no access to workspace secrets.`
+    }
   }
 
   const blockParamsFn = blockDef?.tools?.config?.params as

@@ -26,6 +26,8 @@ export interface DataRowProps {
   /** Current workspace id — forwarded to cells so in-workspace resource URLs
    *  render as tagged-resource chips. */
   workspaceId: string
+  /** Effective viewer timezone used to render TTL instants. */
+  timeZone: string
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -114,6 +116,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.row !== next.row ||
     prev.columns !== next.columns ||
     prev.workspaceId !== next.workspaceId ||
+    prev.timeZone !== next.timeZone ||
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
@@ -161,6 +164,7 @@ export const DataRow = React.memo(function DataRow({
   row,
   columns,
   workspaceId,
+  timeZone,
   rowIndex,
   isFirstRow,
   editingColumnName,
@@ -396,6 +400,7 @@ export const DataRow = React.memo(function DataRow({
             <div className={CELL_CONTENT}>
               <CellContent
                 workspaceId={workspaceId}
+                timeZone={timeZone}
                 value={
                   pendingCellValue && column.key in pendingCellValue
                     ? pendingCellValue[column.key]

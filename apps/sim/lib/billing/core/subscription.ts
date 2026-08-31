@@ -431,6 +431,21 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
   }
 }
 
+/**
+ * Whether an organization's entitlement actually comes from its subscription
+ * row, as opposed to being granted by deployment configuration.
+ *
+ * `resolveOrganizationEnterprisePlan` short-circuits to `true` in two modes —
+ * billing disabled, and self-hosted with access control enabled — where no
+ * `subscription` row need exist at all. Anything that wants to re-verify an
+ * entitlement against the subscription table must consult this first, or it
+ * will read a missing row as a lapse and refuse work that should proceed.
+ * Exported so those callers cannot drift from the short-circuits below.
+ */
+export function isSubscriptionBackedEntitlement(): boolean {
+  return isBillingEnabled && !(isAccessControlEnabled && !isHosted)
+}
+
 async function resolveOrganizationEnterprisePlan(organizationId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) {

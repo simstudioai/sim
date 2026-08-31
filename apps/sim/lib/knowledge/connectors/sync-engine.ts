@@ -53,7 +53,7 @@ import {
   MAX_PROCESSING_ATTEMPTS,
   QUEUED_DISPATCH_GRACE_MS,
 } from '@/lib/knowledge/documents/types'
-import { getRetryAfterMs } from '@/lib/knowledge/documents/utils'
+import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { StorageService } from '@/lib/uploads'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
@@ -2442,6 +2442,14 @@ export async function executeSync(
             return { ...op, extDoc: mergeHydratedDocument(op.extDoc, fullDoc, hydratedHash) }
           })
         )
+
+        const rateLimitFailure = hydrated.find(
+          (outcome): outcome is PromiseRejectedResult =>
+            outcome.status === 'rejected' && isRateLimitError(outcome.reason)
+        )
+        if (rateLimitFailure) {
+          throw rateLimitFailure.reason
+        }
 
         for (let i = 0; i < hydrated.length; i++) {
           const outcome = hydrated[i]

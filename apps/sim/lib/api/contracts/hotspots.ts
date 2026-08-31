@@ -4,10 +4,12 @@ import {
   privateSecretProvenanceBundleSchema,
   stringRecordSchema,
   unknownRecordSchema,
+  userFileSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
+import { MAX_BLOCK_MOUNTED_FILES } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import {
   MAX_PII_VALIDATION_DETECTED_ENTITIES,
   MAX_PII_VALIDATION_TEXT_CHARACTERS,
@@ -182,6 +184,19 @@ export const functionExecuteBodySchema = z
         tables: z.array(functionTableInputSchema).optional(),
       })
       .strict()
+      .optional(),
+    /**
+     * Platform file objects mounted into the sandbox before the code runs.
+     * Distinct from `inputs.files`, which names workspace VFS paths: these are
+     * the same objects tools exchange, so an upstream block's output can be
+     * mounted without first being written to the workspace.
+     */
+    files: z
+      .array(userFileSchema)
+      .max(
+        MAX_BLOCK_MOUNTED_FILES,
+        `At most ${MAX_BLOCK_MOUNTED_FILES} files can be mounted into the sandbox`
+      )
       .optional(),
     outputs: z
       .object({

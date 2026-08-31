@@ -333,6 +333,47 @@ describe('file manage operations', () => {
         scope: { userId: 'user-1', workspaceId: 'workspace-1' },
       },
     })
+    expect(mockGetBoundWorkspaceFileSecretProvenance).toHaveBeenNthCalledWith(
+      1,
+      'workspace-1',
+      expect.objectContaining({ fileId: 'file-1', contentUpdatedAt: CONTENT_UPDATED_AT })
+    )
+    expect(mockGetBoundWorkspaceFileSecretProvenance).toHaveBeenNthCalledWith(
+      2,
+      'workspace-1',
+      expect.objectContaining({ fileId: 'file-2', contentUpdatedAt: CONTENT_UPDATED_AT })
+    )
+  })
+
+  it('pins resolved file-input provenance to the captured content revision', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue(workspaceFile('file-1'))
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
+      status: 'exact',
+      entries: [],
+    })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          operation: 'content',
+          workspaceId: 'workspace-1',
+          fileInput: {
+            key: 'workspace/workspace-1/file-1.txt',
+            name: 'file-1.txt',
+            type: 'text/plain',
+            size: 6,
+          },
+        },
+        PRIVATE_REQUEST_HEADER
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetBoundWorkspaceFileSecretProvenance).toHaveBeenCalledWith(
+      'workspace-1',
+      expect.objectContaining({ fileId: 'file-1', contentUpdatedAt: CONTENT_UPDATED_AT })
+    )
   })
 
   it('stores exact causal provenance from a different user in the actor workspace', async () => {

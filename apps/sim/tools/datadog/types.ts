@@ -2,17 +2,27 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Datadog Site/Region options
-/** Regional sites Datadog serves the API from, per the `site` server variable enum. */
-export type DatadogSite =
-  | 'datadoghq.com'
-  | 'us3.datadoghq.com'
-  | 'us5.datadoghq.com'
-  | 'datadoghq.eu'
-  | 'ap1.datadoghq.com'
-  | 'ap2.datadoghq.com'
-  | 'uk1.datadoghq.com'
-  | 'ddog-gov.com'
-  | 'us2.ddog-gov.com'
+/**
+ * Regional sites Datadog serves the API from, per the `site` server variable enum.
+ *
+ * A runtime array rather than a bare type union: `site` is interpolated into the
+ * request host, and a type union is erased at runtime, so it cannot keep a value
+ * that arrived from a stored workflow out of the URL. {@link DatadogSite} is
+ * derived from this list so the two can never drift.
+ */
+export const DATADOG_SITES = [
+  'datadoghq.com',
+  'us3.datadoghq.com',
+  'us5.datadoghq.com',
+  'datadoghq.eu',
+  'ap1.datadoghq.com',
+  'ap2.datadoghq.com',
+  'uk1.datadoghq.com',
+  'ddog-gov.com',
+  'us2.ddog-gov.com',
+] as const
+
+export type DatadogSite = (typeof DATADOG_SITES)[number]
 
 // Base parameters for write-only operations (only need API key)
 interface DatadogWriteOnlyParams {

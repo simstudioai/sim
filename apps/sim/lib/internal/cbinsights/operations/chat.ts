@@ -6,12 +6,13 @@ import {
   asStringArray,
   cbInsightsRequest,
   compactBody,
+  parseOptionalStringParam,
 } from '@/tools/cbinsights/utils'
 
 export const executeCbinsightsChatOperation: InternalToolOperationImplementation<
   CbInsightsChatParams
 > = async (params, signal) => {
-  const message = params.message?.trim()
+  const message = parseOptionalStringParam(params.message, 'message')
   if (!message) throw new Error('CB Insights "message" is required')
 
   return cbInsightsRequest<{
@@ -25,7 +26,7 @@ export const executeCbinsightsChatOperation: InternalToolOperationImplementation
     params,
     {
       path: '/v2/chatcbi',
-      body: compactBody({ message, chatID: params.chatId?.trim() }),
+      body: compactBody({ message, chatID: parseOptionalStringParam(params.chatId, 'chatId') }),
     },
     (data) => ({
       chatId: asString(data.chatID),

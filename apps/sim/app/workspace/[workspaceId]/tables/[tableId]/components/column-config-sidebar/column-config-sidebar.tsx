@@ -17,7 +17,7 @@ import {
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
 import { SelectOptionsEditor } from '../select-field'
-import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
+import { columnTypeOptionsForTable } from './column-types'
 
 /** Whether a column type carries an option set. */
 function isSelectType(type: ColumnDefinition['type']): boolean {
@@ -52,6 +52,8 @@ interface ColumnConfigSidebarProps {
   onClose: () => void
   /** Existing column record for `mode: 'edit'`; ignored otherwise. */
   existingColumn: ColumnDefinition | null
+  allColumns: readonly ColumnDefinition[]
+  tableRowTtlEnabled: boolean
   workspaceId: string
   tableId: string
   /** Notify parent of a rename so it can rewrite local `columnOrder` /
@@ -102,6 +104,8 @@ function ColumnConfigBody({
   config,
   onClose,
   existingColumn,
+  allColumns,
+  tableRowTtlEnabled,
   workspaceId,
   tableId,
   onColumnRename,
@@ -274,11 +278,16 @@ function ColumnConfigBody({
             <div className='flex flex-col gap-[9.5px]'>
               <RequiredLabel>Type</RequiredLabel>
               <ChipCombobox
-                options={PLAIN_COLUMN_TYPE_OPTIONS.map((o) => ({
-                  label: o.label,
-                  value: o.type,
-                  icon: o.icon,
-                }))}
+                options={columnTypeOptionsForTable(allColumns, existingColumn, {
+                  tableRowTtlEnabled,
+                })
+                  .filter((option) => option.type !== 'workflow')
+                  .map((option) => ({
+                    label: option.label,
+                    value: option.type,
+                    icon: option.icon,
+                    disabled: option.disabledReason !== undefined,
+                  }))}
                 value={typeInput}
                 onChange={(v) => setTypeInput(v as ColumnDefinition['type'])}
                 placeholder='Select type'

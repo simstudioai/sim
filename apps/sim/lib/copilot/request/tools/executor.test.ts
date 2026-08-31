@@ -124,10 +124,10 @@ describe('toolWatchdogTimeoutMs', () => {
 })
 
 describe('pendingToolWaitBudgetMs', () => {
-  it('does not put a deadline on an executing browser takeover', () => {
-    expect(
-      pendingToolWaitBudgetMs({ name: 'browser_request_takeover', status: 'executing' })
-    ).toBeNull()
+  it('bounds retired browser calls that can no longer be executed by the client', () => {
+    expect(pendingToolWaitBudgetMs({ name: 'browser_request_takeover', status: 'executing' })).toBe(
+      TOOL_WATCHDOG_DEFAULT_MS
+    )
   })
 
   it('waits on a person for as long as the whole turn allows', () => {
@@ -136,6 +136,17 @@ describe('pendingToolWaitBudgetMs', () => {
     expect(pendingToolWaitBudgetMs({ name: 'terminal_run', status: 'awaiting_approval' })).toBe(
       TOOL_WATCHDOG_LONG_RUNNING_MS
     )
+  })
+
+  it('matches the requested browser_wait_for renderer budget', () => {
+    expect(pendingToolWaitBudgetMs({ name: 'browser_wait_for', status: 'executing' })).toBe(25_000)
+    expect(
+      pendingToolWaitBudgetMs({
+        name: 'browser_wait_for',
+        status: 'executing',
+        params: { timeoutMs: 120_000 },
+      })
+    ).toBe(135_000)
   })
 
   it('falls back to the tool\u2019s own watchdog once it is actually executing', () => {

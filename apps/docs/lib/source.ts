@@ -2,7 +2,6 @@ import { createElement, Fragment } from 'react'
 import { loader, multiple } from 'fumadocs-core/source'
 import type { DocData, DocMethods } from 'fumadocs-mdx/runtime/types'
 import { docs } from '@/.source/server'
-import { i18n } from './i18n'
 import { createApiReferenceSource } from './openapi-source'
 
 const METHOD_COLORS: Record<string, string> = {
@@ -83,7 +82,6 @@ export const source = loader(
   }),
   {
     baseUrl: '/',
-    i18n,
     plugins: [openapiPluginBadgeLeft() as never],
   }
 )

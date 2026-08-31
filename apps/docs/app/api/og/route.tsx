@@ -11,7 +11,7 @@ const TITLE_FONT_SIZE = {
 } as const
 /** Average glyph width as a fraction of font size, for this weight/family — used to pack words into lines. */
 const LATIN_CHAR_WIDTH_EM = 0.42
-/** CJK glyphs (docs ships `ja`/`zh` locales) render near-square, roughly 2.4x a Latin glyph at this weight. */
+/** CJK glyphs render near-square, roughly 2.4x a Latin glyph at this weight. */
 const CJK_CHAR_WIDTH_EM = 1
 const CJK_RANGE = /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/
 const TITLE_BOX_WIDTH = 1020
@@ -58,7 +58,7 @@ function getTitleStyle(title: string): CSSProperties {
   }
 }
 
-/** Sums per-character em-widths rather than counting characters, so wide CJK glyphs (docs ships `ja`/`zh`) don't under-wrap. */
+/** Sums per-character em-widths rather than counting characters, so wide CJK glyphs don't under-wrap. */
 function estimateWidthEm(text: string): number {
   let width = 0
   for (const char of text) {
@@ -69,11 +69,10 @@ function estimateWidthEm(text: string): number {
 
 /**
  * Splits a single word wider than `maxWidthEm` into character-level chunks
- * that each fit. CJK titles (docs ships `ja`/`zh` locales) are often
- * space-free, so a whole run can arrive as one "word" from `wrapTitleLines`'
- * space-based split. Breaking mid-word is correct for CJK, where each glyph
- * is independently readable; Latin words never reach this path since they
- * stay under `maxWidthEm` in practice.
+ * that each fit. CJK titles are often space-free, so a whole run can arrive
+ * as one "word" from `wrapTitleLines`' space-based split. Breaking mid-word
+ * is correct for CJK, where each glyph is independently readable; Latin words
+ * never reach this path since they stay under `maxWidthEm` in practice.
  */
 function splitOversizedWord(word: string, maxWidthEm: number): string[] {
   const chunks: string[] = []
@@ -139,7 +138,7 @@ function wrapTitleLines(title: string, fontSize: number): string[] {
  * last-shipped `soehne-kraftig.woff2` since Satori (`next/og`'s renderer)
  * can't parse WOFF2 or variable fonts. Fetched over HTTP since the edge
  * runtime has no filesystem access — served from `/static/fonts/` (not
- * `/fonts/`) so it isn't intercepted by the site's i18n proxy (`proxy.ts`),
+ * `/fonts/`) so it isn't intercepted by the site's proxy (`proxy.ts`),
  * whose matcher excludes `static` but not `fonts`.
  */
 async function loadTitleFont(baseUrl: string): Promise<ArrayBuffer> {

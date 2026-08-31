@@ -16,7 +16,14 @@ const DeleteAliasSchema = z.object({
     .string()
     .min(1, 'functionName is required')
     .max(256, 'functionName cannot exceed 256 characters'),
-  aliasName: z.string().min(1, 'aliasName is required'),
+  aliasName: z
+    .string()
+    .min(1, 'aliasName is required')
+    .max(128, 'aliasName cannot exceed 128 characters')
+    .regex(
+      /^(?![0-9]+$)[a-zA-Z0-9-_]+$/,
+      'aliasName may only contain letters, numbers, hyphens, and underscores, and cannot be all digits'
+    ),
 })
 
 const DeleteAliasResponseSchema = lambdaMessageResponseSchema

@@ -9,6 +9,9 @@ export const revalidate = 0
 const DEFAULT_SEARCH_LIMIT = 10
 const MAX_SEARCH_LIMIT = 20
 
+/** PostgreSQL text-search configuration for the docs' English content. */
+const TS_CONFIG = 'english'
+
 function getSearchLimit(value: unknown): number {
   const limit = Number.parseInt(String(value ?? DEFAULT_SEARCH_LIMIT), 10)
 
@@ -23,19 +26,14 @@ function getSearchParams(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   return {
     query: searchParams.get('query') || searchParams.get('q') || '',
-    locale: searchParams.get('locale') || 'en',
     limit: getSearchLimit(searchParams.get('limit')),
   }
 }
 
-/**
- * Hybrid search API endpoint
- * - English: Vector embeddings + keyword search
- * - Other languages: Keyword search only
- */
+/** Hybrid search API endpoint combining vector embeddings with keyword search. */
 export async function GET(request: NextRequest) {
   try {
-    const { query, locale, limit } = getSearchParams(request)
+    const { query, limit } = getSearchParams(request)
 
     if (!query || query.trim().length === 0) {
       return NextResponse.json([])
@@ -44,48 +42,24 @@ export async function GET(request: NextRequest) {
     const candidateLimit = limit * 3
     const similarityThreshold = 0.6
 
-    const localeMap: Record<string, string> = {
-      en: 'english',
-      es: 'spanish',
-      fr: 'french',
-      de: 'german',
-      ja: 'simple', // PostgreSQL doesn't have Japanese support, use simple
-      zh: 'simple', // PostgreSQL doesn't have Chinese support, use simple
-    }
-    const tsConfig = localeMap[locale] || 'simple'
-
-    const useVectorSearch = locale === 'en'
-    let vectorResults: Array<{
-      chunkId: string
-      chunkText: string
-      sourceDocument: string
-      sourceLink: string
-      headerText: string
-      headerLevel: number
-      similarity: number
-      searchType: string
-    }> = []
-
-    if (useVectorSearch) {
-      const queryEmbedding = await generateSearchEmbedding(query)
-      vectorResults = await db
-        .select({
-          chunkId: docsEmbeddings.chunkId,
-          chunkText: docsEmbeddings.chunkText,
-          sourceDocument: docsEmbeddings.sourceDocument,
-          sourceLink: docsEmbeddings.sourceLink,
-          headerText: docsEmbeddings.headerText,
-          headerLevel: docsEmbeddings.headerLevel,
-          similarity: sql<number>`1 - (${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
-          searchType: sql<string>`'vector'`,
-        })
-        .from(docsEmbeddings)
-        .where(
-          sql`1 - (${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector) >= ${similarityThreshold}`
-        )
-        .orderBy(sql`${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
-        .limit(candidateLimit)
-    }
+    const queryEmbedding = await generateSearchEmbedding(query)
+    const vectorResults = await db
+      .select({
+        chunkId: docsEmbeddings.chunkId,
+        chunkText: docsEmbeddings.chunkText,
+        sourceDocument: docsEmbeddings.sourceDocument,
+        sourceLink: docsEmbeddings.sourceLink,
+        headerText: docsEmbeddings.headerText,
+        headerLevel: docsEmbeddings.headerLevel,
+        similarity: sql<number>`1 - (${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
+        searchType: sql<string>`'vector'`,
+      })
+      .from(docsEmbeddings)
+      .where(
+        sql`1 - (${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector) >= ${similarityThreshold}`
+      )
+      .orderBy(sql`${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
+      .limit(candidateLimit)
 
     const keywordResults = await db
       .select({
@@ -95,17 +69,15 @@ export async function GET(request: NextRequest) {
         sourceLink: docsEmbeddings.sourceLink,
         headerText: docsEmbeddings.headerText,
         headerLevel: docsEmbeddings.headerLevel,
-        similarity: sql<number>`ts_rank(${docsEmbeddings.chunkTextTsv}, plainto_tsquery(${tsConfig}, ${query}))`,
+        similarity: sql<number>`ts_rank(${docsEmbeddings.chunkTextTsv}, plainto_tsquery(${TS_CONFIG}, ${query}))`,
         searchType: sql<string>`'keyword'`,
       })
       .from(docsEmbeddings)
-      .where(sql`${docsEmbeddings.chunkTextTsv} @@ plainto_tsquery(${tsConfig}, ${query})`)
+      .where(sql`${docsEmbeddings.chunkTextTsv} @@ plainto_tsquery(${TS_CONFIG}, ${query})`)
       .orderBy(
-        sql`ts_rank(${docsEmbeddings.chunkTextTsv}, plainto_tsquery(${tsConfig}, ${query})) DESC`
+        sql`ts_rank(${docsEmbeddings.chunkTextTsv}, plainto_tsquery(${TS_CONFIG}, ${query})) DESC`
       )
       .limit(candidateLimit)
-
-    const knownLocales = ['en', 'es', 'fr', 'de', 'ja', 'zh']
 
     const vectorRankMap = new Map<string, number>()
     vectorResults.forEach((r, idx) => vectorRankMap.set(r.chunkId, idx + 1))
@@ -141,14 +113,6 @@ export async function GET(request: NextRequest) {
 
     scoredResults.sort((a, b) => b.rrfScore - a.rrfScore)
 
-    const localeFilteredResults = scoredResults.filter((result) => {
-      const firstPart = result.sourceDocument.split('/')[0]
-      if (knownLocales.includes(firstPart)) {
-        return firstPart === locale
-      }
-      return locale === 'en'
-    })
-
     const queryLower = query.toLowerCase()
     const getTitleBoost = (result: ResultWithRRF): number => {
       const fileName = result.sourceDocument
@@ -163,13 +127,13 @@ export async function GET(request: NextRequest) {
       return 0
     }
 
-    localeFilteredResults.sort((a, b) => {
+    scoredResults.sort((a, b) => {
       return b.rrfScore + getTitleBoost(b) - (a.rrfScore + getTitleBoost(a))
     })
 
     const pageMap = new Map<string, ResultWithRRF>()
 
-    for (const result of localeFilteredResults) {
+    for (const result of scoredResults) {
       const pageKey = result.sourceDocument
       const existing = pageMap.get(pageKey)
 
@@ -189,7 +153,7 @@ export async function GET(request: NextRequest) {
         .replace('.mdx', '')
         .split('/')
         .reduce<string[]>((parts, part) => {
-          if (part === 'index' || knownLocales.includes(part)) {
+          if (part === 'index') {
             return parts
           }
 

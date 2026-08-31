@@ -17,10 +17,10 @@ const UpdateFunctionCodeSchema = z
       .string()
       .min(1, 'functionName is required')
       .max(256, 'functionName cannot exceed 256 characters'),
-    s3Bucket: z.string().optional(),
-    s3Key: z.string().optional(),
-    s3ObjectVersion: z.string().optional(),
-    imageUri: z.string().optional(),
+    s3Bucket: z.string().min(1, 's3Bucket cannot be empty').optional(),
+    s3Key: z.string().min(1, 's3Key cannot be empty').optional(),
+    s3ObjectVersion: z.string().min(1, 's3ObjectVersion cannot be empty').optional(),
+    imageUri: z.string().min(1, 'imageUri cannot be empty').optional(),
     sourceKmsKeyArn: z.string().optional(),
     architectures: z
       .array(z.enum(['x86_64', 'arm64']))
@@ -31,21 +31,26 @@ const UpdateFunctionCodeSchema = z
     revisionId: z.string().optional(),
   })
   .superRefine((value, ctx) => {
+    const hasAnyZipField = Boolean(
+      value.s3Bucket || value.s3Key || value.s3ObjectVersion || value.sourceKmsKeyArn
+    )
     const hasS3 = Boolean(value.s3Bucket && value.s3Key)
-    if (!hasS3 && !value.imageUri) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['s3Bucket'],
-        message:
-          'A code source is required: provide s3Bucket and s3Key for a .zip package, or imageUri for a container image',
-      })
-      return
-    }
-    if (hasS3 && value.imageUri) {
+    if (value.imageUri && hasAnyZipField) {
       ctx.addIssue({
         code: 'custom',
         path: ['imageUri'],
-        message: 'Provide either an S3 package or imageUri, not both',
+        message:
+          'Provide either a .zip package (s3Bucket, s3Key, s3ObjectVersion, sourceKmsKeyArn) or imageUri, not both',
+      })
+      return
+    }
+    if (!value.imageUri && !hasS3) {
+      ctx.addIssue({
+        code: 'custom',
+        path: hasAnyZipField ? ['s3Key'] : ['s3Bucket'],
+        message: hasAnyZipField
+          ? 's3Bucket and s3Key must be provided together for a .zip package'
+          : 'A code source is required: provide s3Bucket and s3Key for a .zip package, or imageUri for a container image',
       })
     }
   })

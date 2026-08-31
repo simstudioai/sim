@@ -170,6 +170,7 @@ describe.concurrent('Blocks Module', () => {
       expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
         'file_read',
         'file_get_content',
+        'file_search',
         'file_fetch',
         'file_write',
         'file_append',

@@ -29,6 +29,8 @@ describe('ColumnDropdown', () => {
     act(() => {
       root.render(
         <ColumnDropdown
+          columns={[]}
+          tableRowTtlEnabled
           trigger='header'
           disabled={false}
           onPickType={vi.fn()}

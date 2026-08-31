@@ -20,7 +20,7 @@ app:
   # Image configuration
   image:
     repository: simstudioai/simstudio
-    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "v0.7.44") or pin via image.digest.
+    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "v0.8.18") or pin via image.digest.
     tag: ""
     # Optional image digest pin: "sha256:..." — when set, overrides tag.
     digest: ""
@@ -102,6 +102,7 @@ app:
     # Optional: Scheduled Jobs Authentication
     # Generate using: openssl rand -hex 32
     CRON_SECRET: ""         # OPTIONAL - required only if cronjobs.enabled=true, authenticates scheduled job requests
+    TABLE_ROW_TTL: ""       # Enable TTL columns and expired-row cleanup when AppConfig is unavailable
 
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
@@ -1454,6 +1455,16 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Deletes table rows whose TTL column contains an expired Unix timestamp.
+    cleanupTableRowTtl:
+      enabled: true
+      name: cleanup-table-row-ttl
+      schedule: "*/15 * * * *"
+      path: "/api/cron/cleanup-table-row-ttl"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     # Deletes prebuilt sandbox images that no workspace sandbox references and that
     # have gone unused past the retention window, from the provider and locally.
     # A no-op on deployments whose sandbox provider installs at run time.
@@ -1474,6 +1485,15 @@ cronjobs:
       name: outbox-process
       schedule: "*/1 * * * *"
       path: "/api/webhooks/outbox/process"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    workspaceFileSearchDispatch:
+      enabled: true
+      name: workspace-file-search-dispatch
+      schedule: "*/1 * * * *"
+      path: "/api/cron/workspace-file-search-dispatch"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1

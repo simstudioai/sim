@@ -21,12 +21,12 @@ const CreateFunctionSchema = z
     runtime: z.string().optional(),
     handler: z.string().optional(),
     packageType: z.enum(['Zip', 'Image']).optional(),
-    s3Bucket: z.string().optional(),
-    s3Key: z.string().optional(),
-    s3ObjectVersion: z.string().optional(),
-    imageUri: z.string().optional(),
+    s3Bucket: z.string().min(1, 's3Bucket cannot be empty').optional(),
+    s3Key: z.string().min(1, 's3Key cannot be empty').optional(),
+    s3ObjectVersion: z.string().min(1, 's3ObjectVersion cannot be empty').optional(),
+    imageUri: z.string().min(1, 'imageUri cannot be empty').optional(),
     sourceKmsKeyArn: z.string().optional(),
-    description: z.string().optional(),
+    description: z.string().max(256, 'description cannot exceed 256 characters').optional(),
     functionTimeout: z.number().int().min(1).max(900).optional(),
     memorySize: z.number().int().min(128).max(32768).optional(),
     ephemeralStorageSize: z.number().int().min(512).max(10240).optional(),
@@ -48,36 +48,41 @@ const CreateFunctionSchema = z
     logGroup: z.string().optional(),
   })
   .superRefine((value, ctx) => {
+    const hasAnyZipField = Boolean(
+      value.s3Bucket || value.s3Key || value.s3ObjectVersion || value.sourceKmsKeyArn
+    )
     const hasS3 = Boolean(value.s3Bucket && value.s3Key)
-    if (!hasS3 && !value.imageUri) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['s3Bucket'],
-        message:
-          'A code source is required: provide s3Bucket and s3Key for a .zip package, or imageUri for a container image',
-      })
-      return
-    }
-    if (hasS3 && value.imageUri) {
+    if (value.imageUri && hasAnyZipField) {
       ctx.addIssue({
         code: 'custom',
         path: ['imageUri'],
-        message: 'Provide either an S3 package or imageUri, not both',
+        message:
+          'Provide either a .zip package (s3Bucket, s3Key, s3ObjectVersion, sourceKmsKeyArn) or imageUri, not both',
       })
       return
     }
-    if (value.packageType === 'Image' && hasS3) {
+    if (!value.imageUri && !hasS3) {
+      ctx.addIssue({
+        code: 'custom',
+        path: hasAnyZipField ? ['s3Key'] : ['s3Bucket'],
+        message: hasAnyZipField
+          ? 's3Bucket and s3Key must be provided together for a .zip package'
+          : 'A code source is required: provide s3Bucket and s3Key for a .zip package, or imageUri for a container image',
+      })
+      return
+    }
+    if (value.imageUri && value.packageType === 'Zip') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['packageType'],
+        message: 'packageType Zip requires an S3 package, not imageUri',
+      })
+    }
+    if (hasS3 && value.packageType === 'Image') {
       ctx.addIssue({
         code: 'custom',
         path: ['imageUri'],
         message: 'packageType Image requires imageUri, not an S3 package',
-      })
-    }
-    if (value.packageType === 'Zip' && value.imageUri) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['s3Bucket'],
-        message: 'packageType Zip requires an S3 package, not imageUri',
       })
     }
     if (hasS3) {
@@ -96,14 +101,25 @@ const CreateFunctionSchema = z
         })
       }
     }
-    const hasSubnets = value.vpcSubnetIds !== undefined
-    const hasSecurityGroups = value.vpcSecurityGroupIds !== undefined
-    if (hasSubnets !== hasSecurityGroups) {
+    const subnetIds = value.vpcSubnetIds
+    const securityGroupIds = value.vpcSecurityGroupIds
+    if ((subnetIds === undefined) !== (securityGroupIds === undefined)) {
       ctx.addIssue({
         code: 'custom',
-        path: [hasSubnets ? 'vpcSecurityGroupIds' : 'vpcSubnetIds'],
+        path: [subnetIds === undefined ? 'vpcSubnetIds' : 'vpcSecurityGroupIds'],
         message:
           'vpcSubnetIds and vpcSecurityGroupIds must be supplied together: send both lists to attach a VPC, or both empty to detach',
+      })
+    } else if (
+      subnetIds !== undefined &&
+      securityGroupIds !== undefined &&
+      (subnetIds.length === 0) !== (securityGroupIds.length === 0)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [subnetIds.length === 0 ? 'vpcSubnetIds' : 'vpcSecurityGroupIds'],
+        message:
+          'vpcSubnetIds and vpcSecurityGroupIds must both be empty to detach, or both be populated to attach',
       })
     }
   })
