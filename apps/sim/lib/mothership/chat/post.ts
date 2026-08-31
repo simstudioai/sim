@@ -1479,9 +1479,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
        * queries and ~900ms p95 per message). Its prep slot now mints the run-scoped
        * delegation credential the worker presents on v2 calls (revamp D23).
        */
-      const delegationTokenPromise = workspaceId
-        ? mintDelegationToken({ workspaceId, userId: authenticatedUserId })
-        : Promise.resolve(null)
       const executionContextPromise = withCopilotSpan(
         TraceSpan.CopilotChatBuildExecutionContext,
         { [TraceAttr.CopilotBranchKind]: branch.kind },
@@ -1532,14 +1529,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       const [
         agentContexts,
         userPermission,
-        delegationToken,
         ,
         executionContext,
         personalCredentials,
       ] = await Promise.all([
         agentContextsPromise,
         userPermissionPromise,
-        delegationTokenPromise,
         persistUserMessagePromise,
         executionContextPromise,
         personalCredentialsPromise,
@@ -1631,7 +1626,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         requestPayload: {
           ...requestPayload,
           protocolVersion: PROTOCOL_VERSION,
-          ...(delegationToken ? { delegationToken } : {}),
         },
         userId: authenticatedUserId,
         streamId: userMessageId,
