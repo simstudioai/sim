@@ -217,8 +217,13 @@ async function requireCapability(
  * Separate from {@link requireCapability} because it is not a property of the
  * operation: no operation opts into it, and every operation a personal key can
  * reach is subject to it.
+ *
+ * Exported for the one authorization path that does not run through
+ * {@link authorizeWorkspaceOperation} — the billing reads, which resolve their
+ * own workspace scope. One copy, or the same key the funnel refuses keeps
+ * working somewhere.
  */
-async function requirePersonalApiKeysAllowed(
+export async function requirePersonalApiKeysAllowed(
   userId: string,
   context: WorkspaceAuthorizationContext
 ): Promise<void> {
