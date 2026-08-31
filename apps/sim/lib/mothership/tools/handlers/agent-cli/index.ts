@@ -87,5 +87,5 @@ export function agentCliHelpSection(): string {
   const lines = AGENT_CLI_COMMANDS.map(
     (command) => `  ${command.usage.padEnd(38)} ${command.summary}`
   )
-  return `\nAgent commands (available in this environment only):\n${lines.join('\n')}\n`
+  return `\nAgent commands (available in this environment only):\n${lines.join('\n')}\n\nAny command's stdout can be filtered with a trailing pipe into grep (the only pipe target):\n  sim workflows export <id> | grep -in slack\n`
 }
