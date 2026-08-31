@@ -100,9 +100,15 @@ function buildConditionScript(expressions: string[], evalContext: Record<string,
  * The two scans read different text on purpose. Placeholders are read from the built script,
  * which is exactly what the compiler substitutes over, so a mounted set derived from anything
  * narrower would silently stop resolving a placeholder the compiler still expands. The direct
- * `environmentVariables` read is looked for in the expressions alone, and only as a member
- * access: the script also carries the source block's output as data, so scanning it would let
- * a payload that merely contains the word restore the full map.
+ * `environmentVariables` read is looked for in the expressions alone: the script also carries
+ * the source block's output as data, so scanning that too would let a payload which merely
+ * contains the word restore the full map.
+ *
+ * Within an expression the bare identifier is enough, rather than a member access. Narrowing
+ * the secrets an expression can see when it does reach for the map by some shape the pattern
+ * did not anticipate — `environmentVariables?.FLAG`, or a read through `Object.keys` — would
+ * route the run down a branch the author did not write, silently. Matching too widely only
+ * costs the narrowing itself, and never mounts more than this path already mounted.
  */
 function scopeConditionSecrets(
   code: string,
@@ -111,7 +117,7 @@ function scopeConditionSecrets(
   secretScope: 'all' | 'selected'
   mountedSecrets: string[]
 } {
-  if (expressions.some((expression) => /\benvironmentVariables\s*[.[]/.test(expression))) {
+  if (expressions.some((expression) => /\benvironmentVariables\b/.test(expression))) {
     return { secretScope: 'all', mountedSecrets: [] }
   }
 

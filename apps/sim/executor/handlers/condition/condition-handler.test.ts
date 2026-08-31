@@ -254,17 +254,28 @@ describe('ConditionBlockHandler', () => {
   })
 
   it('keeps the whole environment for a condition that reads the environment directly', async () => {
-    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
-
-    const conditions = [
-      { id: 'cond1', title: 'if', value: 'environmentVariables.ROUTE_KEY === "beta"' },
-      { id: 'else1', title: 'else', value: '' },
+    // Every shape an expression can reach the map through, including the ones a member-access
+    // pattern would miss — narrowing one of those would route the run silently.
+    const reads = [
+      'environmentVariables.ROUTE_KEY === "beta"',
+      'environmentVariables["ROUTE_KEY"] === "beta"',
+      'environmentVariables?.ROUTE_KEY === "beta"',
+      'Object.keys(environmentVariables).length > 0',
     ]
 
-    await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+    for (const value of reads) {
+      mockExecuteTool.mockReset()
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+      const conditions = [
+        { id: 'cond1', title: 'if', value },
+        { id: 'else1', title: 'else', value: '' },
+      ]
 
-    const [, toolParams] = mockExecuteTool.mock.calls[0]
-    expect(toolParams.secretScope).toBe('all')
+      await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+
+      const [, toolParams] = mockExecuteTool.mock.calls[0]
+      expect(toolParams.secretScope, `condition ${value}`).toBe('all')
+    }
   })
 
   it('should never forward collected block outputs in the request body', async () => {
