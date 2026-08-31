@@ -3,6 +3,14 @@ import { BRANCH_PROTECTION_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 /**
+ * Names the failure class without echoing the rejected text. `JSON.parse` quotes
+ * the input it rejected back into its own message, and these fields can carry
+ * values resolved from other blocks.
+ */
+const BRANCH_PROTECTION_SHAPE_ERROR =
+  'Branch protection fields must be a JSON object, or left empty to disable the rule'
+
+/**
  * GitHub documents `required_status_checks`, `enforce_admins`,
  * `required_pull_request_reviews` and `restrictions` as required body fields
  * that are nullable — each says "Set to null to disable". "Required" there means
@@ -16,15 +24,20 @@ function toNullableObject(value: unknown): Record<string, unknown> | null {
   if (typeof value === 'string') {
     const trimmed = value.trim()
     if (trimmed === '' || trimmed === 'null') return null
-    const parsed: unknown = JSON.parse(trimmed)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      throw new Error(BRANCH_PROTECTION_SHAPE_ERROR)
+    }
     if (parsed === null) return null
     if (typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('Branch protection fields must be JSON objects')
+      throw new Error(BRANCH_PROTECTION_SHAPE_ERROR)
     }
     return parsed as Record<string, unknown>
   }
   if (typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('Branch protection fields must be JSON objects')
+    throw new Error(BRANCH_PROTECTION_SHAPE_ERROR)
   }
   return value as Record<string, unknown>
 }

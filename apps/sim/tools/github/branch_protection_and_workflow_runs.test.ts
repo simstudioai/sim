@@ -100,10 +100,23 @@ describe('github_update_branch_protection body builder', () => {
     expect(body.restrictions).toEqual(restrictions)
   })
 
-  it('rejects a non-object JSON value instead of shipping it to GitHub', () => {
+  it.each(['["octocat"]', '42', 'not json at all', '{"users":'])(
+    'rejects %p instead of shipping it to GitHub',
+    (restrictions) => {
+      expect(() => buildProtectionBody({ ...BASE_PROTECTION_PARAMS, restrictions })).toThrow(
+        /must be a JSON object/
+      )
+    }
+  )
+
+  it('does not echo the rejected value into the error message', () => {
     expect(() =>
-      buildProtectionBody({ ...BASE_PROTECTION_PARAMS, restrictions: '["octocat"]' })
-    ).toThrow(/JSON objects/)
+      buildProtectionBody({ ...BASE_PROTECTION_PARAMS, restrictions: 'ghp_secretlooking' })
+    ).toThrow(
+      expect.objectContaining({
+        message: expect.not.stringContaining('ghp_secretlooking'),
+      })
+    )
   })
 
   it("coerces the dropdown's 'true'/'false' strings to booleans", () => {
