@@ -363,7 +363,14 @@ function upsertToolNode(
 ): ToolNode {
   const existing = model.nodes.get(id)
   if (existing && existing.kind === 'tool') {
-    if (name && !existing.name) existing.name = name
+    // Fill blanks, and replace exactly the CLI placeholder: the worker's partial frame
+    // names CLI rows `sim_cli` (args unknowable mid-stream) and the finalized frame
+    // carries the real verb (`cli_workflows_list`) — without this every live CLI row
+    // read "Running CLI command" until reload. Scoped to the placeholder so the gateway
+    // rebind's model-authored branding is never clobbered by a later frame.
+    if (name && (!existing.name || (existing.name === 'sim_cli' && name !== 'sim_cli'))) {
+      existing.name = name
+    }
     return existing
   }
   const node: ToolNode = {
