@@ -263,7 +263,10 @@ describe('POST /api/auth/sso/register', () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
     expect(res.status).toBe(200)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      domainVerified: true,
+      jitProvisioningEnabled: true,
+    })
   })
 
   /** updateSSOProvider resets domainVerified to false whenever the domain changes. */
@@ -274,7 +277,10 @@ describe('POST /api/auth/sso/register', () => {
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org1' }))
     expect(res.status).toBe(200)
     expect(mockUpdateSSOProvider).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      domainVerified: true,
+      jitProvisioningEnabled: true,
+    })
   })
 
   /**
@@ -299,6 +305,7 @@ describe('POST /api/auth/sso/register', () => {
         domain: 'acme.com',
         oidcConfig: '{"stored":"oidc"}',
         samlConfig: null,
+        jitProvisioningEnabled: false,
       },
     ]) // provider already owned → update path
 
@@ -313,6 +320,7 @@ describe('POST /api/auth/sso/register', () => {
       oidcConfig: '{"stored":"oidc"}',
       samlConfig: null,
       domainVerified: false,
+      jitProvisioningEnabled: false,
     })
   })
 
@@ -339,14 +347,33 @@ describe('POST /api/auth/sso/register', () => {
     setEnvFlags({ isSsoEnabled: true, isHosted: true })
     const res = await POST(request(OIDC_BODY))
     expect(res.status).toBe(200)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: false })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      domainVerified: false,
+      jitProvisioningEnabled: true,
+    })
   })
 
   it('grants domain trust to a personal provider when self-hosted', async () => {
     setEnvFlags({ isSsoEnabled: true, isHosted: false })
     const res = await POST(request(OIDC_BODY))
     expect(res.status).toBe(200)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      domainVerified: true,
+      jitProvisioningEnabled: true,
+    })
+  })
+
+  it('persists invite-only provisioning without changing Better Auth provider config', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1', jitProvisioningEnabled: false }))
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      domainVerified: true,
+      jitProvisioningEnabled: false,
+    })
+    expect(mockRegisterSSOProvider.mock.calls[0][0].body).not.toHaveProperty(
+      'jitProvisioningEnabled'
+    )
   })
 
   /**

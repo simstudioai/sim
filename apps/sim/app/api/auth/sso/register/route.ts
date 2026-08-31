@@ -108,7 +108,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const body = parsed.data.body
-    const { providerId, issuer, providerType, mapping, orgId } = body
+    const { providerId, issuer, providerType, mapping, orgId, jitProvisioningEnabled } = body
 
     if (orgId) {
       const [membership] = await db
@@ -624,6 +624,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         domain: ssoProvider.domain,
         oidcConfig: ssoProvider.oidcConfig,
         samlConfig: ssoProvider.samlConfig,
+        jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
       })
       .from(ssoProvider)
       .where(ownerClause)
@@ -643,7 +644,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      */
     const grantProviderDomainTrust = async (): Promise<boolean> => {
       if (!orgId) {
-        await db.update(ssoProvider).set({ domainVerified: !isHosted }).where(ownerClause)
+        await db
+          .update(ssoProvider)
+          .set({ domainVerified: !isHosted, jitProvisioningEnabled })
+          .where(ownerClause)
         return true
       }
       return db.transaction(async (tx) => {
@@ -663,7 +667,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         const granted = await tx
           .update(ssoProvider)
-          .set({ domainVerified: true })
+          .set({ domainVerified: true, jitProvisioningEnabled })
           .where(ownerClause)
           .returning({ id: ssoProvider.id })
         return granted.length > 0
@@ -694,6 +698,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             oidcConfig: existingOwnedProvider.oidcConfig,
             samlConfig: existingOwnedProvider.samlConfig,
             domainVerified: false,
+            jitProvisioningEnabled: existingOwnedProvider.jitProvisioningEnabled,
           })
           .where(eq(ssoProvider.id, existingOwnedProvider.id))
         logger.warn('Reverted SSO update: domain verification was removed mid-write', {

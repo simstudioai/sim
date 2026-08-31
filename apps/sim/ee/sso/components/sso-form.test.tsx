@@ -38,6 +38,7 @@ vi.mock('@/lib/auth/auth-client', () => ({
 }))
 
 vi.mock('@/app/(auth)/components', () => ({
+  AuthFormMessage: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   AuthSubmitButton: ({
     children,
     disabled = false,
@@ -147,6 +148,20 @@ describe('SSOForm sign-in errors', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  it('shows an actionable seat message after a successful IdP login cannot provision access', async () => {
+    renderInteractive('error=sso_no_seats')
+
+    await act(async () => {})
+
+    expect(container).toHaveTextContent('Your organization has no available seat capacity.')
+    expect(container).toHaveTextContent('Ask an administrator to increase capacity')
+    expect(container.querySelector('[role="alert"]')).toHaveTextContent(
+      'Your organization has no available seat capacity.'
+    )
+    expect(container.querySelector('#email')).not.toHaveAttribute('aria-invalid')
+    expect(container.querySelector('#email')).not.toHaveAttribute('aria-describedby')
   })
 
   it('shows a generic retryable error when Better Auth resolves with a 404', async () => {

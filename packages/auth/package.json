@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@sim/db": "workspace:*",
-    "better-auth": "1.6.23"
+    "better-auth": "1.6.27"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
