@@ -40,6 +40,10 @@ import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
+import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
@@ -164,6 +168,28 @@ export const POST = withRouteHandler(
     try {
       const workspaceAccess = await assertActiveWorkspaceAccess(workspaceId, userId)
       const userPermission = workspaceAccess.permission
+
+      /**
+       * permission-group-enforced: copilot.use — read off the operation so this
+       * route and the funnel can never name different capabilities.
+       *
+       * A raw special route: `admitV2Request` authenticates and rate-limits but
+       * never authorizes, so nothing else on this path applies the capability
+       * `chatOperations.send` declares. Checked after workspace access, for the
+       * reason the funnel gives — a caller with no reach into the workspace is
+       * refused first, so the refusal cannot report which capabilities an
+       * organization withholds to someone who is not in it — and before a
+       * conversation is minted or a turn is billed.
+       */
+      const sendCapability = chatOperations.send.capability
+      if (
+        sendCapability !== 'none' &&
+        (await isWorkspaceCapabilityWithheld(userId, workspaceId, sendCapability))
+      ) {
+        return v2Error('FORBIDDEN', capabilityRefusal(sendCapability), {
+          details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+        })
+      }
 
       const conversationTitle = deriveConversationTitle(message)
 

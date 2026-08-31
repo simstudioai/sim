@@ -964,8 +964,10 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
   })
 
   /**
-   * Refused before the send is claimed or a chat exists, so a refused request
-   * leaves nothing behind for a resume stream to replay.
+   * Refused before a chat exists or a run is created, so a refused request
+   * leaves nothing behind for a resume stream to replay. The send claim is
+   * taken first and released by the handler's `finally`, so a retry is free to
+   * start a turn.
    */
   it('refuses the send when the group withholds copilot.use', async () => {
     resolvePermissionGroupConfig.mockResolvedValue({
@@ -977,8 +979,54 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
 
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({ error: REFUSAL })
-    expect(atomicallyClaimChatSend).not.toHaveBeenCalled()
     expect(resolveOrCreateChat).not.toHaveBeenCalled()
+    expect(createSSEStream).not.toHaveBeenCalled()
+    expect(releaseChatSendClaim).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * `workflowId` resolves the workflow's own workspace and ignores any
+   * `workspaceId` beside it, so gating on the request's copy would let a member
+   * skip the check entirely by simply not sending one.
+   */
+  it('gates on the workflow workspace when the request names no workspace', async () => {
+    resolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideCopilot: true,
+    })
+
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'Hello', workflowId: 'wf-1', createNewChat: true }),
+      })
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: REFUSAL })
+    expect(resolvePermissionGroupConfig).toHaveBeenCalledWith('user-1', 'ws-1', undefined)
+    expect(createSSEStream).not.toHaveBeenCalled()
+  })
+
+  /** The same escape aimed elsewhere: a workspace the chat never lands in. */
+  it('ignores a workspaceId that disagrees with the resolved workflow workspace', async () => {
+    resolvePermissionGroupConfig.mockImplementation(async (_userId: string, workspaceId: string) =>
+      workspaceId === 'ws-1'
+        ? { ...DEFAULT_PERMISSION_GROUP_CONFIG, hideCopilot: true }
+        : DEFAULT_PERMISSION_GROUP_CONFIG
+    )
+
+    const response = await handleUnifiedChatPost(
+      chatRequest({ workflowId: 'wf-1', workspaceId: 'ws-unrestricted', createNewChat: true })
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: REFUSAL })
+    expect(resolvePermissionGroupConfig).not.toHaveBeenCalledWith(
+      'user-1',
+      'ws-unrestricted',
+      undefined
+    )
     expect(createSSEStream).not.toHaveBeenCalled()
   })
 
@@ -1001,8 +1049,14 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
     expect(createSSEStream).toHaveBeenCalledTimes(1)
   })
 
-  /** A request naming no workspace is governed by no group, so the gate never asks. */
-  it('does not consult a permission group when the request names no workspace', async () => {
+  /** A branch that lands in no workspace at all is governed by no group. */
+  it('does not consult a permission group when the branch resolves no workspace', async () => {
+    resolveWorkflowIdForUser.mockResolvedValue({
+      status: 'resolved',
+      workflowId: 'wf-1',
+      workspaceId: undefined,
+      workflowName: 'Workflow One',
+    })
     resolvePermissionGroupConfig.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       hideCopilot: true,

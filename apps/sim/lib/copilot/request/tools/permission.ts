@@ -282,10 +282,21 @@ export function runGatedToolExecution(
         decisionSuppressesFuturePrompts(decision.decision) &&
         context.toolPermissions.autoAllowPermitted
       ) {
-        // Same-turn effect: a second call to this tool later in the turn must
-        // not re-prompt. The durable write (chat row or user settings) happens
-        // in the endpoint, which refuses it under the same capability this
-        // guard reads — so the two cannot disagree within a turn.
+        /**
+         * Same-turn effect: a second call to this tool later in the turn must
+         * not re-prompt. The durable write (chat row or user settings) happens
+         * in the endpoint, which refuses it under the same capability.
+         *
+         * `autoAllowPermitted` is the snapshot the turn opened with, and it is
+         * deliberately not re-read here. Re-reading would not see a key revoked
+         * mid-turn anyway: `resolvePermissionGroupConfig` memoizes per request
+         * scope, so every read inside one turn answers with the value that
+         * scope resolved first. Revocation therefore takes effect on the next
+         * turn — seconds to minutes away — and in the meantime silences only
+         * prompts this user answered in person, never persisting one: the
+         * endpoint reads the capability on its own request and refuses the
+         * durable write.
+         */
         context.toolPermissions.autoAllowed.add(toolName)
       }
 
