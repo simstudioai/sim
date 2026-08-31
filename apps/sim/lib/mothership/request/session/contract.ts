@@ -289,7 +289,11 @@ function isValidRunPayload(payload: JsonRecord): boolean {
     kind === MothershipStreamV1RunKind.checkpoint_pause ||
     kind === MothershipStreamV1RunKind.resumed ||
     kind === MothershipStreamV1RunKind.compaction_start ||
-    kind === MothershipStreamV1RunKind.compaction_done
+    kind === MothershipStreamV1RunKind.compaction_done ||
+    // The worker's loss-free steering ack. Rejecting an unknown-but-contracted kind
+    // escalated to FatalSseEventError and would have killed the live turn the moment
+    // steering shipped (found by the Go-parity audit before any user hit it).
+    kind === MothershipStreamV1RunKind.steering_applied
   )
 }
 
