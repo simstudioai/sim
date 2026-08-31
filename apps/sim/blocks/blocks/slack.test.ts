@@ -32,6 +32,12 @@ function operationIds(): string[] {
   return operation?.options?.map((option) => option.id) ?? []
 }
 
+function mapSlackV2Params(params: Record<string, unknown>): Record<string, unknown> {
+  const mapParams = SlackV2Block.tools.config?.params
+  if (!mapParams) throw new Error('Slack v2 parameter mapper is required')
+  return mapParams(params)
+}
+
 describe('Slack block release', () => {
   it('releases slack_v2 and keeps the legacy block executable but hidden', () => {
     expect(SlackBlock.hideFromToolbar).toBe(true)
@@ -61,6 +67,25 @@ describe('Slack block release', () => {
       credentialKind: 'service-account',
       canonicalParamId: 'agentCredentialId',
       required: true,
+    })
+  })
+
+  it('preserves persisted suggested-prompt inputs while requiring the custom-bot tool', () => {
+    expect(
+      mapSlackV2Params({
+        operation: 'set_suggested_prompts',
+        oauthCredential: 'custom-bot-credential',
+        channel: 'C123',
+        getThreadTimestamp: '1700000000.000001',
+        suggestedPrompts: '[{"title":"Summarize","message":"Summarize this thread"}]',
+        promptsTitle: 'Try asking',
+      })
+    ).toMatchObject({
+      credential: 'custom-bot-credential',
+      channel: 'C123',
+      threadTs: '1700000000.000001',
+      prompts: '[{"title":"Summarize","message":"Summarize this thread"}]',
+      promptsTitle: 'Try asking',
     })
   })
 })

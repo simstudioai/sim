@@ -3512,11 +3512,20 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         const baseParams = mapParams(params)
         if (!SLACK_V2_AGENT_OPERATIONS.includes(params.operation as never)) return baseParams
 
+        const persistedSuggestedPromptParams =
+          params.operation === 'set_suggested_prompts'
+            ? {
+                credential: baseParams.credential,
+                channel: baseParams.channel,
+                threadTs: baseParams.threadTs,
+              }
+            : undefined
+
         return {
           ...baseParams,
-          credential: params.agentCredentialId,
-          channel: params.agentChannelId,
-          threadTs: params.agentThreadTs,
+          credential: params.agentCredentialId ?? persistedSuggestedPromptParams?.credential,
+          channel: params.agentChannelId ?? persistedSuggestedPromptParams?.channel,
+          threadTs: params.agentThreadTs ?? persistedSuggestedPromptParams?.threadTs,
           status: params.agentSessionStatus,
           title: params.agentSessionTitle,
           initiatorUserId: params.agentInitiatorUserId,

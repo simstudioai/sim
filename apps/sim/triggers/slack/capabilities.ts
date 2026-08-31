@@ -208,6 +208,8 @@ export const SLACK_AGENT_EVENTS = [
   'agent_session_title_changed',
   'app_context_changed',
   'app_home_opened',
+  'assistant_thread_context_changed',
+  'assistant_thread_started',
   'message.im',
 ] as const
 
