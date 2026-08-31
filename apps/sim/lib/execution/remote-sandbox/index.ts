@@ -554,10 +554,16 @@ function requestedOutputSandboxPaths(req: {
  * too many files, or nesting past what the listing reaches — before a single
  * byte is read. Sorted so a multi-file result is stable run to run rather than
  * inheriting whatever order the provider happened to return.
+ *
+ * `declaredPaths` are the files the request already named. One sitting inside the
+ * directory is dropped rather than harvested a second time, and the rest count
+ * toward the ceiling: the limit is what one execution exports, not what one
+ * directory holds, so declaring and harvesting cannot spend it twice.
  */
 async function listOutputDirectoryFiles(
   sandbox: SandboxHandle,
   outputSandboxDir: string,
+  declaredPaths: ReadonlySet<string>,
   signal: AbortSignal
 ): Promise<SandboxDirectoryEntry[]> {
   let listed: SandboxDirectoryEntry[]
@@ -593,9 +599,10 @@ async function listOutputDirectoryFiles(
     )
   }
 
-  const files = entries.filter((entry) => entry.kind === 'file')
-  if (files.length > MAX_SANDBOX_OUTPUT_FILES) {
-    throw new SandboxOutputFileCountError(files.length, outputSandboxDir)
+  const files = entries.filter((entry) => entry.kind === 'file' && !declaredPaths.has(entry.path))
+  const exported = declaredPaths.size + files.length
+  if (exported > MAX_SANDBOX_OUTPUT_FILES) {
+    throw new SandboxOutputFileCountError(exported, outputSandboxDir)
   }
   return files.sort((a, b) => a.path.localeCompare(b.path))
 }
@@ -640,16 +647,14 @@ async function collectExportedFiles(
   }
 
   // Sized into the same running total as the declared paths, so an execution
-  // cannot spend the ceiling twice by both declaring and harvesting. A declared
-  // path that happens to sit inside the harvest directory is dropped from the
-  // discovered set rather than counted again — double-billing it would reject a
-  // single output larger than half the ceiling as oversized.
+  // cannot spend the byte ceiling twice by both declaring and harvesting. The
+  // listing applies the same rule to the file-count ceiling and drops a declared
+  // path that happens to sit inside the harvest directory — double-billing it
+  // would reject a single output larger than half the ceiling as oversized.
   const declaredPaths = new Set(readablePaths)
-  const discovered = (
-    req.outputSandboxDir
-      ? await listOutputDirectoryFiles(sandbox, req.outputSandboxDir, options.signal)
-      : []
-  ).filter((entry) => !declaredPaths.has(entry.path))
+  const discovered = req.outputSandboxDir
+    ? await listOutputDirectoryFiles(sandbox, req.outputSandboxDir, declaredPaths, options.signal)
+    : []
   for (const entry of discovered) {
     totalOutputBytes += entry.size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {

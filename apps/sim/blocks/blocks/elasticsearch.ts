@@ -483,13 +483,30 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       condition: { field: 'operation', value: 'elasticsearch_cluster_health' },
     },
 
-    // Cluster health timeout
+    // Cluster health timeout. The subBlock id stays `timeout` so saved workflow
+    // state keeps resolving; `tools.config.params` remaps it to `clusterTimeout`
+    // and clears the transport's reserved `timeout` key.
     {
       id: 'timeout',
-      title: 'Timeout (seconds)',
+      title: 'Timeout',
       type: 'short-input',
-      placeholder: '30',
+      placeholder: '30s',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'elasticsearch_cluster_health' },
+    },
+
+    // Include system indices
+    {
+      id: 'includeSystemIndices',
+      title: 'Include System Indices',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: '' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'elasticsearch_list_indices' },
     },
 
     // Retry on conflict
@@ -528,9 +545,15 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         if (params.size) result.size = Number(params.size)
         if (params.from) result.from = Number(params.from)
         if (params.retryOnConflict) result.retryOnConflict = Number(params.retryOnConflict)
-        if (params.timeout && typeof params.timeout === 'string') {
-          result.timeout = params.timeout.endsWith('s') ? params.timeout : `${params.timeout}s`
+
+        if (params.includeSystemIndices === 'true') result.includeSystemIndices = true
+
+        const rawTimeout = typeof params.timeout === 'string' ? params.timeout.trim() : ''
+        if (rawTimeout) {
+          result.clusterTimeout = /^\d+$/.test(rawTimeout) ? `${rawTimeout}s` : rawTimeout
         }
+        result.timeout = undefined
+
         return result
       },
     },
@@ -559,7 +582,14 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     mappings: { type: 'string', description: 'Index mappings as JSON' },
     refresh: { type: 'string', description: 'Refresh policy' },
     waitForStatus: { type: 'string', description: 'Wait for cluster status' },
-    timeout: { type: 'string', description: 'Timeout for wait operations' },
+    timeout: {
+      type: 'string',
+      description: 'How long Elasticsearch waits for the cluster to reach the requested status',
+    },
+    includeSystemIndices: {
+      type: 'string',
+      description: 'Include Elasticsearch system indices when listing',
+    },
     retryOnConflict: { type: 'number', description: 'Retry attempts on conflict' },
   },
 
@@ -581,8 +611,14 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     items: { type: 'json', description: 'Bulk operation results' },
     // Count outputs
     count: { type: 'number', description: 'Document count' },
+    _shards: {
+      type: 'json',
+      description: 'Shard statistics (total, successful, skipped, failed)',
+    },
     // Index outputs
     acknowledged: { type: 'boolean', description: 'Whether operation was acknowledged' },
+    // List indices outputs
+    message: { type: 'string', description: 'Summary message about the indices listed' },
     // Cluster outputs
     cluster_name: { type: 'string', description: 'Cluster name' },
     status: { type: 'string', description: 'Cluster health status' },
