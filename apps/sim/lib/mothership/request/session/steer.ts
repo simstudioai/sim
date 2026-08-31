@@ -1,11 +1,8 @@
 import type { Context } from '@opentelemetry/api'
-import { env } from '@/lib/core/config/env'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
-import {
-  getMothershipBaseURL,
-  getMothershipSourceEnvHeaders,
-} from '@/lib/mothership/server/agent-url'
+import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 export const DEFAULT_STEER_TIMEOUT_MS = 3000
 
@@ -37,13 +34,7 @@ export async function requestStreamSteering(params: {
     otelContext,
   } = params
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  if (env.COPILOT_API_KEY) {
-    headers['x-api-key'] = env.COPILOT_API_KEY
-  }
-  Object.assign(headers, getMothershipSourceEnvHeaders())
+  const headers = mothershipRequestHeaders()
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort('steer_fetch_timeout'), timeoutMs)

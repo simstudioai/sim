@@ -2,6 +2,8 @@ import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import type { z } from 'zod'
+import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -101,4 +103,24 @@ export function checkInternalApiKey(req: NextRequest) {
   }
 
   return { success: true }
+}
+
+/**
+ * Shim-route envelope pre-validation (the /api/mothership/* aliases): clone the body,
+ * and when it parses as JSON, check it against the envelope schema before delegating to
+ * the copilot handler that actually consumes the request. Returns the 400 to send, or
+ * null to proceed. A non-JSON body proceeds — the delegate owns that failure mode.
+ */
+export async function validateShimEnvelope(
+  request: NextRequest,
+  schema: z.ZodType
+): Promise<NextResponse | null> {
+  // boundary-raw-json: shim pre-validates the mothership envelope before delegating to the copilot handler that consumes the body
+  const body = await request
+    .clone()
+    .json()
+    .catch(() => undefined)
+  if (body === undefined) return null
+  const validation = schema.safeParse(body)
+  return validation.success ? null : validationErrorResponse(validation.error)
 }

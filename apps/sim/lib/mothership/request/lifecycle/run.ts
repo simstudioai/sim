@@ -18,7 +18,7 @@ import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
 import { createRunSegment, updateRunStatus } from '@/lib/mothership/async-runs/repository'
-import { SIM_AGENT_VERSION, TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
+import { TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
 import {
   type CopilotEnvironmentContext,
   prepareCopilotEnvironmentContext,
@@ -39,6 +39,7 @@ import {
   runStreamLoop,
   StreamEndedWithoutTerminalError,
 } from '@/lib/mothership/request/go/stream'
+import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
 import {
@@ -64,10 +65,7 @@ import type {
   StreamingContext,
 } from '@/lib/mothership/request/types'
 import type { SecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
-import {
-  getMothershipBaseURL,
-  getMothershipSourceEnvHeaders,
-} from '@/lib/mothership/server/agent-url'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
@@ -481,20 +479,6 @@ function isPerSubagentContinuation(c: AsyncContinuation): boolean {
 // Shared header set for every Sim -> Go mothership request (initial stream and
 // every resume leg), so the auth/source/version headers can't drift between the
 // sequential path and the concurrent per-subagent resume legs.
-function mothershipRequestHeaders(
-  hostedBillingRequest?: AttributedBillingRequestEnvelope,
-  simRequestId?: string
-): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    ...(simRequestId ? { 'X-Sim-Request-ID': simRequestId } : {}),
-    ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
-    ...getMothershipSourceEnvHeaders(),
-    'X-Client-Version': SIM_AGENT_VERSION,
-    ...(hostedBillingRequest ? hostedBillingRequest.headers : {}),
-  }
-}
-
 // makeResumeLegContext / mergeResumeLegOutputs are a PAIR and must stay in
 // lockstep: every field reset here is folded back there, and nothing else on
 // StreamingContext is per-leg. Everything not listed is shared BY REFERENCE
