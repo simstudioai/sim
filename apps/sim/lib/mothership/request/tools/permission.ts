@@ -240,7 +240,7 @@ export function runGatedToolExecution(
           status: MothershipStreamV1ToolOutcome.skipped,
           output,
         })
-        markToolResultSeen(toolCallId)
+        markToolResultSeen(context, toolCallId)
         await emitGateResult(
           toolCallId,
           toolName,
@@ -268,7 +268,7 @@ export function runGatedToolExecution(
           output: { error },
           error,
         })
-        markToolResultSeen(toolCallId)
+        markToolResultSeen(context, toolCallId)
         await emitGateResult(
           toolCallId,
           toolName,
@@ -311,7 +311,7 @@ export function runGatedToolExecution(
           status: MothershipStreamV1ToolOutcome.skipped,
           output,
         })
-        markToolResultSeen(toolCallId)
+        markToolResultSeen(context, toolCallId)
         await emitGateResult(
           toolCallId,
           toolName,
