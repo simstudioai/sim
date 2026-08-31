@@ -61,6 +61,7 @@ export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionEx
     outputSandboxPath: params.outputSandboxPath,
     outputMimeType: params.outputMimeType,
     sandboxId: params.sandboxId,
+    sandboxSessionKey: params.sandboxSessionKey,
     secretScope: params.secretScope,
     mountedSecrets: params.mountedSecrets,
     unredactedSecretNames: params.unredactedSecretNames,
@@ -245,6 +246,9 @@ To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back
           // missing warns on every call, and this branch runs for every failure.
           files: result.output?.files ?? [],
           ...(result.output?.cost ? { cost: result.output.cost } : {}),
+          ...(result.output?.sandboxSession
+            ? { sandboxSession: result.output.sandboxSession }
+            : {}),
         },
         error: result.error,
         retryable: result.retryable,
@@ -261,6 +265,7 @@ To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back
         stdout: result.output.stdout,
         files: result.output.files ?? [],
         ...(result.output.cost ? { cost: result.output.cost } : {}),
+        ...(result.output.sandboxSession ? { sandboxSession: result.output.sandboxSession } : {}),
       },
       resources: result.resources,
       largeValueKeys: result.largeValueKeys,

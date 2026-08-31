@@ -87,6 +87,7 @@ import {
   type OutputFileDeclaration,
   resolveOutputFormat,
 } from '@/lib/mothership/request/tools/files'
+import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
 import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
@@ -2252,6 +2253,7 @@ export async function executeFunctionRequest(
       mountedSecrets,
       unredactedSecretNames = [],
       sandboxId: selectedSandboxId,
+      sandboxSessionKey,
       blockData = {},
       blockNameMapping = {},
       blockOutputSchemas = {},
@@ -2304,6 +2306,14 @@ export async function executeFunctionRequest(
     // `environmentVariables[...]` dict narrow together — filtering only the dict
     // would leave `{{OTHER_SECRET}}` resolving, which is a hole, not a scope.
     const envVars = scopeEnvironmentVariables(rawEnvVars, secretScope, mountedSecrets)
+    const mothershipSession =
+      usesMothershipSandbox && !selectedSandboxId && sandboxSessionKey && workspaceId
+        ? await buildMothershipSandboxSession({
+            sessionKey: sandboxSessionKey,
+            workspaceId,
+            userId: auth.attributedUserId,
+          })
+        : undefined
     sourceCodeForErrors = sourceCode ?? code
     const outputFiles = getOutputFileDeclarations({
       outputs,
@@ -2669,6 +2679,7 @@ export async function executeFunctionRequest(
         exportedFiles,
         collectedFiles: shellCollectedFiles,
         cost: shellCost,
+        sandboxSession: shellSandboxSession,
       } = await executeShellInSandbox({
         code: resolvedCode,
         envs: shellEnvs,
@@ -2683,6 +2694,7 @@ export async function executeFunctionRequest(
         ...(usesMothershipSandbox && !selectedSandboxId
           ? { sandboxKind: 'mothership' as const }
           : {}),
+        ...(mothershipSession ? { session: mothershipSession } : {}),
         signal: executionSignal,
         meterUsage: meterRemoteSandboxUsage,
       })
@@ -2703,6 +2715,7 @@ export async function executeFunctionRequest(
               result: null,
               stdout: cleanStdout(shellStdout),
               executionTime,
+              ...(shellSandboxSession ? { sandboxSession: shellSandboxSession } : {}),
               ...(shellCost ? { cost: shellCost } : {}),
             },
           },
@@ -2753,6 +2766,7 @@ export async function executeFunctionRequest(
             executionTime,
             files: shellOutputFiles.files,
             ...(shellCost ? { cost: shellCost } : {}),
+            ...(shellSandboxSession ? { sandboxSession: shellSandboxSession } : {}),
           },
         },
         routeContext
@@ -2816,6 +2830,7 @@ export async function executeFunctionRequest(
           exportedFiles,
           collectedFiles: jsCollectedFiles,
           cost: sandboxCost,
+          sandboxSession: jsSandboxSession,
         } = await executeInSandbox({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
@@ -2831,6 +2846,7 @@ export async function executeFunctionRequest(
           ...(usesMothershipSandbox && !selectedSandboxId
             ? { sandboxKind: 'mothership' as const }
             : {}),
+          ...(mothershipSession ? { session: mothershipSession } : {}),
           signal: executionSignal,
           meterUsage: meterRemoteSandboxUsage,
         })
@@ -2862,6 +2878,7 @@ export async function executeFunctionRequest(
                 result: null,
                 stdout: cleanedOutput,
                 executionTime,
+                ...(jsSandboxSession ? { sandboxSession: jsSandboxSession } : {}),
                 ...(sandboxCost ? { cost: sandboxCost } : {}),
               },
             },
@@ -2912,6 +2929,7 @@ export async function executeFunctionRequest(
               executionTime,
               files: jsOutputFiles.files,
               ...(sandboxCost ? { cost: sandboxCost } : {}),
+              ...(jsSandboxSession ? { sandboxSession: jsSandboxSession } : {}),
             },
           },
           routeContext
@@ -2938,6 +2956,7 @@ export async function executeFunctionRequest(
         exportedFiles,
         collectedFiles: pythonCollectedFiles,
         cost: sandboxCost,
+        sandboxSession: pythonSandboxSession,
       } = await executeInSandbox({
         code: codeForE2B,
         language: CodeLanguage.Python,
@@ -2952,6 +2971,7 @@ export async function executeFunctionRequest(
         ...(usesMothershipSandbox && !selectedSandboxId
           ? { sandboxKind: 'mothership' as const }
           : {}),
+        ...(mothershipSession ? { session: mothershipSession } : {}),
         signal: executionSignal,
         meterUsage: meterRemoteSandboxUsage,
       })
@@ -2984,6 +3004,7 @@ export async function executeFunctionRequest(
               stdout: cleanedOutput,
               executionTime,
               ...(sandboxCost ? { cost: sandboxCost } : {}),
+              ...(pythonSandboxSession ? { sandboxSession: pythonSandboxSession } : {}),
             },
           },
           routeContext,
@@ -3033,6 +3054,7 @@ export async function executeFunctionRequest(
             executionTime,
             files: pythonOutputFiles.files,
             ...(sandboxCost ? { cost: sandboxCost } : {}),
+            ...(pythonSandboxSession ? { sandboxSession: pythonSandboxSession } : {}),
           },
         },
         routeContext

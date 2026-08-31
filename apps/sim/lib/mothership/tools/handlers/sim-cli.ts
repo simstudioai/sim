@@ -12,6 +12,7 @@ import {
   isRootHelpInvocation,
   matchAgentCliCommand,
 } from '@/lib/mothership/tools/handlers/agent-cli'
+import { applyPipeline, splitPipeline } from '@/lib/mothership/tools/handlers/sim-cli-pipe'
 
 const logger = createLogger('MothershipSimCli')
 
@@ -24,18 +25,36 @@ const logger = createLogger('MothershipSimCli')
  * command tree (`sim/embed`) against this deployment's internal API base. Both
  * lanes share one server-minted delegation identity for the calling user, so
  * "the agent is the user" holds without any credential crossing to the worker.
- * Root --help merges the real CLI's help with the agent-command section.
+ * Root --help merges the real CLI's help with the agent-command section. A
+ * trailing `| grep …` (the only pipe target) filters stdout sim-side so large
+ * outputs shrink before crossing the wire.
  */
 export async function executeSimCli(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const args = params.args
-  if (!Array.isArray(args) || args.length === 0 || !args.every((a) => typeof a === 'string')) {
+  const rawArgs = params.args
+  if (
+    !Array.isArray(rawArgs) ||
+    rawArgs.length === 0 ||
+    !rawArgs.every((a) => typeof a === 'string')
+  ) {
     return { success: false, error: 'sim_cli requires args: a non-empty array of argv tokens.' }
   }
   if (!context.workspaceId) {
     return { success: false, error: 'sim_cli requires a workspace-scoped execution context.' }
+  }
+  const { cliArgs: args, stages } = splitPipeline(rawArgs)
+  if (args.length === 0) {
+    return { success: false, error: 'A pipe needs a sim CLI invocation before the first |.' }
+  }
+
+  // Stages are validated before the CLI runs: a mutating command must never
+  // execute and then fail on a malformed pipe, or a model retry would repeat
+  // the mutation.
+  const stagePreflight = applyPipeline('', stages)
+  if (!stagePreflight.ok) {
+    return { success: false, error: stagePreflight.error }
   }
 
   const apiKey = await mintDelegationToken({
@@ -62,11 +81,16 @@ export async function executeSimCli(
   if (!agentMatch && isRootHelpInvocation(args) && result.exitCode === 0) {
     result.stdout += agentCliHelpSection()
   }
+  if (result.exitCode === 0 && stages.length > 0) {
+    const piped = applyPipeline(result.stdout, stages)
+    if (piped.ok) result.stdout = piped.stdout
+  }
 
   logger.info('CLI invocation finished', {
     exitCode: result.exitCode,
     argv0: args[0],
     lane: agentMatch ? 'agent' : 'cli',
+    grepStages: stages.length,
     stdoutBytes: result.stdout.length,
   })
   // The worker folds exitCode/stdout/stderr into the model window and applies
