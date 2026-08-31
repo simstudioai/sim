@@ -1204,47 +1204,34 @@ export class VariableResolver {
   }
 
   /**
-   * Whether the `(` at this index opens a control-flow head rather than a value.
+   * Whether a `(` opens a control-flow head rather than a value.
    *
    * What follows the matching `)` differs entirely between the two — a statement, where a regex
    * literal may begin, versus an operator, where a `/` divides — and the closing parenthesis
-   * carries no trace of which it was. Reading the keyword in front of the opening one is what
-   * lets `if (a) /re/.test(b)` and `(a + b) / 2` both scan correctly.
+   * carries no trace of which it was. The keyword in front of the opening one is what tells
+   * them apart, so `if (a) /re/.test(b)` and `(a + b) / 2` both scan correctly.
+   *
+   * Both inputs come from the forward scan rather than a walk back through the source: the
+   * scan already knows which characters were code and which sat inside a comment, and reading
+   * backwards cannot recover that — the opener of `/* a /* b *\/` is its first delimiter, not
+   * its last, and only the scan that passed through knows the difference.
    */
-  private opensControlFlowHead(template: string, index: number): boolean {
-    let end = index
-    while (end > 0 && WHITESPACE_CHAR.test(template[end - 1])) {
-      end--
+  private opensControlFlowHead(
+    template: string,
+    previousSignificantIndex: number,
+    precededByPropertyAccess: boolean
+  ): boolean {
+    if (precededByPropertyAccess || previousSignificantIndex < 0) {
+      return false
     }
-    let start = end
+    if (!this.isJavaScriptIdentifierChar(template[previousSignificantIndex])) {
+      return false
+    }
+    let start = previousSignificantIndex
     while (start > 0 && this.isJavaScriptIdentifierChar(template[start - 1])) {
       start--
     }
-    if (!CONTROL_FLOW_HEAD_KEYWORDS.has(template.slice(start, end))) {
-      return false
-    }
-
-    // `p.catch(fn)` is a method call whose name happens to be a keyword, and what follows its
-    // `)` is an operator, not a statement. A control-flow head can never be a property access,
-    // and a comment can stand between the two (`p./* c */catch(fn)`), so a comment is stepped
-    // over rather than treated as an answer — `/* c */ if (x)` is still a head.
-    let before = this.skipWhitespaceBackward(template, start)
-    while (template[before - 1] === '/' && template[before - 2] === '*') {
-      const opening = template.lastIndexOf('/*', before - 2)
-      if (opening < 0) {
-        return true
-      }
-      before = this.skipWhitespaceBackward(template, opening)
-    }
-    return template[before - 1] !== '.'
-  }
-
-  private skipWhitespaceBackward(template: string, index: number): number {
-    let cursor = index
-    while (cursor > 0 && WHITESPACE_CHAR.test(template[cursor - 1])) {
-      cursor--
-    }
-    return cursor
+    return CONTROL_FLOW_HEAD_KEYWORDS.has(template.slice(start, previousSignificantIndex + 1))
   }
 
   private matchesKeywordAt(template: string, index: number, keyword: string): boolean {
@@ -1376,6 +1363,7 @@ export class VariableResolver {
     const modes: CodeScanMode[] = [{ type: 'normal' }]
     let lastSignificantIndex = -1
     const openParenIsControlHead: boolean[] = []
+    let identifierFollowsPropertyAccess = false
     const controlHeadParenCloses = new Set<number>()
     const regexCloseIndices = new Set<number>()
 
@@ -1483,8 +1471,21 @@ export class VariableResolver {
         if (!WHITESPACE_CHAR.test(char)) {
           lastSignificantIndex = i
         }
-        if (char === '(') {
-          openParenIsControlHead.push(this.opensControlFlowHead(template, i))
+        if (this.isJavaScriptIdentifierChar(char)) {
+          if (
+            previousSignificantIndex < 0 ||
+            !this.isJavaScriptIdentifierChar(template[previousSignificantIndex])
+          ) {
+            identifierFollowsPropertyAccess = template[previousSignificantIndex] === '.'
+          }
+        } else if (char === '(') {
+          openParenIsControlHead.push(
+            this.opensControlFlowHead(
+              template,
+              previousSignificantIndex,
+              identifierFollowsPropertyAccess
+            )
+          )
         } else if (char === ')') {
           if (openParenIsControlHead.pop()) controlHeadParenCloses.add(i)
         }
@@ -1552,8 +1553,21 @@ export class VariableResolver {
       if (!WHITESPACE_CHAR.test(char)) {
         lastSignificantIndex = i
       }
-      if (char === '(') {
-        openParenIsControlHead.push(this.opensControlFlowHead(template, i))
+      if (this.isJavaScriptIdentifierChar(char)) {
+        if (
+          previousSignificantIndex < 0 ||
+          !this.isJavaScriptIdentifierChar(template[previousSignificantIndex])
+        ) {
+          identifierFollowsPropertyAccess = template[previousSignificantIndex] === '.'
+        }
+      } else if (char === '(') {
+        openParenIsControlHead.push(
+          this.opensControlFlowHead(
+            template,
+            previousSignificantIndex,
+            identifierFollowsPropertyAccess
+          )
+        )
       } else if (char === ')') {
         if (openParenIsControlHead.pop()) controlHeadParenCloses.add(i)
       }

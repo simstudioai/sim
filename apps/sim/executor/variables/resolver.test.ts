@@ -984,6 +984,9 @@ describe('VariableResolver function block inputs', () => {
         code: [
           `/* lead */ if (params.a) /['"]/.test('<producer.result>')`,
           `const n = params.p./* mid */catch(() => 0) / 2 + Number('<producer.result>')`,
+          // A comment body may contain another opening delimiter; the comment still ends at
+          // the first `*/`, which only the scan that passed through it knows.
+          `const m = params.q./* a /* b */catch(() => 0) / 2 + Number('<producer.result>')`,
         ].join('\n'),
       },
       block
@@ -994,6 +997,7 @@ describe('VariableResolver function block inputs', () => {
     const code = result.resolvedInputs.code as string
     expect(code).toContain(`.test('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`)
     expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_1"]) + '')`)
+    expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_2"]) + '')`)
   })
 
   it('does not read a method named after a keyword as a control-flow head', async () => {
