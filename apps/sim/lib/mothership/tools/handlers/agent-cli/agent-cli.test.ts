@@ -120,6 +120,44 @@ describe('workflow views', () => {
   })
 })
 
+describe('files grep', () => {
+  const FILES_LIST = {
+    data: [
+      { id: 'f1', name: 'report.md', folderPath: 'docs' },
+      { id: 'f2', name: 'logo.png', folderPath: '' },
+    ],
+    nextCursor: null,
+  }
+  const readText = (text: string, degraded = false) => ({
+    data: { text, degraded },
+  })
+
+  it('greps file contents with line numbers, skipping non-text files', async () => {
+    const match = matchAgentCliCommand(['files', 'grep', 'quarterly'])
+    const result = await executeAgentCliCommand(
+      match!,
+      runtimeWith({
+        '/api/v2/files': FILES_LIST,
+        '/api/v2/files/f1/text': readText('# Report\nQuarterly revenue was up.\n'),
+        '/api/v2/files/f2/text': readText('', true),
+      })
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('docs/report.md:2: Quarterly revenue was up.')
+    expect(result.stdout).not.toContain('logo.png')
+  })
+
+  it('filters by folder prefix', async () => {
+    const match = matchAgentCliCommand(['files', 'grep', 'Quarterly', 'other'])
+    const result = await executeAgentCliCommand(
+      match!,
+      runtimeWith({ '/api/v2/files': FILES_LIST })
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('No matches')
+  })
+})
+
 describe('workflow grep', () => {
   it('reports matches as path: value lines', async () => {
     const match = matchAgentCliCommand(['workflow', 'grep', 'wf-1', 'Summarize'])

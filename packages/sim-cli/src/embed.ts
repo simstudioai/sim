@@ -30,7 +30,12 @@ import { buildProgram } from './program'
  */
 
 export type { EmbeddedCliIdentity } from './embed-context'
-export type { ExportWorkflowResponse, ListWorkflowsResponse } from './generated/v2-api'
+export type {
+  ExportWorkflowResponse,
+  ListFilesResponse,
+  ListWorkflowsResponse,
+  ReadFileTextResponse,
+} from './generated/v2-api'
 export { SimClient } from './http/client'
 
 export interface EmbeddedCliResult {

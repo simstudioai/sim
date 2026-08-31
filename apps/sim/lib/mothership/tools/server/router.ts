@@ -15,6 +15,8 @@ import {
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
 import { searchDocsServerTool } from '@/lib/mothership/tools/server/docs/search-docs'
+import { editContentServerTool } from '@/lib/mothership/tools/server/files/edit-content'
+import { workspaceFileServerTool } from '@/lib/mothership/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/mothership/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/mothership/tools/server/image/generate-image'
 import { ffmpegServerTool } from '@/lib/mothership/tools/server/media/ffmpeg'
@@ -49,6 +51,10 @@ function isWriteAction(toolName: string, action: string | undefined): boolean {
 /** Registry of all server tools. Tools self-declare their validation schemas. */
 const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [searchDocsServerTool.name]: searchDocsServerTool,
+  // The streamed file-writing pair: prepare opens the write (live preview),
+  // apply continues it. The preview machinery keys off these exact names.
+  [workspaceFileServerTool.name]: workspaceFileServerTool,
+  [editContentServerTool.name]: editContentServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
   [generateVideoServerTool.name]: generateVideoServerTool,
   [generateAudioServerTool.name]: generateAudioServerTool,
