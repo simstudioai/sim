@@ -313,6 +313,48 @@ describe('generic selector queries', () => {
     expect(hook.getResult()).toMatchObject({ hasMore: false, truncated: false })
   })
 
+  it('refreshes from the first page before retrying a failed continuation cursor', async () => {
+    let continuationAttempts = 0
+    mockExecuteSelectorRequest.mockImplementation(
+      async ({ request }: { request: { cursor?: string } }) => {
+        if (request.cursor) {
+          continuationAttempts += 1
+          if (continuationAttempts === 1) throw new Error('Expired provider cursor')
+          return { kind: 'list', items: [{ id: 'workspace-2', label: 'Second' }] }
+        }
+        return {
+          kind: 'list',
+          items: [{ id: 'workspace-1', label: 'First' }],
+          nextCursor: 'fresh-provider-cursor',
+        }
+      }
+    )
+
+    const hook = renderHookWithClient(() =>
+      useSelectorOptions('bitbucket.workspaces', {
+        context: { workspaceId: 'workspace-1', oauthCredential: 'credential-1' },
+        surfaceId: 'canvas:block-1:workspace',
+      })
+    )
+
+    await waitFor(() => expect(hook.getResult().hasMore).toBe(true))
+    act(() => hook.getResult().loadMore())
+    await waitFor(() => expect(hook.getResult().error?.message).toBe('Expired provider cursor'))
+
+    act(() => hook.getResult().loadMore())
+    await waitFor(() => expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(4))
+
+    expect(mockExecuteSelectorRequest.mock.calls[2][0].request).toEqual({ kind: 'list' })
+    expect(mockExecuteSelectorRequest.mock.calls[3][0].request).toEqual({
+      kind: 'list',
+      cursor: 'fresh-provider-cursor',
+    })
+    expect(hook.getResult().data).toEqual([
+      { id: 'workspace-1', label: 'First' },
+      { id: 'workspace-2', label: 'Second' },
+    ])
+  })
+
   it('stops exposing continuation once 10,000 unique options are loaded', async () => {
     mockExecuteSelectorRequest.mockResolvedValue({
       kind: 'list',

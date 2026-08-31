@@ -221,10 +221,18 @@ export function useSelectorOptions(
   const loadMore = useCallback(() => {
     if (!canLoadMore || pageFetchInFlightRef.current) return
     pageFetchInFlightRef.current = true
-    void pagedQuery.fetchNextPage().finally(() => {
+    void (async () => {
+      if (pagedQuery.isFetchNextPageError) {
+        const refreshed = await pagedQuery.refetch()
+        const refreshedPages = refreshed.data?.pages
+        const refreshedLastPage = refreshedPages?.[refreshedPages.length - 1]
+        if (refreshed.isError || !refreshedLastPage?.nextCursor) return
+      }
+      await pagedQuery.fetchNextPage()
+    })().finally(() => {
       pageFetchInFlightRef.current = false
     })
-  }, [canLoadMore, pagedQuery.fetchNextPage])
+  }, [canLoadMore, pagedQuery.fetchNextPage, pagedQuery.isFetchNextPageError, pagedQuery.refetch])
 
   const loadAll = useCallback(() => {
     if (!canLoadMore || pageFetchInFlightRef.current) return
@@ -237,6 +245,13 @@ export function useSelectorOptions(
       let hasNextPage = Boolean(pagedQuery.hasNextPage)
       let pages = pagedQuery.data?.pages
       try {
+        if (pagedQuery.isFetchNextPageError) {
+          const refreshed = await pagedQuery.refetch()
+          if (loadGenerationRef.current !== generation || refreshed.isError) return
+          pages = refreshed.data?.pages
+          const refreshedLastPage = pages?.[pages.length - 1]
+          hasNextPage = Boolean(refreshedLastPage?.nextCursor)
+        }
         while (hasNextPage) {
           if (
             (pages?.length ?? 0) >= MAX_SELECTOR_PAGES ||
@@ -257,7 +272,14 @@ export function useSelectorOptions(
         }
       }
     })()
-  }, [canLoadMore, pagedQuery.data?.pages, pagedQuery.fetchNextPage, pagedQuery.hasNextPage])
+  }, [
+    canLoadMore,
+    pagedQuery.data?.pages,
+    pagedQuery.fetchNextPage,
+    pagedQuery.hasNextPage,
+    pagedQuery.isFetchNextPageError,
+    pagedQuery.refetch,
+  ])
 
   if (supportsPagination) {
     return {
