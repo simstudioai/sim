@@ -601,6 +601,63 @@ interface SlackBaseParams {
   botToken: string
 }
 
+export type SlackAgentSessionStatus = 'active' | 'processing' | 'suspended' | 'closed'
+
+export interface SlackSetAgentSessionStatusV2Params extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  status: SlackAgentSessionStatus
+  title?: string
+  initiatorUserId?: string
+  iconEmoji?: string
+  iconUrl?: string
+  username?: string
+}
+
+export interface SlackRenameAgentSessionV2Params extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  title: string
+}
+
+export interface SlackSetSuggestedPromptsV2Params extends SlackBaseParams {
+  channel: string
+  threadTs?: string
+  prompts: SlackSuggestedPrompt[] | string
+  promptsTitle?: string
+}
+
+export type SlackStreamChunk = Record<string, unknown>
+
+interface SlackStreamContentParams {
+  markdownText?: string
+  chunks?: SlackStreamChunk[] | string
+}
+
+export interface SlackStartStreamV2Params extends SlackBaseParams, SlackStreamContentParams {
+  channel: string
+  threadTs?: string
+  recipientUserId?: string
+  recipientTeamId?: string
+  taskDisplayMode?: 'timeline' | 'plan'
+  iconEmoji?: string
+  iconUrl?: string
+  username?: string
+}
+
+export interface SlackAppendStreamV2Params extends SlackBaseParams, SlackStreamContentParams {
+  channel: string
+  ts: string
+}
+
+export interface SlackStopStreamV2Params extends SlackBaseParams, SlackStreamContentParams {
+  channel: string
+  ts: string
+  blocks?: Array<Record<string, unknown>> | string
+  metadata?: Record<string, unknown> | string
+  sessionStatus?: SlackAgentSessionStatus
+}
+
 export interface SlackMessageParams extends SlackBaseParams {
   destinationType?: 'channel' | 'dm'
   channel?: string
@@ -1328,6 +1385,53 @@ export interface SlackSetSuggestedPromptsResponse extends ToolResponse {
   }
 }
 
+export interface SlackSetAgentSessionStatusV2Response extends ToolResponse {
+  output: {
+    ok: boolean
+    status: SlackAgentSessionStatus
+    agentStatus: SlackAgentSessionStatus
+    title: string | null
+  }
+}
+
+export interface SlackRenameAgentSessionV2Response extends ToolResponse {
+  output: {
+    ok: boolean
+    title: string
+  }
+}
+
+export interface SlackSetSuggestedPromptsV2Response extends ToolResponse {
+  output: {
+    ok: boolean
+  }
+}
+
+export interface SlackStreamV2Response extends ToolResponse {
+  output: {
+    ok: boolean
+    channel: string
+    ts: string
+  }
+}
+
+export interface SlackStopStreamMessage {
+  text: string
+  bot_id: string | null
+  ts: string
+  type: string
+  subtype: string | null
+}
+
+export interface SlackStopStreamV2Response extends ToolResponse {
+  output: {
+    ok: boolean
+    channel: string
+    ts: string
+    message: SlackStopStreamMessage
+  }
+}
+
 export interface SlackGetPermalinkResponse extends ToolResponse {
   output: {
     ok: boolean
@@ -1431,6 +1535,11 @@ export type SlackResponse =
   | SlackSetStatusResponse
   | SlackSetTitleResponse
   | SlackSetSuggestedPromptsResponse
+  | SlackSetAgentSessionStatusV2Response
+  | SlackRenameAgentSessionV2Response
+  | SlackSetSuggestedPromptsV2Response
+  | SlackStreamV2Response
+  | SlackStopStreamV2Response
   | SlackGetPermalinkResponse
   | SlackGetChannelHistoryResponse
   | SlackGetThreadRepliesResponse

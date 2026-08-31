@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { getSlackTriggerCredentialSubBlock } from '@/triggers/slack/oauth'
+import { SIM_SUBSCRIBED_EVENTS, SLACK_EVENT_CATALOG } from '@/triggers/slack/shared'
 
 describe('Slack trigger extended-scope capability', () => {
   it('offers only custom bots when the capability is disabled', () => {
@@ -28,5 +29,17 @@ describe('Slack trigger extended-scope capability', () => {
       serviceAccountConnect: 'Set up a custom bot',
     })
     expect(credential.placeholder).toBe('Select Slack account or bot')
+  })
+
+  it('keeps Agent Sessions events custom-bot-only even when native canaries are enabled', () => {
+    const agentEvents = [
+      'agent_session_stopped',
+      'agent_session_title_changed',
+      'app_context_changed',
+    ]
+    expect(SLACK_EVENT_CATALOG.map((event) => event.id)).toEqual(
+      expect.arrayContaining(agentEvents)
+    )
+    expect(SIM_SUBSCRIBED_EVENTS).not.toEqual(expect.arrayContaining(agentEvents))
   })
 })

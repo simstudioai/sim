@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Send, update, delete messages, manage views and modals, add or remove reactions, manage canvases, get channel info and user presence in Slack
+description: Send and manage Slack messages, Agent Sessions, streamed replies, views, reactions, conversations, and canvases
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -24,6 +24,7 @@ With the Slack integration in Sim, you can:
 - **Read messages**: Retrieve recent messages from channels or DMs, with filtering by time range
 - **Manage channels and users**: List channels, members, and users in your Slack workspace
 - **Download files**: Retrieve files shared in Slack channels for processing within a workflow
+- **Build Slack agents**: Manage Agent Sessions, stream replies, handle stop/title/context events, and configure Agent View actions and suggested prompts for custom bots
 
 In Sim, the Slack integration enables your agents to programmatically interact with Slack as part of their workflows. This allows for automation scenarios such as sending notifications with dynamic updates, managing conversational flows with editable status messages, acknowledging important messages with reactions, and maintaining clean channels by removing outdated bot messages. The integration can also be used in trigger mode to start a workflow when a message is sent to a channel.
 
@@ -39,7 +40,7 @@ If you encounter issues with the Slack integration, contact us at [help@sim.ai](
 
 ## Usage Instructions
 
-Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, open/update/push modal views, publish Home tab views, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.
+Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Standard messaging and management operations support both the Sim app and custom bot credentials.
 
 
 
@@ -802,73 +803,159 @@ Get a stable permalink URL to a specific Slack message.
 | `channel` | string | Channel ID containing the message |
 | `permalink` | string | The permalink URL to the message |
 
-### Slack Set Assistant Status
+### Slack Set Agent Suggested Prompts
 
-Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `authMethod` | string | No | Authentication method: oauth or bot_token |
-| `botToken` | string | No | Bot token for Custom Bot |
-| `channel` | string | Yes | Channel ID containing the assistant thread \(e.g., C1234567890 or D1234567890\) |
-| `threadTs` | string | Yes | Thread timestamp \(thread_ts\) of the assistant thread \(e.g., 1405894322.002768\) |
-| `status` | string | No | Status text to display, e.g. 'Working on it…'. Omit or pass an empty string to clear the status. |
-| `loadingMessages` | json | No | Optional list of messages to rotate through as an animated loading indicator \(max 10\). |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Whether the status was set successfully |
-| `channel` | string | Channel ID the status was set on |
-| `threadTs` | string | Thread timestamp the status was set on |
-
-### Slack Set Assistant Title
-
-Set the title of a Slack assistant thread (shown in the AI app thread header).
+Set suggested prompts in Slack Agent View, optionally scoped to a specific thread.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `authMethod` | string | No | Authentication method: oauth or bot_token |
-| `botToken` | string | No | Bot token for Custom Bot |
-| `channel` | string | Yes | Channel ID containing the assistant thread \(e.g., C1234567890 or D1234567890\) |
-| `threadTs` | string | Yes | Thread timestamp \(thread_ts\) of the assistant thread \(e.g., 1405894322.002768\) |
-| `title` | string | Yes | The title to display for the assistant thread |
+| `authMethod` | string | No | Slack authentication method |
+| `botToken` | string | No | Custom Slack bot token |
+| `channel` | string | Yes | Agent direct-message channel ID |
+| `threadTs` | string | No | Optional thread timestamp for legacy thread-scoped prompts |
+| `prompts` | json | Yes | One to four prompt objects with title and message fields |
+| `promptsTitle` | string | No | Optional heading displayed above the prompt chips |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ok` | boolean | Whether the title was set successfully |
-| `channel` | string | Channel ID the title was set on |
-| `threadTs` | string | Thread timestamp the title was set on |
+| `ok` | boolean | Whether Slack updated the suggested prompts |
 
-### Slack Set Suggested Prompts
+### Slack Set Agent Session Status
 
-Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app).
+Create or update the state of a Slack agent session associated with a thread.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `authMethod` | string | No | Authentication method: oauth or bot_token |
-| `botToken` | string | No | Bot token for Custom Bot |
-| `channel` | string | Yes | Channel ID containing the assistant thread \(e.g., C1234567890 or D1234567890\) |
-| `threadTs` | string | Yes | Thread timestamp \(thread_ts\) of the assistant thread \(e.g., 1405894322.002768\) |
-| `prompts` | json | Yes | Array of prompts, each with a "title" \(shown on the chip\) and a "message" \(sent when clicked\). Max 4. |
-| `promptsTitle` | string | No | Optional heading for the prompt list, e.g. 'Suggested Prompts' |
+| `authMethod` | string | No | Slack authentication method |
+| `botToken` | string | No | Custom Slack bot token |
+| `channel` | string | Yes | Channel ID containing the agent session thread |
+| `threadTs` | string | Yes | Timestamp of the thread associated with the agent session |
+| `status` | string | Yes | Agent session state: active, processing, suspended, or closed |
+| `title` | string | No | Title used when creating the agent session, up to 200 characters |
+| `initiatorUserId` | string | No | Slack user ID that initiated the session |
+| `iconEmoji` | string | No | Emoji used to customize the agent identity |
+| `iconUrl` | string | No | Image URL used to customize the agent identity |
+| `username` | string | No | Display name used to customize the agent identity |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ok` | boolean | Whether the suggested prompts were set successfully |
-| `channel` | string | Channel ID the prompts were set on |
-| `threadTs` | string | Thread timestamp the prompts were set on |
+| `ok` | boolean | Whether Slack updated the agent session |
+| `status` | string | Requested agent session status |
+| `agentStatus` | string | Agent status recorded by Slack |
+| `title` | string | Current agent session title |
+
+### Slack Rename Agent Session
+
+Rename the Slack agent session associated with a thread.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Slack authentication method |
+| `botToken` | string | No | Custom Slack bot token |
+| `channel` | string | Yes | Channel ID containing the agent session thread |
+| `threadTs` | string | Yes | Timestamp of the thread associated with the agent session |
+| `title` | string | Yes | New agent session title, from 1 to 200 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack renamed the agent session |
+| `title` | string | Updated agent session title |
+
+### Slack Start Stream
+
+Start a streaming Slack message using Markdown or structured chunks.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Slack authentication method |
+| `botToken` | string | No | Custom Slack bot token |
+| `channel` | string | Yes | Channel ID where Slack should create the streaming message |
+| `markdownText` | string | No | Initial Markdown content, mutually exclusive with chunks |
+| `chunks` | json | No | Initial structured Slack streaming chunks, mutually exclusive with Markdown |
+| `threadTs` | string | No | Parent thread timestamp when streaming a reply |
+| `recipientUserId` | string | No | Recipient user ID for a channel stream |
+| `recipientTeamId` | string | No | Recipient workspace ID for a channel stream |
+| `taskDisplayMode` | string | No | Task display mode: timeline or plan |
+| `iconEmoji` | string | No | Emoji used to customize the streaming agent identity |
+| `iconUrl` | string | No | Image URL used to customize the streaming agent identity |
+| `username` | string | No | Display name used to customize the streaming agent identity |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack started the stream |
+| `channel` | string | Channel containing the streaming message |
+| `ts` | string | Timestamp used to append to or stop the stream |
+
+### Slack Append Stream
+
+Append Markdown or structured chunks to an active Slack stream.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Slack authentication method |
+| `botToken` | string | No | Custom Slack bot token |
+| `channel` | string | Yes | Channel containing the streaming message |
+| `ts` | string | Yes | Timestamp returned by Start Stream |
+| `markdownText` | string | No | Markdown content to append, mutually exclusive with chunks |
+| `chunks` | json | No | Structured Slack streaming chunks, mutually exclusive with Markdown |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack appended the stream content |
+| `channel` | string | Channel containing the streaming message |
+| `ts` | string | Streaming message timestamp |
+
+### Slack Stop Stream
+
+Finalize an active Slack stream and return the resulting message.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Slack authentication method |
+| `botToken` | string | No | Custom Slack bot token |
+| `channel` | string | Yes | Channel containing the streaming message |
+| `ts` | string | Yes | Timestamp returned by Start Stream |
+| `markdownText` | string | No | Final Markdown content, mutually exclusive with chunks |
+| `chunks` | json | No | Final structured Slack chunks, mutually exclusive with Markdown |
+| `blocks` | json | No | Final Block Kit blocks, as an array of up to 50 block objects |
+| `metadata` | json | No | Message metadata containing event_type and event_payload |
+| `sessionStatus` | string | No | Final agent session state: active, processing, suspended, or closed |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack finalized the stream |
+| `channel` | string | Channel containing the finalized message |
+| `ts` | string | Finalized streaming message timestamp |
+| `message` | object | Final Slack message returned by chat.stopStream |
+|   ↳ `text` | string | Final message text |
+|   ↳ `bot_id` | string | Bot ID |
+|   ↳ `ts` | string | Message timestamp |
+|   ↳ `type` | string | Message type |
+|   ↳ `subtype` | string | Message subtype |
 
 ### Slack List Channels
 
@@ -1909,7 +1996,13 @@ Trigger from Slack events (mentions, messages, reactions)
 |   ↳ `text` | string | Message text content. For slash commands, the text after the command. For interactivity, the source message text \(falls back to the triggering action value\) |
 |   ↳ `timestamp` | string | Message timestamp from the triggering event |
 |   ↳ `thread_ts` | string | Parent thread timestamp \(if message is in a thread\) |
+|   ↳ `streaming_message_ts` | array | Message timestamps streamed during a stopped agent session |
+|   ↳ `title` | string | Current agent session title |
+|   ↳ `previous_title` | string | Previous agent session title |
+|   ↳ `tab` | string | App Home tab that was opened, including messages for Agent View |
+|   ↳ `context` | json | Current Agent View context. Normalized from context on app_context_changed/app_home_opened or app_context on message.im |
 |   ↳ `team_id` | string | Slack workspace/team ID |
+|   ↳ `enterprise_id` | string | Slack Enterprise Grid organization ID |
 |   ↳ `event_id` | string | Unique event identifier |
 |   ↳ `reaction` | string | Emoji reaction name \(e.g., thumbsup\). Present for reaction_added/reaction_removed events |
 |   ↳ `item_user` | string | User ID of the original message author. Present for reaction_added/reaction_removed events |

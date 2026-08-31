@@ -84,7 +84,13 @@ interface SlackTriggerEvent {
   text: string
   timestamp: string
   thread_ts: string
+  streaming_message_ts: string[]
+  title: string
+  previous_title: string
+  tab: string
+  context: Record<string, unknown> | null
   team_id: string
+  enterprise_id: string
   event_id: string
   reaction: string
   item_user: string
@@ -134,7 +140,13 @@ function createSlackEvent(): SlackTriggerEvent {
     text: '',
     timestamp: '',
     thread_ts: '',
+    streaming_message_ts: [],
+    title: '',
+    previous_title: '',
+    tab: '',
+    context: null,
     team_id: '',
+    enterprise_id: '',
     event_id: '',
     reaction: '',
     item_user: '',
@@ -606,6 +618,9 @@ export function resolveSlackEventKey(body: Record<string, unknown>): string | nu
     case 'pin_removed':
     case 'team_join':
     case 'app_home_opened':
+    case 'agent_session_stopped':
+    case 'agent_session_title_changed':
+    case 'app_context_changed':
     case 'assistant_thread_started':
     case 'assistant_thread_context_changed':
       return type
@@ -967,7 +982,19 @@ export const slackHandler: WebhookProviderHandler = {
     event.text = text
     event.timestamp = messageTs
     event.thread_ts = asString(rawEvent?.thread_ts)
-    event.team_id = asString(b?.team_id) || asString(rawEvent?.team)
+    event.streaming_message_ts = Array.isArray(rawEvent?.streaming_message_ts)
+      ? rawEvent.streaming_message_ts.filter((value): value is string => typeof value === 'string')
+      : []
+    event.title = asString(rawEvent?.title)
+    event.previous_title = asString(rawEvent?.previous_title)
+    event.tab = asString(rawEvent?.tab)
+    event.context = isRecordLike(rawEvent?.context)
+      ? rawEvent.context
+      : isRecordLike(rawEvent?.app_context)
+        ? rawEvent.app_context
+        : null
+    event.team_id = asString(b?.team_id) || asString(rawEvent?.team_id) || asString(rawEvent?.team)
+    event.enterprise_id = asString(rawEvent?.enterprise_id) || asString(b?.enterprise_id)
     event.event_id = asString(b?.event_id)
     event.api_app_id = asString(b?.api_app_id)
     event.app_id =

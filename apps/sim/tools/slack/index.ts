@@ -1,4 +1,5 @@
 import { slackAddReactionTool } from '@/tools/slack/add_reaction'
+import { slackAppendStreamV2Tool } from '@/tools/slack/append_stream_v2'
 import { slackArchiveConversationTool } from '@/tools/slack/archive_conversation'
 import { slackCanvasTool } from '@/tools/slack/canvas'
 import { slackCreateChannelCanvasTool } from '@/tools/slack/create_channel_canvas'
@@ -31,13 +32,18 @@ import { slackOpenViewTool } from '@/tools/slack/open_view'
 import { slackPublishViewTool } from '@/tools/slack/publish_view'
 import { slackPushViewTool } from '@/tools/slack/push_view'
 import { slackRemoveReactionTool } from '@/tools/slack/remove_reaction'
+import { slackRenameAgentSessionV2Tool } from '@/tools/slack/rename_agent_session_v2'
 import { slackRenameConversationTool } from '@/tools/slack/rename_conversation'
 import { slackScheduleMessageTool } from '@/tools/slack/schedule_message'
+import { slackSetAgentSessionStatusV2Tool } from '@/tools/slack/set_agent_session_status_v2'
 import { slackSetConversationPurposeTool } from '@/tools/slack/set_conversation_purpose'
 import { slackSetConversationTopicTool } from '@/tools/slack/set_conversation_topic'
 import { slackSetStatusTool } from '@/tools/slack/set_status'
 import { slackSetSuggestedPromptsTool } from '@/tools/slack/set_suggested_prompts'
+import { slackSetSuggestedPromptsV2Tool } from '@/tools/slack/set_suggested_prompts_v2'
 import { slackSetTitleTool } from '@/tools/slack/set_title'
+import { slackStartStreamV2Tool } from '@/tools/slack/start_stream_v2'
+import { slackStopStreamV2Tool } from '@/tools/slack/stop_stream_v2'
 import { slackUpdateMessageTool } from '@/tools/slack/update_message'
 import { slackUpdateViewTool } from '@/tools/slack/update_view'
 
@@ -57,7 +63,9 @@ export {
   slackUpdateMessageTool,
   slackDeleteMessageTool,
   slackAddReactionTool,
+  slackAppendStreamV2Tool,
   slackRemoveReactionTool,
+  slackRenameAgentSessionV2Tool,
   slackGetChannelInfoTool,
   slackListChannelsTool,
   slackListMembersTool,
@@ -74,8 +82,12 @@ export {
   slackGetChannelHistoryTool,
   slackGetPermalinkTool,
   slackSetStatusTool,
+  slackSetAgentSessionStatusV2Tool,
   slackSetTitleTool,
   slackSetSuggestedPromptsTool,
+  slackSetSuggestedPromptsV2Tool,
+  slackStartStreamV2Tool,
+  slackStopStreamV2Tool,
   slackInviteToConversationTool,
   slackScheduleMessageTool,
   slackListScheduledMessagesTool,

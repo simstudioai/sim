@@ -428,6 +428,26 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
   })
 
+  it('rejects Agent Sessions events on the native Sim app', async () => {
+    mockGetSlackBotCredential.mockResolvedValue(null)
+    mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
+    queueTableRows(credential, [{ id: 'cred_oauth_1' }])
+
+    const result = await resolveSlack({
+      eventType: 'agent_session_stopped',
+      customBotCredential: 'cred_oauth_1',
+    })
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error).toEqual({
+      message:
+        'This event is not available on the Sim Slack app. Use a custom bot or choose a supported event.',
+      status: 400,
+    })
+    expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+  })
+
   it('routes an OAuth account by team_id on the slack_app provider', async () => {
     mockGetSlackBotCredential.mockResolvedValue(null)
     mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
