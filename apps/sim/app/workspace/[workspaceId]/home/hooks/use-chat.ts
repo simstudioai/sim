@@ -56,8 +56,10 @@ import {
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
-import { isTerminalStreamStatus } from '@/lib/mothership/request/session'
-import { parsePersistedStreamEventEnvelopeJson } from '@/lib/mothership/request/session/contract'
+import {
+  isTerminalStreamStatus,
+  parsePersistedStreamEventEnvelopeJson,
+} from '@/lib/mothership/request/session/contract'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { canDisplayResource } from '@/lib/mothership/resources/availability'
 import {
