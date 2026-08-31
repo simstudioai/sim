@@ -7,6 +7,22 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'
 
+interface WorkflowCanvasInteractionPolicyInput {
+  embedded: boolean
+  canEdit: boolean
+}
+
+/** Separates position editing from structural re-parenting for embedded canvases. */
+export function getWorkflowCanvasInteractionPolicy({
+  embedded,
+  canEdit,
+}: WorkflowCanvasInteractionPolicyInput) {
+  return {
+    canDragNodes: canEdit,
+    canReparentNodes: canEdit && !embedded,
+  } as const
+}
+
 type ArrowNavigationEvent = Pick<
   KeyboardEvent,
   'key' | 'repeat' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'

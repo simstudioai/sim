@@ -92,6 +92,7 @@ import {
   getEdgeSelectionContextId,
   getNodeSelectionContextId,
   getRunFromBlockDependencyState,
+  getWorkflowCanvasInteractionPolicy,
   getWorkflowLockToggleIds,
   isBlockProtected,
   isEdgeProtected,
@@ -732,6 +733,10 @@ const WorkflowContent = React.memo(
       }
       return userPermissions
     }, [userPermissions, currentWorkflow.isSnapshotView, workflowReadOnly])
+    const { canDragNodes, canReparentNodes } = getWorkflowCanvasInteractionPolicy({
+      embedded: embedded === true,
+      canEdit: effectivePermissions.canEdit === true,
+    })
     const {
       collaborativeBatchAddEdges,
       collaborativeBatchRemoveEdges,
@@ -2869,7 +2874,7 @@ const WorkflowContent = React.memo(
             parentId: block.data?.parentId,
             extent: block.data?.extent || undefined,
             dragHandle: '.workflow-drag-handle',
-            draggable: !workflowReadOnly && !isBlockProtected(block.id, blocks),
+            draggable: canDragNodes && !isBlockProtected(block.id, blocks),
             zIndex: depth,
             data: {
               ...block.data,
@@ -2914,7 +2919,7 @@ const WorkflowContent = React.memo(
           position,
           parentId: block.data?.parentId,
           dragHandle,
-          draggable: !workflowReadOnly && !isBlockProtected(block.id, blocks),
+          draggable: canDragNodes && !isBlockProtected(block.id, blocks),
           zIndex: cardZIndex,
           extent: (() => {
             // Clamp children to subflow body (exclude header)
@@ -2968,6 +2973,7 @@ const WorkflowContent = React.memo(
       isDebugging,
       getBlockConfig,
       embedded,
+      canDragNodes,
       workflowReadOnly,
       collaborativeSetBlockErrorEnabled,
       collaborativeBatchRemoveEdges,
@@ -3677,7 +3683,7 @@ const WorkflowContent = React.memo(
         // paths bail when potentialParentId still equals the drag-start parent, so
         // positions persist but a block can never be inserted into (or pulled out
         // of) a loop/parallel from the embedded view.
-        if (embedded) return
+        if (!canReparentNodes) return
 
         // Check if this is a starter block - starter blocks should never be in containers
         const isStarterBlock = node.data?.type === 'starter'
@@ -3804,7 +3810,7 @@ const WorkflowContent = React.memo(
         getNodes,
         potentialParentId,
         blocks,
-        embedded,
+        canReparentNodes,
         getNodeAbsolutePosition,
         getNodeDepth,
         isDescendantOf,
@@ -5172,16 +5178,14 @@ const WorkflowContent = React.memo(
                   multiSelectionKeyCode={embedded ? null : ['Meta', 'Control', 'Shift']}
                   nodesConnectable={!embedded && effectivePermissions.canEdit}
                   connectOnClick={false}
-                  nodesDraggable={!embedded && effectivePermissions.canEdit}
+                  nodesDraggable={canDragNodes}
                   draggable={false}
                   noWheelClassName='allow-scroll'
                   edgesFocusable={!embedded}
                   edgesUpdatable={!embedded && effectivePermissions.canEdit}
                   className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${canvasOpacityClass} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
-                  onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
-                  onNodeDragStop={
-                    !embedded && effectivePermissions.canEdit ? onNodeDragStop : undefined
-                  }
+                  onNodeDrag={canDragNodes ? onNodeDrag : undefined}
+                  onNodeDragStop={canDragNodes ? onNodeDragStop : undefined}
                   onSelectionDragStart={
                     effectivePermissions.canEdit ? onSelectionDragStart : undefined
                   }
@@ -5189,9 +5193,7 @@ const WorkflowContent = React.memo(
                   onSelectionDragStop={
                     effectivePermissions.canEdit ? onSelectionDragStop : undefined
                   }
-                  onNodeDragStart={
-                    !embedded && effectivePermissions.canEdit ? onNodeDragStart : undefined
-                  }
+                  onNodeDragStart={canDragNodes ? onNodeDragStart : undefined}
                   snapToGrid={snapToGrid}
                   snapGrid={snapGrid}
                   elevateEdgesOnSelect={false}
