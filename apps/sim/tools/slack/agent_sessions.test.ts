@@ -28,10 +28,13 @@ describe('Slack Agent Sessions tools', () => {
     for (const tool of AGENT_TOOLS) {
       expect(tool.oauth).toMatchObject({
         provider: 'slack',
-        requiredScopes: ['chat:write'],
         credentialKind: 'service-account',
       })
+      expect(tool.oauth?.requiredScopes).toContain('chat:write')
       expect(requestOf(tool).url({})).toMatch(/^https:\/\/slack\.com\/api\//)
+    }
+    for (const tool of [slackSetAgentSessionStatusV2Tool, slackStartStreamV2Tool]) {
+      expect(tool.oauth?.requiredScopes).toContain('chat:write.customize')
     }
   })
 
@@ -144,6 +147,24 @@ describe('Slack streaming tools', () => {
     ).resolves.toEqual({
       success: true,
       output: { ok: true, channel: 'C1', ts: '2.3' },
+    })
+  })
+
+  it('requires recipient IDs for channel streams but not direct messages', () => {
+    const request = requestOf(slackStartStreamV2Tool)
+    const base = {
+      accessToken: 'xoxb-token',
+      authMethod: 'bot_token',
+      botToken: '',
+      markdownText: 'First',
+    }
+
+    expect(() => request.body?.({ ...base, channel: 'C1' })).toThrow(
+      'Recipient User ID and Recipient Team ID are required for channel streams'
+    )
+    expect(request.body?.({ ...base, channel: 'D1' })).toEqual({
+      channel: 'D1',
+      markdown_text: 'First',
     })
   })
 

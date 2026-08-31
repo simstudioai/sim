@@ -314,7 +314,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'chat:write': 'Send messages',
   'chat:write.public': 'Post to public channels',
   'chat:write.customize': 'Customize message username and icon',
-  'assistant:write': 'Set suggested prompts for Agent View',
+  'assistant:write': 'Manage assistant status, titles, and suggested prompts',
   'im:write': 'Send direct messages',
   'im:history': 'Read direct message history',
   'im:read': 'View direct message channels',

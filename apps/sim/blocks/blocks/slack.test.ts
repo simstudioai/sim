@@ -49,11 +49,14 @@ describe('Slack block release', () => {
 
   it('replaces legacy assistant operations with custom-bot Agent Sessions operations', () => {
     expect(operationIds()).toEqual(expect.arrayContaining(AGENT_OPERATION_IDS))
-    expect(operationIds()).not.toEqual(expect.arrayContaining(['set_status', 'set_title']))
+    for (const id of ['set_status', 'set_title']) {
+      expect(operationIds()).not.toContain(id)
+    }
     expect(getSlackV2ToolAccess()).toEqual(expect.arrayContaining(AGENT_TOOL_IDS))
-    expect(getSlackV2ToolAccess()).not.toEqual(
-      expect.arrayContaining(['slack_set_status', 'slack_set_title', 'slack_set_suggested_prompts'])
-    )
+    expect(getSlackV2ToolAccess()).toContain('slack_set_suggested_prompts')
+    for (const id of ['slack_set_status', 'slack_set_title']) {
+      expect(getSlackV2ToolAccess()).not.toContain(id)
+    }
     expect(Object.keys(getSlackV2OperationSentences())).toEqual(
       expect.arrayContaining(AGENT_OPERATION_IDS)
     )
@@ -70,22 +73,54 @@ describe('Slack block release', () => {
     })
   })
 
-  it('preserves persisted suggested-prompt inputs while requiring the custom-bot tool', () => {
+  it('keeps persisted OAuth suggested prompts on the compatibility tool', () => {
+    const selectTool = SlackV2Block.tools.config?.tool
+    if (!selectTool) throw new Error('Slack v2 tool selector is required')
+
+    expect(
+      selectTool({ operation: 'set_suggested_prompts', oauthCredential: 'oauth-credential' })
+    ).toBe('slack_set_suggested_prompts')
     expect(
       mapSlackV2Params({
         operation: 'set_suggested_prompts',
-        oauthCredential: 'custom-bot-credential',
+        oauthCredential: 'oauth-credential',
         channel: 'C123',
         getThreadTimestamp: '1700000000.000001',
         suggestedPrompts: '[{"title":"Summarize","message":"Summarize this thread"}]',
         promptsTitle: 'Try asking',
       })
     ).toMatchObject({
-      credential: 'custom-bot-credential',
+      credential: 'oauth-credential',
       channel: 'C123',
       threadTs: '1700000000.000001',
       prompts: '[{"title":"Summarize","message":"Summarize this thread"}]',
       promptsTitle: 'Try asking',
     })
+  })
+
+  it('uses the service-account tool and active content mode for new agent operations', () => {
+    const selectTool = SlackV2Block.tools.config?.tool
+    if (!selectTool) throw new Error('Slack v2 tool selector is required')
+
+    expect(
+      selectTool({ operation: 'set_suggested_prompts', agentCredentialId: 'custom-bot' })
+    ).toBe('slack_set_suggested_prompts_v2')
+
+    const mapped = mapSlackV2Params({
+      operation: 'append_stream',
+      agentCredentialId: 'custom-bot',
+      agentChannelId: 'C123',
+      streamTs: '1700000000.000001',
+      streamContentMode: 'markdown',
+      streamMarkdownText: 'Current content',
+      streamChunks: [{ type: 'markdown_text', text: 'Stale content' }],
+    })
+    expect(mapped).toMatchObject({
+      credential: 'custom-bot',
+      channel: 'C123',
+      ts: '1700000000.000001',
+      markdownText: 'Current content',
+    })
+    expect(mapped.chunks).toBeUndefined()
   })
 })

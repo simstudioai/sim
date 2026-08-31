@@ -250,6 +250,9 @@ function normalizeAgentActions(actions: readonly SlackAgentAction[]): SlackAgent
 function normalizeSuggestedPrompts(
   prompts: readonly SlackAgentSuggestedPrompt[]
 ): SlackAgentSuggestedPrompt[] {
+  if (prompts.length > 4) {
+    throw new Error('Slack Agent View supports at most four suggested prompts')
+  }
   return prompts.map((prompt, index) => {
     const title = prompt.title.trim()
     const message = prompt.message.trim()

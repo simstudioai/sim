@@ -803,6 +803,29 @@ Get a stable permalink URL to a specific Slack message.
 | `channel` | string | Channel ID containing the message |
 | `permalink` | string | The permalink URL to the message |
 
+### Slack Set Suggested Prompts
+
+Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | Channel ID containing the assistant thread \(e.g., C1234567890 or D1234567890\) |
+| `threadTs` | string | Yes | Thread timestamp \(thread_ts\) of the assistant thread \(e.g., 1405894322.002768\) |
+| `prompts` | json | Yes | Array of prompts, each with a "title" \(shown on the chip\) and a "message" \(sent when clicked\). Max 4. |
+| `promptsTitle` | string | No | Optional heading for the prompt list, e.g. 'Suggested Prompts' |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether the suggested prompts were set successfully |
+| `channel` | string | Channel ID the prompts were set on |
+| `threadTs` | string | Thread timestamp the prompts were set on |
+
 ### Slack Set Agent Suggested Prompts
 
 Set suggested prompts in Slack Agent View, optionally scoped to a specific thread.
@@ -850,7 +873,7 @@ Create or update the state of a Slack agent session associated with a thread.
 | `ok` | boolean | Whether Slack updated the agent session |
 | `status` | string | Requested agent session status |
 | `agentStatus` | string | Agent status recorded by Slack |
-| `title` | string | Current agent session title |
+| `title` | string | Current agent session title, or null when the session has no title |
 
 ### Slack Rename Agent Session
 
@@ -887,8 +910,8 @@ Start a streaming Slack message using Markdown or structured chunks.
 | `markdownText` | string | No | Initial Markdown content, mutually exclusive with chunks |
 | `chunks` | json | No | Initial structured Slack streaming chunks, mutually exclusive with Markdown |
 | `threadTs` | string | No | Parent thread timestamp when streaming a reply |
-| `recipientUserId` | string | No | Recipient user ID for a channel stream |
-| `recipientTeamId` | string | No | Recipient workspace ID for a channel stream |
+| `recipientUserId` | string | No | Recipient user ID, required with Recipient Team ID when channel is not a DM |
+| `recipientTeamId` | string | No | Recipient workspace ID, required with Recipient User ID when channel is not a DM |
 | `taskDisplayMode` | string | No | Task display mode: timeline or plan |
 | `iconEmoji` | string | No | Emoji used to customize the streaming agent identity |
 | `iconUrl` | string | No | Image URL used to customize the streaming agent identity |
@@ -914,8 +937,8 @@ Append Markdown or structured chunks to an active Slack stream.
 | `botToken` | string | No | Custom Slack bot token |
 | `channel` | string | Yes | Channel containing the streaming message |
 | `ts` | string | Yes | Timestamp returned by Start Stream |
-| `markdownText` | string | No | Markdown content to append, mutually exclusive with chunks |
-| `chunks` | json | No | Structured Slack streaming chunks, mutually exclusive with Markdown |
+| `markdownText` | string | No | Markdown content to append; provide this or chunks, but not both |
+| `chunks` | json | No | Structured Slack streaming chunks; provide this or Markdown Text, but not both |
 
 #### Output
 
@@ -952,10 +975,10 @@ Finalize an active Slack stream and return the resulting message.
 | `ts` | string | Finalized streaming message timestamp |
 | `message` | object | Final Slack message returned by chat.stopStream |
 |   ↳ `text` | string | Final message text |
-|   ↳ `bot_id` | string | Bot ID |
+|   ↳ `bot_id` | string | Bot ID, or null when Slack omits it |
 |   ↳ `ts` | string | Message timestamp |
 |   ↳ `type` | string | Message type |
-|   ↳ `subtype` | string | Message subtype |
+|   ↳ `subtype` | string | Message subtype, or null when the message has no subtype |
 
 ### Slack List Channels
 

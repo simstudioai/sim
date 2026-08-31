@@ -3447,6 +3447,7 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       'slack_get_thread_replies',
       'slack_get_channel_history',
       'slack_get_permalink',
+      'slack_set_suggested_prompts',
       'slack_set_suggested_prompts_v2',
       'slack_set_agent_session_status_v2',
       'slack_rename_agent_session_v2',
@@ -3488,7 +3489,9 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       tool: (params) => {
         switch (params.operation) {
           case 'set_suggested_prompts':
-            return 'slack_set_suggested_prompts_v2'
+            return params.agentCredentialId
+              ? 'slack_set_suggested_prompts_v2'
+              : 'slack_set_suggested_prompts'
           case 'set_agent_session_status':
             return 'slack_set_agent_session_status_v2'
           case 'rename_agent_session':
@@ -3511,26 +3514,21 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         if (!mapParams) throw new Error('Slack parameter mapper is required')
         const baseParams = mapParams(params)
         if (!SLACK_V2_AGENT_OPERATIONS.includes(params.operation as never)) return baseParams
-
-        const persistedSuggestedPromptParams =
-          params.operation === 'set_suggested_prompts'
-            ? {
-                credential: baseParams.credential,
-                channel: baseParams.channel,
-                threadTs: baseParams.threadTs,
-              }
-            : undefined
+        if (params.operation === 'set_suggested_prompts' && !params.agentCredentialId) {
+          return baseParams
+        }
 
         return {
           ...baseParams,
-          credential: params.agentCredentialId ?? persistedSuggestedPromptParams?.credential,
-          channel: params.agentChannelId ?? persistedSuggestedPromptParams?.channel,
-          threadTs: params.agentThreadTs ?? persistedSuggestedPromptParams?.threadTs,
+          credential: params.agentCredentialId,
+          channel: params.agentChannelId,
+          threadTs: params.agentThreadTs,
           status: params.agentSessionStatus,
           title: params.agentSessionTitle,
           initiatorUserId: params.agentInitiatorUserId,
-          markdownText: params.streamMarkdownText,
-          chunks: params.streamChunks,
+          markdownText:
+            params.streamContentMode === 'markdown' ? params.streamMarkdownText : undefined,
+          chunks: params.streamContentMode === 'chunks' ? params.streamChunks : undefined,
           ts: params.streamTs,
           recipientUserId: params.streamRecipientUserId,
           recipientTeamId: params.streamRecipientTeamId,

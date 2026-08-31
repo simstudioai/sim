@@ -22,7 +22,7 @@ export const slackStartStreamV2Tool: ToolConfig<SlackStartStreamV2Params, SlackS
   oauth: {
     required: true,
     provider: 'slack',
-    requiredScopes: ['chat:write'],
+    requiredScopes: ['chat:write', 'chat:write.customize'],
     credentialKind: 'service-account',
   },
   params: {
@@ -72,13 +72,14 @@ export const slackStartStreamV2Tool: ToolConfig<SlackStartStreamV2Params, SlackS
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Recipient user ID for a channel stream',
+      description: 'Recipient user ID, required with Recipient Team ID when channel is not a DM',
     },
     recipientTeamId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Recipient workspace ID for a channel stream',
+      description:
+        'Recipient workspace ID, required with Recipient User ID when channel is not a DM',
     },
     taskDisplayMode: {
       type: 'string',
@@ -118,12 +119,16 @@ export const slackStartStreamV2Tool: ToolConfig<SlackStartStreamV2Params, SlackS
       }
       const recipientUserId = params.recipientUserId?.trim()
       const recipientTeamId = params.recipientTeamId?.trim()
+      const channel = requireSlackString(params.channel, 'Channel')
       if (Boolean(recipientUserId) !== Boolean(recipientTeamId)) {
         throw new Error('Recipient User ID and Recipient Team ID must be provided together')
       }
+      if (!channel.startsWith('D') && !recipientUserId) {
+        throw new Error('Recipient User ID and Recipient Team ID are required for channel streams')
+      }
 
       return {
-        channel: requireSlackString(params.channel, 'Channel'),
+        channel,
         ...buildSlackStreamContent(params, false),
         ...(params.threadTs?.trim() ? { thread_ts: params.threadTs.trim() } : {}),
         ...(recipientUserId ? { recipient_user_id: recipientUserId } : {}),

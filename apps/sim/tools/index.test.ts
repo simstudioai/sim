@@ -4479,6 +4479,8 @@ describe('Copilot OAuth Credential Enforcement', () => {
       credential: 'custom-slack-bot',
       channel: 'C1',
       markdownText: 'hello',
+      recipientUserId: 'U1',
+      recipientTeamId: 'T1',
     })
 
     expect(result).toMatchObject({

@@ -70,7 +70,16 @@ function getAgentConfigurationError(
   if (prompts.some((prompt) => !prompt.title.trim() || !prompt.message.trim())) {
     return 'Every suggested prompt needs a title and message.'
   }
+  if (prompts.length > 4) {
+    return 'Slack Agent View supports at most four suggested prompts.'
+  }
   return null
+}
+
+function getAgentDescriptionError(description: string): string | null {
+  return description.trim().length > 300
+    ? 'Slack Agent View descriptions must be 300 characters or fewer.'
+    : null
 }
 
 interface ConnectSlackBotModalProps {
@@ -152,10 +161,12 @@ export function ConnectSlackBotModal({
   // window.location.origin) so Slack's servers can reach it.
   const requestUrl = useMemo(() => buildSlackCustomBotRequestUrl(credentialId), [credentialId])
 
+  const descriptionError = getAgentDescriptionError(appDescription)
   const agentConfigurationError = getAgentConfigurationError(agentActions, suggestedPrompts)
+  const manifestConfigurationError = descriptionError ?? agentConfigurationError
 
   const manifestJson = useMemo(() => {
-    if (agentConfigurationError) return ''
+    if (manifestConfigurationError) return ''
     const managedUserAuthorization = selected.has(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id)
       ? getSlackManagedUserAuthorizationManifestConfig(getBaseUrl())
       : undefined
@@ -169,7 +180,7 @@ export function ConnectSlackBotModal({
     })
     return JSON.stringify(manifest, null, 2)
   }, [
-    agentConfigurationError,
+    manifestConfigurationError,
     selected,
     appName,
     appDescription,
@@ -255,12 +266,16 @@ export function ConnectSlackBotModal({
       {/* Bot name is required so the credential name, the manifest app name, and
           uniqueness all use the user's choice — never the shared Slack team name
           fallback, which collides for a second bot in the same workspace. */}
-      <Wizard.Step title='Configure your bot' canAdvance={appName.trim().length > 0}>
+      <Wizard.Step
+        title='Configure your bot'
+        canAdvance={appName.trim().length > 0 && !descriptionError}
+      >
         <StepConfigure
           appName={appName}
           onAppNameChange={setAppName}
           appDescription={appDescription}
           onAppDescriptionChange={setAppDescription}
+          descriptionError={descriptionError}
           capabilityIds={capabilityIds}
           onCapabilityIdsChange={setCapabilityIds}
         />
@@ -319,6 +334,7 @@ interface StepConfigureProps {
   onAppNameChange: (next: string) => void
   appDescription: string
   onAppDescriptionChange: (next: string) => void
+  descriptionError: string | null
   capabilityIds: string[]
   onCapabilityIdsChange: (next: string[]) => void
 }
@@ -327,6 +343,7 @@ function StepConfigure({
   onAppNameChange,
   appDescription,
   onAppDescriptionChange,
+  descriptionError,
   capabilityIds,
   onCapabilityIdsChange,
 }: StepConfigureProps) {
@@ -355,7 +372,11 @@ function StepConfigure({
           onChange={(e) => onAppDescriptionChange(e.target.value)}
           placeholder="Optional — shown on the bot's Slack profile"
           maxLength={140}
+          error={Boolean(descriptionError)}
         />
+        {descriptionError && (
+          <p className='text-[var(--text-error)] text-caption'>{descriptionError}</p>
+        )}
       </div>
       <div className='flex flex-col gap-[9px]'>
         <Label className='text-[var(--text-muted)] text-small'>Additional permissions</Label>
@@ -517,7 +538,12 @@ function StepAgentView({
             </Button>
           </div>
         ))}
-        <Chip className='w-fit' leftIcon={Plus} onClick={addSuggestedPrompt}>
+        <Chip
+          className='w-fit'
+          leftIcon={Plus}
+          onClick={addSuggestedPrompt}
+          disabled={suggestedPrompts.length >= 4}
+        >
           Add suggested prompt
         </Chip>
       </div>

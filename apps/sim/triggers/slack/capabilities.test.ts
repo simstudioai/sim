@@ -112,6 +112,17 @@ describe('buildSlackManifest - Agent View', () => {
     ).toThrow('Slack suggested prompt 1 requires a title and message')
   })
 
+  it('fails fast when Agent View has more than four suggested prompts', () => {
+    const suggestedPrompts = Array.from({ length: 5 }, (_, index) => ({
+      title: `Prompt ${index + 1}`,
+      message: `Message ${index + 1}`,
+    }))
+
+    expect(() => buildSlackManifest(new Set(), { ...opts, suggestedPrompts })).toThrow(
+      'Slack Agent View supports at most four suggested prompts'
+    )
+  })
+
   it("fails fast when the Agent View description exceeds Slack's limit", () => {
     expect(() => buildSlackManifest(new Set(), { ...opts, description: 'a'.repeat(301) })).toThrow(
       'Slack agent description must be 300 characters or fewer'

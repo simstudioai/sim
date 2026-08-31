@@ -141,10 +141,18 @@ export const slackStopStreamV2Tool: ToolConfig<SlackStopStreamV2Params, SlackSto
         description: 'Final Slack message returned by chat.stopStream',
         properties: {
           text: { type: 'string', description: 'Final message text' },
-          bot_id: { type: 'string', description: 'Bot ID', nullable: true },
+          bot_id: {
+            type: 'string',
+            description: 'Bot ID, or null when Slack omits it',
+            nullable: true,
+          },
           ts: { type: 'string', description: 'Message timestamp' },
           type: { type: 'string', description: 'Message type' },
-          subtype: { type: 'string', description: 'Message subtype', nullable: true },
+          subtype: {
+            type: 'string',
+            description: 'Message subtype, or null when the message has no subtype',
+            nullable: true,
+          },
         },
       },
     },

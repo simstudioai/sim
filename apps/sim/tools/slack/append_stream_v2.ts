@@ -61,13 +61,14 @@ export const slackAppendStreamV2Tool: ToolConfig<SlackAppendStreamV2Params, Slac
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Markdown content to append, mutually exclusive with chunks',
+        description: 'Markdown content to append; provide this or chunks, but not both',
       },
       chunks: {
         type: 'json',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Structured Slack streaming chunks, mutually exclusive with Markdown',
+        description:
+          'Structured Slack streaming chunks; provide this or Markdown Text, but not both',
       },
     },
     request: {

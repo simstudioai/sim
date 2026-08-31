@@ -30,7 +30,7 @@ export const slackSetAgentSessionStatusV2Tool: ToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
-    requiredScopes: ['chat:write'],
+    requiredScopes: ['chat:write', 'chat:write.customize'],
     credentialKind: 'service-account',
   },
   params: {
@@ -149,7 +149,7 @@ export const slackSetAgentSessionStatusV2Tool: ToolConfig<
     agentStatus: { type: 'string', description: 'Agent status recorded by Slack' },
     title: {
       type: 'string',
-      description: 'Current agent session title',
+      description: 'Current agent session title, or null when the session has no title',
       nullable: true,
     },
   },
