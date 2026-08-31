@@ -146,7 +146,12 @@ function isStructurallyInertConditionLiteral(value: string): boolean {
 }
 
 type ShellQuoteContext = 'single' | 'double' | null
-type CodeStringQuoteContext = ShellQuoteContext | 'triple-single' | 'triple-double' | 'template'
+type CodeStringQuoteContext =
+  | ShellQuoteContext
+  | 'triple-single'
+  | 'triple-double'
+  | 'template'
+  | 'regex'
 type CodeScanMode =
   | { type: 'normal' }
   | { type: 'single' }
@@ -157,6 +162,37 @@ type CodeScanMode =
   | { type: 'template-expression'; depth: number }
   | { type: 'line-comment' }
   | { type: 'block-comment' }
+  | { type: 'regex'; inCharacterClass: boolean }
+
+/**
+ * Characters after which a `/` opens a regular expression rather than dividing.
+ *
+ * The scanner has to tell the two apart, because a regex body is the one place a lone quote
+ * is not a string delimiter: `/['"]/` left the scan believing everything after it sat inside
+ * a string, and every reference past that point was then formatted for the wrong context.
+ * Division always follows a value — an identifier, literal, `)`, or `]` — so anything else
+ * ending the preceding token means a regex may start.
+ */
+const JAVASCRIPT_REGEX_ALLOWED_AFTER = new Set('(,=:[!&|?{};+-*%^~<>/'.split(''))
+
+const WHITESPACE_CHAR = /\s/
+
+/** Keywords a regex may directly follow, where the preceding token is a word rather than punctuation. */
+const JAVASCRIPT_REGEX_ALLOWED_AFTER_KEYWORDS = new Set([
+  'return',
+  'typeof',
+  'instanceof',
+  'in',
+  'of',
+  'new',
+  'delete',
+  'void',
+  'case',
+  'do',
+  'else',
+  'yield',
+  'await',
+])
 
 export class VariableResolver {
   private resolvers: Resolver[]
@@ -1073,6 +1109,35 @@ export class VariableResolver {
     )
   }
 
+  /**
+   * Whether a `/` at this point opens a regular expression rather than dividing.
+   *
+   * Division always follows a value, so the preceding token decides: an identifier that is not
+   * one of the keywords a regex may follow, a number, a `)`, or a `]` means division, and
+   * anything else means a regex may start. Guessing wrong is not silent — the scan would swallow
+   * text up to the next `/` — so the check reads the actual preceding token rather than assuming.
+   */
+  private canStartJavaScriptRegex(template: string, previousSignificantIndex: number): boolean {
+    if (previousSignificantIndex < 0) {
+      return true
+    }
+    const previous = template[previousSignificantIndex]
+    if (JAVASCRIPT_REGEX_ALLOWED_AFTER.has(previous)) {
+      return true
+    }
+    if (!this.isJavaScriptIdentifierChar(previous)) {
+      return false
+    }
+
+    let start = previousSignificantIndex
+    while (start > 0 && this.isJavaScriptIdentifierChar(template[start - 1])) {
+      start--
+    }
+    return JAVASCRIPT_REGEX_ALLOWED_AFTER_KEYWORDS.has(
+      template.slice(start, previousSignificantIndex + 1)
+    )
+  }
+
   private matchesKeywordAt(template: string, index: number, keyword: string): boolean {
     if (!template.startsWith(keyword, index)) {
       return false
@@ -1200,6 +1265,7 @@ export class VariableResolver {
   ): CodeStringQuoteContext {
     const isPython = language === 'python'
     const modes: CodeScanMode[] = [{ type: 'normal' }]
+    let lastSignificantIndex = -1
 
     for (let i = 0; i < index; i++) {
       const char = template[i]
@@ -1217,6 +1283,31 @@ export class VariableResolver {
         if (char === '*' && next === '/') {
           modes.pop()
           i++
+        }
+        continue
+      }
+
+      if (mode.type === 'regex') {
+        if (char === '\\') {
+          i++
+          continue
+        }
+        // A regex literal cannot span a line, so an unterminated one means the `/` was
+        // division after all; dropping the mode keeps the rest of the scan honest.
+        if (char === '\n') {
+          modes.pop()
+          continue
+        }
+        if (char === '[') {
+          mode.inCharacterClass = true
+          continue
+        }
+        if (char === ']') {
+          mode.inCharacterClass = false
+          continue
+        }
+        if (char === '/' && !mode.inCharacterClass) {
+          modes.pop()
         }
         continue
       }
@@ -1273,6 +1364,18 @@ export class VariableResolver {
           i++
           continue
         }
+        const previousSignificantIndex = lastSignificantIndex
+        if (!WHITESPACE_CHAR.test(char)) {
+          lastSignificantIndex = i
+        }
+        if (
+          !isPython &&
+          char === '/' &&
+          this.canStartJavaScriptRegex(template, previousSignificantIndex)
+        ) {
+          modes.push({ type: 'regex', inCharacterClass: false })
+          continue
+        }
         if (isPython && char === "'" && next === "'" && template[i + 2] === "'") {
           modes.push({ type: 'triple-single' })
           i += 2
@@ -1322,6 +1425,18 @@ export class VariableResolver {
         i++
         continue
       }
+      const previousSignificantIndex = lastSignificantIndex
+      if (!WHITESPACE_CHAR.test(char)) {
+        lastSignificantIndex = i
+      }
+      if (
+        !isPython &&
+        char === '/' &&
+        this.canStartJavaScriptRegex(template, previousSignificantIndex)
+      ) {
+        modes.push({ type: 'regex', inCharacterClass: false })
+        continue
+      }
       if (isPython && char === "'" && next === "'" && template[i + 2] === "'") {
         modes.push({ type: 'triple-single' })
         i += 2
@@ -1338,6 +1453,9 @@ export class VariableResolver {
     }
 
     const mode = modes[modes.length - 1]
+    if (mode.type === 'regex') {
+      return 'regex'
+    }
     if (
       mode.type === 'single' ||
       mode.type === 'double' ||

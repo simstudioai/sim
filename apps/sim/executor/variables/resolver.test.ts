@@ -363,6 +363,46 @@ describe('VariableResolver function block inputs', () => {
     expect(runResolvedCondition(expression).matched).toBe(true)
   })
 
+  it('evaluates references that follow a regex literal, quote-bearing or not', async () => {
+    // A regex body is the one place a lone quote is not a string delimiter. Reading it as one
+    // left every later reference formatted for a context it was not in — a quoted object
+    // reference stayed raw source, and a bare one was emitted as escaped JSON that cannot parse.
+    const cases: Array<{ value: string; result: unknown; expected: boolean }> = [
+      // Every case reaches its reference — a short-circuit would pass on a formatter that
+      // emits source the sandbox cannot parse, which is the failure being pinned here.
+      {
+        value: `/['"a]/.test('a') && <producer.result>.count === 2`,
+        result: { count: 2 },
+        expected: true,
+      },
+      { value: `/['"]/.test('a') || <producer.result> === 'x'`, result: 'x', expected: true },
+      {
+        value: `/it's/.test('a') || "<producer.result>".includes('b')`,
+        result: 'abc',
+        expected: true,
+      },
+      {
+        value: `/[a-z]/.test('a') && <producer.result>.count === 2`,
+        result: { count: 2 },
+        expected: true,
+      },
+      // Division, not a regex: the scan must not swallow the rest of the expression.
+      { value: `<producer.result>.total / 2 === 5`, result: { total: 10 }, expected: true },
+      {
+        value: `(<producer.result>.total / 2) === 5 && '<producer.result>'.length > 0`,
+        result: { total: 10 },
+        expected: true,
+      },
+    ]
+
+    for (const { value, result, expected } of cases) {
+      const expression = await resolveConditionWithBlockOutput(value, result)
+      const verdict = runResolvedCondition(expression)
+      expect(verdict.injected, `condition ${value} executed data: ${expression}`).toBe(false)
+      expect(verdict.matched, `condition ${value} resolved to: ${expression}`).toBe(expected)
+    }
+  })
+
   it('keeps quoted and bare condition references comparing what they compared before', async () => {
     const cases: Array<{ value: string; result: unknown; expected: boolean }> = [
       { value: `<producer.result> === 'urgent'`, result: 'urgent', expected: true },
