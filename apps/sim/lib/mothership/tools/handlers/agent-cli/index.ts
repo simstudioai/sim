@@ -1,3 +1,4 @@
+import { filesGrepCommand } from '@/lib/mothership/tools/handlers/agent-cli/commands/files-grep'
 import {
   workflowGrepCommand,
   workflowsGrepCommand,
@@ -20,6 +21,7 @@ import {
  * automatically.
  */
 const AGENT_CLI_COMMANDS: readonly AgentCliCommand[] = [
+  filesGrepCommand,
   workflowBlocksCommand,
   workflowEdgesCommand,
   workflowGrepCommand,

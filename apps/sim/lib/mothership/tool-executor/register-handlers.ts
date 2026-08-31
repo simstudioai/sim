@@ -7,6 +7,7 @@ import {
 } from '@/lib/mothership/generated/tool-catalog-v1'
 import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/mothership/tools/server/router'
+import { executeFunctionExecute } from '../tools/handlers/function-execute'
 import { executeRunCode } from '../tools/handlers/run-code'
 import { executeSimCli } from '../tools/handlers/sim-cli'
 import {
@@ -54,6 +55,9 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     // (E2B/VM, mounts, secret materialization) lives on this side, same as the
     // workflow Function block. Compute-only: the handler rejects write vectors.
     run_code: h(executeRunCode),
+    // The write-capable variant: same sandbox, plus outputs.files workspace
+    // export and outputTable overwrite.
+    run_function: h(executeFunctionExecute),
     // The worker's CLI surface, executed in-process via the CLI's own command
     // tree (sim/embed) against this deployment's internal API base.
     sim_cli: h(executeSimCli),
