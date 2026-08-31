@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
   executeManage: vi.fn(),
   executeParser: vi.fn(),
+  searchContent: vi.fn(),
+  getProvenance: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/principals/executor', () => ({
@@ -17,10 +19,25 @@ vi.mock('@/lib/internal/principals/executor', () => ({
 
 vi.mock('@/lib/internal/file/operations', () => ({
   executeFileManageOperation: mocks.executeManage,
+  getFileContentProvenance: mocks.getProvenance,
+  fileContentJsonResponse: (
+    body: Record<string, unknown>,
+    includePrivateProvenance: boolean,
+    init?: ResponseInit,
+    provenance?: Record<string, unknown>
+  ) =>
+    Response.json(
+      includePrivateProvenance ? { ...body, __resolvedSecretTraceProvenance: provenance } : body,
+      init
+    ),
 }))
 
 vi.mock('@/lib/internal/file/parser', () => ({
   executeFileParserOperation: mocks.executeParser,
+}))
+
+vi.mock('@/lib/workspace-files/application/search-workspace-file-content', () => ({
+  searchWorkspaceFileContent: { execute: mocks.searchContent },
 }))
 
 import { executeFileTool } from '@/lib/internal/file/execute-tool'
@@ -52,6 +69,26 @@ const BILLING_ATTRIBUTION = {
   },
   payerSubscription: null,
 } satisfies BillingAttributionSnapshot
+
+const SEARCH_RESULT = {
+  results: [{ fileId: 'file-1', lineNumber: 2, text: 'needle' }],
+  count: 1,
+  truncated: false,
+  complete: true,
+  indexStatus: {
+    readyFiles: 1,
+    pendingFiles: 0,
+    failedFiles: 0,
+    skippedFiles: 0,
+    partialFiles: 0,
+  },
+  sources: [
+    {
+      identity: { fileId: 'file-1', key: 'workspace/workspace-1/file.txt' },
+      ownerUserId: 'user-1',
+    },
+  ],
+}
 
 function request(
   toolId: string,
@@ -92,6 +129,127 @@ describe('executeFileTool', () => {
     })
     mocks.executeManage.mockResolvedValue(Response.json({ success: true }))
     mocks.executeParser.mockResolvedValue(Response.json({ success: true }))
+    mocks.searchContent.mockResolvedValue(SEARCH_RESULT)
+    mocks.getProvenance.mockResolvedValue({ version: 1, complete: true, entries: [] })
+  })
+
+  it('searches with the trusted workspace and delegated executor principal', async () => {
+    const response = await executeFileTool(
+      request('file_search', { query: 'needle', maxResults: 25 })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      data: {
+        results: [{ fileId: 'file-1', lineNumber: 2, text: 'needle' }],
+        count: 1,
+      },
+    })
+    expect(mocks.searchContent).toHaveBeenCalledWith({
+      principal: expect.objectContaining({ serviceId: 'executor' }),
+      input: { workspaceId: 'workspace-1', query: 'needle', maxResults: 25, signal: undefined },
+    })
+    expect(mocks.executeManage).not.toHaveBeenCalled()
+  })
+
+  it('uses the default search cap and aggregates provenance for every matched file', async () => {
+    const response = await executeFileTool(
+      request(
+        'file_search',
+        { query: 'needle' },
+        {
+          headers: new Headers({
+            'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
+          }),
+        }
+      )
+    )
+
+    expect(mocks.searchContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { workspaceId: 'workspace-1', query: 'needle', maxResults: 50 },
+      })
+    )
+    expect(mocks.getProvenance).toHaveBeenCalledWith(
+      expect.objectContaining({ serviceId: 'executor' }),
+      'workspace-1',
+      expect.arrayContaining([
+        expect.objectContaining({
+          identity: expect.objectContaining({ fileId: 'file-1' }),
+        }),
+      ]),
+      undefined
+    )
+    const body = await response.json()
+    expect(body.data.sources).toBeUndefined()
+    expect(body.__resolvedSecretTraceProvenance).toMatchObject({ complete: true })
+  })
+
+  it.each([
+    [{ query: 'ab', maxResults: 50 }, 400],
+    [{ query: 'abc\0def', maxResults: 50 }, 400],
+    [{ query: 'needle', maxResults: 201 }, 400],
+    [{ query: 'needle', maxResults: 0 }, 400],
+  ])('rejects invalid search input before authorization', async (input, status) => {
+    const response = await executeFileTool(request('file_search', input))
+
+    expect(response.status).toBe(status)
+    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    expect(mocks.searchContent).not.toHaveBeenCalled()
+  })
+
+  it('does not expose unexpected search infrastructure errors', async () => {
+    mocks.searchContent.mockRejectedValueOnce(new Error('database host and query details'))
+
+    const response = await executeFileTool(request('file_search', { query: 'needle' }))
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'Failed to search workspace files',
+    })
+  })
+
+  it('propagates cancellation that arrives while search work is running', async () => {
+    const controller = new AbortController()
+    mocks.searchContent.mockImplementationOnce(async () => {
+      controller.abort(new DOMException('cancelled', 'AbortError'))
+      return SEARCH_RESULT
+    })
+
+    await expect(
+      executeFileTool(request('file_search', { query: 'needle' }, { signal: controller.signal }))
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mocks.searchContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ signal: controller.signal }),
+      })
+    )
+    expect(mocks.getProvenance).not.toHaveBeenCalled()
+  })
+
+  it('propagates cancellation that arrives while search provenance is loading', async () => {
+    const controller = new AbortController()
+    mocks.getProvenance.mockImplementationOnce(async () => {
+      controller.abort(new DOMException('cancelled', 'AbortError'))
+      return { version: 1, complete: true, entries: [] }
+    })
+
+    await expect(
+      executeFileTool(
+        request(
+          'file_search',
+          { query: 'needle' },
+          {
+            signal: controller.signal,
+            headers: new Headers({
+              'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
+            }),
+          }
+        )
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it.each(Object.entries(MANAGE_INPUTS))('validates and dispatches %s', async (toolId, input) => {

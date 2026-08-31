@@ -72,7 +72,7 @@ vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
 }))
 vi.mock('@/lib/workflows/application/resolve-workflow-outputs', () => ({
-  loadResolvedWorkflowOutputs: mocks.loadWorkflowOutputs,
+  loadResolvedDeployedWorkflowOutputs: mocks.loadWorkflowOutputs,
 }))
 
 import { v2WorkflowGroupSchema } from '@/lib/api/contracts/v2/tables'

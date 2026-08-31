@@ -227,16 +227,32 @@ function uniqueMountFileName(name: string, used: Set<string>): string {
  * Assigns each file a deterministic mount path. Pure and I/O-free, so a caller
  * can decide whether an execution needs a sandbox filesystem before spending a
  * presign or a byte of transfer on a request that may still be refused.
+ *
+ * A storage key mounts once. The same object arrives from independent sources —
+ * a caller listing it twice, or listing one the code also asked for with
+ * `<block.file.path>` — and a second copy of identical bytes costs a presign, a
+ * duplicate transfer, and a second charge against both the byte budget and the
+ * per-request file ceiling. First occurrence wins, so the name listed first is
+ * the one the code sees.
  */
 export function planUserFileMounts(
   files: readonly UserFile[],
   mountDir: string = SANDBOX_INPUT_DIR
 ): PlannedUserFileMount[] {
   const used = new Set<string>()
-  return files.map((userFile) => ({
-    userFile,
-    mountPath: `${mountDir}/${uniqueMountFileName(userFile.name, used)}`,
-  }))
+  const mountedKeys = new Set<string>()
+  const planned: PlannedUserFileMount[] = []
+
+  for (const userFile of files) {
+    if (mountedKeys.has(userFile.key)) continue
+    mountedKeys.add(userFile.key)
+    planned.push({
+      userFile,
+      mountPath: `${mountDir}/${uniqueMountFileName(userFile.name, used)}`,
+    })
+  }
+
+  return planned
 }
 
 /**

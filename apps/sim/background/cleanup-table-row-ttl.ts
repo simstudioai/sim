@@ -5,7 +5,7 @@ import { task } from '@trigger.dev/sdk'
 import { sql } from 'drizzle-orm'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
-import { getDeleteSnapshotBatchSize } from '@/lib/table/constants'
+import { getDeleteSnapshotBatchSize, TABLE_LIMITS } from '@/lib/table/constants'
 import { signalTableRowsChanged } from '@/lib/table/events'
 import { assertRowDelete, TableLockedError } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -100,7 +100,12 @@ function parseDeletedBatch(rows: unknown, batchSize: number): DeletedTtlRows {
   if (!Array.isArray(rows)) {
     throw new Error('Table row TTL cleanup did not return deleted rows')
   }
-  const deletedRows = rows as Array<{ id?: unknown; data?: unknown; createdAt?: unknown }>
+  const deletedRows = rows as Array<{
+    id?: unknown
+    data?: unknown
+    createdAt?: unknown
+    snapshotBytes?: unknown
+  }>
   if (deletedRows.length > batchSize) {
     throw new Error('Table row TTL cleanup returned an invalid deleted count')
   }
@@ -110,6 +115,17 @@ function parseDeletedBatch(rows: unknown, batchSize: number): DeletedTtlRows {
     }
     if (typeof row.createdAt !== 'string') {
       throw new Error('Table row TTL cleanup did not return a creation-time cursor')
+    }
+    const snapshotBytes = Number(row.snapshotBytes)
+    if (!Number.isFinite(snapshotBytes) || snapshotBytes < 0) {
+      throw new Error('Table row TTL cleanup did not return a valid snapshot size')
+    }
+    if (snapshotBytes > TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES) {
+      logger.warn('Deleting oversized legacy TTL row in an isolated snapshot batch', {
+        rowId: row.id,
+        snapshotBytes,
+        maxBytes: TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES,
+      })
     }
     return {
       cursor: { createdAt: row.createdAt, id: row.id },
@@ -132,9 +148,14 @@ async function deleteExpiredTableRowBatch(
   batchSize: number,
   after?: TtlCleanupCursor
 ): Promise<DeletedTtlRows> {
-  const rows = await trx.execute<{ id: string; data: RowData; createdAt: string }>(sql`
-    WITH candidates AS MATERIALIZED (
-      SELECT table_row.id
+  const rows = await trx.execute<{
+    id: string
+    data: RowData
+    createdAt: string
+    snapshotBytes: number
+  }>(sql`
+    WITH locked_rows AS MATERIALIZED (
+      SELECT table_row.id, table_row.created_at, octet_length(table_row.data::text) AS snapshot_bytes
       FROM ${userTableRows} AS table_row
       WHERE table_row.table_id = ${tableId}
         AND table_row.workspace_id = ${workspaceId}
@@ -148,6 +169,19 @@ async function deleteExpiredTableRowBatch(
       ORDER BY table_row.created_at, table_row.id
       LIMIT ${batchSize}
       FOR UPDATE OF table_row SKIP LOCKED
+    ), ranked_rows AS (
+      SELECT
+        id,
+        created_at,
+        snapshot_bytes,
+        row_number() OVER (ORDER BY created_at, id) AS snapshot_order,
+        sum(snapshot_bytes) OVER (ORDER BY created_at, id) AS cumulative_snapshot_bytes
+      FROM locked_rows
+    ), candidates AS (
+      SELECT id, snapshot_bytes
+      FROM ranked_rows
+      WHERE cumulative_snapshot_bytes <= ${TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES}
+         OR snapshot_order = 1
     ), deleted AS (
       DELETE FROM ${userTableRows} AS table_row
       USING candidates
@@ -155,9 +189,10 @@ async function deleteExpiredTableRowBatch(
       RETURNING
         table_row.id,
         table_row.data,
-        to_char(table_row.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') AS "createdAt"
+        to_char(table_row.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') AS "createdAt",
+        candidates.snapshot_bytes AS "snapshotBytes"
     )
-    SELECT id, data, "createdAt"
+    SELECT id, data, "createdAt", "snapshotBytes"
     FROM deleted
     ORDER BY "createdAt", id
   `)
@@ -246,36 +281,38 @@ export async function runCleanupTableRowTtl(
   let deleted = 0
   let batches = 0
 
-  while (
-    batches < TTL_CLEANUP_MAX_BATCHES &&
-    !signal?.aborted &&
-    tableStates.some((state) => !state.complete)
-  ) {
-    for (const state of tableStates) {
-      if (state.complete) continue
-      if (batches === TTL_CLEANUP_MAX_BATCHES || signal?.aborted) break
+  try {
+    while (
+      batches < TTL_CLEANUP_MAX_BATCHES &&
+      !signal?.aborted &&
+      tableStates.some((state) => !state.complete)
+    ) {
+      for (const state of tableStates) {
+        if (state.complete) continue
+        if (batches === TTL_CLEANUP_MAX_BATCHES || signal?.aborted) break
 
-      const batch = await deleteExpiredRowsForTable(
-        state.ref,
-        nowEpochSeconds,
-        batchSize,
-        state.after
-      )
-      if (!batch.attempted) {
-        state.complete = true
-        continue
+        const batch = await deleteExpiredRowsForTable(
+          state.ref,
+          nowEpochSeconds,
+          batchSize,
+          state.after
+        )
+        if (!batch.attempted) {
+          state.complete = true
+          continue
+        }
+
+        batches++
+        deleted += batch.deleted
+        state.deleted += batch.deleted
+        state.after = batch.cursor ?? undefined
+        if (batch.deleted === 0) state.complete = true
       }
-
-      batches++
-      deleted += batch.deleted
-      state.deleted += batch.deleted
-      state.after = batch.cursor ?? undefined
-      if (batch.deleted < batchSize) state.complete = true
     }
-  }
-
-  for (const state of tableStates) {
-    if (state.deleted > 0) signalTableRowsChanged(state.ref.id)
+  } finally {
+    for (const state of tableStates) {
+      if (state.deleted > 0) signalTableRowsChanged(state.ref.id)
+    }
   }
 
   const limitReached =

@@ -1019,10 +1019,10 @@ Update branch protection rules for a specific branch, including status checks, r
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `branch` | string | Yes | Branch name |
-| `required_status_checks` | object | Yes | Required status check configuration \(null to disable\). Object with strict \(boolean\) and contexts \(string array\) |
-| `enforce_admins` | boolean | Yes | Whether to enforce restrictions for administrators |
-| `required_pull_request_reviews` | object | Yes | PR review requirements \(null to disable\). Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews |
-| `restrictions` | object | Yes | Push restrictions \(null to disable\). Object with users \(string array\) and teams \(string array\) |
+| `required_status_checks` | object | No | Required status check configuration. Object with strict \(boolean\) and contexts \(string array\). Omit to disable status checks — GitHub receives an explicit null. |
+| `enforce_admins` | boolean | No | Whether to enforce restrictions for administrators. Omit to disable admin enforcement — GitHub receives an explicit null. |
+| `required_pull_request_reviews` | object | No | PR review requirements. Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews. Omit to disable review requirements — GitHub receives an explicit null. |
+| `restrictions` | object | No | Push restrictions, available only for organization-owned repositories. Object with users \(string array\), teams \(string array\) and optional apps \(string array\). Omit to disable push restrictions — GitHub receives an explicit null. |
 | `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
@@ -1805,7 +1805,7 @@ Trigger a workflow dispatch event for a GitHub Actions workflow. The workflow mu
 
 ### GitHub List Workflow Runs
 
-List workflow runs for a repository. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links.
+List workflow runs for a repository, or for a single workflow when a workflow ID or filename is given. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links.
 
 #### Input
 
@@ -1813,6 +1813,7 @@ List workflow runs for a repository. Supports filtering by actor, branch, event,
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
+| `workflow_id` | string | No | The ID of the workflow. You can also pass the workflow file name as a string \(e.g., ci.yml\). Omit to list runs across the whole repository. |
 | `actor` | string | No | Filter by user who triggered the workflow |
 | `branch` | string | No | Filter by branch name |
 | `event` | string | No | Filter by event type \(e.g., push, pull_request, workflow_dispatch\) |

@@ -9,6 +9,7 @@ import {
   date,
   decimal,
   doublePrecision,
+  foreignKey,
   index,
   integer,
   json,
@@ -2237,6 +2238,131 @@ export const workspaceFiles = pgTable(
 export const workspaceFileColumns = omit(getTableColumns(workspaceFiles), ['size'])
 export type WorkspaceFileRow = Omit<typeof workspaceFiles.$inferSelect, 'size'>
 
+export const workspaceFileSearchIndexStatusEnum = pgEnum('workspace_file_search_index_status', [
+  'pending',
+  'ready',
+  'skipped',
+  'failed',
+])
+
+/** Current and historical search-index state for one immutable workspace-file content revision. */
+export const workspaceFileSearchIndex = pgTable(
+  'workspace_file_search_index',
+  {
+    fileId: text('file_id').notNull(),
+    workspaceId: text('workspace_id').notNull(),
+    sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
+    status: workspaceFileSearchIndexStatusEnum('status').notNull().default('pending'),
+    partial: boolean('partial').notNull().default(false),
+    failureReason: text('failure_reason'),
+    lineCount: integer('line_count').notNull().default(0),
+    indexedBytes: integer('indexed_bytes').notNull().default(0),
+    dispatchedAt: timestamp('dispatched_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: 'workspace_file_search_index_pk',
+      columns: [table.fileId, table.sourceContentUpdatedAt],
+    }),
+    fileFk: foreignKey({
+      name: 'workspace_file_search_index_file_fk',
+      columns: [table.fileId],
+      foreignColumns: [workspaceFiles.id],
+    }).onDelete('cascade'),
+    workspaceFk: foreignKey({
+      name: 'workspace_file_search_index_workspace_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspace.id],
+    }).onDelete('cascade'),
+    workspaceStatusIdx: index('workspace_file_search_index_workspace_status_idx').on(
+      table.workspaceId,
+      table.status,
+      table.sourceContentUpdatedAt
+    ),
+    pendingDispatchIdx: index('workspace_file_search_index_pending_dispatch_idx')
+      .on(table.workspaceId, table.updatedAt, table.fileId, table.sourceContentUpdatedAt)
+      .where(sql`${table.status} = 'pending' AND ${table.dispatchedAt} IS NULL`),
+    activeDispatchIdx: index('workspace_file_search_index_active_dispatch_idx')
+      .on(table.workspaceId, table.dispatchedAt)
+      .where(sql`${table.status} = 'pending' AND ${table.dispatchedAt} IS NOT NULL`),
+  })
+)
+
+/** One bounded scheduler row per workspace with current file revisions awaiting dispatch. */
+export const workspaceFileSearchDispatchQueue = pgTable(
+  'workspace_file_search_dispatch_queue',
+  {
+    workspaceId: text('workspace_id').primaryKey(),
+    enqueuedAt: timestamp('enqueued_at').notNull().defaultNow(),
+    lastDispatchedAt: timestamp('last_dispatched_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceFk: foreignKey({
+      name: 'workspace_file_search_queue_workspace_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspace.id],
+    }).onDelete('cascade'),
+    scheduleIdx: index('workspace_file_search_dispatch_queue_schedule_idx').on(
+      table.lastDispatchedAt.asc().nullsFirst(),
+      table.enqueuedAt,
+      table.workspaceId
+    ),
+  })
+)
+
+/** Singleton keyset cursor for the resumable initial workspace-file search backfill. */
+export const workspaceFileSearchBackfill = pgTable('workspace_file_search_backfill', {
+  id: text('id').primaryKey(),
+  afterWorkspaceId: text('after_workspace_id'),
+  afterFileId: text('after_file_id'),
+  completedAt: timestamp('completed_at'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+/** Bounded, overlapping logical-line segments searched through PostgreSQL trigram indexes. */
+export const workspaceFileSearchSegment = pgTable(
+  'workspace_file_search_segment',
+  {
+    fileId: text('file_id').notNull(),
+    workspaceId: text('workspace_id').notNull(),
+    sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
+    lineNumber: integer('line_number').notNull(),
+    segmentNumber: integer('segment_number').notNull(),
+    segmentStart: integer('segment_start').notNull(),
+    lineLength: integer('line_length').notNull(),
+    content: text('content').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: 'workspace_file_search_segment_pk',
+      columns: [table.fileId, table.sourceContentUpdatedAt, table.lineNumber, table.segmentNumber],
+    }),
+    fileFk: foreignKey({
+      name: 'workspace_file_search_segment_file_fk',
+      columns: [table.fileId],
+      foreignColumns: [workspaceFiles.id],
+    }).onDelete('cascade'),
+    workspaceFk: foreignKey({
+      name: 'workspace_file_search_segment_workspace_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspace.id],
+    }).onDelete('cascade'),
+    workspaceRevisionIdx: index('workspace_file_search_segment_workspace_revision_idx').on(
+      table.workspaceId,
+      table.fileId,
+      table.sourceContentUpdatedAt
+    ),
+    contentTrigramIdx: index('workspace_file_search_segment_workspace_content_trgm_idx').using(
+      'gin',
+      table.workspaceId.asc().op('text_ops'),
+      table.content.asc().op('gin_trgm_ops')
+    ),
+  })
+)
+
 export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
   'uploading',
   'completing',
@@ -3640,6 +3766,13 @@ export const ssoProvider = pgTable(
      * Defaults to true so pre-existing providers keep signing in across deploy.
      */
     domainVerified: boolean('domain_verified').notNull().default(true),
+    /**
+     * Whether a successful SSO sign-in may provision a new organization
+     * membership. Sim owns this admission path so seat checks, billing effects,
+     * session policy, and audit all use the same transaction as every other join.
+     * Defaults to true to preserve existing providers during a rolling deploy.
+     */
+    jitProvisioningEnabled: boolean('jit_provisioning_enabled').notNull().default(true),
   },
   (table) => ({
     // Better Auth resolves providers by `providerId` alone (no org scoping), so

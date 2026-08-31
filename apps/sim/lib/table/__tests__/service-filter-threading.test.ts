@@ -210,6 +210,28 @@ describe('delete trigger dispatch', () => {
     )
   })
 
+  it('returns after deleting one row without waiting for trigger dispatch', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1', data: { name: 'Ada' } }])
+    let releaseTrigger: (() => void) | undefined
+    const triggerPending = new Promise<void>((resolve) => {
+      releaseTrigger = resolve
+    })
+    mockFireTableTrigger.mockReturnValueOnce(triggerPending)
+    const deletion = deleteRow(TABLE, 'row-1', 'req-delete-one')
+    const onDeleteSettled = vi.fn()
+    void deletion.then(onDeleteSettled)
+
+    await vi.waitFor(() => expect(mockFireTableTrigger).toHaveBeenCalledTimes(1))
+    await Promise.resolve()
+
+    try {
+      expect(onDeleteSettled).toHaveBeenCalledTimes(1)
+    } finally {
+      releaseTrigger?.()
+      await deletion
+    }
+  })
+
   it('fires once with every committed snapshot in an ID batch', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([
       { id: 'row-1', data: { name: 'Ada' } },

@@ -2812,7 +2812,8 @@ describe('Internal Route Trust', () => {
     expect(result.success).toBe(true)
     expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'http://127.0.0.2:3000/api/v1/workflows/test',
-      'toolUrl'
+      'toolUrl',
+      'requestTarget'
     )
     expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'http://127.0.0.2:3000/api/v1/workflows/test',
@@ -2903,7 +2904,8 @@ describe('Internal Route Trust', () => {
       expect(result.success).toBe(true)
       expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
         'http://127.0.0.1:4000/api/provider',
-        'toolUrl'
+        'toolUrl',
+        'requestTarget'
       )
       expect(mockSecureFetchWithPinnedIP).toHaveBeenCalled()
     } finally {

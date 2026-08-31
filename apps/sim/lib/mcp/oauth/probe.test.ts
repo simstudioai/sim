@@ -58,7 +58,9 @@ describe('detectMcpAuthType — connection pinning (SSRF / DNS-rebinding)', () =
     const authType = await detectMcpAuthType('https://rebind.example.com/mcp', '203.0.113.10')
 
     expect(authType).toBe('none')
-    expect(mockCreatePinnedFetchWithDispatcher).toHaveBeenCalledWith('203.0.113.10')
+    expect(mockCreatePinnedFetchWithDispatcher).toHaveBeenCalledWith('203.0.113.10', {
+      profile: 'selfHostedService',
+    })
     expect(mockCreateSsrfGuardedMcpFetch).not.toHaveBeenCalled()
     expect(mockPinnedFetch).toHaveBeenCalledTimes(1)
     // The unpinned global fetch must never be used — that was the SSRF sink.

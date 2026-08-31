@@ -38,6 +38,12 @@ export const fileOperations = {
     capability: 'files.use',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
+  searchContent: defineWorkspaceOperation({
+    id: 'files.search_content',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
+  }),
   download: defineWorkspaceOperation({
     id: 'files.download',
     minimumRole: 'read',

@@ -31,9 +31,9 @@ export async function resolveAgiloftInstance(
   signal?: AbortSignal
 ): Promise<string> {
   signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(instanceUrl, 'instanceUrl')
+  const validation = await validateUrlWithDNS(instanceUrl, 'instanceUrl', 'configuredEndpoint')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new Error(validation.error || 'Invalid Agiloft instance URL')
   }
   return validation.resolvedIP
@@ -81,6 +81,7 @@ export async function agiloftLoginPinned(
   const base = params.instanceUrl.replace(/\/$/, '')
 
   const response = await secureFetchWithPinnedIP(`${base}/ewws/EWLogin`, resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: formEncode(
@@ -139,6 +140,7 @@ export async function agiloftLogoutPinned(
       `${base}/ewws/EWLogout?$KB=${kb}&$lang=${AGILOFT_LANG}`,
       resolvedIP,
       {
+        profile: 'configuredEndpoint',
         method: 'POST',
         headers: { Authorization: authorization },
         maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
@@ -182,6 +184,7 @@ export async function executeAgiloftRequest<R extends ToolResponse>(
   try {
     const req = buildRequest(base)
     const response = await secureFetchWithPinnedIP(req.url, resolvedIP, {
+      profile: 'configuredEndpoint',
       method: req.method,
       headers: {
         ...req.headers,
@@ -280,6 +283,7 @@ export async function executeAlrestRequest<R extends ToolResponse>(
   try {
     const req = buildRequest(agiloftAlrestBase(params.instanceUrl, params.knowledgeBase))
     const response = await secureFetchWithPinnedIP(req.url, resolvedIP, {
+      profile: 'configuredEndpoint',
       method: req.method,
       headers: { ...req.headers, Authorization: session.authorization },
       body: req.body,
@@ -313,6 +317,7 @@ export async function executeEwRequest<R extends ToolResponse>(
   const resolvedIP = await resolveAgiloftInstance(params.instanceUrl, signal)
   const req = buildRequest(params.instanceUrl.replace(/\/$/, ''))
   const response = await secureFetchWithPinnedIP(req.url, resolvedIP, {
+    profile: 'configuredEndpoint',
     method: req.method,
     headers: req.headers,
     body: req.body,

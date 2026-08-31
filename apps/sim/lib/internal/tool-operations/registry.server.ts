@@ -828,6 +828,7 @@ const FILE_TOOL_IDS = [
   'file_write',
   'file_get',
   'file_read',
+  'file_search',
   'file_get_content',
   'file_compress',
   'file_decompress',

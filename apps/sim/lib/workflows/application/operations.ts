@@ -440,6 +440,12 @@ export const workflowOperations = {
     capability: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  readPausedExecution: defineWorkspaceOperation({
+    id: 'workflows.paused_executions.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   /**
    * Downloading one file a run produced. Separate from `readRun` because it
    * hands out bytes and records a `FILE_DOWNLOADED` audit event, which reading

@@ -176,7 +176,7 @@ vi.mock('@/lib/function-execution/sandbox-mounts', () => ({
   }),
 }))
 
-import { validateProxyUrl } from '@/lib/core/security/input-validation'
+import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
@@ -740,23 +740,25 @@ describe('Function execution request', () => {
       expect(data.output.result).toBe('undefined')
     })
 
+    const proxyTarget = (url: string) => validateExternalUrl(url, 'url', 'proxy')
+
     it.concurrent('should block SSRF attacks through secure fetch wrapper', async () => {
-      expect(validateProxyUrl('http://169.254.169.254/latest/meta-data/').isValid).toBe(false)
-      expect(validateProxyUrl('http://127.0.0.1:8080/admin').isValid).toBe(true)
-      expect(validateProxyUrl('http://192.168.1.1/config').isValid).toBe(false)
-      expect(validateProxyUrl('http://10.0.0.1/internal').isValid).toBe(false)
+      expect(proxyTarget('http://169.254.169.254/latest/meta-data/').isValid).toBe(false)
+      expect(proxyTarget('http://127.0.0.1:8080/admin').isValid).toBe(false)
+      expect(proxyTarget('http://192.168.1.1/config').isValid).toBe(false)
+      expect(proxyTarget('http://10.0.0.1/internal').isValid).toBe(false)
     })
 
     it.concurrent('should allow legitimate external URLs', async () => {
-      expect(validateProxyUrl('https://api.github.com/user').isValid).toBe(true)
-      expect(validateProxyUrl('https://httpbin.org/get').isValid).toBe(true)
-      expect(validateProxyUrl('https://example.com/api').isValid).toBe(true)
+      expect(proxyTarget('https://api.github.com/user').isValid).toBe(true)
+      expect(proxyTarget('https://httpbin.org/get').isValid).toBe(true)
+      expect(proxyTarget('https://example.com/api').isValid).toBe(true)
     })
 
     it.concurrent('should block dangerous protocols', async () => {
-      expect(validateProxyUrl('file:///etc/passwd').isValid).toBe(false)
-      expect(validateProxyUrl('ftp://internal.server/files').isValid).toBe(false)
-      expect(validateProxyUrl('gopher://old.server/menu').isValid).toBe(false)
+      expect(proxyTarget('file:///etc/passwd').isValid).toBe(false)
+      expect(proxyTarget('ftp://internal.server/files').isValid).toBe(false)
+      expect(proxyTarget('gopher://old.server/menu').isValid).toBe(false)
     })
   })
 

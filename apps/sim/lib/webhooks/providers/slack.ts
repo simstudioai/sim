@@ -341,7 +341,7 @@ async function downloadSlackFiles(
     }
 
     try {
-      const urlValidation = await validateUrlWithDNS(urlPrivate, 'url_private')
+      const urlValidation = await validateUrlWithDNS(urlPrivate, 'url_private', 'contentFetch')
       if (!urlValidation.isValid) {
         logger.warn('Slack file url_private failed DNS validation, skipping', {
           fileId: f.id,
@@ -350,7 +350,8 @@ async function downloadSlackFiles(
         continue
       }
 
-      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP!, {
+      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP, {
+        profile: 'contentFetch',
         headers: { Authorization: `Bearer ${botToken}` },
       })
 

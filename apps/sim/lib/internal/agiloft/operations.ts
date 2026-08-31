@@ -853,6 +853,7 @@ export async function executeAgiloftAttachFile(
     buildAttachFileUrl(input.instanceUrl.replace(/\/$/, ''), input, fileName),
     resolvedIP,
     {
+      profile: 'configuredEndpoint',
       method: 'PUT',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: buffer,
@@ -903,7 +904,12 @@ export async function executeAgiloftRetrieveAttachment(
   const response = await secureFetchWithPinnedIP(
     buildRetrieveAttachmentUrl(input.instanceUrl.replace(/\/$/, ''), input),
     resolvedIP,
-    { method: 'GET', maxResponseBytes: AGILOFT_MAX_ATTACHMENT_BYTES, signal: context.signal }
+    {
+      profile: 'configuredEndpoint',
+      method: 'GET',
+      maxResponseBytes: AGILOFT_MAX_ATTACHMENT_BYTES,
+      signal: context.signal,
+    }
   )
   if (!response.ok) {
     const text = await response.text()

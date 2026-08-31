@@ -325,6 +325,7 @@ async function uploadSlackFiles(
       const uploaded = await secureFetchWithValidation(
         uploadUrl,
         {
+          profile: 'contentFetch',
           method: 'POST',
           body: file.buffer,
           maxResponseBytes: 64 * 1024,
@@ -444,10 +445,11 @@ export async function executeSlackDownload(input: SlackDownloadBody, signal?: Ab
   const urlPrivate = slackString(file, 'url_private')
   if (!urlPrivate) failure(400, 'File does not have a download URL')
   const downloadUrl = urlPrivate
-  const validation = await validateUrlWithDNS(downloadUrl, 'urlPrivate')
+  const validation = await validateUrlWithDNS(downloadUrl, 'urlPrivate', 'contentFetch')
   signal?.throwIfAborted()
   if (!validation.isValid) failure(400, validation.error || 'Invalid Slack file URL')
-  const response = await secureFetchWithPinnedIP(downloadUrl, validation.resolvedIP!, {
+  const response = await secureFetchWithPinnedIP(downloadUrl, validation.resolvedIP, {
+    profile: 'contentFetch',
     headers: { Authorization: `Bearer ${input.accessToken}` },
     maxResponseBytes: MAX_FILE_SIZE,
     signal,

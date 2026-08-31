@@ -54,11 +54,57 @@ import {
   type QueuedWorkflowGroupCellPayload,
   type WorkflowGroupCellPayload,
 } from '@/lib/table/workflow-columns'
+import { flattenWorkflowOutputs } from '@/lib/workflows/blocks/flatten-outputs'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import type { DeployedWorkflowData } from '@/lib/workflows/persistence/utils'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type { WorkflowGroupCellPayload }
 
 const logger = createLogger('TriggerWorkflowGroupCell')
+
+/**
+ * Fails before workflow execution when saved table mappings are incompatible
+ * with the latest active deployment loaded for this cell run.
+ */
+export function assertWorkflowGroupMatchesLatestDeployment(
+  group: WorkflowGroup,
+  deployment: DeployedWorkflowData
+): void {
+  const validOutputs = new Set(
+    flattenWorkflowOutputs(Object.values(deployment.blocks), deployment.edges).map(
+      (output) => `${output.blockId}::${output.path}`
+    )
+  )
+  const invalidOutput = group.outputs.find(
+    (output) => !validOutputs.has(`${output.blockId}::${output.path}`)
+  )
+  if (invalidOutput) {
+    throw new Error(
+      `Workflow group ${group.id} output ${invalidOutput.blockId}::${invalidOutput.path} is not available in the latest active deployment`
+    )
+  }
+
+  const startCandidate = TriggerUtils.findStartBlock(deployment.blocks, 'manual')
+  if (!startCandidate) {
+    throw new Error('Workflow is missing a Start trigger')
+  }
+
+  const validInputNames = new Set(
+    normalizeInputFormatValue(startCandidate.block.subBlocks?.inputFormat?.value).map(
+      (input) => input.name
+    )
+  )
+  const invalidInput = (group.inputMappings ?? []).find(
+    (mapping) => !validInputNames.has(mapping.inputName)
+  )
+  if (invalidInput) {
+    throw new Error(
+      `Workflow group ${group.id} input ${invalidInput.inputName} is not available in the latest active deployment`
+    )
+  }
+}
 
 function requirePayloadBillingAttribution(
   payload: WorkflowGroupCellPayload
@@ -389,19 +435,13 @@ async function runWorkflowAndWriteTerminal(
   const billingAttribution = requirePayloadBillingAttribution(payload)
   const timeoutController = createWorkflowGroupAttemptTimeoutController(payload, signal)
   const attemptSignal = timeoutController.signal
-  // Read from the live `group`, not the payload: in a cascade the payload is the
-  // first group's snapshot, so a downstream group with a different version must
-  // use its own setting (same reason `workflowId` is re-derived per iteration).
-  const deploymentMode = group.deploymentMode
   const requestId = `wfgrp-${executionId}`
 
   try {
     return await runWithRequestContext({ requestId }, async () => {
       const { getRowById } = await import('@/lib/table/rows/service')
       const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
-      const { loadWorkflowFromNormalizedTables, loadDeployedWorkflowState } = await import(
-        '@/lib/workflows/persistence/utils'
-      )
+      const { loadDeployedWorkflowState } = await import('@/lib/workflows/persistence/utils')
       const {
         buildCancelledExecution,
         createWorkflowCellProgressWriter,
@@ -703,32 +743,22 @@ async function runWorkflowAndWriteTerminal(
           return 'error'
         }
 
-        // `deployed` groups run the workflow's latest active deployment; `live`
-        // (default) runs the editable draft. A `deployed` group whose workflow
-        // has never been deployed fails the cell — no silent fallback to draft.
-        let normalizedData: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
-        if (deploymentMode === 'deployed') {
-          try {
-            normalizedData = await loadDeployedWorkflowState(workflowId, workspaceId)
-          } catch (err) {
-            // Surface the real reason (missing deployment vs. transient DB/migration
-            // failure) rather than always claiming the workflow isn't deployed.
-            await writeState({
-              status: 'error',
-              executionId,
-              jobId: null,
-              workflowId,
-              error: toError(err).message,
-            })
-            return 'error'
-          }
-        } else {
-          normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+        let normalizedData: Awaited<ReturnType<typeof loadDeployedWorkflowState>>
+        try {
+          normalizedData = await loadDeployedWorkflowState(workflowId, workspaceId)
+          assertWorkflowGroupMatchesLatestDeployment(group, normalizedData)
+        } catch (err) {
+          await writeState({
+            status: 'error',
+            executionId,
+            jobId: null,
+            workflowId,
+            error: toError(err).message,
+          })
+          return 'error'
         }
-        const startBlock = normalizedData
-          ? Object.values(normalizedData.blocks).find((b) => b?.type === 'start_trigger')
-          : undefined
-        if (!startBlock) {
+        const startCandidate = TriggerUtils.findStartBlock(normalizedData.blocks, 'manual')
+        if (!startCandidate) {
           await writeState({
             status: 'error',
             executionId,
@@ -1016,11 +1046,9 @@ async function runWorkflowAndWriteTerminal(
             },
             executionMode: 'sync',
             workflowTriggerType: 'table',
-            triggerBlockId: startBlock.id,
-            // `deployed` groups execute the latest active deployment; everything
-            // else runs the editable draft (the table default). Matches the
-            // state loaded above for start-block / output-block resolution.
-            useDraftState: deploymentMode !== 'deployed',
+            triggerBlockId: startCandidate.blockId,
+            useDraftState: false,
+            workflowStateOverride: normalizedData,
             abortSignal: attemptSignal,
             onBlockStart: progressWriter.onBlockStart,
             onBlockComplete: progressWriter.onBlockComplete,

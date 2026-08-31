@@ -17,6 +17,7 @@ import { Check } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { isCalendarDateString } from '@/lib/table/dates'
+import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import { useTimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
 import {
@@ -69,20 +70,25 @@ function handleEditorWheel(e: React.WheelEvent<HTMLInputElement>) {
  * (including seconds), the time field keeps the day — and Enter/blur commits.
  */
 function InlineDateEditor(props: InlineEditorProps) {
-  const { column, onCancel } = props
+  const { onCancel } = props
   const timezoneState = useTimezoneState()
-  const ttlTimezoneUnavailable = column.type === 'ttl' && timezoneState.status !== 'ready'
+  const timezoneUnavailable = timezoneState.status !== 'ready'
+  const timezoneBlockedMessage = getTimezoneEditBlockedMessage(timezoneState)
 
   useEffect(() => {
-    if (column.type !== 'ttl' || timezoneState.status !== 'error') return
-    toast.error('Could not load timezone')
+    if (timezoneState.status !== 'error' && timezoneState.status !== 'invalid') return
+    if (timezoneBlockedMessage) toast.error(timezoneBlockedMessage)
     onCancel()
-  }, [column.type, onCancel, timezoneState.status])
+  }, [onCancel, timezoneBlockedMessage, timezoneState.status])
 
-  if (ttlTimezoneUnavailable) {
+  if (timezoneUnavailable) {
     return (
       <span role='status' className='w-full min-w-0 truncate text-[var(--text-muted)] text-small'>
-        {timezoneState.status === 'error' ? 'Timezone unavailable' : 'Loading timezone…'}
+        {timezoneState.status === 'loading'
+          ? 'Loading timezone…'
+          : timezoneState.status === 'invalid'
+            ? 'Invalid timezone'
+            : 'Timezone unavailable'}
       </span>
     )
   }

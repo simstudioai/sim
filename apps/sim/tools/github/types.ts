@@ -1252,20 +1252,30 @@ export interface GetBranchProtectionParams extends BaseGitHubParams {
 
 export interface UpdateBranchProtectionParams extends BaseGitHubParams {
   branch: string
-  required_status_checks: {
-    strict: boolean
-    contexts: string[]
-  } | null
-  enforce_admins: boolean
-  required_pull_request_reviews: {
-    required_approving_review_count?: number
-    dismiss_stale_reviews?: boolean
-    require_code_owner_reviews?: boolean
-  } | null
-  restrictions: {
-    users: string[]
-    teams: string[]
-  } | null
+  required_status_checks?:
+    | {
+        strict: boolean
+        contexts: string[]
+      }
+    | string
+    | null
+  enforce_admins?: boolean | string | null
+  required_pull_request_reviews?:
+    | {
+        required_approving_review_count?: number
+        dismiss_stale_reviews?: boolean
+        require_code_owner_reviews?: boolean
+      }
+    | string
+    | null
+  restrictions?:
+    | {
+        users: string[]
+        teams: string[]
+        apps?: string[]
+      }
+    | string
+    | null
 }
 
 // Issue comment response metadata
@@ -1521,6 +1531,7 @@ export interface TriggerWorkflowParams extends BaseGitHubParams {
 }
 
 export interface ListWorkflowRunsParams extends BaseGitHubParams {
+  workflow_id?: string | number
   actor?: string
   branch?: string
   event?: string

@@ -98,7 +98,7 @@ export const imapPollingHandler: PollingProviderHandler = {
       }
 
       const client = new ImapFlow({
-        host: hostValidation.resolvedIP!,
+        host: hostValidation.resolvedIP,
         servername: config.host,
         port: config.port || 993,
         secure: config.secure ?? true,

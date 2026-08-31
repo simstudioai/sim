@@ -1346,6 +1346,7 @@ import {
   fileParserV3Tool,
   fileParseTool,
   fileReadTool,
+  fileSearchTool,
   fileWriteTool,
 } from '@/tools/file'
 import {
@@ -6032,6 +6033,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   file_get: fileGetTool,
   file_get_content: fileGetContentTool,
   file_read: fileReadTool,
+  file_search: fileSearchTool,
   file_manage_sharing: fileManageSharingTool,
   file_write: fileWriteTool,
   firecrawl_scrape: firecrawlScrapeTool,

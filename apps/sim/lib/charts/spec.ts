@@ -52,6 +52,9 @@ export interface ChartSpec {
 /** ECharts' tooltip render mode that draws into the chart canvas instead of the DOM. */
 const CANVAS_TOOLTIP_RENDER_MODE = 'richText'
 
+/** Option keys stripped at every level: the `toolbox` DOM sink and the `link`/`sublink` navigation sinks. */
+const DROPPED_KEYS = ['toolbox', 'link', 'sublink'] as const
+
 /**
  * Closes the paths by which an ECharts option reaches the DOM, so a `.chart`
  * document cannot inject markup into the page that renders it. A document is
@@ -63,7 +66,14 @@ const CANVAS_TOOLTIP_RENDER_MODE = 'richText'
  * string `formatter` is used as that content's template verbatim — only the
  * values substituted into it are escaped. A `toolbox` assigns `dataView.lang`
  * entries to `innerHTML` and fills a `saveAsImage` popup with `document.write`.
- * Forcing the render mode and dropping the toolbox leaves the document no DOM
+ * Forcing the render mode and dropping the toolbox leaves it no DOM sink.
+ *
+ * ECharts also navigates: `title.link`, `title.sublink`, and a `link` on a
+ * treemap or sunburst data item each reach `windowOpen`, which assigns the URL
+ * to `location.href` — so a `javascript:` URL runs on this origin on a single
+ * click. A chart has no reason to navigate its viewer, so the keys are dropped
+ * everywhere rather than scheme-checked, which would still leave an open
+ * redirect on an authenticated origin. Between them the document is left no
  * sink at all, which holds whatever any individual option value contains.
  *
  * The walk is deep because `tooltip` is not only a top-level component:
@@ -79,8 +89,9 @@ function confineOptionToCanvas(node: unknown): void {
   }
   if (node === null || typeof node !== 'object') return
   const record = node as Record<string, unknown>
-  // biome-ignore lint/performance/noDelete: the key must be absent, not undefined-valued
-  if ('toolbox' in record) delete record.toolbox
+  for (const key of DROPPED_KEYS) {
+    if (key in record) delete record[key]
+  }
   for (const key of Object.keys(record)) {
     if (key === 'dataset') continue
     const value = record[key]

@@ -62,7 +62,6 @@ List incidents from incident.io. Returns a list of incidents with their details 
 |   ↳ `id` | string | Incident ID |
 |   ↳ `name` | string | Incident name/title |
 |   ↳ `summary` | string | Incident summary |
-|   ↳ `description` | string | Incident description |
 |   ↳ `mode` | string | Incident mode \(standard, retrospective, test\) |
 |   ↳ `call_url` | string | Video call URL |
 |   ↳ `severity` | object | Incident severity |
@@ -82,7 +81,7 @@ List incidents from incident.io. Returns a list of incidents with their details 
 |     ↳ `is_default` | boolean | Whether this is the default incident type |
 |   ↳ `created_at` | string | When the incident was created \(ISO 8601\) |
 |   ↳ `updated_at` | string | When the incident was last updated \(ISO 8601\) |
-|   ↳ `incident_url` | string | URL to the incident page |
+|   ↳ `permalink` | string | Permalink to the incident in incident.io |
 |   ↳ `slack_channel_id` | string | Slack channel ID |
 |   ↳ `slack_channel_name` | string | Slack channel name |
 |   ↳ `visibility` | string | Incident visibility \(public, private\) |
@@ -116,7 +115,6 @@ Create a new incident in incident.io. Requires idempotency_key, severity_id, and
 |   ↳ `id` | string | Incident ID |
 |   ↳ `name` | string | Incident name |
 |   ↳ `summary` | string | Brief summary of the incident |
-|   ↳ `description` | string | Detailed description of the incident |
 |   ↳ `mode` | string | Incident mode \(e.g., standard, retrospective\) |
 |   ↳ `call_url` | string | URL for the incident call/bridge |
 |   ↳ `severity` | object | Severity of the incident |
@@ -132,7 +130,7 @@ Create a new incident in incident.io. Requires idempotency_key, severity_id, and
 |     ↳ `name` | string | Type name |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `incident_url` | string | URL to the incident |
+|   ↳ `permalink` | string | Permalink to the incident in incident.io |
 |   ↳ `slack_channel_id` | string | Associated Slack channel ID |
 |   ↳ `slack_channel_name` | string | Associated Slack channel name |
 |   ↳ `visibility` | string | Incident visibility |
@@ -156,10 +154,9 @@ Retrieve detailed information about a specific incident from incident.io by its 
 |   ↳ `id` | string | Incident ID |
 |   ↳ `name` | string | Incident name |
 |   ↳ `summary` | string | Brief summary of the incident |
-|   ↳ `description` | string | Detailed description of the incident |
 |   ↳ `mode` | string | Incident mode \(e.g., standard, retrospective\) |
 |   ↳ `call_url` | string | URL for the incident call/bridge |
-|   ↳ `permalink` | string | Permanent link to the incident |
+|   ↳ `permalink` | string | Permalink to the incident in incident.io |
 |   ↳ `severity` | object | Severity of the incident |
 |     ↳ `id` | string | Severity ID |
 |     ↳ `name` | string | Severity name |
@@ -173,7 +170,6 @@ Retrieve detailed information about a specific incident from incident.io by its 
 |     ↳ `name` | string | Type name |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `incident_url` | string | URL to the incident |
 |   ↳ `slack_channel_id` | string | Associated Slack channel ID |
 |   ↳ `slack_channel_name` | string | Associated Slack channel name |
 |   ↳ `visibility` | string | Incident visibility |
@@ -205,7 +201,6 @@ Update an existing incident in incident.io. Can update name, summary, severity, 
 |   ↳ `id` | string | Incident ID |
 |   ↳ `name` | string | Incident name |
 |   ↳ `summary` | string | Brief summary of the incident |
-|   ↳ `description` | string | Detailed description of the incident |
 |   ↳ `mode` | string | Incident mode \(e.g., standard, retrospective\) |
 |   ↳ `call_url` | string | URL for the incident call/bridge |
 |   ↳ `severity` | object | Severity of the incident |
@@ -221,7 +216,7 @@ Update an existing incident in incident.io. Can update name, summary, severity, 
 |     ↳ `name` | string | Type name |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
-|   ↳ `incident_url` | string | URL to the incident |
+|   ↳ `permalink` | string | Permalink to the incident in incident.io |
 |   ↳ `slack_channel_id` | string | Associated Slack channel ID |
 |   ↳ `slack_channel_name` | string | Associated Slack channel name |
 |   ↳ `visibility` | string | Incident visibility |
@@ -486,7 +481,7 @@ Create a new workflow in incident.io.
 | `trigger` | string | No | Trigger type for the workflow \(e.g., "incident.updated", "incident.created"\) |
 | `steps` | string | No | Array of workflow steps as JSON string. Example: \[\{"label": "Notify team", "name": "slack.post_message"\}\] |
 | `condition_groups` | string | No | Array of condition groups as JSON string to control when the workflow runs. Example: \[\{"conditions": \[\{"operation": "one_of", "param_bindings": \[\], "subject": "incident.severity"\}\]\}\] |
-| `runs_on_incidents` | string | No | When to run the workflow: "newly_created" \(only new incidents\), "newly_created_and_active" \(new and active incidents\), "active" \(only active incidents\), or "all" \(all incidents\) |
+| `runs_on_incidents` | string | No | When to run the workflow: "newly_created" \(only newly created incidents\) or "newly_created_and_active" \(newly created and already active incidents\) |
 | `runs_on_incident_modes` | string | No | Array of incident modes to run on as JSON string. Example: \["standard", "retrospective"\] |
 | `include_private_incidents` | boolean | No | Whether to include private incidents |
 | `continue_on_step_error` | boolean | No | Whether to continue executing subsequent steps if a step fails |
@@ -569,7 +564,7 @@ Update an existing workflow in incident.io.
 | `name` | string | Yes | New name for the workflow \(e.g., "Notify on Critical Incidents"\) |
 | `steps` | string | Yes | Complete array of workflow steps as a JSON string |
 | `condition_groups` | string | Yes | Complete array of workflow condition groups as a JSON string |
-| `runs_on_incidents` | string | Yes | When to run the workflow: newly_created, newly_created_and_active, active, or all |
+| `runs_on_incidents` | string | Yes | When to run the workflow: newly_created or newly_created_and_active |
 | `runs_on_incident_modes` | string | Yes | Complete array of incident modes to run on as a JSON string |
 | `include_private_incidents` | boolean | Yes | Whether to include private incidents |
 | `continue_on_step_error` | boolean | Yes | Whether to continue executing subsequent steps if a step fails |
@@ -783,11 +778,15 @@ List all escalation policies in incident.io
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `escalations` | array | List of escalation policies |
-|   ↳ `id` | string | The escalation policy ID |
-|   ↳ `name` | string | The escalation policy name |
-|   ↳ `created_at` | string | When the escalation policy was created |
-|   ↳ `updated_at` | string | When the escalation policy was last updated |
+| `escalations` | array | List of escalations |
+|   ↳ `id` | string | The escalation ID |
+|   ↳ `title` | string | The escalation title |
+|   ↳ `status` | string | The current escalation status |
+|   ↳ `description` | string | Additional detail provided with this escalation |
+|   ↳ `priority` | object | The escalation priority |
+|     ↳ `name` | string | Priority name |
+|   ↳ `created_at` | string | When the escalation was created |
+|   ↳ `updated_at` | string | When the escalation was last updated |
 | `pagination_meta` | object | Pagination metadata |
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |
@@ -810,11 +809,15 @@ Create a new escalation policy in incident.io
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `escalation` | object | The created escalation policy |
-|   ↳ `id` | string | The escalation policy ID |
-|   ↳ `name` | string | The escalation policy name |
-|   ↳ `created_at` | string | When the escalation policy was created |
-|   ↳ `updated_at` | string | When the escalation policy was last updated |
+| `escalation` | object | The created escalation |
+|   ↳ `id` | string | The escalation ID |
+|   ↳ `title` | string | The escalation title |
+|   ↳ `status` | string | The current escalation status |
+|   ↳ `description` | string | Additional detail provided with this escalation |
+|   ↳ `priority` | object | The escalation priority |
+|     ↳ `name` | string | Priority name |
+|   ↳ `created_at` | string | When the escalation was created |
+|   ↳ `updated_at` | string | When the escalation was last updated |
 
 ### Show Escalation
 
@@ -831,11 +834,15 @@ Get details of a specific escalation policy in incident.io
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `escalation` | object | The escalation policy details |
-|   ↳ `id` | string | The escalation policy ID |
-|   ↳ `name` | string | The escalation policy name |
-|   ↳ `created_at` | string | When the escalation policy was created |
-|   ↳ `updated_at` | string | When the escalation policy was last updated |
+| `escalation` | object | The escalation details |
+|   ↳ `id` | string | The escalation ID |
+|   ↳ `title` | string | The escalation title |
+|   ↳ `status` | string | The current escalation status |
+|   ↳ `description` | string | Additional detail provided with this escalation |
+|   ↳ `priority` | object | The escalation priority |
+|     ↳ `name` | string | Priority name |
+|   ↳ `created_at` | string | When the escalation was created |
+|   ↳ `updated_at` | string | When the escalation was last updated |
 
 ### incident.io Custom Fields List
 
@@ -870,7 +877,7 @@ Create a new custom field in incident.io.
 | `apiKey` | string | Yes | incident.io API Key |
 | `name` | string | Yes | Name of the custom field \(e.g., "Affected Service"\) |
 | `description` | string | Yes | Description of the custom field \(required\) |
-| `field_type` | string | Yes | Type of the custom field \(e.g., text, single_select, multi_select, numeric, datetime, link, user, team\) |
+| `field_type` | string | Yes | Type of the custom field: text, link, numeric, single_select, or multi_select |
 
 #### Output
 
@@ -1200,20 +1207,30 @@ List all updates for a specific incident in incident.io
 |   ↳ `id` | string | The update ID |
 |   ↳ `incident_id` | string | The incident ID |
 |   ↳ `message` | string | The update message |
+|   ↳ `merged_into_incident_id` | string | ID of the incident this incident was merged into |
 |   ↳ `new_severity` | object | New severity if changed |
 |     ↳ `id` | string | Severity ID |
 |     ↳ `name` | string | Severity name |
 |     ↳ `rank` | number | Severity rank |
-|   ↳ `new_status` | object | New status if changed |
+|   ↳ `new_incident_status` | object | The incident status after this update |
 |     ↳ `id` | string | Status ID |
 |     ↳ `name` | string | Status name |
 |     ↳ `category` | string | Status category |
-|   ↳ `updater` | object | User who created the update |
-|     ↳ `id` | string | User ID |
-|     ↳ `name` | string | User name |
-|     ↳ `email` | string | User email |
+|   ↳ `updater` | object | Actor who created the update |
+|     ↳ `user` | object | Set when a user made the update |
+|       ↳ `id` | string | User ID |
+|       ↳ `name` | string | User name |
+|       ↳ `email` | string | User email |
+|     ↳ `api_key` | object | Set when an API key made the update |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | Set when a workflow made the update |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | Set when an alert made the update |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
 |   ↳ `created_at` | string | When the update was created |
-|   ↳ `updated_at` | string | When the update was last modified |
 | `pagination_meta` | object | Pagination information |
 |   ↳ `after` | string | Cursor for next page |
 |   ↳ `page_size` | number | Number of results per page |

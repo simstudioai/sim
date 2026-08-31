@@ -56,13 +56,18 @@ type DiscoveryResult =
 const OIDC_DISCOVERY_TIMEOUT_MS = 10000
 
 async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<DiscoveryResult> {
-  const urlValidation = await validateUrlWithDNS(discoveryUrl, 'OIDC discovery URL')
-  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
-    return { ok: false, error: urlValidation.error ?? 'SSRF validation failed' }
+  const urlValidation = await validateUrlWithDNS(
+    discoveryUrl,
+    'OIDC discovery URL',
+    'configuredEndpoint'
+  )
+  if (!urlValidation.isValid) {
+    return { ok: false, error: urlValidation.error }
   }
 
   try {
     const response = await secureFetchWithPinnedIP(discoveryUrl, urlValidation.resolvedIP, {
+      profile: 'configuredEndpoint',
       headers: { Accept: 'application/json' },
       timeout: OIDC_DISCOVERY_TIMEOUT_MS,
     })
@@ -108,7 +113,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const body = parsed.data.body
-    const { providerId, issuer, providerType, mapping, orgId } = body
+    const { providerId, issuer, providerType, mapping, orgId, jitProvisioningEnabled } = body
 
     if (orgId) {
       const [membership] = await db
@@ -317,7 +322,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       for (const [name, endpointUrl] of Object.entries(userProvidedEndpoints)) {
         if (endpointUrl) {
-          const endpointValidation = await validateUrlWithDNS(endpointUrl, `OIDC ${name}`)
+          const endpointValidation = await validateUrlWithDNS(
+            endpointUrl,
+            `OIDC ${name}`,
+            'configuredEndpoint'
+          )
           if (!endpointValidation.isValid) {
             logger.warn('Explicitly provided OIDC endpoint failed SSRF validation', {
               endpoint: name,
@@ -369,7 +378,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         for (const [key, value] of Object.entries(discoveredEndpoints)) {
           if (typeof value === 'string') {
-            const endpointValidation = await validateUrlWithDNS(value, `OIDC ${key}`)
+            const endpointValidation = await validateUrlWithDNS(
+              value,
+              `OIDC ${key}`,
+              'contentFetch'
+            )
             if (!endpointValidation.isValid) {
               logger.warn('OIDC discovered endpoint failed SSRF validation', {
                 endpoint: key,
@@ -624,6 +637,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         domain: ssoProvider.domain,
         oidcConfig: ssoProvider.oidcConfig,
         samlConfig: ssoProvider.samlConfig,
+        jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
       })
       .from(ssoProvider)
       .where(ownerClause)
@@ -643,7 +657,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      */
     const grantProviderDomainTrust = async (): Promise<boolean> => {
       if (!orgId) {
-        await db.update(ssoProvider).set({ domainVerified: !isHosted }).where(ownerClause)
+        await db
+          .update(ssoProvider)
+          .set({ domainVerified: !isHosted, jitProvisioningEnabled })
+          .where(ownerClause)
         return true
       }
       return db.transaction(async (tx) => {
@@ -663,7 +680,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         const granted = await tx
           .update(ssoProvider)
-          .set({ domainVerified: true })
+          .set({ domainVerified: true, jitProvisioningEnabled })
           .where(ownerClause)
           .returning({ id: ssoProvider.id })
         return granted.length > 0
@@ -671,6 +688,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (existingOwnedProvider) {
+      const revertProviderUpdate = async (): Promise<void> => {
+        await db
+          .update(ssoProvider)
+          .set({
+            issuer: existingOwnedProvider.issuer,
+            domain: existingOwnedProvider.domain,
+            oidcConfig: existingOwnedProvider.oidcConfig,
+            samlConfig: existingOwnedProvider.samlConfig,
+            domainVerified: false,
+            jitProvisioningEnabled: existingOwnedProvider.jitProvisioningEnabled,
+          })
+          .where(eq(ssoProvider.id, existingOwnedProvider.id))
+      }
+
       await auth.api.updateSSOProvider({
         body: {
           providerId,
@@ -682,20 +713,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         headers,
       })
 
+      let domainTrustGranted: boolean
+      try {
+        domainTrustGranted = await grantProviderDomainTrust()
+      } catch (error) {
+        try {
+          await revertProviderUpdate()
+        } catch (rollbackError) {
+          logger.error('Failed to revert SSO provider after domain trust write failed', {
+            domain,
+            orgId,
+            providerId,
+            userId: session.user.id,
+            error,
+            rollbackError,
+          })
+        }
+        throw error
+      }
+
       // Restore the pre-update config and clear the flag together. Clearing alone
       // is not enough: re-verifying the domain now regrants trust automatically,
       // which would activate the very config this request reported as rejected.
-      if (!(await grantProviderDomainTrust())) {
-        await db
-          .update(ssoProvider)
-          .set({
-            issuer: existingOwnedProvider.issuer,
-            domain: existingOwnedProvider.domain,
-            oidcConfig: existingOwnedProvider.oidcConfig,
-            samlConfig: existingOwnedProvider.samlConfig,
-            domainVerified: false,
-          })
-          .where(eq(ssoProvider.id, existingOwnedProvider.id))
+      if (!domainTrustGranted) {
+        await revertProviderUpdate()
         logger.warn('Reverted SSO update: domain verification was removed mid-write', {
           domain,
           orgId,

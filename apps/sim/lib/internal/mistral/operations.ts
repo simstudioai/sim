@@ -162,7 +162,7 @@ async function buildUrlDocument(
     })
   } else {
     const { validateUrlWithDNS } = await import('@/lib/core/security/input-validation.server')
-    const validation = await validateUrlWithDNS(fileUrl, 'filePath')
+    const validation = await validateUrlWithDNS(fileUrl, 'filePath', 'contentFetch')
     context.signal?.throwIfAborted()
     if (!validation.isValid) {
       throw new MistralOperationError(400, { success: false, error: validation.error })
