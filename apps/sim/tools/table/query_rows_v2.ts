@@ -1,5 +1,6 @@
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
 import { validatePredicateShape } from '@/lib/table/query-builder/validate'
+import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableQueryV2Response, TableRowQueryV2Params } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -21,6 +22,17 @@ export const tableQueryRowsV2Tool: InternalToolConfig<TableRowQueryV2Params, Tab
       'a page can end early at the byte budget: a non-null nextCursor means more rows exist — pass it back ' +
       'as cursor to continue; never infer completion from page size.',
     version: '1.0.0',
+
+    /**
+     * Without this the model never sees the table's real column names and has
+     * to guess field values for the predicate. Every other table tool enriches;
+     * v2's query shipped without it.
+     */
+    toolEnrichment: {
+      dependsOn: 'tableId',
+      enrichTool: (tableId, schema, desc, context) =>
+        enrichTableToolSchema(tableId, 'table_query_rows_v2', schema, desc, context),
+    },
 
     params: {
       tableId: {

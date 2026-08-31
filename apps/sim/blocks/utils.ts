@@ -662,6 +662,7 @@ export const BUILT_IN_TOOL_TYPES = new Set([
   'stt',
   'memory',
   'table',
+  'table_v2',
   'webhook_request',
   'workflow',
 ])

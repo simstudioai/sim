@@ -9,13 +9,58 @@ import { columnTypeById } from '@/lib/table/column-types'
 import type { TableSummary } from '@/lib/table/types'
 
 /**
- * Operations that use filters and need filter-specific enrichment.
+ * Operations that take a v1 MongoDB-style filter (`{"col": {"$eq": v}}`) and
+ * need filter-specific enrichment.
+ *
+ * The two bulk operations stay here even though the v2 Table block also exposes
+ * them: `resolveBulkFilter` in the rows route accepts either grammar, and
+ * enrichment is keyed on tool id alone — it cannot see which block invoked it —
+ * so one grammar has to be taught, and `$eq` is the one that works for both.
+ * Only the query tool has a v2-exclusive id, which is why it is the only one
+ * that gets a predicate-grammar branch.
  */
 export const FILTER_OPERATIONS = new Set([
   'table_query_rows',
   'table_update_rows_by_filter',
   'table_delete_rows_by_filter',
 ])
+
+/**
+ * The v2 row query. Its filter is a typed predicate
+ * (`{"field":"wins","op":"gte","value":10}`) with `all`/`any` groups, it orders
+ * via `order` rather than `sort`, and it pages by opaque `cursor` rather than
+ * offset — so none of the v1 enrichment above applies to it.
+ */
+const TABLE_QUERY_ROWS_V2 = 'table_query_rows_v2'
+
+/**
+ * Builds a predicate example from real columns, preferring a numeric `gte` over
+ * a string `eq` because ranking and threshold questions are what the grammar
+ * most often gets wrong. Returns an empty string when the table has no column
+ * to name, so the model is never shown a placeholder it might copy literally.
+ */
+function v2PredicateExample(table: TableSummary): string {
+  const stringCol = table.columns.find((c) => c.type === 'string')
+  const numberCol = table.columns.find((c) => c.type === 'number')
+
+  if (numberCol && stringCol) {
+    return `
+
+Example filter (one condition): {"field":"${numberCol.name}","op":"gte","value":10}
+Example filter (AND group): {"all":[{"field":"${numberCol.name}","op":"gte","value":10},{"field":"${stringCol.name}","op":"eq","value":"active"}]}`
+  }
+  if (numberCol) {
+    return `
+
+Example filter: {"field":"${numberCol.name}","op":"gte","value":10}`
+  }
+  if (stringCol) {
+    return `
+
+Example filter: {"field":"${stringCol.name}","op":"eq","value":"active"}`
+  }
+  return ''
+}
 
 /**
  * Operations that need column info for data construction.
@@ -40,6 +85,32 @@ export function enrichTableToolDescription(
   }
 
   const columnList = table.columns.map((col) => `  - ${col.name} (${col.type})`).join('\n')
+
+  if (toolId === TABLE_QUERY_ROWS_V2) {
+    const numberCol = table.columns.find((c) => c.type === 'number')
+    const orderExample = numberCol
+      ? `
+Example order: [{"field":"${numberCol.name}","direction":"desc"}] for highest first, "asc" for lowest first`
+      : ''
+
+    return `${originalDescription}
+
+INSTRUCTIONS:
+1. Build the filter yourself from the user's question - do NOT ask for confirmation
+2. A single condition is a plain object: {"field":"<column>","op":"<operator>","value":<value>}
+3. For multiple conditions wrap them in {"all":[...]} for AND or {"any":[...]} for OR; groups nest
+4. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty
+5. like/ilike use * as the wildcard, e.g. {"field":"name","op":"ilike","value":"*jo*"}
+6. There are no array columns - for substring matching use ilike with *x*
+7. For ranking queries (highest, lowest, Nth, top N) set order and a small limit, e.g. limit 1 for the highest, 2 for the second highest
+8. Omit limit to return every matching row; the query fails if the result exceeds 5MB, so narrow with a filter instead of guessing a limit
+9. With a limit, a page can end early at the byte budget - a non-null nextCursor means more rows remain, so pass it back as cursor and loop until it is null. Never infer completion from page size
+10. Omit the filter only when the user genuinely wants every row
+
+Table "${table.name}" columns:
+${columnList}
+${v2PredicateExample(table)}${orderExample}`
+  }
 
   if (FILTER_OPERATIONS.has(toolId)) {
     const stringCols = table.columns.filter((c) => c.type === 'string')
@@ -139,6 +210,50 @@ export function enrichTableToolParameters(
   const columnNames = table.columns.map((c) => c.name).join(', ')
   const enrichedProperties = { ...llmSchema.properties }
   const enrichedRequired = llmSchema.required ? [...llmSchema.required] : []
+
+  if (toolId === TABLE_QUERY_ROWS_V2) {
+    if (enrichedProperties.filter) {
+      enrichedProperties.filter = {
+        ...enrichedProperties.filter,
+        description: `Predicate built from the user's question using columns: ${columnNames}. One condition is {"field":"<column>","op":"<operator>","value":<value>}; combine with {"all":[...]} for AND or {"any":[...]} for OR. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Omit only to match every row.`,
+      }
+    }
+
+    if (enrichedProperties.order) {
+      enrichedProperties.order = {
+        ...enrichedProperties.order,
+        description: `Sort spec as [{"field":"<column>","direction":"asc"|"desc"}] over columns: ${columnNames}. REQUIRED for ranking queries (highest, lowest, Nth).`,
+      }
+    }
+
+    if (enrichedProperties.columns) {
+      enrichedProperties.columns = {
+        ...enrichedProperties.columns,
+        description: `Column names to include in each row. Available: ${columnNames}. Omit to return all columns.`,
+      }
+    }
+
+    if (enrichedProperties.limit) {
+      enrichedProperties.limit = {
+        ...enrichedProperties.limit,
+        description: `Maximum rows per page (min: 1). Omit to return every matching row; the query fails if the result exceeds 5MB, so narrow with a filter rather than guessing. For ranking queries: 1 for the highest/lowest, 2 for the second highest.`,
+      }
+    }
+
+    if (enrichedProperties.cursor) {
+      enrichedProperties.cursor = {
+        ...enrichedProperties.cursor,
+        description: `Opaque cursor from a prior page's nextCursor. Omit for the first page. A non-null nextCursor means more rows remain even if the page came back short - loop until it is null.`,
+      }
+    }
+
+    /*
+     * Deliberately NOT pushed into `required`: unlike v1, a v2 query with no
+     * filter is valid and returns every row. Forcing it would make the model
+     * invent a filter for "list everything".
+     */
+    return { properties: enrichedProperties, required: enrichedRequired }
+  }
 
   if (enrichedProperties.filter && FILTER_OPERATIONS.has(toolId)) {
     enrichedProperties.filter = {
