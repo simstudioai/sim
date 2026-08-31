@@ -220,6 +220,12 @@ export interface OrchestratorOptions {
   autoExecuteTools?: boolean
   timeout?: number
   onEvent?: (event: StreamEvent) => void | Promise<void>
+  /**
+   * Whether the per-event macrotask yield (which lets Node flush the HTTP response buffer)
+   * should run. The sink owner sets this: legs with no client response attached have
+   * nothing to flush, and the yield only slows the forwarder. Defaults to true.
+   */
+  flushAfterEvent?: boolean
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
   onError?: (error: Error, result?: OrchestratorResult) => void | Promise<void>
   abortSignal?: AbortSignal

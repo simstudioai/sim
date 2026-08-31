@@ -912,6 +912,10 @@ async function runCheckpointLoop(
 
     const loopOptions = {
       ...options,
+      /* The wrapper below always exists (checkpoint bookkeeping), so the forwarder can't
+         infer "headless" from onEvent's absence — declare it: only a caller-attached sink
+         has an HTTP buffer worth a per-event macrotask flush. */
+      flushAfterEvent: options.flushAfterEvent ?? Boolean(callerOnEvent),
       onEvent: async (event: StreamEvent) => {
         if (
           event.type === MothershipStreamV1EventType.run &&

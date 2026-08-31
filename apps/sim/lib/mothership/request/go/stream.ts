@@ -405,7 +405,10 @@ export async function runStreamLoop(
         // Yield a macrotask so Node.js flushes the HTTP response buffer to
         // the browser. Microtask yields (await Promise.resolve()) are not
         // enough — the I/O layer needs a full event loop tick to write.
-        await new Promise<void>((resolve) => setImmediate(resolve))
+        // Headless legs (no client response attached) opt out via flushAfterEvent.
+        if (options.flushAfterEvent !== false) {
+          await new Promise<void>((resolve) => setImmediate(resolve))
+        }
 
         if (options.onBeforeDispatch?.(streamEvent, context)) {
           return context.streamComplete || undefined
