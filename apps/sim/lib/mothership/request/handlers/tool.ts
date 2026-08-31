@@ -516,7 +516,11 @@ async function handleCallPhase(
   const { clientExecutable, simExecutable, internal, inbandOwned } = ui
   const catalogEntry = getToolEntry(toolName)
   const isInternal = internal || catalogEntry?.internal === true
-  const staticSimExecuted = isSimExecuted(toolName)
+  // The frame's executor is authoritative over the static catalog: a backend-executed
+  // ('go') frame must never be dispatched here even when the catalog lists the name as
+  // sim-routed — the worker runs some legacy-named tools in-process, and a stale-catalog
+  // dispatch raced them with a second, handlerless execution ("No handler for tool").
+  const staticSimExecuted = isSimExecuted(toolName) && data.executor !== 'go'
   // Go executes inband-owned calls itself via /api/copilot/tools/execute
   // (background lanes, and the main lane while background agents run); the
   // event exists only to draw the row. Dispatching it here would run the

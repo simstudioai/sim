@@ -239,6 +239,7 @@ const nextConfig: NextConfig = {
     ],
   }),
   transpilePackages: [
+    'sim',
     'react-email',
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',

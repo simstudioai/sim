@@ -198,6 +198,9 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   // `extensions` is its current model-facing trigger tool name.
   agent: 'Extensions Agent',
   extensions: 'Extensions Agent',
+  // The worker's general subagent; the lane header normally carries the
+  // model-chosen title, this label is only the pre-start race fallback.
+  task: 'Subagent',
   // `job` retained as a backward-compat alias so historical transcripts still render a label.
   job: 'Job Agent',
   file: 'File Agent',

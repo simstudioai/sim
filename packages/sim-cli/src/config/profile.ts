@@ -1,5 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { embeddedProfile } from '../embed-context'
 import {
   FORBIDDEN_IN_VALUE,
   getSection,
@@ -471,6 +472,11 @@ function refuseBlankOverrides(overrides: ProfileOverrides): void {
 }
 
 export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfile {
+  // An embedded (in-process, server-hosted) run carries its full identity in its
+  // async context — the host already authenticated the caller and scoped the
+  // workspace, so profiles, env vars, and config files never apply there.
+  const embedded = embeddedProfile()
+  if (embedded) return embedded
   refuseBlankOverrides(overrides)
 
   const named = overrides.profile || process.env.SIM_PROFILE

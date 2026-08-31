@@ -129,6 +129,9 @@ const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
  */
 const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
   [FILE_SUBAGENT_ID]: PrepareFileEdit.id,
+  // The worker's general subagent: the `task` tool row is the dispatch; the lane
+  // (titled by the model) replaces it.
+  task: 'task',
 }
 
 function isToolResultRead(params?: Record<string, unknown>): boolean {
@@ -287,12 +290,27 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   // When a subagent spawns, drop the dispatch tool that triggered it (e.g.
   // workspace_file -> file) from whichever container it landed in so it does not
   // render as a separate entry beside the agent group.
-  const absorbDispatchTool = (toolName: string, parentSpanId: string | undefined): void => {
+  const absorbDispatchTool = (
+    toolName: string,
+    parentSpanId: string | undefined,
+    dispatchToolCallId?: string
+  ): void => {
     const container =
       parentSpanId && parentSpanId !== SPAN_ROOT
         ? groupsBySpanId.get(parentSpanId)
         : tailMothershipGroup()
     if (!container) return
+    // Prefer the precise id match anywhere in the container — parallel sibling
+    // tools can push the dispatch row off the tail position.
+    if (dispatchToolCallId) {
+      const idx = container.items.findIndex(
+        (it) => it.type === 'tool' && it.data.id === dispatchToolCallId
+      )
+      if (idx >= 0) {
+        container.items.splice(idx, 1)
+        return
+      }
+    }
     const last = container.items[container.items.length - 1]
     if (last?.type === 'tool' && last.data.toolName === toolName) {
       container.items.pop()
@@ -379,7 +397,9 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       // Absorb a trailing dispatch tool (e.g. workspace_file -> file) so it does
       // not render as a separate entry alongside the agent group.
       const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[block.content]
-      if (dispatchToolName) absorbDispatchTool(dispatchToolName, block.parentSpanId)
+      if (dispatchToolName) {
+        absorbDispatchTool(dispatchToolName, block.parentSpanId, block.parentToolCallId)
+      }
       const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId)
       if (block.subagentName) g.agentLabel = block.subagentName
       if (block.endedAt !== undefined) {

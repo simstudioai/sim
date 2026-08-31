@@ -32,7 +32,8 @@ export interface ChatRequest {
   integrationTools?: unknown[] | undefined;
   /** User-configured MCP tool schemas — same shape as integrationTools. */
   mothershipTools?: unknown[] | undefined;
-  /** D23: sim-minted run-scoped credential. In-memory only on the worker (S44). */
+  /** Deprecated: unused since the CLI moved to sim-side in-process execution (no
+   * credential crosses the wire); accepted so current senders keep validating. */
   delegationToken?: string | undefined;
   /** Enterprise BYOK: customer's own key; per-run instance, zero retention (S27). */
   byokApiKey?: string | undefined;
@@ -42,7 +43,7 @@ export interface ChatRequest {
   /**
    * What the CALLER can execute client-side. PRESENT = an explicit declaration — an
    * empty array means "I pick up nothing", so sim-side dispatch must skip client-pickup
-   * grace windows and run tools server-side immediately. ABSENT = legacy/unknown caller —
+   * grace windows and run tools server-side immediately. ABSENT = older/unknown caller —
    * dispatch keeps its conservative grace (deploy-skew safe: a stale tab that predates
    * this field still gets waited on). Known capability: "workflow-tool-pickup".
    */
