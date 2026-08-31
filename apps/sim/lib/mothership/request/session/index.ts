@@ -15,11 +15,8 @@ export {
   waitForPendingChatStream,
 } from './abort'
 export {
-  allocateCursor,
-  appendEvent,
   appendEvents,
   clearAbortMarker,
-  clearBuffer,
   getLatestSeq,
   getOldestSeq,
   hasAbortMarker,
