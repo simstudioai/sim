@@ -337,7 +337,12 @@ async function bindSelectedContentFile(
 
   return {
     file,
-    identity: { fileId: metadata.id, key: metadata.key, context: 'workspace' },
+    identity: {
+      fileId: metadata.id,
+      key: metadata.key,
+      context: 'workspace',
+      contentUpdatedAt: metadata.contentUpdatedAt ?? undefined,
+    },
     ownerUserId: metadata.uploadedBy,
   }
 }
@@ -726,7 +731,12 @@ export async function executeFileManageOperation(
           return [
             {
               file: userFile,
-              identity: { fileId: file.id, key: file.key, context: 'workspace' },
+              identity: {
+                fileId: file.id,
+                key: file.key,
+                context: 'workspace',
+                contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+              },
               ownerUserId: file.uploadedBy,
             },
           ]

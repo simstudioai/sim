@@ -188,6 +188,7 @@ describe('executeFileTool', () => {
 
   it.each([
     [{ query: 'ab', maxResults: 50 }, 400],
+    [{ query: 'abc\0def', maxResults: 50 }, 400],
     [{ query: 'needle', maxResults: 201 }, 400],
     [{ query: 'needle', maxResults: 0 }, 400],
   ])('rejects invalid search input before authorization', async (input, status) => {

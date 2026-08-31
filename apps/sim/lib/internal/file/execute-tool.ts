@@ -52,7 +52,11 @@ const FILE_MANAGE_TOOL_IDS = new Set([
 
 const fileSearchInputSchema = z
   .object({
-    query: z.string().min(FILE_SEARCH_MIN_QUERY_LENGTH).max(FILE_SEARCH_MAX_QUERY_LENGTH),
+    query: z
+      .string()
+      .min(FILE_SEARCH_MIN_QUERY_LENGTH)
+      .max(FILE_SEARCH_MAX_QUERY_LENGTH)
+      .refine((query) => !query.includes('\0'), 'Search query cannot contain NUL characters'),
     maxResults: z
       .number()
       .int()
