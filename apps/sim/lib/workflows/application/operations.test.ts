@@ -134,4 +134,14 @@ describe('workflow operation registry', () => {
       expect(operation.id).toMatch(/^workflows\.manual\.execute/)
     }
   })
+
+  it('protects paused execution detail as a workflow read', () => {
+    expect(workflowOperations.readPausedExecution).toMatchObject({
+      id: 'workflows.paused_executions.read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+      delegatedServices: ['copilot'],
+    })
+  })
 })

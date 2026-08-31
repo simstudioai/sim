@@ -10,6 +10,9 @@ import type { ToolConfig } from '@/tools/types'
 const BRANCH_PROTECTION_SHAPE_ERROR =
   'Branch protection fields must be a JSON object, or left empty to disable the rule'
 
+const BRANCH_PROTECTION_BOOLEAN_ERROR =
+  'enforce_admins must be true, false, or null (leave empty to disable enforcement)'
+
 /**
  * GitHub documents `required_status_checks`, `enforce_admins`,
  * `required_pull_request_reviews` and `restrictions` as required body fields
@@ -42,14 +45,25 @@ function toNullableObject(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>
 }
 
-/** Normalizes a nullable boolean body field, tolerating the block's dropdown strings. */
+/**
+ * Normalizes a nullable boolean body field, tolerating the block's dropdown
+ * strings and the case a model is likely to emit.
+ *
+ * Unrecognized values are rejected rather than coerced. `Boolean(value)` would
+ * read `'0'`, `'no'` and `'False '` as `true` and silently ENABLE administrator
+ * enforcement for a caller asking to disable it — the opposite of the stated
+ * intent, on a field that is `user-or-llm` and therefore model-supplied.
+ */
 function toNullableBoolean(value: unknown): boolean | null {
-  if (value === undefined || value === null || value === '') return null
+  if (value === undefined || value === null) return null
   if (typeof value === 'boolean') return value
-  if (value === 'true') return true
-  if (value === 'false') return false
-  if (value === 'null') return null
-  return Boolean(value)
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === '' || normalized === 'null') return null
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  throw new Error(BRANCH_PROTECTION_BOOLEAN_ERROR)
 }
 
 export const updateBranchProtectionTool: ToolConfig<

@@ -20,6 +20,10 @@ import {
 import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
 import type { ChatContext } from '@/stores/panel'
 
+function selectionPayload(context: ChatContext, sourceWorkspaceId = 'ws-1'): string {
+  return JSON.stringify({ version: 1, sourceWorkspaceId, context })
+}
+
 /**
  * Mounts `usePromptEditor` in a real React 19 root under jsdom (no
  * `@testing-library/react` in this repo — see `hooks/queries/unsubscribe.test.tsx`
@@ -300,7 +304,7 @@ describe('usePromptEditor context insertion', () => {
         clipboardData: {
           getData: (type: string) => {
             if (type === 'text/plain') return 'x'.repeat(1_000_001)
-            if (type === SIM_SELECTION_MIME) return JSON.stringify(context)
+            if (type === SIM_SELECTION_MIME) return selectionPayload(context)
             return ''
           },
         },
@@ -311,6 +315,37 @@ describe('usePromptEditor context insertion', () => {
     expect(preventDefault).toHaveBeenCalledOnce()
     expect(result().value).toBe('@Large table (1 row) ')
     expect(result().contexts).toEqual([context])
+
+    unmount()
+  })
+
+  it('leaves a cross-workspace selection to the ordinary plain-text paste path', () => {
+    const context = {
+      kind: 'file_selection',
+      fileId: 'file-1',
+      fileName: 'notes.md',
+      label: 'notes.md:1',
+      text: 'ordinary text',
+    } satisfies ChatContext
+    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-2' })
+    const preventDefault = vi.fn()
+
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: {
+          getData: (type: string) => {
+            if (type === 'text/plain') return context.text
+            if (type === SIM_SELECTION_MIME) return selectionPayload(context)
+            return ''
+          },
+        },
+        preventDefault,
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(result().contexts).toEqual([])
 
     unmount()
   })

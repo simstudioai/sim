@@ -62,7 +62,6 @@ export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Incident ID' },
   name: { type: 'string', description: 'Incident name/title' },
   summary: { type: 'string', description: 'Incident summary', optional: true },
-  description: { type: 'string', description: 'Incident description', optional: true },
   mode: {
     type: 'string',
     description: 'Incident mode (standard, retrospective, test)',
@@ -89,7 +88,11 @@ export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
   },
   created_at: { type: 'string', description: 'When the incident was created (ISO 8601)' },
   updated_at: { type: 'string', description: 'When the incident was last updated (ISO 8601)' },
-  incident_url: { type: 'string', description: 'URL to the incident page', optional: true },
+  permalink: {
+    type: 'string',
+    description: 'Permalink to the incident in incident.io',
+    optional: true,
+  },
   slack_channel_id: { type: 'string', description: 'Slack channel ID', optional: true },
   slack_channel_name: { type: 'string', description: 'Slack channel name', optional: true },
   visibility: {
@@ -387,7 +390,6 @@ interface IncidentioIncident {
   id: string
   name: string
   summary?: string
-  description?: string
   mode?: string
   call_url?: string
   severity?: {
@@ -406,7 +408,7 @@ interface IncidentioIncident {
   }
   created_at: string
   updated_at: string
-  incident_url?: string
+  permalink?: string
   slack_channel_id?: string
   slack_channel_name?: string
   visibility?: string
@@ -616,8 +618,8 @@ export interface Workflow {
   include_private_escalations: boolean
   runs_on_incident_modes: string[]
   continue_on_step_error: boolean
-  runs_on_incidents: 'newly_created' | 'newly_created_and_active' | 'active' | 'all'
-  state: 'active' | 'draft' | 'disabled'
+  runs_on_incidents: 'newly_created' | 'newly_created_and_active'
+  state: 'active' | 'draft' | 'disabled' | 'error'
   delay?: unknown
   folder?: string
   runs_from?: string
@@ -641,7 +643,7 @@ export interface WorkflowsCreateParams extends IncidentioBaseParams {
   trigger?: string
   steps?: string
   condition_groups?: string
-  runs_on_incidents?: 'newly_created' | 'newly_created_and_active' | 'active' | 'all'
+  runs_on_incidents?: 'newly_created' | 'newly_created_and_active'
   runs_on_incident_modes?: string
   include_private_incidents?: boolean
   continue_on_step_error?: boolean
@@ -676,7 +678,7 @@ export interface WorkflowsUpdateParams extends IncidentioBaseParams {
   name: string
   steps: string
   condition_groups: string
-  runs_on_incidents: 'newly_created' | 'newly_created_and_active' | 'active' | 'all'
+  runs_on_incidents: 'newly_created' | 'newly_created_and_active'
   runs_on_incident_modes: string
   include_private_incidents: boolean
   continue_on_step_error: boolean
@@ -941,7 +943,8 @@ export interface IncidentioEscalationsListParams extends IncidentioBaseParams {
 
 interface IncidentioEscalation {
   id: string
-  name: string
+  title: string
+  status: string
   created_at?: string
   updated_at?: string
 }
@@ -1147,24 +1150,26 @@ export interface IncidentioIncidentTimestampsShowResponse extends ToolResponse {
 interface IncidentioIncidentUpdate {
   id: string
   incident_id: string
-  message: string
+  message?: string
+  merged_into_incident_id?: string
   new_severity?: {
     id: string
     name: string
     rank: number
   }
-  new_status?: {
+  new_incident_status: {
     id: string
     name: string
     category: string
   }
   updater: {
-    id: string
-    name: string
-    email: string
+    user?: {
+      id: string
+      name: string
+      email?: string
+    }
   }
   created_at: string
-  updated_at: string
 }
 
 export interface IncidentioIncidentUpdatesListParams extends IncidentioBaseParams {

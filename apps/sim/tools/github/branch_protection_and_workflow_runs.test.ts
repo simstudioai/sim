@@ -8,7 +8,7 @@ import {
   updateBranchProtectionTool,
   updateBranchProtectionV2Tool,
 } from '@/tools/github/update_branch_protection'
-import { validateRequiredParametersAfterMerge } from '@/tools/utils'
+import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 vi.unmock('@/tools/registry')
 
@@ -226,7 +226,7 @@ describe('github block wiring', () => {
    * `mode: 'advanced'` field without evaluating its condition, so values entered
    * under one operation are still in `params` after the user switches operations.
    */
-  it('does not let a stale advanced value from another operation reach the mapper output', () => {
+  it('does not alias a stale advanced value onto an operation that did not render it', () => {
     const stale = {
       operation: 'github_update_branch_protection',
       restrictions: '{"users":["octocat"],"teams":[]}',
@@ -240,7 +240,7 @@ describe('github block wiring', () => {
     expect(mapped).toEqual({})
   })
 
-  it('does not let a stale branch-protection value reach an unrelated operation', () => {
+  it('does not alias stale values onto github_create_issue', () => {
     const stale = {
       operation: 'github_create_issue',
       restrictions: '{"users":["octocat"],"teams":[]}',
@@ -293,4 +293,71 @@ describe('github block wiring', () => {
     })
     expect(mapped).toEqual({ public: false })
   })
+})
+
+/**
+ * `enforce_admins` is `user-or-llm`, so a model supplies it. `Boolean(value)`
+ * reads `'0'`, `'no'` and `'False '` as `true`, which would ENABLE administrator
+ * enforcement for a caller asking to disable it.
+ */
+describe('enforce_admins rejects values it cannot read unambiguously', () => {
+  const body = (enforce_admins: unknown) =>
+    (
+      updateBranchProtectionTool.request.body as (
+        p: Record<string, unknown>
+      ) => Record<string, unknown>
+    )({
+      owner: 'o',
+      repo: 'r',
+      branch: 'main',
+      enforce_admins,
+    })
+
+  it.each([
+    [true, true],
+    [false, false],
+    ['true', true],
+    ['false', false],
+    ['True', true],
+    ['FALSE', false],
+    ['  false  ', false],
+    ['null', null],
+    ['', null],
+    [null, null],
+    [undefined, null],
+  ])('reads %o as %o', (input, expected) => {
+    expect(body(input).enforce_admins).toBe(expected)
+  })
+
+  it.each(['0', '1', 'no', 'yes', 'off', 'disabled', 0, 1, {}])(
+    'refuses %o rather than coercing it',
+    (input) => {
+      expect(() => body(input)).toThrow(
+        'enforce_admins must be true, false, or null (leave empty to disable enforcement)'
+      )
+    }
+  )
+
+  /** The specific regression: truthiness turned a disable request into an enable. */
+  it('never turns a falsey-looking string into enabled enforcement', () => {
+    for (const input of ['0', 'no', 'off', 'False!']) {
+      expect(() => body(input)).toThrow()
+    }
+  })
+})
+
+/**
+ * The containment property for the branch-protection params, which are NOT
+ * aliases: a stale value cannot affect an unrelated operation because that
+ * operation's tool does not declare the param at all.
+ */
+describe('stale branch-protection values are inert on unrelated operations', () => {
+  it.each(['restrictions', 'enforce_admins', 'required_status_checks', 'workflow_id'])(
+    'github_create_issue does not declare %s',
+    (param) => {
+      const tool = getTool('github_create_issue')
+      expect(tool).toBeDefined()
+      expect(Object.keys(tool!.params ?? {})).not.toContain(param)
+    }
+  )
 })

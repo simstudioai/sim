@@ -33,8 +33,7 @@ export const customFieldsCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Type of the custom field (e.g., text, single_select, multi_select, numeric, datetime, link, user, team)',
+      description: 'Type of the custom field: text, link, numeric, single_select, or multi_select',
     },
   },
 
