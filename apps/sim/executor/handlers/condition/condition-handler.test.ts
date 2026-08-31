@@ -202,6 +202,50 @@ describe('ConditionBlockHandler', () => {
     )
   })
 
+  it('mounts only the secrets the condition names', async () => {
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+
+    const conditions = [
+      { id: 'cond1', title: 'if', value: '"{{ROUTE_KEY}}" === "beta"' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+
+    const [, toolParams] = mockExecuteTool.mock.calls[0]
+    expect(toolParams.secretScope).toBe('selected')
+    expect(toolParams.mountedSecrets).toEqual(['ROUTE_KEY'])
+  })
+
+  it('denies every secret to a condition that names none', async () => {
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+
+    const conditions = [
+      { id: 'cond1', title: 'if', value: 'context.value > 5' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+
+    const [, toolParams] = mockExecuteTool.mock.calls[0]
+    expect(toolParams.secretScope).toBe('selected')
+    expect(toolParams.mountedSecrets).toEqual([])
+  })
+
+  it('keeps the whole environment for a condition that reads the environment directly', async () => {
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+
+    const conditions = [
+      { id: 'cond1', title: 'if', value: 'environmentVariables.ROUTE_KEY === "beta"' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+
+    const [, toolParams] = mockExecuteTool.mock.calls[0]
+    expect(toolParams.secretScope).toBe('all')
+  })
+
   it('should never forward collected block outputs in the request body', async () => {
     mockCollectBlockData.mockReturnValueOnce({
       blockData: { 'huge-block': { payload: 'x'.repeat(1024) } },

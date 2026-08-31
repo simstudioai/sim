@@ -144,6 +144,43 @@ async function resolveConditionExpression(
   return (result.conditions as Array<{ value: string }>)[0].value
 }
 
+/** Resolves one condition expression against a producer output an attacker supplied. */
+async function resolveConditionWithBlockOutput(value: string, result: unknown): Promise<string> {
+  const { ctx, resolver, state } = createResolver()
+  state.setBlockOutput('producer', { result } as never)
+  const conditionBlock = createBlock('condition', 'Condition', BlockType.CONDITION)
+  const resolved = await resolver.resolveInputs(
+    ctx,
+    conditionBlock.id,
+    { conditions: JSON.stringify([{ id: 'condition-1', title: 'if', value }]) },
+    conditionBlock
+  )
+  return (resolved.conditions as Array<{ value: string }>)[0].value
+}
+
+const INJECTION_CANARY = '__conditionInjectionCanary'
+
+/**
+ * Evaluates a resolved expression inside the same `Boolean(...)` wrapper the handler builds,
+ * reporting both the branch verdict and whether anything the resolved data carried executed.
+ */
+function runResolvedCondition(expression: string): { matched: boolean; injected: boolean } {
+  Reflect.set(globalThis, INJECTION_CANARY, 'not-executed')
+  try {
+    const matched = Boolean(
+      new Function(`const context = {};\nreturn Boolean(\n${expression}\n)`)()
+    )
+    return { matched, injected: Reflect.get(globalThis, INJECTION_CANARY) !== 'not-executed' }
+  } catch {
+    return {
+      matched: false,
+      injected: Reflect.get(globalThis, INJECTION_CANARY) !== 'not-executed',
+    }
+  } finally {
+    Reflect.deleteProperty(globalThis, INJECTION_CANARY)
+  }
+}
+
 /**
  * Completes the round trip a condition actually takes: resolver, then the execution-boundary
  * compiler, then evaluation of the same `Boolean(...)` wrapper `condition-handler.ts` builds.
@@ -253,6 +290,60 @@ describe('VariableResolver function block inputs', () => {
     await expect(
       evaluateResolvedCondition(`'{{NAME}}' === 'a\\nb'`, { NAME: 'a\nb' })
     ).resolves.toBe(true)
+  })
+
+  it('stops trigger data from breaking out of a quoted condition reference', async () => {
+    // Every quoting an author can put around a reference. The author picks the context;
+    // the resolved value must be data in all of them, not just the one it wraps itself in.
+    const quotings = [
+      `"<producer.result>".includes('urgent')`,
+      '"<producer.result>" === "admin"',
+      '`<producer.result>`.length > 0',
+      '/<producer.result>/.test("x")',
+      `<producer.result> === 'admin'`,
+    ]
+    const payloads = [
+      `" + (globalThis.${INJECTION_CANARY} = "ran") + "`,
+      `\${(globalThis.${INJECTION_CANARY} = "ran")}`,
+      `' + (globalThis.${INJECTION_CANARY} = "ran") + '`,
+      `/ + (globalThis.${INJECTION_CANARY} = "ran") + /`,
+    ]
+
+    for (const value of quotings) {
+      for (const payload of payloads) {
+        const expression = await resolveConditionWithBlockOutput(value, payload)
+        expect(
+          runResolvedCondition(expression).injected,
+          `condition ${value} executed trigger data: ${expression}`
+        ).toBe(false)
+      }
+    }
+  })
+
+  it('stops a trigger-supplied object from closing the string it is quoted inside', async () => {
+    // JSON's own structural quotes close the author's string, and the key is the attacker's.
+    const expression = await resolveConditionWithBlockOutput('"<producer.result>" === "{}"', {
+      [`+(globalThis.${INJECTION_CANARY}=1)+`]: 1,
+    })
+    expect(runResolvedCondition(expression).injected).toBe(false)
+  })
+
+  it('keeps quoted and bare condition references comparing what they compared before', async () => {
+    const cases: Array<{ value: string; result: unknown; expected: boolean }> = [
+      { value: `<producer.result> === 'urgent'`, result: 'urgent', expected: true },
+      { value: `<producer.result> === 'urgent'`, result: 'other', expected: false },
+      { value: `"<producer.result>".includes('urgent')`, result: 'urgent ticket', expected: true },
+      { value: `"<producer.result>".includes('urgent')`, result: 'calm ticket', expected: false },
+      { value: '`<producer.result>`.length > 3', result: 'hello', expected: true },
+      { value: `<producer.result> === 'a"b'`, result: 'a"b', expected: true },
+      { value: '<producer.result> === `a$b/c`', result: 'a$b/c', expected: true },
+      { value: `<producer.result>.count === 2`, result: { count: 2 }, expected: true },
+    ]
+
+    for (const { value, result, expected } of cases) {
+      const expression = await resolveConditionWithBlockOutput(value, result)
+      expect(runResolvedCondition(expression).matched, `condition ${value}`).toBe(expected)
+    }
   })
 
   it('compares a bare string placeholder instead of throwing a reference error', async () => {
@@ -719,6 +810,28 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: ref })
   })
 
+  it('binds a workflow variable carrying quote characters instead of splicing it into code', async () => {
+    // A Variables block can assign trigger data at runtime, so a variable's value is not
+    // necessarily the author's. Inlined as a literal it closed the string it landed in.
+    const { block, ctx, resolver } = createResolver('javascript')
+    const payload = `' + (globalThis.__functionInjection = 1) + '`
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'userinput', type: 'string', value: payload },
+    }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: `const x = '<variable.userinput>'; return x` },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      `const x = '' + JSON.stringify(globalThis["__blockRef_0"]) + ''; return x`
+    )
+    expect(result.contextVariables).toEqual({ __blockRef_0: payload })
+  })
+
   it('rewrites whole manifest workflow variables to lazy JavaScript array reads', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
     const manifest = createTestManifest()
@@ -791,8 +904,11 @@ describe('VariableResolver function block inputs', () => {
       ['0', 'key'],
       expect.objectContaining({ allowLargeValueRefs: true })
     )
-    expect(result.resolvedInputs.code).toBe('return "SIM-0"')
-    expect(result.contextVariables).toEqual({})
+    // The navigated element binds like any other resolved value; what must not appear is
+    // the manifest, or the array it stands for.
+    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
+    expect(result.displayInputs.code).toBe('return "SIM-0"')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'SIM-0' })
   })
 
   it('resolves named loop result bracket paths in function code', async () => {

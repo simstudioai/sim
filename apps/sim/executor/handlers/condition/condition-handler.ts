@@ -10,6 +10,7 @@ import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import {
   buildBranchNodeId,
   extractBaseBlockId,
@@ -89,6 +90,34 @@ function buildConditionScript(expressions: string[], evalContext: Record<string,
 }
 
 /**
+ * Narrows the secrets a condition evaluation can read to the ones its script names.
+ *
+ * A condition reaches a secret by writing `{{NAME}}`, which the execution-boundary
+ * compiler binds. Nothing else in the script needs the workspace's other secrets, so
+ * handing the sandbox the full environment only widens what a future defect in this
+ * path could reach — the whole map was readable as the `environmentVariables` global.
+ *
+ * Scanning the built script rather than the expressions covers the batched and
+ * per-branch scripts with one rule, and mounts exactly the set the compiler could
+ * substitute. A script that reads the `environmentVariables` global directly keeps the
+ * full map: that access is undocumented for conditions but costs nothing to preserve.
+ */
+function scopeConditionSecrets(code: string): {
+  secretScope: 'all' | 'selected'
+  mountedSecrets: string[]
+} {
+  if (/\benvironmentVariables\b/.test(code)) {
+    return { secretScope: 'all', mountedSecrets: [] }
+  }
+
+  const named = new Set<string>()
+  for (const match of code.matchAll(createEnvVarPattern())) {
+    named.add(String(match[1]).trim())
+  }
+  return { secretScope: 'selected', mountedSecrets: [...named] }
+}
+
+/**
  * Runs condition code through the shared function execution boundary.
  *
  * `blockData` is deliberately empty: the resolver already inlines every
@@ -103,12 +132,15 @@ async function runConditionCode(
   currentNodeId?: string
 ): Promise<ToolResponse> {
   const { blockNameMapping, blockOutputSchemas } = collectBlockData(ctx, currentNodeId)
+  const { secretScope, mountedSecrets } = scopeConditionSecrets(code)
 
   return executeTool(
     'function_execute',
     {
       code,
       timeout: CONDITION_TIMEOUT_MS,
+      secretScope,
+      mountedSecrets,
       envVars: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData: {},

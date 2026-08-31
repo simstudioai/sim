@@ -18,6 +18,10 @@ import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/reference
 import { BlockType, parseReferencePath, REFERENCE } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext, UserFile } from '@/executor/types'
+import {
+  escapeInertStringContent,
+  formatInertStringLiteral,
+} from '@/executor/utils/code-formatting'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
@@ -621,34 +625,31 @@ export class VariableResolver {
           throw getNestedLargeValueMaterializationError()
         }
 
-        if (
-          this.isWorkflowVariableReference(match) &&
-          this.shouldUseContextVariable(effectiveValue)
-        ) {
-          const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
-          contextVarAccumulator[varName] = effectiveValue
-          const replacement = this.formatContextVariableReference(
-            varName,
-            language,
-            template,
-            index,
-            effectiveValue
-          )
-          displayResult += this.formatDisplayValueForCodeContext(
+        if (this.canInlineResolvedCodeLiteral(effectiveValue)) {
+          const replacement = this.blockResolver.formatValueForBlock(
             effectiveValue,
-            language,
-            template,
-            index
+            BlockType.FUNCTION,
+            language
           )
+          displayResult += replacement
           return replacement
         }
 
-        const replacement = this.blockResolver.formatValueForBlock(
-          effectiveValue,
-          BlockType.FUNCTION,
-          language
+        const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+        contextVarAccumulator[varName] = effectiveValue
+        const replacement = this.formatContextVariableReference(
+          varName,
+          language,
+          template,
+          index,
+          effectiveValue
         )
-        displayResult += replacement
+        displayResult += this.formatDisplayValueForCodeContext(
+          effectiveValue,
+          language,
+          template,
+          index
+        )
         return replacement
       } catch (error) {
         replacementError = error instanceof Error ? error : new Error(String(error))
@@ -898,13 +899,30 @@ export class VariableResolver {
     })
   }
 
-  private isWorkflowVariableReference(reference: string): boolean {
-    const parts = parseReferencePath(reference)
-    return parts[0] === REFERENCE.PREFIX.VARIABLE
-  }
-
-  private shouldUseContextVariable(value: unknown): boolean {
-    return typeof value === 'object' && value !== null
+  /**
+   * Whether a resolved value may stay a literal in generated code rather than being bound
+   * as a context variable.
+   *
+   * Splicing a value into user-authored code hands the author's quoting the decision of how
+   * that value parses, so only values that cannot terminate a literal may stay inline.
+   * Numbers, booleans, and null render as digits or keywords. A string qualifies only when
+   * it names an environment variable and carries no character that could close a string in
+   * any supported language: that shape has to stay in source because the placeholder, never
+   * the secret, is what gets inlined, and the execution-boundary compiler binds it
+   * downstream — that is how `<variable.indirectSecret>` reaches its value.
+   *
+   * Everything else binds, which is what block outputs have always done. Inlining the rest
+   * is what let a runtime-assigned variable or loop item carrying trigger data close the
+   * string it landed in and run as code.
+   */
+  private canInlineResolvedCodeLiteral(value: unknown): boolean {
+    if (value === null || typeof value === 'number' || typeof value === 'boolean') {
+      return true
+    }
+    if (typeof value !== 'string') {
+      return false
+    }
+    return createEnvVarPattern().test(value) && !/['"`$\\\n\r\u2028\u2029]/.test(value)
   }
 
   private formatJavaScriptAsyncExpression(
@@ -1532,19 +1550,12 @@ export class VariableResolver {
         }
 
         if (typeof resolved === 'string') {
-          const escaped = resolved
-            .replace(/\\/g, '\\\\')
-            .replace(/'/g, "\\'")
-            .replace(/\n/g, '\\n')
-            .replace(/\r/g, '\\r')
-            .replace(/\u2028/g, '\\u2028')
-            .replace(/\u2029/g, '\\u2029')
-          const formatted = `'${escaped}'`
+          const formatted = formatInertStringLiteral(resolved)
           projectedReferenceResult += containsResolvedSecret ? match : formatted
           return formatted
         }
         if (typeof resolved === 'object' && resolved !== null) {
-          const formatted = JSON.stringify(resolved)
+          const formatted = this.formatConditionJson(resolved, template, index)
           projectedReferenceResult += containsResolvedSecret ? match : formatted
           return formatted
         }
@@ -1574,6 +1585,22 @@ export class VariableResolver {
       projectedReferenceResult
     )
     return result
+  }
+
+  /**
+   * Renders a resolved object for a Condition expression.
+   *
+   * In expression position the author is comparing or navigating the object itself, so the
+   * JSON has to stay a literal. Inside a quoted string the same text is data, and its own
+   * structural quotes would close the author's string — `"<start.body>" === "{}"` with a
+   * crafted key emits `"{"+attackerCode()+":1}"`, which parses as concatenation and runs.
+   * Escaping the text there keeps it inside the string the author opened, which is also the
+   * only reading of a quoted object reference that is not a syntax error.
+   */
+  private formatConditionJson(value: object, template: string, matchIndex: number): string {
+    const json = JSON.stringify(value)
+    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, 'javascript')
+    return quoteContext === null ? json : escapeInertStringContent(json)
   }
 
   private async resolveReference(reference: string, context: ResolutionContext): Promise<any> {
