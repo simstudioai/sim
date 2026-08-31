@@ -40,9 +40,15 @@
  * from a `Principal` that has no user to substitute in the first place.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const ROOT = resolve(import.meta.dir, '..')
+/**
+ * `import.meta.url` rather than Bun's `import.meta.dir`, so the module also
+ * imports cleanly under vitest — the assertions below are unit-tested, and
+ * `import.meta.dir` is undefined outside Bun.
+ */
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const V1_ROOT = 'apps/sim/app/api/v1'
 const MIDDLEWARE = `${V1_ROOT}/middleware.ts`
 /** Out of scope: the platform-admin surface authenticates platform admins, not workspace keys. */
@@ -58,6 +64,14 @@ const CAPABILITY_MODULES = [
   '@/lib/permission-groups/capabilities',
   '@/lib/permission-groups/resolve.server',
   '@/lib/permission-groups/config-scope.server',
+  /**
+   * The user-global resolver, which answers a capability for a caller who names
+   * no workspace by falling back to the organization's default group. It takes
+   * a bare `userId` like every other sink, so a v1 route that imported it would
+   * be one property access away from the key creator with nothing in between —
+   * and being absent from this list is precisely how it would stay green.
+   */
+  '@/lib/permission-groups/user-scope.server',
 ]
 
 /**
@@ -140,27 +154,10 @@ function lineOf(source: string, index: number): number {
   return source.slice(0, index).split('\n').length
 }
 
-const files: string[] = []
-walk(join(ROOT, V1_ROOT), files)
-const relativeFiles = files.map((file) => relative(ROOT, file)).sort()
-
-const findings: Finding[] = []
-let governedSinkCalls = 0
-
-const middlewareSource = readFileSync(join(ROOT, MIDDLEWARE), 'utf8')
-if (!new RegExp(`export function ${GOVERNED}\\s*\\(`).test(middlewareSource)) {
-  findings.push({
-    file: MIDDLEWARE,
-    line: 1,
-    message:
-      `${MIDDLEWARE} no longer exports \`${GOVERNED}\`. Every assertion in this audit is ` +
-      'written in terms of it; rename it here and in this script together, or the audit ' +
-      'silently stops checking anything.',
-  })
-}
-
-for (const file of relativeFiles) {
-  const source = readFileSync(join(ROOT, file), 'utf8')
+/** One v1 source file's findings, so the assertions are testable without a tree on disk. */
+export function auditSource(file: string, source: string): { findings: Finding[]; sinks: number } {
+  const findings: Finding[] = []
+  let sinks = 0
 
   if (file !== MIDDLEWARE) {
     for (const module of CAPABILITY_MODULES) {
@@ -205,7 +202,7 @@ for (const file of relativeFiles) {
         subject.startsWith(`await ${GOVERNED}(`) ||
         governedLocals.has(subject)
       if (governed) {
-        governedSinkCalls++
+        sinks++
         continue
       }
 
@@ -219,30 +216,64 @@ for (const file of relativeFiles) {
       })
     }
   }
+
+  return { findings, sinks }
 }
 
-if (governedSinkCalls === 0 && findings.length === 0) {
-  findings.push({
-    file: V1_ROOT,
-    line: 1,
-    message:
-      `no call to a capability sink passed through \`${GOVERNED}\` anywhere under ${V1_ROOT}. ` +
-      'Either v1 stopped gating capabilities, or it now gates them in a form this audit ' +
-      'cannot read — both mean the audit is passing without checking anything.',
-  })
+/** Assertion A: the name every other assertion is written in terms of still exists. */
+export function auditMiddlewareExport(middlewareSource: string): Finding[] {
+  if (new RegExp(`export function ${GOVERNED}\\s*\\(`).test(middlewareSource)) return []
+  return [
+    {
+      file: MIDDLEWARE,
+      line: 1,
+      message:
+        `${MIDDLEWARE} no longer exports \`${GOVERNED}\`. Every assertion in this audit is ` +
+        'written in terms of it; rename it here and in this script together, or the audit ' +
+        'silently stops checking anything.',
+    },
+  ]
 }
 
-if (findings.length > 0) {
-  console.error(
-    `check:capability-subject — ${findings.length} finding${findings.length === 1 ? '' : 's'}:\n`
-  )
-  for (const finding of findings) {
-    console.error(`  ${finding.file}:${finding.line}\n    ${finding.message}\n`)
+function main(): void {
+  const files: string[] = []
+  walk(join(ROOT, V1_ROOT), files)
+  const relativeFiles = files.map((file) => relative(ROOT, file)).sort()
+
+  const findings: Finding[] = auditMiddlewareExport(readFileSync(join(ROOT, MIDDLEWARE), 'utf8'))
+  let governedSinkCalls = 0
+
+  for (const file of relativeFiles) {
+    const result = auditSource(file, readFileSync(join(ROOT, file), 'utf8'))
+    findings.push(...result.findings)
+    governedSinkCalls += result.sinks
   }
-  process.exit(1)
+
+  if (governedSinkCalls === 0 && findings.length === 0) {
+    findings.push({
+      file: V1_ROOT,
+      line: 1,
+      message:
+        `no call to a capability sink passed through \`${GOVERNED}\` anywhere under ${V1_ROOT}. ` +
+        'Either v1 stopped gating capabilities, or it now gates them in a form this audit ' +
+        'cannot read — both mean the audit is passing without checking anything.',
+    })
+  }
+
+  if (findings.length > 0) {
+    console.error(
+      `check:capability-subject — ${findings.length} finding${findings.length === 1 ? '' : 's'}:\n`
+    )
+    for (const finding of findings) {
+      console.error(`  ${finding.file}:${finding.line}\n    ${finding.message}\n`)
+    }
+    process.exit(1)
+  }
+
+  console.log(
+    `check:capability-subject — ${relativeFiles.length} v1 files, ${governedSinkCalls} capability ` +
+      `subject${governedSinkCalls === 1 ? '' : 's'} resolved through ${GOVERNED}.`
+  )
 }
 
-console.log(
-  `check:capability-subject — ${relativeFiles.length} v1 files, ${governedSinkCalls} capability ` +
-    `subject${governedSinkCalls === 1 ? '' : 's'} resolved through ${GOVERNED}.`
-)
+if (import.meta.main) main()
