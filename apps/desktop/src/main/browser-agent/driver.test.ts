@@ -250,6 +250,347 @@ describe('executeTool', () => {
     }
   })
 
+  it('does not let a detached takeover poll touch a disposed scope', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    vi.useFakeTimers()
+    const hasSession = vi.spyOn(session, 'hasSession')
+    try {
+      const takeover = driver.executeTool(
+        'chat-test',
+        'browser_request_takeover',
+        { reason: 'Please finish in the browser' },
+        'tool-disposed-takeover'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+
+      driver.disposeBrowserScope('chat-test')
+      hasSession.mockClear()
+      await expect(takeover).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+      await vi.advanceTimersByTimeAsync(1_500)
+
+      expect(hasSession).not.toHaveBeenCalled()
+    } finally {
+      hasSession.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let a detached text wait touch a disposed scope', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
+    let resolvePageProbe: (value: boolean) => void = () => {}
+    vi.mocked(contents.executeJavaScript).mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolvePageProbe = resolve
+        })
+    )
+    vi.useFakeTimers()
+    const automationTab = vi.spyOn(session, 'automationTab')
+    try {
+      const waiting = driver.executeTool(
+        'chat-test',
+        'browser_wait_for',
+        { text: 'ready', timeoutMs: 120_000 },
+        'tool-disposed-wait'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      expect(contents.executeJavaScript).toHaveBeenCalled()
+
+      driver.disposeBrowserScope('chat-test')
+      automationTab.mockClear()
+      await expect(waiting).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+      resolvePageProbe(false)
+      await vi.advanceTimersByTimeAsync(300)
+
+      expect(automationTab).not.toHaveBeenCalled()
+    } finally {
+      automationTab.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let a detached screenshot verification touch a disposed scope', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
+    let resolveCapture: (capture: cdp.ScreenshotCapture) => void = () => {}
+    const captureScreenshot = vi.spyOn(cdp, 'captureScreenshot').mockImplementation(
+      () =>
+        new Promise<cdp.ScreenshotCapture>((resolve) => {
+          resolveCapture = resolve
+        })
+    )
+    const automationTab = vi.spyOn(session, 'automationTab')
+    try {
+      const screenshot = driver.executeTool(
+        'chat-test',
+        'browser_screenshot',
+        {},
+        'tool-disposed-screenshot'
+      )
+      await Promise.resolve()
+      expect(captureScreenshot).toHaveBeenCalledOnce()
+
+      driver.disposeBrowserScope('chat-test')
+      automationTab.mockClear()
+      await expect(screenshot).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+      resolveCapture({
+        dataUrl: 'data:image/jpeg;base64,c2lt',
+        scale: 1,
+        viewport: { width: 800, height: 600 },
+        imageSize: { width: 800, height: 600 },
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(automationTab).not.toHaveBeenCalled()
+    } finally {
+      automationTab.mockRestore()
+      captureScreenshot.mockRestore()
+    }
+  })
+
+  it('cancels active and queued work before closing the browser session', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    vi.useFakeTimers()
+    try {
+      const waiting = driver.executeTool(
+        'chat-test',
+        'browser_wait_for',
+        { timeoutMs: 120_000 },
+        'tool-active-at-close'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      const queuedOpen = driver.executeTool(
+        'chat-test',
+        'browser_open_tab',
+        {},
+        'tool-queued-at-close'
+      )
+
+      driver.closeBrowserSession()
+
+      await expect(waiting).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+      await expect(queuedOpen).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled before it started'),
+      })
+      expect(session.withBrowserScope('chat-test', () => session.peekTabsState()).tabs).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects authorization captured before a browser-session teardown', async () => {
+    const boundary = driver.captureBrowserToolQueueBoundary('chat-test')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+    driver.closeBrowserSession()
+    driver.activateBrowserScope('chat-test')
+
+    await expect(
+      driver.executeTool(
+        'chat-test',
+        'browser_open_tab',
+        {},
+        'tool-authorized-before-close',
+        boundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+    expect(session.withBrowserScope('chat-test', () => session.peekTabsState()).tabs).toEqual([])
+  })
+
+  it('captures a missing scope without materializing driver state', async () => {
+    const boundary = driver.captureBrowserToolQueueBoundary('chat-not-yet-active')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+
+    expect(boundary).toMatchObject({
+      scopeId: 'chat-not-yet-active',
+      generation: null,
+      cancellationEpoch: null,
+    })
+
+    driver.activateBrowserScope('chat-not-yet-active')
+    await expect(
+      driver.executeTool(
+        'chat-not-yet-active',
+        'browser_list_tabs',
+        {},
+        'tool-authorized-before-activation',
+        boundary
+      )
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('rejects a missing-scope authorization after process-wide browser teardown', async () => {
+    const boundary = driver.captureBrowserToolQueueBoundary('chat-not-yet-active')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+    driver.closeBrowserSession()
+    driver.activateBrowserScope('chat-not-yet-active')
+
+    await expect(
+      driver.executeTool(
+        'chat-not-yet-active',
+        'browser_list_tabs',
+        {},
+        'tool-authorized-before-global-close',
+        boundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+  })
+
+  it('rejects a first-use authorization after its scope is disposed and reopened', async () => {
+    const boundary = driver.captureBrowserToolQueueBoundary('chat-first-use-disposed')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+
+    driver.disposeBrowserScope('chat-first-use-disposed')
+    driver.activateBrowserScope('chat-first-use-disposed')
+
+    await expect(
+      driver.executeTool(
+        'chat-first-use-disposed',
+        'browser_open_tab',
+        {},
+        'tool-authorized-before-first-use-disposal',
+        boundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+    expect(
+      session.withBrowserScope('chat-first-use-disposed', () => session.peekTabsState()).tabs
+    ).toEqual([])
+  })
+
+  it('rejects a first-use authorization after its scope is suspended and reopened', async () => {
+    const boundary = driver.captureBrowserToolQueueBoundary('chat-first-use-suspended')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+
+    expect(driver.suspendBrowserScope('chat-first-use-suspended')).toBe(true)
+    driver.activateBrowserScope('chat-first-use-suspended')
+
+    await expect(
+      driver.executeTool(
+        'chat-first-use-suspended',
+        'browser_open_tab',
+        {},
+        'tool-authorized-before-first-use-suspension',
+        boundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+    expect(
+      session.withBrowserScope('chat-first-use-suspended', () => session.peekTabsState()).tabs
+    ).toEqual([])
+  })
+
+  it('cancels a provisional first-use authorization when its durable scope is disposed', async () => {
+    const boundary = driver.captureBrowserToolQueueBoundary('pending:first-use-disposed')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+    expect(driver.migrateBrowserScope('pending:first-use-disposed', 'chat-first-use-durable')).toBe(
+      true
+    )
+
+    driver.disposeBrowserScope('chat-first-use-durable')
+    driver.activateBrowserScope('chat-first-use-durable')
+
+    await expect(
+      driver.executeTool(
+        'chat-first-use-durable',
+        'browser_open_tab',
+        {},
+        'tool-authorized-before-migrated-disposal',
+        boundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+  })
+
+  it('keeps authorization teardown scoped to its existing driver state', async () => {
+    driver.activateBrowserScope('chat-other')
+    const boundary = driver.captureBrowserToolQueueBoundary('chat-other')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+
+    driver.disposeBrowserScope('chat-test')
+
+    await expect(
+      driver.executeTool(
+        'chat-other',
+        'browser_list_tabs',
+        {},
+        'tool-authorized-in-other-scope',
+        boundary
+      )
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('rejects an existing-scope authorization after disposal and recreation', async () => {
+    const boundary = driver.captureBrowserToolQueueBoundary('chat-test')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+
+    driver.disposeBrowserScope('chat-test')
+    driver.activateBrowserScope('chat-test')
+
+    await expect(
+      driver.executeTool(
+        'chat-test',
+        'browser_list_tabs',
+        {},
+        'tool-authorized-before-scope-disposal',
+        boundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+  })
+
+  it('bounds pending authorizations without materializing their scopes', () => {
+    const boundaries = Array.from({ length: driver.BROWSER_TOOL_ADMISSION_LIMITS.perScope }, () =>
+      driver.captureBrowserToolQueueBoundary('chat-pending-authorization')
+    )
+
+    expect(boundaries.every((boundary) => boundary?.generation === null)).toBe(true)
+    expect(driver.captureBrowserToolQueueBoundary('chat-pending-authorization')).toBeNull()
+
+    for (const boundary of boundaries) {
+      if (boundary) driver.releaseBrowserToolQueueBoundary(boundary)
+    }
+    expect(driver.captureBrowserToolQueueBoundary('chat-pending-authorization')).not.toBeNull()
+  })
+
   it('honors cancellation that arrives before the authorized tool invocation', async () => {
     expect(driver.cancelTool('chat-test', 'tool-before-authorization')).toBe(true)
 
@@ -588,6 +929,110 @@ describe('executeTool', () => {
     expect(respond).toHaveBeenCalledWith('request-1', true)
   })
 
+  it('routes an exact renderer site decision through the scoped session boundary', async () => {
+    const respond = vi.spyOn(session, 'respondToSitePermission').mockReturnValue(true)
+
+    await driver.handlePanelAction('chat-test', {
+      action: 'respond-site-permission',
+      requestId: 'request-1',
+      allowed: true,
+    })
+    await driver.handlePanelAction('chat-test', {
+      action: 'respond-site-permission',
+      requestId: 'request-2',
+    })
+
+    expect(respond).toHaveBeenCalledOnce()
+    expect(respond).toHaveBeenCalledWith('request-1', true)
+  })
+
+  it('grants only the exact origin entered through the user omnibox', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    const grant = vi.spyOn(session, 'grantSiteOriginForUserNavigation')
+
+    await driver.handlePanelAction('chat-test', {
+      action: 'navigate',
+      url: 'https://docs.example/private?token=secret',
+    })
+
+    expect(grant).toHaveBeenCalledOnce()
+    expect(grant).toHaveBeenCalledWith(contents, 'https://docs.example/private?token=secret')
+    expect(contents.loadURL).toHaveBeenCalledWith('https://docs.example/private?token=secret')
+  })
+
+  it('waits for a selected restored tab before reporting it ready to the model', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const tab = session.requireTab()
+    let releaseRestore = () => {}
+    const wait = vi.spyOn(session, 'waitForPendingTabRestore').mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          releaseRestore = () => resolve(true)
+        })
+    )
+    let settled = false
+    const switched = driver
+      .executeTool('chat-test', 'browser_switch_tab', { tabId: tab.id })
+      .then((result) => {
+        settled = true
+        return result
+      })
+
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    expect(wait).toHaveBeenCalledWith(tab)
+
+    releaseRestore()
+    await expect(switched).resolves.toMatchObject({
+      ok: true,
+      result: { tabId: tab.id },
+    })
+    wait.mockRestore()
+  })
+
+  it('does not report a timed-out restored tab as ready to the model', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const tab = session.requireTab()
+    const wait = vi.spyOn(session, 'waitForPendingTabRestore').mockResolvedValue(false)
+
+    await expect(
+      driver.executeTool('chat-test', 'browser_switch_tab', { tabId: tab.id })
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('did not finish loading'),
+    })
+
+    wait.mockRestore()
+  })
+
+  it('allows a fifty-second restored-tab consent and load without duplicating the tab', async () => {
+    vi.useFakeTimers()
+    try {
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
+      const tab = session.requireTab()
+      const wait = vi.spyOn(session, 'waitForPendingTabRestore').mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            setTimeout(() => resolve(true), 50_000)
+          })
+      )
+
+      const switched = driver.executeTool('chat-test', 'browser_switch_tab', { tabId: tab.id })
+      await vi.advanceTimersByTimeAsync(50_000)
+
+      await expect(switched).resolves.toMatchObject({
+        ok: true,
+        result: { tabId: tab.id },
+      })
+      expect(session.listTabs()).toHaveLength(1)
+      expect(session.requireTab()).toBe(tab)
+      wait.mockRestore()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps tool queues and tab state isolated by chat scope', async () => {
     await driver.executeTool('chat-a', 'browser_open_tab', {})
     await driver.executeTool('chat-a', 'browser_open_tab', {})
@@ -619,6 +1064,23 @@ describe('executeTool', () => {
     await driver.executeTool('pending:other-chat', 'browser_open_tab', {})
     await driver.executeTool('chat-occupied', 'browser_open_tab', {})
     expect(driver.migrateBrowserScope('pending:other-chat', 'chat-occupied')).toBe(false)
+  })
+
+  it('retains a migrated provisional alias for callbacks until durable disposal', async () => {
+    await driver.executeTool('pending:new-chat', 'browser_open_tab', {})
+    const tab = session.withBrowserScope('pending:new-chat', () => session.requireTab())
+    expect(driver.migrateBrowserScope('pending:new-chat', 'chat-real')).toBe(true)
+
+    driver.disposeBrowserScope('pending:new-chat')
+
+    await expect(
+      driver.executeTool('pending:new-chat', 'browser_list_tabs', {})
+    ).resolves.toMatchObject({
+      ok: true,
+      result: { scopeId: 'chat-real', tabs: [{ tabId: tab.id }] },
+    })
+    driver.disposeBrowserScope('chat-real')
+    expect(tab.view.webContents.close).toHaveBeenCalledOnce()
   })
 
   it('keeps activation lazy, then restores and disposes through the driver API', async () => {
@@ -749,6 +1211,106 @@ describe('executeTool', () => {
         result: { tabs: expect.any(Array) },
       })
     } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds one scope queue and admits new work after the held head is cancelled', async () => {
+    vi.useFakeTimers()
+    try {
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
+      const contents = session.requireTab().view.webContents
+      vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
+      vi.mocked(contents.executeJavaScript).mockImplementation(() => new Promise<never>(() => {}))
+
+      const held = driver.executeTool('chat-test', 'browser_snapshot', {}, 'held-scope-head')
+      await vi.advanceTimersByTimeAsync(0)
+      const queued = Array.from(
+        { length: driver.BROWSER_TOOL_ADMISSION_LIMITS.perScope - 1 },
+        (_, index) =>
+          driver.executeTool('chat-test', 'browser_list_tabs', {}, `queued-scope-${index}`)
+      )
+
+      await expect(
+        driver.executeTool('chat-test', 'browser_list_tabs', {}, 'scope-overflow')
+      ).resolves.toEqual({
+        ok: false,
+        error:
+          'This task browser already has too many actions queued. Wait for earlier actions to finish.',
+      })
+
+      expect(driver.cancelTool('chat-test', 'held-scope-head')).toBe(true)
+      await expect(held).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+      await expect(Promise.all(queued)).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            ok: true,
+            result: expect.objectContaining({ tabs: expect.any(Array) }),
+          }),
+        ])
+      )
+      await expect(
+        driver.executeTool('chat-test', 'browser_list_tabs', {}, 'scope-recovered')
+      ).resolves.toMatchObject({ ok: true })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds process-wide queues across scopes and recovers capacity on disposal', async () => {
+    vi.useFakeTimers()
+    const scopes = Array.from(
+      {
+        length:
+          driver.BROWSER_TOOL_ADMISSION_LIMITS.process /
+          driver.BROWSER_TOOL_ADMISSION_LIMITS.perScope,
+      },
+      (_, index) => `chat-admission-${index}`
+    )
+    const executions: Array<Promise<{ ok: boolean }>> = []
+    try {
+      for (const scopeId of scopes) {
+        await driver.executeTool(scopeId, 'browser_open_tab', {})
+        const contents = session.withBrowserScope(
+          scopeId,
+          () => session.requireTab().view.webContents
+        )
+        vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
+        vi.mocked(contents.executeJavaScript).mockImplementation(() => new Promise<never>(() => {}))
+        executions.push(
+          driver.executeTool(scopeId, 'browser_snapshot', {}, `held-process-${scopeId}`)
+        )
+        await vi.advanceTimersByTimeAsync(0)
+        for (let index = 1; index < driver.BROWSER_TOOL_ADMISSION_LIMITS.perScope; index++) {
+          executions.push(
+            driver.executeTool(
+              scopeId,
+              'browser_list_tabs',
+              {},
+              `queued-process-${scopeId}-${index}`
+            )
+          )
+        }
+      }
+
+      await expect(
+        driver.executeTool('chat-process-overflow', 'browser_list_tabs', {}, 'process-overflow')
+      ).resolves.toEqual({
+        ok: false,
+        error:
+          'Sim already has too many browser actions queued. Wait for earlier actions to finish.',
+      })
+
+      driver.disposeBrowserScope(scopes[0])
+      await expect(
+        driver.executeTool('chat-process-recovered', 'browser_list_tabs', {}, 'process-recovered')
+      ).resolves.toMatchObject({ ok: true })
+    } finally {
+      for (const scopeId of scopes) driver.disposeBrowserScope(scopeId)
+      await Promise.allSettled(executions)
       vi.useRealTimers()
     }
   })
@@ -1089,6 +1651,10 @@ describe('executeTool', () => {
 })
 
 describe('browserToolWatchdogMs', () => {
+  it('budgets restored-tab switching as navigation work', () => {
+    expect(driverModule.browserToolWatchdogMs('browser_switch_tab', {})).toBe(60_000)
+  })
+
   it.each([
     ['number', 30_000, 35_000],
     ['numeric string', '30000', 35_000],

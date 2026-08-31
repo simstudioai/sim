@@ -2,10 +2,12 @@
 
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  BrowserMediaPermissionRequest,
   BrowserOmniboxFocusMode,
   BrowserPanelAnchor,
   BrowserPanelBounds,
   BrowserPanelSnapshot,
+  BrowserSitePermissionRequest,
   BrowserTabState,
 } from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
@@ -16,6 +18,7 @@ import type {
 } from '@sim/desktop-bridge'
 import {
   Button,
+  ChipConfirmModal,
   ChipInput,
   chipVariants,
   cn,
@@ -195,14 +198,73 @@ export function clearOmniboxSelection(input: HTMLInputElement): void {
   input.setSelectionRange(caret, caret)
 }
 
-/** Claims the one renderer response allowed for a native media permission request. */
-export function claimMediaPermissionResponse(
+/** Claims the one renderer response allowed for a native browser permission request. */
+export function claimPermissionResponse(
   handledRequestId: { current: string | null },
   requestId: string
 ): boolean {
   if (handledRequestId.current === requestId) return false
   handledRequestId.current = requestId
   return true
+}
+
+type BrowserPermissionRequest = BrowserMediaPermissionRequest | BrowserSitePermissionRequest
+
+export function browserPermissionResponseAction(
+  request: BrowserPermissionRequest
+): 'respond-media-permission' | 'respond-site-permission' {
+  return 'tabId' in request ? 'respond-site-permission' : 'respond-media-permission'
+}
+
+export function shouldShowBrowserPermissionRequest(
+  requestId: string | undefined,
+  answeredRequestId: string | null,
+  visible: boolean
+): boolean {
+  return visible && requestId !== undefined && requestId !== answeredRequestId
+}
+
+export function browserPermissionPrompt(request: BrowserPermissionRequest): {
+  title: string
+  text: string
+} {
+  if ('tabId' in request) {
+    return {
+      title: `Allow this browser task to visit ${request.origin}?`,
+      text: 'Allowing lets the task send requests to and receive data from this origin until the browser task ends. Only the origin is shown here; the full path and query remain hidden.',
+    }
+  }
+
+  const devices = request.devices.join(' and ')
+  return {
+    title: `Allow ${request.origin} to use your ${devices}?`,
+    text: `Allowing gives this page access to your ${devices} until it navigates. Block if you did not expect this request.`,
+  }
+}
+
+interface BrowserPermissionModalProps {
+  request: BrowserPermissionRequest | undefined
+  open: boolean
+  onDecision: (allowed: boolean) => void
+}
+
+export function BrowserPermissionModal({ request, open, onDecision }: BrowserPermissionModalProps) {
+  if (!request) return null
+  const prompt = browserPermissionPrompt(request)
+
+  return (
+    <ChipConfirmModal
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onDecision(false)
+      }}
+      title={prompt.title}
+      text={prompt.text}
+      defaultAction='dismiss'
+      dismissLabel='Block'
+      confirm={{ label: 'Allow', onClick: () => onDecision(true), variant: 'primary' }}
+    />
+  )
 }
 
 /** Places the replacement on the native view's exact, unclipped viewport rectangle. */
@@ -396,6 +458,8 @@ export function BrowserSession({
   const suspended = useBrowserSessionStore((state) => state.sessions[scopeId]?.suspended ?? false)
   const hasPageIssue = Boolean(pageState?.issue)
   const mediaPermissionRequest = pageState?.mediaPermissionRequest
+  const sitePermissionRequest = pageState?.sitePermissionRequest
+  const permissionRequest = sitePermissionRequest ?? mediaPermissionRequest
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   // Lets the occlusion handshake reject a capture taken before a modal's
@@ -408,7 +472,10 @@ export function BrowserSession({
   const omniboxFocusRafRef = useRef<number | null>(null)
   const omniboxPointerSelectionRef = useRef<OmniboxPointerSelection | null>(null)
   const pendingNewTabFocusRef = useRef<PendingNewTabFocus | null>(null)
-  const handledMediaPermissionRequestIdRef = useRef<string | null>(null)
+  const handledPermissionRequestIdRef = useRef<string | null>(null)
+  const [answeredPermissionRequestId, setAnsweredPermissionRequestId] = useState<string | null>(
+    null
+  )
   const visibleRef = useRef(visible)
   visibleRef.current = visible
   const { removeResource } = useMothershipResources()
@@ -483,68 +550,32 @@ export function BrowserSession({
     onSnapshotError,
   } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
 
-  useEffect(() => {
-    const request = mediaPermissionRequest
-    if (!request) {
-      handledMediaPermissionRequestIdRef.current = null
-      void closeOverlay('permissions')
-      return
-    }
-
-    let active = true
-    let decided = false
-    let toastId: string | null = null
-    const respond = (allowed: boolean) => {
-      if (decided) return
-      decided = true
-      if (!claimMediaPermissionResponse(handledMediaPermissionRequestIdRef, request.requestId))
-        return
-      sendBrowserPanelAction(
-        'respond-media-permission',
-        { requestId: request.requestId, allowed },
-        scopeId
-      )
-    }
-
-    const dismissPrompt = () => {
-      respond(false)
-      if (!toastId) return
-      const id = toastId
-      toastId = null
-      toast.dismiss(id)
-    }
-
-    if (!visible) {
-      respond(false)
-      void closeOverlay('permissions')
-      return
-    }
-
-    void requestOverlay('permissions', () => respond(false), dismissPrompt).then((ready) => {
-      if (!active) return
-      if (!ready) {
-        respond(false)
+  const respondToPermission = useCallback(
+    (allowed: boolean) => {
+      if (!permissionRequest) return
+      if (!claimPermissionResponse(handledPermissionRequestIdRef, permissionRequest.requestId)) {
         return
       }
-      const origin = URL.canParse(request.origin) ? new URL(request.origin).host : request.origin
-      const devices = request.devices.join(' and ')
-      toastId = toast.info(`${origin} wants to use your ${devices}`, {
-        description: 'Access applies only to this page and ends when it navigates.',
-        action: { label: 'Allow', onClick: () => respond(true) },
-        onDismiss: () => {
-          if (!active) return
-          respond(false)
-          void closeOverlay('permissions')
-        },
-      })
-    })
+      setAnsweredPermissionRequestId(permissionRequest.requestId)
+      sendBrowserPanelAction(
+        browserPermissionResponseAction(permissionRequest),
+        { requestId: permissionRequest.requestId, allowed },
+        scopeId
+      )
+    },
+    [permissionRequest, scopeId]
+  )
 
-    return () => {
-      active = false
-      dismissPrompt()
-      void closeOverlay('permissions')
-    }
-  }, [closeOverlay, mediaPermissionRequest, requestOverlay, scopeId, visible])
+  useEffect(() => {
+    if (visible || !permissionRequest) return
+    respondToPermission(false)
+  }, [permissionRequest, respondToPermission, visible])
+
+  const permissionModalOpen = shouldShowBrowserPermissionRequest(
+    permissionRequest?.requestId,
+    answeredPermissionRequestId,
+    visible
+  )
 
   // The resource picker lives above this component in the panel tab bar. Give
   // that one external browser overlay access to the same capture/hide handshake
@@ -1011,7 +1042,7 @@ export function BrowserSession({
   // Keep the page's exact captured frame underneath it while it is open so
   // pointer events reach the Sim popover instead of the WebContentsView.
   useEffect(() => {
-    if (mediaPermissionRequest) {
+    if (mediaPermissionRequest || sitePermissionRequest) {
       void closeOverlay('suggestions')
       return
     }
@@ -1024,7 +1055,14 @@ export function BrowserSession({
       return
     }
     void closeOverlay('suggestions')
-  }, [closeOverlay, hasPageIssue, mediaPermissionRequest, requestOverlay, suggestions.length])
+  }, [
+    closeOverlay,
+    hasPageIssue,
+    mediaPermissionRequest,
+    requestOverlay,
+    sitePermissionRequest,
+    suggestions.length,
+  ])
 
   const suggestionsOpen = hasPageIssue
     ? suggestions.length > 0
@@ -1537,6 +1575,11 @@ export function BrowserSession({
           />
         )}
       </div>
+      <BrowserPermissionModal
+        request={permissionRequest}
+        open={permissionModalOpen}
+        onDecision={respondToPermission}
+      />
     </div>
   )
 }

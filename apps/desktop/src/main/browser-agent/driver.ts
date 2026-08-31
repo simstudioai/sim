@@ -18,6 +18,7 @@
  */
 import {
   BROWSER_DATA_KINDS,
+  BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS,
   type BrowserDataKind,
   type BrowserKnownSessionsState,
   type BrowserPageState,
@@ -79,8 +80,12 @@ const TAKEOVER_POLL_MS = 1_500
  * legitimate tool (browser_wait_for caps at 120s).
  */
 const DEFAULT_TOOL_WATCHDOG_MS = 20_000
-const NAVIGATION_TOOL_WATCHDOG_MS = 30_000
 const WAIT_FOR_TOOL_WATCHDOG_GRACE_MS = 5_000
+/** Retained native tool calls: generous for normal serial use, finite under a wedged caller. */
+export const BROWSER_TOOL_ADMISSION_LIMITS = Object.freeze({
+  perScope: 16,
+  process: 64,
+})
 const MAX_CROSS_ORIGIN_SNAPSHOT_FRAMES = 8
 const MAX_CROSS_ORIGIN_SCAN_FRAMES = 32
 const COMBINED_SNAPSHOT_LINE_CAP = 900
@@ -94,6 +99,8 @@ export interface DriverCallbacks {
   onPageState: (state: BrowserPageState) => void
   onTabsState: (state: BrowserTabsState) => void
   onSessionStatus: (alive: boolean, scopeId: string) => void
+  /** Whether a live renderer for the scope registered support for the consent prompt. */
+  sitePermissionPromptSupported?: (scopeId: string) => boolean
   /** Whether the active tab shows a login form Sim holds a credential for. */
   onFillAvailability: (available: boolean, scopeId: string) => void
   /** Live native download state for one isolated browser scope. */
@@ -111,6 +118,8 @@ let configStore: ConfigStore | null = null
  * actually happened on the page.
  */
 interface DriverScopeState {
+  /** Unique state generation so teardown cannot suffer an epoch ABA race. */
+  generation: number
   pendingNotices: string[]
   takeoverActive: boolean
   takeoverDone: boolean
@@ -127,6 +136,10 @@ interface DriverScopeState {
   toolQueueCancellationEpoch: number
   lastTabsStateFingerprint: string | null
   toolQueue: Promise<unknown>
+  /** Admissions held by queued and in-flight tools for this scope. */
+  toolAdmissions: Set<symbol>
+  /** Prevents detached queue entries from running after their scope is torn down. */
+  disposed: boolean
   /** True while activation is the only operation that has touched this scope. */
   activationOnly: boolean
   /** Tab whose latest monotonic element refs are valid for element actions. */
@@ -144,11 +157,20 @@ interface DriverScopeState {
 /** Captures the native queue boundary before an async authorization round trip. */
 export interface BrowserToolQueueBoundary {
   scopeId: string
-  cancellationEpoch: number
+  /** Invalidates authorization captured before a process-wide browser teardown. */
+  lifecycleEpoch: number
+  /** Present only when the scope already existed at capture time. */
+  generation: number | null
+  cancellationEpoch: number | null
+  cancelled: boolean
 }
+
+let nextDriverScopeGeneration = 1
+let browserToolQueueLifecycleEpoch = 0
 
 function createDriverScopeState(): DriverScopeState {
   return {
+    generation: nextDriverScopeGeneration++,
     pendingNotices: [],
     takeoverActive: false,
     takeoverDone: false,
@@ -160,6 +182,8 @@ function createDriverScopeState(): DriverScopeState {
     toolQueueCancellationEpoch: 0,
     lastTabsStateFingerprint: null,
     toolQueue: Promise.resolve(),
+    toolAdmissions: new Set(),
+    disposed: false,
     activationOnly: true,
     snapshotTabId: null,
     snapshotTargets: new Map(),
@@ -200,6 +224,8 @@ function frameNavigationEpoch(contents: WebContents, frame: WebFrameMain): numbe
 
 const driverScopeStates = new Map<string, DriverScopeState>()
 const driverScopeAliases = new Map<string, string>()
+const activeBrowserToolAdmissions = new Set<symbol>()
+const pendingBrowserToolQueueBoundaries = new Set<BrowserToolQueueBoundary>()
 const CANCELLED_TOOL_TTL_MS = 5 * 60_000
 const MAX_CANCELLED_TOOL_TOMBSTONES = 256
 const cancelledToolCallIds = new Map<string, number>()
@@ -237,17 +263,92 @@ function driverScopeState(scopeId = session.getBrowserScopeId()): DriverScopeSta
   return state
 }
 
-export function captureBrowserToolQueueBoundary(scopeId: string): BrowserToolQueueBoundary {
-  const resolvedScopeId = resolveDriverScopeId(scopeId)
-  return {
-    scopeId: resolvedScopeId,
-    cancellationEpoch: driverScopeState(resolvedScopeId).toolQueueCancellationEpoch,
+function reserveBrowserToolAdmission(state: DriverScopeState): symbol {
+  const admission = Symbol('browser-tool-admission')
+  state.toolAdmissions.add(admission)
+  activeBrowserToolAdmissions.add(admission)
+  return admission
+}
+
+function releaseBrowserToolAdmission(state: DriverScopeState, admission: symbol): void {
+  state.toolAdmissions.delete(admission)
+  activeBrowserToolAdmissions.delete(admission)
+}
+
+function retireDriverScopeState(state: DriverScopeState): void {
+  state.disposed = true
+  state.toolQueueCancellationEpoch++
+  state.toolInvocationEpoch++
+  state.toolExecutionEpoch++
+  state.activeToolCancel?.()
+  state.takeoverActive = false
+  state.takeoverDone = false
+  state.takeoverResponse = null
+  state.takeoverInvocationEpoch = null
+  for (const admission of state.toolAdmissions) {
+    activeBrowserToolAdmissions.delete(admission)
   }
+  state.toolAdmissions.clear()
+}
+
+function retireAllDriverScopeStates(): void {
+  browserToolQueueLifecycleEpoch++
+  for (const state of driverScopeStates.values()) retireDriverScopeState(state)
+  driverScopeStates.clear()
+  activeBrowserToolAdmissions.clear()
+  pendingBrowserToolQueueBoundaries.clear()
+  driverScopeAliases.clear()
+}
+
+export function captureBrowserToolQueueBoundary(scopeId: string): BrowserToolQueueBoundary | null {
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  const state = driverScopeStates.get(resolvedScopeId)
+  if (
+    activeBrowserToolAdmissions.size + pendingBrowserToolQueueBoundaries.size >=
+      BROWSER_TOOL_ADMISSION_LIMITS.process ||
+    (state?.toolAdmissions.size ?? 0) +
+      [...pendingBrowserToolQueueBoundaries].filter(
+        (boundary) => resolveDriverScopeId(boundary.scopeId) === resolvedScopeId
+      ).length >=
+      BROWSER_TOOL_ADMISSION_LIMITS.perScope
+  ) {
+    return null
+  }
+  const boundary: BrowserToolQueueBoundary = {
+    scopeId: resolvedScopeId,
+    lifecycleEpoch: browserToolQueueLifecycleEpoch,
+    generation: state?.generation ?? null,
+    cancellationEpoch: state?.toolQueueCancellationEpoch ?? null,
+    cancelled: false,
+  }
+  pendingBrowserToolQueueBoundaries.add(boundary)
+  return boundary
+}
+
+export function releaseBrowserToolQueueBoundary(boundary: BrowserToolQueueBoundary): void {
+  pendingBrowserToolQueueBoundaries.delete(boundary)
+}
+
+function cancelPendingBrowserToolQueueBoundaries(scopeId: string): boolean {
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  let cancelled = false
+  for (const boundary of pendingBrowserToolQueueBoundaries) {
+    if (resolveDriverScopeId(boundary.scopeId) !== resolvedScopeId) continue
+    boundary.cancelled = true
+    cancelled = true
+  }
+  return cancelled
 }
 
 function isBrowserToolQueueBoundaryCurrent(boundary: BrowserToolQueueBoundary): boolean {
+  if (boundary.cancelled) return false
+  if (boundary.lifecycleEpoch !== browserToolQueueLifecycleEpoch) return false
+  if (boundary.generation === null) return true
   const state = driverScopeStates.get(resolveDriverScopeId(boundary.scopeId))
-  return state?.toolQueueCancellationEpoch === boundary.cancellationEpoch
+  return (
+    state?.generation === boundary.generation &&
+    state.toolQueueCancellationEpoch === boundary.cancellationEpoch
+  )
 }
 
 function recordNotice(notice: string): void {
@@ -265,6 +366,7 @@ function recordNotice(notice: string): void {
 function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
   const issue = session.pageIssueForContents(contents)
   const mediaPermissionRequest = session.mediaPermissionRequestForContents(contents)
+  const sitePermissionRequest = session.sitePermissionRequestForScope()
   return {
     scopeId: session.getBrowserScopeId(),
     tabId,
@@ -275,6 +377,7 @@ function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
     canGoForward: session.canGoForward(contents),
     ...(issue ? { issue } : {}),
     ...(mediaPermissionRequest ? { mediaPermissionRequest } : {}),
+    ...(sitePermissionRequest ? { sitePermissionRequest } : {}),
   }
 }
 
@@ -415,8 +518,7 @@ export function initDriver(
   // session inherits the previous one's pending notices, a takeover still
   // waiting on a user who is gone, and a fingerprint that suppresses its very
   // first tab push as a duplicate.
-  driverScopeStates.clear()
-  driverScopeAliases.clear()
+  retireAllDriverScopeStates()
   cancelledToolCallIds.clear()
   // The serialization chain, too. A takeover from the previous session can sit
   // unresolved indefinitely, and its `takeoverDone` flag is reset above — so
@@ -458,6 +560,8 @@ export function initDriver(
         void fillCoordinator()?.refreshAvailability(true)
       },
       onPageStateChanged: pushPageState,
+      sitePermissionPromptSupported: (scopeId) =>
+        driverCallbacks?.sitePermissionPromptSupported?.(scopeId) === true,
       onTabsChanged: pushTabsState,
       onTabThemeChanged: (contents, theme) => {
         void cdp.setColorScheme(contents, theme).catch((error) => {
@@ -605,7 +709,10 @@ export function migrateBrowserScope(fromScopeId: string, toScopeId: string): boo
   const destinationState = driverScopeStates.get(to)
   if (destinationState && !destinationState.activationOnly) return false
   if (!session.migrateBrowserScope(from, to)) return false
-  if (destinationState) driverScopeStates.delete(to)
+  if (destinationState) {
+    retireDriverScopeState(destinationState)
+    driverScopeStates.delete(to)
+  }
   if (state) {
     driverScopeStates.delete(from)
     driverScopeStates.set(to, state)
@@ -619,10 +726,12 @@ export function disposeBrowserScope(scopeId: string): void {
   const resolved = resolveDriverScopeId(scopeId)
   session.disposeBrowserScope(scopeId)
   if (wasAlias) {
-    driverScopeAliases.delete(scopeId)
     return
   }
 
+  cancelPendingBrowserToolQueueBoundaries(resolved)
+  const state = driverScopeStates.get(resolved)
+  if (state) retireDriverScopeState(state)
   driverScopeStates.delete(resolved)
   for (const [alias, target] of driverScopeAliases) {
     if (alias === resolved || resolveDriverScopeId(target) === resolved) {
@@ -639,6 +748,9 @@ export function disposeBrowserScope(scopeId: string): void {
 export function suspendBrowserScope(scopeId: string): boolean {
   const resolved = resolveDriverScopeId(scopeId)
   if (!session.suspendBrowserScope(resolved)) return false
+  cancelPendingBrowserToolQueueBoundaries(resolved)
+  const state = driverScopeStates.get(resolved)
+  if (state) retireDriverScopeState(state)
   driverScopeStates.delete(resolved)
   return true
 }
@@ -681,6 +793,7 @@ export interface ClearBrowserProfileOptions {
 export async function clearBrowserProfile(
   options: ClearBrowserProfileOptions = { settingsPersistence: 'required' }
 ): Promise<void> {
+  retireAllDriverScopeStates()
   const settingsCleared = knownSessions?.clear() !== false
   const outcomes = await Promise.allSettled([session.clearProfileStorage(), clearCredentials()])
   // Last, covering the pinned-tab list `clearProfileStorage` just emptied.
@@ -699,6 +812,12 @@ export async function clearBrowserProfile(
   if (failures.length > 0) {
     throw new AggregateError(failures, 'Browser profile teardown was incomplete.')
   }
+}
+
+/** Stops every authorized or queued browser action before closing its live pages. */
+export function closeBrowserSession(): void {
+  retireAllDriverScopeStates()
+  session.closeSession()
 }
 
 function str(params: Record<string, unknown>, key: string): string | undefined {
@@ -731,9 +850,10 @@ export function browserToolWatchdogMs(
     tool === 'browser_open_url' ||
     tool === 'browser_go_back' ||
     tool === 'browser_go_forward' ||
-    tool === 'browser_open_tab'
+    tool === 'browser_open_tab' ||
+    tool === 'browser_switch_tab'
   ) {
-    return NAVIGATION_TOOL_WATCHDOG_MS
+    return BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS
   }
   if (tool === 'browser_wait_for') {
     const requested = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
@@ -1058,6 +1178,7 @@ async function loadUrlAndGetResult(
   contents: WebContents,
   url: string
 ): Promise<Record<string, unknown>> {
+  session.prepareExplicitNavigation(contents)
   const beforeUrl = contents.getURL()
   try {
     await contents.loadURL(url)
@@ -1908,13 +2029,13 @@ async function runTakeover(purpose: string | undefined, invocationEpoch: number)
   try {
     for (;;) {
       await sleep(TAKEOVER_POLL_MS)
+      if (state.toolInvocationEpoch !== invocationEpoch) {
+        throw new ToolError('The browser takeover was superseded by a newer browser action.')
+      }
       if (!session.hasSession() || contents.isDestroyed()) {
         throw new ToolError(
           'The browser session was closed during takeover. Ask the user what happened, then reopen with browser_navigate.'
         )
-      }
-      if (state.toolInvocationEpoch !== invocationEpoch) {
-        throw new ToolError('The browser takeover was superseded by a newer browser action.')
       }
       if (state.takeoverDone) {
         if (purpose === 'sign_in') {
@@ -2041,7 +2162,17 @@ async function executeToolInner(
     case 'browser_switch_tab': {
       invalidateSnapshot()
       const tab = session.switchAutomationTab(requireStr(params, 'tabId'))
+      const restored = await session.waitForPendingTabRestore(tab)
+      assertCurrentExecution()
       const contents = tab.view.webContents
+      if (contents.isDestroyed() || session.automationTab()?.id !== tab.id) {
+        throw new ToolError('The tab was closed or replaced while it was being restored.')
+      }
+      if (!restored) {
+        throw new ToolError(
+          'The saved tab did not finish loading. Retry browser_switch_tab, or navigate it to the saved URL from browser_list_tabs.'
+        )
+      }
       return { tabId: tab.id, url: contents.getURL(), title: contents.getTitle() }
     }
 
@@ -2072,6 +2203,7 @@ async function executeToolInner(
       const waitedTab = session.requireAutomationTab()
       const contents = waitedTab.view.webContents
       while (Date.now() - startedAt < timeoutMs) {
+        assertCurrentExecution()
         const active = session.automationTab()
         if (active?.id !== waitedTab.id || active.view.webContents !== contents) {
           throw new ToolError(
@@ -2135,6 +2267,7 @@ async function executeToolInner(
       const capturedViewportUrl = capturedUrl.slice(0, 4096)
       const capturedViewportTitle = capturedTitle.slice(0, 500)
       const captureIsCurrent = (): boolean => {
+        assertCurrentExecution()
         const activeTab = session.automationTab()
         return (
           activeTab?.id === capturedTab.id &&
@@ -3753,111 +3886,139 @@ export async function executeTool(
   toolCallId?: string,
   authorizationBoundary?: BrowserToolQueueBoundary
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
-  const queuedAt = Date.now()
   const resolvedScopeId = resolveDriverScopeId(scopeId)
+  if (authorizationBoundary) {
+    releaseBrowserToolQueueBoundary(authorizationBoundary)
+    if (!isBrowserToolQueueBoundaryCurrent(authorizationBoundary)) {
+      return {
+        ok: false,
+        error: 'This browser action was cancelled before it started.',
+      }
+    }
+  }
   if (session.isBrowserScopeSuspended(resolvedScopeId)) {
     return {
       ok: false,
       error: 'This task browser is suspended until the task is reopened.',
     }
   }
-  const state = driverScopeState(resolvedScopeId)
-  state.activationOnly = false
-  const invocationEpoch = ++state.toolInvocationEpoch
-  const queueCancellationEpoch = state.toolQueueCancellationEpoch
-  const run = async () => {
-    const queueWaitMs = Date.now() - queuedAt
-    const executionStartedAt = Date.now()
-    if (
-      (authorizationBoundary && !isBrowserToolQueueBoundaryCurrent(authorizationBoundary)) ||
-      queueCancellationEpoch !== state.toolQueueCancellationEpoch ||
-      isToolCallCancelled(toolCallId)
-    ) {
-      throw new ToolError('This browser action was cancelled before it started.')
+  if (activeBrowserToolAdmissions.size >= BROWSER_TOOL_ADMISSION_LIMITS.process) {
+    return {
+      ok: false,
+      error: 'Sim already has too many browser actions queued. Wait for earlier actions to finish.',
     }
-    state.activeToolCallId = toolCallId ?? null
-    let cancelActiveExecution: () => void = () => {}
-    const cancellation = new Promise<never>((_resolve, reject) => {
-      cancelActiveExecution = () => reject(new ToolError('This browser action was cancelled.'))
-    })
-    state.activeToolCancel = cancelActiveExecution
-    return await session.withBrowserScope(resolvedScopeId, async () => {
-      logger.info('Executing browser tool', {
-        tool,
-        toolCallId,
-        scopeId: resolvedScopeId,
-        queueWaitMs,
-      })
-      const keepHiddenPageActive = tool !== 'browser_request_takeover'
-      if (keepHiddenPageActive) {
-        session.setAutomationActive(true)
+  }
+  const state = driverScopeState(resolvedScopeId)
+  if (state.toolAdmissions.size >= BROWSER_TOOL_ADMISSION_LIMITS.perScope) {
+    return {
+      ok: false,
+      error:
+        'This task browser already has too many actions queued. Wait for earlier actions to finish.',
+    }
+  }
+  const admission = reserveBrowserToolAdmission(state)
+  const queuedAt = Date.now()
+  try {
+    state.activationOnly = false
+    const invocationEpoch = ++state.toolInvocationEpoch
+    const queueCancellationEpoch = state.toolQueueCancellationEpoch
+    const run = async () => {
+      const queueWaitMs = Date.now() - queuedAt
+      const executionStartedAt = Date.now()
+      if (
+        state.disposed ||
+        (authorizationBoundary && !isBrowserToolQueueBoundaryCurrent(authorizationBoundary)) ||
+        queueCancellationEpoch !== state.toolQueueCancellationEpoch ||
+        isToolCallCancelled(toolCallId)
+      ) {
+        throw new ToolError('This browser action was cancelled before it started.')
       }
-      try {
-        const executionEpoch = ++state.toolExecutionEpoch
-        const watchdogMs = browserToolWatchdogMs(tool, params)
-        const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
-        const assertCurrentExecution = () => {
-          if (state.toolExecutionEpoch !== executionEpoch) {
-            throw new ToolError('This browser action expired before it could dispatch input.')
-          }
-        }
-        const execution = executeToolInner(
-          tool,
-          params,
-          assertCurrentExecution,
-          executionDeadline,
-          invocationEpoch
-        )
-        const guardedExecution =
-          watchdogMs === null
-            ? execution
-            : raceAgainstWatchdog(execution, watchdogMs, () => {
-                if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
-                if (tool === 'browser_snapshot' || tool === 'browser_open_url') {
-                  invalidateSnapshot(state)
-                }
-              })
-        const result = withNotices(await Promise.race([guardedExecution, cancellation]))
-        logger.info('Browser tool completed', {
+      state.activeToolCallId = toolCallId ?? null
+      let cancelActiveExecution: () => void = () => {}
+      const cancellation = new Promise<never>((_resolve, reject) => {
+        cancelActiveExecution = () => reject(new ToolError('This browser action was cancelled.'))
+      })
+      state.activeToolCancel = cancelActiveExecution
+      return await session.withBrowserScope(resolvedScopeId, async () => {
+        logger.info('Executing browser tool', {
           tool,
           toolCallId,
           scopeId: resolvedScopeId,
           queueWaitMs,
-          executionMs: Date.now() - executionStartedAt,
         })
-        return result
-      } finally {
+        const keepHiddenPageActive = tool !== 'browser_request_takeover'
         if (keepHiddenPageActive) {
-          session.setAutomationActive(false)
+          session.setAutomationActive(true)
         }
-        if (state.activeToolCancel === cancelActiveExecution) {
-          state.activeToolCallId = null
-          state.activeToolCancel = null
+        try {
+          const executionEpoch = ++state.toolExecutionEpoch
+          const watchdogMs = browserToolWatchdogMs(tool, params)
+          const executionDeadline = watchdogMs === null ? undefined : Date.now() + watchdogMs
+          const assertCurrentExecution = () => {
+            if (state.toolExecutionEpoch !== executionEpoch) {
+              throw new ToolError('This browser action expired before it could dispatch input.')
+            }
+          }
+          const execution = executeToolInner(
+            tool,
+            params,
+            assertCurrentExecution,
+            executionDeadline,
+            invocationEpoch
+          )
+          const guardedExecution =
+            watchdogMs === null
+              ? execution
+              : raceAgainstWatchdog(execution, watchdogMs, () => {
+                  if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
+                  if (tool === 'browser_snapshot' || tool === 'browser_open_url') {
+                    invalidateSnapshot(state)
+                  }
+                })
+          const result = withNotices(await Promise.race([guardedExecution, cancellation]))
+          logger.info('Browser tool completed', {
+            tool,
+            toolCallId,
+            scopeId: resolvedScopeId,
+            queueWaitMs,
+            executionMs: Date.now() - executionStartedAt,
+          })
+          return result
+        } finally {
+          if (keepHiddenPageActive && !state.disposed) {
+            session.setAutomationActive(false)
+          }
+          if (state.activeToolCancel === cancelActiveExecution) {
+            state.activeToolCallId = null
+            state.activeToolCancel = null
+          }
         }
-      }
-    })
-  }
-
-  const settled = state.toolQueue.then(run, run)
-  state.toolQueue = settled.catch(() => {})
-  try {
-    return { ok: true, result: sanitizeBrowserResult(await settled) }
-  } catch (error) {
-    // The watchdog cannot cancel an in-flight renderer promise. Invalidate its
-    // capture token before releasing the queue so a late snapshot cannot
-    // overwrite refs belonging to a newer tab or snapshot.
-    if (tool === 'browser_snapshot' || tool === 'browser_open_url') {
-      invalidateSnapshot(state)
+      })
     }
-    const message = String(sanitizeBrowserResult(getErrorMessage(error), undefined, 0, 'error'))
-    logger.warn('Browser tool failed', {
-      tool,
-      toolCallId,
-      scopeId: resolvedScopeId,
-      totalMs: Date.now() - queuedAt,
-      error: message,
-    })
-    return { ok: false, error: message }
+
+    const settled = state.toolQueue.then(run, run)
+    state.toolQueue = settled.catch(() => {})
+    try {
+      return { ok: true, result: sanitizeBrowserResult(await settled) }
+    } catch (error) {
+      // The watchdog cannot cancel an in-flight renderer promise. Invalidate its
+      // capture token before releasing the queue so a late snapshot cannot
+      // overwrite refs belonging to a newer tab or snapshot.
+      if (tool === 'browser_snapshot' || tool === 'browser_open_url') {
+        invalidateSnapshot(state)
+      }
+      const message = String(sanitizeBrowserResult(getErrorMessage(error), undefined, 0, 'error'))
+      logger.warn('Browser tool failed', {
+        tool,
+        toolCallId,
+        scopeId: resolvedScopeId,
+        totalMs: Date.now() - queuedAt,
+        error: message,
+      })
+      return { ok: false, error: message }
+    }
+  } finally {
+    releaseBrowserToolAdmission(state, admission)
   }
 }
 
@@ -3888,11 +4049,12 @@ export function cancelTool(scopeId: string, toolCallId: string): boolean {
 /** Cancels the active tool and every older invocation already queued for this scope. */
 export function cancelActiveTool(scopeId: string): boolean {
   const resolvedScopeId = resolveDriverScopeId(scopeId)
+  const cancelledPendingAuthorization = cancelPendingBrowserToolQueueBoundaries(resolvedScopeId)
   const state = driverScopeStates.get(resolvedScopeId)
-  if (!state) return false
+  if (!state) return cancelledPendingAuthorization
   state.toolQueueCancellationEpoch++
   const toolCallId = state.activeToolCallId
-  return toolCallId ? cancelTool(resolvedScopeId, toolCallId) : false
+  return toolCallId ? cancelTool(resolvedScopeId, toolCallId) : cancelledPendingAuthorization
 }
 
 /** Browser-chrome commands from the panel header; fire-and-forget. */
@@ -3923,6 +4085,12 @@ export async function handlePanelAction(
       }
       return
     }
+    if (action.action === 'respond-site-permission') {
+      if (typeof action.requestId === 'string' && typeof action.allowed === 'boolean') {
+        session.respondToSitePermission(action.requestId, action.allowed)
+      }
+      return
+    }
     // Navigate bootstraps the session: the user can open the panel manually
     // (before the agent ever touched the browser) and drive it from the URL
     // bar. The other chrome actions need an existing page.
@@ -3930,6 +4098,8 @@ export async function handlePanelAction(
       if (typeof action.url === 'string' && /^https?:\/\//i.test(action.url)) {
         session.claimActiveTabForUser()
         const contents = session.ensureTab().view.webContents
+        session.prepareExplicitNavigation(contents)
+        session.grantSiteOriginForUserNavigation(contents, action.url)
         void contents.loadURL(action.url).catch(() => {})
       }
       return

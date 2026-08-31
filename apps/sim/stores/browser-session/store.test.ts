@@ -161,6 +161,38 @@ describe('browser session store', () => {
     expect(getBrowserSession('chat-test').pageState?.mediaPermissionRequest).toBe(retained)
   })
 
+  it('retains and clears the exact pending site request from native page state', () => {
+    const store = useBrowserSessionStore.getState()
+    const request = {
+      requestId: 'site-request-1',
+      tabId: '2',
+      origin: 'https://outside.example',
+    }
+    const page = {
+      tabId: '1',
+      scopeId: 'chat-test',
+      title: 'Current page',
+      url: 'https://inside.example',
+      loading: false,
+      canGoBack: false,
+      canGoForward: false,
+      sitePermissionRequest: request,
+    }
+    store.setPageState(page)
+    const retained = getBrowserSession('chat-test').pageState?.sitePermissionRequest
+
+    store.setPageState({
+      ...page,
+      title: 'Updated title',
+      sitePermissionRequest: { ...request },
+    })
+    expect(getBrowserSession('chat-test').pageState?.sitePermissionRequest).toBe(retained)
+
+    const { sitePermissionRequest: _sitePermissionRequest, ...withoutRequest } = page
+    store.setPageState(withoutRequest)
+    expect(getBrowserSession('chat-test').pageState?.sitePermissionRequest).toBeUndefined()
+  })
+
   it('reorders tabs optimistically without changing the active page', () => {
     const store = useBrowserSessionStore.getState()
     store.setTabsState({

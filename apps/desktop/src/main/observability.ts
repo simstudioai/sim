@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs'
+import { appendFileSync, chmodSync, mkdirSync, renameSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import type { BrowserWindow, Details } from 'electron'
@@ -7,6 +7,18 @@ import { app, dialog } from 'electron'
 const logger = createLogger('DesktopEvents')
 
 const DEFAULT_MAX_BYTES = 1_000_000
+const PRIVATE_DIRECTORY_MODE = 0o700
+const PRIVATE_FILE_MODE = 0o600
+type EventLogPermissionTarget = 'directory' | 'current-log' | 'rotated-log'
+
+function applyPrivateMode(path: string, mode: number, target: EventLogPermissionTarget): void {
+  try {
+    chmodSync(path, mode)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    logger.warn('Could not apply private desktop event-log permissions', { target })
+  }
+}
 
 export type DesktopEventName =
   | 'app_launch'
@@ -151,14 +163,19 @@ export function scrubUrl(raw: string): string {
  */
 export function createEventLog(dir: string, maxBytes: number = DEFAULT_MAX_BYTES): EventRecorder {
   const filePath = join(dir, 'desktop-events.log')
+  const rotatedFilePath = `${filePath}.1`
   try {
-    mkdirSync(dir, { recursive: true })
+    mkdirSync(dir, { recursive: true, mode: PRIVATE_DIRECTORY_MODE })
   } catch {}
+  applyPrivateMode(dir, PRIVATE_DIRECTORY_MODE, 'directory')
+  applyPrivateMode(filePath, PRIVATE_FILE_MODE, 'current-log')
+  applyPrivateMode(rotatedFilePath, PRIVATE_FILE_MODE, 'rotated-log')
 
   const rotateIfNeeded = () => {
     try {
       if (statSync(filePath).size > maxBytes) {
-        renameSync(filePath, `${filePath}.1`)
+        renameSync(filePath, rotatedFilePath)
+        applyPrivateMode(rotatedFilePath, PRIVATE_FILE_MODE, 'rotated-log')
       }
     } catch {}
   }
@@ -170,7 +187,7 @@ export function createEventLog(dir: string, maxBytes: number = DEFAULT_MAX_BYTES
       try {
         rotateIfNeeded()
         const entry = { at: new Date().toISOString(), name, ...(data ? { data } : {}) }
-        appendFileSync(filePath, `${JSON.stringify(entry)}\n`)
+        appendFileSync(filePath, `${JSON.stringify(entry)}\n`, { mode: PRIVATE_FILE_MODE })
       } catch (error) {
         logger.warn('Failed to append desktop event', { error })
       }

@@ -25,9 +25,12 @@ const {
   onScopeSuspended,
   onToolbarCommand,
   openTab,
+  openUrl,
+  openUrlAvailable,
   panelAction,
   reorderTab,
   reorderStoreTab,
+  registerSitePermissionPromptSupport,
   restoreScope,
   nativeSuspendScope,
   setPageState,
@@ -66,9 +69,12 @@ const {
   onScopeSuspended: vi.fn(),
   onToolbarCommand: vi.fn(),
   openTab: vi.fn(),
+  openUrl: vi.fn(),
+  openUrlAvailable: { current: true },
   panelAction: vi.fn(),
   reorderTab: vi.fn(),
   reorderStoreTab: vi.fn(),
+  registerSitePermissionPromptSupport: vi.fn(),
   restoreScope: vi.fn(),
   nativeSuspendScope: vi.fn(async () => true),
   setPageState: vi.fn(),
@@ -107,7 +113,9 @@ vi.mock('@/lib/desktop', () => ({
       onSessionStatus,
       onTabsState,
       openTab,
+      openUrl: openUrlAvailable.current ? openUrl : undefined,
       panelAction,
+      registerSitePermissionPromptSupport,
       reorderTab,
       restoreScope,
       suspendScope: nativeSuspendScope,
@@ -203,6 +211,8 @@ describe('browser panel transport', () => {
     executeTool.mockReset()
     panelAction.mockClear()
     openTab.mockReset()
+    openUrl.mockReset()
+    openUrlAvailable.current = true
     setTabPinned.mockClear()
     showTabContextMenu.mockClear()
     showToolbarMenu.mockClear()
@@ -212,6 +222,12 @@ describe('browser panel transport', () => {
     setTheme.mockClear()
     discardScope.mockClear()
     disposeScope.mockClear()
+  })
+
+  it('registers renderer-owned site permission prompt support', () => {
+    initBrowserAgentTransport()
+
+    expect(registerSitePermissionPromptSupport).toHaveBeenCalledOnce()
   })
 
   it('opens a browser tab through the acknowledged bridge and applies its state', async () => {
@@ -245,27 +261,45 @@ describe('browser panel transport', () => {
     expect(setTabsState).toHaveBeenCalledWith(state)
   })
 
-  it('opens chat URLs in a distinct tab before navigating', async () => {
-    const callOrder: string[] = []
-    openTab.mockImplementation(async () => {
-      callOrder.push('open-tab')
-      return {
-        scopeId: 'chat-test',
-        activeTabId: '2',
-        tabs: [],
-      }
-    })
-    panelAction.mockImplementation(() => {
-      callOrder.push('navigate')
+  it('opens chat URLs through one acknowledged native operation', async () => {
+    openUrl.mockResolvedValue({
+      scopeId: 'chat-test',
+      activeTabId: '2',
+      tabs: [],
     })
 
     await openUrlInNewBrowserTab('https://example.com/docs', 'chat-test')
 
-    expect(callOrder).toEqual(['open-tab', 'navigate'])
+    expect(openUrl).toHaveBeenCalledWith('https://example.com/docs', 'chat-test')
+    expect(openTab).not.toHaveBeenCalled()
+    expect(panelAction).not.toHaveBeenCalled()
+    expect(setTabsState).toHaveBeenCalledWith({
+      scopeId: 'chat-test',
+      activeTabId: '2',
+      tabs: [],
+    })
+  })
+
+  it('falls back to acknowledged tab creation on older installed shells', async () => {
+    openUrlAvailable.current = false
+    openTab.mockResolvedValue({
+      scopeId: 'chat-test',
+      activeTabId: '2',
+      tabs: [],
+    })
+
+    await openUrlInNewBrowserTab('https://example.com/docs', 'chat-test')
+
+    expect(openTab).toHaveBeenCalledWith('chat-test')
     expect(panelAction).toHaveBeenCalledWith(
       { action: 'navigate', url: 'https://example.com/docs' },
       'chat-test'
     )
+    expect(setTabsState).toHaveBeenCalledWith({
+      scopeId: 'chat-test',
+      activeTabId: '2',
+      tabs: [],
+    })
   })
 
   it('keeps search suggestions local-only on older installed shells', async () => {

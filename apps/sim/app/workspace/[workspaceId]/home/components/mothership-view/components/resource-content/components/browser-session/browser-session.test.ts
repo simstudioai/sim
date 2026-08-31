@@ -1,11 +1,16 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it, vi } from 'vitest'
+import { act, createElement, type ReactNode } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  BrowserPermissionModal,
   browserPanelSnapshotStyle,
+  browserPermissionPrompt,
+  browserPermissionResponseAction,
   browserSelectionContext,
-  claimMediaPermissionResponse,
+  claimPermissionResponse,
   clearOmniboxSelection,
   exceededOmniboxDragThreshold,
   hasConfirmedBrowserTabCreation,
@@ -15,18 +20,153 @@ import {
   shouldOpenUrlSuggestions,
   shouldRemoveBrowserResource,
   shouldReportBrowserBounds,
+  shouldShowBrowserPermissionRequest,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 
-describe('claimMediaPermissionResponse', () => {
+let root: Root | null = null
+let container: HTMLDivElement | null = null
+
+function mount(ui: ReactNode): void {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  act(() => root?.render(ui))
+}
+
+function buttonByText(text: string): HTMLButtonElement {
+  const button = Array.from(document.querySelectorAll('button')).find(
+    (candidate) => candidate.textContent === text
+  )
+  if (!button) throw new Error(`No button labeled "${text}" rendered`)
+  return button
+}
+
+function makeElementsVisible(): void {
+  const rect = {
+    bottom: 1,
+    height: 1,
+    left: 0,
+    right: 1,
+    top: 0,
+    width: 1,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } satisfies DOMRect
+  const rects = {
+    0: rect,
+    length: 1,
+    item: (index: number) => (index === 0 ? rect : null),
+    [Symbol.iterator]: function* () {
+      yield rect
+    },
+  } as DOMRectList
+  vi.spyOn(Element.prototype, 'getClientRects').mockReturnValue(rects)
+}
+
+afterEach(() => {
+  if (root) act(() => root?.unmount())
+  container?.remove()
+  root = null
+  container = null
+  vi.restoreAllMocks()
+})
+
+describe('claimPermissionResponse', () => {
   it('allows one response per request id across effect recreation', () => {
     const handledRequestId = { current: null as string | null }
 
-    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(true)
-    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(false)
-    expect(claimMediaPermissionResponse(handledRequestId, 'request-2')).toBe(true)
+    expect(claimPermissionResponse(handledRequestId, 'request-1')).toBe(true)
+    expect(claimPermissionResponse(handledRequestId, 'request-1')).toBe(false)
+    expect(claimPermissionResponse(handledRequestId, 'request-2')).toBe(true)
+  })
+})
 
-    handledRequestId.current = null
-    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(true)
+describe('browser permission prompt', () => {
+  const siteRequest = {
+    requestId: 'site-request-1',
+    tabId: 'tab-1',
+    origin: 'https://outside.example',
+  }
+  const mediaRequest = {
+    requestId: 'media-request-1',
+    origin: 'https://meeting.example',
+    devices: ['microphone', 'camera'] as const,
+  }
+
+  it('keeps an answered hidden request closed when visible again and opens a new id', () => {
+    expect(shouldShowBrowserPermissionRequest(siteRequest.requestId, null, false)).toBe(false)
+    expect(
+      shouldShowBrowserPermissionRequest(siteRequest.requestId, siteRequest.requestId, true)
+    ).toBe(false)
+    expect(shouldShowBrowserPermissionRequest('site-request-2', siteRequest.requestId, true)).toBe(
+      true
+    )
+  })
+
+  it('maps each request kind to its exact native response action', () => {
+    expect(browserPermissionResponseAction(siteRequest)).toBe('respond-site-permission')
+    expect(browserPermissionResponseAction(mediaRequest)).toBe('respond-media-permission')
+  })
+
+  it('describes the scope and consequence of site and media access', () => {
+    expect(browserPermissionPrompt(siteRequest)).toEqual({
+      title: 'Allow this browser task to visit https://outside.example?',
+      text: expect.stringContaining('send requests to and receive data from this origin'),
+    })
+    expect(browserPermissionPrompt(siteRequest).text).toContain(
+      'the full path and query remain hidden'
+    )
+    expect(browserPermissionPrompt(mediaRequest)).toEqual({
+      title: 'Allow https://meeting.example to use your microphone and camera?',
+      text: expect.stringContaining('until it navigates'),
+    })
+  })
+
+  it('renders an accessible, fail-safe modal and makes Block an explicit decision', () => {
+    makeElementsVisible()
+    const onDecision = vi.fn()
+    mount(
+      createElement(BrowserPermissionModal, {
+        request: siteRequest,
+        open: true,
+        onDecision,
+      })
+    )
+
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')
+    expect(dialog).not.toBeNull()
+    const labelledBy = dialog?.getAttribute('aria-labelledby')
+    expect(labelledBy).toBeTruthy()
+    expect(document.getElementById(labelledBy ?? '')?.textContent).toBe(
+      'Allow this browser task to visit https://outside.example?'
+    )
+    expect(dialog?.textContent).toContain('the full path and query remain hidden')
+    expect(document.querySelector('[data-native-surface-occlusion="modal"]')).not.toBeNull()
+    expect(document.querySelector('[data-chip-modal-default-policy="dismiss"]')).not.toBeNull()
+    expect(document.activeElement).toBe(buttonByText('Block'))
+
+    act(() => buttonByText('Block').click())
+    expect(onDecision).toHaveBeenCalledOnce()
+    expect(onDecision).toHaveBeenCalledWith(false)
+  })
+
+  it('makes Allow an explicit primary decision', () => {
+    const onDecision = vi.fn()
+    mount(
+      createElement(BrowserPermissionModal, {
+        request: mediaRequest,
+        open: true,
+        onDecision,
+      })
+    )
+
+    const allow = buttonByText('Allow')
+    expect(allow.className).toContain('bg-[var(--text-primary)]')
+    act(() => allow.click())
+    expect(onDecision).toHaveBeenCalledOnce()
+    expect(onDecision).toHaveBeenCalledWith(true)
   })
 })
 

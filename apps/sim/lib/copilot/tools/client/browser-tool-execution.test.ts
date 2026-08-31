@@ -30,6 +30,7 @@ vi.mock('@/lib/copilot/tools/client/completion', () => ({
 }))
 
 import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
+import { BrowserToolReplayLedger } from '@/lib/copilot/tools/client/browser-tool-replay-ledger'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const CHAT_SCOPE = 'chat-test'
@@ -45,6 +46,25 @@ function nextToolCallId(): string {
   return `tool-call-${toolCallCounter}`
 }
 
+function setLiveBrowserSession(): void {
+  const session = {
+    pageState: null,
+    tabs: [],
+    activeTabId: null,
+    automationTabId: null,
+    automationActive: false,
+    automationNeedsAttention: false,
+    agentRunIds: [],
+    sessionAlive: true,
+    suspended: false,
+  }
+  useBrowserSessionStore.setState({
+    ...session,
+    activeScopeId: CHAT_SCOPE,
+    sessions: { [CHAT_SCOPE]: session },
+  })
+}
+
 describe('executeBrowserToolOnClient', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -54,22 +74,7 @@ describe('executeBrowserToolOnClient', () => {
       configurable: true,
       value: vi.fn(() => true),
     })
-    const session = {
-      pageState: null,
-      tabs: [],
-      activeTabId: null,
-      automationTabId: null,
-      automationActive: false,
-      automationNeedsAttention: false,
-      agentRunIds: [],
-      sessionAlive: true,
-      suspended: false,
-    }
-    useBrowserSessionStore.setState({
-      ...session,
-      activeScopeId: CHAT_SCOPE,
-      sessions: { [CHAT_SCOPE]: session },
-    })
+    setLiveBrowserSession()
     mockReportCompletion.mockResolvedValue(undefined)
     mockReportCompletionOnPageExit.mockResolvedValue(undefined)
     mockRestoreBrowserScope.mockResolvedValue(false)
@@ -78,6 +83,170 @@ describe('executeBrowserToolOnClient', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('preserves every executed completion when a guard result arrives at retention capacity', async () => {
+    const replayClaim = vi
+      .spyOn(BrowserToolReplayLedger.prototype, 'claim')
+      .mockReturnValue('claimed')
+    const releases: Array<() => void> = []
+    mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
+    mockReportCompletion.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releases.push(resolve)
+        })
+    )
+    const executedToolCallIds = Array.from({ length: 2_048 }, () => nextToolCallId())
+    const overflowGuardToolCallId = nextToolCallId()
+
+    try {
+      for (const toolCallId of executedToolCallIds) {
+        executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
+      }
+      await flush()
+
+      expect(mockExecuteBrowserTool).toHaveBeenCalledTimes(executedToolCallIds.length)
+      expect(mockReportCompletion).toHaveBeenCalledTimes(4)
+
+      executeBrowserToolOnClient(
+        overflowGuardToolCallId,
+        'browser_list_sessions',
+        {},
+        CHAT_SCOPE,
+        new Date(Date.now() - 10 * 60_000).toISOString()
+      )
+      await flush()
+
+      expect(mockReportCompletion).toHaveBeenCalledTimes(4)
+
+      mockReportCompletion.mockResolvedValue(undefined)
+      for (const release of releases.splice(0)) release()
+      await vi.waitFor(
+        () => expect(mockReportCompletion).toHaveBeenCalledTimes(executedToolCallIds.length),
+        { timeout: 10_000 }
+      )
+
+      const reportedToolCallIds = new Set(
+        mockReportCompletion.mock.calls.map(([toolCallId]) => toolCallId)
+      )
+      expect(reportedToolCallIds).toEqual(new Set(executedToolCallIds))
+      expect(reportedToolCallIds.has(overflowGuardToolCallId)).toBe(false)
+    } finally {
+      mockReportCompletion.mockResolvedValue(undefined)
+      for (const release of releases.splice(0)) release()
+      replayClaim.mockRestore()
+      await flush()
+    }
+  })
+
+  it('displaces a guard completion for an executed result at retention capacity', async () => {
+    const replayClaim = vi
+      .spyOn(BrowserToolReplayLedger.prototype, 'claim')
+      .mockReturnValue('claimed')
+    const releases: Array<() => void> = []
+    mockReportCompletion.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releases.push(resolve)
+        })
+    )
+    const staleTimestamp = new Date(Date.now() - 10 * 60_000).toISOString()
+    const guardToolCallIds = Array.from({ length: 2_048 }, () => nextToolCallId())
+    const executedToolCallId = nextToolCallId()
+
+    try {
+      for (const toolCallId of guardToolCallIds) {
+        executeBrowserToolOnClient(
+          toolCallId,
+          'browser_list_sessions',
+          {},
+          CHAT_SCOPE,
+          staleTimestamp
+        )
+      }
+      await flush()
+
+      expect(mockReportCompletion).toHaveBeenCalledTimes(4)
+
+      mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
+      executeBrowserToolOnClient(executedToolCallId, 'browser_snapshot', {})
+      await flush()
+      expect(mockExecuteBrowserTool).toHaveBeenCalledOnce()
+
+      releases.shift()?.()
+      await flush()
+      expect(mockReportCompletion.mock.calls[4]?.[0]).toBe(executedToolCallId)
+    } finally {
+      mockReportCompletion.mockResolvedValue(undefined)
+      for (const release of releases.splice(0)) release()
+      replayClaim.mockRestore()
+      await flush()
+    }
+  })
+
+  it('releases scheduler capacity after four timed-out completion deliveries', async () => {
+    const rejectors: Array<(reason?: unknown) => void> = []
+    mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
+    mockReportCompletion.mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectors.push(reject)
+        })
+    )
+    const toolCallIds = Array.from({ length: 5 }, () => nextToolCallId())
+
+    for (const toolCallId of toolCallIds) {
+      executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
+    }
+    await flush()
+
+    expect(mockReportCompletion).toHaveBeenCalledTimes(4)
+    expect(rejectors).toHaveLength(4)
+
+    mockReportCompletion.mockResolvedValue(undefined)
+    for (const reject of rejectors) {
+      reject(new DOMException('Completion report timed out', 'TimeoutError'))
+    }
+
+    await vi.waitFor(() => expect(mockReportCompletion).toHaveBeenCalledTimes(5))
+    expect(mockReportCompletion.mock.calls[4]?.[0]).toBe(toolCallIds[4])
+    expect(mockReportCompletionOnPageExit).toHaveBeenCalledTimes(4)
+  })
+
+  it('keeps an in-flight completion as the replay owner after the retention TTL', async () => {
+    const startedAt = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(startedAt)
+    let releaseReport: (() => void) | undefined
+    mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
+    mockReportCompletion.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseReport = resolve
+        })
+    )
+    const toolCallId = nextToolCallId()
+
+    try {
+      executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
+      await flush()
+      expect(mockExecuteBrowserTool).toHaveBeenCalledOnce()
+      expect(mockReportCompletion).toHaveBeenCalledOnce()
+
+      now.mockReturnValue(startedAt + 5 * 60_000 + 1)
+      executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
+      await flush()
+
+      expect(mockExecuteBrowserTool).toHaveBeenCalledOnce()
+      expect(mockReportCompletion).toHaveBeenCalledOnce()
+      expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
+        text: 'page content',
+      })
+    } finally {
+      now.mockRestore()
+      releaseReport?.()
+      await flush()
+    }
   })
 
   it('executes the tool and reports success when the session is alive', async () => {
@@ -98,6 +267,315 @@ describe('executeBrowserToolOnClient', () => {
     expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
       text: 'page content',
     })
+  })
+
+  it('lets a running invocation own the genuine result when the same call is re-delivered', async () => {
+    let finishExecution: (result: { text: string }) => void = () => {}
+    mockExecuteBrowserTool.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishExecution = resolve
+        })
+    )
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
+    executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
+    await flush()
+
+    expect(mockExecuteBrowserTool).toHaveBeenCalledOnce()
+    expect(mockReportCompletion).not.toHaveBeenCalled()
+
+    finishExecution({ text: 'page content' })
+    await flush()
+
+    expect(mockReportCompletion).toHaveBeenCalledOnce()
+    expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
+      text: 'page content',
+    })
+  })
+
+  it('reports an unknown outcome for a durable duplicate with no same-runtime owner', async () => {
+    const replayClaim = vi
+      .spyOn(BrowserToolReplayLedger.prototype, 'claim')
+      .mockReturnValue('duplicate')
+    const toolCallId = nextToolCallId()
+
+    try {
+      executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+      executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+      await flush()
+
+      expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+      expect(mockReportCompletion).toHaveBeenCalledOnce()
+      expect(mockReportCompletion).toHaveBeenCalledWith(
+        toolCallId,
+        'error',
+        expect.stringContaining('terminal result could not be recovered'),
+        expect.objectContaining({
+          outcomeUnknown: true,
+          doNotRetry: true,
+          replayRecoveredWithoutResult: true,
+        })
+      )
+    } finally {
+      replayClaim.mockRestore()
+    }
+  })
+
+  it('caps terminal-report concurrency and drains a completion burst', async () => {
+    const releases: Array<() => void> = []
+    let activeReports = 0
+    let maxActiveReports = 0
+    mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
+    mockReportCompletion.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          activeReports += 1
+          maxActiveReports = Math.max(maxActiveReports, activeReports)
+          releases.push(() => {
+            activeReports -= 1
+            resolve()
+          })
+        })
+    )
+    const toolCallIds = Array.from({ length: 12 }, () => nextToolCallId())
+
+    for (const toolCallId of toolCallIds) {
+      executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
+    }
+    await flush()
+
+    expect(mockReportCompletion).toHaveBeenCalledTimes(4)
+    for (let wave = 0; wave < 3; wave += 1) {
+      const currentWave = releases.splice(0)
+      for (const release of currentWave) release()
+      await flush()
+    }
+
+    expect(mockReportCompletion).toHaveBeenCalledTimes(toolCallIds.length)
+    expect(maxActiveReports).toBe(4)
+    for (const release of releases.splice(0)) release()
+    await flush()
+  })
+
+  it('prioritizes an executed result over a burst of queued guard rejections', async () => {
+    const releases: Array<() => void> = []
+    mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
+    mockReportCompletion.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releases.push(resolve)
+        })
+    )
+    for (let index = 0; index < 4; index += 1) {
+      executeBrowserToolOnClient(nextToolCallId(), 'browser_snapshot', {})
+    }
+    await flush()
+    expect(mockReportCompletion).toHaveBeenCalledTimes(4)
+
+    const staleTimestamp = new Date(Date.now() - 10 * 60_000).toISOString()
+    for (let index = 0; index < 70; index += 1) {
+      executeBrowserToolOnClient(
+        nextToolCallId(),
+        'browser_list_sessions',
+        {},
+        CHAT_SCOPE,
+        staleTimestamp
+      )
+    }
+    const executedToolCallId = nextToolCallId()
+    executeBrowserToolOnClient(executedToolCallId, 'browser_snapshot', {})
+    await flush()
+
+    releases.shift()?.()
+    await flush()
+    expect(mockReportCompletion.mock.calls[4]?.[0]).toBe(executedToolCallId)
+
+    mockReportCompletion.mockResolvedValue(undefined)
+    for (const release of releases.splice(0)) release()
+    await flush()
+    await flush()
+    expect(mockReportCompletion).toHaveBeenCalledTimes(75)
+  })
+
+  it('coalesces duplicate guard delivery while its report is in flight', async () => {
+    let finishReport: () => void = () => {}
+    mockReportCompletion.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishReport = resolve
+        })
+    )
+    useBrowserSessionStore.setState({ activeScopeId: null })
+    const toolCallId = nextToolCallId()
+
+    for (let index = 0; index < 100; index += 1) {
+      executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 }, null)
+    }
+    await flush()
+
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).toHaveBeenCalledOnce()
+    finishReport()
+    await flush()
+  })
+
+  it('recovers a legacy durable claim without repeating its action', async () => {
+    const toolCallId = nextToolCallId()
+    window.sessionStorage.setItem(`sim:copilot:browser-tool-executed:${toolCallId}`, '1')
+
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).toHaveBeenCalledWith(
+      toolCallId,
+      'error',
+      expect.stringContaining('terminal result could not be recovered'),
+      expect.objectContaining({ outcomeUnknown: true, doNotRetry: true })
+    )
+  })
+
+  it.each([
+    ['browser_snapshot' as const, {}],
+    ['browser_list_tabs' as const, {}],
+    ['browser_list_sessions' as const, {}],
+  ])(
+    'keeps observation-only %s usable when the replay claim cannot be persisted',
+    async (toolName, params) => {
+      const storageWrite = vi.spyOn(window.sessionStorage, 'setItem').mockImplementation(() => {
+        throw new DOMException('Quota exceeded', 'QuotaExceededError')
+      })
+      mockExecuteBrowserTool.mockResolvedValue({ observed: true })
+      const toolCallId = nextToolCallId()
+
+      executeBrowserToolOnClient(toolCallId, toolName, params)
+      await flush()
+
+      expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
+        toolCallId,
+        toolName,
+        params,
+        30_000,
+        CHAT_SCOPE,
+        expect.any(Function)
+      )
+      expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
+        observed: true,
+      })
+      storageWrite.mockRestore()
+    }
+  )
+
+  it.each([
+    ['browser_click' as const, { elementId: 1 }],
+    ['browser_navigate' as const, { url: 'https://example.com' }],
+    ['browser_open_tab' as const, { url: 'https://example.com' }],
+  ])(
+    'fails closed before stateful %s executes when the replay claim cannot be persisted',
+    async (toolName, params) => {
+      const storageWrite = vi.spyOn(window.sessionStorage, 'setItem').mockImplementation(() => {
+        throw new DOMException('Quota exceeded', 'QuotaExceededError')
+      })
+      const toolCallId = nextToolCallId()
+
+      executeBrowserToolOnClient(toolCallId, toolName, params)
+      await flush()
+
+      expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+      expect(mockReportCompletion).toHaveBeenCalledWith(
+        toolCallId,
+        'error',
+        expect.stringContaining('replay protection is unavailable'),
+        expect.objectContaining({ replayGuardStorageUnavailable: true })
+      )
+      storageWrite.mockRestore()
+    }
+  )
+
+  it('uses unload-safe delivery when a stateful replay-guard rejection cannot be reported normally', async () => {
+    const storageWrite = vi.spyOn(window.sessionStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError')
+    })
+    mockReportCompletion.mockRejectedValueOnce(new Error('confirmation unavailable'))
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).toHaveBeenCalledWith(
+      toolCallId,
+      'error',
+      expect.stringContaining('replay protection is unavailable'),
+      expect.objectContaining({ replayGuardStorageUnavailable: true })
+    )
+    expect(mockReportCompletionOnPageExit).toHaveBeenCalledWith(
+      toolCallId,
+      'error',
+      expect.stringContaining('replay protection is unavailable'),
+      expect.objectContaining({ replayGuardStorageUnavailable: true })
+    )
+    storageWrite.mockRestore()
+  })
+
+  it('retries only terminal delivery after both replay-guard report paths fail', async () => {
+    const storageWrite = vi.spyOn(window.sessionStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError')
+    })
+    mockReportCompletion.mockRejectedValue(new Error('confirmation unavailable'))
+    mockReportCompletionOnPageExit
+      .mockRejectedValueOnce(new Error('keepalive unavailable'))
+      .mockResolvedValueOnce(undefined)
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).toHaveBeenCalledTimes(2)
+    expect(mockReportCompletionOnPageExit).toHaveBeenCalledTimes(2)
+
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).toHaveBeenCalledTimes(2)
+    expect(mockReportCompletionOnPageExit).toHaveBeenCalledTimes(2)
+    storageWrite.mockRestore()
+  })
+
+  it('retries only terminal delivery after replay-guard capacity reporting fails', async () => {
+    const replayClaim = vi
+      .spyOn(BrowserToolReplayLedger.prototype, 'claim')
+      .mockReturnValueOnce('capacity-exhausted')
+    mockReportCompletion.mockRejectedValue(new Error('confirmation unavailable'))
+    mockReportCompletionOnPageExit
+      .mockRejectedValueOnce(new Error('keepalive unavailable'))
+      .mockResolvedValueOnce(undefined)
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+    const replayClaimCallCount = replayClaim.mock.calls.length
+    replayClaim.mockRestore()
+
+    expect(replayClaimCallCount).toBe(1)
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).toHaveBeenCalledTimes(2)
+    expect(mockReportCompletion).toHaveBeenLastCalledWith(
+      toolCallId,
+      'error',
+      expect.stringContaining('replay guard is full'),
+      expect.objectContaining({ replayGuardCapacityExceeded: true })
+    )
+    expect(mockReportCompletionOnPageExit).toHaveBeenCalledTimes(2)
   })
 
   it('uses unload-safe delivery without reporting a successful action as failed', async () => {
@@ -141,6 +619,81 @@ describe('executeBrowserToolOnClient', () => {
       message: 'Browser action completed',
       data: { text: 'page content' },
     })
+  })
+
+  it('retries only a known terminal result after both delivery paths fail', async () => {
+    mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
+    mockReportCompletion.mockRejectedValue(new Error('confirmation unavailable'))
+    mockReportCompletionOnPageExit
+      .mockRejectedValueOnce(new Error('keepalive unavailable'))
+      .mockResolvedValueOnce(undefined)
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+
+    expect(mockExecuteBrowserTool).toHaveBeenCalledOnce()
+    expect(mockReportCompletion).toHaveBeenCalledTimes(2)
+    expect(mockReportCompletion).toHaveBeenLastCalledWith(
+      toolCallId,
+      'success',
+      'Browser action completed',
+      { text: 'page content' }
+    )
+    expect(mockReportCompletionOnPageExit).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves an undelivered stateful result for a much later redelivery', async () => {
+    vi.useFakeTimers()
+    try {
+      const emittedAt = new Date('2026-01-01T00:00:00.000Z')
+      vi.setSystemTime(emittedAt)
+      mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
+      mockReportCompletion.mockRejectedValueOnce(new Error('confirmation unavailable'))
+      mockReportCompletionOnPageExit.mockRejectedValueOnce(new Error('keepalive unavailable'))
+      const toolCallId = nextToolCallId()
+
+      executeBrowserToolOnClient(
+        toolCallId,
+        'browser_click',
+        { elementId: 1 },
+        CHAT_SCOPE,
+        emittedAt.toISOString()
+      )
+      const firstFlush = flush()
+      await vi.advanceTimersByTimeAsync(0)
+      await firstFlush
+      expect(mockReportCompletionOnPageExit).toHaveBeenCalledOnce()
+      vi.setSystemTime(emittedAt.getTime() + 5 * 60_000 + 1)
+      mockReportCompletion.mockResolvedValueOnce(undefined)
+
+      executeBrowserToolOnClient(
+        toolCallId,
+        'browser_click',
+        { elementId: 1 },
+        CHAT_SCOPE,
+        emittedAt.toISOString()
+      )
+      const secondFlush = flush()
+      await vi.advanceTimersByTimeAsync(0)
+      await secondFlush
+
+      expect(mockExecuteBrowserTool).toHaveBeenCalledOnce()
+      expect(mockReportCompletion).toHaveBeenCalledTimes(2)
+      expect(mockReportCompletion).toHaveBeenLastCalledWith(
+        toolCallId,
+        'success',
+        'Browser action completed',
+        { text: 'page content' }
+      )
+      expect(mockReportCompletionOnPageExit).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('preserves a takeover instruction and waits without a renderer deadline', async () => {
@@ -425,7 +978,13 @@ describe('executeBrowserToolOnClient', () => {
     'uses keepalive fallback for known success when the page-exit beacon %s',
     async (_label, send) => {
       mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
-      mockReportCompletion.mockImplementation(() => new Promise<void>(() => {}))
+      let finishReport: () => void = () => {}
+      mockReportCompletion.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishReport = resolve
+          })
+      )
       Object.defineProperty(navigator, 'sendBeacon', {
         configurable: true,
         value: vi.fn(send),
@@ -444,6 +1003,8 @@ describe('executeBrowserToolOnClient', () => {
         'Browser action completed',
         { text: 'page content' }
       )
+      finishReport()
+      await flush()
     }
   )
 
@@ -582,6 +1143,23 @@ describe('executeBrowserToolOnClient', () => {
     expect(reported.note).toContain('could not be encoded')
   })
 
+  it('gives restored-tab switching the renderer navigation budget', async () => {
+    mockExecuteBrowserTool.mockResolvedValue({ tabId: '2', url: 'https://example.com' })
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_switch_tab', { tabId: '2' })
+    await flush()
+
+    expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
+      toolCallId,
+      'browser_switch_tab',
+      { tabId: '2' },
+      70_000,
+      CHAT_SCOPE,
+      expect.any(Function)
+    )
+  })
+
   /**
    * Shared normalization coerces numeric strings and caps the requested wait
    * at 120 seconds. The renderer adds delivery grace so it cannot abandon the
@@ -677,7 +1255,7 @@ describe('executeBrowserToolOnClient', () => {
       toolCallId,
       'browser_navigate',
       { url: 'https://example.com' },
-      45_000,
+      70_000,
       CHAT_SCOPE,
       expect.any(Function)
     )
@@ -739,15 +1317,23 @@ describe('executeBrowserToolOnClient', () => {
     })
   })
 
-  it('preserves structured do-not-retry guidance for an outcome-unknown timeout', async () => {
+  it('keeps the renderer navigation margin and preserves outcome-unknown guidance', async () => {
     mockExecuteBrowserTool.mockRejectedValue(
       Object.assign(new Error('The browser outcome is unknown.'), { outcomeUnknown: true })
     )
     const toolCallId = nextToolCallId()
 
-    executeBrowserToolOnClient(toolCallId, 'browser_click', { ref: 'e12' })
+    executeBrowserToolOnClient(toolCallId, 'browser_navigate', { url: 'https://example.com' })
     await flush()
 
+    expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
+      toolCallId,
+      'browser_navigate',
+      { url: 'https://example.com' },
+      70_000,
+      CHAT_SCOPE,
+      expect.any(Function)
+    )
     expect(mockReportCompletion).toHaveBeenCalledWith(
       toolCallId,
       'error',
@@ -789,6 +1375,41 @@ describe('pre-dispatch drops still resolve the waiter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockReportCompletion.mockResolvedValue(undefined)
+    mockReportCompletionOnPageExit.mockResolvedValue(undefined)
+  })
+
+  it.each([
+    [
+      'stale event',
+      (toolCallId: string) =>
+        executeBrowserToolOnClient(
+          toolCallId,
+          'browser_list_sessions',
+          {},
+          'chat-scope-1',
+          new Date(Date.now() - 10 * 60_000).toISOString()
+        ),
+    ],
+    [
+      'missing scope',
+      (toolCallId: string) =>
+        executeBrowserToolOnClient(toolCallId, 'browser_list_sessions', {}, null),
+    ],
+  ])('retains and retries the unload-safe terminal error for a %s', async (_label, execute) => {
+    mockReportCompletion.mockRejectedValue(new Error('confirmation unavailable'))
+    mockReportCompletionOnPageExit
+      .mockRejectedValueOnce(new Error('keepalive unavailable'))
+      .mockResolvedValueOnce(undefined)
+    const toolCallId = nextToolCallId()
+
+    execute(toolCallId)
+    await flush()
+    execute(toolCallId)
+    await flush()
+
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).toHaveBeenCalledTimes(2)
+    expect(mockReportCompletionOnPageExit).toHaveBeenCalledTimes(2)
   })
 
   it('reports an error confirmation for a stale event instead of hanging the turn', async () => {
@@ -802,6 +1423,30 @@ describe('pre-dispatch drops still resolve the waiter', () => {
       'error',
       expect.stringContaining('too late'),
       expect.objectContaining({ staleEvent: true })
+    )
+  })
+
+  it('marks a stale stateful event outcome unknown and unsafe to retry', async () => {
+    const staleTs = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    executeBrowserToolOnClient(
+      'stale-stateful-call-1',
+      'browser_click',
+      { elementId: 1 },
+      'chat-scope-1',
+      staleTs
+    )
+    await sleep(0)
+
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).toHaveBeenCalledWith(
+      'stale-stateful-call-1',
+      'error',
+      expect.stringContaining('may already have taken effect'),
+      expect.objectContaining({
+        doNotRetry: true,
+        outcomeUnknown: true,
+        staleEvent: true,
+      })
     )
   })
 

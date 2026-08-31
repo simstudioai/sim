@@ -60,6 +60,13 @@ export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 export const BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS = 10_000
 export const BROWSER_WAIT_FOR_MAX_TIMEOUT_MS = 120_000
 export const BROWSER_WAIT_FOR_RENDERER_GRACE_MS = 15_000
+export const BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS = 8_000
+export const BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS = 60_000
+const BROWSER_RENDERER_TRANSPORT_GRACE_MS = 2_000
+export const BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS =
+  BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS +
+  BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS +
+  BROWSER_RENDERER_TRANSPORT_GRACE_MS
 
 /**
  * Normalizes the model-visible `browser_wait_for.timeoutMs` consistently in
@@ -195,6 +202,7 @@ export interface BrowserPanelAction {
     | 'zoom-out'
     | 'zoom-reset'
     | 'respond-media-permission'
+    | 'respond-site-permission'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
@@ -202,9 +210,9 @@ export interface BrowserPanelAction {
   tabId?: string
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
-  /** Exact pending media request being answered. */
+  /** Exact pending permission request being answered. */
   requestId?: string
-  /** User decision for `respond-media-permission`. */
+  /** User decision for a permission response. */
   allowed?: boolean
 }
 
@@ -215,6 +223,15 @@ export interface BrowserMediaPermissionRequest {
   requestId: string
   origin: string
   devices: BrowserMediaDevice[]
+}
+
+/** One ungranted top-level origin transition awaiting explicit user consent. */
+export interface BrowserSitePermissionRequest {
+  requestId: string
+  /** Exact tab whose suspended request will be resumed or cancelled. */
+  tabId: string
+  /** Destination origin only; credentials, paths, query strings, and fragments are excluded. */
+  origin: string
 }
 
 /** Live state of the active page, pushed to the panel header. */
@@ -231,6 +248,8 @@ export interface BrowserPageState {
   issue?: BrowserPageIssue
   /** Main-frame media request awaiting a renderer-owned permission prompt. */
   mediaPermissionRequest?: BrowserMediaPermissionRequest
+  /** Ungranted top-level origin transition awaiting a renderer-owned permission prompt. */
+  sitePermissionRequest?: BrowserSitePermissionRequest
 }
 
 /** A recoverable top-level page problem rendered by Sim instead of a blank native view. */

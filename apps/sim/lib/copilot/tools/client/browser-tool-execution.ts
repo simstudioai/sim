@@ -8,6 +8,7 @@
  * server-side waiter.
  */
 import {
+  BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS,
   BROWSER_WAIT_FOR_RENDERER_GRACE_MS,
   type BrowserToolName,
   normalizeBrowserWaitForTimeoutMs,
@@ -27,6 +28,7 @@ import {
   type AsyncConfirmationStatus,
 } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
+import { BrowserToolReplayLedger } from '@/lib/copilot/tools/client/browser-tool-replay-ledger'
 import {
   reportClientToolCompletion,
   reportClientToolCompletionOnPageExit,
@@ -36,7 +38,6 @@ import { getBrowserSession, useBrowserSessionStore } from '@/stores/browser-sess
 const logger = createLogger('CopilotBrowserToolExecution')
 
 const DEFAULT_TOOL_TIMEOUT_MS = 30_000
-const NAVIGATION_TOOL_TIMEOUT_MS = 45_000
 
 /**
  * Tools that do not require an existing live page. Most create a new page;
@@ -52,6 +53,39 @@ const LIVE_PAGE_OPTIONAL_TOOLS: ReadonlySet<BrowserToolName> = new Set<BrowserTo
   'browser_list_sessions',
 ])
 
+/**
+ * Exhaustive replay policy for browser tools. Observation-only calls may run
+ * when durable replay storage is unavailable because repeating them after a
+ * reload cannot cause a page or external side effect. Every stateful current
+ * tool and the retired takeover flow remain fail-closed.
+ */
+const OBSERVATION_ONLY_BROWSER_TOOLS = {
+  browser_navigate: false,
+  browser_open_url: false,
+  browser_go_back: false,
+  browser_go_forward: false,
+  browser_open_tab: false,
+  browser_switch_tab: false,
+  browser_close_tab: false,
+  browser_list_tabs: true,
+  browser_list_sessions: true,
+  browser_wait_for: true,
+  browser_snapshot: true,
+  browser_read_text: true,
+  browser_screenshot: true,
+  browser_extract: true,
+  browser_click: false,
+  browser_click_at: false,
+  browser_type: false,
+  browser_insert_text: false,
+  browser_press_key: false,
+  browser_scroll: false,
+  browser_select_option: false,
+  browser_hover: false,
+  browser_drag: false,
+  browser_request_takeover: false,
+} as const satisfies Readonly<Record<BrowserToolName, boolean>>
+
 const SESSION_CLOSED_MESSAGE =
   'The agent browser session is closed, so this browser tool cannot run. ' +
   'Call browser_navigate or browser_open_tab to start a new session, or report the situation to the user. ' +
@@ -59,14 +93,40 @@ const SESSION_CLOSED_MESSAGE =
 /** Tool events older than this are replays, not live instructions — never act on them. */
 const MAX_EVENT_AGE_MS = 120_000
 const EXECUTED_STORAGE_PREFIX = 'sim:copilot:browser-tool-executed:'
+const EXECUTED_LEDGER_STORAGE_KEY = 'sim:copilot:browser-tool-executed-ledger:v1'
+const EXECUTED_LEDGER_MAX_ENTRIES = 2_048
+const EXECUTED_LEDGER_TTL_MS = 5 * 60_000
 const PAGE_EXIT_COMPLETION_MAX_BYTES = 48 * 1024
+const RETAINED_COMPLETION_MAX_BYTES = 8 * 1024
+const TERMINAL_COMPLETION_MAX_ACTIVE = 4
+const TERMINAL_COMPLETION_MAX_QUEUED = 64
 const OUTCOME_UNKNOWN_MESSAGE =
   'The Sim window closed while this browser action was in flight. It may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.'
+const REPLAY_OUTCOME_UNKNOWN_MESSAGE =
+  'This browser action was recorded before the Sim page reloaded, but its terminal result could not be recovered. It may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.'
+const STALE_STATEFUL_OUTCOME_UNKNOWN_MESSAGE =
+  'This browser action was delivered too late to recover its exact result. It may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.'
+const REPLAY_GUARD_CAPACITY_MESSAGE =
+  'This browser action could not run safely because the recent-action replay guard is full. Wait a few minutes, then ask again.'
+const REPLAY_GUARD_STORAGE_MESSAGE =
+  'This browser action could not run safely because reload-safe replay protection is unavailable. Check that browser storage is enabled, then ask again.'
 
 interface PendingTerminalCompletion {
   status: AsyncConfirmationStatus
   message: string
   data?: AsyncCompletionData
+}
+
+type TerminalCompletionPriority = 'executed' | 'guard'
+
+interface RetainedTerminalCompletion {
+  completion?: PendingTerminalCompletion
+  lastSeenAt: number
+  deliveryState: 'pending' | 'queued' | 'in-flight' | 'awaiting-redelivery' | 'delivered'
+  priority: TerminalCompletionPriority
+  failureLog: string
+  onPendingChange?: (completion: PendingTerminalCompletion | null) => void
+  onRelease?: () => void
 }
 
 function compactCompletionForPageExit(
@@ -90,32 +150,319 @@ function compactCompletionForPageExit(
   }
 }
 
-/**
- * Exactly-once guard. Stream recovery and tab reloads replay persisted tool
- * events; a browser action must never run twice (re-opening tabs, re-clicking
- * buttons). In-memory set for the fast path, sessionStorage so a reload of the
- * same tab cannot re-execute what it already did.
- */
-const executedToolCallIds = new Set<string>()
+function compactCompletionForRetry(
+  toolCallId: string,
+  completion: PendingTerminalCompletion
+): PendingTerminalCompletion {
+  const serialized = JSON.stringify({ toolCallId, ...completion })
+  if (new Blob([serialized]).size <= RETAINED_COMPLETION_MAX_BYTES) return completion
 
-function hasAlreadyExecuted(toolCallId: string): boolean {
-  if (executedToolCallIds.has(toolCallId)) return true
-  if (typeof window === 'undefined') return false
+  const data = isRecordLike(completion.data) ? completion.data : {}
+  return {
+    status: completion.status,
+    message: truncate(completion.message, 1024),
+    data: {
+      ...(data.outcomeUnknown === true ? { outcomeUnknown: true } : {}),
+      ...(data.doNotRetry === true ? { doNotRetry: true } : {}),
+      ...(data.sessionClosed === true ? { sessionClosed: true } : {}),
+      resultOmittedDuringRecovery: true,
+      note: 'The browser action reached a known terminal state, but its full result was too large to retain for delivery recovery. Do not repeat a side-effecting action. Take a fresh browser snapshot to recover current page state.',
+    },
+  }
+}
+
+async function deliverTerminalCompletion(
+  toolCallId: string,
+  completion: PendingTerminalCompletion,
+  failureLog: string,
+  onPendingChange?: (completion: PendingTerminalCompletion | null) => void
+): Promise<boolean> {
+  onPendingChange?.(completion)
   try {
-    return window.sessionStorage.getItem(`${EXECUTED_STORAGE_PREFIX}${toolCallId}`) !== null
-  } catch {
+    await reportClientToolCompletion(
+      toolCallId,
+      completion.status,
+      completion.message,
+      completion.data
+    )
+    onPendingChange?.(null)
+    return true
+  } catch (error) {
+    logger.error(failureLog, {
+      toolCallId,
+      error: toError(error).message,
+    })
+  }
+
+  const compactCompletion = compactCompletionForPageExit(toolCallId, completion)
+  onPendingChange?.(compactCompletion)
+  try {
+    await reportClientToolCompletionOnPageExit(
+      toolCallId,
+      compactCompletion.status,
+      compactCompletion.message,
+      compactCompletion.data
+    )
+    onPendingChange?.(null)
+    return true
+  } catch (fallbackError) {
+    logger.error('Failed to enqueue browser completion with unload-safe fallback', {
+      toolCallId,
+      error: toError(fallbackError).message,
+    })
     return false
   }
 }
 
-function markExecuted(toolCallId: string): void {
-  executedToolCallIds.add(toolCallId)
-  if (typeof window === 'undefined') return
-  try {
-    window.sessionStorage.setItem(`${EXECUTED_STORAGE_PREFIX}${toolCallId}`, '1')
-  } catch {
-    // Best-effort; the in-memory set still covers this tab's lifetime.
+/**
+ * Exactly-once guard for stream recovery and renderer reloads. The ledger is
+ * bounded while refusing to evict anything inside the full accepted-event
+ * window, so capacity pressure fails closed instead of making an action
+ * replayable.
+ */
+const executedToolCalls = new BrowserToolReplayLedger({
+  storageKey: EXECUTED_LEDGER_STORAGE_KEY,
+  legacyStoragePrefix: EXECUTED_STORAGE_PREFIX,
+  maxEntries: EXECUTED_LEDGER_MAX_ENTRIES,
+  ttlMs: EXECUTED_LEDGER_TTL_MS,
+  protectedWindowMs: MAX_EVENT_AGE_MS,
+})
+
+const retainedTerminalCompletions = new Map<string, RetainedTerminalCompletion>()
+/** Distinguishes a same-runtime redelivery from a durable claim recovered after reload. */
+const runningBrowserToolCalls = new Set<string>()
+const terminalCompletionQueues: Record<TerminalCompletionPriority, string[]> = {
+  executed: [],
+  guard: [],
+}
+let activeTerminalCompletionDeliveries = 0
+
+function removeFromTerminalCompletionQueues(toolCallId: string): void {
+  for (const priority of ['executed', 'guard'] as const) {
+    const index = terminalCompletionQueues[priority].indexOf(toolCallId)
+    if (index >= 0) terminalCompletionQueues[priority].splice(index, 1)
   }
+}
+
+function releaseRetainedTerminalCompletion(entry: RetainedTerminalCompletion): void {
+  entry.completion = undefined
+  entry.onPendingChange?.(null)
+  entry.onPendingChange = undefined
+  entry.onRelease?.()
+  entry.onRelease = undefined
+}
+
+function deleteRetainedTerminalCompletion(
+  toolCallId: string,
+  entry: RetainedTerminalCompletion
+): void {
+  removeFromTerminalCompletionQueues(toolCallId)
+  releaseRetainedTerminalCompletion(entry)
+  retainedTerminalCompletions.delete(toolCallId)
+}
+
+function pruneRetainedTerminalCompletions(now: number): void {
+  for (const [toolCallId, entry] of retainedTerminalCompletions) {
+    if (entry.deliveryState === 'in-flight') continue
+    if (now - entry.lastSeenAt <= EXECUTED_LEDGER_TTL_MS) continue
+    if (entry.priority === 'executed' && entry.deliveryState !== 'delivered') continue
+    deleteRetainedTerminalCompletion(toolCallId, entry)
+  }
+}
+
+function retryRetainedTerminalCompletion(toolCallId: string): boolean {
+  const entry = retainedTerminalCompletions.get(toolCallId)
+  if (!entry) return false
+  const now = Date.now()
+  if (entry.deliveryState === 'in-flight') {
+    entry.lastSeenAt = now
+    retainedTerminalCompletions.delete(toolCallId)
+    retainedTerminalCompletions.set(toolCallId, entry)
+    return true
+  }
+  const preserveUndeliveredResult =
+    entry.priority === 'executed' && entry.deliveryState !== 'delivered'
+  if (now - entry.lastSeenAt > EXECUTED_LEDGER_TTL_MS && !preserveUndeliveredResult) {
+    deleteRetainedTerminalCompletion(toolCallId, entry)
+    return false
+  }
+  entry.lastSeenAt = now
+  retainedTerminalCompletions.delete(toolCallId)
+  retainedTerminalCompletions.set(toolCallId, entry)
+  if (entry.deliveryState === 'awaiting-redelivery') entry.deliveryState = 'pending'
+  scheduleTerminalCompletion(toolCallId)
+  return true
+}
+
+function terminalCompletionQueueSize(): number {
+  return terminalCompletionQueues.executed.length + terminalCompletionQueues.guard.length
+}
+
+function enqueueTerminalCompletion(toolCallId: string, entry: RetainedTerminalCompletion): boolean {
+  if (entry.deliveryState !== 'pending') return false
+  if (terminalCompletionQueueSize() >= TERMINAL_COMPLETION_MAX_QUEUED) {
+    if (entry.priority !== 'executed') return false
+    const displacedToolCallId = terminalCompletionQueues.guard.shift()
+    if (!displacedToolCallId) return false
+    const displacedEntry = retainedTerminalCompletions.get(displacedToolCallId)
+    if (displacedEntry?.deliveryState === 'queued') displacedEntry.deliveryState = 'pending'
+  }
+  terminalCompletionQueues[entry.priority].push(toolCallId)
+  entry.deliveryState = 'queued'
+  return true
+}
+
+function refillTerminalCompletionQueues(): void {
+  for (const priority of ['executed', 'guard'] as const) {
+    for (const [toolCallId, entry] of retainedTerminalCompletions) {
+      if (entry.priority === priority && entry.deliveryState === 'pending') {
+        const enqueued = enqueueTerminalCompletion(toolCallId, entry)
+        if (!enqueued && priority === 'guard') return
+      }
+    }
+  }
+}
+
+function startTerminalCompletionDelivery(
+  toolCallId: string,
+  entry: RetainedTerminalCompletion,
+  completion: PendingTerminalCompletion
+): void {
+  entry.deliveryState = 'in-flight'
+  activeTerminalCompletionDeliveries += 1
+  entry.onPendingChange?.(completion)
+  void deliverTerminalCompletion(toolCallId, completion, entry.failureLog, (pending) =>
+    entry.onPendingChange?.(pending)
+  )
+    .then((delivered) => {
+      if (retainedTerminalCompletions.get(toolCallId) === entry) {
+        if (delivered) {
+          entry.deliveryState = 'delivered'
+          releaseRetainedTerminalCompletion(entry)
+        } else {
+          entry.deliveryState = 'awaiting-redelivery'
+          entry.onPendingChange?.(entry.completion ?? null)
+        }
+      }
+    })
+    .catch((error) => {
+      logger.error('Unexpected browser terminal-completion delivery failure', {
+        toolCallId,
+        error: toError(error).message,
+      })
+      if (retainedTerminalCompletions.get(toolCallId) === entry) {
+        entry.deliveryState = 'awaiting-redelivery'
+        entry.onPendingChange?.(entry.completion ?? null)
+      }
+    })
+    .finally(() => {
+      activeTerminalCompletionDeliveries -= 1
+      drainTerminalCompletionQueue()
+    })
+}
+
+function drainTerminalCompletionQueue(): void {
+  refillTerminalCompletionQueues()
+  while (activeTerminalCompletionDeliveries < TERMINAL_COMPLETION_MAX_ACTIVE) {
+    const toolCallId =
+      terminalCompletionQueues.executed.shift() ?? terminalCompletionQueues.guard.shift()
+    if (!toolCallId) return
+    const entry = retainedTerminalCompletions.get(toolCallId)
+    if (!entry || entry.deliveryState !== 'queued' || !entry.completion) continue
+    startTerminalCompletionDelivery(toolCallId, entry, entry.completion)
+  }
+}
+
+function hasPendingExecutedTerminalCompletion(): boolean {
+  if (terminalCompletionQueues.executed.length > 0) return true
+  for (const entry of retainedTerminalCompletions.values()) {
+    if (entry.priority === 'executed' && entry.deliveryState === 'pending') return true
+  }
+  return false
+}
+
+function scheduleTerminalCompletion(
+  toolCallId: string,
+  initialCompletion?: PendingTerminalCompletion
+): void {
+  const entry = retainedTerminalCompletions.get(toolCallId)
+  if (!entry || entry.deliveryState !== 'pending' || !entry.completion) return
+
+  const hasExecutedAhead = hasPendingExecutedTerminalCompletion()
+  if (
+    activeTerminalCompletionDeliveries < TERMINAL_COMPLETION_MAX_ACTIVE &&
+    (entry.priority === 'executed' || !hasExecutedAhead)
+  ) {
+    startTerminalCompletionDelivery(toolCallId, entry, initialCompletion ?? entry.completion)
+    return
+  }
+
+  enqueueTerminalCompletion(toolCallId, entry)
+  drainTerminalCompletionQueue()
+}
+
+/** Never sacrifices an undelivered result from a browser action to admit overflow work. */
+function selectRetainedCompletionForEviction(): [string, RetainedTerminalCompletion] | undefined {
+  for (const candidate of retainedTerminalCompletions) {
+    if (candidate[1].deliveryState === 'delivered') return candidate
+  }
+  for (const candidate of retainedTerminalCompletions) {
+    if (candidate[1].priority === 'guard' && candidate[1].deliveryState !== 'in-flight') {
+      return candidate
+    }
+  }
+  return undefined
+}
+
+function retainTerminalCompletion(
+  toolCallId: string,
+  completion: PendingTerminalCompletion,
+  priority: TerminalCompletionPriority,
+  failureLog: string,
+  onPendingChange?: (completion: PendingTerminalCompletion | null) => void,
+  onRelease?: () => void
+): RetainedTerminalCompletion | null {
+  const now = Date.now()
+  pruneRetainedTerminalCompletions(now)
+  const existingEntry = retainedTerminalCompletions.get(toolCallId)
+  if (existingEntry) {
+    deleteRetainedTerminalCompletion(toolCallId, existingEntry)
+  }
+  if (retainedTerminalCompletions.size >= EXECUTED_LEDGER_MAX_ENTRIES) {
+    const candidate = selectRetainedCompletionForEviction()
+    if (!candidate) {
+      logger.error('Browser terminal-completion retention is full', {
+        toolCallId,
+        priority,
+      })
+      onPendingChange?.(null)
+      onRelease?.()
+      return null
+    }
+    deleteRetainedTerminalCompletion(candidate[0], candidate[1])
+  }
+  const entry: RetainedTerminalCompletion = {
+    completion: compactCompletionForRetry(toolCallId, completion),
+    lastSeenAt: now,
+    deliveryState: 'pending',
+    priority,
+    failureLog,
+    onPendingChange,
+    onRelease,
+  }
+  retainedTerminalCompletions.set(toolCallId, entry)
+  onPendingChange?.(entry.completion ?? null)
+  return entry
+}
+
+function retainAndReportTerminalCompletion(
+  toolCallId: string,
+  completion: PendingTerminalCompletion,
+  failureLog: string
+): void {
+  const retained = retainTerminalCompletion(toolCallId, completion, 'guard', failureLog)
+  if (!retained) return
+  scheduleTerminalCompletion(toolCallId, completion)
 }
 
 /** Milliseconds since the event was emitted, or null when unparsable. */
@@ -141,9 +488,10 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
     toolName === 'browser_open_url' ||
     toolName === 'browser_go_back' ||
     toolName === 'browser_go_forward' ||
-    toolName === 'browser_open_tab'
+    toolName === 'browser_open_tab' ||
+    toolName === 'browser_switch_tab'
   ) {
-    return NAVIGATION_TOOL_TIMEOUT_MS
+    return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
   }
   if (toolName === 'browser_wait_for') {
     const requested = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
@@ -219,57 +567,133 @@ export function executeBrowserToolOnClient(
   eventTs?: string,
   abortSignal?: AbortSignal
 ): void {
+  if (retryRetainedTerminalCompletion(toolCallId)) {
+    logger.info('Suppressing browser tool while recovering its terminal completion', {
+      toolCallId,
+      toolName,
+    })
+    return
+  }
   if (!scopeId) {
     logger.error('Cannot execute browser tool without a chat scope', { toolCallId, toolName })
     // Tell the waiter, or the turn hangs forever on a tool that never ran.
     const message = 'This browser action could not run: no active browser session for this chat.'
-    void reportClientToolCompletion(toolCallId, ASYNC_TOOL_CONFIRMATION_STATUS.error, message, {
-      error: message,
-    }).catch((reportErr) => {
-      logger.error('Failed to report missing-scope browser tool error', {
-        toolCallId,
-        error: toError(reportErr).message,
-      })
-    })
+    retainAndReportTerminalCompletion(
+      toolCallId,
+      {
+        status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+        message,
+        data: { error: message },
+      },
+      'Failed to report missing-scope browser tool error'
+    )
     return
   }
-  if (hasAlreadyExecuted(toolCallId)) {
-    // Same-page re-delivery: the original dispatch is in flight (or done) and
-    // owns the result. Reporting here would race it — the server claims each
-    // resume exactly once, so an error now would discard the genuine result.
-    logger.info('Skipping already-executed browser tool (replay)', { toolCallId, toolName })
+  const replayClaim = executedToolCalls.claim(toolCallId)
+  if (replayClaim === 'duplicate') {
+    if (runningBrowserToolCalls.has(toolCallId)) {
+      logger.info('Skipping in-flight browser tool replay', { toolCallId, toolName })
+      return
+    }
+    logger.warn('Recovering browser tool replay without a local result owner', {
+      toolCallId,
+      toolName,
+    })
+    retainAndReportTerminalCompletion(
+      toolCallId,
+      {
+        status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+        message: REPLAY_OUTCOME_UNKNOWN_MESSAGE,
+        data: {
+          error: REPLAY_OUTCOME_UNKNOWN_MESSAGE,
+          outcomeUnknown: true,
+          doNotRetry: true,
+          replayRecoveredWithoutResult: true,
+        },
+      },
+      'Failed to report browser replay with an unknown outcome'
+    )
     return
   }
   const age = eventAgeMs(eventTs)
   if (age !== null && age > MAX_EVENT_AGE_MS) {
     logger.info('Skipping stale browser tool event', { toolCallId, toolName, age })
-    // Usually a replay of an action that already ran and resumed in a previous
-    // page lifetime — the server claims each resume exactly once, so this
-    // duplicate confirmation is simply discarded. When it is NOT a replay
-    // (the event was delivered late, e.g. a backgrounded tab with throttled
-    // timers), this error unblocks the turn instead of leaving it hanging
-    // forever on a tool that will never execute.
-    const message =
-      'This browser action was delivered too late to run safely. Ask again to retry it.'
-    void reportClientToolCompletion(toolCallId, ASYNC_TOOL_CONFIRMATION_STATUS.error, message, {
-      error: message,
-      staleEvent: true,
-    }).catch((reportErr) => {
-      logger.error('Failed to report stale browser tool error', {
-        toolCallId,
-        error: toError(reportErr).message,
-      })
-    })
+    const observationOnly = OBSERVATION_ONLY_BROWSER_TOOLS[toolName]
+    const message = observationOnly
+      ? 'This browser observation was delivered too late to run safely. Ask again to retry it.'
+      : STALE_STATEFUL_OUTCOME_UNKNOWN_MESSAGE
+    retainAndReportTerminalCompletion(
+      toolCallId,
+      {
+        status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+        message,
+        data: {
+          error: message,
+          staleEvent: true,
+          ...(!observationOnly ? { outcomeUnknown: true, doNotRetry: true } : {}),
+        },
+      },
+      'Failed to report stale browser tool error'
+    )
     return
   }
-  markExecuted(toolCallId)
-  void doExecuteBrowserTool(toolCallId, toolName, params, scopeId, abortSignal).catch((err) => {
-    logger.error('Unhandled error in client-side browser tool execution', {
+  if (replayClaim === 'capacity-exhausted') {
+    logger.error('Rejecting browser tool because the replay guard is full', {
       toolCallId,
       toolName,
-      error: toError(err).message,
     })
-  })
+    retainAndReportTerminalCompletion(
+      toolCallId,
+      {
+        status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+        message: REPLAY_GUARD_CAPACITY_MESSAGE,
+        data: {
+          error: REPLAY_GUARD_CAPACITY_MESSAGE,
+          replayGuardCapacityExceeded: true,
+        },
+      },
+      'Failed to report replay-guard capacity error'
+    )
+    return
+  }
+  if (replayClaim === 'storage-unavailable') {
+    if (OBSERVATION_ONLY_BROWSER_TOOLS[toolName]) {
+      logger.warn('Executing observation-only browser tool without durable replay protection', {
+        toolCallId,
+        toolName,
+      })
+    } else {
+      logger.error('Rejecting browser tool because durable replay protection is unavailable', {
+        toolCallId,
+        toolName,
+      })
+      retainAndReportTerminalCompletion(
+        toolCallId,
+        {
+          status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+          message: REPLAY_GUARD_STORAGE_MESSAGE,
+          data: {
+            error: REPLAY_GUARD_STORAGE_MESSAGE,
+            replayGuardStorageUnavailable: true,
+          },
+        },
+        'Failed to report replay-guard storage error'
+      )
+      return
+    }
+  }
+  runningBrowserToolCalls.add(toolCallId)
+  void doExecuteBrowserTool(toolCallId, toolName, params, scopeId, abortSignal)
+    .catch((err) => {
+      logger.error('Unhandled error in client-side browser tool execution', {
+        toolCallId,
+        toolName,
+        error: toError(err).message,
+      })
+    })
+    .finally(() => {
+      runningBrowserToolCalls.delete(toolCallId)
+    })
 }
 
 /** True when the desktop app has reported the agent browser session closed. */
@@ -288,41 +712,29 @@ async function doExecuteBrowserTool(
   let nativeActionPending = true
   let nativeDispatchStarted = false
   let pendingTerminalCompletion: PendingTerminalCompletion | null = null
-  const reportTerminalCompletion = async (
+  const reportTerminalCompletion = (
     completion: PendingTerminalCompletion,
-    failureLog: string
-  ): Promise<void> => {
-    pendingTerminalCompletion = completion
-    try {
-      await reportClientToolCompletion(
-        toolCallId,
-        completion.status,
-        completion.message,
-        completion.data
-      )
-      pendingTerminalCompletion = null
-    } catch (error) {
-      logger.error(failureLog, {
-        toolCallId,
-        error: toError(error).message,
-      })
-      const compactCompletion = compactCompletionForPageExit(toolCallId, completion)
-      pendingTerminalCompletion = compactCompletion
-      try {
-        await reportClientToolCompletionOnPageExit(
-          toolCallId,
-          compactCompletion.status,
-          compactCompletion.message,
-          compactCompletion.data
-        )
+    failureLog: string,
+    priority: TerminalCompletionPriority = 'executed'
+  ): void => {
+    const retainedCompletion = retainTerminalCompletion(
+      toolCallId,
+      completion,
+      priority,
+      failureLog,
+      (pending) => {
+        pendingTerminalCompletion = pending
+      },
+      () => {
         pendingTerminalCompletion = null
-      } catch (fallbackError) {
-        logger.error('Failed to enqueue browser completion with unload-safe fallback', {
-          toolCallId,
-          error: toError(fallbackError).message,
-        })
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('pagehide', onPageHide)
+        }
       }
-    }
+    )
+    if (!retainedCompletion) return
+    pendingTerminalCompletion = retainedCompletion.completion ?? null
+    scheduleTerminalCompletion(toolCallId, completion)
   }
   const cancelNativeTool = async () => {
     cancelled = true
@@ -441,13 +853,14 @@ async function doExecuteBrowserTool(
         toolName,
       })
       if (cancelled) return
-      await reportTerminalCompletion(
+      reportTerminalCompletion(
         {
           status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
           message: SESSION_CLOSED_MESSAGE,
           data: { error: SESSION_CLOSED_MESSAGE, sessionClosed: true },
         },
-        'Failed to report browser session-closed error'
+        'Failed to report browser session-closed error',
+        'guard'
       )
       return
     }
@@ -478,7 +891,7 @@ async function doExecuteBrowserTool(
         ? `${toError(err).message} ${SESSION_CLOSED_MESSAGE}`
         : toError(err).message
       logger.warn('Browser tool failed', { toolCallId, toolName, error: message, sessionClosed })
-      await reportTerminalCompletion(
+      reportTerminalCompletion(
         {
           status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
           message,
@@ -494,7 +907,7 @@ async function doExecuteBrowserTool(
     }
     nativeActionPending = false
     if (cancelled) return
-    await reportTerminalCompletion(
+    reportTerminalCompletion(
       {
         status: ASYNC_TOOL_CONFIRMATION_STATUS.success,
         message: 'Browser action completed',
