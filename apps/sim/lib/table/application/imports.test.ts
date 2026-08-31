@@ -509,5 +509,66 @@ describe('table import application use cases', () => {
         })
       ).resolves.toEqual({ import: { record, upload: null } })
     })
+
+    /**
+     * Creation and completion are separate requests, so a group that withholds
+     * creation between them has to be read again at completion — otherwise the
+     * upload started while it was allowed still lands a table.
+     */
+    it('refuses to complete an upload that would create a table, and never starts the import', async () => {
+      await expect(
+        completeTableImportUseCase.execute({
+          principal: reader,
+          input: {
+            importId: 'import-1',
+            workspaceId: 'workspace-1',
+            uploadToken: 'signed-token',
+          },
+        })
+      ).rejects.toMatchObject({ capability: 'tables.create' })
+
+      expect(mocks.startUploadedImport).not.toHaveBeenCalled()
+    })
+
+    it('still completes an upload targeting an existing table', async () => {
+      mocks.tableImportBodyFromUpload.mockReturnValue({
+        workspaceId: 'workspace-1',
+        source: record.source,
+        target: { type: 'existing', tableId: 'table-1' },
+      })
+
+      await expect(
+        completeTableImportUseCase.execute({
+          principal: reader,
+          input: {
+            importId: 'import-1',
+            workspaceId: 'workspace-1',
+            uploadToken: 'signed-token',
+          },
+        })
+      ).resolves.toEqual({ import: { ...record, status: 'ready' } })
+
+      expect(mocks.startUploadedImport).toHaveBeenCalledTimes(1)
+    })
+
+    /**
+     * A workspace API key has no acting person, so there is no group to read —
+     * the same exemption `createTableImportUseCase` makes, and the reason the
+     * re-check must not become a blanket refusal on the completion leg.
+     */
+    it('still completes an upload driven by a workspace key, which has no subject', async () => {
+      await expect(
+        completeTableImportUseCase.execute({
+          principal: workspaceKey,
+          input: {
+            importId: 'import-1',
+            workspaceId: 'workspace-1',
+            uploadToken: 'signed-token',
+          },
+        })
+      ).resolves.toEqual({ import: { ...record, status: 'ready' } })
+
+      expect(mocks.startUploadedImport).toHaveBeenCalledTimes(1)
+    })
   })
 })

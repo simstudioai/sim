@@ -73,9 +73,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // permission-group-enforced: tables.use — raw route that queries directly and predates the operation boundary
-    if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'tables.use')) {
-      return capabilityRefusalResponse('tables.use')
+    /**
+     * permission-group-enforced: tables.create — raw route that queries directly
+     * and predates the operation boundary. An import always ends in a new table,
+     * so it is creation, not ordinary use. `tables.create` subsumes `tables.use`:
+     * its rule is denied by `disableTableCreation` OR `hideTablesTab`, so gating
+     * on it still refuses a group that hides Tables entirely.
+     */
+    if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'tables.create')) {
+      return capabilityRefusalResponse('tables.create')
     }
 
     let folderId: string | null = null

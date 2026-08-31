@@ -406,14 +406,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * application operation to declare the capability on, so it is asserted
      * here.
      *
-     * Creation only. An already-created webhook must keep firing: inbound
-     * delivery runs with no session to resolve a group against, and refusing
-     * there would silently break live integrations the moment an admin ticked
-     * the box, with the failure surfacing at the provider rather than in Sim.
-     * Withholding the capability stops new exposure; removing existing exposure
-     * is a deliberate act of deleting the webhook.
+     * Creation and reactivation, because both end with a workflow newly
+     * reachable from an inbound webhook: this upsert always writes
+     * `isActive: true`, so re-saving a dormant webhook turns it back on exactly
+     * as `PATCH /api/webhooks/[id]` would, and that route already gates the same
+     * transition.
+     *
+     * Re-saving an already-active webhook is not gated. It changes the config of
+     * an endpoint that is already reachable and adds no exposure, and refusing
+     * it would strand a member unable to repair a live integration — the same
+     * reason inbound delivery is never gated. Inbound delivery runs with no
+     * session to resolve a group against, and refusing there would break live
+     * integrations at the provider rather than in Sim. Removing existing
+     * exposure stays a deliberate act of deleting or deactivating the webhook.
      */
-    if (!existingWebhook) {
+    if (!existingWebhook || existingWebhook.isActive === false) {
       const withheld = workflowRecord.workspaceId
         ? await isWorkspaceCapabilityWithheld(
             userId,
@@ -422,10 +429,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         : false
       if (withheld) {
-        logger.warn(`[${requestId}] Webhook creation blocked by permission group`, {
-          userId,
-          workflowId,
-        })
+        logger.warn(
+          `[${requestId}] Webhook ${existingWebhook ? 'reactivation' : 'creation'} blocked by permission group`,
+          {
+            userId,
+            workflowId,
+          }
+        )
         return NextResponse.json({ error: capabilityRefusal('triggers.webhook') }, { status: 403 })
       }
     }

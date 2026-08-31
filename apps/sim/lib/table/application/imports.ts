@@ -291,6 +291,21 @@ export const completeTableImportUseCase = defineAuthorizedTableUseCase({
         await authorizeWorkspaceOperation(principal, tableOperations.completeImport, context, {
           delegation: tableDelegationPolicy,
         })
+        /**
+         * permission-group-enforced: tables.create — the same assertion
+         * `createTableImportUseCase` makes, repeated here because the two are
+         * separate requests: an upload started before the group withheld
+         * creation would otherwise still land a table when it completed. Read
+         * from the claimed session so the target is the one the upload was
+         * created for, and asserted for the acting person only — an actorless
+         * deployment run has no group, like everywhere else.
+         */
+        if (tableImportBodyFromUpload(claimed).target.type === 'new') {
+          const actingUserId = resolvePrincipalSubjectUserId(principal)
+          if (actingUserId) {
+            await assertWorkspaceCapability(actingUserId, context.workspaceId, 'tables.create')
+          }
+        }
         return { value: null }
       },
     })

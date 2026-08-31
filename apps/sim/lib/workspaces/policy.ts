@@ -14,7 +14,10 @@ import { getPlanType, isEnterprise, isMaxTier, isPro, isTeam } from '@/lib/billi
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
-import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import {
+  capabilityRefusal,
+  isOrganizationCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   UPGRADE_TO_INVITE_REASON,
@@ -97,9 +100,24 @@ export interface WorkspaceCreationPolicy {
 }
 
 export class WorkspaceCreationContextChangedError extends Error {
-  constructor() {
-    super('Workspace creation context changed before the workspace was inserted')
+  constructor(message = 'Workspace creation context changed before the workspace was inserted') {
+    super(message)
     this.name = 'WorkspaceCreationContextChangedError'
+  }
+}
+
+/**
+ * The permission-group case of {@link WorkspaceCreationContextChangedError}.
+ *
+ * A subclass rather than a sibling so every caller that already treats a changed
+ * context as retryable keeps working unchanged, while a surface that wants to
+ * say *why* — the create route answers 403 with the capability refusal instead
+ * of 409 "membership changed" — can narrow to it.
+ */
+export class WorkspaceCreationCapabilityWithheldError extends WorkspaceCreationContextChangedError {
+  constructor() {
+    super(capabilityRefusal('workspace.create'))
+    this.name = 'WorkspaceCreationCapabilityWithheldError'
   }
 }
 
@@ -131,6 +149,24 @@ export async function lockWorkspaceCreationContext(
     (organizationId !== null && currentMembership?.organizationId !== organizationId)
   ) {
     throw new WorkspaceCreationContextChangedError()
+  }
+
+  /**
+   * permission-group-enforced: workspace.create — re-read under the lock because
+   * the preflight in `getWorkspaceCreationPolicy` and the insert are separate
+   * requests: a group that withheld creation in between would otherwise still
+   * let the in-flight create land, and a new workspace carries no
+   * `permissionGroupWorkspace` row to bring it back under the regime afterwards.
+   * Governed by the same organization the preflight used — the explicit one, or
+   * the caller's membership when the workspace would be personal — so a personal
+   * workspace stays as governed here as it is there.
+   */
+  const governingOrganizationId = organizationId ?? currentMembership?.organizationId ?? null
+  if (
+    governingOrganizationId &&
+    (await isOrganizationCapabilityWithheld(governingOrganizationId, 'workspace.create'))
+  ) {
+    throw new WorkspaceCreationCapabilityWithheldError()
   }
 
   if (!organizationId) return { billedAccountUserId: userId }

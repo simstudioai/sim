@@ -372,7 +372,7 @@ describe('POST /api/webhooks triggers.webhook gate', () => {
     mocks.findConflictingWebhookPathOwner.mockResolvedValue(null)
     mocks.resolveEnvVarsInObject.mockImplementation(async (config) => config)
     mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(false)
-    mocks.getProviderHandler.mockReturnValue(undefined)
+    mocks.getProviderHandler.mockReturnValue({})
     mocks.createExternalWebhookSubscription.mockResolvedValue({
       updatedProviderConfig: {},
       externalSubscriptionCreated: false,
@@ -419,5 +419,72 @@ describe('POST /api/webhooks triggers.webhook gate', () => {
 
     expect(response.status).not.toBe(403)
     expect(mocks.createExternalWebhookSubscription).toHaveBeenCalledTimes(1)
+  })
+
+  /** The reads the update path makes: the path claim, then the existing row. */
+  function queueUpdatePathRows(isActive: boolean): void {
+    queueTableRows(workflow, [{ id: 'workflow-1', userId: 'actor-1', workspaceId: 'workspace-1' }])
+    queueTableRows(webhook, [{ id: 'webhook-1' }])
+    queueTableRows(webhook, [
+      {
+        id: 'webhook-1',
+        workflowId: 'workflow-1',
+        blockId: 'block-1',
+        path: 'inbound-orders',
+        provider: 'generic',
+        providerConfig: {},
+        isActive,
+      },
+    ])
+    dbChainMockFns.returning.mockImplementationOnce(async () => [
+      { id: 'webhook-1', workflowId: 'workflow-1', path: 'inbound-orders', isActive: true },
+    ])
+  }
+
+  /**
+   * The upsert always writes `isActive: true`, so re-saving a dormant webhook is
+   * the same transition `PATCH /api/webhooks/[id]` gates — a workflow becoming
+   * reachable again — and has to be refused on the same terms.
+   */
+  it('refuses to reactivate a dormant webhook when the group withholds webhook triggers', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableWebhookTriggers: true,
+    })
+    queueUpdatePathRows(false)
+
+    const response = await POST(upsertRequest())
+
+    expect(response.status).toBe(403)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  /**
+   * An already-active webhook is already reachable, so re-saving its config adds
+   * no exposure. Refusing it would strand a member unable to repair a live
+   * integration — the same reason inbound delivery is never gated.
+   */
+  it('still lets an already-active webhook be reconfigured under the same group', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableWebhookTriggers: true,
+    })
+    queueUpdatePathRows(true)
+
+    const response = await POST(upsertRequest())
+
+    expect(response.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ isActive: true, provider: 'generic' })
+    )
+  })
+
+  it('reactivates a dormant webhook when no group withholds the capability', async () => {
+    queueUpdatePathRows(false)
+
+    const response = await POST(upsertRequest())
+
+    expect(response.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ isActive: true }))
   })
 })

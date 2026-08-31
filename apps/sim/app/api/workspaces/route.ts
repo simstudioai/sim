@@ -15,6 +15,7 @@ import { createWorkspace } from '@/lib/workspaces/create'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import {
   getWorkspaceCreationPolicy,
+  WorkspaceCreationCapabilityWithheldError,
   WorkspaceCreationContextChangedError,
 } from '@/lib/workspaces/policy'
 
@@ -181,6 +182,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {
+    if (error instanceof WorkspaceCreationCapabilityWithheldError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     if (error instanceof WorkspaceCreationContextChangedError) {
       return NextResponse.json(
         {
