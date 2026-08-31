@@ -1000,6 +1000,25 @@ describe('VariableResolver function block inputs', () => {
     expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_2"]) + '')`)
   })
 
+  it('starts a new identifier at a line break rather than continuing the last one', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      {
+        // `if` begins a statement here; reading the previous *significant* character would
+        // see the `b` of `params.b` and carry its property-access answer into this token.
+        code: ['const seen = params.a.b', `if (seen) /['"]/.test('<producer.result>')`].join('\n'),
+      },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toContain(
+      `.test('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`
+    )
+  })
+
   it('divides after a postfix update rather than opening a regex', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
 

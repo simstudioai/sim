@@ -1479,10 +1479,10 @@ export class VariableResolver {
           lastSignificantIndex = i
         }
         if (this.isJavaScriptIdentifierChar(char)) {
-          if (
-            previousSignificantIndex < 0 ||
-            !this.isJavaScriptIdentifierChar(template[previousSignificantIndex])
-          ) {
+          // An identifier continues only when the character right before it is part of the same
+          // token. Asking the previous *significant* character instead treats a name after a
+          // line break as a continuation and leaves it carrying the last one's answer.
+          if (i === 0 || !this.isJavaScriptIdentifierChar(template[i - 1])) {
             identifierFollowsPropertyAccess = template[previousSignificantIndex] === '.'
           }
         } else if (char === '(') {
@@ -1561,10 +1561,10 @@ export class VariableResolver {
         lastSignificantIndex = i
       }
       if (this.isJavaScriptIdentifierChar(char)) {
-        if (
-          previousSignificantIndex < 0 ||
-          !this.isJavaScriptIdentifierChar(template[previousSignificantIndex])
-        ) {
+        // An identifier continues only when the character right before it is part of the same
+        // token. Asking the previous *significant* character instead treats a name after a
+        // line break as a continuation and leaves it carrying the last one's answer.
+        if (i === 0 || !this.isJavaScriptIdentifierChar(template[i - 1])) {
           identifierFollowsPropertyAccess = template[previousSignificantIndex] === '.'
         }
       } else if (char === '(') {
