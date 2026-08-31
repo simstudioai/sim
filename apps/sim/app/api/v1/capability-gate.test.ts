@@ -12,6 +12,10 @@
  * the rate bucket, the workspace role and the governing group config are
  * mocked — so they fail if the capability a route declares is dropped, is
  * checked before the role check, or starts applying to a workspace API key.
+ *
+ * Scope: capability GATES only. `logs.cost` and `logs.trace_spans` are
+ * projections rather than gates — a route declaring `'none'` withholds fields
+ * instead of refusing — and are pinned in `app/api/v1/logs/projection.test.ts`.
  */
 import {
   permissionGroupScopeMock,
@@ -291,58 +295,6 @@ describe('v1 permission-group capability gate', () => {
 
       expect(response.status).toBe(200)
       expect(mockListTables).toHaveBeenCalledWith(WORKSPACE_ID)
-    })
-  })
-
-  /**
-   * `logs.cost` and `logs.trace_spans` are projections rather than gates: the
-   * route declares `'none'` and withholds fields instead. The substitution shows
-   * up here as silently blanked data rather than a 403 — a shared workspace key
-   * would report `cost: null` on every run because one bystander's group hides
-   * spend.
-   */
-  describe('log field projection follows the caller, not the key creator', () => {
-    const LOG_ROW = {
-      id: 'log-1',
-      workflowId: 'wf-1',
-      workspaceId: WORKSPACE_ID,
-      executionId: 'exec-1',
-      deploymentVersionId: null,
-      level: 'info',
-      trigger: 'api',
-      startedAt: new Date('2026-01-01T00:00:00.000Z'),
-      endedAt: new Date('2026-01-01T00:00:01.000Z'),
-      totalDurationMs: 1000,
-      costTotal: '1.25',
-      files: null,
-      executionData: null,
-      workflowName: 'wf',
-      workflowDescription: null,
-    }
-
-    beforeEach(() => {
-      mockListPublicWorkflowLogs.mockResolvedValue({ data: [LOG_ROW], nextCursor: null })
-    })
-
-    it('withholds cost from a personal key whose group hides spend', async () => {
-      governedBy({ hideCostInfo: true })
-
-      const response = await getLogs(get(`/api/v1/logs?workspaceId=${WORKSPACE_ID}`))
-      const body = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(body.data[0].cost).toBeNull()
-    })
-
-    it('still reports cost to a workspace key whose creator is in that group', async () => {
-      mockAuthenticateV1Request.mockResolvedValue(workspaceKey())
-      governedBy({ hideCostInfo: true })
-
-      const response = await getLogs(get(`/api/v1/logs?workspaceId=${WORKSPACE_ID}`))
-      const body = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(body.data[0].cost).toEqual({ total: 1.25 })
     })
   })
 

@@ -9,8 +9,8 @@ import {
   dbChainMock,
   dbChainMockFns,
   permissionGroupScopeMock,
-  permissionGroupScopeMockFns,
   resetDbChainMock,
+  resetPermissionGroupScopeMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,10 +46,10 @@ import { GET } from '@/app/api/auth/oauth/connections/route'
 
 describe('OAuth Connections API Route', () => {
   beforeEach(() => {
-    mockGetUserOrganization.mockResolvedValue(null)
-    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(null)
     vi.clearAllMocks()
     resetDbChainMock()
+    resetPermissionGroupScopeMock()
+    mockGetUserOrganization.mockResolvedValue(null)
 
     mockParseProvider.mockImplementation((providerId: string) => ({
       baseProvider: providerId.split('-')[0] || providerId,

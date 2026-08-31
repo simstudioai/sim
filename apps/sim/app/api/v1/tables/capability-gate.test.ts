@@ -134,7 +134,7 @@ beforeEach(() => {
   mockGetTableById.mockResolvedValue(TABLE)
 })
 
-describe('tables.use on /api/v1/tables/[tableId]', () => {
+describe('tables.use gate on /api/v1/tables/[tableId]', () => {
   it('lets a workspace API key through even when its CREATOR is denied Tables', async () => {
     mockAuthenticateV1Request.mockResolvedValue(workspaceKey())
     governedBy({ hideTablesTab: true })
