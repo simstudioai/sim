@@ -75,7 +75,7 @@
               "expression": "user_id",
               "isExpression": false,
               "asc": true,
-              "nulls": "first"
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -19018,7 +19018,7 @@
               "expression": "last_dispatched_at",
               "isExpression": false,
               "asc": true,
-              "nulls": "last"
+              "nulls": "first"
             },
             {
               "expression": "enqueued_at",
