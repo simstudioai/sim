@@ -484,6 +484,35 @@ function resolveFileWriteSecretProvenance(options: {
   return { success: true, contentProvenance: content }
 }
 
+/**
+ * Resolves the file an overwriting write should replace, or null when nothing exists at the
+ * target path. The shared reference resolver falls back to a workspace-wide name match, so the
+ * result is accepted only when it sits at exactly the folder and leaf name being written.
+ */
+async function resolveWriteOverwriteTarget(options: {
+  principal: Principal
+  workspaceId: string
+  folderId: string | null
+  folderSegments: string[]
+  leafName: string
+}) {
+  const { principal, workspaceId, folderId, folderSegments, leafName } = options
+  let existing: Awaited<ReturnType<typeof resolveWorkspaceFileReference>>
+  try {
+    existing = await resolveWorkspaceFileReference({
+      principal,
+      operation: fileOperations.updateContent,
+      workspaceId,
+      reference: [...folderSegments, leafName].join('/'),
+    })
+  } catch (error) {
+    if (error instanceof OrchestrationError && error.code === 'not_found') return null
+    throw error
+  }
+  if ((existing.folderId ?? null) !== folderId || existing.name !== leafName) return null
+  return existing
+}
+
 async function deriveWorkspaceFileSecretProvenance(options: {
   principal: Principal
   workspaceId: string
@@ -787,7 +816,7 @@ export async function executeFileManageOperation(
       }
 
       case 'write': {
-        const { fileName, content, fileInput, contentType } = body
+        const { fileName, content, fileInput, contentType, overwrite } = body
         signal?.throwIfAborted()
         const provenanceResolution = resolveFileWriteSecretProvenance({
           headers,
@@ -886,6 +915,56 @@ export async function executeFileManageOperation(
           input: { workspaceId, pathSegments: folderSegments },
         })
         const mimeType = sourceContentType || getMimeTypeFromExtension(getFileExtension(leafName))
+
+        if (overwrite) {
+          const existing = await resolveWriteOverwriteTarget({
+            principal,
+            workspaceId,
+            folderId: folderId ?? null,
+            folderSegments,
+            leafName,
+          })
+          if (existing) {
+            // Writing into a file someone else owns must not hand its owner an
+            // exact, re-resolvable secret lineage, exactly as appending does.
+            const overwriteProvenance =
+              writeProvenance?.status === 'exact' &&
+              writeProvenance.entries.length > 0 &&
+              existing.uploadedBy !== userId
+                ? { status: 'unknown' as const }
+                : writeProvenance
+            const { file: overwritten } = await updateWorkspaceFileContent.execute({
+              principal,
+              input: {
+                fileId: existing.id,
+                assertedWorkspaceId: workspaceId,
+                content: sourceContent,
+                encoding: sourceEncoding,
+                contentType: mimeType,
+                provenanceMode: 'replace_empty',
+                expectedUpdatedAt: existing.contentUpdatedAt ?? undefined,
+                ...(overwriteProvenance ? { secretProvenance: overwriteProvenance } : {}),
+              },
+            })
+
+            logger.info('File overwritten', {
+              fileId: overwritten.id,
+              name: overwritten.name,
+              size: overwritten.size,
+            })
+
+            return Response.json({
+              success: true,
+              data: {
+                id: overwritten.id,
+                name: overwritten.name,
+                size: overwritten.size,
+                url: ensureAbsoluteUrl(overwritten.url ?? overwritten.path),
+              },
+            })
+          }
+        }
+
         const result = await createWorkspaceFile.execute({
           principal,
           input: {
