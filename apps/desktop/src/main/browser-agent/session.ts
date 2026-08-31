@@ -1418,11 +1418,7 @@ export function sitePermissionRequestForScope(): BrowserSitePermissionRequest | 
   return state.tabs.find((tab) => tab.pendingSitePermission)?.pendingSitePermission?.request
 }
 
-/** Grants only the destination origin entered through a native-activation-gated user action. */
-export function grantSiteOriginForUserNavigation(
-  contents: WebContents,
-  destination: string
-): boolean {
+function grantSiteOriginForExplicitNavigation(contents: WebContents, destination: string): boolean {
   const scoped = scopedTabForContents(contents)
   const origin = mediaOrigin(destination)
   if (!scoped || !origin) return false
@@ -1430,6 +1426,22 @@ export function grantSiteOriginForUserNavigation(
   if (!state || scoped.tab.view.webContents !== contents || contents.isDestroyed()) return false
   grantSiteOrigin(state, origin)
   return true
+}
+
+/** Grants only the destination origin entered through a native-activation-gated user action. */
+export function grantSiteOriginForUserNavigation(
+  contents: WebContents,
+  destination: string
+): boolean {
+  return grantSiteOriginForExplicitNavigation(contents, destination)
+}
+
+/** Grants the exact destination origin after the browser driver has completed its SSRF check. */
+export function grantSiteOriginForAgentNavigation(
+  contents: WebContents,
+  destination: string
+): boolean {
+  return grantSiteOriginForExplicitNavigation(contents, destination)
 }
 
 /** Applies a response only to the exact live task, tab, document, and suspended network request. */

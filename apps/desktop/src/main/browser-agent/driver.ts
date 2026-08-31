@@ -19,6 +19,7 @@
 import {
   BROWSER_DATA_KINDS,
   BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS,
+  BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS,
   type BrowserDataKind,
   type BrowserKnownSessionsState,
   type BrowserPageState,
@@ -294,9 +295,9 @@ function retireDriverScopeState(state: DriverScopeState): void {
 function retireAllDriverScopeStates(): void {
   browserToolQueueLifecycleEpoch++
   for (const state of driverScopeStates.values()) retireDriverScopeState(state)
+  for (const boundary of pendingBrowserToolQueueBoundaries) boundary.cancelled = true
   driverScopeStates.clear()
   activeBrowserToolAdmissions.clear()
-  pendingBrowserToolQueueBoundaries.clear()
   driverScopeAliases.clear()
 }
 
@@ -338,6 +339,12 @@ function cancelPendingBrowserToolQueueBoundaries(scopeId: string): boolean {
     cancelled = true
   }
   return cancelled
+}
+
+function cancelBrowserToolQueueBoundaries(boundaries: readonly BrowserToolQueueBoundary[]): void {
+  for (const boundary of boundaries) {
+    boundary.cancelled = true
+  }
 }
 
 function isBrowserToolQueueBoundaryCurrent(boundary: BrowserToolQueueBoundary): boolean {
@@ -707,8 +714,16 @@ export function migrateBrowserScope(fromScopeId: string, toScopeId: string): boo
   if (from === to) return true
   const state = driverScopeStates.get(from)
   const destinationState = driverScopeStates.get(to)
+  const sourceBoundaries = [...pendingBrowserToolQueueBoundaries].filter(
+    (boundary) => resolveDriverScopeId(boundary.scopeId) === from
+  )
+  const destinationBoundaries = [...pendingBrowserToolQueueBoundaries].filter(
+    (boundary) => resolveDriverScopeId(boundary.scopeId) === to
+  )
   if (destinationState && !destinationState.activationOnly) return false
   if (!session.migrateBrowserScope(from, to)) return false
+  for (const boundary of sourceBoundaries) boundary.scopeId = to
+  cancelBrowserToolQueueBoundaries(destinationBoundaries)
   if (destinationState) {
     retireDriverScopeState(destinationState)
     driverScopeStates.delete(to)
@@ -1174,11 +1189,14 @@ async function navigationResult(
   return { url: contents.getURL(), title: contents.getTitle() }
 }
 
-async function loadUrlAndGetResult(
+async function loadAgentCheckedUrlAndGetResult(
   contents: WebContents,
   url: string
 ): Promise<Record<string, unknown>> {
   session.prepareExplicitNavigation(contents)
+  if (!session.grantSiteOriginForAgentNavigation(contents, url)) {
+    throw new ToolError('The tab was closed before navigation could start.')
+  }
   const beforeUrl = contents.getURL()
   try {
     await contents.loadURL(url)
@@ -2089,7 +2107,7 @@ async function executeToolInner(
       const tab = session.ensureAutomationTab()
       const contents = tab.view.webContents
       assertCurrentExecution()
-      return await loadUrlAndGetResult(contents, url)
+      return await loadAgentCheckedUrlAndGetResult(contents, url)
     }
 
     case 'browser_open_url': {
@@ -2106,7 +2124,7 @@ async function executeToolInner(
       const tab = session.ensureAutomationTab()
       const contents = tab.view.webContents
       assertCurrentExecution()
-      const nav = await loadUrlAndGetResult(contents, url)
+      const nav = await loadAgentCheckedUrlAndGetResult(contents, url)
       // A failed snapshot (browser-internal page, injection error) should not
       // fail the open itself — the page is on screen either way.
       assertCurrentExecution()
@@ -2153,7 +2171,7 @@ async function executeToolInner(
       const contents = tab.view.webContents
       if (url) {
         assertCurrentExecution()
-        const result = await loadUrlAndGetResult(contents, url)
+        const result = await loadAgentCheckedUrlAndGetResult(contents, url)
         return { tabId: tab.id, ...result }
       }
       return { tabId: tab.id, url: '', title: '' }
@@ -3917,15 +3935,35 @@ export async function executeTool(
     }
   }
   const admission = reserveBrowserToolAdmission(state)
+  let admissionReleased = false
+  const releaseAdmission = () => {
+    if (admissionReleased) return
+    admissionReleased = true
+    releaseBrowserToolAdmission(state, admission)
+  }
   const queuedAt = Date.now()
+  let queueWaitExpired = false
+  let queueWaitTimeoutId: ReturnType<typeof setTimeout> | undefined
+  const queueWaitTimeout = new Promise<never>((_resolve, reject) => {
+    queueWaitTimeoutId = setTimeout(() => {
+      queueWaitExpired = true
+      reject(
+        new ToolError(
+          'This browser action waited too long for earlier browser work and was cancelled before it started.'
+        )
+      )
+    }, BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS)
+  })
   try {
     state.activationOnly = false
     const invocationEpoch = ++state.toolInvocationEpoch
     const queueCancellationEpoch = state.toolQueueCancellationEpoch
     const run = async () => {
+      clearTimeout(queueWaitTimeoutId)
       const queueWaitMs = Date.now() - queuedAt
       const executionStartedAt = Date.now()
       if (
+        queueWaitExpired ||
         state.disposed ||
         (authorizationBoundary && !isBrowserToolQueueBoundaryCurrent(authorizationBoundary)) ||
         queueCancellationEpoch !== state.toolQueueCancellationEpoch ||
@@ -3998,8 +4036,12 @@ export async function executeTool(
 
     const settled = state.toolQueue.then(run, run)
     state.toolQueue = settled.catch(() => {})
+    settled.then(releaseAdmission, releaseAdmission)
     try {
-      return { ok: true, result: sanitizeBrowserResult(await settled) }
+      return {
+        ok: true,
+        result: sanitizeBrowserResult(await Promise.race([settled, queueWaitTimeout])),
+      }
     } catch (error) {
       // The watchdog cannot cancel an in-flight renderer promise. Invalidate its
       // capture token before releasing the queue so a late snapshot cannot
@@ -4018,7 +4060,8 @@ export async function executeTool(
       return { ok: false, error: message }
     }
   } finally {
-    releaseBrowserToolAdmission(state, admission)
+    clearTimeout(queueWaitTimeoutId)
+    if (!queueWaitExpired) releaseAdmission()
   }
 }
 

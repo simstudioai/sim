@@ -11,12 +11,19 @@ const PRIVATE_DIRECTORY_MODE = 0o700
 const PRIVATE_FILE_MODE = 0o600
 type EventLogPermissionTarget = 'directory' | 'current-log' | 'rotated-log'
 
-function applyPrivateMode(path: string, mode: number, target: EventLogPermissionTarget): void {
+function applyPrivateMode(
+  path: string,
+  mode: number,
+  target: EventLogPermissionTarget,
+  allowMissing = false
+): boolean {
   try {
     chmodSync(path, mode)
+    return true
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    if (allowMissing && (error as NodeJS.ErrnoException).code === 'ENOENT') return true
     logger.warn('Could not apply private desktop event-log permissions', { target })
+    return false
   }
 }
 
@@ -164,28 +171,40 @@ export function scrubUrl(raw: string): string {
 export function createEventLog(dir: string, maxBytes: number = DEFAULT_MAX_BYTES): EventRecorder {
   const filePath = join(dir, 'desktop-events.log')
   const rotatedFilePath = `${filePath}.1`
+  let privateModesEstablished = true
   try {
     mkdirSync(dir, { recursive: true, mode: PRIVATE_DIRECTORY_MODE })
-  } catch {}
-  applyPrivateMode(dir, PRIVATE_DIRECTORY_MODE, 'directory')
-  applyPrivateMode(filePath, PRIVATE_FILE_MODE, 'current-log')
-  applyPrivateMode(rotatedFilePath, PRIVATE_FILE_MODE, 'rotated-log')
+  } catch {
+    privateModesEstablished = false
+  }
+  privateModesEstablished =
+    applyPrivateMode(dir, PRIVATE_DIRECTORY_MODE, 'directory') && privateModesEstablished
+  privateModesEstablished =
+    applyPrivateMode(filePath, PRIVATE_FILE_MODE, 'current-log', true) && privateModesEstablished
+  privateModesEstablished =
+    applyPrivateMode(rotatedFilePath, PRIVATE_FILE_MODE, 'rotated-log', true) &&
+    privateModesEstablished
 
-  const rotateIfNeeded = () => {
+  const rotateIfNeeded = (): boolean => {
     try {
       if (statSync(filePath).size > maxBytes) {
         renameSync(filePath, rotatedFilePath)
-        applyPrivateMode(rotatedFilePath, PRIVATE_FILE_MODE, 'rotated-log')
+        return applyPrivateMode(rotatedFilePath, PRIVATE_FILE_MODE, 'rotated-log')
       }
     } catch {}
+    return true
   }
 
   return {
     filePath,
     record(name, data) {
       logger.info(`desktop event: ${name}`, data)
+      if (!privateModesEstablished) return
       try {
-        rotateIfNeeded()
+        if (!rotateIfNeeded()) {
+          privateModesEstablished = false
+          return
+        }
         const entry = { at: new Date().toISOString(), name, ...(data ? { data } : {}) }
         appendFileSync(filePath, `${JSON.stringify(entry)}\n`, { mode: PRIVATE_FILE_MODE })
       } catch (error) {

@@ -3210,6 +3210,28 @@ describe('browser-agent session', () => {
     await expect(otherOrigin).resolves.toEqual({ cancel: true })
   })
 
+  it('allows an SSRF-checked agent destination without granting a cross-origin redirect', async () => {
+    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const destination = 'http://127.0.0.1:4111/agent-path?token=secret'
+
+    expect(
+      session.grantSiteOriginForAgentNavigation(contents as unknown as WebContents, destination)
+    ).toBe(true)
+    await expect(beginMainFrameRequest(contents, destination)).resolves.toEqual({ cancel: false })
+    expect(session.sitePermissionRequestForScope()).toBeUndefined()
+
+    const redirect = beginMainFrameRequest(contents, 'http://127.0.0.1:4112/redirected', 2)
+    await vi.waitFor(() =>
+      expect(session.sitePermissionRequestForScope()).toMatchObject({
+        origin: 'http://127.0.0.1:4112',
+      })
+    )
+    const prompt = session.sitePermissionRequestForScope()
+    expect(session.respondToSitePermission(prompt?.requestId ?? '', false)).toBe(true)
+    await expect(redirect).resolves.toEqual({ cancel: true })
+  })
+
   it('uses a native exact-origin prompt when the active renderer lacks prompt support', async () => {
     session = freshSession(win, {
       sitePermissionPromptSupported: vi.fn(() => false),

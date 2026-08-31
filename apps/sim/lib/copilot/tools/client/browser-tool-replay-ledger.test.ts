@@ -99,6 +99,36 @@ class ReadFailingStorage implements Storage {
   }
 }
 
+class RecordingStorage implements Storage {
+  private readonly values = new Map<string, string>()
+  ledgerWrites = 0
+
+  get length(): number {
+    return this.values.size
+  }
+
+  clear(): void {
+    this.values.clear()
+  }
+
+  getItem(key: string): string | null {
+    return this.values.get(key) ?? null
+  }
+
+  key(index: number): string | null {
+    return Array.from(this.values.keys())[index] ?? null
+  }
+
+  removeItem(key: string): void {
+    this.values.delete(key)
+  }
+
+  setItem(key: string, value: string): void {
+    if (key === STORAGE_KEY) this.ledgerWrites += 1
+    this.values.set(key, value)
+  }
+}
+
 describe('BrowserToolReplayLedger', () => {
   beforeEach(() => {
     window.sessionStorage.clear()
@@ -149,6 +179,19 @@ describe('BrowserToolReplayLedger', () => {
     const entries = persistedEntries()
     expect(entries).toHaveLength(maxEntries)
     expect(entries.at(-1)?.toolCallId).toBe('call-9999')
+  })
+
+  it('rejects an oversized serialized payload before writing it to storage', () => {
+    const storage = new RecordingStorage()
+    const ledger = createLedger({ maxEntries: 4, now: () => 1_000, storage })
+    const escapedId = (prefix: string) => `${prefix}${'\0'.repeat(255)}`
+
+    expect(ledger.claim(escapedId('\u0001'))).toBe('claimed')
+    expect(ledger.claim(escapedId('\u0002'))).toBe('claimed')
+    expect(storage.ledgerWrites).toBe(2)
+
+    expect(ledger.claim(escapedId('\u0003'))).toBe('storage-unavailable')
+    expect(storage.ledgerWrites).toBe(2)
   })
 
   it('expires entries only after the configured TTL boundary', () => {

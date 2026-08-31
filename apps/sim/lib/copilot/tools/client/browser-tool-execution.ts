@@ -9,6 +9,7 @@
  */
 import {
   BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS,
+  BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS,
   BROWSER_WAIT_FOR_RENDERER_GRACE_MS,
   type BrowserToolName,
   normalizeBrowserWaitForTimeoutMs,
@@ -37,7 +38,7 @@ import { getBrowserSession, useBrowserSessionStore } from '@/stores/browser-sess
 
 const logger = createLogger('CopilotBrowserToolExecution')
 
-const DEFAULT_TOOL_TIMEOUT_MS = 30_000
+const DEFAULT_TOOL_TIMEOUT_MS = BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + 30_000
 
 /**
  * Tools that do not require an existing live page. Most create a new page;
@@ -122,7 +123,13 @@ type TerminalCompletionPriority = 'executed' | 'guard'
 interface RetainedTerminalCompletion {
   completion?: PendingTerminalCompletion
   lastSeenAt: number
-  deliveryState: 'pending' | 'queued' | 'in-flight' | 'awaiting-redelivery' | 'delivered'
+  deliveryState:
+    | 'reserved'
+    | 'pending'
+    | 'queued'
+    | 'in-flight'
+    | 'awaiting-redelivery'
+    | 'delivered'
   priority: TerminalCompletionPriority
   failureLog: string
   onPendingChange?: (completion: PendingTerminalCompletion | null) => void
@@ -289,6 +296,7 @@ function retryRetainedTerminalCompletion(toolCallId: string): boolean {
   entry.lastSeenAt = now
   retainedTerminalCompletions.delete(toolCallId)
   retainedTerminalCompletions.set(toolCallId, entry)
+  if (entry.deliveryState === 'reserved') return true
   if (entry.deliveryState === 'awaiting-redelivery') entry.deliveryState = 'pending'
   scheduleTerminalCompletion(toolCallId)
   return true
@@ -414,9 +422,8 @@ function selectRetainedCompletionForEviction(): [string, RetainedTerminalComplet
   return undefined
 }
 
-function retainTerminalCompletion(
+function reserveTerminalCompletion(
   toolCallId: string,
-  completion: PendingTerminalCompletion,
   priority: TerminalCompletionPriority,
   failureLog: string,
   onPendingChange?: (completion: PendingTerminalCompletion | null) => void,
@@ -424,10 +431,7 @@ function retainTerminalCompletion(
 ): RetainedTerminalCompletion | null {
   const now = Date.now()
   pruneRetainedTerminalCompletions(now)
-  const existingEntry = retainedTerminalCompletions.get(toolCallId)
-  if (existingEntry) {
-    deleteRetainedTerminalCompletion(toolCallId, existingEntry)
-  }
+  if (retainedTerminalCompletions.has(toolCallId)) return null
   if (retainedTerminalCompletions.size >= EXECUTED_LEDGER_MAX_ENTRIES) {
     const candidate = selectRetainedCompletionForEviction()
     if (!candidate) {
@@ -442,17 +446,73 @@ function retainTerminalCompletion(
     deleteRetainedTerminalCompletion(candidate[0], candidate[1])
   }
   const entry: RetainedTerminalCompletion = {
-    completion: compactCompletionForRetry(toolCallId, completion),
     lastSeenAt: now,
-    deliveryState: 'pending',
+    deliveryState: 'reserved',
     priority,
     failureLog,
     onPendingChange,
     onRelease,
   }
   retainedTerminalCompletions.set(toolCallId, entry)
-  onPendingChange?.(entry.completion ?? null)
   return entry
+}
+
+function completeTerminalCompletionReservation(
+  toolCallId: string,
+  entry: RetainedTerminalCompletion,
+  completion: PendingTerminalCompletion,
+  priority: TerminalCompletionPriority,
+  failureLog: string
+): RetainedTerminalCompletion | null {
+  if (retainedTerminalCompletions.get(toolCallId) !== entry || entry.deliveryState !== 'reserved') {
+    return null
+  }
+  entry.completion = compactCompletionForRetry(toolCallId, completion)
+  entry.lastSeenAt = Date.now()
+  entry.deliveryState = 'pending'
+  entry.priority = priority
+  entry.failureLog = failureLog
+  retainedTerminalCompletions.delete(toolCallId)
+  retainedTerminalCompletions.set(toolCallId, entry)
+  entry.onPendingChange?.(entry.completion ?? null)
+  return entry
+}
+
+function retainTerminalCompletion(
+  toolCallId: string,
+  completion: PendingTerminalCompletion,
+  priority: TerminalCompletionPriority,
+  failureLog: string,
+  onPendingChange?: (completion: PendingTerminalCompletion | null) => void,
+  onRelease?: () => void
+): RetainedTerminalCompletion | null {
+  const entry = reserveTerminalCompletion(
+    toolCallId,
+    priority,
+    failureLog,
+    onPendingChange,
+    onRelease
+  )
+  if (!entry) return null
+  return completeTerminalCompletionReservation(toolCallId, entry, completion, priority, failureLog)
+}
+
+function completeAndReportTerminalCompletionReservation(
+  toolCallId: string,
+  entry: RetainedTerminalCompletion,
+  completion: PendingTerminalCompletion,
+  priority: TerminalCompletionPriority,
+  failureLog: string
+): void {
+  const retained = completeTerminalCompletionReservation(
+    toolCallId,
+    entry,
+    completion,
+    priority,
+    failureLog
+  )
+  if (!retained) return
+  scheduleTerminalCompletion(toolCallId, completion)
 }
 
 function retainAndReportTerminalCompletion(
@@ -495,7 +555,7 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
   }
   if (toolName === 'browser_wait_for') {
     const requested = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
-    return requested + BROWSER_WAIT_FOR_RENDERER_GRACE_MS
+    return BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + requested + BROWSER_WAIT_FOR_RENDERER_GRACE_MS
   }
   return DEFAULT_TOOL_TIMEOUT_MS
 }
@@ -589,32 +649,6 @@ export function executeBrowserToolOnClient(
     )
     return
   }
-  const replayClaim = executedToolCalls.claim(toolCallId)
-  if (replayClaim === 'duplicate') {
-    if (runningBrowserToolCalls.has(toolCallId)) {
-      logger.info('Skipping in-flight browser tool replay', { toolCallId, toolName })
-      return
-    }
-    logger.warn('Recovering browser tool replay without a local result owner', {
-      toolCallId,
-      toolName,
-    })
-    retainAndReportTerminalCompletion(
-      toolCallId,
-      {
-        status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
-        message: REPLAY_OUTCOME_UNKNOWN_MESSAGE,
-        data: {
-          error: REPLAY_OUTCOME_UNKNOWN_MESSAGE,
-          outcomeUnknown: true,
-          doNotRetry: true,
-          replayRecoveredWithoutResult: true,
-        },
-      },
-      'Failed to report browser replay with an unknown outcome'
-    )
-    return
-  }
   const age = eventAgeMs(eventTs)
   if (age !== null && age > MAX_EVENT_AGE_MS) {
     logger.info('Skipping stale browser tool event', { toolCallId, toolName, age })
@@ -637,13 +671,62 @@ export function executeBrowserToolOnClient(
     )
     return
   }
+  const completionReservation = reserveTerminalCompletion(
+    toolCallId,
+    'executed',
+    'Failed to report browser tool completion'
+  )
+  if (!completionReservation) {
+    logger.error('Rejecting browser tool before dispatch because result retention is full', {
+      toolCallId,
+      toolName,
+    })
+    return
+  }
+  const reportGuardCompletion = (
+    completion: PendingTerminalCompletion,
+    failureLog: string
+  ): void => {
+    completeAndReportTerminalCompletionReservation(
+      toolCallId,
+      completionReservation,
+      completion,
+      'guard',
+      failureLog
+    )
+  }
+  const replayClaim = executedToolCalls.claim(toolCallId)
+  if (replayClaim === 'duplicate') {
+    if (runningBrowserToolCalls.has(toolCallId)) {
+      deleteRetainedTerminalCompletion(toolCallId, completionReservation)
+      logger.info('Skipping in-flight browser tool replay', { toolCallId, toolName })
+      return
+    }
+    logger.warn('Recovering browser tool replay without a local result owner', {
+      toolCallId,
+      toolName,
+    })
+    reportGuardCompletion(
+      {
+        status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+        message: REPLAY_OUTCOME_UNKNOWN_MESSAGE,
+        data: {
+          error: REPLAY_OUTCOME_UNKNOWN_MESSAGE,
+          outcomeUnknown: true,
+          doNotRetry: true,
+          replayRecoveredWithoutResult: true,
+        },
+      },
+      'Failed to report browser replay with an unknown outcome'
+    )
+    return
+  }
   if (replayClaim === 'capacity-exhausted') {
     logger.error('Rejecting browser tool because the replay guard is full', {
       toolCallId,
       toolName,
     })
-    retainAndReportTerminalCompletion(
-      toolCallId,
+    reportGuardCompletion(
       {
         status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
         message: REPLAY_GUARD_CAPACITY_MESSAGE,
@@ -667,8 +750,7 @@ export function executeBrowserToolOnClient(
         toolCallId,
         toolName,
       })
-      retainAndReportTerminalCompletion(
-        toolCallId,
+      reportGuardCompletion(
         {
           status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
           message: REPLAY_GUARD_STORAGE_MESSAGE,
@@ -683,7 +765,14 @@ export function executeBrowserToolOnClient(
     }
   }
   runningBrowserToolCalls.add(toolCallId)
-  void doExecuteBrowserTool(toolCallId, toolName, params, scopeId, abortSignal)
+  void doExecuteBrowserTool(
+    toolCallId,
+    toolName,
+    params,
+    scopeId,
+    completionReservation,
+    abortSignal
+  )
     .catch((err) => {
       logger.error('Unhandled error in client-side browser tool execution', {
         toolCallId,
@@ -706,6 +795,7 @@ async function doExecuteBrowserTool(
   toolName: BrowserToolName,
   params: Record<string, unknown>,
   scopeId: string,
+  completionReservation: RetainedTerminalCompletion,
   abortSignal?: AbortSignal
 ): Promise<void> {
   let cancelled = abortSignal?.aborted === true
@@ -717,20 +807,12 @@ async function doExecuteBrowserTool(
     failureLog: string,
     priority: TerminalCompletionPriority = 'executed'
   ): void => {
-    const retainedCompletion = retainTerminalCompletion(
+    const retainedCompletion = completeTerminalCompletionReservation(
       toolCallId,
+      completionReservation,
       completion,
       priority,
-      failureLog,
-      (pending) => {
-        pendingTerminalCompletion = pending
-      },
-      () => {
-        pendingTerminalCompletion = null
-        if (typeof window !== 'undefined') {
-          window.removeEventListener('pagehide', onPageHide)
-        }
-      }
+      failureLog
     )
     if (!retainedCompletion) return
     pendingTerminalCompletion = retainedCompletion.completion ?? null
@@ -822,6 +904,15 @@ async function doExecuteBrowserTool(
         error: toError(error).message,
       })
       reportFallback()
+    }
+  }
+  completionReservation.onPendingChange = (pending) => {
+    pendingTerminalCompletion = pending
+  }
+  completionReservation.onRelease = () => {
+    pendingTerminalCompletion = null
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', onPageHide)
     }
   }
   if (cancelled) {
@@ -917,6 +1008,12 @@ async function doExecuteBrowserTool(
     )
   } finally {
     abortSignal?.removeEventListener('abort', onAbort)
+    if (
+      retainedTerminalCompletions.get(toolCallId) === completionReservation &&
+      completionReservation.deliveryState === 'reserved'
+    ) {
+      deleteRetainedTerminalCompletion(toolCallId, completionReservation)
+    }
     if (typeof window !== 'undefined' && !pendingTerminalCompletion) {
       window.removeEventListener('pagehide', onPageHide)
     }

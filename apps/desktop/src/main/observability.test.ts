@@ -89,7 +89,8 @@ describe('createEventLog', () => {
     const root = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
     const overlongDir = join(root, 'x'.repeat(300))
 
-    createEventLog(overlongDir)
+    const events = createEventLog(overlongDir)
+    events.record('app_launch')
 
     expect(mockLogger.warn.mock.calls).toEqual([
       ['Could not apply private desktop event-log permissions', { target: 'directory' }],

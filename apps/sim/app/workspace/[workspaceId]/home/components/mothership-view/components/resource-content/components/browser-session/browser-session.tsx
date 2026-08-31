@@ -198,13 +198,21 @@ export function clearOmniboxSelection(input: HTMLInputElement): void {
   input.setSelectionRange(caret, caret)
 }
 
+/** Covers both prompt types across every globally admitted native tab without unbounded retention. */
+const MAX_HANDLED_PERMISSION_REQUESTS = 256
+
 /** Claims the one renderer response allowed for a native browser permission request. */
 export function claimPermissionResponse(
-  handledRequestId: { current: string | null },
+  handledRequestIds: { current: Set<string> },
   requestId: string
 ): boolean {
-  if (handledRequestId.current === requestId) return false
-  handledRequestId.current = requestId
+  if (handledRequestIds.current.has(requestId)) return false
+  handledRequestIds.current.add(requestId)
+  while (handledRequestIds.current.size > MAX_HANDLED_PERMISSION_REQUESTS) {
+    const oldest = handledRequestIds.current.values().next().value
+    if (typeof oldest !== 'string') break
+    handledRequestIds.current.delete(oldest)
+  }
   return true
 }
 
@@ -245,24 +253,40 @@ export function browserPermissionPrompt(request: BrowserPermissionRequest): {
 interface BrowserPermissionModalProps {
   request: BrowserPermissionRequest | undefined
   open: boolean
-  onDecision: (allowed: boolean) => void
+  onDecision: (
+    requestId: string,
+    action: ReturnType<typeof browserPermissionResponseAction>,
+    allowed: boolean
+  ) => void
 }
 
 export function BrowserPermissionModal({ request, open, onDecision }: BrowserPermissionModalProps) {
+  const requestId = request?.requestId
+  const responseAction = request ? browserPermissionResponseAction(request) : undefined
+  useEffect(() => {
+    if (!requestId || !responseAction) return
+    return () => onDecision(requestId, responseAction, false)
+  }, [onDecision, requestId, responseAction])
+
   if (!request) return null
   const prompt = browserPermissionPrompt(request)
+  const activeResponseAction = browserPermissionResponseAction(request)
 
   return (
     <ChipConfirmModal
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) onDecision(false)
+        if (!nextOpen) onDecision(request.requestId, activeResponseAction, false)
       }}
       title={prompt.title}
       text={prompt.text}
       defaultAction='dismiss'
       dismissLabel='Block'
-      confirm={{ label: 'Allow', onClick: () => onDecision(true), variant: 'primary' }}
+      confirm={{
+        label: 'Allow',
+        onClick: () => onDecision(request.requestId, activeResponseAction, true),
+        variant: 'primary',
+      }}
     />
   )
 }
@@ -472,7 +496,7 @@ export function BrowserSession({
   const omniboxFocusRafRef = useRef<number | null>(null)
   const omniboxPointerSelectionRef = useRef<OmniboxPointerSelection | null>(null)
   const pendingNewTabFocusRef = useRef<PendingNewTabFocus | null>(null)
-  const handledPermissionRequestIdRef = useRef<string | null>(null)
+  const handledPermissionRequestIdsRef = useRef<Set<string>>(new Set())
   const [answeredPermissionRequestId, setAnsweredPermissionRequestId] = useState<string | null>(
     null
   )
@@ -551,24 +575,27 @@ export function BrowserSession({
   } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
 
   const respondToPermission = useCallback(
-    (allowed: boolean) => {
-      if (!permissionRequest) return
-      if (!claimPermissionResponse(handledPermissionRequestIdRef, permissionRequest.requestId)) {
+    (
+      requestId: string,
+      action: ReturnType<typeof browserPermissionResponseAction>,
+      allowed: boolean
+    ) => {
+      if (!claimPermissionResponse(handledPermissionRequestIdsRef, requestId)) {
         return
       }
-      setAnsweredPermissionRequestId(permissionRequest.requestId)
-      sendBrowserPanelAction(
-        browserPermissionResponseAction(permissionRequest),
-        { requestId: permissionRequest.requestId, allowed },
-        scopeId
-      )
+      setAnsweredPermissionRequestId(requestId)
+      sendBrowserPanelAction(action, { requestId, allowed }, scopeId)
     },
-    [permissionRequest, scopeId]
+    [scopeId]
   )
 
   useEffect(() => {
     if (visible || !permissionRequest) return
-    respondToPermission(false)
+    respondToPermission(
+      permissionRequest.requestId,
+      browserPermissionResponseAction(permissionRequest),
+      false
+    )
   }, [permissionRequest, respondToPermission, visible])
 
   const permissionModalOpen = shouldShowBrowserPermissionRequest(

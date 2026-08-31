@@ -287,7 +287,9 @@ export class BrowserToolReplayLedger {
       ...(this.legacyScanCursor > 0 ? { legacyScanCursor: this.legacyScanCursor } : {}),
     }
     try {
-      storage.setItem(this.storageKey, JSON.stringify(payload))
+      const serialized = JSON.stringify(payload)
+      if (new TextEncoder().encode(serialized).byteLength > this.maxSerializedBytes) return false
+      storage.setItem(this.storageKey, serialized)
       return true
     } catch {
       return false

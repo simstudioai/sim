@@ -187,7 +187,7 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 
 ## Known caveats
 
-- The hosted Sim renderer cannot access microphone or camera. A page in the isolated agent browser may request them only from its main frame after a recent native user gesture; Sim then requires an explicit document-scoped prompt and the operating-system grant.
+- The hosted Sim renderer may request microphone access for voice input from the configured app origin; camera access remains denied. On macOS the shell also requires the operating-system microphone grant. Separately, a page in the isolated agent browser may request microphone or camera only from its main frame after a recent native user gesture; Sim then requires an explicit document-scoped prompt and the operating-system grant where applicable.
 - The built-in agent browser is not a general-purpose download manager. Its dedicated partition applies the same bounded policy to every download, including one started by a direct user click: at most 2 GiB per file, two active downloads per task, six app-wide, and a 1 GiB free-disk reserve. A rejected download appears in the browser's downloads menu; use a normal browser for an intentionally larger transfer.
 - Default Electron ships H.264/AAC/MP3 — do not swap in the codec-free ffmpeg build.
 - Third-party web analytics (GTM/GA) are blocked at the network layer by default (`blockThirdPartyAnalytics`); first-party PostHog `/ingest` is untouched.

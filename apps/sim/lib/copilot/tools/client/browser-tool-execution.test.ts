@@ -99,6 +99,7 @@ describe('executeBrowserToolOnClient', () => {
     )
     const executedToolCallIds = Array.from({ length: 2_048 }, () => nextToolCallId())
     const overflowGuardToolCallId = nextToolCallId()
+    const overflowExecutedToolCallId = nextToolCallId()
 
     try {
       for (const toolCallId of executedToolCallIds) {
@@ -120,6 +121,12 @@ describe('executeBrowserToolOnClient', () => {
 
       expect(mockReportCompletion).toHaveBeenCalledTimes(4)
 
+      executeBrowserToolOnClient(overflowExecutedToolCallId, 'browser_snapshot', {})
+      await flush()
+
+      expect(mockExecuteBrowserTool).toHaveBeenCalledTimes(executedToolCallIds.length)
+      expect(replayClaim).toHaveBeenCalledTimes(executedToolCallIds.length)
+
       mockReportCompletion.mockResolvedValue(undefined)
       for (const release of releases.splice(0)) release()
       await vi.waitFor(
@@ -132,6 +139,7 @@ describe('executeBrowserToolOnClient', () => {
       )
       expect(reportedToolCallIds).toEqual(new Set(executedToolCallIds))
       expect(reportedToolCallIds.has(overflowGuardToolCallId)).toBe(false)
+      expect(reportedToolCallIds.has(overflowExecutedToolCallId)).toBe(false)
     } finally {
       mockReportCompletion.mockResolvedValue(undefined)
       for (const release of releases.splice(0)) release()
@@ -260,7 +268,7 @@ describe('executeBrowserToolOnClient', () => {
       toolCallId,
       'browser_snapshot',
       {},
-      30_000,
+      90_000,
       CHAT_SCOPE,
       expect.any(Function)
     )
@@ -280,7 +288,13 @@ describe('executeBrowserToolOnClient', () => {
     const toolCallId = nextToolCallId()
 
     executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
-    executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
+    executeBrowserToolOnClient(
+      toolCallId,
+      'browser_snapshot',
+      {},
+      CHAT_SCOPE,
+      new Date(Date.now() - 10 * 60_000).toISOString()
+    )
     await flush()
 
     expect(mockExecuteBrowserTool).toHaveBeenCalledOnce()
@@ -293,6 +307,54 @@ describe('executeBrowserToolOnClient', () => {
     expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
       text: 'page content',
     })
+  })
+
+  it('does not spend replay-ledger capacity on stale never-executed events', async () => {
+    const replayClaim = vi
+      .spyOn(BrowserToolReplayLedger.prototype, 'claim')
+      .mockReturnValue('claimed')
+    const staleTimestamp = new Date(Date.now() - 10 * 60_000).toISOString()
+    const staleToolCallIds = Array.from({ length: 2_049 }, () => nextToolCallId())
+
+    try {
+      for (const toolCallId of staleToolCallIds) {
+        executeBrowserToolOnClient(
+          toolCallId,
+          'browser_list_sessions',
+          {},
+          CHAT_SCOPE,
+          staleTimestamp
+        )
+      }
+      expect(replayClaim).not.toHaveBeenCalled()
+
+      mockExecuteBrowserTool.mockResolvedValue({ text: 'fresh page content' })
+      const freshToolCallId = nextToolCallId()
+      executeBrowserToolOnClient(freshToolCallId, 'browser_snapshot', {})
+      await flush()
+
+      expect(replayClaim).toHaveBeenCalledOnce()
+      expect(replayClaim).toHaveBeenCalledWith(freshToolCallId)
+      expect(mockExecuteBrowserTool).toHaveBeenCalledOnce()
+      expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
+        freshToolCallId,
+        'browser_snapshot',
+        {},
+        90_000,
+        CHAT_SCOPE,
+        expect.any(Function)
+      )
+      await vi.waitFor(() =>
+        expect(mockReportCompletion).toHaveBeenCalledWith(
+          freshToolCallId,
+          'success',
+          expect.any(String),
+          { text: 'fresh page content' }
+        )
+      )
+    } finally {
+      replayClaim.mockRestore()
+    }
   })
 
   it('reports an unknown outcome for a durable duplicate with no same-runtime owner', async () => {
@@ -457,7 +519,7 @@ describe('executeBrowserToolOnClient', () => {
         toolCallId,
         toolName,
         params,
-        30_000,
+        90_000,
         CHAT_SCOPE,
         expect.any(Function)
       )
@@ -1154,7 +1216,7 @@ describe('executeBrowserToolOnClient', () => {
       toolCallId,
       'browser_switch_tab',
       { tabId: '2' },
-      70_000,
+      130_000,
       CHAT_SCOPE,
       expect.any(Function)
     )
@@ -1166,13 +1228,13 @@ describe('executeBrowserToolOnClient', () => {
    * native queue while the desktop is still honoring that same wait.
    */
   it.each([
-    ['number', 30_000, 45_000],
-    ['numeric string', '30000', 45_000],
-    ['absent', undefined, 25_000],
-    ['non-numeric', 'soon', 25_000],
-    ['zero', 0, 25_000],
-    ['negative', -5_000, 25_000],
-    ['above the desktop clamp', 500_000, 135_000],
+    ['number', 30_000, 105_000],
+    ['numeric string', '30000', 105_000],
+    ['absent', undefined, 85_000],
+    ['non-numeric', 'soon', 85_000],
+    ['zero', 0, 85_000],
+    ['negative', -5_000, 85_000],
+    ['above the desktop clamp', 500_000, 195_000],
   ])(
     'budgets browser_wait_for above the desktop wait (%s)',
     async (_label, timeoutMs, expected) => {
@@ -1255,7 +1317,7 @@ describe('executeBrowserToolOnClient', () => {
       toolCallId,
       'browser_navigate',
       { url: 'https://example.com' },
-      70_000,
+      130_000,
       CHAT_SCOPE,
       expect.any(Function)
     )
@@ -1278,7 +1340,7 @@ describe('executeBrowserToolOnClient', () => {
       toolCallId,
       'browser_list_sessions',
       {},
-      30_000,
+      90_000,
       CHAT_SCOPE,
       expect.any(Function)
     )
@@ -1330,7 +1392,7 @@ describe('executeBrowserToolOnClient', () => {
       toolCallId,
       'browser_navigate',
       { url: 'https://example.com' },
-      70_000,
+      130_000,
       CHAT_SCOPE,
       expect.any(Function)
     )
@@ -1361,7 +1423,7 @@ describe('executeBrowserToolOnClient', () => {
       toolCallId,
       'browser_snapshot',
       {},
-      30_000,
+      90_000,
       'chat-b',
       expect.any(Function)
     )

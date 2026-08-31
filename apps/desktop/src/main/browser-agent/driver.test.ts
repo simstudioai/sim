@@ -1,3 +1,4 @@
+import { BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS } from '@sim/browser-protocol'
 import type { MenuItemConstructorOptions } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,6 +34,29 @@ function freshDriver(): DriverModule {
   return driverModule
 }
 
+type BrowserToolQueueBoundary = NonNullable<
+  ReturnType<DriverModule['captureBrowserToolQueueBoundary']>
+>
+
+function capturePendingAuthorizations(
+  driver: DriverModule,
+  scopeId: string,
+  count: number = driver.BROWSER_TOOL_ADMISSION_LIMITS.perScope
+): BrowserToolQueueBoundary[] {
+  const boundaries = Array.from({ length: count }, () =>
+    driver.captureBrowserToolQueueBoundary(scopeId)
+  )
+  expect(boundaries.every((boundary) => boundary !== null)).toBe(true)
+  return boundaries.filter((boundary): boundary is BrowserToolQueueBoundary => boundary !== null)
+}
+
+function releasePendingAuthorizations(
+  driver: DriverModule,
+  boundaries: readonly BrowserToolQueueBoundary[]
+): void {
+  for (const boundary of boundaries) driver.releaseBrowserToolQueueBoundary(boundary)
+}
+
 /** Match the serialized function invocation, not comments or helper names in its body. */
 function isPageCall(expression: string, fnName: string): boolean {
   return expression.includes(`function ${fnName}(`)
@@ -53,6 +77,7 @@ describe('executeTool', () => {
   })
 
   it('validates navigation URLs before touching the session', async () => {
+    const grant = vi.spyOn(session, 'grantSiteOriginForAgentNavigation')
     const result = await driver.executeTool('chat-test', 'browser_navigate', {
       url: 'file:///etc/passwd',
     })
@@ -60,12 +85,30 @@ describe('executeTool', () => {
       ok: false,
       error: 'URL must be absolute and start with http:// or https://',
     })
+    expect(grant).not.toHaveBeenCalled()
   })
 
   it('reports missing required parameters by name', async () => {
     const result = await driver.executeTool('chat-test', 'browser_navigate', {})
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/Missing required parameter "url"/)
+  })
+
+  it('grants only SSRF-checked agent navigation destinations before loading them', async () => {
+    const grant = vi.spyOn(session, 'grantSiteOriginForAgentNavigation')
+    const navigations = [
+      ['browser_navigate', 'http://127.0.0.1:4011/navigate'],
+      ['browser_open_url', 'http://127.0.0.1:4012/open'],
+      ['browser_open_tab', 'http://127.0.0.1:4013/tab'],
+    ] as const
+
+    for (const [tool, url] of navigations) {
+      await expect(driver.executeTool('chat-test', tool, { url })).resolves.toMatchObject({
+        ok: true,
+      })
+      expect(grant).toHaveBeenCalledWith(expect.anything(), url)
+    }
+    expect(grant).toHaveBeenCalledTimes(navigations.length)
   })
 
   it('reports an aborted navigation when Chromium never leaves the current URL', async () => {
@@ -578,17 +621,80 @@ describe('executeTool', () => {
   })
 
   it('bounds pending authorizations without materializing their scopes', () => {
-    const boundaries = Array.from({ length: driver.BROWSER_TOOL_ADMISSION_LIMITS.perScope }, () =>
-      driver.captureBrowserToolQueueBoundary('chat-pending-authorization')
-    )
+    const boundaries = capturePendingAuthorizations(driver, 'chat-pending-authorization')
 
     expect(boundaries.every((boundary) => boundary?.generation === null)).toBe(true)
     expect(driver.captureBrowserToolQueueBoundary('chat-pending-authorization')).toBeNull()
 
-    for (const boundary of boundaries) {
-      if (boundary) driver.releaseBrowserToolQueueBoundary(boundary)
-    }
-    expect(driver.captureBrowserToolQueueBoundary('chat-pending-authorization')).not.toBeNull()
+    releasePendingAuthorizations(driver, boundaries)
+    const replacement = driver.captureBrowserToolQueueBoundary('chat-pending-authorization')
+    expect(replacement).not.toBeNull()
+    if (replacement) driver.releaseBrowserToolQueueBoundary(replacement)
+  })
+
+  it('retains cancelled authorization admissions until their fetches settle', () => {
+    const boundaries = capturePendingAuthorizations(driver, 'chat-test')
+
+    expect(driver.cancelActiveTool('chat-test')).toBe(true)
+    expect(boundaries.every((boundary) => boundary.cancelled)).toBe(true)
+    expect(driver.captureBrowserToolQueueBoundary('chat-test')).toBeNull()
+
+    releasePendingAuthorizations(driver, boundaries)
+    const replacement = driver.captureBrowserToolQueueBoundary('chat-test')
+    expect(replacement).not.toBeNull()
+    if (replacement) driver.releaseBrowserToolQueueBoundary(replacement)
+  })
+
+  it('retains disposed-scope authorization admissions until their fetches settle', () => {
+    const boundaries = capturePendingAuthorizations(driver, 'chat-disposed-authorizations')
+
+    driver.disposeBrowserScope('chat-disposed-authorizations')
+    expect(boundaries.every((boundary) => boundary.cancelled)).toBe(true)
+    expect(driver.captureBrowserToolQueueBoundary('chat-disposed-authorizations')).toBeNull()
+
+    releasePendingAuthorizations(driver, boundaries)
+    const replacement = driver.captureBrowserToolQueueBoundary('chat-disposed-authorizations')
+    expect(replacement).not.toBeNull()
+    if (replacement) driver.releaseBrowserToolQueueBoundary(replacement)
+  })
+
+  it('retains suspended-scope authorization admissions until their fetches settle', () => {
+    const boundaries = capturePendingAuthorizations(driver, 'chat-suspended-authorizations')
+
+    expect(driver.suspendBrowserScope('chat-suspended-authorizations')).toBe(true)
+    expect(boundaries.every((boundary) => boundary.cancelled)).toBe(true)
+    expect(driver.captureBrowserToolQueueBoundary('chat-suspended-authorizations')).toBeNull()
+
+    releasePendingAuthorizations(driver, boundaries)
+    const replacement = driver.captureBrowserToolQueueBoundary('chat-suspended-authorizations')
+    expect(replacement).not.toBeNull()
+    if (replacement) driver.releaseBrowserToolQueueBoundary(replacement)
+  })
+
+  it('retains process-wide authorization admissions across driver reinitialization', () => {
+    const boundaries = ['chat-auth-a', 'chat-auth-b', 'chat-auth-c', 'chat-auth-d'].flatMap(
+      (scopeId) => capturePendingAuthorizations(driver, scopeId)
+    )
+    expect(boundaries).toHaveLength(driver.BROWSER_TOOL_ADMISSION_LIMITS.process)
+
+    driver.initDriver(
+      {
+        onPageState: vi.fn(),
+        onTabsState: vi.fn(),
+        onSessionStatus: vi.fn(),
+        onFillAvailability: vi.fn(),
+      },
+      () => null
+    )
+
+    expect(boundaries.every((boundary) => boundary.cancelled)).toBe(true)
+    expect(driver.captureBrowserToolQueueBoundary('chat-after-reinit')).toBeNull()
+
+    driver.releaseBrowserToolQueueBoundary(boundaries[0])
+    const replacement = driver.captureBrowserToolQueueBoundary('chat-after-reinit')
+    expect(replacement).not.toBeNull()
+    if (replacement) driver.releaseBrowserToolQueueBoundary(replacement)
+    releasePendingAuthorizations(driver, boundaries.slice(1))
   })
 
   it('honors cancellation that arrives before the authorized tool invocation', async () => {
@@ -1066,6 +1172,104 @@ describe('executeTool', () => {
     expect(driver.migrateBrowserScope('pending:other-chat', 'chat-occupied')).toBe(false)
   })
 
+  it('cancels only the replaced destination authorizations during migration', async () => {
+    await driver.executeTool('pending:new-chat', 'browser_open_tab', {})
+    driver.activateBrowserScope('chat-real')
+    const sourceBoundary = driver.captureBrowserToolQueueBoundary('pending:new-chat')
+    const destinationBoundary = driver.captureBrowserToolQueueBoundary('chat-real')
+    const otherBoundary = driver.captureBrowserToolQueueBoundary('chat-other')
+    expect(sourceBoundary).not.toBeNull()
+    expect(destinationBoundary).not.toBeNull()
+    expect(otherBoundary).not.toBeNull()
+    if (!sourceBoundary || !destinationBoundary || !otherBoundary) {
+      throw new Error('Expected browser tool authorization admissions')
+    }
+
+    expect(driver.migrateBrowserScope('pending:new-chat', 'chat-real')).toBe(true)
+
+    await expect(
+      driver.executeTool(
+        'chat-real',
+        'browser_list_tabs',
+        {},
+        'tool-destination-before-migration',
+        destinationBoundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+    await expect(
+      driver.executeTool(
+        'chat-real',
+        'browser_list_tabs',
+        {},
+        'tool-source-before-migration',
+        sourceBoundary
+      )
+    ).resolves.toMatchObject({ ok: true })
+    await expect(
+      driver.executeTool(
+        'chat-other',
+        'browser_list_tabs',
+        {},
+        'tool-other-during-migration',
+        otherBoundary
+      )
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('retains replaced destination admissions until their authorization fetches settle', async () => {
+    await driver.executeTool('pending:new-chat', 'browser_open_tab', {})
+    driver.activateBrowserScope('chat-real')
+    const sourceBoundary = driver.captureBrowserToolQueueBoundary('pending:new-chat')
+    const destinationBoundaries = capturePendingAuthorizations(
+      driver,
+      'chat-real',
+      driver.BROWSER_TOOL_ADMISSION_LIMITS.perScope - 1
+    )
+    expect(sourceBoundary).not.toBeNull()
+    if (!sourceBoundary) throw new Error('Expected source authorization admission')
+
+    expect(driver.migrateBrowserScope('pending:new-chat', 'chat-real')).toBe(true)
+
+    expect(destinationBoundaries.every((boundary) => boundary.cancelled)).toBe(true)
+    expect(sourceBoundary.cancelled).toBe(false)
+    expect(driver.captureBrowserToolQueueBoundary('chat-real')).toBeNull()
+
+    releasePendingAuthorizations(driver, destinationBoundaries)
+    await expect(
+      driver.executeTool(
+        'chat-real',
+        'browser_list_tabs',
+        {},
+        'tool-source-after-destination-settlement',
+        sourceBoundary
+      )
+    ).resolves.toMatchObject({ ok: true })
+    const replacement = driver.captureBrowserToolQueueBoundary('chat-real')
+    expect(replacement).not.toBeNull()
+    if (replacement) driver.releaseBrowserToolQueueBoundary(replacement)
+  })
+
+  it('keeps migrated source admissions charged to the durable scope after disposal', () => {
+    driver.activateBrowserScope('pending:new-chat')
+    const sourceBoundaries = capturePendingAuthorizations(driver, 'pending:new-chat')
+
+    expect(driver.migrateBrowserScope('pending:new-chat', 'chat-real')).toBe(true)
+    expect(sourceBoundaries.every((boundary) => boundary.scopeId === 'chat-real')).toBe(true)
+
+    driver.disposeBrowserScope('chat-real')
+    driver.activateBrowserScope('chat-real')
+    expect(sourceBoundaries.every((boundary) => boundary.cancelled)).toBe(true)
+    expect(driver.captureBrowserToolQueueBoundary('chat-real')).toBeNull()
+
+    releasePendingAuthorizations(driver, sourceBoundaries)
+    const replacement = driver.captureBrowserToolQueueBoundary('chat-real')
+    expect(replacement).not.toBeNull()
+    if (replacement) driver.releaseBrowserToolQueueBoundary(replacement)
+  })
+
   it('retains a migrated provisional alias for callbacks until durable disposal', async () => {
     await driver.executeTool('pending:new-chat', 'browser_open_tab', {})
     const tab = session.withBrowserScope('pending:new-chat', () => session.requireTab())
@@ -1210,6 +1414,41 @@ describe('executeTool', () => {
         ok: true,
         result: { tabs: expect.any(Array) },
       })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('expires a bounded queue wait without running the stale action later', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.mocked(contents.loadURL).mockClear()
+    vi.useFakeTimers()
+    try {
+      const waiting = driver.executeTool(
+        'chat-test',
+        'browser_wait_for',
+        { timeoutMs: 120_000 },
+        'tool-queue-head'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      const queued = driver.executeTool(
+        'chat-test',
+        'browser_navigate',
+        { url: 'http://127.0.0.1/expired' },
+        'tool-queue-expired'
+      )
+
+      await vi.advanceTimersByTimeAsync(BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS)
+      await expect(queued).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('waited too long for earlier browser work'),
+      })
+
+      expect(driver.cancelTool('chat-test', 'tool-queue-head')).toBe(true)
+      await vi.advanceTimersByTimeAsync(0)
+      await expect(waiting).resolves.toMatchObject({ ok: false })
+      expect(contents.loadURL).not.toHaveBeenCalledWith('http://127.0.0.1/expired')
     } finally {
       vi.useRealTimers()
     }

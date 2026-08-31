@@ -34,6 +34,10 @@ function mount(ui: ReactNode): void {
   act(() => root?.render(ui))
 }
 
+function rerender(ui: ReactNode): void {
+  act(() => root?.render(ui))
+}
+
 function buttonByText(text: string): HTMLButtonElement {
   const button = Array.from(document.querySelectorAll('button')).find(
     (candidate) => candidate.textContent === text
@@ -75,11 +79,12 @@ afterEach(() => {
 
 describe('claimPermissionResponse', () => {
   it('allows one response per request id across effect recreation', () => {
-    const handledRequestId = { current: null as string | null }
+    const handledRequestIds = { current: new Set<string>() }
 
-    expect(claimPermissionResponse(handledRequestId, 'request-1')).toBe(true)
-    expect(claimPermissionResponse(handledRequestId, 'request-1')).toBe(false)
-    expect(claimPermissionResponse(handledRequestId, 'request-2')).toBe(true)
+    expect(claimPermissionResponse(handledRequestIds, 'request-1')).toBe(true)
+    expect(claimPermissionResponse(handledRequestIds, 'request-1')).toBe(false)
+    expect(claimPermissionResponse(handledRequestIds, 'request-2')).toBe(true)
+    expect(claimPermissionResponse(handledRequestIds, 'request-1')).toBe(false)
   })
 })
 
@@ -149,7 +154,7 @@ describe('browser permission prompt', () => {
 
     act(() => buttonByText('Block').click())
     expect(onDecision).toHaveBeenCalledOnce()
-    expect(onDecision).toHaveBeenCalledWith(false)
+    expect(onDecision).toHaveBeenCalledWith(siteRequest.requestId, 'respond-site-permission', false)
   })
 
   it('makes Allow an explicit primary decision', () => {
@@ -166,7 +171,52 @@ describe('browser permission prompt', () => {
     expect(allow.className).toContain('bg-[var(--text-primary)]')
     act(() => allow.click())
     expect(onDecision).toHaveBeenCalledOnce()
-    expect(onDecision).toHaveBeenCalledWith(true)
+    expect(onDecision).toHaveBeenCalledWith(
+      mediaRequest.requestId,
+      'respond-media-permission',
+      true
+    )
+  })
+
+  it('blocks replaced and unmounted requests once without overriding an explicit answer', () => {
+    const handledRequestIds = { current: new Set<string>() }
+    const responses = vi.fn()
+    const onDecision = (
+      requestId: string,
+      action: 'respond-media-permission' | 'respond-site-permission',
+      allowed: boolean
+    ) => {
+      if (claimPermissionResponse(handledRequestIds, requestId)) {
+        responses(requestId, action, allowed)
+      }
+    }
+
+    mount(
+      createElement(BrowserPermissionModal, {
+        request: siteRequest,
+        open: true,
+        onDecision,
+      })
+    )
+    rerender(
+      createElement(BrowserPermissionModal, {
+        request: mediaRequest,
+        open: true,
+        onDecision,
+      })
+    )
+
+    expect(responses).toHaveBeenCalledWith(siteRequest.requestId, 'respond-site-permission', false)
+    act(() => buttonByText('Allow').click())
+    act(() => root?.unmount())
+    root = null
+
+    expect(responses).toHaveBeenCalledTimes(2)
+    expect(responses).toHaveBeenLastCalledWith(
+      mediaRequest.requestId,
+      'respond-media-permission',
+      true
+    )
   })
 })
 
