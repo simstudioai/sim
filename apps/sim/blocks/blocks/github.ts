@@ -19,7 +19,7 @@ const REVIEWER_FIELD = ['reviewers', 'team_reviewers'] as const
  * its option id, so the value arrives as the string 'true'/'false' and the
  * generic handler only JSON-parses `json`/`array` inputs.
  */
-export const GITHUB_PARAM_ALIASES: ReadonlyArray<{
+const GITHUB_PARAM_ALIASES: ReadonlyArray<{
   from: string
   to: string
   operations: readonly string[]
