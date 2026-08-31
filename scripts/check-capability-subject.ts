@@ -31,6 +31,9 @@
  *   C  every call to a capability sink passes a subject that came from
  *      `capabilityGovernedUserId` — the call expression inline, or a local bound
  *      to it. An id read off `rateLimit`/`auth` is the failure this exists for.
+ *      Import aliases (`sink as local`) are folded in, and a local of the
+ *      audit's own name is refused outright: either one turns a source-text
+ *      match into a no-op that still passes.
  *   D  at least one governed sink call was actually found. The assertions are
  *      source-text matches, so a refactor into a form the parser cannot follow
  *      would otherwise be indistinguishable from a clean tree.
@@ -185,7 +188,41 @@ export function auditSource(file: string, source: string): { findings: Finding[]
     governedLocals.add(match[1])
   }
 
-  for (const [sink, subjectIndex] of Object.entries(CAPABILITY_SINKS)) {
+  /**
+   * An import alias is a rename the source-text match cannot see:
+   * `import { assertWorkspaceCapability as assertCap }` leaves every later call
+   * spelled `assertCap(...)`, and the sink's own name still appears once — on
+   * the import line — so the audit stayed green with a governed-call count that
+   * never moved. Aliases are folded into the sink table for this file.
+   */
+  const sinks_ = { ...CAPABILITY_SINKS }
+  for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)\s+as\s+([A-Za-z_$][\w$]*)/g)) {
+    const subjectIndex = CAPABILITY_SINKS[match[1]]
+    if (subjectIndex !== undefined) sinks_[match[2]] = subjectIndex
+  }
+
+  /**
+   * A local of the audit's own name defeats every assertion below at once: the
+   * governed-locals scan matches `= capabilityGovernedUserId(` whatever that
+   * name now resolves to. Refused outright rather than resolved, because the
+   * name has exactly one legitimate meaning here — the middleware's export.
+   */
+  if (file !== MIDDLEWARE) {
+    for (const match of source.matchAll(
+      new RegExp(`(?:(?:const|let|var|function)\\s+${GOVERNED}\\b|\\bas\\s+${GOVERNED}\\b)`, 'g')
+    )) {
+      findings.push({
+        file,
+        line: lineOf(source, match.index),
+        message:
+          `declares its own \`${GOVERNED}\`, shadowing the middleware's. Every ` +
+          'assertion here is written in terms of that name, so a local one makes a ' +
+          'governed subject unverifiable. Import it from the middleware instead.',
+      })
+    }
+  }
+
+  for (const [sink, subjectIndex] of Object.entries(sinks_)) {
     for (const match of source.matchAll(new RegExp(`\\b${sink}\\s*\\(`, 'g'))) {
       const openIndex = match.index + match[0].length - 1
       /** A declaration or an import of the sink, not a call into it. */

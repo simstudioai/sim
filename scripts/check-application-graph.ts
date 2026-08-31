@@ -98,9 +98,22 @@ export const GUARDED_ROOTS: readonly GuardedRoot[] = [
  * The negative lookahead drops `import type {` and `import type X`, which the
  * compiler erases; `import { type A }` still counts, because that statement
  * emits a runtime require for the module.
+ *
+ * The clause between the keyword and `from` never contains a quote, so matching
+ * only non-quote characters there keeps this from swallowing a side-effect
+ * import that precedes a clause import and reporting one edge for two.
  */
 const IMPORT_PATTERN =
-  /(?:^|\n)\s*(?:import|export)\s+(?!type[\s{])[\s\S]*?\s*from\s*['"]([^'"]+)['"]/g
+  /(?:^|\n)\s*(?:import|export)\s+(?!type[\s{])[^'"]*?\s*from\s*['"]([^'"]+)['"]/g
+
+/**
+ * Matches a side-effect import — `import '…'`, with no clause and so no
+ * `from`. It is the heaviest edge of all: the module is loaded purely to run,
+ * and nothing in the importing file names it, so it is also the easiest one to
+ * miss by eye. Dynamic `import(…)` is not matched: the quote must follow the
+ * keyword directly, and a call opens a parenthesis first.
+ */
+const SIDE_EFFECT_IMPORT_PATTERN = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g
 
 /** Resolves an `@/`- or relative specifier to a file under `apps/sim`, or null. */
 export function resolveSpecifier(specifier: string, fromFile: string): string | null {
@@ -119,7 +132,9 @@ export function resolveSpecifier(specifier: string, fromFile: string): string | 
 
 /** The runtime specifiers `source` imports, in source order. */
 export function runtimeSpecifiers(source: string): string[] {
-  return [...source.matchAll(IMPORT_PATTERN)].map((match) => match[1])
+  return [...source.matchAll(IMPORT_PATTERN), ...source.matchAll(SIDE_EFFECT_IMPORT_PATTERN)]
+    .sort((first, second) => (first.index ?? 0) - (second.index ?? 0))
+    .map((match) => match[1])
 }
 
 export interface GraphViolation {
