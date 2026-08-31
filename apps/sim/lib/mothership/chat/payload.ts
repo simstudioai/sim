@@ -424,5 +424,9 @@ export async function buildCopilotRequestPayload(
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
     ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
+    // The mounted chat view executes client-routed workflow tools (run panel UX), so the
+    // UI declares that capability explicitly; headless callers omit or send [] and the
+    // server runs those tools immediately instead of waiting out the pickup grace.
+    clientCapabilities: ['workflow-tool-pickup'],
   }
 }

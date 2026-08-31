@@ -225,6 +225,14 @@ export interface OrchestratorOptions {
   abortSignal?: AbortSignal
   onAbortObserved?: (reason: string) => void
   interactive?: boolean
+  /**
+   * Whether the caller declared it can pick up client-routed workflow tools
+   * (ChatRequest.clientCapabilities). false → dispatch claims and runs them
+   * server-side immediately instead of waiting out the client-pickup grace.
+   * Defaults true (legacy callers made no declaration). Orthogonal to
+   * `interactive`, which is a trust classification, not executor routing.
+   */
+  clientToolPickupExpected?: boolean
 }
 
 export interface OrchestratorResult {
