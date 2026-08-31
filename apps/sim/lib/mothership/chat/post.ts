@@ -305,6 +305,7 @@ const ChatMessageSchema = z
     contexts: z.array(ChatContextSchema).optional(),
     commands: z.array(z.string()).optional(),
     userTimezone: z.string().optional(),
+    clientCapabilities: z.array(z.string()).optional(),
     desktopCapabilities: z
       .object({
         localFilesystem: z.boolean().optional(),
@@ -1657,6 +1658,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           goRoute: branch.goRoute,
           autoExecuteTools: true,
           interactive: true,
+          // Executor routing is decided HERE, once per turn, from the caller's declared
+          // capabilities — dispatch never discovers client absence by burning a grace timer.
+          clientToolPickupExpected: body.clientCapabilities
+            ? body.clientCapabilities.includes('workflow-tool-pickup')
+            : true,
           executionContext,
           billingAttribution: executionContext.billingAttribution,
           onComplete: buildOnComplete({
