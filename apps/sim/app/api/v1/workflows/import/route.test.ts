@@ -40,6 +40,9 @@ const {
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
+  /** Mirrors the real helper: only a personal key or session carries a governed subject. */
+  capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
+    rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null,
   checkRateLimit: mockCheckRateLimit,
   createRateLimitResponse: vi.fn(() =>
     NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
