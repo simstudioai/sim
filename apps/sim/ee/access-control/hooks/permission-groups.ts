@@ -118,9 +118,14 @@ const USER_PERMISSION_CONFIG_RETRIES = 3
  * A refusal will not heal by asking again: the caller's session or membership
  * is what the server disagrees with, and three more requests spend latency to
  * arrive at the same 4xx. Only a transport failure or a 5xx is worth a retry.
+ *
+ * Stated as "a 5xx and nothing else" rather than "not a 4xx". `requestJson`
+ * raises an `ApiClientError` carrying the response status for a body that fails
+ * contract validation too, and that status is a `200` — deterministic, and
+ * outside the 4xx band the narrower test would have let through.
  */
 function retryUserPermissionConfig(failureCount: number, error: Error): boolean {
-  if (isApiClientError(error) && error.status >= 400 && error.status < 500) return false
+  if (isApiClientError(error) && (error.status < 500 || error.status >= 600)) return false
   return failureCount < USER_PERMISSION_CONFIG_RETRIES
 }
 

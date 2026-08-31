@@ -185,6 +185,9 @@ function AllowlistField({ label, value, onChange, options, disabled }: Allowlist
         onChange={onChange}
         options={options}
         disabled={disabled}
+        // An empty allow-list denies every option, so the multi-select's default
+        // empty label — 'All' — states the opposite of what the server enforces.
+        allLabel='None allowed'
         matchTriggerWidth={false}
         className='w-[200px]'
       />

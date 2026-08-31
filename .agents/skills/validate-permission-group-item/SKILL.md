@@ -28,10 +28,11 @@ Record the builder, the `enforcement`, and the position.
 All derived by `collectFieldProperty` from the same registry. **Do not hand-verify them.** Verify nothing bypasses the derivation:
 
 ```bash
-grep -rn "<configKey>" apps/sim --include='*.ts' --include='*.tsx' | grep -v 'lib/permission-groups/'
+grep -rn "<configKey>" apps/sim --include='*.ts' --include='*.tsx' \
+  | grep -vE 'lib/permission-groups/(fields|resolve\.server|config-scope\.server)\.ts'
 ```
 
-Every hit should be a rule's `deniedBy`, an enforcement site, a UI binding, or a test. A route restating the key, a client re-deriving a default, or a second coercion path is a leak. Specifically:
+Only the registry and the resolvers are excluded, so `capabilities.ts` stays in the output — its `CAPABILITY_RULES` entry and `deniedBy` are the authoritative reads this step exists to check. Every hit should be a rule's `deniedBy`, an enforcement site, a UI binding, or a test. A route restating the key, a client re-deriving a default, or a second coercion path is a leak. Specifically:
 
 - **`z.array(...).catch(...)` anywhere on this key's path** — whole-value tolerant, so one bad member discards every good one, and on an allowlist the `null` fallback means unrestricted. That is fail-**open**. `tolerantArray` filters element-wise. Rank a regression here with the enforcement findings.
 - **`?? []` applied to an allowlist** — collapses "allows everything" into "allows nothing".
