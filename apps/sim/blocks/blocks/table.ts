@@ -206,12 +206,18 @@ const SORT_FIELD = ['sortBuilder', 'sort'] as const
 
 export const TableBlock: BlockConfig<TableQueryResponse> = {
   type: 'table',
-  name: 'Table',
+  name: 'Table (Legacy)',
   description: 'User-defined data tables',
   longDescription:
     'Create and manage custom data tables. Store, query, and manipulate structured data within workflows. Query Rows returns every matching row when Limit is omitted and fails if the result exceeds 5MB.',
   docsLink: 'https://docs.sim.ai/integrations/table',
   category: 'blocks',
+  // Superseded by table_v2 (GA): hidden from discovery like other legacy _vN
+  // blocks; existing workflows keep executing it. `triggers.enabled` below
+  // deliberately stays true — webhook execution gates on it at runtime, so
+  // flipping it would break every deployed v1 table-trigger workflow.
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'table_v2' },
   bgColor: '#10B981',
   icon: Table,
   canvasPresentation: {

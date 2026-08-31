@@ -6,7 +6,7 @@ description: User-defined data tables
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="table"
+  type="table_v2"
   color="#10B981"
 />
 
@@ -17,7 +17,7 @@ Tables allow you to create and manage custom data tables directly within Sim. St
 - **No external setup**: Create tables instantly without configuring external databases
 - **Workflow-native**: Data persists across workflow executions and is accessible from any workflow in your workspace
 - **Flexible schema**: Define columns with types (string, number, currency, boolean, date, json, select) and constraints (required, unique)
-- **Powerful querying**: Filter, sort, and paginate data using MongoDB-style operators
+- **Powerful querying**: Filter, sort, and paginate data using a typed predicate grammar
 - **Agent-friendly**: Tables can be used as tools by AI agents for dynamic data storage and retrieval
 
 **Key Features:**
@@ -54,7 +54,7 @@ Tables are created from the **Tables** section in the sidebar. Each table requir
 
 ## Usage Instructions
 
-Create and manage custom data tables. Store, query, and manipulate structured data within workflows. Query Rows returns every matching row when Limit is omitted and fails if the result exceeds 5MB.
+Create and manage custom data tables. Store, query, and manipulate structured data within workflows. 
 
 
 
@@ -204,29 +204,29 @@ Delete multiple rows that match filter criteria. Use with caution - supports opt
 
 ### Query Rows
 
-Query rows from a table with filtering, sorting, and pagination
+Query rows with a typed predicate filter and cursor pagination. A single filter can be a plain condition: `\{"field":"wins","op":"gte","value":10\}`. Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort spec, e.g. `[\{"field":"wins","direction":"desc"\}]`. Omit limit to return the entire result — the query fails if it exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, a page can end early at the byte budget: a non-null nextCursor means more rows exist — pass it back as cursor to continue; never infer completion from page size.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `tableId` | string | Yes | Table ID |
-| `filter` | object | No | Filter conditions \(MongoDB-style operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty\) |
-| `sort` | object | No | Sort order as \{field: "asc"\|"desc"\} |
-| `limit` | number | No | Maximum rows to return. Omit to return every matching row; the query fails if the result exceeds the 5MB response budget. |
-| `offset` | number | No | Number of rows to skip \(default: 0\) |
+| `filter` | json | No | Predicate condition, e.g. `\{"field":"wins","op":"gte","value":10\}`. Use `all` or `any` for multiple conditions; omit to match all rows. |
+| `columns` | array | No | Stable column IDs or table column names to include in each row data object. Omit or pass an empty array to return all columns. A reference that matches no column is ignored. |
+| `order` | json | No | Sort spec, e.g. `\[\{"field":"wins","direction":"desc"\}\]`. |
+| `limit` | number | No | Maximum rows per page. Omit to return the entire matching result — fails if it exceeds the 5MB budget. With a limit, pages may byte-cut early and set nextCursor when more remain. |
+| `cursor` | string | No | Opaque pagination cursor returned by a prior query. Omit for the first page. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether query succeeded |
+| `success` | boolean | Whether the query succeeded |
 | `rows` | array | Query result rows |
 | `rowCount` | number | Number of rows returned |
-| `totalCount` | number | Total rows matching filter |
-| `limit` | number | Limit used in query |
-| `offset` | number | Offset used in query |
-| `nextCursor` | string | Non-null when more rows match past this page. A page can end early at the byte budget, so this — not a short rowCount — is what says whether more remain. To page, advance offset by rowCount and stop when this is null. |
+| `totalCount` | number | Total rows matching the predicate \(computed on the first page only\) |
+| `limit` | number | Limit used in the query |
+| `nextCursor` | string | Cursor to fetch the next page, or null on the last page |
 
 ### Get Row
 
@@ -272,64 +272,94 @@ Get the schema configuration of a table
 {/* MANUAL-CONTENT-START:notes */}
 ## Filter Operators
 
-Filters use MongoDB-style operators for flexible querying:
+A filter is a predicate. One condition is an object naming a column, an operator, and a value:
+
+```json
+{"field": "status", "op": "eq", "value": "active"}
+```
 
 | Operator | Description | Example |
 |----------|-------------|---------|
-| `$eq` | Equals | `{"status": {"$eq": "active"}}` or `{"status": "active"}` |
-| `$ne` | Not equals | `{"status": {"$ne": "deleted"}}` |
-| `$gt` | Greater than | `{"age": {"$gt": 18}}` |
-| `$gte` | Greater than or equal | `{"score": {"$gte": 80}}` |
-| `$lt` | Less than | `{"price": {"$lt": 100}}` |
-| `$lte` | Less than or equal | `{"quantity": {"$lte": 10}}` |
-| `$in` | In array | `{"status": {"$in": ["active", "pending"]}}` |
-| `$nin` | Not in array | `{"type": {"$nin": ["spam", "blocked"]}}` |
-| `$contains` | String contains (case-insensitive) | `{"email": {"$contains": "@gmail.com"}}` |
-| `$ncontains` | Does not contain (case-insensitive; matches empty cells) | `{"email": {"$ncontains": "@spam.com"}}` |
-| `$startsWith` | Starts with (case-insensitive) | `{"name": {"$startsWith": "Dr."}}` |
-| `$endsWith` | Ends with (case-insensitive) | `{"file": {"$endsWith": ".pdf"}}` |
-| `$empty` | Cell is empty (`true`) or non-empty (`false`) | `{"phone": {"$empty": true}}` |
+| `eq` | Equals | `{"field": "status", "op": "eq", "value": "active"}` |
+| `ne` | Not equals | `{"field": "status", "op": "ne", "value": "deleted"}` |
+| `gt` | Greater than | `{"field": "age", "op": "gt", "value": 18}` |
+| `gte` | Greater than or equal | `{"field": "score", "op": "gte", "value": 80}` |
+| `lt` | Less than | `{"field": "price", "op": "lt", "value": 100}` |
+| `lte` | Less than or equal | `{"field": "quantity", "op": "lte", "value": 10}` |
+| `in` | In array | `{"field": "status", "op": "in", "value": ["active", "pending"]}` |
+| `nin` | Not in array | `{"field": "type", "op": "nin", "value": ["spam", "blocked"]}` |
+| `contains` | Contains (case-sensitive) | `{"field": "email", "op": "contains", "value": "@gmail.com"}` |
+| `like` / `nlike` | Pattern match, `*` wildcard (case-sensitive) | `{"field": "name", "op": "like", "value": "Dr.*"}` |
+| `ilike` / `nilike` | Pattern match, `*` wildcard (case-insensitive) | `{"field": "name", "op": "ilike", "value": "*jo*"}` |
+| `startsWith` | Starts with | `{"field": "name", "op": "startsWith", "value": "Dr."}` |
+| `endsWith` | Ends with | `{"field": "file", "op": "endsWith", "value": ".pdf"}` |
+| `isNull` / `isNotNull` | Cell is (not) null | `{"field": "phone", "op": "isNull"}` |
+| `isEmpty` / `isNotEmpty` | Cell is (not) empty | `{"field": "phone", "op": "isEmpty"}` |
+
+Columns are scalar (string, number, boolean, date) or opaque JSON. There are no array columns, so use `ilike` with `*value*` for substring matching.
 
 ### Combining Filters
 
-Multiple field conditions are combined with AND logic:
+Wrap conditions in `all` for AND:
 
 ```json
 {
-  "status": "active",
-  "age": {"$gte": 18}
-}
-```
-
-Use `$or` for OR logic:
-
-```json
-{
-  "$or": [
-    {"status": "active"},
-    {"status": "pending"}
+  "all": [
+    {"field": "status", "op": "eq", "value": "active"},
+    {"field": "age", "op": "gte", "value": 18}
   ]
 }
 ```
 
-## Sort Specification
-
-Specify sort order with column names and direction:
+Use `any` for OR:
 
 ```json
 {
-  "createdAt": "desc"
+  "any": [
+    {"field": "status", "op": "eq", "value": "active"},
+    {"field": "status", "op": "eq", "value": "pending"}
+  ]
 }
+```
+
+Groups nest, so mixed logic is a group inside a group:
+
+```json
+{
+  "all": [
+    {"field": "status", "op": "eq", "value": "active"},
+    {"any": [
+      {"field": "plan", "op": "eq", "value": "pro"},
+      {"field": "score", "op": "gte", "value": 90}
+    ]}
+  ]
+}
+```
+
+Omit the filter entirely to match every row.
+
+## Sort Specification
+
+Order is a list of column/direction pairs, applied in order:
+
+```json
+[{"field": "createdAt", "direction": "desc"}]
 ```
 
 Multi-column sorting:
 
 ```json
-{
-  "priority": "desc",
-  "name": "asc"
-}
+[
+  {"field": "priority", "direction": "desc"},
+  {"field": "name", "direction": "asc"}
+]
 ```
+
+## Pagination
+
+Omit **Limit** to return every matching row in one response; the query fails if the result exceeds 5MB, so narrow with a filter rather than guessing a limit.
+
+With a **Limit**, results page. A page can end at the limit *or* at the 5MB byte budget, whichever comes first, so a short page does not mean the end. Pass the returned `nextCursor` back as **Cursor** to fetch the next page and stop only when `nextCursor` is null — never infer completion from the row count.
 
 ## Built-in Columns
 

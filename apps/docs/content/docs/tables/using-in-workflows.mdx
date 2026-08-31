@@ -19,7 +19,7 @@ Throughout this page the running example is a `leads` table with columns `compan
 
 A **Table block** performs one operation against one table. The **Operation** dropdown picks the action; the **Table** selector picks the target. The fields below those two change based on the operation you choose.
 
-{/* VISUAL: Table block UI showing the Operation dropdown open, plus the conditional fields that appear for Query Rows (Filter Conditions, Sort Order, Limit, Offset). */}
+{/* VISUAL: Table block UI showing the Operation dropdown open, plus the conditional fields that appear for Query Rows (Filter, Order, Columns to Return, Limit, Cursor). */}
 
 The operations fall into three groups:
 
@@ -65,15 +65,24 @@ Later blocks read these by name: `<table1.rows>` is the array, `<table1.rowCount
   ]}
 />
 
-**Filter Conditions** narrow the result. In the default **Builder** input mode you add rules visually: pick a column, an operator, and a value. Switch the **Input Mode** to **Editor** to write the filter as an object instead, using operators like `$eq`, `$gt`, `$contains`, and `$in`:
+**Filter** narrows the result. You can build rules visually - pick a column, an operator, and a value - or write the filter directly as a predicate. One condition names a field, an operator, and a value:
 
 ```
-{ status: "unprocessed", createdAt: { $gte: "2026-06-01" } }
+{"field": "status", "op": "eq", "value": "unprocessed"}
 ```
 
-**Sort Order** orders the result, again visually in Builder mode or as an object in Editor mode, for example `{ createdAt: "desc" }`. **Limit** caps how many rows come back (default 100, max 1000) and **Offset** skips rows for pagination.
+Combine conditions with `all` (AND) or `any` (OR), and nest the groups for mixed logic:
 
-{/* VISUAL: Filter Conditions and Sort Order builders, showing a status = unprocessed rule and a createdAt descending sort, with the equivalent Editor-mode object beside them. */}
+```
+{"all": [
+  {"field": "status", "op": "eq", "value": "unprocessed"},
+  {"field": "createdAt", "op": "gte", "value": "2026-06-01"}
+]}
+```
+
+**Order** sorts the result as a list of column/direction pairs, for example `[{"field": "createdAt", "direction": "desc"}]`. **Columns to Return** narrows each row to the fields a downstream step actually needs. **Limit** caps how many rows come back per page, and **Cursor** continues a previous page - see [Paginate large reads](#tips) below.
+
+{/* VISUAL: Filter and Order builders, showing a status = unprocessed rule and a createdAt descending sort, with the equivalent predicate JSON beside them. */}
 
 For a one-off point lookup, use **Get Row by ID** with a single `Row ID`. **Get Schema** returns the table's column definitions, useful when a workflow needs to inspect structure before writing. The full operator list lives in the [Table block reference](/integrations/table).
 
@@ -125,7 +134,7 @@ After the run, the table holds the enriched rows. The next run queries them agai
 
 **Iterate row by row.** Wrap a Query → process → update cycle in a [Loop block](/workflows/blocks/loop) to handle one row at a time. This runs sequentially, slower than a batch update but useful when each row needs its own multi-step logic. Inside the loop the Agent reads the current row and an Update Row by ID writes its result.
 
-**Paginate large reads.** Query Rows returns at most 1000 rows, and a page can also end early once its rows reach the response size budget — so a page may come back shorter than your **Limit** even when more rows match. Advance **Offset** by the `rowCount` you actually received, not by the Limit you asked for, and keep going while `nextCursor` is set. Stop when `nextCursor` is null. Stepping by the Limit instead skips whatever a short page left behind.
+**Paginate large reads.** Omit **Limit** to get every matching row in one response; the query fails if the result exceeds 5MB, so narrow with a filter rather than guessing a limit. With a **Limit**, a page can end at the limit *or* early once its rows reach the 5MB budget — so a short page does not mean the end. Pass the returned `nextCursor` back as **Cursor** and keep going while it is non-null. Stop only when `nextCursor` is null; never infer completion from the row count.
 
 ## Inspecting reads and writes
 

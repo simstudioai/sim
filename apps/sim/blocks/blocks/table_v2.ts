@@ -246,11 +246,6 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
 - Use Columns to Return to keep only the fields a downstream step needs (e.g. ["col_email","name"]) — the 5MB budget counts only the returned columns, so narrowing columns is another way to fit a large table; leave it empty for every column.`,
   docsLink: 'https://docs.sim.ai/integrations/table',
   category: 'blocks',
-  // Unreleased: hidden from every discovery surface until revealed via the hosted
-  // `block-visibility` AppConfig document or the `PREVIEW_BLOCKS` env allowlist.
-  // Placed instances always execute. At GA: drop this, add the BlockMeta + docs,
-  // and mark v1 `table` superseded.
-  preview: true,
   bgColor: '#10B981',
   icon: Table,
   canvasPresentation: {
