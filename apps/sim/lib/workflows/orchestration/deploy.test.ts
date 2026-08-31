@@ -896,6 +896,7 @@ describe('mutation lock on the orchestration entry points', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('locked')
+    expect(result.errorCode).toBe('locked')
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 

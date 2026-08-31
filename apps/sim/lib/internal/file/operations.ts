@@ -305,10 +305,13 @@ const extractUserFileTextContent = async (
   return `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`
 }
 
-interface FileContentSource {
-  file: UserFile
+export interface FileContentProvenanceSource {
   identity?: WorkspaceFileSecretProvenanceIdentity
   ownerUserId?: string
+}
+
+interface FileContentSource extends FileContentProvenanceSource {
+  file: UserFile
 }
 
 async function bindSelectedContentFile(
@@ -334,16 +337,23 @@ async function bindSelectedContentFile(
 
   return {
     file,
-    identity: { fileId: metadata.id, key: metadata.key, context: 'workspace' },
+    identity: {
+      fileId: metadata.id,
+      key: metadata.key,
+      context: 'workspace',
+      contentUpdatedAt: metadata.contentUpdatedAt ?? undefined,
+    },
     ownerUserId: metadata.uploadedBy,
   }
 }
 
-async function getFileContentProvenance(
+export async function getFileContentProvenance(
   principal: Principal,
   workspaceId: string,
-  sources: readonly FileContentSource[]
+  sources: readonly FileContentProvenanceSource[],
+  signal?: AbortSignal
 ): Promise<ResolvedSecretTraceProvenanceV1> {
+  signal?.throwIfAborted()
   const ownerIds = new Set(
     sources
       .map((source) => source.ownerUserId)
@@ -356,14 +366,20 @@ async function getFileContentProvenance(
   const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
 
   for (const source of sources) {
+    signal?.throwIfAborted()
     if (!source.identity || !source.ownerUserId) {
       accumulator.markIncomplete('file-source-unidentified')
       continue
     }
     const { provenance } = await readWorkspaceFileSecretProvenance.execute({
       principal,
-      input: { fileId: source.identity.fileId, assertedWorkspaceId: workspaceId },
+      input: {
+        fileId: source.identity.fileId,
+        assertedWorkspaceId: workspaceId,
+        expectedContentUpdatedAt: source.identity.contentUpdatedAt,
+      },
     })
+    signal?.throwIfAborted()
     /**
      * `unrecorded` is a more specific `unknown`, and this accumulator has not opted into the
      * workspace file surface's policy, so it latches exactly as it did before.
@@ -468,6 +484,35 @@ function resolveFileWriteSecretProvenance(options: {
   return { success: true, contentProvenance: content }
 }
 
+/**
+ * Resolves the file an overwriting write should replace, or null when nothing exists at the
+ * target path. The shared reference resolver falls back to a workspace-wide name match, so the
+ * result is accepted only when it sits at exactly the folder and leaf name being written.
+ */
+async function resolveWriteOverwriteTarget(options: {
+  principal: Principal
+  workspaceId: string
+  folderId: string | null
+  folderSegments: string[]
+  leafName: string
+}) {
+  const { principal, workspaceId, folderId, folderSegments, leafName } = options
+  let existing: Awaited<ReturnType<typeof resolveWorkspaceFileReference>>
+  try {
+    existing = await resolveWorkspaceFileReference({
+      principal,
+      operation: fileOperations.updateContent,
+      workspaceId,
+      reference: [...folderSegments, leafName].join('/'),
+    })
+  } catch (error) {
+    if (error instanceof OrchestrationError && error.code === 'not_found') return null
+    throw error
+  }
+  if ((existing.folderId ?? null) !== folderId || existing.name !== leafName) return null
+  return existing
+}
+
 async function deriveWorkspaceFileSecretProvenance(options: {
   principal: Principal
   workspaceId: string
@@ -493,7 +538,7 @@ async function deriveWorkspaceFileSecretProvenance(options: {
   return mergeWorkspaceFileSecretProvenance(...provenances)
 }
 
-function fileContentJsonResponse(
+export function fileContentJsonResponse(
   body: Record<string, unknown>,
   includePrivateProvenance: boolean,
   init?: ResponseInit,
@@ -715,7 +760,12 @@ export async function executeFileManageOperation(
           return [
             {
               file: userFile,
-              identity: { fileId: file.id, key: file.key, context: 'workspace' },
+              identity: {
+                fileId: file.id,
+                key: file.key,
+                context: 'workspace',
+                contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+              },
               ownerUserId: file.uploadedBy,
             },
           ]
@@ -759,14 +809,14 @@ export async function executeFileManageOperation(
 
         logger.info('File content extracted', { count: contents.length })
         const provenance = includePrivateContentProvenance
-          ? await getFileContentProvenance(principal, workspaceId, sources)
+          ? await getFileContentProvenance(principal, workspaceId, sources, signal)
           : undefined
 
         return contentResponse({ success: true, data: { contents } }, undefined, provenance)
       }
 
       case 'write': {
-        const { fileName, content, fileInput, contentType } = body
+        const { fileName, content, fileInput, contentType, overwrite } = body
         signal?.throwIfAborted()
         const provenanceResolution = resolveFileWriteSecretProvenance({
           headers,
@@ -865,6 +915,56 @@ export async function executeFileManageOperation(
           input: { workspaceId, pathSegments: folderSegments },
         })
         const mimeType = sourceContentType || getMimeTypeFromExtension(getFileExtension(leafName))
+
+        if (overwrite) {
+          const existing = await resolveWriteOverwriteTarget({
+            principal,
+            workspaceId,
+            folderId: folderId ?? null,
+            folderSegments,
+            leafName,
+          })
+          if (existing) {
+            // Writing into a file someone else owns must not hand its owner an
+            // exact, re-resolvable secret lineage, exactly as appending does.
+            const overwriteProvenance =
+              writeProvenance?.status === 'exact' &&
+              writeProvenance.entries.length > 0 &&
+              existing.uploadedBy !== userId
+                ? { status: 'unknown' as const }
+                : writeProvenance
+            const { file: overwritten } = await updateWorkspaceFileContent.execute({
+              principal,
+              input: {
+                fileId: existing.id,
+                assertedWorkspaceId: workspaceId,
+                content: sourceContent,
+                encoding: sourceEncoding,
+                contentType: mimeType,
+                provenanceMode: 'replace_empty',
+                expectedUpdatedAt: existing.contentUpdatedAt ?? undefined,
+                ...(overwriteProvenance ? { secretProvenance: overwriteProvenance } : {}),
+              },
+            })
+
+            logger.info('File overwritten', {
+              fileId: overwritten.id,
+              name: overwritten.name,
+              size: overwritten.size,
+            })
+
+            return Response.json({
+              success: true,
+              data: {
+                id: overwritten.id,
+                name: overwritten.name,
+                size: overwritten.size,
+                url: ensureAbsoluteUrl(overwritten.url ?? overwritten.path),
+              },
+            })
+          }
+        }
+
         const result = await createWorkspaceFile.execute({
           principal,
           input: {
@@ -874,7 +974,10 @@ export async function executeFileManageOperation(
             content: sourceContent,
             encoding: sourceEncoding,
             folderId,
-            exactName: false,
+            // An overwrite that found no target must land on the exact path or fail. Suffixing
+            // would silently satisfy the request at the wrong name when a concurrent write
+            // created that path in between; exactName surfaces the race as a conflict instead.
+            exactName: Boolean(overwrite),
             ...(writeProvenance ? { secretProvenance: writeProvenance } : {}),
           },
         })

@@ -5173,12 +5173,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
               },
             },
-            deploymentMode: {
-              type: 'string',
-              description:
-                'Which workflow version rows execute: "live" (default, editable draft — edits take effect immediately) or "deployed" (latest active deployment; fails if the workflow was never deployed).',
-              enum: ['live', 'deployed'],
-            },
             groupId: {
               type: 'string',
               description:
@@ -6035,12 +6029,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                 },
               },
-            },
-            deploymentMode: {
-              type: 'string',
-              description:
-                "Which version of the backing workflow this group's per-row runs execute, for add_workflow_group and update_workflow_group. 'live' (default) runs the editable draft, so later edits take effect immediately. 'deployed' runs the workflow's latest active deployment, pinning rows to a published version — if that workflow has never been deployed the cell fails rather than falling back to the draft. Only meaningful for workflow groups; enrichment groups have no backing workflow.",
-              enum: ['live', 'deployed'],
             },
             description: {
               type: 'string',

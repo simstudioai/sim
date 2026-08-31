@@ -41,6 +41,7 @@ import {
   getBillingDisabledTableLimits,
   getDeleteSnapshotBatchSize,
   getMaxPageBytes,
+  getMaxRowSizeBytes,
   TABLE_LIMITS,
 } from '@/lib/table/constants?constants-test'
 
@@ -85,6 +86,18 @@ describe('getMaxPageBytes', () => {
     mockEnv.TABLE_MAX_PAGE_BYTES = String(2 * 1024 * 1024)
 
     expect(getMaxPageBytes()).toBe(2 * 1024 * 1024)
+  })
+})
+
+describe('getMaxRowSizeBytes', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(mockEnv)) delete mockEnv[key]
+  })
+
+  it('caps overrides at the delete snapshot byte budget', () => {
+    mockEnv.TABLE_MAX_ROW_SIZE_BYTES = String(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES * 2)
+
+    expect(getMaxRowSizeBytes()).toBe(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES)
   })
 })
 

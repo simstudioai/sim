@@ -151,7 +151,7 @@ export async function performFullDeploy(
   // Backstop for every caller — routes may assert first to render their own 423,
   // but the copilot deploy tools call this directly.
   const lockDenial = await workflowLockDenial(workflowId)
-  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'validation' }
+  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'locked' }
 
   const [workflowRecord] = await db
     .select()
@@ -509,6 +509,7 @@ export interface PerformFullUndeployParams {
 export interface PerformFullUndeployResult {
   success: boolean
   error?: string
+  errorCode?: OrchestrationErrorCode
   warnings?: string[]
 }
 
@@ -526,7 +527,7 @@ export async function performFullUndeploy(
   const requestId = params.requestId ?? generateRequestId()
 
   const lockDenial = await workflowLockDenial(workflowId)
-  if (lockDenial) return { success: false, error: lockDenial }
+  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'locked' }
 
   const [workflowRecord] = await db
     .select()
@@ -661,7 +662,7 @@ export async function performActivateVersion(
   const idempotencyKey = params.idempotencyKey ?? generateId()
 
   const lockDenial = await workflowLockDenial(workflowId)
-  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'validation' }
+  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'locked' }
 
   const [versionRow] = await db
     .select({

@@ -1,6 +1,7 @@
 'use client'
 
 import type { RowExecutionMetadata } from '@/lib/table'
+import type { TimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
 import type { DisplayColumn } from '../types'
 import { CellRender, resolveCellRender } from './cell-render'
@@ -14,6 +15,7 @@ interface CellContentProps {
    *  URL render as a tagged-resource chip instead of a plain external link. */
   workspaceId: string
   timeZone: string
+  timezoneStatus: TimezoneState['status']
   isEditing: boolean
   initialCharacter?: string | null
   onSave: (value: unknown, reason: SaveReason) => void
@@ -40,6 +42,7 @@ export function CellContent({
   column,
   workspaceId,
   timeZone,
+  timezoneStatus,
   isEditing,
   initialCharacter,
   onSave,
@@ -55,6 +58,7 @@ export function CellContent({
     isEnrichmentOutput,
     currentWorkspaceId: workspaceId,
     timeZone,
+    timezoneStatus,
   })
 
   return (

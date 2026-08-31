@@ -22,6 +22,7 @@ export const fileManageWriteBodySchema = z
      */
     fileInput: z.unknown().optional(),
     contentType: z.string().optional(),
+    overwrite: z.boolean().optional(),
     [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
   })
   .superRefine((body, context) => {

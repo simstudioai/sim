@@ -50,6 +50,8 @@ export interface ExecuteWorkflowOptions {
   abortSignal?: AbortSignal
   /** Use the live/draft workflow state instead of the deployed state. Used by copilot. */
   useDraftState?: boolean
+  /** Immutable workflow state selected by a trusted server-side trigger boundary. */
+  workflowStateOverride?: NonNullable<ExecutionMetadata['workflowStateOverride']>
   /** Stop execution after this block completes. Used for "run until block" feature. */
   stopAfterBlockId?: string
   /** Run-from-block configuration using a prior execution snapshot. */
@@ -150,6 +152,7 @@ export async function executeWorkflow(
       triggerType,
       triggerBlockId: streamConfig?.triggerBlockId,
       useDraftState: streamConfig?.useDraftState ?? false,
+      workflowStateOverride: streamConfig?.workflowStateOverride,
       startTime: new Date().toISOString(),
       isClientSession: false,
       enforceCredentialAccess: streamConfig?.enforceCredentialAccess ?? false,
@@ -171,7 +174,7 @@ export async function executeWorkflow(
       metadata,
       workflow,
       input,
-      workflow.variables || {},
+      streamConfig?.workflowStateOverride?.variables ?? workflow.variables ?? {},
       streamConfig?.selectedOutputs || []
     )
 

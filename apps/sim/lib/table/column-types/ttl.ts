@@ -68,6 +68,12 @@ export function parseTtlEpochSeconds(
 }
 
 function epochSecondsToIso(value: unknown): string | null {
+  if (
+    typeof value !== 'number' &&
+    (typeof value !== 'string' || !NUMERIC_VALUE_PATTERN.test(value.trim()))
+  ) {
+    return null
+  }
   const seconds = typeof value === 'number' ? value : Number(value)
   if (!isRepresentableEpochSeconds(seconds)) return null
   return new Date(seconds * 1000).toISOString().replace('.000Z', 'Z')
@@ -113,10 +119,10 @@ export const ttlColumnType: ColumnTypeDefinition = {
 
   formatForDisplay(value) {
     const iso = epochSecondsToIso(value)
-    return iso === null ? String(value) : formatDateCellDisplay(iso, { seconds: true })
+    return iso === null ? String(value ?? '') : formatDateCellDisplay(iso, { seconds: true })
   },
 
   formatForInput(value, _column, context) {
-    return epochSecondsToEditable(value, context?.timezone) ?? String(value)
+    return epochSecondsToEditable(value, context?.timezone) ?? String(value ?? '')
   },
 }

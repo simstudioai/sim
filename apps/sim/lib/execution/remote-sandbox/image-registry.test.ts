@@ -119,13 +119,10 @@ import {
   cleanupSandboxImages,
   ensureSandboxImage,
   FAILED_BUILD_RETRY_COOLDOWN_MS,
-  LEGACY_SANDBOX_IMAGE_BUILD_TASK_ID,
-  PREVIOUS_SANDBOX_IMAGE_BUILD_TASK_ID,
   releaseSandboxImage,
   runSandboxImageBuild,
   SANDBOX_IMAGE_BUILD_TASK_ID,
   sandboxBuildIdempotencyKey,
-  sandboxImageBuildTaskIds,
 } from '@/lib/execution/remote-sandbox/image-registry'
 
 const READY_IMAGE = {
@@ -519,15 +516,8 @@ describe('runSandboxImageBuild attempt ownership', () => {
     systemPackages: [],
   }
 
-  it('routes each renderer revision to a distinct Trigger.dev task ID', () => {
-    expect(SANDBOX_IMAGE_BUILD_TASK_ID).toBe('sandbox-image-build-v2')
-    expect(PREVIOUS_SANDBOX_IMAGE_BUILD_TASK_ID).toBe('sandbox-image-build-v1')
-    expect(LEGACY_SANDBOX_IMAGE_BUILD_TASK_ID).toBe('sandbox-image-build')
-    expect(sandboxImageBuildTaskIds(2)).toEqual({
-      current: 'sandbox-image-build-v2',
-      previous: 'sandbox-image-build-v1',
-      legacy: 'sandbox-image-build',
-    })
+  it('uses one stable Trigger.dev task ID', () => {
+    expect(SANDBOX_IMAGE_BUILD_TASK_ID).toBe('sandbox-image-build')
   })
 
   it('refuses an app-new/task-old renderer mismatch before claiming the row', async () => {

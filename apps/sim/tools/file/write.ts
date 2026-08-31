@@ -5,6 +5,7 @@ interface FileWriteParams {
   content?: string
   fileInput?: unknown
   contentType?: string
+  overwrite?: boolean
   workspaceId?: string
 }
 
@@ -12,7 +13,7 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
   id: 'file_write',
   name: 'File Write',
   description:
-    'Create a new workspace file, either from text content or from an existing file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").',
+    'Create a new workspace file, either from text content or from an existing file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv") unless overwrite is enabled.',
   version: '1.0.0',
 
   params: {
@@ -21,7 +22,7 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       required: false,
       visibility: 'user-or-llm',
       description:
-        'File name (e.g., "data.csv"). Required when writing text; optional when storing a file, which keeps its own name unless this overrides it. If the name already exists, a numeric suffix is added automatically.',
+        'File name (e.g., "data.csv"). Required when writing text; optional when storing a file, which keeps its own name unless this overrides it. If the name already exists, a numeric suffix is added automatically unless overwrite is enabled.',
     },
     content: {
       type: 'string',
@@ -44,6 +45,13 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       description:
         'MIME type for new files (e.g., "text/plain"). Auto-detected from the file extension, or taken from the stored file, if omitted.',
     },
+    overwrite: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Replace the contents of an existing file at the exact target path (folder and name) instead of creating a suffixed copy. Creates the file when that path does not exist yet.',
+    },
   },
 
   operation: {
@@ -53,6 +61,7 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       content: params.content,
       fileInput: params.fileInput,
       contentType: params.contentType,
+      overwrite: params.overwrite,
       workspaceId: params.workspaceId,
     }),
     secretProvenance: {

@@ -1918,7 +1918,7 @@ export async function deleteRow(
   if (!deleted) throw new OrchestrationError('not_found', 'Row not found')
 
   logger.info(`[${requestId}] Deleted row ${rowId} from table ${table.id}`)
-  await dispatchDeleteTriggers(table, [deleted], requestId)
+  void dispatchDeleteTriggers(table, [deleted], requestId)
 }
 
 type BulkUpdateMatch = { id: string; data: RowData }

@@ -3,8 +3,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetBrowserTimezone, mockUseQuery } = vi.hoisted(() => ({
+const { mockGetBrowserTimezone, mockIsValidTimezone, mockUseQuery } = vi.hoisted(() => ({
   mockGetBrowserTimezone: vi.fn(),
+  mockIsValidTimezone: vi.fn(),
   mockUseQuery: vi.fn(),
 }))
 
@@ -13,7 +14,10 @@ vi.mock('@tanstack/react-query', () => ({
   useQuery: mockUseQuery,
   useQueryClient: vi.fn(),
 }))
-vi.mock('@/lib/core/utils/timezone', () => ({ getBrowserTimezone: mockGetBrowserTimezone }))
+vi.mock('@/lib/core/utils/timezone', () => ({
+  getBrowserTimezone: mockGetBrowserTimezone,
+  isValidTimezone: mockIsValidTimezone,
+}))
 
 import { useTimezone, useTimezoneState } from '@/hooks/queries/general-settings'
 
@@ -21,6 +25,7 @@ describe('useTimezone', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetBrowserTimezone.mockReturnValue('America/Los_Angeles')
+    mockIsValidTimezone.mockReturnValue(true)
   })
 
   it('uses the browser timezone while no preference is saved', () => {
@@ -29,6 +34,7 @@ describe('useTimezone', () => {
     expect(useTimezone()).toBe('America/Los_Angeles')
     expect(useTimezoneState()).toEqual({
       timezone: 'America/Los_Angeles',
+      savedTimezone: null,
       status: 'ready',
     })
   })
@@ -37,7 +43,24 @@ describe('useTimezone', () => {
     mockUseQuery.mockReturnValue({ data: { timezone: 'Asia/Kathmandu' } })
 
     expect(useTimezone()).toBe('Asia/Kathmandu')
+    expect(useTimezoneState()).toEqual({
+      timezone: 'Asia/Kathmandu',
+      savedTimezone: 'Asia/Kathmandu',
+      status: 'ready',
+    })
     expect(mockGetBrowserTimezone).not.toHaveBeenCalled()
+  })
+
+  it('uses the browser timezone for display while preserving an invalid preference', () => {
+    mockUseQuery.mockReturnValue({ data: { timezone: 'Not/AZone' } })
+    mockIsValidTimezone.mockReturnValue(false)
+
+    expect(useTimezoneState()).toEqual({
+      timezone: 'America/Los_Angeles',
+      savedTimezone: 'Not/AZone',
+      status: 'invalid',
+    })
+    expect(useTimezone()).toBe('America/Los_Angeles')
   })
 
   it('reads the current setting again after it changes', () => {
@@ -56,6 +79,7 @@ describe('useTimezone', () => {
 
     expect(useTimezoneState()).toEqual({
       timezone: 'America/Los_Angeles',
+      savedTimezone: null,
       status: 'loading',
     })
   })
@@ -65,6 +89,7 @@ describe('useTimezone', () => {
 
     expect(useTimezoneState()).toEqual({
       timezone: 'America/Los_Angeles',
+      savedTimezone: null,
       status: 'error',
     })
   })

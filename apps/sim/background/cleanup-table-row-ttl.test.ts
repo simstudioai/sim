@@ -32,7 +32,10 @@ vi.mock('@sim/db', () => ({
 
 vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
 vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: mockSignalTableRowsChanged }))
-vi.mock('@/lib/table/constants', () => ({ getDeleteSnapshotBatchSize: () => 500 }))
+vi.mock('@/lib/table/constants', () => ({
+  getDeleteSnapshotBatchSize: () => 500,
+  TABLE_LIMITS: { DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024 },
+}))
 vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
 vi.mock('@/lib/table/ttl-availability', () => ({
   isTableRowTtlEnabled: mockIsTableRowTtlEnabled,
@@ -62,6 +65,7 @@ function returnedRows(count: number, start = 1, createdAt = '2026-01-01T00:00:00
   return deletedRows(count, start).map((row) => ({
     ...row,
     createdAt,
+    snapshotBytes: 20,
   }))
 }
 
@@ -88,14 +92,15 @@ describe('table row TTL cleanup', () => {
         ...returnedRows(1, 500, '2026-01-01T00:00:00.123456'),
       ])
       .mockResolvedValueOnce(returnedRows(12, 501))
+      .mockResolvedValueOnce([])
 
     await expect(runCleanupTableRowTtl()).resolves.toEqual({
-      batches: 2,
+      batches: 3,
       deleted: 512,
       limitReached: false,
     })
-    expect(mockWithLockedTable).toHaveBeenCalledTimes(2)
-    expect(mockDeleteExecute).toHaveBeenCalledTimes(2)
+    expect(mockWithLockedTable).toHaveBeenCalledTimes(3)
+    expect(mockDeleteExecute).toHaveBeenCalledTimes(3)
     const secondQuery = dialect.sqlToQuery(mockDeleteExecute.mock.calls[1][0] as SQL)
     expect(secondQuery.sql.replace(/\$\d+/g, '?').replace(/\s+/g, ' ')).toContain(
       'AND (table_row.created_at, table_row.id) > (?::timestamp, ?)'
@@ -150,9 +155,13 @@ describe('table row TTL cleanup', () => {
       .trim()
     expect(query).toContain('AND (table_row.data->>?)::numeric <= ?')
     expect(query).toContain('ORDER BY table_row.created_at, table_row.id')
+    expect(query).toContain('octet_length(table_row.data::text) AS snapshot_bytes')
+    expect(query).toContain('cumulative_snapshot_bytes <= ?')
+    expect(query).toContain('OR snapshot_order = 1')
     expect(query).toContain(
       `to_char(table_row.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') AS "createdAt"`
     )
+    expect(query).toContain('candidates.snapshot_bytes AS "snapshotBytes"')
     expect(query).not.toContain('table_row.created_by')
   })
 
@@ -238,7 +247,7 @@ describe('table row TTL cleanup', () => {
           if (tableId === table.id && attempt === 1) {
             return returnedRows(500)
           }
-          if (tableId === secondTable.id) {
+          if (tableId === secondTable.id && attempt === 1) {
             return returnedRows(1)
           }
           return []
@@ -247,13 +256,32 @@ describe('table row TTL cleanup', () => {
     })
 
     await expect(runCleanupTableRowTtl()).resolves.toEqual({
-      batches: 3,
+      batches: 4,
       deleted: 501,
       limitReached: false,
     })
-    expect(attemptedTableIds).toEqual([table.id, secondTable.id, table.id])
+    expect(attemptedTableIds).toEqual([table.id, secondTable.id, table.id, secondTable.id])
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(table.id)
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(secondTable.id)
+  })
+
+  it('signals tables changed before a later table cleanup failure propagates', async () => {
+    const secondTable = {
+      ...table,
+      id: 'table-2',
+    }
+    mockListExecute.mockResolvedValue([
+      { id: table.id, workspaceId: table.workspaceId },
+      { id: secondTable.id, workspaceId: secondTable.workspaceId },
+    ])
+    mockWithLockedTable.mockImplementation(async (tableId, mutate) => {
+      if (tableId === secondTable.id) throw new Error('second table cleanup failed')
+      return mutate(table, { execute: vi.fn().mockResolvedValue(returnedRows(1)) })
+    })
+
+    await expect(runCleanupTableRowTtl()).rejects.toThrow('second table cleanup failed')
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledTimes(1)
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(table.id)
   })
 
   it('registers one serialized Trigger.dev task', () => {

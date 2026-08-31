@@ -1489,6 +1489,15 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    workspaceFileSearchDispatch:
+      enabled: true
+      name: workspace-file-search-dispatch
+      schedule: "*/1 * * * *"
+      path: "/api/cron/workspace-file-search-dispatch"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
   # Global CronJob settings
   image:
     repository: curlimages/curl
