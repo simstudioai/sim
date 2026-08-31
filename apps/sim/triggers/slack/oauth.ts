@@ -23,6 +23,11 @@ const INTERACTION_FILTER_EVENTS = slackEventsSupportingFilter('interaction')
 // so they are not catalog `filters`.
 const BOT_FILTER_EVENTS = ['message', 'app_mention']
 const OWN_MESSAGE_EVENTS = ['message', 'app_mention', 'reaction_added', 'reaction_removed']
+const STREAM_RESPONSE_EVENTS = ['message', 'app_mention', 'assistant_thread_started']
+const CUSTOM_BOT_REACTIVE_CONDITION = {
+  watchFields: ['customBotCredential'],
+  requiredType: 'service_account' as const,
+}
 
 /**
  * Unified Slack trigger. A single credential picker lists both the native Sim
@@ -113,6 +118,87 @@ export const slackOAuthTrigger: TriggerConfig = {
       description: 'Set the custom bot credential ID directly.',
       required: true,
       mode: 'trigger-advanced',
+    },
+    {
+      id: 'streamResponse',
+      title: 'Stream response to Slack',
+      type: 'switch',
+      defaultValue: false,
+      description:
+        'Stream selected workflow outputs into the Slack conversation that started this run. Custom bots only.',
+      required: false,
+      mode: 'trigger',
+      condition: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
+      id: 'streamOutputs',
+      title: 'Outputs to stream',
+      type: 'workflow-output-selector',
+      placeholder: 'Select workflow outputs',
+      description:
+        'Each selected block invocation creates its own Slack response. Agent outputs stream live; other outputs are sent when the block completes.',
+      required: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      mode: 'trigger',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
+      id: 'streamIncludeThinking',
+      title: 'Include thinking updates',
+      type: 'switch',
+      defaultValue: false,
+      description: 'Show agent thinking as Slack task updates while the response is generated.',
+      required: false,
+      mode: 'trigger-advanced',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
+      id: 'streamIncludeToolCalls',
+      title: 'Include tool calls',
+      type: 'switch',
+      defaultValue: true,
+      description: 'Show tool execution lifecycle as Slack task updates.',
+      required: false,
+      mode: 'trigger-advanced',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
+      id: 'streamTaskDisplayMode',
+      title: 'Task display',
+      type: 'dropdown',
+      options: [
+        { label: 'Timeline', id: 'timeline' },
+        { label: 'Plan', id: 'plan' },
+      ],
+      value: () => 'timeline',
+      description: 'Choose how Slack displays thinking and tool progress.',
+      required: false,
+      mode: 'trigger-advanced',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
     },
     {
       id: 'source',

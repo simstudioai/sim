@@ -90,6 +90,7 @@ interface SlackTriggerEvent {
   tab: string
   context: Record<string, unknown> | null
   team_id: string
+  user_team_id: string
   enterprise_id: string
   event_id: string
   reaction: string
@@ -146,6 +147,7 @@ function createSlackEvent(): SlackTriggerEvent {
     tab: '',
     context: null,
     team_id: '',
+    user_team_id: '',
     enterprise_id: '',
     event_id: '',
     reaction: '',
@@ -952,7 +954,14 @@ export const slackHandler: WebhookProviderHandler = {
     const isReactionEvent = SLACK_REACTION_EVENTS.has(eventType)
 
     const item = rawEvent?.item as Record<string, unknown> | undefined
-    const channel: string = resolveSlackEventChannel(rawEvent) || ''
+    const assistantThread = isRecordLike(rawEvent?.assistant_thread)
+      ? rawEvent.assistant_thread
+      : undefined
+    const assistantContext = isRecordLike(assistantThread?.context)
+      ? assistantThread.context
+      : undefined
+    const channel: string =
+      resolveSlackEventChannel(rawEvent) || asString(assistantThread?.channel_id)
     const messageTs: string = isReactionEvent
       ? (item?.ts as string) || ''
       : (rawEvent?.ts as string) || (rawEvent?.event_ts as string) || ''
@@ -977,11 +986,11 @@ export const slackHandler: WebhookProviderHandler = {
     event.subtype = asString(rawEvent?.subtype)
     event.channel = channel
     event.channel_type = asString(rawEvent?.channel_type)
-    event.user = asString(rawEvent?.user)
+    event.user = asString(rawEvent?.user) || asString(assistantThread?.user_id)
     event.bot_id = asString(rawEvent?.bot_id)
     event.text = text
     event.timestamp = messageTs
-    event.thread_ts = asString(rawEvent?.thread_ts)
+    event.thread_ts = asString(rawEvent?.thread_ts) || asString(assistantThread?.thread_ts)
     event.streaming_message_ts = Array.isArray(rawEvent?.streaming_message_ts)
       ? rawEvent.streaming_message_ts.filter((value): value is string => typeof value === 'string')
       : []
@@ -993,7 +1002,13 @@ export const slackHandler: WebhookProviderHandler = {
       : isRecordLike(rawEvent?.app_context)
         ? rawEvent.app_context
         : null
-    event.team_id = asString(b?.team_id) || asString(rawEvent?.team_id) || asString(rawEvent?.team)
+    event.team_id =
+      asString(b?.team_id) ||
+      asString(rawEvent?.team_id) ||
+      asString(rawEvent?.team) ||
+      asString(assistantContext?.team_id)
+    event.user_team_id =
+      asString(rawEvent?.user_team) || asString(assistantContext?.team_id) || event.team_id
     event.enterprise_id = asString(rawEvent?.enterprise_id) || asString(b?.enterprise_id)
     event.event_id = asString(b?.event_id)
     event.api_app_id = asString(b?.api_app_id)

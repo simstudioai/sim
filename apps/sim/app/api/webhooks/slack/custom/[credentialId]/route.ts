@@ -6,6 +6,7 @@ import { parseWebhookBody } from '@/lib/webhooks/processor'
 import { handleSlackChallenge } from '@/lib/webhooks/providers/slack'
 import {
   dispatchSlackCustomBotCredential,
+  handleSlackAgentSessionStopped,
   verifySlackCustomBotCredentialRequest,
 } from '@/lib/webhooks/slack-custom-ingress'
 import { getSlackDispatchResponse } from '@/lib/webhooks/slack-dispatch'
@@ -68,12 +69,15 @@ async function handleSlackCustomBotWebhook(
     return authError
   }
 
-  const dispatchResults = await dispatchSlackCustomBotCredential({
-    credentialId,
-    body,
-    request,
-    requestId,
-    receivedAt,
-  })
+  const [, dispatchResults] = await Promise.all([
+    handleSlackAgentSessionStopped(credentialId, body),
+    dispatchSlackCustomBotCredential({
+      credentialId,
+      body,
+      request,
+      requestId,
+      receivedAt,
+    }),
+  ])
   return getSlackDispatchResponse(dispatchResults)
 }

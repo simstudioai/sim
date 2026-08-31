@@ -79,6 +79,31 @@ describe('slackHandler formatInput - Events API', () => {
     })
   })
 
+  it('maps the nested assistant_thread_started reply target', async () => {
+    const { input } = await slackHandler.formatInput!(
+      ctx({
+        team_id: 'T-install',
+        event: {
+          type: 'assistant_thread_started',
+          assistant_thread: {
+            channel_id: 'C1',
+            user_id: 'U1',
+            thread_ts: '111.000',
+            context: { team_id: 'T-user' },
+          },
+        },
+      })
+    )
+    expect(eventOf(input)).toMatchObject({
+      event_type: 'assistant_thread_started',
+      channel: 'C1',
+      user: 'U1',
+      thread_ts: '111.000',
+      team_id: 'T-install',
+      user_team_id: 'T-user',
+    })
+  })
+
   it('maps an agent_session_title_changed event and the Agent View tab', async () => {
     const titleChanged = await slackHandler.formatInput!(
       ctx({

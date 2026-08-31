@@ -86,6 +86,11 @@ export const SLACK_TRIGGER_OUTPUTS: Record<string, TriggerOutput> = {
         type: 'string',
         description: 'Slack workspace/team ID',
       },
+      user_team_id: {
+        type: 'string',
+        description:
+          'Slack workspace/team ID of the user who triggered the event. Used for Slack Connect response streaming.',
+      },
       enterprise_id: {
         type: 'string',
         description: 'Slack Enterprise Grid organization ID',
