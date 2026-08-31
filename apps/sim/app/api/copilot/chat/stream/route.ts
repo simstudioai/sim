@@ -25,6 +25,7 @@ import {
   createEvent,
   encodeSSEComment,
   encodeSSEEnvelope,
+  isTerminalStreamStatus,
   readEvents,
   readFilePreviewSessions,
   SSE_RESPONSE_HEADERS,
@@ -56,16 +57,6 @@ function extractRunRequestId(run: { requestContext?: unknown } | null | undefine
 
 function extractEnvelopeRequestId(envelope: { trace?: { requestId?: unknown } }): string {
   return extractCanonicalRequestId(envelope.trace?.requestId)
-}
-
-function isTerminalStatus(
-  status: string | null | undefined
-): status is MothershipStreamV1CompletionStatus {
-  return (
-    status === MothershipStreamV1CompletionStatus.complete ||
-    status === MothershipStreamV1CompletionStatus.error ||
-    status === MothershipStreamV1CompletionStatus.cancelled
-  )
 }
 
 function buildResumeTerminalEnvelopes(options: {
@@ -425,7 +416,7 @@ async function handleResumeRequestBody({
         if (controllerClosed) {
           break
         }
-        if (isTerminalStatus(currentRun.status)) {
+        if (isTerminalStreamStatus(currentRun.status)) {
           emitTerminalIfMissing(currentRun.status, {
             message:
               currentRun.status === MothershipStreamV1CompletionStatus.error

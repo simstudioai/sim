@@ -7,6 +7,7 @@ import type {
   MothershipStreamV1Trace,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
+  MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
   MothershipStreamV1RunKind,
@@ -401,6 +402,17 @@ export function isSyntheticFilePreviewEventEnvelope(
 }
 
 // Stream event type guards
+
+/** The one terminal-status predicate — complete | error | cancelled. */
+export function isTerminalStreamStatus(
+  status: string | null | undefined
+): status is MothershipStreamV1CompletionStatus {
+  return (
+    status === MothershipStreamV1CompletionStatus.complete ||
+    status === MothershipStreamV1CompletionStatus.error ||
+    status === MothershipStreamV1CompletionStatus.cancelled
+  )
+}
 
 export function isToolCallStreamEvent(event: SessionStreamEvent): event is ToolCallStreamEvent {
   return event.type === 'tool' && isRecordLike(event.payload) && event.payload.phase === 'call'

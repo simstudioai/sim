@@ -248,9 +248,12 @@ export function runGatedToolExecution(
 
       if (!decision) {
         // Timed out or the turn was stopped. Fail the call rather than running
-        // it: an unanswered prompt is not consent.
+        // it: an unanswered prompt is not consent. Name the actual reason — a user who
+        // pressed Stop should not read that something "timed out".
         span.setAttribute(TraceAttr.ToolOutcome, MothershipStreamV1ToolOutcome.cancelled)
-        const error = 'Timed out waiting for the user to approve this tool.'
+        const error = options.abortSignal?.aborted
+          ? 'Stopped before the user approved this tool.'
+          : 'Timed out waiting for the user to approve this tool.'
         setTerminalToolCallState(toolCall, {
           status: MothershipStreamV1ToolOutcome.cancelled,
           output: { error },

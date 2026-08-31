@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import type {
   AsyncCompletionSignal,
@@ -131,11 +131,19 @@ export function registerPendingToolPromise(
   pendingPromise: Promise<AsyncCompletionSignal>
 ): void {
   context.pendingToolPromises.set(toolCallId, pendingPromise)
-  pendingPromise.finally(() => {
-    if (context.pendingToolPromises.get(toolCallId) === pendingPromise) {
-      context.pendingToolPromises.delete(toolCallId)
-    }
-  })
+  /* .finally() derives a NEW promise that re-throws the rejection with no handler — an
+     unhandled-rejection crash waiting for the first rejecting tool promise. Observe the
+     chain: cleanup on both settles, rejection logged (the original promise's consumers
+     still see it through the map). */
+  pendingPromise
+    .catch((error) => {
+      logger.warn('Pending tool promise rejected', { toolCallId, error: getErrorMessage(error) })
+    })
+    .finally(() => {
+      if (context.pendingToolPromises.get(toolCallId) === pendingPromise) {
+        context.pendingToolPromises.delete(toolCallId)
+      }
+    })
 }
 
 /**

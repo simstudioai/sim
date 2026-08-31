@@ -46,6 +46,7 @@ export {
   isContractStreamEventEnvelope,
   isSubagentSpanStreamEvent,
   isSyntheticFilePreviewEventEnvelope,
+  isTerminalStreamStatus,
   isToolArgsDeltaStreamEvent,
   isToolCallStreamEvent,
   isToolResultStreamEvent,
