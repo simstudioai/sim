@@ -635,7 +635,7 @@ async function runWorkflowAndWriteTerminal(
              * Absent means no per-tool gate applies, which is the documented
              * behavior for an actorless run.
              */
-            userId: payload.triggeredByUserId ?? undefined,
+            userId: payload.triggeredByUserId,
             signal: attemptSignal,
             resolvedSecretTraceRegistry: enrichmentRegistry,
           })

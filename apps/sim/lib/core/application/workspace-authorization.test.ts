@@ -28,6 +28,7 @@ vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScop
 
 import {
   authorizeWorkspaceOperation,
+  capabilityGovernedPrincipalUserId,
   defineWorkspaceOperation,
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
@@ -605,5 +606,49 @@ describe('authorizeWorkspaceOperation personal API key policy', () => {
     await expect(
       authorizeWorkspaceOperation(principal, personalKeyOperation, context)
     ).resolves.toBeUndefined()
+  })
+})
+
+/**
+ * The sites that cannot ride on an operation's `capability` — they need the
+ * resource in hand — read the governed person from here. Pinned against the
+ * funnel above, because the tempting alternatives are all bystanders: an
+ * attribution helper's billing owner, a workspace key's creator, or the subject
+ * of an executor run the funnel exempts.
+ */
+describe('capabilityGovernedPrincipalUserId', () => {
+  it('names the person for a session and a personal key', () => {
+    expect(capabilityGovernedPrincipalUserId(principal)).toBe('user-1')
+    expect(
+      capabilityGovernedPrincipalUserId({
+        kind: 'personal_api_key',
+        userId: 'user-2',
+        keyId: 'key-1',
+      })
+    ).toBe('user-2')
+  })
+
+  it('names nobody for a workspace key, which has no user', () => {
+    expect(capabilityGovernedPrincipalUserId(workspaceKeyPrincipal)).toBeNull()
+  })
+
+  it('names nobody for an executor run, subject or not', () => {
+    expect(capabilityGovernedPrincipalUserId(executorPrincipal(undefined))).toBeNull()
+    expect(
+      capabilityGovernedPrincipalUserId({
+        ...executorPrincipal(undefined),
+        subjectUserId: 'user-1',
+      })
+    ).toBeNull()
+  })
+
+  it('names the person a non-executor delegation acts as', () => {
+    expect(
+      capabilityGovernedPrincipalUserId({
+        ...executorPrincipal(undefined),
+        serviceId: 'copilot',
+        subjectUserId: 'user-3',
+      })
+    ).toBe('user-3')
   })
 })

@@ -31,12 +31,17 @@ export interface EnrichmentRunContext {
   rowId?: string
   workspaceId: string
   /**
-   * The user the run is attributed to. Load-bearing, not decorative: the
-   * per-tool permission gate is skipped entirely when a tool call carries no
-   * user, so an enrichment that omits this sends row data to its provider with
-   * the workspace's `deniedTools` denylist silently not applied.
+   * The person the run acts for, or `null` for a deliberately actorless run.
+   *
+   * Load-bearing, not decorative: the per-tool permission gate is skipped
+   * entirely when a tool call carries no user, so a run without one sends row
+   * data to its provider with the workspace's `deniedTools` denylist silently
+   * not applied. Required, and explicitly nullable, so that is a decision a
+   * caller states rather than one it falls into by leaving a field off — the
+   * only actorless caller is a system-triggered table dispatch, which has no
+   * person to name and must not borrow the billing owner instead.
    */
-  userId?: string
+  userId: string | null
   signal?: AbortSignal
   /** Isolated provenance for the exact mapped row inputs used by this run. */
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry

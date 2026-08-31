@@ -1,6 +1,8 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
-import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
+import {
+  type AuthorizedWorkspaceUseCaseContext,
+  capabilityGovernedPrincipalUserId,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { parseFolderPath } from '@/lib/folders/paths'
@@ -126,13 +128,22 @@ async function executeDownloadWorkspaceFileItems({
    * withholds; declaring the capability on `files.download` would take away
    * saving one file too. `context.fileId` is the same single-file predicate the
    * resource authorization already resolved, reused so the two cannot drift.
-   * Asserted for the acting person only: an actorless deployment run has no
-   * permission group.
+   * Asserted against whoever the funnel would have judged, from its own rule —
+   * nobody, for a workspace key or an executor run. A run carries the role of
+   * whoever triggered it but not their capabilities, and reading the subject
+   * straight off the principal would have re-applied here exactly the
+   * capability `authorizeWorkspaceOperation` exempts a subject-bearing executor
+   * from.
    */
   if (context.fileId === undefined) {
-    const actingUserId = resolvePrincipalSubjectUserId(principal)
+    const actingUserId = capabilityGovernedPrincipalUserId(principal)
     if (actingUserId) {
-      await assertWorkspaceCapability(actingUserId, context.workspaceId, 'files.bulk_download')
+      await assertWorkspaceCapability(
+        actingUserId,
+        context.workspaceId,
+        'files.bulk_download',
+        context.workspaceOrganizationId
+      )
     }
   }
 
