@@ -14,7 +14,6 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
-import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
 import {
@@ -272,7 +271,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         ? { ...m, content: `${contextBlocks.join('\n\n')}\n\n${m.content}` }
         : m
     )
-    const delegationToken = await mintDelegationToken({ workspaceId, userId })
     const requestPayload: Record<string, unknown> = {
       messages: wireMessages,
       ...(responseFormat !== undefined ? { responseFormat } : {}),
@@ -283,7 +281,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messageId,
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
-      ...(delegationToken ? { delegationToken } : {}),
     }
 
     let allowExplicitAbort = true
