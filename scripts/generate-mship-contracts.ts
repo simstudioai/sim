@@ -61,10 +61,25 @@ function runGenerators(outputOverride?: string): void {
 }
 
 function formatGenerated(dir: string): void {
+  // biome.json excludes the generated dir, and `biome check` on excluded paths
+  // exits nonzero with "No files were processed" — each sync script already
+  // formats its own output through a neutral stdin path, so this batch pass is
+  // a per-file re-check that must not consult the ignore list.
   const files = readdirNoThrow(dir).filter((f) => !FORMAT_EXCLUDE.has(f) && f.endsWith('.ts'))
   if (files.length === 0) return
   const paths = files.map((f) => join(dir, f))
-  run(['bunx', 'biome', 'check', '--write', ...paths], ROOT)
+  run(
+    [
+      'bunx',
+      'biome',
+      'check',
+      '--write',
+      '--files-ignore-unknown=true',
+      ...paths,
+      '--no-errors-on-unmatched',
+    ],
+    ROOT
+  )
 }
 
 function readdirNoThrow(dir: string): string[] {
