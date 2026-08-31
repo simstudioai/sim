@@ -215,19 +215,6 @@ export function multipartErrorResponse(error: MultipartError): NextResponse {
   return NextResponse.json({ error: message }, { status: 400 })
 }
 
-interface TableAccessResult {
-  hasAccess: true
-  table: TableDefinition
-}
-
-interface TableAccessDenied {
-  hasAccess: false
-  notFound?: boolean
-  reason?: string
-}
-
-export type TableAccessCheck = TableAccessResult | TableAccessDenied
-
 /**
  * A denial carries `capability` when the caller's permission group withheld the
  * Tables module, so {@link accessError} can say so rather than reporting the
@@ -241,44 +228,6 @@ export type AccessResult =
 interface ApiErrorResponse {
   error: string
   details?: unknown
-}
-
-/**
- * Check if a user has read access to a table.
- * Read access requires any workspace permission (read, write, or admin).
- */
-async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
-  const table = await getTableById(tableId)
-
-  if (!table) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  if (userPermission !== null) {
-    return { hasAccess: true, table }
-  }
-
-  return { hasAccess: false, reason: 'User does not have access to this table' }
-}
-
-/**
- * Check if a user has write access to a table.
- * Write access requires write or admin workspace permission.
- */
-async function checkTableWriteAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
-  const table = await getTableById(tableId)
-
-  if (!table) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  if (permissionSatisfies(userPermission, 'write')) {
-    return { hasAccess: true, table }
-  }
-
-  return { hasAccess: false, reason: 'User does not have write access to this table' }
 }
 
 /**
