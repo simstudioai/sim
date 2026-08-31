@@ -53,6 +53,7 @@ describe('createEvent', () => {
     const streamEvent = eventToStreamEvent(envelope)
     expect(streamEvent).toEqual({
       type: MothershipStreamV1EventType.tool,
+      seq: 2,
       payload: {
         previewPhase: 'file_preview_start',
         toolCallId: 'preview-1',
