@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
@@ -59,8 +60,10 @@ export async function handleBillingLimitResponse(
           "You've reached your usage limit for this billing period. Please increase your usage limit from billing settings to continue."
       }
     }
-  } catch {
-    logger.warn('Failed to determine subscription plan, defaulting to upgrade_plan')
+  } catch (error) {
+    logger.warn('Failed to determine subscription plan, defaulting to upgrade_plan', {
+      error: getErrorMessage(error),
+    })
   }
 
   const upgradePayload = JSON.stringify({
