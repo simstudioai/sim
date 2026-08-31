@@ -13,6 +13,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { isTerminalStreamStatus } from '@/lib/mothership/request/session'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import {
@@ -50,14 +51,6 @@ export function isLiveAssistantMessageId(messageId: string): boolean {
 
 function asPayloadRecord(value: unknown): Record<string, unknown> | undefined {
   return isRecordLike(value) ? value : undefined
-}
-
-function isTerminalStreamStatus(status: string | null | undefined): boolean {
-  return (
-    status === MothershipStreamV1CompletionStatus.complete ||
-    status === MothershipStreamV1CompletionStatus.error ||
-    status === MothershipStreamV1CompletionStatus.cancelled
-  )
 }
 
 /**

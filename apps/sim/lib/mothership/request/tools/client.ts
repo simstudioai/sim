@@ -124,10 +124,11 @@ export async function waitForClientToolCompletion({
         }
       }
     }
-  } catch {
+  } catch (error) {
     toolRegistry?.markIncomplete('client-tool-seal-failed', {
       origin: 'copilotToolClient.sealedContext',
     })
+    logger.warn('Sealed-context unseal failed', { error: getErrorMessage(error) })
   } finally {
     finishPendingActivation?.()
   }

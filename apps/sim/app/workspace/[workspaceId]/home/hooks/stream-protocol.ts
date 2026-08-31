@@ -128,12 +128,6 @@ export function resolveChatIdFromStreamBatch(batch: StreamBatchResponse): string
   return undefined
 }
 
-const TERMINAL_STREAM_STATUSES = new Set(['complete', 'error', 'cancelled'])
-
-export function isTerminalStreamStatus(status: string | null | undefined): boolean {
-  return TERMINAL_STREAM_STATUSES.has(status ?? '')
-}
-
 export function isAlreadyProcessedStreamCursor(
   eventCursor: string | undefined,
   currentCursor: string

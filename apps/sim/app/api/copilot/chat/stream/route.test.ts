@@ -23,6 +23,8 @@ vi.mock('@/lib/mothership/async-runs/repository', () => ({
 }))
 
 vi.mock('@/lib/mothership/request/session', () => ({
+  isTerminalStreamStatus: (status: string | null | undefined) =>
+    status === 'complete' || status === 'error' || status === 'cancelled',
   readEvents,
   readFilePreviewSessions,
   checkForReplayGap,
