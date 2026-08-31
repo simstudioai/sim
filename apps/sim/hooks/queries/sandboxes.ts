@@ -1,19 +1,27 @@
 import { createLogger } from '@sim/logger'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   createSandboxContract,
   deleteSandboxContract,
+  listSandboxesContract,
   type Sandbox,
   type SandboxListResponse,
   updateSandboxContract,
 } from '@/lib/api/contracts'
-import { getSandboxListQueryOptions, sandboxKeys } from '@/hooks/queries/sandbox-list'
 
 const logger = createLogger('SandboxQueries')
 
 export type { Sandbox, SandboxListResponse }
+
+export const sandboxKeys = {
+  all: ['sandboxes'] as const,
+  lists: () => [...sandboxKeys.all, 'list'] as const,
+  list: (workspaceId?: string) => [...sandboxKeys.lists(), workspaceId ?? ''] as const,
+}
+
+const SANDBOX_LIST_STALE_TIME = 30 * 1000
 
 /** Poll cadence while any sandbox is still building; see {@link useSandboxes}. */
 export const SANDBOX_BUILD_POLL_INTERVAL = 3 * 1000
@@ -24,6 +32,22 @@ export const SANDBOX_BUILD_POLL_INTERVAL = 3 * 1000
  * would poll forever. Covers a little over the 15-minute build cap.
  */
 const MAX_BUILD_POLLS = 350
+
+async function fetchSandboxes(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<SandboxListResponse> {
+  return requestJson(listSandboxesContract, { params: { id: workspaceId }, signal })
+}
+
+function getSandboxListQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: sandboxKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchSandboxes(workspaceId, signal),
+    retryOnMount: true,
+    staleTime: SANDBOX_LIST_STALE_TIME,
+  })
+}
 
 /** True while at least one sandbox has a build that has not reached a terminal state. */
 export function hasPendingBuild(sandboxes: readonly Sandbox[]): boolean {
