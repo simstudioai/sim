@@ -286,7 +286,6 @@ export async function runStreamLoop(
       return rawReader.closed
     },
   }
-  const decoder = new TextDecoder()
 
   const timeoutId = setTimeout(() => {
     context.errors.push('Request timed out')
@@ -296,7 +295,7 @@ export async function runStreamLoop(
   }, timeout)
 
   try {
-    await processSSEStream(reader, decoder, abortSignal, async (raw) => {
+    await processSSEStream(reader, abortSignal, async (raw) => {
       // Track how long THIS handler invocation takes so we can tell
       // apart "Go was silent" from "we were CPU-bound on a handler".
       // `longestInboundGapMs` includes handler time (the next reader.read
