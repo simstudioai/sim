@@ -80,10 +80,43 @@ export function withheldExecutionData(
   return retained
 }
 
+/**
+ * A `providerTiming` with the per-iteration spend stripped from its segments.
+ *
+ * A segment carries its own `cost` and `tokens` — the itemization behind the
+ * span's roll-up — so removing the span's fields alone leaves the finer
+ * breakdown in place, which withholds nothing.
+ */
+function withoutSegmentSpend(providerTiming: unknown): unknown {
+  if (!providerTiming || typeof providerTiming !== 'object' || Array.isArray(providerTiming)) {
+    return providerTiming
+  }
+  const record = providerTiming as Record<string, unknown>
+  if (!Array.isArray(record.segments)) return providerTiming
+  return {
+    ...record,
+    segments: record.segments.map((segment) => {
+      if (!segment || typeof segment !== 'object' || Array.isArray(segment)) return segment
+      const { cost: _cost, tokens: _tokens, ...retained } = segment as Record<string, unknown>
+      return retained
+    }),
+  }
+}
+
 /** A span or block execution with the spend fields stripped from it. */
 function withoutSpend(entry: unknown): unknown {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry
-  const { cost: _cost, tokens: _tokens, children, ...retained } = entry as Record<string, unknown>
+  const {
+    cost: _cost,
+    tokens: _tokens,
+    children,
+    providerTiming,
+    ...rest
+  } = entry as Record<string, unknown>
+  const retained =
+    providerTiming === undefined
+      ? rest
+      : { ...rest, providerTiming: withoutSegmentSpend(providerTiming) }
   return Array.isArray(children) ? { ...retained, children: children.map(withoutSpend) } : retained
 }
 
@@ -95,9 +128,16 @@ function withoutSpend(entry: unknown): unknown {
  * the spans has not been withheld anything. Deletes rather than relies on the
  * schema, because `executionDataDetailSchema` is a passthrough and a span's own
  * shape is a `catchall`, so a field left in place would survive validation.
+ *
+ * The run's own roll-up goes first. `buildCompletedExecutionData` writes
+ * `tokens` and `models` at the root of every completed run, and `models` is the
+ * per-model dollar breakdown itself — leaving it while stripping the spans
+ * published the finest-grained figure of all next to a blanked total. `cost` is
+ * dropped with them for the runs old enough to carry it inline.
  */
 export function withheldSpendData(executionData: Record<string, unknown>): Record<string, unknown> {
-  const projected: Record<string, unknown> = { ...executionData }
+  const { tokens: _tokens, models: _models, cost: _cost, ...retained } = executionData
+  const projected: Record<string, unknown> = { ...retained }
   if (Array.isArray(projected.traceSpans)) {
     projected.traceSpans = projected.traceSpans.map(withoutSpend)
   }

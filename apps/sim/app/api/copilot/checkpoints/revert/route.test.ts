@@ -510,6 +510,47 @@ describe('Copilot Checkpoints Revert API Route', () => {
       expect(responseData.error).toBe('Failed to revert workflow to checkpoint')
     })
 
+    /**
+     * A checkpoint can carry a block whose integration the caller's permission
+     * group withholds; the write refuses that with a 403 naming the block type.
+     * Collapsed to a 500 with the generic sentence, the member was told the
+     * revert had crashed and had nothing to act on.
+     */
+    it.each([
+      [403, 'The Slack block is not available under your permission group'],
+      [409, 'Workflow is locked'],
+    ])(
+      'passes a %i refusal from the state write through with its message',
+      async (status, error) => {
+        setAuthenticated()
+
+        queueTableRows(schemaMock.workflowCheckpoints, [
+          {
+            id: 'checkpoint-123',
+            workflowId: 'a7b8c9d0-e1f2-4a34-b5c6-d7e8f9a0b1c2',
+            userId: 'user-123',
+            workflowState: { blocks: {}, edges: [] },
+          },
+        ])
+        queueTableRows(schemaMock.workflow, [
+          { id: 'a7b8c9d0-e1f2-4a34-b5c6-d7e8f9a0b1c2', userId: 'user-123' },
+        ])
+
+        mockSaveWorkflowNormalizedState.mockResolvedValueOnce({ success: false, status, error })
+
+        const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints/revert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checkpointId: 'checkpoint-123' }),
+        })
+
+        const response = await POST(req)
+
+        expect(response.status).toBe(status)
+        await expect(response.json()).resolves.toEqual({ error })
+      }
+    )
+
     it('should return 500 when the checkpoint state fails validation', async () => {
       setAuthenticated()
 

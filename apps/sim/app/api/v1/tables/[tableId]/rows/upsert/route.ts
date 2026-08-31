@@ -52,7 +52,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
     if (scopeError) return scopeError
     const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
     if (!actorUserId) {

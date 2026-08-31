@@ -12,10 +12,8 @@ import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 import { logQuerySelectsCost } from '@/lib/logs/log-projection'
 import { buildDashboardStats, resolveLogStatsWindow } from '@/lib/logs/stats'
 import { readLogStatsBounds, readLogStatsSegments } from '@/lib/logs/stats-queries'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('LogsStatsAPI')
@@ -79,7 +77,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         'logs.cost'
       )
       if (hideCostInfo && logQuerySelectsCost(params)) {
-        return NextResponse.json({ error: capabilityRefusal('logs.cost') }, { status: 403 })
+        return capabilityRefusalResponse('logs.cost')
       }
 
       const workspaceFilter = eq(workflowExecutionLogs.workspaceId, params.workspaceId)

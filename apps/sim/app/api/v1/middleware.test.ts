@@ -375,4 +375,49 @@ describe('checkWorkspaceScope', () => {
       error: expect.stringMatching(/personal API key/i),
     })
   })
+
+  /**
+   * The two refusals share their sentence, so without the code a client cannot
+   * tell "the workspace switched personal keys off" from "your group did" —
+   * different settings, different people to ask.
+   */
+  it('carries the detail code on the group refusal and not on the column one', async () => {
+    withholdsPersonalKeys()
+    const grouped = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
+
+    await expect(grouped?.json()).resolves.toMatchObject({
+      details: { code: 'PERSONAL_API_KEYS_DISABLED' },
+    })
+
+    resetPermissionGroupScopeMock()
+    mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: false })
+    const column = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
+
+    await expect(column?.json()).resolves.not.toHaveProperty('details')
+  })
+
+  /**
+   * The concealment ordering, one level in. The funnel asks this key only after
+   * `requireCurrentHumanRole(operation.minimumRole)`, so a read-only member on a
+   * write route is refused on role. Asked at `read` here, the same person was
+   * told instead how their organization configured personal keys.
+   */
+  it('leaves a read-only member on a write route to the downstream role check', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    withholdsPersonalKeys()
+
+    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID, 'write')
+
+    expect(response).toBeNull()
+    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  it('still refuses that member on a read route, where the role does reach', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    withholdsPersonalKeys()
+
+    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID, 'read')
+
+    expect(response?.status).toBe(403)
+  })
 })

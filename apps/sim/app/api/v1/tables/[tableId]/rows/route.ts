@@ -237,7 +237,7 @@ export const POST = withRouteHandler(
       const { tableId } = parsed.data.params
       if ('rows' in parsed.data.body) {
         const batchValidated = parsed.data.body
-        const scopeError = await checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
+        const scopeError = await checkWorkspaceScope(rateLimit, batchValidated.workspaceId, 'write')
         if (scopeError) return scopeError
         const actorUserId = await resolveWorkspaceRequestActor(
           rateLimit,
@@ -259,7 +259,7 @@ export const POST = withRouteHandler(
 
       const validated = parsed.data.body
 
-      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
       if (scopeError) return scopeError
       const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
       if (!actorUserId) {
@@ -342,7 +342,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
     if (scopeError) return scopeError
     const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
     if (!actorUserId) {
@@ -437,7 +437,7 @@ export const DELETE = withRouteHandler(
       const { tableId } = parsed.data.params
       const validated = parsed.data.body
 
-      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
       if (scopeError) return scopeError
 
       const accessResult = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')

@@ -113,7 +113,16 @@ export const listPublicLogs = defineAuthorizedWorkspaceUseCase({
       ? await resolveLogFolderScope(context.workspaceId, input.folderPaths)
       : undefined
 
-    const needsMaterialization = input.includeFinalOutput || input.includeTraceSpans
+    /**
+     * A group withholding execution detail turns both render flags off below,
+     * so every materialized payload would be projected and then dropped
+     * unread. Skipped here instead: materialization is an object-store read per
+     * row plus a secret projection over the whole trace, and paying for a page
+     * of them to discard the result is the most expensive way to withhold
+     * something.
+     */
+    const needsMaterialization =
+      (input.includeFinalOutput || input.includeTraceSpans) && !projection.hideTraceSpans
     const { data, nextCursorKeys } = await readPublicLogPage({
       filters: { ...input.filters, workspaceId: context.workspaceId },
       limit: input.limit,

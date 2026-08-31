@@ -144,11 +144,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       authorization,
     })
 
+    /**
+     * The save's own refusals are the caller's answer, not a Sim fault. It
+     * classifies them itself — a withheld block type in the checkpoint is a
+     * 403, a locked workflow a 409 — and collapsing every one to a 500 told a
+     * member that reverting had crashed when their organization had simply
+     * withheld an integration the checkpoint uses. Only a genuine 5xx keeps the
+     * generic sentence; the rest carry the refusal's own status and message.
+     */
     if (!saveResult.success) {
+      const { status } = saveResult
       logger.error(`[${tracker.requestId}] Failed to apply checkpoint state: ${saveResult.error}`)
       return NextResponse.json(
-        { error: 'Failed to revert workflow to checkpoint' },
-        { status: 500 }
+        { error: status >= 500 ? 'Failed to revert workflow to checkpoint' : saveResult.error },
+        { status }
       )
     }
 

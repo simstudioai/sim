@@ -101,6 +101,7 @@ describe('table export route — id→name translation', () => {
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({
       error: "Exporting a table is not available under your organization's permission group",
+      details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
     })
   })
 })
