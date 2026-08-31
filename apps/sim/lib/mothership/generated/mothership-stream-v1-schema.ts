@@ -1183,6 +1183,9 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
         arguments: {
           $ref: '#/$defs/MothershipStreamV1AdditionalPropertiesMap',
         },
+        execName: {
+          type: 'string',
+        },
         executor: {
           $ref: '#/$defs/MothershipStreamV1ToolExecutor',
         },
@@ -1353,6 +1356,9 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
           type: 'boolean',
         },
         internal: {
+          type: 'boolean',
+        },
+        simExecutable: {
           type: 'boolean',
         },
       },
