@@ -344,6 +344,15 @@ export async function resolveCapabilityRefusal(
  * - A personal key is rejected when the workspace has disabled personal API
  *   keys (`allowPersonalApiKeys = false`). Other surfaces enforcing the same
  *   policy share `PERSONAL_KEY_DENIED`.
+ *
+ * Both are properties of the workspace rather than of any group, so both run
+ * ahead of the role check, exactly as `authorizeWorkspaceOperation` runs the
+ * `allowPersonalApiKeys` column ahead of `requireCurrentHumanRole`: they need
+ * no group to resolve, and refusing a key the workspace has switched off is the
+ * answer whatever the caller's role turns out to be.
+ *
+ * The group half of the same policy is NOT here — see
+ * {@link resolvePersonalKeyGroupRefusal}.
  */
 export async function resolveWorkspaceScope(
   rateLimit: RateLimitResult,
@@ -370,40 +379,68 @@ export async function resolveWorkspaceScope(
         message: PERSONAL_KEY_DENIED,
       }
     }
-
-    /**
-     * permission-group-enforced: personal_api_key.use — v1 authorizes in this
-     * middleware rather than through the application funnel, so the group check
-     * the funnel applies has to be repeated here or the same key that v2
-     * refuses would still work against v1.
-     */
-    const governedUserId = capabilityGovernedUserId(rateLimit)
-    if (governedUserId) {
-      const withheld = await isWorkspaceCapabilityWithheld(
-        governedUserId,
-        requestedWorkspaceId,
-        'personal_api_key.use'
-      )
-      if (withheld) {
-        return {
-          status: 403,
-          code: 'FORBIDDEN',
-          message: PERSONAL_KEY_DENIED,
-        }
-      }
-    }
   }
 
   return null
 }
 
 /**
- * Core workspace-access check: key scope, then the user's workspace permission
- * level, then the permission-group capability the route declares. Returns a
- * structured failure or null on success.
+ * The group half of the personal-key policy: `personal_api_key.use`, repeated
+ * here because v1 authorizes in this middleware rather than through the
+ * application funnel, and without it the same key that v2 refuses would still
+ * work against v1.
  *
- * Capability comes last, matching `authorizeWorkspaceOperation` — see
- * {@link resolveCapabilityRefusal} for why the ordering is load-bearing.
+ * It answers only AFTER the caller's workspace role has been verified, which is
+ * the ordering `authorizeWorkspaceOperation` uses and the reason
+ * {@link resolveCapabilityRefusal}'s contract says never to run a group key
+ * ahead of the role: the refusal names how an organization configured one
+ * cohort, and handing that to a caller with no reach into the workspace tells a
+ * stranger about the organization's configuration. The column check above may
+ * stay early precisely because it names no group.
+ *
+ * `roleVerifiedFor` is the user id a caller has already checked, not a boolean,
+ * so a caller that verified some OTHER subject's role cannot vouch for this
+ * one. When it does not match, the role is resolved here instead, and a caller
+ * with no read access is handed back `null` so the surface's own role failure —
+ * the concealed one — is what it answers with. That second lookup is free:
+ * `getUserEntityPermissions` for a workspace goes through the request-scoped
+ * memo the role check itself uses.
+ */
+async function resolvePersonalKeyGroupRefusal(
+  rateLimit: RateLimitResult,
+  workspaceId: string,
+  roleVerifiedFor: string | null
+): Promise<WorkspaceAccessError | null> {
+  const governedUserId = capabilityGovernedUserId(rateLimit)
+  if (!governedUserId) return null
+
+  if (roleVerifiedFor !== governedUserId) {
+    const permission = await getUserEntityPermissions(governedUserId, 'workspace', workspaceId)
+    if (!permissionSatisfies(permission, 'read')) return null
+  }
+
+  // permission-group-enforced: personal_api_key.use — v1 authorizes in this middleware, not through the funnel
+  if (!(await isWorkspaceCapabilityWithheld(governedUserId, workspaceId, 'personal_api_key.use'))) {
+    return null
+  }
+
+  return {
+    status: 403,
+    code: 'FORBIDDEN',
+    message: PERSONAL_KEY_DENIED,
+  }
+}
+
+/**
+ * Core workspace-access check: key scope and the workspace's own columns, then
+ * the user's workspace permission level, then the two permission-group
+ * decisions — the personal-key refusal, then the capability the route declares.
+ * Returns a structured failure or null on success.
+ *
+ * Both group keys come after the role, matching `authorizeWorkspaceOperation` —
+ * see {@link resolveCapabilityRefusal} for why the ordering is load-bearing.
+ * The personal-key refusal sits first of the two for the reason the funnel
+ * gives: the remedies differ, and the narrower one is worth naming first.
  */
 export async function resolveWorkspaceAccess(
   rateLimit: RateLimitResult,
@@ -420,22 +457,33 @@ export async function resolveWorkspaceAccess(
     return { status: 403, code: 'FORBIDDEN', message: 'Access denied' }
   }
 
+  const personalKeyRefusal = await resolvePersonalKeyGroupRefusal(rateLimit, workspaceId, userId)
+  if (personalKeyRefusal) return personalKeyRefusal
+
   return resolveCapabilityRefusal(rateLimit, workspaceId, capability)
 }
 
 /**
- * v1 wrapper: renders {@link resolveWorkspaceScope} as the v1 `{ error }` body.
+ * v1 wrapper: renders {@link resolveWorkspaceScope} as the v1 `{ error }` body,
+ * plus the personal-key group refusal that belongs with it.
  *
- * Scope only — it deliberately gates no module capability, because it runs
- * before the route's role check. A route using it authorizes its resource
- * through a domain helper afterwards (the table routes call `checkAccess`,
- * which applies `tables.use` itself), so the capability is declared there.
+ * It deliberately gates no MODULE capability: it runs before the route's role
+ * check, and a route using it authorizes its resource through a domain helper
+ * afterwards (the table routes call `checkAccess`, which applies `tables.use`
+ * itself), so the capability is declared there.
+ *
+ * `personal_api_key.use` cannot wait for that helper — `checkAccess` gates the
+ * module, not the key kind — so it is asked here, and
+ * {@link resolvePersonalKeyGroupRefusal} resolves the caller's role itself
+ * before answering rather than relying on a role check this wrapper never runs.
  */
 export async function checkWorkspaceScope(
   rateLimit: RateLimitResult,
   requestedWorkspaceId: string
 ): Promise<NextResponse | null> {
-  const failure = await resolveWorkspaceScope(rateLimit, requestedWorkspaceId)
+  const failure =
+    (await resolveWorkspaceScope(rateLimit, requestedWorkspaceId)) ??
+    (await resolvePersonalKeyGroupRefusal(rateLimit, requestedWorkspaceId, null))
   return failure ? workspaceAccessErrorResponse(failure) : null
 }
 

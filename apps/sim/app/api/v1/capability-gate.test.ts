@@ -271,9 +271,10 @@ describe('v1 permission-group capability gate', () => {
 
   /**
    * `personal_api_key.use` refuses a *principal kind* rather than a module, so it
-   * is asserted in `resolveWorkspaceScope` — before, and separately from, the
-   * capability the route declares. A workspace key is not a personal key, and its
-   * creator's group must not decide whether it may be used.
+   * is asserted separately from the capability the route declares — but, like
+   * every other group key, only after the workspace role check. A workspace key
+   * is not a personal key, and its creator's group must not decide whether it
+   * may be used.
    */
   describe('personal_api_key.use — the key kind, not the module', () => {
     it('refuses a personal key whose group disables personal API keys', async () => {
@@ -295,6 +296,42 @@ describe('v1 permission-group capability gate', () => {
 
       expect(response.status).toBe(200)
       expect(mockListTables).toHaveBeenCalledWith(WORKSPACE_ID)
+    })
+
+    /**
+     * The group key runs behind the role check, so a stranger to the workspace
+     * is answered with the concealed role failure rather than with a refusal
+     * naming how an organization configured one of its cohorts. Asked the other
+     * way round, a caller with no reach into the workspace at all learns that
+     * the workspace's organization runs a group, and that the group withholds
+     * personal keys.
+     *
+     * The workspace COLUMN still answers first — it names no group, needs no
+     * query, and is the answer whatever the role turns out to be — which is the
+     * split `authorizeWorkspaceOperation` makes and the next case pins.
+     */
+    it('answers a non-member on role, not on the group that withholds personal keys', async () => {
+      mockGetUserEntityPermissions.mockResolvedValue(null)
+      governedBy({ disablePersonalApiKeys: true })
+
+      const response = await getTables(get(`/api/v1/tables?workspaceId=${WORKSPACE_ID}`))
+      const body = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(body.error).toBe('Access denied')
+      expect(mockListTables).not.toHaveBeenCalled()
+    })
+
+    it("answers a non-member on the workspace's own column, which names no group", async () => {
+      mockGetUserEntityPermissions.mockResolvedValue(null)
+      mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: false })
+
+      const response = await getTables(get(`/api/v1/tables?workspaceId=${WORKSPACE_ID}`))
+      const body = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(body.error).toMatch(/personal API key/i)
+      expect(mockListTables).not.toHaveBeenCalled()
     })
   })
 
