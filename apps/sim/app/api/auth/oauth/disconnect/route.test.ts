@@ -18,14 +18,18 @@ const { mockGetUserOrganization } = vi.hoisted(() => ({
 
 vi.mock('@sim/audit', () => auditMock)
 
+vi.mock('@/lib/billing/organizations/membership', () => ({
+  getUserOrganization: mockGetUserOrganization,
+}))
+
 import { POST } from '@/app/api/auth/oauth/disconnect/route'
 
 describe('OAuth Disconnect API Route', () => {
   beforeEach(() => {
-    mockGetUserOrganization.mockResolvedValue(null)
     vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.where.mockResolvedValue([])
+    mockGetUserOrganization.mockResolvedValue(null)
   })
 
   it('should disconnect provider successfully', async () => {
@@ -99,10 +103,6 @@ describe('OAuth Disconnect API Route', () => {
     })
 
     dbChainMockFns.where.mockRejectedValueOnce(new Error('Database error'))
-
-    vi.mock('@/lib/billing/organizations/membership', () => ({
-      getUserOrganization: mockGetUserOrganization,
-    }))
 
     const req = createMockRequest('POST', {
       provider: 'google',

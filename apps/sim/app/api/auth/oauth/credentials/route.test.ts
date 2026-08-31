@@ -159,17 +159,34 @@ describe('OAuth Credentials API Route', () => {
       hideIntegrationsTab: true,
     }
 
-    beforeEach(() => {
-      /**
-       * `mockResolvedValue`, not `...Once`: the missing-provider test above
-       * returns 400 before authentication runs, so its queued value is never
-       * consumed and every later `...Once` in this file reads one test stale.
-       */
+    /**
+     * `mockResolvedValue`, not `...Once`: the missing-provider test above
+     * returns 400 before authentication runs, so its queued value is never
+     * consumed and every later `...Once` in this file reads one test stale.
+     */
+    function authenticatedAs(authType: 'session' | 'internal_jwt') {
       hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
         success: true,
         userId: 'user-123',
-        authType: 'session',
+        authType,
       })
+    }
+
+    function governedBy(config: typeof DEFAULT_PERMISSION_GROUP_CONFIG) {
+      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(config)
+    }
+
+    function callWithWorkspace() {
+      return GET(
+        createMockRequestWithQuery(
+          'GET',
+          '?provider=google-email&workspaceId=3f1c8a54-1c2e-4a1b-9d6e-2b7c5a9f0e11'
+        )
+      )
+    }
+
+    beforeEach(() => {
+      authenticatedAs('session')
       permissionsMockFns.mockCheckWorkspaceAccess.mockResolvedValue({
         exists: true,
         hasAccess: true,
@@ -179,21 +196,9 @@ describe('OAuth Credentials API Route', () => {
     })
 
     it('refuses a session whose group withholds Integrations', async () => {
-      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-        success: true,
-        userId: 'user-123',
-        authType: 'session',
-      })
-      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(
-        INTEGRATIONS_WITHHELD
-      )
+      governedBy(INTEGRATIONS_WITHHELD)
 
-      const response = await GET(
-        createMockRequestWithQuery(
-          'GET',
-          '?provider=google-email&workspaceId=3f1c8a54-1c2e-4a1b-9d6e-2b7c5a9f0e11'
-        )
-      )
+      const response = await callWithWorkspace()
 
       expect(response.status).toBe(403)
       await expect(response.json()).resolves.toEqual({
@@ -206,44 +211,21 @@ describe('OAuth Credentials API Route', () => {
      * by a group that describes what a person may open.
      */
     it('does not refuse the executor under the same withholding group', async () => {
-      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-        success: true,
-        userId: 'user-123',
-        authType: 'internal_jwt',
-      })
-      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(
-        INTEGRATIONS_WITHHELD
-      )
+      authenticatedAs('internal_jwt')
+      governedBy(INTEGRATIONS_WITHHELD)
       dbChainMockFns.where.mockResolvedValue([])
 
-      const response = await GET(
-        createMockRequestWithQuery(
-          'GET',
-          '?provider=google-email&workspaceId=3f1c8a54-1c2e-4a1b-9d6e-2b7c5a9f0e11'
-        )
-      )
+      const response = await callWithWorkspace()
 
       expect(response.status).toBe(200)
       expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
     })
 
     it('allows a session whose group leaves Integrations alone', async () => {
-      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-        success: true,
-        userId: 'user-123',
-        authType: 'session',
-      })
-      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(
-        DEFAULT_PERMISSION_GROUP_CONFIG
-      )
+      governedBy(DEFAULT_PERMISSION_GROUP_CONFIG)
       dbChainMockFns.where.mockResolvedValue([])
 
-      const response = await GET(
-        createMockRequestWithQuery(
-          'GET',
-          '?provider=google-email&workspaceId=3f1c8a54-1c2e-4a1b-9d6e-2b7c5a9f0e11'
-        )
-      )
+      const response = await callWithWorkspace()
 
       expect(response.status).toBe(200)
     })
@@ -254,14 +236,7 @@ describe('OAuth Credentials API Route', () => {
      * governs it.
      */
     it('refuses a session credentialId lookup using the credential own workspace', async () => {
-      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-        success: true,
-        userId: 'user-123',
-        authType: 'session',
-      })
-      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(
-        INTEGRATIONS_WITHHELD
-      )
+      governedBy(INTEGRATIONS_WITHHELD)
       dbChainMockFns.limit.mockResolvedValueOnce([
         {
           id: 'credential-1',

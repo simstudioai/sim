@@ -16,6 +16,9 @@ import {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
+  v1RateLimitContextModuleMock,
+  v1RateLimiterModuleMock,
+  v1SubscriptionModuleMock,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,22 +49,9 @@ vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBilledAccountUserId: vi.fn(async () => 'billed-user'),
   getWorkspaceOrganizationId: vi.fn(async () => null),
 }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: vi.fn(async () => null),
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitWithSubscription() {
-      return Promise.resolve({ allowed: true, remaining: 100, resetAt: new Date() })
-    }
-  },
-  getRateLimit: () => ({ maxTokens: 200 }),
-}))
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  buildRateLimitHeaders: () => ({}),
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: () => null,
-}))
+vi.mock('@/lib/billing/core/subscription', () => v1SubscriptionModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v1RateLimiterModuleMock)
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
 vi.mock('@/lib/logs/public-queries', () => ({
   listPublicWorkflowLogs: mockListPublicWorkflowLogs,
   getPublicWorkflowLog: mockGetPublicWorkflowLog,

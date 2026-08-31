@@ -29,12 +29,18 @@ const {
 
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,
-  tableAccessPrincipal: (rateLimit: { keyType?: string; userId?: string }) =>
-    rateLimit.keyType === 'workspace'
-      ? { kind: 'workspace_api_key', keyCreatorUserId: rateLimit.userId }
-      : { kind: 'user', userId: rateLimit.userId },
   checkWorkspaceScope: mockCheckWorkspaceScope,
   createRateLimitResponse: () => NextResponse.json({ error: 'Rate limited' }, { status: 429 }),
+  /**
+   * Mirrors the real `tableAccessPrincipal`, which branches on `keyType` being
+   * `'personal'` — NOT on it being `'workspace'`. Only a personal key names a
+   * person; anything else, an absent `keyType` included, reaches `checkAccess`
+   * as the workspace so no bystander's permission group is applied to it.
+   */
+  tableAccessPrincipal: (rateLimit: { keyType?: string; userId?: string }) =>
+    rateLimit.keyType === 'personal'
+      ? { kind: 'user', userId: rateLimit.userId }
+      : { kind: 'workspace_api_key', keyCreatorUserId: rateLimit.userId },
 }))
 
 vi.mock('@/lib/table', () => ({

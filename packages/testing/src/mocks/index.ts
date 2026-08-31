@@ -177,6 +177,12 @@ export {
 } from './terminal-console.mock'
 // URL mocks
 export { LOCALHOST_HOSTNAMES_MOCK, resetUrlsMock, urlsMock, urlsMockFns } from './urls.mock'
+// v1 public API ambient request-admission mocks
+export {
+  v1RateLimitContextModuleMock,
+  v1RateLimiterModuleMock,
+  v1SubscriptionModuleMock,
+} from './v1-route.mock'
 export {
   MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
