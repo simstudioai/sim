@@ -306,6 +306,9 @@ function templateFor(kind: SandboxKind, imageRef?: string): string {
   return functionTemplateRef()
 }
 
+/** Metadata key that tags a sandbox with its owning session for reconnection. */
+const E2B_SESSION_METADATA_KEY = 'simSessionKey'
+
 class E2BSandboxHandle implements SandboxHandle {
   private killed = false
   private killPromise: Promise<void> | null = null
@@ -318,6 +321,10 @@ class E2BSandboxHandle implements SandboxHandle {
 
   get sandboxId(): string {
     return this.sandbox.sandboxId
+  }
+
+  async extendLifetime(lifetimeMs: number): Promise<void> {
+    await this.sandbox.setTimeout(e2bTimeoutMs(lifetimeMs))
   }
 
   async runCode(
@@ -899,6 +906,9 @@ export const e2bProvider: SandboxProvider = {
     const createOptions = {
       apiKey,
       ...(effectiveLifetimeMs !== undefined ? { timeoutMs: effectiveLifetimeMs } : {}),
+      ...(options?.sessionKey
+        ? { metadata: { [E2B_SESSION_METADATA_KEY]: options.sessionKey } }
+        : {}),
     }
 
     const { Sandbox } = await import('@e2b/code-interpreter')
@@ -913,5 +923,32 @@ export const e2bProvider: SandboxProvider = {
         ? lifetimeStartedAtMs + E2B_MAX_SANDBOX_LIFETIME_MS
         : undefined
     )
+  },
+
+  async findSessionSandbox(
+    key: string,
+    options: { language?: CodeLanguage }
+  ): Promise<SandboxHandle | null> {
+    const apiKey = env.E2B_API_KEY
+    if (!apiKey) return null
+    const { Sandbox } = await import('@e2b/code-interpreter')
+    try {
+      const paginator = Sandbox.list({
+        apiKey,
+        query: { metadata: { [E2B_SESSION_METADATA_KEY]: key }, state: ['running'] },
+      })
+      const candidates = await paginator.nextItems()
+      if (candidates.length === 0) return null
+      // Oldest first: when a race created two sandboxes for one session, every
+      // later execution adopts the same one and the stragglers idle out.
+      candidates.sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
+      const sandbox = await Sandbox.connect(candidates[0].sandboxId, { apiKey })
+      return new E2BSandboxHandle(sandbox, options.language ?? CodeLanguage.Python)
+    } catch (error) {
+      // A sandbox reaped between list and connect is an ordinary miss, and any
+      // other lookup failure degrades to a fresh create rather than an error.
+      logger.info('E2B session sandbox lookup missed', { key, error: getErrorMessage(error) })
+      return null
+    }
   },
 }
