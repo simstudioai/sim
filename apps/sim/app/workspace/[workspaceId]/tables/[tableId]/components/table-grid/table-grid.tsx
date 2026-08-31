@@ -344,6 +344,7 @@ function cellToText(value: unknown, column?: DisplayColumn): string {
  */
 function writeLoadedRowsWithChip(opts: {
   clipboardData: DataTransfer | null
+  workspaceId: string
   rows: TableRowType[]
   complete: boolean
   buildCells: (row: TableRowType) => string[]
@@ -364,7 +365,7 @@ function writeLoadedRowsWithChip(opts: {
     'text/plain',
     rows.map((row) => opts.buildCells(row).join('\t')).join('\n')
   )
-  attachSelectionContextToClipboard(opts.clipboardData, context)
+  attachSelectionContextToClipboard(opts.clipboardData, context, opts.workspaceId)
   toast.success(`Copied ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`)
   return true
 }
@@ -477,6 +478,10 @@ export function TableGrid({
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
+  const tableIdRef = useRef(tableId)
+  tableIdRef.current = tableId
   const posthog = usePostHog()
 
   useEffect(() => {
@@ -3402,11 +3407,12 @@ export function TableGrid({
           const selectedRows = currentRows.filter((row) => rowSelectionIncludes(rowSel, row.id))
           const handled = writeLoadedRowsWithChip({
             clipboardData: e.clipboardData,
+            workspaceId: workspaceIdRef.current,
             rows: selectedRows,
             complete: true,
             buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
             context: buildTableSelectionContext({
-              tableId,
+              tableId: tableIdRef.current,
               tableName: tableNameRef.current,
               // Every selected id, not just the loaded page: the chip carries
               // ids and the server re-fetches them, so an unloaded row still
@@ -3449,12 +3455,13 @@ export function TableGrid({
         // in the rest — so the chip path applies only once all of them are here.
         const handled = writeLoadedRowsWithChip({
           clipboardData: e.clipboardData,
+          workspaceId: workspaceIdRef.current,
           rows: currentRows,
           complete: currentRows.length >= selectAllTotalRef.current,
           buildCells: (row) =>
             colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           context: buildTableSelectionContext({
-            tableId,
+            tableId: tableIdRef.current,
             tableName: tableNameRef.current,
             rowIds: currentRows.map((row) => row.id),
             columnIds: selectedColumnIds(cols, sel),
@@ -3481,12 +3488,14 @@ export function TableGrid({
         if (row) rangeRowIds.push(row.id)
       }
       const rangeContext = buildTableSelectionContext({
-        tableId,
+        tableId: tableIdRef.current,
         tableName: tableNameRef.current,
         rowIds: rangeRowIds,
         columnIds: selectedColumnIds(cols, sel),
       })
-      if (rangeContext) attachSelectionContextToClipboard(e.clipboardData, rangeContext)
+      if (rangeContext) {
+        attachSelectionContextToClipboard(e.clipboardData, rangeContext, workspaceIdRef.current)
+      }
 
       const lines: string[] = []
       for (let r = sel.startRow; r <= sel.endRow; r++) {

@@ -13,6 +13,7 @@ import type { ChatContext } from '@/stores/panel'
  * `text/plain`, so the custom type must be added last to survive.
  *
  * @param buildContext - Returns null when there is no non-empty selection.
+ * @param workspaceId - Workspace that owns the selected resource.
  * @param enabled - Re-runs the effect for a container that mounts late (behind a
  * loading gate); a ref isn't reactive, so the effect would otherwise bail on the
  * first render and never re-attach.
@@ -20,6 +21,7 @@ import type { ChatContext } from '@/stores/panel'
 export function useSelectionCopyBridge(
   containerRef: RefObject<HTMLElement | null>,
   buildContext: () => ChatContext | null,
+  workspaceId: string,
   enabled = true
 ): void {
   useEffect(() => {
@@ -36,9 +38,9 @@ export function useSelectionCopyBridge(
       // main copy path this hook exists for.
       if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return
       const context = buildContext()
-      if (context) attachSelectionContextToClipboard(e.clipboardData, context)
+      if (context) attachSelectionContextToClipboard(e.clipboardData, context, workspaceId)
     }
     dom.addEventListener('copy', onCopy)
     return () => dom.removeEventListener('copy', onCopy)
-  }, [containerRef, buildContext, enabled])
+  }, [containerRef, buildContext, workspaceId, enabled])
 }
