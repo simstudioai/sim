@@ -258,6 +258,14 @@ describe('SSO organization transitions', () => {
 
   it('shows a billing failure instead of an Enterprise upsell', () => {
     const refetch = vi.fn()
+    const refetchProviders = vi.fn()
+    mockUseSSOProviders.mockReturnValue({
+      data: { providers: [provider('org-a')] },
+      error: null,
+      isFetching: true,
+      isLoading: false,
+      refetch: refetchProviders,
+    })
     mockUseOrganizationBilling.mockReturnValue({
       data: undefined,
       error: new Error('Billing entitlement failed'),
@@ -270,12 +278,22 @@ describe('SSO organization transitions', () => {
 
     expect(container).toHaveTextContent('Billing entitlement failed')
     expect(container).not.toHaveTextContent('available on Enterprise plans only')
+    expect(findButton('Try again')).not.toBeDisabled()
     act(() => findButton('Try again')?.click())
     expect(refetch).toHaveBeenCalledOnce()
+    expect(refetchProviders).not.toHaveBeenCalled()
   })
 
   it('retries an initial provider failure without leaving the page', () => {
     const refetch = vi.fn()
+    const refetchBilling = vi.fn()
+    mockUseOrganizationBilling.mockReturnValue({
+      data: { data: { subscriptionPlan: 'enterprise' } },
+      error: null,
+      isFetching: true,
+      isLoading: false,
+      refetch: refetchBilling,
+    })
     mockUseSSOProviders.mockReturnValue({
       data: undefined,
       error: new Error('Provider lookup failed'),
@@ -287,8 +305,10 @@ describe('SSO organization transitions', () => {
     renderSso('org-a')
 
     expect(container).toHaveTextContent('Provider lookup failed')
+    expect(findButton('Try again')).not.toBeDisabled()
     act(() => findButton('Try again')?.click())
     expect(refetch).toHaveBeenCalledOnce()
+    expect(refetchBilling).not.toHaveBeenCalled()
   })
 })
 

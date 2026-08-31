@@ -293,24 +293,22 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     return null
   }
 
-  const loadingError =
-    (providersData === undefined ? providersError : null) ??
-    (isBillingEnabled && organizationBillingData === undefined ? organizationBillingError : null)
+  const providersLoadingError = providersData === undefined ? providersError : null
+  const organizationBillingLoadingError =
+    isBillingEnabled && organizationBillingData === undefined ? organizationBillingError : null
+  const loadingError = providersLoadingError ?? organizationBillingLoadingError
   if (loadingError) {
     return (
       <SettingsQueryErrorState
         error={loadingError}
         fallback='Failed to load Single Sign-On settings'
-        isRetrying={isFetchingProviders || (isBillingEnabled && isFetchingOrganizationBilling)}
+        isRetrying={
+          (Boolean(providersLoadingError) && isFetchingProviders) ||
+          (Boolean(organizationBillingLoadingError) && isFetchingOrganizationBilling)
+        }
         onRetry={() => {
-          if (providersData === undefined && providersError) void refetchProviders()
-          if (
-            isBillingEnabled &&
-            organizationBillingData === undefined &&
-            organizationBillingError
-          ) {
-            void refetchOrganizationBilling()
-          }
+          if (providersLoadingError) void refetchProviders()
+          if (organizationBillingLoadingError) void refetchOrganizationBilling()
         }}
       />
     )
