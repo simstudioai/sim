@@ -10,6 +10,7 @@ import {
   type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
 } from '@/lib/billing/core/billing-attribution'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
@@ -322,19 +323,36 @@ export async function runCopilotLifecycle(
   let onCompleteStarted = false
 
   try {
-    await ensureModelEgressRegistry(execContext, lifecycleOptions)
-    const modelSafeRequestPayload = await filterInitialCopilotAttachmentsForModel(
-      requestPayload,
-      lifecycleOptions.workspaceId
-    )
-    await runCheckpointLoop(
-      modelSafeRequestPayload,
-      context,
-      execContext,
-      lifecycleOptions,
-      goRoute,
-      hostedBillingRequest
-    )
+    // Hosted admission (usage limits) belongs HERE, at dispatch, with the attribution
+    // already in hand. The old path outsourced it to the Go backend's api-keys/validate
+    // callback — a call the TS worker rightly never makes, so without this gate the
+    // limit check simply never runs on the new path. On exceeded, the same synthetic
+    // 402 UX as the mid-stream path renders the upgrade prompt, the backend is never
+    // dispatched, and the shared verdict assembly below runs exactly as after a
+    // mid-stream billing break.
+    const admission =
+      isHosted && execContext.billingAttribution
+        ? await checkAttributedUsageLimits(
+            assertBillingAttributionSnapshot(execContext.billingAttribution)
+          )
+        : { isExceeded: false as const }
+    if (admission.isExceeded) {
+      await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
+    } else {
+      await ensureModelEgressRegistry(execContext, lifecycleOptions)
+      const modelSafeRequestPayload = await filterInitialCopilotAttachmentsForModel(
+        requestPayload,
+        lifecycleOptions.workspaceId
+      )
+      await runCheckpointLoop(
+        modelSafeRequestPayload,
+        context,
+        execContext,
+        lifecycleOptions,
+        goRoute,
+        hostedBillingRequest
+      )
+    }
 
     // The backend's terminal `complete` is the turn's verdict. A failure it
     // reported in-band on the way there — a tool or a subagent that failed and

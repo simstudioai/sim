@@ -3,7 +3,9 @@
  */
 
 import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
+import { generateId } from '@sim/utils/id'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { handleBillingLimitResponse } from '@/lib/mothership/request/tools/billing'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -21,6 +23,7 @@ const {
   mockGetAutoAllowedTools,
   mockFilterModelSafeWorkspaceFileAttachments,
   mockUpdateRunStatus,
+  mockCheckAttributedUsageLimits,
   mockEnv,
 } = vi.hoisted(() => ({
   mockCreateRunSegment: vi.fn(),
@@ -34,6 +37,7 @@ const {
   mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
   mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
   mockUpdateRunStatus: vi.fn(),
+  mockCheckAttributedUsageLimits: vi.fn(),
   mockEnv: {
     COPILOT_API_KEY: undefined as string | undefined,
     MSHIP_SYSPROMPT_OVERRIDE: undefined as string | undefined,
@@ -120,6 +124,29 @@ vi.mock('@/lib/mothership/tools/handlers/context', () => ({
   prepareExecutionContext: mockPrepareExecutionContext,
 }))
 
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  /**
+   * Faithful envelope replica: real protocol constant, real UUID request id, real
+   * URI-encoded serialization — the hosted-header tests below assert all three.
+   * Only the usage-limit check itself is controllable per-test.
+   */
+  assertBillingAttributionSnapshot: (value: unknown) => value,
+  checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
+  createAttributedBillingRequestEnvelope: (attribution: unknown) => {
+    const billingRequestId = generateId()
+    const serializedAttribution = encodeURIComponent(JSON.stringify(attribution))
+    return {
+      billingRequestId,
+      serializedAttribution,
+      headers: {
+        'x-sim-billing-protocol': 'attribution-v1',
+        'x-sim-billing-request-id': billingRequestId,
+        'x-sim-billing-attribution': serializedAttribution,
+      },
+    }
+  },
+}))
+
 vi.mock('@/lib/mothership/request/tools/billing', () => ({
   handleBillingLimitResponse: vi.fn(),
 }))
@@ -154,6 +181,7 @@ const SCHEMA_CONTROL_KEYS = [
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockEnv.COPILOT_API_KEY = undefined
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = undefined
     setEnvFlags({
@@ -1433,6 +1461,45 @@ describe('runCopilotLifecycle', () => {
         billingAttribution
       )
     }
+  })
+
+  it('refuses dispatch at admission when hosted usage limits are exceeded', async () => {
+    const billingAttribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      organizationId: 'org-1',
+      billedAccountUserId: 'user-1',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+    setEnvFlags({ isHosted: true })
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      message: 'limit reached',
+      scope: 'payer',
+    })
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'execution-1',
+        runId: 'run-1',
+        simRequestId: 'request-1',
+        billingAttribution,
+      }
+    )
+
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(billingAttribution)
+    expect(handleBillingLimitResponse).toHaveBeenCalledTimes(1)
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    expect(result.cancelled).not.toBe(true)
   })
 
   it('preserves a resume tool name that collides with a configured secret', async () => {
