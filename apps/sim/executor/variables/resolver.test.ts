@@ -964,6 +964,28 @@ describe('VariableResolver function block inputs', () => {
     )
   })
 
+  it('binds a run value that names a secret instead of expanding it', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    ctx.workflowVariables = {
+      'var-1': { id: 'var-1', name: 'authTemplate', type: 'string', value: 'Bearer {{API_KEY}}' },
+    }
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: `const header = '<variable.authTemplate>'; const item = <producer.result>` },
+      block
+    )
+
+    // An author-configured variable keeps its placeholder in source, where the boundary
+    // compiler expands it; a run value naming a secret binds instead, so whoever supplies
+    // the text cannot pick what the compiler materializes next to it.
+    const code = result.resolvedInputs.code as string
+    expect(code).toContain('{{API_KEY}}')
+    expect(code).toContain('const item = globalThis["__blockRef_0"]')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
   it('binds a workflow variable carrying quote characters instead of splicing it into code', async () => {
     // A Variables block can assign trigger data at runtime, so a variable's value is not
     // necessarily the author's. Inlined as a literal it closed the string it landed in.

@@ -687,7 +687,7 @@ export class VariableResolver {
           throw getNestedLargeValueMaterializationError()
         }
 
-        if (this.canInlineResolvedCodeLiteral(effectiveValue)) {
+        if (this.canInlineResolvedCodeLiteral(effectiveValue, match)) {
           const replacement = this.blockResolver.formatValueForBlock(
             effectiveValue,
             BlockType.FUNCTION,
@@ -976,12 +976,19 @@ export class VariableResolver {
    * Everything else binds, which is what block outputs have always done. Inlining the rest
    * is what let a runtime-assigned variable or loop item carrying trigger data close the
    * string it landed in and run as code.
+   *
+   * The placeholder case is admitted only for a workflow variable, never for a loop item or
+   * any other run value. Whoever supplies the text picks which secret the compiler expands
+   * into the generated source, so that choice stays with the surface an author configures.
    */
-  private canInlineResolvedCodeLiteral(value: unknown): boolean {
+  private canInlineResolvedCodeLiteral(value: unknown, reference: string): boolean {
     if (value === null || typeof value === 'number' || typeof value === 'boolean') {
       return true
     }
     if (typeof value !== 'string') {
+      return false
+    }
+    if (parseReferencePath(reference)[0] !== REFERENCE.PREFIX.VARIABLE) {
       return false
     }
     return createEnvVarPattern().test(value) && !/['"`$\\\n\r\u2028\u2029]/.test(value)
@@ -1196,10 +1203,16 @@ export class VariableResolver {
     }
 
     // `p.catch(fn)` is a method call whose name happens to be a keyword, and what follows its
-    // `)` is an operator, not a statement. A control-flow head can never be a property access.
+    // `)` is an operator, not a statement. A control-flow head can never be a property access,
+    // and a comment can hide the dot (`p./* c */catch(fn)`), so a comment ending here is read
+    // as the method call it usually is: the wrong guess there costs a division scanned as a
+    // regex, while this way it costs nothing a regex-free line would notice.
     let before = start
     while (before > 0 && WHITESPACE_CHAR.test(template[before - 1])) {
       before--
+    }
+    if (template[before - 1] === '/' && template[before - 2] === '*') {
+      return false
     }
     return template[before - 1] !== '.'
   }
