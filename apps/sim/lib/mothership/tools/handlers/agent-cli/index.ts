@@ -2,6 +2,7 @@ import {
   workflowGrepCommand,
   workflowsGrepCommand,
 } from '@/lib/mothership/tools/handlers/agent-cli/commands/grep'
+import { workflowLintCommand } from '@/lib/mothership/tools/handlers/agent-cli/commands/lint'
 import {
   workflowBlocksCommand,
   workflowEdgesCommand,
@@ -22,6 +23,7 @@ const AGENT_CLI_COMMANDS: readonly AgentCliCommand[] = [
   workflowBlocksCommand,
   workflowEdgesCommand,
   workflowGrepCommand,
+  workflowLintCommand,
   workflowsGrepCommand,
 ]
 
