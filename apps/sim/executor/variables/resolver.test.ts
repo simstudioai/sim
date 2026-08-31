@@ -280,6 +280,33 @@ describe('VariableResolver function block inputs', () => {
     expect(resolvedConditions[1].value).toContain('environmentVariables.OPENAI_API_KEY')
   })
 
+  it('counts an environment read only where it can execute', async () => {
+    const { ctx, resolver } = createResolver()
+    const conditionBlock = createBlock('condition', 'Condition', BlockType.CONDITION)
+    const conditions = [
+      // Reads, in the shapes a pattern would have to anticipate.
+      { id: 'c1', title: 'if', value: `environmentVariables?.FLAG === 'on'` },
+      { id: 'c2', title: 'else if', value: 'Object.keys(environmentVariables).length > 0' },
+      // Mentions: text, not code.
+      { id: 'c3', title: 'else if', value: `'environmentVariables.FLAG' === 'x'` },
+      { id: 'c4', title: 'else if', value: '`environmentVariables` === "x"' },
+      { id: 'c5', title: 'else if', value: `/environmentVariables/.test('x')` },
+    ]
+
+    const result = await resolver.resolveInputs(
+      ctx,
+      conditionBlock.id,
+      { conditions: JSON.stringify(conditions) },
+      conditionBlock
+    )
+
+    expect(
+      (result.conditions as Array<Record<string, unknown>>).map(
+        (condition) => condition._readsEnvironmentVariables
+      )
+    ).toEqual([true, true, false, false, false])
+  })
+
   it('preserves legacy condition outcomes end to end through the boundary compiler', async () => {
     const environmentVariables = {
       API_KEY: 'token',
@@ -944,6 +971,28 @@ describe('VariableResolver function block inputs', () => {
     // Statement-position regex: the reference after it is inside the author's quotes.
     expect(code).toContain(`.test('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`)
     // Division after a value: the slash must not open a regex that swallows the quotes.
+    expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_1"]) + '')`)
+  })
+
+  it('steps over a comment rather than reading it as the preceding token', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      {
+        code: [
+          `/* lead */ if (params.a) /['"]/.test('<producer.result>')`,
+          `const n = params.p./* mid */catch(() => 0) / 2 + Number('<producer.result>')`,
+        ].join('\n'),
+      },
+      block
+    )
+
+    // A comment before a control-flow keyword leaves it a head; one hiding a property dot
+    // still leaves the call a call.
+    const code = result.resolvedInputs.code as string
+    expect(code).toContain(`.test('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`)
     expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_1"]) + '')`)
   })
 

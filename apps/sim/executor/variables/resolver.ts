@@ -46,7 +46,7 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 export const CONDITION_READS_ENVIRONMENT_KEY = '_readsEnvironmentVariables'
 
 /** The sandbox global holding the run's secrets, in whatever shape an expression reaches it. */
-const ENVIRONMENT_MAP_IDENTIFIER = /\benvironmentVariables\b/
+const ENVIRONMENT_MAP_IDENTIFIER = /\benvironmentVariables\b/g
 
 /** Key used to carry pre-resolved context variables through the inputs map. */
 export const FUNCTION_BLOCK_CONTEXT_VARS_KEY = '_runtimeContextVars'
@@ -362,7 +362,7 @@ export class VariableResolver {
               // the environment map is indistinguishable from one that merely quotes trigger
               // data containing the word, and the handler decides what to mount from this.
               [CONDITION_READS_ENVIRONMENT_KEY]:
-                typeof value === 'string' && ENVIRONMENT_MAP_IDENTIFIER.test(value),
+                typeof value === 'string' && this.readsEnvironmentMap(value),
               value:
                 typeof value === 'string'
                   ? await this.resolveTemplateWithoutConditionFormatting(
@@ -1182,6 +1182,28 @@ export class VariableResolver {
   }
 
   /**
+   * Whether a Condition expression reads the run's secrets off the environment map.
+   *
+   * The name is only a read where it can execute, so each occurrence is placed with the same
+   * scanner that decides how references are spliced — a mention inside a string, a template,
+   * or a regex is text and mounts nothing. No shape of the read itself is assumed:
+   * `environmentVariables?.FLAG` and `Object.keys(environmentVariables)` both count, because
+   * narrowing an expression that does reach the map would route the run down a branch the
+   * author did not write, silently, while admitting one too many only costs the narrowing.
+   */
+  private readsEnvironmentMap(expression: string): boolean {
+    ENVIRONMENT_MAP_IDENTIFIER.lastIndex = 0
+    let match = ENVIRONMENT_MAP_IDENTIFIER.exec(expression)
+    while (match !== null) {
+      if (this.getCodeStringQuoteContext(expression, match.index, 'javascript') === null) {
+        return true
+      }
+      match = ENVIRONMENT_MAP_IDENTIFIER.exec(expression)
+    }
+    return false
+  }
+
+  /**
    * Whether the `(` at this index opens a control-flow head rather than a value.
    *
    * What follows the matching `)` differs entirely between the two — a statement, where a regex
@@ -1204,17 +1226,25 @@ export class VariableResolver {
 
     // `p.catch(fn)` is a method call whose name happens to be a keyword, and what follows its
     // `)` is an operator, not a statement. A control-flow head can never be a property access,
-    // and a comment can hide the dot (`p./* c */catch(fn)`), so a comment ending here is read
-    // as the method call it usually is: the wrong guess there costs a division scanned as a
-    // regex, while this way it costs nothing a regex-free line would notice.
-    let before = start
-    while (before > 0 && WHITESPACE_CHAR.test(template[before - 1])) {
-      before--
-    }
-    if (template[before - 1] === '/' && template[before - 2] === '*') {
-      return false
+    // and a comment can stand between the two (`p./* c */catch(fn)`), so a comment is stepped
+    // over rather than treated as an answer — `/* c */ if (x)` is still a head.
+    let before = this.skipWhitespaceBackward(template, start)
+    while (template[before - 1] === '/' && template[before - 2] === '*') {
+      const opening = template.lastIndexOf('/*', before - 2)
+      if (opening < 0) {
+        return true
+      }
+      before = this.skipWhitespaceBackward(template, opening)
     }
     return template[before - 1] !== '.'
+  }
+
+  private skipWhitespaceBackward(template: string, index: number): number {
+    let cursor = index
+    while (cursor > 0 && WHITESPACE_CHAR.test(template[cursor - 1])) {
+      cursor--
+    }
+    return cursor
   }
 
   private matchesKeywordAt(template: string, index: number, keyword: string): boolean {
