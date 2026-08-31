@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { type MothershipEnvironment, mothershipEnvironmentSchema } from '@/lib/api/contracts'
 import { env } from '@/lib/core/config/env'
 import { SIM_AGENT_API_URL, SIM_AGENT_API_URL_DEFAULT } from '@/lib/mothership/constants'
@@ -40,6 +41,23 @@ function getDefaultMothershipBaseURL(fallbackUrl?: string | null): string {
   return normalizeUrl(fallback) ?? normalizeUrl(SIM_AGENT_API_URL) ?? SIM_AGENT_API_URL_DEFAULT
 }
 
+/**
+ * Superuser-gate cache: almost every user is NOT an admin with superuser mode on, yet the
+ * check joined user+settings on every chat turn. Caching only the negative gate keeps the
+ * hot path DB-free while a real superuser's environment selection stays fresh per turn
+ * (their env flip must apply immediately). A newly granted superuser waits at most one TTL.
+ */
+const superUserGate = new LRUCache<string, boolean>({ max: 50_000, ttl: 60_000 })
+
+export function invalidateSuperUserGate(userId: string): void {
+  superUserGate.delete(userId)
+}
+
+/** Test-only: drops every cached gate so each case sees its own queued DB rows. */
+export function clearSuperUserGate(): void {
+  superUserGate.clear()
+}
+
 export async function getMothershipBaseURL(
   options: GetMothershipBaseURLOptions = {}
 ): Promise<string> {
@@ -47,6 +65,8 @@ export async function getMothershipBaseURL(
 
   const { userId } = options
   if (!userId) return defaultUrl
+
+  if (superUserGate.get(userId) === false) return defaultUrl
 
   const [row] = await db
     .select({
@@ -60,6 +80,7 @@ export async function getMothershipBaseURL(
     .limit(1)
 
   const effectiveSuperUser = row?.role === 'admin' && (row.superUserModeEnabled ?? false)
+  superUserGate.set(userId, effectiveSuperUser)
   if (!effectiveSuperUser) return defaultUrl
 
   const selectedEnvironment = options.environment ?? row.mothershipEnvironment

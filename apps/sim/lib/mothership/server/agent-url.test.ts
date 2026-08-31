@@ -2,6 +2,7 @@ import { user } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  clearSuperUserGate,
   getMothershipBaseURL,
   getMothershipSourceEnvHeaders,
   MOTHERSHIP_SOURCE_ENV_HEADER,
@@ -36,6 +37,7 @@ describe('getMothershipBaseURL', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    clearSuperUserGate()
     envMock.COPILOT_SOURCE_ENV = undefined
   })
 
@@ -47,6 +49,27 @@ describe('getMothershipBaseURL', () => {
     await expect(getMothershipBaseURL()).resolves.toBe('https://default.mothership.test')
     await expect(getMothershipBaseURL({ environment: 'dev' })).resolves.toBe(
       'https://default.mothership.test'
+    )
+  })
+
+  it('caches the negative gate: a non-superuser skips the DB on repeat turns until invalidated', async () => {
+    queueTableRows(user, [
+      { role: 'user', superUserModeEnabled: false, mothershipEnvironment: 'dev' },
+    ])
+    await expect(getMothershipBaseURL({ userId: 'user-cache' })).resolves.toBe(
+      'https://default.mothership.test'
+    )
+    // A superuser row is now queued — a cache hit never reads it and stays default.
+    queueTableRows(user, [
+      { role: 'admin', superUserModeEnabled: true, mothershipEnvironment: 'dev' },
+    ])
+    await expect(getMothershipBaseURL({ userId: 'user-cache' })).resolves.toBe(
+      'https://default.mothership.test'
+    )
+    // Invalidation (the settings PATCH path) makes the next turn read fresh.
+    clearSuperUserGate()
+    await expect(getMothershipBaseURL({ userId: 'user-cache' })).resolves.toBe(
+      'https://dev.mothership.test'
     )
   })
 
