@@ -15,6 +15,8 @@ import {
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
 import { searchDocsServerTool } from '@/lib/mothership/tools/server/docs/search-docs'
+import { editContentServerTool } from '@/lib/mothership/tools/server/files/edit-content'
+import { workspaceFileServerTool } from '@/lib/mothership/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/mothership/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/mothership/tools/server/image/generate-image'
 import {
@@ -55,6 +57,10 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [searchDocsServerTool.name]: searchDocsServerTool,
   [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
   [readDocumentServerTool.name]: readDocumentServerTool,
+  // The streamed file-writing pair: prepare opens the write (live preview),
+  // apply continues it. The preview machinery keys off these exact names.
+  [workspaceFileServerTool.name]: workspaceFileServerTool,
+  [editContentServerTool.name]: editContentServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
   [generateVideoServerTool.name]: generateVideoServerTool,
   [generateAudioServerTool.name]: generateAudioServerTool,
