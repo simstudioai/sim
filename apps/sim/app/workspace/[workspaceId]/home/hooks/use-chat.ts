@@ -60,6 +60,7 @@ import {
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
+import { isTerminalStreamStatus } from '@/lib/mothership/request/session'
 import { parsePersistedStreamEventEnvelopeJson } from '@/lib/mothership/request/session/contract'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { canDisplayResource } from '@/lib/mothership/resources/availability'
@@ -166,7 +167,6 @@ import {
   isAlreadyProcessedStreamCursor,
   isStreamGoneError,
   isStreamSchemaValidationError,
-  isTerminalStreamStatus,
   parseStreamBatchResponse,
   resolveChatIdFromStreamBatch,
   type StreamBatchResponse,
@@ -2462,6 +2462,10 @@ export function useChat(
             if (activeAbort.signal.aborted || streamGenRef.current !== expectedGen) {
               return { error: false, aborted: true }
             }
+            /* A middlebox that closes the SSE tail promptly makes this loop spin
+               tail->batch->tail with zero delay. An empty non-terminal batch means
+               nothing new arrived — pace the next cycle instead of hammering. */
+            await sleep(1_000)
           }
         }
 
