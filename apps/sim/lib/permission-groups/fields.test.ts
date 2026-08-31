@@ -327,13 +327,16 @@ describe('permission group config key coverage', () => {
   })
 
   /**
-   * Both keys gate an action that names no workspace, so both are read from the
+   * Each key gates an act that names no workspace, so each is read from the
    * organization's default group only — a group scoped to specific workspaces
-   * cannot deny an account-level login or a workspace that does not exist yet.
-   * The editor still offers the checkbox on such a group, so the hint is the
-   * only place an admin learns where it applies; it shipped saying nothing.
+   * cannot deny an account-level login, a workspace that does not exist yet, or
+   * a roster read that belongs to the organization rather than to any one
+   * workspace. The editor still offers the checkbox on such a group, so the
+   * hint is the only place an admin learns where it applies; all three shipped
+   * saying nothing, and a hint that omits it is a checkbox that silently
+   * enforces nothing wherever an admin is most likely to tick it.
    */
-  it.each(['disableWorkspaceCreation', 'disableCliAccess'] as const)(
+  it.each(['disableWorkspaceCreation', 'disableCliAccess', 'hideOrgMemberDirectory'] as const)(
     "tells an admin that %s is read from the organization's default group",
     (configKey) => {
       const feature = PLATFORM_FEATURES.find((entry) => entry.configKey === configKey)
