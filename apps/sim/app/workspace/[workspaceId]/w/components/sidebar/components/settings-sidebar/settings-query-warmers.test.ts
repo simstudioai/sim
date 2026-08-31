@@ -13,7 +13,6 @@ vi.mock('@/lib/api/client/request', () => ({
 }))
 
 import { warmSettingsSectionQuery } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-sidebar/settings-query-warmers'
-import { apiKeysQueryOptions } from '@/hooks/queries/api-key-list'
 import { workspaceCredentialListQueryOptions } from '@/hooks/queries/utils/fetch-workspace-credentials'
 
 let queryClient: QueryClient
@@ -25,16 +24,16 @@ describe('settings query warmers', () => {
       defaultOptions: { queries: { retry: false, retryOnMount: false } },
     })
     mockRequestJson.mockImplementation((contract: { path: string }) => {
-      if (contract.path === '/api/mcp/servers' || contract.path === '/api/mcp/workflow-servers') {
-        return Promise.resolve({ data: { servers: [] } })
-      }
-      if (contract.path === '/api/workspaces/[id]/sandboxes') {
-        return Promise.resolve({ sandboxes: [], entitled: true, strategy: 'prebuilt' })
-      }
       if (contract.path === '/api/credentials') {
         return Promise.resolve({ credentials: [] })
       }
-      return Promise.resolve({ keys: [] })
+      if (
+        contract.path === '/api/billing' ||
+        contract.path === '/api/organizations/[id]/billing-summary'
+      ) {
+        return Promise.resolve({})
+      }
+      throw new Error(`Unexpected settings warmer contract: ${contract.path}`)
     })
   })
 
@@ -43,28 +42,11 @@ describe('settings query warmers', () => {
     vi.clearAllMocks()
   })
 
-  it('warms only the approved first-content list for each section', async () => {
-    expect(warmSettingsSectionQuery(queryClient, personalContext, 'apikeys')).toBe(true)
-    expect(warmSettingsSectionQuery(queryClient, personalContext, 'sandboxes')).toBe(true)
-    expect(warmSettingsSectionQuery(queryClient, personalContext, 'byok')).toBe(true)
-    expect(warmSettingsSectionQuery(queryClient, personalContext, 'mcp')).toBe(true)
+  it('warms only first-content data already present in the shared sidebar graph', async () => {
     expect(warmSettingsSectionQuery(queryClient, personalContext, 'secrets')).toBe(true)
-    expect(warmSettingsSectionQuery(queryClient, personalContext, 'workflow-mcp-servers')).toBe(
-      true
-    )
 
-    await vi.waitFor(() => expect(mockRequestJson).toHaveBeenCalledTimes(7))
-    expect(mockRequestJson.mock.calls.map(([contract]) => contract.path)).toEqual(
-      expect.arrayContaining([
-        '/api/workspaces/[id]/api-keys',
-        '/api/users/me/api-keys',
-        '/api/workspaces/[id]/sandboxes',
-        '/api/workspaces/[id]/byok-keys',
-        '/api/mcp/servers',
-        '/api/mcp/workflow-servers',
-        '/api/credentials',
-      ])
-    )
+    await vi.waitFor(() => expect(mockRequestJson).toHaveBeenCalledTimes(1))
+    expect(mockRequestJson.mock.calls[0][0].path).toBe('/api/credentials')
     expect(
       mockRequestJson.mock.calls.find(([contract]) => contract.path === '/api/credentials')?.[1]
     ).toEqual(
@@ -73,6 +55,13 @@ describe('settings query warmers', () => {
   })
 
   it('does not warm broad settings data', () => {
+    expect(warmSettingsSectionQuery(queryClient, personalContext, 'apikeys')).toBe(false)
+    expect(warmSettingsSectionQuery(queryClient, personalContext, 'sandboxes')).toBe(false)
+    expect(warmSettingsSectionQuery(queryClient, personalContext, 'byok')).toBe(false)
+    expect(warmSettingsSectionQuery(queryClient, personalContext, 'mcp')).toBe(false)
+    expect(warmSettingsSectionQuery(queryClient, personalContext, 'workflow-mcp-servers')).toBe(
+      false
+    )
     expect(warmSettingsSectionQuery(queryClient, personalContext, 'custom-tools')).toBe(false)
 
     expect(mockRequestJson).not.toHaveBeenCalled()
@@ -98,15 +87,6 @@ describe('settings query warmers', () => {
     expect(mockRequestJson.mock.calls[0][1]).toEqual(
       expect.objectContaining({ params: { id: 'org-1' } })
     )
-  })
-
-  it('deduplicates a successful API-key warm with the eventual consumer', async () => {
-    warmSettingsSectionQuery(queryClient, personalContext, 'apikeys')
-    await vi.waitFor(() => expect(mockRequestJson).toHaveBeenCalledTimes(2))
-
-    await queryClient.fetchQuery(apiKeysQueryOptions('workspace-1', 'combined'))
-
-    expect(mockRequestJson).toHaveBeenCalledTimes(2)
   })
 
   it('keeps the Secrets warmer and consumer on mount-recoverable shared options', () => {

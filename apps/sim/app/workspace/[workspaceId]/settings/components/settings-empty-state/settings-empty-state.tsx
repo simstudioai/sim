@@ -45,7 +45,6 @@ export function SettingsEmptyState({
   )
 }
 
-/** Canonical recoverable error state for settings queries. */
 export function SettingsQueryErrorState({
   error,
   fallback,

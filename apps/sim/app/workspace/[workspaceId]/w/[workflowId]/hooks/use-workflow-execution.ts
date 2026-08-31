@@ -443,7 +443,7 @@ export function useWorkflowExecution() {
   const getCurrentExecutionId = useExecutionStore((s) => s.getCurrentExecutionId)
   const rawSetIsExecuting = useExecutionStore((s) => s.setIsExecuting)
 
-  const startExecution = useCallback(
+  const tryStartExecution = useCallback(
     (workflowId: string): ConsolePersistenceExecution | undefined => {
       const wasExecuting = useExecutionStore.getState().getWorkflowExecution(workflowId).isExecuting
       if (wasExecuting) return undefined
@@ -753,9 +753,11 @@ export function useWorkflowExecution() {
         return
       }
 
+      const persistenceExecution = tryStartExecution(activeWorkflowId)
+      if (!persistenceExecution) return
+
       // Reset execution result and set execution state
       setExecutionResult(null)
-      const persistenceExecution = startExecution(activeWorkflowId)
 
       // Set debug mode only if explicitly requested
       if (enableDebug) {
@@ -1060,7 +1062,7 @@ export function useWorkflowExecution() {
       currentWorkflow,
       toggleConsole,
       getVariablesByWorkflowId,
-      startExecution,
+      tryStartExecution,
       finishOwnedExecution,
       setIsDebugging,
       setDebugContext,
@@ -2079,7 +2081,9 @@ export function useWorkflowExecution() {
         }
       }
 
-      const persistenceExecution = startExecution(workflowId)
+      const persistenceExecution = tryStartExecution(workflowId)
+      if (!persistenceExecution) return
+
       const runOwnerId = generateId()
       runFromBlockOwnerRef.current = runOwnerId
       const executionIdRef = { current: '' }
@@ -2330,7 +2334,7 @@ export function useWorkflowExecution() {
       clearLastExecutionSnapshot,
       getCurrentExecutionId,
       setCurrentExecutionId,
-      startExecution,
+      tryStartExecution,
       finishOwnedExecution,
       setActiveBlocks,
       setBlockRunStatus,
@@ -2356,10 +2360,11 @@ export function useWorkflowExecution() {
         return
       }
 
-      logger.info('Starting run-until-block execution', { workflowId, stopAfterBlockId: blockId })
+      const persistenceExecution = tryStartExecution(workflowId)
+      if (!persistenceExecution) return
 
+      logger.info('Starting run-until-block execution', { workflowId, stopAfterBlockId: blockId })
       setExecutionResult(null)
-      const persistenceExecution = startExecution(workflowId)
 
       const executionId = generateId()
       try {
@@ -2378,7 +2383,7 @@ export function useWorkflowExecution() {
         return errorResult
       }
     },
-    [activeWorkflowId, setExecutionResult, startExecution]
+    [activeWorkflowId, setExecutionResult, tryStartExecution]
   )
 
   useEffect(() => {
@@ -2543,7 +2548,7 @@ export function useWorkflowExecution() {
           activated = true
           setCurrentExecutionId(reconnectWorkflowId, capturedExecutionId)
           reconnectPersistenceExecution =
-            startExecution(reconnectWorkflowId) ??
+            tryStartExecution(reconnectWorkflowId) ??
             consolePersistence.adoptScopedExecution(reconnectWorkflowId)
           activationOwnsPersistence = Boolean(reconnectPersistenceExecution)
           if (fromEventId === 0) {

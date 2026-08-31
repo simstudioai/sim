@@ -417,6 +417,7 @@ describe('useWorkflowExecution cancellation', () => {
 describe('useWorkflowExecution attachment uploads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockEndScopedExecution.mockReset().mockReturnValue(true)
     terminalStoreState._hasHydrated = false
     executionStoreState.workflowExecutions.set('workflow-1', idleExecution)
     executionStoreState.getWorkflowExecution.mockReturnValue(idleExecution)
@@ -562,18 +563,23 @@ describe('useWorkflowExecution attachment uploads', () => {
   it('does not let an overlapping run without lifecycle ownership end the active run', async () => {
     const persistenceExecution = {}
     let resolveActiveRun: (() => void) | undefined
+    let markExecutionStarted: (() => void) | undefined
+    const executionStarted = new Promise<void>((resolve) => {
+      markExecutionStarted = resolve
+    })
     mockBeginScopedExecution.mockReturnValueOnce(persistenceExecution)
-    mockExecute.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveActiveRun = resolve
-        })
-    )
+    mockExecute.mockImplementationOnce(() => {
+      markExecutionStarted?.()
+      return new Promise<void>((resolve) => {
+        resolveActiveRun = resolve
+      })
+    })
     const { result, unmount } = renderWorkflowExecutionHook()
 
     let activeRun: unknown
     await act(async () => {
       activeRun = await result().handleRunWorkflow({ input: 'active run' })
+      await executionStarted
     })
 
     executionStoreState.getWorkflowExecution.mockReturnValue({
@@ -586,7 +592,11 @@ describe('useWorkflowExecution attachment uploads', () => {
     })
 
     expect(mockBeginScopedExecution).toHaveBeenCalledTimes(1)
+    expect(mockExecute).toHaveBeenCalledTimes(1)
     expect(mockEndScopedExecution).not.toHaveBeenCalled()
+    expect(executionStoreState.setCurrentExecutionId).not.toHaveBeenCalled()
+    expect(executionStoreState.setIsDebugging).not.toHaveBeenCalled()
+    expect(executionStoreState.setActiveBlocks).not.toHaveBeenCalled()
 
     await act(async () => {
       resolveActiveRun?.()
@@ -595,6 +605,35 @@ describe('useWorkflowExecution attachment uploads', () => {
 
     expect(mockEndScopedExecution).toHaveBeenCalledOnce()
     expect(mockEndScopedExecution).toHaveBeenCalledWith('workflow-1', persistenceExecution)
+
+    unmount()
+  })
+
+  it('rejects overlapping block runs before starting another execution', async () => {
+    executionStoreState.getWorkflowExecution.mockReturnValue({
+      ...idleExecution,
+      isExecuting: true,
+    })
+    const startCandidate = {
+      blockId: 'start',
+      block: workflowBlocks.start,
+      path: 'legacy-starter',
+    }
+    mockResolveStartCandidates.mockReturnValue([startCandidate])
+
+    const { result, unmount } = renderWorkflowExecutionHook()
+
+    await act(async () => {
+      await result().handleRunUntilBlock('start', 'workflow-1')
+      await result().handleRunFromBlock('start', 'workflow-1')
+    })
+
+    expect(mockBeginScopedExecution).not.toHaveBeenCalled()
+    expect(mockExecute).not.toHaveBeenCalled()
+    expect(mockExecuteFromBlock).not.toHaveBeenCalled()
+    expect(executionStoreState.setCurrentExecutionId).not.toHaveBeenCalled()
+    expect(executionStoreState.setIsDebugging).not.toHaveBeenCalled()
+    expect(executionStoreState.setActiveBlocks).not.toHaveBeenCalled()
 
     unmount()
   })

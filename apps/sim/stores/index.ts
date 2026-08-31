@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('Stores')
 
-/** localStorage key for the admin recent-impersonations list. */
 export const RECENT_IMPERSONATIONS_STORAGE_KEY = 'recent-impersonations'
 
 interface ClearUserDataOptions {

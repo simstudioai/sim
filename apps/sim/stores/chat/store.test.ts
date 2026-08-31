@@ -38,6 +38,8 @@ vi.hoisted(() => {
 
 import { useChatStore } from '@/stores/chat/store'
 
+const migratedMessageIds = useChatStore.getState().messages.map((message) => message.id)
+
 function readBlob(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -49,8 +51,7 @@ function readBlob(blob: Blob): Promise<string> {
 
 describe('chat store message ordering', () => {
   it('migrates v0 persisted messages from newest-first to insertion order', () => {
-    const messages = useChatStore.getState().messages
-    expect(messages.map((m) => m.id)).toEqual(['msg-1', 'msg-2'])
+    expect(migratedMessageIds).toEqual(['msg-1', 'msg-2'])
   })
 
   describe('addMessage', () => {

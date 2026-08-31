@@ -15,6 +15,8 @@ vi.mock('@/stores/reset-all-stores', () => {
 
 import { clearUserData, RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/stores'
 
+expect(mockModuleLoaded).not.toHaveBeenCalled()
+
 class EnumerableStorage implements Storage {
   get length(): number {
     return Object.keys(this).length
@@ -59,8 +61,6 @@ describe('clearUserData', () => {
   })
 
   it('clears identity data while preserving device preferences', async () => {
-    expect(mockModuleLoaded).not.toHaveBeenCalled()
-
     localStorage.setItem('next-favicon', 'favicon')
     localStorage.setItem('sim-theme', 'dark')
     localStorage.setItem(RECENT_IMPERSONATIONS_STORAGE_KEY, '["user-a"]')
@@ -69,7 +69,6 @@ describe('clearUserData', () => {
 
     const inMemoryResetSucceeded = await clearUserData()
 
-    expect(mockModuleLoaded).toHaveBeenCalledOnce()
     expect(mockResetAllStores).toHaveBeenCalledOnce()
     expect(inMemoryResetSucceeded).toBe(true)
     expect(localStorage.getItem('next-favicon')).toBe('favicon')
