@@ -59,6 +59,49 @@ function input(selectedOutputs: string[]) {
   return { workflowId: 'workflow-1', runId: 'run-1', includeOutput: true, selectedOutputs }
 }
 
+/**
+ * `logs.cost` and `logs.trace_spans` withhold fields inside a run, and the shared
+ * read applies them — but only for the subject this use case names. A workspace
+ * API key authorizes as the workspace and represents no user, so it must resolve
+ * to none: substituting the key's creator would apply a bystander's group to
+ * every caller of a shared credential.
+ */
+describe('readWorkflowRun projection subject', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveContext.mockResolvedValue(context)
+    mocks.resolvePermission.mockResolvedValue('read')
+    mocks.getRunFiles.mockResolvedValue(null)
+    mocks.getStatus.mockResolvedValue({ status: 'completed', blockOutputs: {} })
+  })
+
+  it('names the acting user as the projection subject', async () => {
+    await readWorkflowRun.execute({ principal, input: input([]) })
+
+    expect(mocks.getStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        workspaceOrganizationId: null,
+        viewerUserId: 'user-1',
+      })
+    )
+  })
+
+  it('names no subject for a workspace API key', async () => {
+    const workspaceKey = {
+      kind: 'workspace_api_key' as const,
+      workspaceId: 'workspace-1',
+      keyId: 'key-1',
+    }
+
+    await readWorkflowRun.execute({ principal: workspaceKey, input: input([]) })
+
+    expect(mocks.getStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ viewerUserId: undefined })
+    )
+  })
+})
+
 describe('readWorkflowRun selector resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks()

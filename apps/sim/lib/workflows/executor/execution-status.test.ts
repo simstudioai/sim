@@ -29,6 +29,9 @@ const input = {
   executionId: 'execution-1',
   includeOutput: false,
   selectedOutputs: [],
+  workspaceId: 'workspace-1',
+  /** No governing subject: field projection has its own suite next door. */
+  viewerUserId: undefined,
 }
 
 describe('getWorkflowExecutionStatus queue projection', () => {

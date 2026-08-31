@@ -130,6 +130,9 @@ describe('workflow run application use cases', () => {
       executionId: 'run-1',
       includeOutput: true,
       selectedOutputs: ['4f1c2b3a-0000-4000-8000-000000000001.value'],
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      viewerUserId: undefined,
     })
   })
 
