@@ -238,7 +238,12 @@ const copilotContentBlockSchema = z.object({
 export const copilotChatStopBodySchema = z.object({
   chatId: z.string(),
   streamId: z.string(),
-  content: z.string(),
+  /**
+   * Partial assistant content to persist. Optional: the worker backend persists partials
+   * itself, so a Stop with nothing client-buffered is valid — requiring this made bare
+   * stops 400 and left the turn running detached.
+   */
+  content: z.string().default(''),
   contentBlocks: z.array(copilotContentBlockSchema).optional(),
   requestId: z.string().optional(),
 })
