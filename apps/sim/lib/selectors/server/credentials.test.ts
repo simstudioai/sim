@@ -1,0 +1,139 @@
+/**
+ * @vitest-environment node
+ */
+
+import { credential } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  authorizeCredentialUse: vi.fn(),
+  credentialProviderMatchesService: vi.fn(),
+  getServiceConfig: vi.fn(),
+}))
+
+vi.mock('@/lib/auth/credential-access', () => ({
+  authorizeCredentialUseForAuth: mocks.authorizeCredentialUse,
+}))
+
+vi.mock('@/lib/oauth/credential-service', () => ({
+  resolveCredentialAccessToken: vi.fn(),
+}))
+
+vi.mock('@/lib/oauth/utils', () => ({
+  credentialProviderMatchesService: mocks.credentialProviderMatchesService,
+  getServiceConfigByServiceId: mocks.getServiceConfig,
+}))
+
+import { authorizeSelectorCredential } from '@/lib/selectors/server/credentials'
+import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
+import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
+
+const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const policy = {
+  kind: 'stored' as const,
+  field: 'oauthCredential' as const,
+  serviceIds: ['gmail'],
+}
+
+function authorize(): Promise<unknown> {
+  return authorizeSelectorCredential({
+    principal,
+    context: { oauthCredential: 'credential-1' },
+    scope: { kind: 'workspace', workspaceId: 'workspace-1' },
+    workspaceId: 'workspace-1',
+    policy,
+    protectedValues: createSelectorProtectedValues(),
+    references: new Map(),
+  })
+}
+
+describe('authorizeSelectorCredential', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.getServiceConfig.mockReturnValue({ id: 'gmail' })
+  })
+
+  it('conceals a credential authorized in a different workspace', async () => {
+    mocks.authorizeCredentialUse.mockResolvedValue({
+      ok: true,
+      workspaceId: 'workspace-2',
+      credentialOwnerUserId: 'owner-1',
+      resolvedCredentialId: 'credential-1',
+    })
+
+    await expect(authorize()).rejects.toEqual(new SelectorConnectionUnavailableError())
+    expect(mocks.credentialProviderMatchesService).not.toHaveBeenCalled()
+  })
+
+  it('pins workspace-scoped credential authorization before legacy account resolution', async () => {
+    mocks.authorizeCredentialUse.mockResolvedValue({
+      ok: true,
+      workspaceId: 'workspace-1',
+      credentialOwnerUserId: 'owner-1',
+      resolvedCredentialId: 'account-1',
+    })
+    queueTableRows(credential, [{ accountId: 'account-1', providerId: 'google' }])
+    mocks.credentialProviderMatchesService.mockReturnValue(true)
+
+    await expect(authorize()).resolves.toMatchObject({ suppliedId: 'credential-1' })
+    expect(mocks.authorizeCredentialUse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        credentialId: 'credential-1',
+        workspaceId: 'workspace-1',
+      })
+    )
+  })
+
+  it('promotes a hidden fixed token to an authentication secret at every length', async () => {
+    const protectedValues = createSelectorProtectedValues()
+
+    await expect(
+      authorizeSelectorCredential({
+        principal,
+        context: { oauthCredential: 'xoxb-a' },
+        scope: { kind: 'workspace', workspaceId: 'workspace-1' },
+        workspaceId: 'workspace-1',
+        policy: {
+          kind: 'stored-or-fixed-token',
+          field: 'oauthCredential',
+          serviceIds: ['slack'],
+          tokenPrefixes: ['xoxb-'],
+        },
+        protectedValues,
+        references: new Map([
+          [
+            'oauthCredential',
+            {
+              field: 'oauthCredential',
+              name: 'SLACK_BOT_TOKEN',
+              scope: 'workspace',
+              visible: false,
+            },
+          ],
+        ]),
+      })
+    ).resolves.toMatchObject({ fixedToken: 'xoxb-a' })
+
+    expect(protectedValues.contains('prefix-xoxb-a-suffix')).toBe(true)
+    expect(mocks.authorizeCredentialUse).not.toHaveBeenCalled()
+  })
+
+  it('conceals a stored credential whose trusted provider does not match the selector service', async () => {
+    mocks.authorizeCredentialUse.mockResolvedValue({
+      ok: true,
+      workspaceId: 'workspace-1',
+      credentialOwnerUserId: 'owner-1',
+      resolvedCredentialId: 'credential-1',
+    })
+    queueTableRows(credential, [{ accountId: 'account-1', providerId: 'microsoft' }])
+    mocks.credentialProviderMatchesService.mockReturnValue(false)
+
+    await expect(authorize()).rejects.toEqual(new SelectorConnectionUnavailableError())
+    expect(mocks.credentialProviderMatchesService).toHaveBeenCalledWith('microsoft', {
+      id: 'gmail',
+    })
+  })
+})

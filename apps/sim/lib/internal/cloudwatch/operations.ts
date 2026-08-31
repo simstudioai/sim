@@ -12,15 +12,10 @@ import {
 } from '@aws-sdk/client-cloudwatch'
 import {
   DeleteRetentionPolicyCommand,
-  DescribeLogGroupsCommand,
   PutRetentionPolicyCommand,
   StartQueryCommand,
 } from '@aws-sdk/client-cloudwatch-logs'
 import { createLogger } from '@sim/logger'
-import type {
-  CloudwatchLogGroupsSelectorBody,
-  CloudwatchLogStreamsSelectorBody,
-} from '@/lib/api/contracts/selectors/cloudwatch'
 import type { AwsCloudwatchDescribeAlarmHistoryBody } from '@/lib/api/contracts/tools/aws/cloudwatch-describe-alarm-history'
 import type { AwsCloudwatchDescribeAlarmsBody } from '@/lib/api/contracts/tools/aws/cloudwatch-describe-alarms'
 import type { AwsCloudwatchFilterLogEventsBody } from '@/lib/api/contracts/tools/aws/cloudwatch-filter-log-events'
@@ -32,20 +27,22 @@ import type { AwsCloudwatchPutLogGroupRetentionBody } from '@/lib/api/contracts/
 import type { AwsCloudwatchPutMetricDataBody } from '@/lib/api/contracts/tools/aws/cloudwatch-put-metric-data'
 import type { AwsCloudwatchQueryLogsBody } from '@/lib/api/contracts/tools/aws/cloudwatch-query-logs'
 import type { AwsCloudwatchUnmuteAlarmBody } from '@/lib/api/contracts/tools/aws/cloudwatch-unmute-alarm'
+import type {
+  CloudwatchLogGroupsBody,
+  CloudwatchLogStreamsBody,
+} from '@/lib/api/contracts/tools/cloudwatch'
 import {
   createCloudWatchClient,
   createCloudWatchLogsClient,
-  describeLogStreams,
   filterLogEvents,
   getLogEvents,
   pollQueryResults,
 } from '@/lib/internal/cloudwatch/client'
+import { listCloudWatchLogGroups, listCloudWatchLogStreams } from '@/tools/cloudwatch/listing'
 
 const logger = createLogger('CloudWatchOperations')
 const ALARM_HISTORY_PAGE_SIZE = 100
 const MAX_ALARM_HISTORY_PAGES = 20
-const LOG_GROUPS_PAGE_SIZE = 50
-const MAX_LOG_GROUPS_PAGES = 20
 const METRICS_PAGE_SIZE = 500
 const MAX_METRICS_PAGES = 20
 const NON_IDEMPOTENT_MAX_ATTEMPTS = 1
@@ -165,76 +162,30 @@ export async function executeCloudwatchDescribeAlarms(
 }
 
 export async function executeCloudwatchDescribeLogGroups(
-  input: CloudwatchLogGroupsSelectorBody,
+  input: CloudwatchLogGroupsBody,
   signal?: AbortSignal
 ) {
-  const client = createCloudWatchLogsClient(input)
-  try {
-    const logGroups: {
-      logGroupName: string
-      arn: string
-      storedBytes: number
-      retentionInDays: number | undefined
-      creationTime: number | undefined
-    }[] = []
-    let nextToken: string | undefined
-    for (let page = 0; page < MAX_LOG_GROUPS_PAGES; page++) {
-      const pageLimit =
-        input.limit !== undefined
-          ? Math.min(LOG_GROUPS_PAGE_SIZE, input.limit - logGroups.length)
-          : LOG_GROUPS_PAGE_SIZE
-      const response = await client.send(
-        new DescribeLogGroupsCommand({
-          ...(input.prefix && { logGroupNamePrefix: input.prefix }),
-          limit: pageLimit,
-          ...(nextToken && { nextToken }),
-        }),
-        { abortSignal: signal }
-      )
-      for (const group of response.logGroups ?? []) {
-        logGroups.push({
-          logGroupName: group.logGroupName ?? '',
-          arn: group.arn ?? '',
-          storedBytes: group.storedBytes ?? 0,
-          retentionInDays: group.retentionInDays,
-          creationTime: group.creationTime,
-        })
-      }
-      nextToken = response.nextToken
-      if (!nextToken || (input.limit !== undefined && logGroups.length >= input.limit)) break
-      if (page === MAX_LOG_GROUPS_PAGES - 1) {
-        logger.warn(
-          `DescribeLogGroups hit pagination cap of ${MAX_LOG_GROUPS_PAGES} pages; log group list may be incomplete`
-        )
-      }
-    }
-    return {
-      success: true,
-      output: {
-        logGroups: input.limit !== undefined ? logGroups.slice(0, input.limit) : logGroups,
-      },
-    }
-  } finally {
-    client.destroy()
-  }
+  const { items: logGroups } = await listCloudWatchLogGroups({
+    credentials: input,
+    prefix: input.prefix,
+    limit: input.limit,
+    signal,
+  })
+  return { success: true, output: { logGroups } }
 }
 
 export async function executeCloudwatchDescribeLogStreams(
-  input: CloudwatchLogStreamsSelectorBody,
+  input: CloudwatchLogStreamsBody,
   signal?: AbortSignal
 ) {
-  const client = createCloudWatchLogsClient(input)
-  try {
-    const result = await describeLogStreams(
-      client,
-      input.logGroupName,
-      { prefix: input.prefix, limit: input.limit },
-      signal
-    )
-    return { success: true, output: { logStreams: result.logStreams } }
-  } finally {
-    client.destroy()
-  }
+  const { items: logStreams } = await listCloudWatchLogStreams({
+    credentials: input,
+    logGroupName: input.logGroupName,
+    prefix: input.prefix,
+    limit: input.limit,
+    signal,
+  })
+  return { success: true, output: { logStreams } }
 }
 
 export async function executeCloudwatchFilterLogEvents(

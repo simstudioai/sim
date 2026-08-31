@@ -17,6 +17,7 @@ import {
   validatePathSegment,
   validateS3BucketName,
   validateServiceNowInstanceUrl,
+  validateSharePointSiteId,
   validateSupabaseProjectId,
   validateWorkdayTenantUrl,
 } from '@/lib/core/security/input-validation'
@@ -819,6 +820,21 @@ describe('validateMicrosoftGraphId', () => {
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('control characters')
     })
+  })
+})
+
+describe('validateSharePointSiteId', () => {
+  it.concurrent('rejects URL path dot segments', () => {
+    expect(validateSharePointSiteId('.').isValid).toBe(false)
+    expect(validateSharePointSiteId('..').isValid).toBe(false)
+  })
+
+  it.concurrent('accepts compound SharePoint site IDs', () => {
+    expect(
+      validateSharePointSiteId(
+        'contoso.sharepoint.com,2C712604-1370-44E7-A1F5-426573FDA80A,2D2244C3-251A-49EA-93A8-39E1C3A060FE'
+      ).isValid
+    ).toBe(true)
   })
 })
 

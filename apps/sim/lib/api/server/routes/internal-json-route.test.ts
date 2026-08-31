@@ -2,9 +2,18 @@
  * @vitest-environment node
  */
 import { getRequestContext } from '@sim/logger'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+
+const { mockEnforceUserRateLimit } = vi.hoisted(() => ({
+  mockEnforceUserRateLimit: vi.fn(),
+}))
+
+vi.mock('@/lib/core/rate-limiter', () => ({
+  enforceUserRateLimit: mockEnforceUserRateLimit,
+}))
+
 import { defineRouteContract } from '@/lib/api/contracts'
 import {
   defineInternalJsonRoute,
@@ -67,6 +76,36 @@ describe('defineInternalJsonRoute', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ value: 'ok' })
     expect(response.headers.get('x-request-id')).toBeTruthy()
+  })
+
+  it('applies a user-scoped admission limit after authentication and before execution', async () => {
+    const execute = vi.fn(async () => ({ value: 'unreachable' }))
+    mockEnforceUserRateLimit.mockResolvedValueOnce(
+      NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: 60_000 },
+        { status: 429, headers: { 'Retry-After': '60' } }
+      )
+    )
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.user({ bucketName: 'test.read' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: { operation, execute },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('60')
+    await expect(response.json()).resolves.toEqual({
+      error: 'Rate limit exceeded',
+      retryAfter: 60_000,
+    })
+    expect(mockEnforceUserRateLimit).toHaveBeenCalledWith('test.read', 'user-1', undefined)
+    expect(execute).not.toHaveBeenCalled()
   })
 
   it('renders typed error descriptors through the shared builder', async () => {
@@ -213,6 +252,75 @@ describe('defineInternalJsonRoute', () => {
 
     expect(response.status).toBe(400)
     expect(body.requestId).toBe('req-parse')
+  })
+
+  it('applies static response headers to success and every failure stage', async () => {
+    const staticHeaderContract = defineRouteContract({
+      method: 'POST',
+      path: '/api/test/internal-json-route',
+      body: z.object({ outcome: z.enum(['success', 'failure']) }),
+      response: { mode: 'json', schema: z.object({ value: z.string() }) },
+    })
+    const handler = defineInternalJsonRoute({
+      contract: staticHeaderContract,
+      auth: {
+        async authenticate(request) {
+          if (request.headers.get('x-reject-auth') === 'true') {
+            throw new InternalUnauthenticatedError('Unauthorized')
+          }
+          return { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+        },
+      },
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: ({ body }) => body.outcome,
+      useCase: {
+        operation,
+        async execute({ input }) {
+          if (input === 'failure') throw new Error('Unhandled')
+          return { value: 'ok' }
+        },
+      },
+      staticResponseHeaders: { 'Cache-Control': 'private, no-store' },
+    })
+
+    const cases: Array<[NextRequest, number]> = [
+      [
+        new NextRequest('http://localhost/api/test/internal-json-route', {
+          method: 'POST',
+          body: JSON.stringify({ outcome: 'success' }),
+        }),
+        200,
+      ],
+      [
+        new NextRequest('http://localhost/api/test/internal-json-route', {
+          method: 'POST',
+          headers: { 'x-reject-auth': 'true' },
+        }),
+        401,
+      ],
+      [
+        new NextRequest('http://localhost/api/test/internal-json-route', {
+          method: 'POST',
+          body: '{',
+        }),
+        400,
+      ],
+      [
+        new NextRequest('http://localhost/api/test/internal-json-route', {
+          method: 'POST',
+          body: JSON.stringify({ outcome: 'failure' }),
+        }),
+        500,
+      ],
+    ]
+
+    for (const [request, expectedStatus] of cases) {
+      const response = await handler(request)
+      expect(response.status).toBe(expectedStatus)
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    }
   })
 
   it('orders auth, rate limiting, parsing, async mapping, and application execution', async () => {

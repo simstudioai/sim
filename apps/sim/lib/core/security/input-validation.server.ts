@@ -53,9 +53,10 @@ export type AsyncValidationResult =
 export async function validateUrlWithDNS(
   url: string | null | undefined,
   paramName: string,
-  profile: EgressProfile
+  profile: EgressProfile,
+  options: { logDetails?: boolean } = {}
 ): Promise<AsyncValidationResult> {
-  const result = await validateEgressUrl(url, paramName, profile)
+  const result = await validateEgressUrl(url, paramName, profile, options)
   return result.isValid
     ? { isValid: true, resolvedIP: result.resolvedIP, originalHostname: result.originalHostname }
     : { isValid: false, error: result.error }
@@ -149,7 +150,8 @@ export async function validateAndPinProxyUrl(
  */
 export async function validateDatabaseHost(
   host: string | null | undefined,
-  paramName = 'host'
+  paramName = 'host',
+  options: { logDetails?: boolean } = {}
 ): Promise<AsyncValidationResult> {
   if (!host) {
     return { isValid: false, error: `${paramName} is required` }
@@ -185,11 +187,12 @@ export async function validateDatabaseHost(
     })
 
     if (refusal !== undefined) {
-      logger.warn('Database host resolves to blocked IP address', {
-        paramName,
-        hostname: host,
-        resolvedIP: blocked,
-      })
+      logger.warn(
+        'Database host resolves to blocked IP address',
+        options.logDetails === false
+          ? { profile: 'databaseHost', reason: refusal.reason, paramName }
+          : { paramName, hostname: host, resolvedIP: blocked }
+      )
       return { isValid: false, error: describeEgressDenial(refusal, paramName, 'databaseHost') }
     }
 
@@ -199,11 +202,12 @@ export async function validateDatabaseHost(
       originalHostname: host,
     }
   } catch (error) {
-    logger.warn('DNS lookup failed for database host', {
-      paramName,
-      hostname: host,
-      error: toError(error).message,
-    })
+    logger.warn(
+      'DNS lookup failed for database host',
+      options.logDetails === false
+        ? { profile: 'databaseHost', paramName }
+        : { paramName, hostname: host, error: toError(error).message }
+    )
     return {
       isValid: false,
       error: `${paramName} hostname could not be resolved`,
@@ -345,6 +349,8 @@ export interface SecureFetchOptions {
    * bypassed (the proxy resolves the target).
    */
   proxyUrl?: string
+  /** Hide credential-derived URL details from validation logs. */
+  logUrlValidationDetails?: boolean
   /**
    * Where this request's URL came from. Carried on the options so the same
    * policy is re-applied to every redirect hop rather than re-derived — a hop
@@ -1080,7 +1086,9 @@ export async function secureFetchWithPinnedIP(
           settledReject(error)
           return
         }
-        validateUrlWithDNS(redirectUrl, 'redirectUrl', options.profile)
+        validateUrlWithDNS(redirectUrl, 'redirectUrl', options.profile, {
+          logDetails: options.logUrlValidationDetails,
+        })
           .then((validation) => {
             if (!validation.isValid) {
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
@@ -1353,7 +1361,9 @@ export async function secureFetchWithValidation(
   options: SecureFetchOptions,
   paramName = 'url'
 ): Promise<SecureFetchResponse> {
-  const validation = await validateUrlWithDNS(url, paramName, options.profile)
+  const validation = await validateUrlWithDNS(url, paramName, options.profile, {
+    logDetails: options.logUrlValidationDetails,
+  })
   if (!validation.isValid) {
     throw new Error(validation.error)
   }

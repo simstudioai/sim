@@ -4,6 +4,10 @@
 import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  clearOAuthRefreshDeadFlag,
+  getOAuthRefreshCoordinationIdentity,
+} from '@/lib/oauth/refresh-coordination'
+import {
   clearDeadFlag,
   getRecentTerminalError,
   isTerminalRefreshError,
@@ -73,6 +77,27 @@ describe('markCredentialDead / getRecentTerminalError / clearDeadFlag', () => {
     await clearDeadFlag('acc-1')
     expect(await getRecentTerminalError('acc-1')).toBeNull()
   })
+
+  it.each(['account-1', 'slack:T08CM6ZNYBE'])(
+    'reconnect clears the matching private refresh flag for %s',
+    async (scopeKey) => {
+      const redis = createFakeRedis()
+      redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis as never)
+      const identity = getOAuthRefreshCoordinationIdentity(scopeKey)
+
+      await markCredentialDead(identity, 'invalid_refresh_token')
+      await clearOAuthRefreshDeadFlag(scopeKey)
+
+      expect(redis.set).toHaveBeenCalledWith(
+        `oauth:dead:${identity}`,
+        'invalid_refresh_token',
+        'EX',
+        3600
+      )
+      expect(redis.del).toHaveBeenCalledWith(`oauth:dead:${identity}`)
+      expect(identity).not.toContain(scopeKey)
+    }
+  )
 
   it('all functions are no-ops when Redis is unavailable', async () => {
     await expect(markCredentialDead('acc-1', 'code')).resolves.toBeUndefined()

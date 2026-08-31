@@ -23,6 +23,7 @@ import type {
   ForkResourceUsage,
   ForkTriggerMapping,
 } from '@/lib/api/contracts/workspace-fork'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -58,7 +59,6 @@ import type {
 } from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
 import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { forkSyncBlockerReasonFor } from '@/ee/workspace-forking/lib/promote/sync-blockers'
-import type { SelectorKey } from '@/hooks/selectors/types'
 import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
 
 /**
@@ -291,11 +291,10 @@ function DependentSelector({
   return (
     <DependentFieldSelector
       selectorKey={field.selectorKey as SelectorKey}
+      workspaceId={copying ? sourceWorkspaceId : workspaceId}
       context={{
         ...field.context,
         ...providedValues,
-        // Owning workspace, for workspace-scoped selectors like table.columns.
-        workspaceId: copying ? sourceWorkspaceId : workspaceId,
         ...(field.parentContextKey ? { [field.parentContextKey]: parentValue } : {}),
       }}
       enabled={parentValue !== '' && ready}
