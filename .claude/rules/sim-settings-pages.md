@@ -104,6 +104,10 @@ Adding a new settings page:
 2. Render the component inside the shell's `effectiveSection` switch in
    `settings/[section]/settings.tsx`.
 3. Build the component body inside `<SettingsPanel>` — no shell, no title block.
+4. When the initial body depends on server data, export shared React Query options for both the
+   mounted consumer and the settings intent warmer. Warm only authorized destinations, preserve
+   the current section during the transition, and follow the failure-recovery rules in
+   `sim-react-performance.md`; never render temporary default data that will be replaced after load.
 
 ## Text-scale tokens (no literal pixel sizes)
 
