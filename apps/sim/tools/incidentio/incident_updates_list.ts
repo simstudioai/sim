@@ -118,12 +118,39 @@ export const incidentUpdatesListTool: ToolConfig<
             properties: {
               user: {
                 type: 'object',
-                description: 'User who created the update',
+                description: 'Set when a user made the update',
                 optional: true,
                 properties: {
                   id: { type: 'string', description: 'User ID' },
                   name: { type: 'string', description: 'User name' },
                   email: { type: 'string', description: 'User email', optional: true },
+                },
+              },
+              api_key: {
+                type: 'object',
+                description: 'Set when an API key made the update',
+                optional: true,
+                properties: {
+                  id: { type: 'string', description: 'API key ID' },
+                  name: { type: 'string', description: 'API key name' },
+                },
+              },
+              workflow: {
+                type: 'object',
+                description: 'Set when a workflow made the update',
+                optional: true,
+                properties: {
+                  id: { type: 'string', description: 'Workflow ID' },
+                  name: { type: 'string', description: 'Workflow name' },
+                },
+              },
+              alert: {
+                type: 'object',
+                description: 'Set when an alert made the update',
+                optional: true,
+                properties: {
+                  id: { type: 'string', description: 'Alert ID' },
+                  title: { type: 'string', description: 'Alert title' },
                 },
               },
             },

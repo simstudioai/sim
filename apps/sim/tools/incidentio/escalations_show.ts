@@ -56,6 +56,15 @@ export const escalationsShowTool: ToolConfig<
         id: { type: 'string', description: 'The escalation ID' },
         title: { type: 'string', description: 'The escalation title' },
         status: { type: 'string', description: 'The current escalation status' },
+        description: {
+          type: 'string',
+          description: 'Additional detail provided with this escalation',
+        },
+        priority: {
+          type: 'object',
+          description: 'The escalation priority',
+          properties: { name: { type: 'string', description: 'Priority name' } },
+        },
         created_at: { type: 'string', description: 'When the escalation was created' },
         updated_at: { type: 'string', description: 'When the escalation was last updated' },
       },

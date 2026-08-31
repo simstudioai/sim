@@ -782,6 +782,9 @@ List all escalation policies in incident.io
 |   ↳ `id` | string | The escalation ID |
 |   ↳ `title` | string | The escalation title |
 |   ↳ `status` | string | The current escalation status |
+|   ↳ `description` | string | Additional detail provided with this escalation |
+|   ↳ `priority` | object | The escalation priority |
+|     ↳ `name` | string | Priority name |
 |   ↳ `created_at` | string | When the escalation was created |
 |   ↳ `updated_at` | string | When the escalation was last updated |
 | `pagination_meta` | object | Pagination metadata |
@@ -810,6 +813,9 @@ Create a new escalation policy in incident.io
 |   ↳ `id` | string | The escalation ID |
 |   ↳ `title` | string | The escalation title |
 |   ↳ `status` | string | The current escalation status |
+|   ↳ `description` | string | Additional detail provided with this escalation |
+|   ↳ `priority` | object | The escalation priority |
+|     ↳ `name` | string | Priority name |
 |   ↳ `created_at` | string | When the escalation was created |
 |   ↳ `updated_at` | string | When the escalation was last updated |
 
@@ -832,6 +838,9 @@ Get details of a specific escalation policy in incident.io
 |   ↳ `id` | string | The escalation ID |
 |   ↳ `title` | string | The escalation title |
 |   ↳ `status` | string | The current escalation status |
+|   ↳ `description` | string | Additional detail provided with this escalation |
+|   ↳ `priority` | object | The escalation priority |
+|     ↳ `name` | string | Priority name |
 |   ↳ `created_at` | string | When the escalation was created |
 |   ↳ `updated_at` | string | When the escalation was last updated |
 
@@ -1208,10 +1217,19 @@ List all updates for a specific incident in incident.io
 |     ↳ `name` | string | Status name |
 |     ↳ `category` | string | Status category |
 |   ↳ `updater` | object | Actor who created the update |
-|     ↳ `user` | object | User who created the update |
+|     ↳ `user` | object | Set when a user made the update |
 |       ↳ `id` | string | User ID |
 |       ↳ `name` | string | User name |
 |       ↳ `email` | string | User email |
+|     ↳ `api_key` | object | Set when an API key made the update |
+|       ↳ `id` | string | API key ID |
+|       ↳ `name` | string | API key name |
+|     ↳ `workflow` | object | Set when a workflow made the update |
+|       ↳ `id` | string | Workflow ID |
+|       ↳ `name` | string | Workflow name |
+|     ↳ `alert` | object | Set when an alert made the update |
+|       ↳ `id` | string | Alert ID |
+|       ↳ `title` | string | Alert title |
 |   ↳ `created_at` | string | When the update was created |
 | `pagination_meta` | object | Pagination information |
 |   ↳ `after` | string | Cursor for next page |

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { IncidentioBlock } from '@/blocks/blocks/incidentio'
 import { customFieldsCreateTool } from '@/tools/incidentio/custom_fields_create'
 import { escalationsCreateTool } from '@/tools/incidentio/escalations_create'
 import { escalationsListTool } from '@/tools/incidentio/escalations_list'
@@ -143,7 +144,7 @@ describe('incident_updates new_incident_status output', () => {
       'incident_updates',
       'updater',
     ])
-    expect(updaterFields).toEqual(['user'])
+    expect(updaterFields.sort()).toEqual(['alert', 'api_key', 'user', 'workflow'])
     expect(
       declaredPropertyNames(incidentUpdatesListTool.outputs, [
         'incident_updates',
@@ -184,11 +185,13 @@ const SPEC_ESCALATION = {
 
 describe('escalation title output', () => {
   it('declares title and status instead of name', () => {
-    expect(declaredPropertyNames(escalationsListTool.outputs, ['escalations'])).toEqual([
-      'id',
-      'title',
-      'status',
+    expect(declaredPropertyNames(escalationsListTool.outputs, ['escalations']).sort()).toEqual([
       'created_at',
+      'description',
+      'id',
+      'priority',
+      'status',
+      'title',
       'updated_at',
     ])
     for (const tool of [escalationsShowTool, escalationsCreateTool]) {
@@ -249,5 +252,60 @@ describe('custom_fields_create field_type description', () => {
     for (const rejected of ['datetime', 'user', 'team']) {
       expect(description).not.toContain(rejected)
     }
+  })
+})
+
+/**
+ * `WorkflowsCreate/UpdateWorkflowPayloadV2.runs_on_incidents` accepts exactly
+ * `newly_created` and `newly_created_and_active`. The block previously offered
+ * `active` and `all` as well, so a user could pick a value the API rejects with
+ * a 422 — the tool-side description alone does not close that path.
+ */
+describe('the block only offers runs_on_incidents values the API accepts', () => {
+  const SPEC_ENUM = ['newly_created', 'newly_created_and_active']
+
+  it('offers exactly the spec enum', () => {
+    const sub = IncidentioBlock.subBlocks.find((s) => s.id === 'runs_on_incidents')
+    expect(sub).toBeDefined()
+    const ids = (sub!.options as Array<{ id: string }>).map((o) => o.id)
+    expect(ids).toEqual(SPEC_ENUM)
+  })
+
+  it('defaults to a value the API accepts', () => {
+    const sub = IncidentioBlock.subBlocks.find((s) => s.id === 'runs_on_incidents')
+    expect(SPEC_ENUM).toContain((sub as { value: () => string }).value())
+  })
+})
+
+/**
+ * `updater` is an `ActorV2`, a four-branch union. Declaring only `user` meant an
+ * update made by an API key, workflow or alert had no reachable actor fields.
+ */
+describe('updater declares every ActorV2 branch', () => {
+  it('covers user, api_key, workflow and alert', () => {
+    const updater = (
+      incidentUpdatesListTool.outputs?.incident_updates as {
+        items?: { properties?: Record<string, { properties?: Record<string, unknown> }> }
+      }
+    )?.items?.properties?.updater
+    expect(Object.keys(updater?.properties ?? {}).sort()).toEqual([
+      'alert',
+      'api_key',
+      'user',
+      'workflow',
+    ])
+  })
+})
+
+/** `description` and `priority` are both in EscalationV2's required set. */
+describe('escalations declare the fields the spec marks required', () => {
+  it.each([
+    ['escalations_create', escalationsCreateTool],
+    ['escalations_show', escalationsShowTool],
+    ['escalations_list', escalationsListTool],
+  ])('%s', (_name, tool) => {
+    const declared = JSON.stringify(tool.outputs)
+    expect(declared).toContain('description')
+    expect(declared).toContain('priority')
   })
 })
