@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
  */
 vi.unmock('@/tools/registry')
 
-import { GitHubBlock, GitHubV2Block } from '@/blocks/blocks/github'
+import { GITHUB_PARAM_ALIASES, GitHubBlock, GitHubV2Block } from '@/blocks/blocks/github'
 import { getTool } from '@/tools/utils'
 
 function map(params: Record<string, unknown>): Record<string, unknown> {
@@ -20,23 +20,66 @@ function map(params: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
- * Each pair is (block subBlock id, tool param name, tool id). The serializer
- * keys values by subBlock id, so without the mapper the tool param stays
- * undefined and the field is inert.
+ * Derived from the alias table itself rather than mirrored by hand, so a new
+ * alias cannot be added without these assertions covering it.
  */
-const RENAMES = [
-  ['reaction_content', 'content', 'github_create_issue_reaction'],
-  ['reaction_content', 'content', 'github_create_comment_reaction'],
-  ['milestone_title', 'title', 'github_create_milestone'],
-  ['milestone_title', 'title', 'github_update_milestone'],
-  ['milestone_description', 'description', 'github_create_milestone'],
-  ['milestone_description', 'description', 'github_update_milestone'],
-  ['milestone_state', 'state', 'github_list_milestones'],
-  ['milestone_sort', 'sort', 'github_list_milestones'],
-  ['fork_name', 'name', 'github_fork_repo'],
-  ['fork_sort', 'sort', 'github_list_forks'],
-  ['gist_public', 'public', 'github_create_gist'],
-] as const
+const RENAMES = GITHUB_PARAM_ALIASES.flatMap((alias) =>
+  alias.operations.map((operation) => [alias.from, alias.to, operation] as const)
+)
+
+describe('the alias table is internally coherent', () => {
+  /**
+   * A floor, not a mirror: the derived assertions above scale to new aliases on
+   * their own, but nothing would notice an alias being DELETED — the tests for
+   * it would simply stop existing. These eight are the defects this suite was
+   * written for, so their removal has to fail loudly.
+   */
+  it('still covers every field this suite was written to fix', () => {
+    expect(GITHUB_PARAM_ALIASES.map((a) => a.from).sort()).toEqual([
+      'fork_name',
+      'fork_sort',
+      'gist_public',
+      'milestone_description',
+      'milestone_sort',
+      'milestone_state',
+      'milestone_title',
+      'reaction_content',
+    ])
+  })
+
+  it('covers every alias with at least one operation', () => {
+    expect(GITHUB_PARAM_ALIASES.length).toBeGreaterThan(0)
+    for (const alias of GITHUB_PARAM_ALIASES) {
+      expect(alias.operations.length, `${alias.from} is scoped to no operation`).toBeGreaterThan(0)
+    }
+  })
+
+  /** A typo'd operation id would silently disable the alias — the exact class of bug this PR fixes. */
+  it.each(GITHUB_PARAM_ALIASES.flatMap((a) => a.operations.map((op) => [a.from, op] as const)))(
+    '%s is scoped to %s, which the block can actually select',
+    (_from, operation) => {
+      expect(GitHubBlock.tools.access).toContain(operation)
+    }
+  )
+
+  /** An alias pointing at an operation where its field never renders can never fire. */
+  it.each(GITHUB_PARAM_ALIASES.map((a) => [a.from, a] as const))(
+    '%s renders on every operation it is scoped to',
+    (from, alias) => {
+      const rendered = new Set<string>()
+      for (const sub of GitHubBlock.subBlocks.filter((s) => s.id === from)) {
+        const value = (sub.condition as { value?: unknown })?.value
+        for (const op of Array.isArray(value) ? (value as string[]) : [value as string]) {
+          rendered.add(op)
+        }
+      }
+      expect(rendered.size, `${from} has no subBlock`).toBeGreaterThan(0)
+      for (const op of alias.operations) {
+        expect([...rendered]).toContain(op)
+      }
+    }
+  )
+})
 
 describe('every renamed subBlock reaches its tool param', () => {
   it.each(RENAMES)('%s -> %s', (subBlockId, paramName, toolId) => {
