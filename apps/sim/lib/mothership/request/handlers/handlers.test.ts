@@ -433,6 +433,36 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.finalAssistantContent).toBe('Final answer only.')
   })
 
+  it('executes a display-named frame by its execName (the worker CLI class)', async () => {
+    // The worker wires sim_cli frames with toolName cli_* (display identity) and
+    // execName sim_cli. Dispatching by the display name sent every CLI call into
+    // the app registry as "Tool not found" — caught by the bench suite.
+    executeTool.mockResolvedValueOnce({ success: true, output: { exitCode: 0, stdout: '[]' } })
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'cli-1',
+          toolName: 'cli_workflows_list',
+          execName: 'sim_cli',
+          arguments: { args: ['workflows', 'list'] },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+          ui: { simExecutable: true },
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+    await sleep(0)
+    expect(executeTool).toHaveBeenCalledTimes(1)
+    expect(executeTool.mock.calls[0][0]).toBe('sim_cli')
+    // Rendering and persistence keep the display identity.
+    expect(context.toolCalls.get('cli-1')?.name).toBe('cli_workflows_list')
+  })
+
   it('executes tool_call and emits tool_result', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
     const onEvent = vi.fn()

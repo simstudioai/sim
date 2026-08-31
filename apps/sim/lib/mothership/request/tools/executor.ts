@@ -304,8 +304,11 @@ export function buildToolExecutionContext(
  * eventual settlement is ignored.
  */
 async function executeToolWithWatchdog(toolCall: ToolCallState, toolContext: ExecutionContext) {
-  const timeoutMs = toolWatchdogTimeoutMs(toolCall.name)
-  const execution = executeTool(toolCall.name, toolCall.params || {}, toolContext)
+  // The frame's wire name can be a display identity (the worker's cli_* names);
+  // execution always dispatches on the model's real tool name.
+  const executableName = toolCall.execName ?? toolCall.name
+  const timeoutMs = toolWatchdogTimeoutMs(executableName)
+  const execution = executeTool(executableName, toolCall.params || {}, toolContext)
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([

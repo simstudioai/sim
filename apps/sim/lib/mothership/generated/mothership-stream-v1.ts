@@ -145,6 +145,7 @@ export interface MothershipStreamV1ToolCallEventEnvelope {
 }
 export interface MothershipStreamV1ToolCallDescriptor {
   arguments?: MothershipStreamV1AdditionalPropertiesMap
+  execName?: string
   executor: MothershipStreamV1ToolExecutor
   mode: MothershipStreamV1ToolMode
   partial?: boolean
@@ -162,6 +163,7 @@ export interface MothershipStreamV1ToolUI {
   hidden?: boolean
   inbandOwned?: boolean
   internal?: boolean
+  simExecutable?: boolean
 }
 export interface MothershipStreamV1ToolArgsDeltaEventEnvelope {
   payload: MothershipStreamV1ToolArgsDeltaPayload

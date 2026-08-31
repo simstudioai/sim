@@ -509,6 +509,7 @@ async function handleCallPhase(
   // into the server tool context — this is what scopes the prepare_file_edit ->
   // apply_file_edit intent handoff to one file subagent under concurrency.
   if (parentToolCallId) toolCall.parentToolCallId = parentToolCallId
+  if (data.execName) toolCall.execName = data.execName
 
   const readPath = typeof args?.path === 'string' ? args.path : undefined
   if (toolName === 'read' && readPath?.startsWith('internal/')) return
