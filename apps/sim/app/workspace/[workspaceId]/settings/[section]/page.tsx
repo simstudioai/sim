@@ -58,7 +58,6 @@ export default async function WorkspaceSettingsSectionPage({
   const sectionPrefetch =
     SECTION_PREFETCHERS[parsed]?.(queryClient, {
       workspaceId,
-      userId: session.user.id,
     }) ?? Promise.resolve()
 
   await sectionPrefetch

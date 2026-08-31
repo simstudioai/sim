@@ -6,6 +6,7 @@ import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '@/lib/api/client/errors'
 
 const { mockGetFullOrganization, mockRequestJson } = vi.hoisted(() => ({
   mockGetFullOrganization: vi.fn(),
@@ -42,7 +43,10 @@ import {
   useOrganizationBilling,
   useOrganizationRoster,
 } from '@/hooks/queries/organization'
-import { organizationBillingSummaryOptions } from '@/hooks/queries/organization-billing-summary'
+import {
+  organizationBillingSummaryOptions,
+  shouldRetryOrganizationBillingSummary,
+} from '@/hooks/queries/organization-billing-summary'
 
 interface Deferred<T> {
   promise: Promise<T>
@@ -246,5 +250,23 @@ describe('organization identity transitions', () => {
         signal: expect.any(AbortSignal),
       })
     )
+  })
+
+  it('retries one transient billing-summary failure without retrying authorization errors', () => {
+    const serverError = new ApiClientError({
+      status: 503,
+      message: 'Unavailable',
+      body: null,
+    })
+    const forbiddenError = new ApiClientError({
+      status: 403,
+      message: 'Forbidden',
+      body: null,
+    })
+
+    expect(shouldRetryOrganizationBillingSummary(0, serverError)).toBe(true)
+    expect(shouldRetryOrganizationBillingSummary(1, serverError)).toBe(false)
+    expect(shouldRetryOrganizationBillingSummary(0, forbiddenError)).toBe(false)
+    expect(shouldRetryOrganizationBillingSummary(0, new TypeError('Network error'))).toBe(true)
   })
 })

@@ -13,7 +13,8 @@ export function prefetchQueryOnIntent<TQueryFnData, TError, TData, TQueryKey ext
   options: FetchQueryOptions<TQueryFnData, TError, TData, TQueryKey>
 ): void {
   void queryClient.prefetchQuery(options).then(() => {
-    if (queryClient.getQueryState(options.queryKey)?.status !== 'error') return
+    const state = queryClient.getQueryState(options.queryKey)
+    if (state?.status !== 'error' || state.data !== undefined) return
 
     queryClient.removeQueries({
       queryKey: options.queryKey as QueryFilterKey,

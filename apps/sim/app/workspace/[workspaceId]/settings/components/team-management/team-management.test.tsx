@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,6 +40,24 @@ vi.mock('@/app/workspace/[workspaceId]/components/invite-modal', () => ({
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
   SettingsEmptyState: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  SettingsQueryErrorState: ({
+    error,
+    fallback,
+    isRetrying,
+    onRetry,
+  }: {
+    error: unknown
+    fallback: string
+    isRetrying: boolean
+    onRetry: () => void
+  }) => (
+    <div>
+      {getErrorMessage(error, fallback)}
+      <button type='button' disabled={isRetrying} onClick={onRetry}>
+        {isRetrying ? 'Retrying…' : 'Try again'}
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
@@ -167,7 +186,8 @@ describe('TeamManagement organization errors', () => {
     expect(container.textContent).not.toContain('organization-member-lists')
   })
 
-  it('shows a billing failure instead of a subscription upsell', () => {
+  it('shows a retryable billing failure instead of a subscription upsell', async () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
     mockIsAdminOrOwner.mockReturnValue(true)
     mockUseOrganization.mockReturnValue({
       data: { id: 'org-1' },
@@ -178,6 +198,7 @@ describe('TeamManagement organization errors', () => {
       data: undefined,
       error: new Error('Billing request failed'),
       isLoading: false,
+      refetch,
     })
 
     act(() =>
@@ -187,6 +208,14 @@ describe('TeamManagement organization errors', () => {
     )
 
     expect(container.textContent).toContain('Billing request failed')
+    expect(container.textContent).toContain('Try again')
     expect(container.textContent).not.toContain('team-seats-overview')
+
+    await act(async () => {
+      Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Try again')
+        ?.click()
+    })
+    expect(refetch).toHaveBeenCalledOnce()
   })
 })

@@ -1,6 +1,5 @@
 'use client'
 
-import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput, ContractQueryInput } from '@/lib/api/contracts'
@@ -12,7 +11,6 @@ import {
   getSecretUsageContract,
   getWorkspaceCredentialContract,
   listWorkspaceCredentialMembersContract,
-  listWorkspaceCredentialsContract,
   removeWorkspaceCredentialMemberContract,
   type SecretUsageScope,
   updateWorkspaceCredentialContract,
@@ -25,11 +23,7 @@ import {
 import { environmentKeys } from '@/hooks/queries/environment'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
-import {
-  fetchWorkspaceCredentialList,
-  requireWorkspaceCredentialListResponse,
-  WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
-} from '@/hooks/queries/utils/fetch-workspace-credentials'
+import { workspaceCredentialListQueryOptions } from '@/hooks/queries/utils/fetch-workspace-credentials'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 /**
@@ -48,22 +42,6 @@ export type {
   WorkspaceCredentialType,
 }
 
-/**
- * Prefetch workspace credentials into a QueryClient cache.
- * Use on hover to warm data before navigation.
- */
-export function prefetchWorkspaceCredentials(
-  queryClient: QueryClient,
-  workspaceId: string,
-  type?: WorkspaceCredentialType
-) {
-  queryClient.prefetchQuery({
-    queryKey: workspaceCredentialKeys.list(workspaceId, type),
-    queryFn: ({ signal }) => fetchWorkspaceCredentialList(workspaceId, signal, type),
-    staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
-  })
-}
-
 export function useWorkspaceCredentials(params: {
   workspaceId?: string
   type?: WorkspaceCredentialType
@@ -72,22 +50,9 @@ export function useWorkspaceCredentials(params: {
 }) {
   const { workspaceId, type, providerId, enabled = true } = params
 
-  return useQuery<WorkspaceCredential[]>({
-    queryKey: workspaceCredentialKeys.list(workspaceId, type, providerId),
-    queryFn: async ({ signal }) => {
-      if (!workspaceId) return []
-      const data = await requestJson(listWorkspaceCredentialsContract, {
-        query: {
-          workspaceId,
-          type,
-          providerId,
-        },
-        signal,
-      })
-      return requireWorkspaceCredentialListResponse(data)
-    },
+  return useQuery({
+    ...workspaceCredentialListQueryOptions(workspaceId, type, providerId),
     enabled: Boolean(workspaceId) && enabled,
-    staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
   })
 }
 

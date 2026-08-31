@@ -19,11 +19,8 @@ vi.mock('@/lib/core/utils/theme', () => ({
   syncThemeToNextThemes: mockSyncTheme,
 }))
 
-import {
-  type GeneralSettings,
-  generalSettingsKeys,
-  useGeneralSettings,
-} from '@/hooks/queries/general-settings'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
+import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings-data'
 
 const HYDRATED_SETTINGS: GeneralSettings = {
   autoConnect: true,

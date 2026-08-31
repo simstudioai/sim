@@ -9,7 +9,10 @@ import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   NoOrganizationView,
@@ -47,7 +50,14 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
   const { isInvitationsDisabled } = usePermissionConfig()
   const [memberQuery, setMemberQuery] = useSettingsSearch()
 
-  const { data: organization, isLoading, error: orgError } = useOrganization(organizationId)
+  const {
+    data: organization,
+    isLoading,
+    error: orgError,
+    isFetchedAfterMount: isOrganizationFetchedAfterMount,
+    isFetching: isOrganizationFetching,
+    refetch: refetchOrganization,
+  } = useOrganization(organizationId)
   /**
    * Personal billing only supports the legacy missing-organization recovery view. A valid
    * organization page derives its plan from organization billing, so avoid that unrelated read
@@ -68,12 +78,18 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
     data: organizationBillingData,
     isLoading: isOrgBillingLoading,
     error: organizationBillingError,
+    isFetchedAfterMount: isOrganizationBillingFetchedAfterMount,
+    isFetching: isOrganizationBillingFetching,
+    refetch: refetchOrganizationBilling,
   } = useOrganizationBilling(organizationId, { enabled: adminOrOwner })
 
   const {
     data: roster,
     isLoading: isLoadingRoster,
     error: rosterError,
+    isFetchedAfterMount: isRosterFetchedAfterMount,
+    isFetching: isRosterFetching,
+    refetch: refetchRoster,
   } = useOrganizationRoster(organizationId)
 
   const removeMemberMutation = useRemoveMember()
@@ -289,16 +305,22 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
 
   const displayOrganization = organization
 
-  if (isLoading && !displayOrganization) {
+  if (isLoading && !isOrganizationFetchedAfterMount && !displayOrganization) {
     return null
   }
 
-  if (orgError && !displayOrganization) {
+  if (
+    (orgError || (isOrganizationFetching && isOrganizationFetchedAfterMount)) &&
+    !displayOrganization
+  ) {
     return (
       <SettingsPanel>
-        <SettingsEmptyState tone='error'>
-          {getErrorMessage(orgError, 'Failed to load organization')}
-        </SettingsEmptyState>
+        <SettingsQueryErrorState
+          error={orgError}
+          fallback='Failed to load organization'
+          isRetrying={isOrganizationFetching}
+          onRetry={() => void refetchOrganization()}
+        />
       </SettingsPanel>
     )
   }
@@ -353,10 +375,16 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
         }
       >
         {adminOrOwner &&
-          (organizationBillingError && organizationBillingData === undefined ? (
-            <SettingsEmptyState variant='inline' tone='error'>
-              {getErrorMessage(organizationBillingError, 'Failed to load seat information')}
-            </SettingsEmptyState>
+          ((organizationBillingError ||
+            (isOrganizationBillingFetching && isOrganizationBillingFetchedAfterMount)) &&
+          organizationBillingData === undefined ? (
+            <SettingsQueryErrorState
+              error={organizationBillingError}
+              fallback='Failed to load seat information'
+              isRetrying={isOrganizationBillingFetching}
+              onRetry={() => void refetchOrganizationBilling()}
+              variant='inline'
+            />
           ) : (
             <TeamSeatsOverview
               billingHref={billingHref}
@@ -368,12 +396,17 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
             />
           ))}
 
-        {isLoadingRoster ? (
+        {isLoadingRoster && !isRosterFetchedAfterMount ? (
           <SettingsEmptyState variant='inline'>Loading members…</SettingsEmptyState>
-        ) : rosterError && roster === undefined ? (
-          <SettingsEmptyState variant='inline' tone='error'>
-            {getErrorMessage(rosterError, 'Failed to load organization members')}
-          </SettingsEmptyState>
+        ) : (rosterError || (isRosterFetching && isRosterFetchedAfterMount)) &&
+          roster === undefined ? (
+          <SettingsQueryErrorState
+            error={rosterError}
+            fallback='Failed to load organization members'
+            isRetrying={isRosterFetching}
+            onRetry={() => void refetchRoster()}
+            variant='inline'
+          />
         ) : (
           <OrganizationMemberLists
             canManage={adminOrOwner}

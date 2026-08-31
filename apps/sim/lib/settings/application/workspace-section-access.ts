@@ -16,7 +16,7 @@ import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { isCustomBlocksEligibleForOrganization } from '@/lib/workflows/custom-blocks/operations'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { resolveWorkspaceGroup } from '@/ee/access-control/utils/permission-check'
+import { resolveVerifiedUserAccessControlContext } from '@/ee/access-control/utils/permission-check'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
 
 export type WorkspaceSettingsSectionAccess =
@@ -37,19 +37,19 @@ async function canOpenWorkspaceSection(
   },
   permission: NonNullable<Awaited<ReturnType<typeof checkWorkspaceAccess>>['permission']>
 ): Promise<boolean> {
-  const needsOwnerBilling =
-    section === 'credential-groups' ||
-    (workspace.organizationId !== null && workspaceSectionUsesPermissionConfig(section))
+  const needsOwnerBilling = section === 'credential-groups'
   const ownerBilling = needsOwnerBilling
     ? await getWorkspaceOwnerSubscriptionAccess(input.workspaceId)
     : null
 
-  const [permissionGroup, credentialGroupsAvailable, forksAvailable, customBlocksAvailable] =
+  const [accessControl, credentialGroupsAvailable, forksAvailable, customBlocksAvailable] =
     await Promise.all([
-      workspace.organizationId &&
-      ownerBilling?.isEnterprise &&
       workspaceSectionUsesPermissionConfig(section)
-        ? resolveWorkspaceGroup(input.userId, workspace.organizationId, input.workspaceId)
+        ? resolveVerifiedUserAccessControlContext(
+            input.userId,
+            input.workspaceId,
+            workspace.organizationId
+          )
         : null,
       section === 'credential-groups' && ownerBilling
         ? isCredentialGroupsAvailable({ workspaceId: input.workspaceId, ownerBilling })
@@ -64,7 +64,7 @@ async function canOpenWorkspaceSection(
 
   const navigation = resolveWorkspaceNavigation({
     permission,
-    permissionConfig: permissionGroup?.config ?? {},
+    permissionConfig: accessControl?.config ?? {},
     entitlements: {
       byok: isHosted,
       credentialGroups: credentialGroupsAvailable,

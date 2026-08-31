@@ -1,10 +1,12 @@
 /**
- * @vitest-environment node
+ * @vitest-environment jsdom
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   CONSOLE_STORAGE_VERSION,
+  clearAllExecutionPointers,
   migratePersistedConsoleData,
+  saveExecutionPointer,
 } from '@/stores/terminal/console/storage'
 
 const legacyEntry = {
@@ -83,5 +85,31 @@ describe('terminal console storage migration', () => {
 
     expect(result?.migrated).toBe(false)
     expect(result?.data.workflowEntries['workflow-1'][0]).toEqual(projectedEntry)
+  })
+})
+
+describe('terminal execution pointers', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear()
+  })
+
+  it('clears every terminal pointer without removing unrelated tab state', async () => {
+    window.sessionStorage.setItem('unrelated', 'keep')
+    await saveExecutionPointer({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      lastEventId: 1,
+    })
+    await saveExecutionPointer({
+      workflowId: 'workflow-2',
+      executionId: 'execution-2',
+      lastEventId: 2,
+    })
+
+    clearAllExecutionPointers()
+
+    expect(window.sessionStorage.getItem('terminal-active-execution:workflow-1')).toBeNull()
+    expect(window.sessionStorage.getItem('terminal-active-execution:workflow-2')).toBeNull()
+    expect(window.sessionStorage.getItem('unrelated')).toBe('keep')
   })
 })

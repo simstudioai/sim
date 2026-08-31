@@ -15,7 +15,7 @@ import { sendMothershipMessage } from '@/lib/mothership/events'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
+import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings-data'
 import { useExecutionStore } from '@/stores/execution'
 import {
   CONSOLE_STORAGE_VERSION,
@@ -833,6 +833,13 @@ async function hydrateConsoleStore(): Promise<void> {
   }
 }
 
+let consoleHydrationPromise = Promise.resolve()
+
+/** Resolves after any persisted console state discovered at module load has been applied. */
+export function waitForConsoleHydration(): Promise<void> {
+  return consoleHydrationPromise
+}
+
 if (typeof window !== 'undefined') {
   consolePersistence.bind(() => {
     const state = useTerminalConsoleStore.getState()
@@ -843,7 +850,7 @@ if (typeof window !== 'undefined') {
     }
   })
 
-  hydrateConsoleStore()
+  consoleHydrationPromise = hydrateConsoleStore()
 
   window.addEventListener('pagehide', () => consolePersistence.persist())
 }

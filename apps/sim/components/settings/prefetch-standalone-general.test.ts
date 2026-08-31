@@ -13,6 +13,9 @@ const { mockAuthenticate, mockGetUserProfile, mockGetUserSettings } = vi.hoisted
 vi.mock('@/lib/api/server/routes', () => ({
   internalSessionAuth: { authenticate: mockAuthenticate },
 }))
+vi.mock('@/lib/api/server/routes/internal-json-route', () => ({
+  internalSessionAuth: { authenticate: mockAuthenticate },
+}))
 
 vi.mock('@/lib/users/application/read-current-user', () => ({
   getCurrentUserProfileUseCase: { execute: mockGetUserProfile },
@@ -20,8 +23,8 @@ vi.mock('@/lib/users/application/read-current-user', () => ({
 }))
 
 import { prefetchStandaloneGeneral } from '@/components/settings/prefetch-standalone-general'
-import { generalSettingsKeys } from '@/hooks/queries/general-settings'
-import { userProfileKeys } from '@/hooks/queries/user-profile'
+import { generalSettingsKeys } from '@/hooks/queries/general-settings-data'
+import { userProfileKeys } from '@/hooks/queries/user-profile-data'
 
 describe('prefetchStandaloneGeneral', () => {
   beforeEach(() => {

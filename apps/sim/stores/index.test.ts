@@ -51,28 +51,39 @@ describe('clearUserData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('localStorage', new EnumerableStorage())
+    vi.stubGlobal('sessionStorage', new EnumerableStorage())
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('loads the broad store graph only when cleanup runs and preserves allowed preferences', async () => {
+  it('clears identity data while preserving device preferences', async () => {
     expect(mockModuleLoaded).not.toHaveBeenCalled()
 
     localStorage.setItem('next-favicon', 'favicon')
-    localStorage.setItem('theme', 'dark')
+    localStorage.setItem('sim-theme', 'dark')
     localStorage.setItem(RECENT_IMPERSONATIONS_STORAGE_KEY, '["user-a"]')
     localStorage.setItem('private-cache', 'remove-me')
+    sessionStorage.setItem('mothership-queue', 'private-queued-message')
 
     await clearUserData()
 
     expect(mockModuleLoaded).toHaveBeenCalledOnce()
     expect(mockResetAllStores).toHaveBeenCalledOnce()
     expect(localStorage.getItem('next-favicon')).toBe('favicon')
-    expect(localStorage.getItem('theme')).toBe('dark')
-    expect(localStorage.getItem(RECENT_IMPERSONATIONS_STORAGE_KEY)).toBe('["user-a"]')
+    expect(localStorage.getItem('sim-theme')).toBe('dark')
+    expect(localStorage.getItem(RECENT_IMPERSONATIONS_STORAGE_KEY)).toBeNull()
     expect(localStorage.getItem('private-cache')).toBeNull()
+    expect(sessionStorage.getItem('mothership-queue')).toBeNull()
+  })
+
+  it('preserves recent impersonations only across an explicit impersonation transition', async () => {
+    localStorage.setItem(RECENT_IMPERSONATIONS_STORAGE_KEY, '["user-a"]')
+
+    await clearUserData({ preserveRecentImpersonations: true })
+
+    expect(localStorage.getItem(RECENT_IMPERSONATIONS_STORAGE_KEY)).toBe('["user-a"]')
   })
 
   it('clears persisted user data even when the lazy store reset fails', async () => {

@@ -17,11 +17,7 @@ export async function getUpgradeWorkspaceId(
   const targetPredicate =
     target.type === 'organization'
       ? eq(workspace.organizationId, target.id)
-      : and(
-          eq(workspace.ownerId, target.id),
-          eq(workspace.billedAccountUserId, target.id),
-          isNull(workspace.organizationId)
-        )
+      : and(eq(workspace.billedAccountUserId, target.id), isNull(workspace.organizationId))
 
   const [record] = await executor
     .select({ id: workspace.id })

@@ -1,20 +1,13 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { getUserProfileContract, getUserSettingsContract } from '@/lib/api/contracts/user'
-import { internalSessionAuth } from '@/lib/api/server/routes'
-import {
-  getCurrentUserProfileUseCase,
-  getCurrentUserSettingsUseCase,
-} from '@/lib/users/application/read-current-user'
-import {
-  GENERAL_SETTINGS_STALE_TIME,
-  generalSettingsKeys,
-  mapGeneralSettingsResponse,
-} from '@/hooks/queries/general-settings'
+import { getUserProfileContract } from '@/lib/api/contracts/user'
+import { internalSessionAuth } from '@/lib/api/server/routes/internal-json-route'
+import { prefetchCurrentUserSettings } from '@/lib/settings/prefetch-current-user-settings'
+import { getCurrentUserProfileUseCase } from '@/lib/users/application/read-current-user'
 import {
   mapUserProfileResponse,
   USER_PROFILE_STALE_TIME,
   userProfileKeys,
-} from '@/hooks/queries/user-profile'
+} from '@/hooks/queries/user-profile-data'
 
 /**
  * Hydrates the authenticated viewer's standalone General page with the exact
@@ -40,17 +33,6 @@ export async function prefetchStandaloneGeneral(queryClient: QueryClient): Promi
       },
       staleTime: USER_PROFILE_STALE_TIME,
     }),
-    queryClient.prefetchQuery({
-      queryKey: generalSettingsKeys.settings(),
-      queryFn: async () => {
-        const settings = await getCurrentUserSettingsUseCase.execute({
-          principal: await getPrincipal(),
-          input: {},
-        })
-        const response = getUserSettingsContract.response.schema.parse({ data: settings })
-        return mapGeneralSettingsResponse(response.data)
-      },
-      staleTime: GENERAL_SETTINGS_STALE_TIME,
-    }),
+    prefetchCurrentUserSettings(queryClient, getPrincipal),
   ])
 }

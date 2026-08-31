@@ -3,68 +3,17 @@ import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  getUserSettingsContract,
-  type MothershipEnvironment,
-  type UserSettingsApi,
-  updateUserSettingsContract,
-} from '@/lib/api/contracts/user'
+import { getUserSettingsContract, updateUserSettingsContract } from '@/lib/api/contracts/user'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
 import { getBrowserTimezone, isValidTimezone } from '@/lib/core/utils/timezone'
+import {
+  GENERAL_SETTINGS_STALE_TIME,
+  type GeneralSettings,
+  generalSettingsKeys,
+  mapGeneralSettingsResponse,
+} from '@/hooks/queries/general-settings-data'
 
 const logger = createLogger('GeneralSettingsQuery')
-
-/**
- * Query key factories for general settings
- */
-export const generalSettingsKeys = {
-  all: ['generalSettings'] as const,
-  settings: () => [...generalSettingsKeys.all, 'settings'] as const,
-}
-
-export const GENERAL_SETTINGS_STALE_TIME = 60 * 60 * 1000
-
-/**
- * General settings type
- */
-export interface GeneralSettings {
-  autoConnect: boolean
-  superUserModeEnabled: boolean
-  mothershipEnvironment: MothershipEnvironment
-  theme: 'light' | 'dark' | 'system'
-  telemetryEnabled: boolean
-  billingUsageNotificationsEnabled: boolean
-  errorNotificationsEnabled: boolean
-  snapToGridSize: number
-  showActionBar: boolean
-  /** Whether clicking a block on the canvas animates the camera to center it. */
-  autoFocusOnClick: boolean
-  /** Copilot tool ids the user picked "always allow" for. */
-  copilotAutoAllowedTools: string[]
-  /** Saved IANA timezone, or `null` when unset (the app falls back to the browser zone). */
-  timezone: string | null
-}
-
-/**
- * Map raw API response data to GeneralSettings with defaults.
- * Shared by both client fetch and server prefetch to prevent shape drift.
- */
-export function mapGeneralSettingsResponse(data: UserSettingsApi): GeneralSettings {
-  return {
-    autoConnect: data.autoConnect,
-    superUserModeEnabled: data.superUserModeEnabled,
-    mothershipEnvironment: data.mothershipEnvironment,
-    theme: data.theme,
-    telemetryEnabled: data.telemetryEnabled,
-    billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled,
-    errorNotificationsEnabled: data.errorNotificationsEnabled,
-    snapToGridSize: data.snapToGridSize,
-    showActionBar: data.showActionBar,
-    autoFocusOnClick: data.autoFocusOnClick,
-    copilotAutoAllowedTools: data.copilotAutoAllowedTools ?? [],
-    timezone: data.timezone ?? null,
-  }
-}
 
 /**
  * Fetch general settings from API

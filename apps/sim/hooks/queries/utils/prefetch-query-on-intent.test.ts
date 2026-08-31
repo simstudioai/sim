@@ -52,6 +52,25 @@ describe('prefetchQueryOnIntent', () => {
     expect(queryFn).toHaveBeenCalledTimes(2)
   })
 
+  it('preserves usable stale data when a speculative refresh fails', async () => {
+    const queryClient = createQueryClient()
+    const queryFn = vi.fn<() => Promise<string>>().mockRejectedValue(new Error('temporary failure'))
+    const options = queryOptions({
+      queryKey: ['intent', 'stale-data'] as const,
+      queryFn,
+      staleTime: 0,
+    })
+    queryClient.setQueryData(options.queryKey, 'cached')
+
+    prefetchQueryOnIntent(queryClient, options)
+
+    await vi.waitFor(() => expect(queryFn).toHaveBeenCalledOnce())
+    await vi.waitFor(() =>
+      expect(queryClient.getQueryState(options.queryKey)?.status).toBe('error')
+    )
+    expect(queryClient.getQueryData(options.queryKey)).toBe('cached')
+  })
+
   it('preserves a failure once a real observer is mounted', async () => {
     const queryClient = createQueryClient()
     let rejectQuery: ((error: Error) => void) | undefined

@@ -111,4 +111,36 @@ describe('workflow MCP server queries', () => {
       queryClient.getQueryState(workflowMcpServerKeys.servers('workspace-1'))?.isInvalidated
     ).toBe(true)
   })
+
+  it('preserves a server detail subtree when deletion fails', async () => {
+    mockRequestJson.mockImplementation((contract) => {
+      if (contract === deleteWorkflowMcpServerContract) {
+        return Promise.reject(new Error('Delete failed'))
+      }
+      throw new Error('Unexpected request')
+    })
+    const serverKey = workflowMcpServerKeys.server('workspace-1', 'server-1')
+    const toolsKey = workflowMcpServerKeys.tools('workspace-1', 'server-1')
+    queryClient.setQueryData(serverKey, { server: { id: 'server-1' }, tools: [] })
+    queryClient.setQueryData(toolsKey, [{ id: 'tool-1' }])
+    let mutation: ReturnType<typeof useDeleteWorkflowMcpServer> | undefined
+
+    function Probe() {
+      mutation = useDeleteWorkflowMcpServer()
+      return null
+    }
+
+    act(() => root.render(<Wrapper>{<Probe />}</Wrapper>))
+    await act(async () => {
+      await mutation
+        ?.mutateAsync({ workspaceId: 'workspace-1', serverId: 'server-1' })
+        .catch(() => {})
+    })
+
+    expect(queryClient.getQueryData(serverKey)).toEqual({
+      server: { id: 'server-1' },
+      tools: [],
+    })
+    expect(queryClient.getQueryData(toolsKey)).toEqual([{ id: 'tool-1' }])
+  })
 })

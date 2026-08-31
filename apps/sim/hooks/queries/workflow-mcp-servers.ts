@@ -222,12 +222,14 @@ export function useDeleteWorkflowMcpServer() {
       logger.info(`Deleted workflow MCP server: ${serverId}`)
       return data
     },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
-      })
+    onSuccess: (_data, variables) => {
       queryClient.removeQueries({
         queryKey: workflowMcpServerKeys.server(variables.workspaceId, variables.serverId),
+      })
+    },
+    onSettled: (_data, _error, variables) => {
+      return queryClient.invalidateQueries({
+        queryKey: workflowMcpServerKeys.servers(variables.workspaceId),
       })
     },
   })

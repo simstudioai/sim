@@ -19,7 +19,7 @@ import {
   mapUserProfileResponse,
   USER_PROFILE_STALE_TIME,
   userProfileKeys,
-} from '@/hooks/queries/user-profile'
+} from '@/hooks/queries/user-profile-data'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow, WORKFLOW_LIST_STALE_TIME } from '@/hooks/queries/utils/workflow-list-query'
 import { normalizeWorkspacesResponse } from '@/hooks/queries/utils/workspace-list-query'

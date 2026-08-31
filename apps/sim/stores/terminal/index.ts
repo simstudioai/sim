@@ -1,5 +1,6 @@
 export type { ConsoleEntry, ConsoleUpdate } from './console'
 export {
+  clearAllExecutionPointers,
   clearExecutionPointer,
   consolePersistence,
   loadExecutionPointer,
@@ -8,5 +9,6 @@ export {
   useConsoleEntry,
   useTerminalConsoleStore,
   useWorkflowConsoleEntries,
+  waitForConsoleHydration,
 } from './console'
 export { useTerminalStore } from './store'

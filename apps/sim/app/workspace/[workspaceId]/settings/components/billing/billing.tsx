@@ -48,7 +48,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/credit-usage-section/credit-usage-section'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -124,6 +124,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const {
     data: subscriptionData,
     error: subscriptionError,
+    isFetchedAfterMount: isSubscriptionFetchedAfterMount,
+    isFetching: isSubscriptionFetching,
     isLoading: isSubscriptionLoading,
     refetch: refetchSubscription,
   } = useSubscriptionData({
@@ -135,6 +137,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const {
     data: organizationBillingData,
     error: organizationBillingError,
+    isFetchedAfterMount: isOrganizationBillingFetchedAfterMount,
+    isFetching: isOrganizationBillingFetching,
     isLoading: isOrgBillingLoading,
     refetch: refetchOrganizationBilling,
   } = useOrganizationBillingSummary(billingOrganizationId || '', {
@@ -167,6 +171,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     ? (organizationBilling?.subscriptionStatus ?? 'inactive')
     : (subscriptionData?.data?.status ?? 'inactive')
   const isLoading = isOrganizationScope ? isOrgBillingLoading : isSubscriptionLoading
+  const isFetchedAfterMount = isOrganizationScope
+    ? isOrganizationBillingFetchedAfterMount
+    : isSubscriptionFetchedAfterMount
+  const isFetching = isOrganizationScope ? isOrganizationBillingFetching : isSubscriptionFetching
   const billingError = isOrganizationScope ? organizationBillingError : subscriptionError
 
   const subscription = {
@@ -416,13 +424,19 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     }
   }
 
-  if (isLoading) return null
+  if (isLoading && !isFetchedAfterMount) return null
   if (isOrganizationScope ? !organizationBilling : !subscriptionData?.data) {
     return (
       <SettingsPanel>
-        <SettingsEmptyState tone='error'>
-          {getErrorMessage(billingError, 'Failed to load billing information')}
-        </SettingsEmptyState>
+        <SettingsQueryErrorState
+          error={billingError}
+          fallback='Failed to load billing information'
+          isRetrying={isFetching}
+          onRetry={() => {
+            if (isOrganizationScope) void refetchOrganizationBilling()
+            else void refetchSubscription()
+          }}
+        />
       </SettingsPanel>
     )
   }

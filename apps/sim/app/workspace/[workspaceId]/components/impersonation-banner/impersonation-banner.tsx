@@ -38,7 +38,7 @@ export function ImpersonationBanner() {
           },
           onSuccess: async () => {
             setIsRedirecting(true)
-            await clearUserData()
+            await clearUserData({ preserveRecentImpersonations: true })
             window.location.assign('/workspace')
           },
         })

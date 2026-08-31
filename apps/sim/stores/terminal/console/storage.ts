@@ -301,6 +301,13 @@ class ConsolePersistenceManager {
     return writeToIndexedDB(this.dataProvider(), options)
   }
 
+  /** Stops persistence work owned by the previous authenticated session. */
+  reset(): void {
+    this.activeExecutions = 0
+    this.needsInitialPersist = false
+    this.stopSafetyTimer()
+  }
+
   private startSafetyTimer(): void {
     this.stopSafetyTimer()
     this.safetyTimer = setInterval(() => {
@@ -366,4 +373,19 @@ export function clearExecutionPointer(workflowId: string): Promise<void> {
     return Promise.resolve()
   }
   return Promise.resolve()
+}
+
+/** Removes every reconnect pointer owned by the current browser tab. */
+export function clearAllExecutionPointers(): void {
+  if (typeof window === 'undefined') return
+  try {
+    const pointerKeys: string[] = []
+    for (let index = 0; index < window.sessionStorage.length; index++) {
+      const key = window.sessionStorage.key(index)
+      if (key?.startsWith(EXEC_POINTER_PREFIX)) pointerKeys.push(key)
+    }
+    for (const key of pointerKeys) window.sessionStorage.removeItem(key)
+  } catch {
+    return
+  }
 }

@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   isOrganizationOnEnterprisePlan: vi.fn(),
   isOrganizationSettingsSectionAvailable: vi.fn(),
   isPlatformAdmin: vi.fn(),
-  resolveWorkspaceGroup: vi.fn(),
+  resolveVerifiedUserAccessControlContext: vi.fn(),
   resolveWorkspaceNavigation: vi.fn(),
 }))
 
@@ -57,7 +57,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mocks.checkWorkspaceAccess,
 }))
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  resolveWorkspaceGroup: mocks.resolveWorkspaceGroup,
+  resolveVerifiedUserAccessControlContext: mocks.resolveVerifiedUserAccessControlContext,
 }))
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
   isForkingAvailableForWorkspace: mocks.isForkingAvailableForWorkspace,
@@ -104,7 +104,7 @@ describe('authorizeWorkspaceSettingsSection', () => {
     mocks.isOrganizationSettingsSectionAvailable.mockReturnValue(true)
     mocks.isPlatformAdmin.mockResolvedValue(true)
     mocks.canOpenOrganizationSettingsSection.mockResolvedValue(true)
-    mocks.resolveWorkspaceGroup.mockResolvedValue({ config: {} })
+    mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({ config: {} })
     mocks.resolveWorkspaceNavigation.mockReturnValue([{ id: 'secrets' }])
   })
 
@@ -129,7 +129,7 @@ describe('authorizeWorkspaceSettingsSection', () => {
 
     expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
     expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
-    expect(mocks.resolveWorkspaceGroup).not.toHaveBeenCalled()
+    expect(mocks.resolveVerifiedUserAccessControlContext).not.toHaveBeenCalled()
     expect(mocks.isPlatformAdmin).not.toHaveBeenCalled()
   })
 
@@ -143,31 +143,53 @@ describe('authorizeWorkspaceSettingsSection', () => {
     expect(mocks.isPlatformAdmin).toHaveBeenCalledWith('viewer-1')
   })
 
-  it('loads owner billing and permission-group policy only for affected organization sections', async () => {
+  it('loads canonical access-control policy for affected organization sections', async () => {
     mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
-    mocks.resolveWorkspaceGroup.mockResolvedValue({ config: { hideSecretsTab: true } })
+    mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+      config: { hideSecretsTab: true },
+    })
     mocks.resolveWorkspaceNavigation.mockReturnValue([])
 
     await expect(authorize('secrets')).resolves.toEqual({
       allowed: false,
       disposition: 'redirect-general',
     })
-    expect(mocks.getWorkspaceOwnerSubscriptionAccess).toHaveBeenCalledWith('workspace-1')
-    expect(mocks.resolveWorkspaceGroup).toHaveBeenCalledWith(
+    expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
+    expect(mocks.resolveVerifiedUserAccessControlContext).toHaveBeenCalledWith(
       'viewer-1',
-      'organization-1',
-      'workspace-1'
+      'workspace-1',
+      'organization-1'
     )
     expect(mocks.resolveWorkspaceNavigation).toHaveBeenCalledWith(
       expect.objectContaining({ permissionConfig: { hideSecretsTab: true } })
     )
   })
 
-  it('does not resolve billing or permission groups for the same section in a personal workspace', async () => {
+  it('resolves environment access-control policy for the same section in a personal workspace', async () => {
     await authorize('secrets')
 
     expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
-    expect(mocks.resolveWorkspaceGroup).not.toHaveBeenCalled()
+    expect(mocks.resolveVerifiedUserAccessControlContext).toHaveBeenCalledWith(
+      'viewer-1',
+      'workspace-1',
+      null
+    )
+  })
+
+  it('enforces canonical permission config independently of billing subscription state', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: false })
+    mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+      entitled: true,
+      config: { hideSecretsTab: true },
+    })
+    mocks.resolveWorkspaceNavigation.mockReturnValue([])
+
+    await expect(authorize('secrets')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
   })
 
   it('resolves the exact entitlement source only for gated workspace sections', async () => {

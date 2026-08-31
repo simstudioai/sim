@@ -6,12 +6,18 @@ import { mcpServersQueryOptions } from '@/hooks/queries/mcp-server-list'
 import { organizationBillingSummaryOptions } from '@/hooks/queries/organization-billing-summary'
 import { getSandboxListQueryOptions } from '@/hooks/queries/sandbox-list'
 import { subscriptionDataQueryOptions } from '@/hooks/queries/subscription-data'
+import { workspaceCredentialListQueryOptions } from '@/hooks/queries/utils/fetch-workspace-credentials'
 import { prefetchQueryOnIntent } from '@/hooks/queries/utils/prefetch-query-on-intent'
 import { workflowMcpServersQueryOptions } from '@/hooks/queries/workflow-mcp-server-list'
 
 const SETTINGS_QUERY_WARMERS: Partial<
   Record<SettingsSection, (queryClient: QueryClient, context: SettingsQueryWarmContext) => void>
 > = {
+  secrets: (queryClient, { workspaceId }) =>
+    prefetchQueryOnIntent(
+      queryClient,
+      workspaceCredentialListQueryOptions(workspaceId, 'env_workspace')
+    ),
   apikeys: (queryClient, { workspaceId }) =>
     prefetchQueryOnIntent(queryClient, apiKeysQueryOptions(workspaceId, 'combined')),
   sandboxes: (queryClient, { workspaceId }) =>
