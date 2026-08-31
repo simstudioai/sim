@@ -332,15 +332,17 @@ describe('personal-credential capability', () => {
   })
 
   /**
-   * The connection flow is personal by construction, so it can carry the
-   * capability on the operation itself. Pinned because the alternative —
-   * `integrations.manage`, which every other credential operation declares —
-   * compiles just as well and would silently gate on the wrong key.
+   * A connection operation takes a target, not a scope: the same operation
+   * connects an account and re-authorizes a workspace-shared credential.
+   * `credentials.personal` belongs to the first branch only and is asserted
+   * there; the operation carries the capability that governs both. Pinned
+   * because declaring the narrower one here compiles just as well, and it
+   * refused the shared credentials that setting exists to mandate.
    */
   it.each(['createConnection', 'prepareConnection', 'launchConnection'] as const)(
-    'declares the capability on %s, which can only produce a personal OAuth grant',
+    'declares the capability on %s that governs both of its targets',
     (operationName) => {
-      expect(credentialOperations[operationName].capability).toBe('credentials.personal')
+      expect(credentialOperations[operationName].capability).toBe('integrations.manage')
     }
   )
 

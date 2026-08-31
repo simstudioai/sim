@@ -56,27 +56,28 @@ export const credentialOperations = {
     principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
   }),
   /**
-   * Every OAuth connection flow ends in a `type: 'oauth'` credential bound to the
-   * connecting user's own linked account — `resolveCredentialConnectionTarget`
-   * refuses any other credential type — so the whole flow is personal-scope by
-   * construction, not by a field the caller chooses. That makes
-   * `credentials.personal` an operation-level capability for these three, and it
-   * replaces `integrations.manage` rather than joining it: an operation declares
-   * one capability, and the narrower of the two is the one an organization that
-   * mandates workspace-shared credentials is actually setting.
+   * `integrations.manage`, like every other credential operation — these three
+   * take a *target*, not a scope: `providerId` connects a personal account,
+   * `credentialId` re-authorizes a credential the workspace already holds. Only
+   * the first is what `disablePersonalCredentials` withholds, so the narrower
+   * `credentials.personal` is asserted on that branch inside
+   * `resolveCredentialConnectionTarget` rather than declared here. Declaring it
+   * here withheld the reconnect too — refusing the workspace-shared credentials
+   * that same setting exists to mandate — and, because an operation declares one
+   * capability, let a group that hid the whole Integrations module still connect.
    */
   createConnection: defineWorkspaceOperation({
     id: 'credentials.connections.create',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    capability: 'credentials.personal',
+    capability: 'integrations.manage',
     principalKinds: ['session', 'personal_api_key'],
   }),
   prepareConnection: defineWorkspaceOperation({
     id: 'credentials.connections.prepare',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    capability: 'credentials.personal',
+    capability: 'integrations.manage',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -170,7 +171,7 @@ export const credentialOperations = {
     id: 'credentials.connections.launch',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    capability: 'credentials.personal',
+    capability: 'integrations.manage',
     principalKinds: ['session'],
   }),
   useManagedOAuth: defineWorkspaceOperation({
