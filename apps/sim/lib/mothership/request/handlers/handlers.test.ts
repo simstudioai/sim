@@ -126,6 +126,8 @@ describe('sse-handlers tool lifecycle', () => {
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),
+      seenToolCalls: new Set(),
+      seenToolResults: new Set(),
       currentThinkingBlock: null,
       subagentThinkingBlocks: new Map(),
       isInThinkingBlock: false,

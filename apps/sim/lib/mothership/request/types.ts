@@ -142,6 +142,13 @@ export interface StreamingContext {
   contentBlocks: ContentBlock[]
   toolCalls: Map<string, ToolCallState>
   pendingToolPromises: Map<string, Promise<AsyncCompletionSignal>>
+  /**
+   * Tool-frame dedupe for THIS turn (retransmits across a turn's retry/resume legs).
+   * Turn-scoped lifecycle sets — they die with the context. Was process-global with a
+   * shared 1000-entry cap: under load one stream's frames evicted another's dedupe state.
+   */
+  seenToolCalls: Set<string>
+  seenToolResults: Set<string>
   awaitingAsyncContinuation?: ResumeContinuation
   currentThinkingBlock: ContentBlock | null
   /**
