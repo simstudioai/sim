@@ -272,7 +272,7 @@ Once SSO is configured, users with your domain (`company.com`) can sign in throu
 5. If **Member provisioning** is **Automatic**, Sim adds them to the organization as a Member, growing a Team seat count or validating available fixed-seat capacity
 6. They land in an accessible workspace, or see a clear no-access state until an admin grants workspace access
 
-With **Automatic** provisioning, no invitation is required for organization membership. The join follows the organization's seat policy and does not infer a role from IdP claims: every new user starts as a Member. Team subscriptions grow their billed seat count with membership; fixed-seat plans reject the join when capacity is full. With **Invite only**, SSO proves identity but an invitation is still required for organization or workspace access.
+With **Automatic** provisioning, no invitation is required for organization membership. The join follows the organization's seat policy and does not infer a role from IdP claims: every newly provisioned user starts as a Member. Team subscriptions grow their billed seat count with membership; fixed-seat plans reject the join when capacity is full. With **Invite only**, SSO proves identity but does not create new membership or workspace access; new access must be granted separately, while existing organization membership and workspace access remain available.
 
 <Callout type="warning">
   Sign-in must start from Sim. Launching from your identity provider's app portal (Microsoft's **My Apps**, Okta's dashboard tile) sends an unsolicited assertion, which Sim rejects. This is deliberate — accepting them would let anyone replay an assertion into your tenant — but it means an IdP-initiated test fails even when the configuration is correct.

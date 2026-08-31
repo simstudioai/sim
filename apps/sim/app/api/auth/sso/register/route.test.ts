@@ -324,6 +324,35 @@ describe('POST /api/auth/sso/register', () => {
     })
   })
 
+  it('reverts the config and provisioning mode when the trust write fails', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([])
+    queueTableRows(schemaMock.ssoProvider, [
+      {
+        id: 'p1',
+        issuer: 'https://old-issuer.example.com',
+        domain: 'acme.com',
+        oidcConfig: '{"stored":"oidc"}',
+        samlConfig: null,
+        jitProvisioningEnabled: true,
+      },
+    ])
+    dbChainMockFns.returning.mockRejectedValueOnce(new Error('trust write failed'))
+
+    const res = await POST(request({ ...OIDC_BODY, orgId: 'org1', jitProvisioningEnabled: false }))
+
+    expect(res.status).toBe(500)
+    expect(mockUpdateSSOProvider).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      issuer: 'https://old-issuer.example.com',
+      domain: 'acme.com',
+      oidcConfig: '{"stored":"oidc"}',
+      samlConfig: null,
+      domainVerified: false,
+      jitProvisioningEnabled: true,
+    })
+  })
+
   it('does not mark domain-verified when the registration is rolled back', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     resetDbChainMock()

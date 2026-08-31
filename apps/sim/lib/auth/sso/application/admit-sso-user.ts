@@ -13,7 +13,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { ssoJitAdmissionOperation } from '@/lib/auth/sso/application/operations'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -124,6 +124,12 @@ async function runAdmissionTransaction(
         result: { kind: 'organization-not-bound', organizationId: null },
       }
     }
+
+    await acquireOrganizationUserMutationLocks(tx, {
+      userId,
+      organizationIds: [provider.organizationId],
+    })
+
     if (!provider.jitProvisioningEnabled) {
       const [sameOrganization] = await tx
         .select({ id: member.id })
@@ -148,11 +154,6 @@ async function runAdmissionTransaction(
         },
       }
     }
-
-    await acquireOrganizationUserMutationLocks(tx, {
-      userId,
-      organizationIds: [provider.organizationId],
-    })
 
     const memberships = await tx
       .select({ id: member.id, organizationId: member.organizationId })
@@ -195,7 +196,11 @@ async function runAdmissionTransaction(
           and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspace.id))
         )
         .where(
-          and(eq(permissions.userId, userId), eq(workspace.organizationId, provider.organizationId))
+          and(
+            eq(permissions.userId, userId),
+            eq(workspace.organizationId, provider.organizationId),
+            isNull(workspace.archivedAt)
+          )
         )
         .limit(1),
     ])

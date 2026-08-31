@@ -1,7 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  auditMock,
+  dbChainMock,
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -164,7 +172,10 @@ describe('SSO JIT admission', () => {
       kind: 'provisioning-disabled',
       organizationId: 'org-1',
     })
-    expect(mockAcquireOrganizationUserMutationLocks).not.toHaveBeenCalled()
+    expect(mockAcquireOrganizationUserMutationLocks).toHaveBeenCalledWith(dbChainMock.db, {
+      userId: 'user-1',
+      organizationIds: ['org-1'],
+    })
     expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
   })
 
@@ -177,7 +188,10 @@ describe('SSO JIT admission', () => {
       organizationId: 'org-1',
       memberId: 'member-existing',
     })
-    expect(mockAcquireOrganizationUserMutationLocks).not.toHaveBeenCalled()
+    expect(mockAcquireOrganizationUserMutationLocks).toHaveBeenCalledWith(dbChainMock.db, {
+      userId: 'user-1',
+      organizationIds: ['org-1'],
+    })
     expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
   })
 
@@ -211,6 +225,20 @@ describe('SSO JIT admission', () => {
       organizationId: 'org-1',
     })
     expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
+  })
+
+  it('only preserves external access from active workspaces', async () => {
+    queueIdentity()
+
+    await expect(execute()).resolves.toEqual({
+      kind: 'provisioned',
+      organizationId: 'org-1',
+      memberId: 'member-1',
+    })
+    const conditions = dbChainMockFns.where.mock.calls.flatMap(([condition]) =>
+      flattenMockConditions(condition)
+    )
+    expect(conditions).toContainEqual({ type: 'isNull', column: schemaMock.workspace.archivedAt })
   })
 
   it('rejects a user who belongs to another organization', async () => {

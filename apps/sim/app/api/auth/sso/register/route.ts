@@ -675,21 +675,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (existingOwnedProvider) {
-      await auth.api.updateSSOProvider({
-        body: {
-          providerId,
-          issuer,
-          domain,
-          ...(providerConfig.oidcConfig ? { oidcConfig: providerConfig.oidcConfig } : {}),
-          ...(providerConfig.samlConfig ? { samlConfig: providerConfig.samlConfig } : {}),
-        },
-        headers,
-      })
-
-      // Restore the pre-update config and clear the flag together. Clearing alone
-      // is not enough: re-verifying the domain now regrants trust automatically,
-      // which would activate the very config this request reported as rejected.
-      if (!(await grantProviderDomainTrust())) {
+      const revertProviderUpdate = async (): Promise<void> => {
         await db
           .update(ssoProvider)
           .set({
@@ -701,6 +687,43 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             jitProvisioningEnabled: existingOwnedProvider.jitProvisioningEnabled,
           })
           .where(eq(ssoProvider.id, existingOwnedProvider.id))
+      }
+
+      await auth.api.updateSSOProvider({
+        body: {
+          providerId,
+          issuer,
+          domain,
+          ...(providerConfig.oidcConfig ? { oidcConfig: providerConfig.oidcConfig } : {}),
+          ...(providerConfig.samlConfig ? { samlConfig: providerConfig.samlConfig } : {}),
+        },
+        headers,
+      })
+
+      let domainTrustGranted: boolean
+      try {
+        domainTrustGranted = await grantProviderDomainTrust()
+      } catch (error) {
+        try {
+          await revertProviderUpdate()
+        } catch (rollbackError) {
+          logger.error('Failed to revert SSO provider after domain trust write failed', {
+            domain,
+            orgId,
+            providerId,
+            userId: session.user.id,
+            error,
+            rollbackError,
+          })
+        }
+        throw error
+      }
+
+      // Restore the pre-update config and clear the flag together. Clearing alone
+      // is not enough: re-verifying the domain now regrants trust automatically,
+      // which would activate the very config this request reported as rejected.
+      if (!domainTrustGranted) {
+        await revertProviderUpdate()
         logger.warn('Reverted SSO update: domain verification was removed mid-write', {
           domain,
           orgId,
