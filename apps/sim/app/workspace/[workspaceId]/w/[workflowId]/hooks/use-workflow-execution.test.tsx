@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   executionStoreState,
+  idleExecution,
   mockCancel,
   mockAdoptScopedExecution,
   mockBeginScopedExecution,
@@ -89,6 +90,7 @@ const {
 
   return {
     executionStoreState,
+    idleExecution,
     mockCancel: vi.fn(),
     mockAdoptScopedExecution: vi.fn(),
     mockBeginScopedExecution: vi.fn(() => ({})),
@@ -416,9 +418,8 @@ describe('useWorkflowExecution attachment uploads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     terminalStoreState._hasHydrated = false
-    executionStoreState.getWorkflowExecution.mockReturnValue(
-      executionStoreState.workflowExecutions.get('workflow-1')!
-    )
+    executionStoreState.workflowExecutions.set('workflow-1', idleExecution)
+    executionStoreState.getWorkflowExecution.mockReturnValue(idleExecution)
     executionStoreState.getCurrentExecutionId.mockReturnValue(null)
     mockAdoptScopedExecution.mockReturnValue(undefined)
     mockLoadExecutionPointer.mockResolvedValue(null)
@@ -675,6 +676,64 @@ describe('useWorkflowExecution attachment uploads', () => {
     expect(executionStoreState.setIsExecuting).not.toHaveBeenCalledWith('workflow-1', false)
     expect(executionStoreState.setActiveBlocks).not.toHaveBeenCalled()
     expect(mockClearExecutionPointer).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('does not let delayed debug completion reset a replacement execution', async () => {
+    const debugPersistenceExecution = {}
+    const replacementPersistenceExecution = {}
+    let currentPersistenceExecution: object | undefined = debugPersistenceExecution
+    let resolveDebugStep: ((result: unknown) => void) | undefined
+    const continueExecution = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveDebugStep = resolve
+        })
+    )
+    const debugExecution = {
+      ...idleExecution,
+      status: 'running',
+      isExecuting: true,
+      isDebugging: true,
+      pendingBlocks: ['start'],
+      executor: { continueExecution },
+      debugContext: { blockLogs: [] },
+    }
+    executionStoreState.workflowExecutions.set('workflow-1', debugExecution)
+    executionStoreState.getWorkflowExecution.mockReturnValue(debugExecution)
+    mockAdoptScopedExecution.mockImplementation(() => currentPersistenceExecution)
+    mockEndScopedExecution.mockImplementation((_workflowId, persistenceExecution) => {
+      if (persistenceExecution !== currentPersistenceExecution) return false
+      currentPersistenceExecution = undefined
+      return true
+    })
+
+    const { result, unmount } = renderWorkflowExecutionHook()
+    let debugStep: Promise<void>
+    act(() => {
+      debugStep = result().handleStepDebug()
+    })
+    expect(continueExecution).toHaveBeenCalledOnce()
+
+    currentPersistenceExecution = replacementPersistenceExecution
+    resolveDebugStep?.({ success: true, output: {}, logs: [] })
+    await act(async () => {
+      await debugStep
+    })
+
+    expect(mockEndScopedExecution).not.toHaveBeenCalledWith(
+      'workflow-1',
+      replacementPersistenceExecution
+    )
+    expect(mockClearExecutionPointer).not.toHaveBeenCalled()
+    expect(executionStoreState.setIsExecuting).not.toHaveBeenCalledWith('workflow-1', false)
+    expect(executionStoreState.setIsDebugging).not.toHaveBeenCalledWith('workflow-1', false)
+    expect(executionStoreState.setDebugContext).not.toHaveBeenCalledWith('workflow-1', null)
+    expect(executionStoreState.setExecutor).not.toHaveBeenCalledWith('workflow-1', null)
+    expect(executionStoreState.setPendingBlocks).not.toHaveBeenCalledWith('workflow-1', [])
+    expect(executionStoreState.setActiveBlocks).not.toHaveBeenCalled()
+    expect(mockRequestJson).not.toHaveBeenCalled()
 
     unmount()
   })

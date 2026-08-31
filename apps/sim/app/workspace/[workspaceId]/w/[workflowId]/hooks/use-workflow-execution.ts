@@ -109,6 +109,16 @@ interface DebugValidationResult {
   error?: string
 }
 
+function ownsScopedPersistenceExecution(
+  workflowId: string,
+  persistenceExecution: ConsolePersistenceExecution | undefined
+): persistenceExecution is ConsolePersistenceExecution {
+  return (
+    persistenceExecution !== undefined &&
+    consolePersistence.adoptScopedExecution(workflowId) === persistenceExecution
+  )
+}
+
 const WORKFLOW_EXECUTION_FAILURE_MESSAGE = 'Workflow execution failed'
 
 function getExecutionDisplayError(data: unknown): {
@@ -433,40 +443,40 @@ export function useWorkflowExecution() {
   const getCurrentExecutionId = useExecutionStore((s) => s.getCurrentExecutionId)
   const rawSetIsExecuting = useExecutionStore((s) => s.setIsExecuting)
 
-  const endPersistenceExecution = useCallback((workflowId: string) => {
-    const persistenceExecution = consolePersistence.adoptScopedExecution(workflowId)
-    if (!persistenceExecution) return
-    consolePersistence.endScopedExecution(workflowId, persistenceExecution)
-  }, [])
-
-  const setIsExecuting = useCallback(
-    (workflowId: string, executing: boolean): ConsolePersistenceExecution | undefined => {
+  const startExecution = useCallback(
+    (workflowId: string): ConsolePersistenceExecution | undefined => {
       const wasExecuting = useExecutionStore.getState().getWorkflowExecution(workflowId).isExecuting
-      if (executing) {
-        if (!wasExecuting) {
-          const startedExecution = consolePersistence.beginScopedExecution(workflowId)
-          rawSetIsExecuting(workflowId, true)
-          return startedExecution
-        }
-      } else {
-        if (wasExecuting) {
-          endPersistenceExecution(workflowId)
-        }
-        clearExecutionPointer(workflowId)
-      }
-      rawSetIsExecuting(workflowId, executing)
-      return undefined
-    },
-    [endPersistenceExecution, rawSetIsExecuting]
-  )
-  const finishOwnedExecution = useCallback(
-    (workflowId: string, persistenceExecution: ConsolePersistenceExecution | undefined) => {
-      if (!persistenceExecution) return
-      if (!consolePersistence.endScopedExecution(workflowId, persistenceExecution)) return
-      clearExecutionPointer(workflowId)
-      rawSetIsExecuting(workflowId, false)
+      if (wasExecuting) return undefined
+      const persistenceExecution = consolePersistence.beginScopedExecution(workflowId)
+      rawSetIsExecuting(workflowId, true)
+      return persistenceExecution
     },
     [rawSetIsExecuting]
+  )
+  const finishOwnedExecution = useCallback(
+    (
+      workflowId: string,
+      persistenceExecution: ConsolePersistenceExecution | undefined
+    ): boolean => {
+      if (!persistenceExecution) return false
+      if (!consolePersistence.endScopedExecution(workflowId, persistenceExecution)) return false
+      clearExecutionPointer(workflowId)
+      rawSetIsExecuting(workflowId, false)
+      return true
+    },
+    [rawSetIsExecuting]
+  )
+  const finishCurrentExecution = useCallback(
+    (workflowId: string): boolean => {
+      const persistenceExecution = consolePersistence.adoptScopedExecution(workflowId)
+      if (persistenceExecution) {
+        return finishOwnedExecution(workflowId, persistenceExecution)
+      }
+      clearExecutionPointer(workflowId)
+      rawSetIsExecuting(workflowId, false)
+      return true
+    },
+    [finishOwnedExecution, rawSetIsExecuting]
   )
   const setIsDebugging = useExecutionStore((s) => s.setIsDebugging)
   const setPendingBlocks = useExecutionStore((s) => s.setPendingBlocks)
@@ -509,23 +519,30 @@ export function useWorkflowExecution() {
   /**
    * Resets all debug-related state
    */
+  const clearDebugState = useCallback(
+    (workflowId: string) => {
+      setIsDebugging(workflowId, false)
+      setDebugContext(workflowId, null)
+      setExecutor(workflowId, null)
+      setPendingBlocks(workflowId, [])
+      setActiveBlocks(workflowId, new Set())
+    },
+    [setActiveBlocks, setDebugContext, setExecutor, setIsDebugging, setPendingBlocks]
+  )
+
+  const resetOwnedDebugState = useCallback(
+    (workflowId: string, persistenceExecution: ConsolePersistenceExecution | undefined) => {
+      if (!finishOwnedExecution(workflowId, persistenceExecution)) return
+      clearDebugState(workflowId)
+    },
+    [clearDebugState, finishOwnedExecution]
+  )
+
   const resetDebugState = useCallback(() => {
     if (!activeWorkflowId) return
-    setIsExecuting(activeWorkflowId, false)
-    setIsDebugging(activeWorkflowId, false)
-    setDebugContext(activeWorkflowId, null)
-    setExecutor(activeWorkflowId, null)
-    setPendingBlocks(activeWorkflowId, [])
-    setActiveBlocks(activeWorkflowId, new Set())
-  }, [
-    activeWorkflowId,
-    setIsExecuting,
-    setIsDebugging,
-    setDebugContext,
-    setExecutor,
-    setPendingBlocks,
-    setActiveBlocks,
-  ])
+    if (!finishCurrentExecution(activeWorkflowId)) return
+    clearDebugState(activeWorkflowId)
+  }, [activeWorkflowId, clearDebugState, finishCurrentExecution])
 
   const handleExecutionErrorConsole = useCallback(
     (params: {
@@ -591,45 +608,60 @@ export function useWorkflowExecution() {
    * Handles debug session completion
    */
   const handleDebugSessionComplete = useCallback(
-    async (result: ExecutionResult) => {
+    async (
+      result: ExecutionResult,
+      workflowId: string,
+      persistenceExecution: ConsolePersistenceExecution | undefined
+    ) => {
+      if (!ownsScopedPersistenceExecution(workflowId, persistenceExecution)) return
       logger.info('Debug session complete')
       setExecutionResult(result)
 
       // Persist logs
-      await persistLogs(generateId(), result)
+      await persistLogs(workflowId, generateId(), result)
 
       // Reset debug state
-      resetDebugState()
+      resetOwnedDebugState(workflowId, persistenceExecution)
     },
-    [activeWorkflowId, resetDebugState]
+    [resetOwnedDebugState]
   )
 
   /**
    * Handles debug session continuation
    */
   const handleDebugSessionContinuation = useCallback(
-    (result: ExecutionResult) => {
-      if (!activeWorkflowId) return
+    (
+      result: ExecutionResult,
+      workflowId: string,
+      persistenceExecution: ConsolePersistenceExecution | undefined
+    ) => {
+      if (!ownsScopedPersistenceExecution(workflowId, persistenceExecution)) return
       logger.info('Debug step completed, next blocks pending', {
         nextPendingBlocks: result.metadata?.pendingBlocks?.length || 0,
       })
 
       // Update debug context and pending blocks
       if (result.metadata?.context) {
-        setDebugContext(activeWorkflowId, result.metadata.context)
+        setDebugContext(workflowId, result.metadata.context)
       }
       if (result.metadata?.pendingBlocks) {
-        setPendingBlocks(activeWorkflowId, result.metadata.pendingBlocks)
+        setPendingBlocks(workflowId, result.metadata.pendingBlocks)
       }
     },
-    [activeWorkflowId, setDebugContext, setPendingBlocks]
+    [setDebugContext, setPendingBlocks]
   )
 
   /**
    * Handles debug execution errors
    */
   const handleDebugExecutionError = useCallback(
-    async (error: any, operation: string) => {
+    async (
+      error: any,
+      operation: string,
+      workflowId: string,
+      persistenceExecution: ConsolePersistenceExecution | undefined
+    ) => {
+      if (!ownsScopedPersistenceExecution(workflowId, persistenceExecution)) return
       logger.error(`Debug ${operation} Error:`, error)
 
       const errorMessage = toError(error).message
@@ -643,15 +675,16 @@ export function useWorkflowExecution() {
       setExecutionResult(errorResult)
 
       // Persist logs
-      await persistLogs(generateId(), errorResult)
+      await persistLogs(workflowId, generateId(), errorResult)
 
       // Reset debug state
-      resetDebugState()
+      resetOwnedDebugState(workflowId, persistenceExecution)
     },
-    [debugContext, activeWorkflowId, resetDebugState]
+    [debugContext, resetOwnedDebugState]
   )
 
   const persistLogs = async (
+    workflowId: string,
     executionId: string,
     result: ExecutionResult,
     streamContent?: string
@@ -690,9 +723,8 @@ export function useWorkflowExecution() {
         }
       }
 
-      if (!activeWorkflowId) return executionId
       await requestJson(workflowLogContract, {
-        params: { id: activeWorkflowId },
+        params: { id: workflowId },
         body: {
           executionId,
           result: enrichedResult,
@@ -723,7 +755,7 @@ export function useWorkflowExecution() {
 
       // Reset execution result and set execution state
       setExecutionResult(null)
-      const persistenceExecution = setIsExecuting(activeWorkflowId, true)
+      const persistenceExecution = startExecution(activeWorkflowId)
 
       // Set debug mode only if explicitly requested
       if (enableDebug) {
@@ -1028,7 +1060,7 @@ export function useWorkflowExecution() {
       currentWorkflow,
       toggleConsole,
       getVariablesByWorkflowId,
-      setIsExecuting,
+      startExecution,
       finishOwnedExecution,
       setIsDebugging,
       setDebugContext,
@@ -1752,6 +1784,8 @@ export function useWorkflowExecution() {
       resetDebugState()
       return
     }
+    if (!activeWorkflowId) return
+    const persistenceExecution = consolePersistence.adoptScopedExecution(activeWorkflowId)
 
     try {
       logger.info('Executing debug step with blocks:', pendingBlocks)
@@ -1759,12 +1793,12 @@ export function useWorkflowExecution() {
       logger.info('Debug step execution result:', result)
 
       if (isDebugSessionComplete(result)) {
-        await handleDebugSessionComplete(result)
+        await handleDebugSessionComplete(result, activeWorkflowId, persistenceExecution)
       } else {
-        handleDebugSessionContinuation(result)
+        handleDebugSessionContinuation(result, activeWorkflowId, persistenceExecution)
       }
     } catch (error: any) {
-      await handleDebugExecutionError(error, 'step')
+      await handleDebugExecutionError(error, 'step', activeWorkflowId, persistenceExecution)
     }
   }, [
     executor,
@@ -1795,6 +1829,8 @@ export function useWorkflowExecution() {
       resetDebugState()
       return
     }
+    if (!activeWorkflowId) return
+    const persistenceExecution = consolePersistence.adoptScopedExecution(activeWorkflowId)
 
     try {
       logger.info('Resuming workflow execution until completion')
@@ -1821,6 +1857,7 @@ export function useWorkflowExecution() {
         )
 
         currentResult = await executor!.continueExecution(currentPendingBlocks, currentContext)
+        if (!ownsScopedPersistenceExecution(activeWorkflowId, persistenceExecution)) return
 
         logger.info('Resume iteration result:', {
           success: currentResult.success,
@@ -1863,9 +1900,9 @@ export function useWorkflowExecution() {
       })
 
       // Handle completion
-      await handleDebugSessionComplete(currentResult)
+      await handleDebugSessionComplete(currentResult, activeWorkflowId, persistenceExecution)
     } catch (error: any) {
-      await handleDebugExecutionError(error, 'resume')
+      await handleDebugExecutionError(error, 'resume', activeWorkflowId, persistenceExecution)
     }
   }, [
     executor,
@@ -1894,6 +1931,9 @@ export function useWorkflowExecution() {
     logger.info('Workflow execution cancellation requested')
 
     const storedExecutionId = getCurrentExecutionId(activeWorkflowId)
+    const debugPersistenceExecution = isDebugging
+      ? consolePersistence.adoptScopedExecution(activeWorkflowId)
+      : undefined
 
     if (storedExecutionId) {
       void requestJson(cancelWorkflowExecutionContract, {
@@ -1928,19 +1968,20 @@ export function useWorkflowExecution() {
       executionStream.cancel(activeWorkflowId)
       currentChatExecutionIdRef.current = null
       runFromBlockOwnerRef.current = null
-      setIsExecuting(activeWorkflowId, false)
-      setIsDebugging(activeWorkflowId, false)
-      setActiveBlocks(activeWorkflowId, new Set())
     }
 
     if (isDebugging) {
-      resetDebugState()
+      resetOwnedDebugState(activeWorkflowId, debugPersistenceExecution)
+    } else if (!storedExecutionId) {
+      finishCurrentExecution(activeWorkflowId)
+      setIsDebugging(activeWorkflowId, false)
+      setActiveBlocks(activeWorkflowId, new Set())
     }
   }, [
     executionStream,
     isDebugging,
-    resetDebugState,
-    setIsExecuting,
+    resetOwnedDebugState,
+    finishCurrentExecution,
     setIsDebugging,
     setActiveBlocks,
     activeWorkflowId,
@@ -2038,7 +2079,7 @@ export function useWorkflowExecution() {
         }
       }
 
-      const persistenceExecution = setIsExecuting(workflowId, true)
+      const persistenceExecution = startExecution(workflowId)
       const runOwnerId = generateId()
       runFromBlockOwnerRef.current = runOwnerId
       const executionIdRef = { current: '' }
@@ -2289,7 +2330,7 @@ export function useWorkflowExecution() {
       clearLastExecutionSnapshot,
       getCurrentExecutionId,
       setCurrentExecutionId,
-      setIsExecuting,
+      startExecution,
       finishOwnedExecution,
       setActiveBlocks,
       setBlockRunStatus,
@@ -2318,7 +2359,7 @@ export function useWorkflowExecution() {
       logger.info('Starting run-until-block execution', { workflowId, stopAfterBlockId: blockId })
 
       setExecutionResult(null)
-      const persistenceExecution = setIsExecuting(workflowId, true)
+      const persistenceExecution = startExecution(workflowId)
 
       const executionId = generateId()
       try {
@@ -2337,7 +2378,7 @@ export function useWorkflowExecution() {
         return errorResult
       }
     },
-    [activeWorkflowId, setExecutionResult, setIsExecuting]
+    [activeWorkflowId, setExecutionResult, startExecution]
   )
 
   useEffect(() => {
@@ -2502,7 +2543,7 @@ export function useWorkflowExecution() {
           activated = true
           setCurrentExecutionId(reconnectWorkflowId, capturedExecutionId)
           reconnectPersistenceExecution =
-            setIsExecuting(reconnectWorkflowId, true) ??
+            startExecution(reconnectWorkflowId) ??
             consolePersistence.adoptScopedExecution(reconnectWorkflowId)
           activationOwnsPersistence = Boolean(reconnectPersistenceExecution)
           if (fromEventId === 0) {

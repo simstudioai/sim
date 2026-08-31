@@ -90,6 +90,15 @@ const [{ id }, { kbName }] = await Promise.all([params, searchParams])
 
 Only keep awaits sequential when a later call genuinely uses an earlier result, or when the ordering is deliberate (rate-limited batches, retry loops, write-then-read).
 
+## Carry exact lifecycle ownership across async boundaries
+
+When asynchronous work can outlive an execution, session, or resource instance, capture its
+opaque ownership token before the first `await` and pass that exact token through completion and
+error cleanup. Never re-adopt the current owner from delayed cleanup: a replacement may now own
+the same scope. End the lifecycle by exact-token match, and clear shared state only when that end
+succeeds. Current-owner adoption is reserved for synchronous user actions that explicitly stop
+the current lifecycle.
+
 ## Prefetch dynamic destination lists on intent
 
 For long lists of dynamic destinations, do not viewport-prefetch every row and do not assume
