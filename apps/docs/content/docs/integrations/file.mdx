@@ -127,7 +127,7 @@ Create a new workspace file, either from text content or from an existing file. 
 | `content` | string | No | The text content to write to the file. Provide exactly one of content or fileInput. |
 | `fileInput` | file | No | An existing file to store in the workspace, such as one produced by an earlier tool. Use this for anything that is not text — PDFs, images, audio, archives. Provide exactly one of content or fileInput. |
 | `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from the file extension, or taken from the stored file, if omitted. |
-| `overwrite` | boolean | No | Replace the contents of an existing file with the same name instead of creating a suffixed copy. Creates the file when it does not exist yet. |
+| `overwrite` | boolean | No | Replace the contents of an existing file at the exact target path \(folder and name\) instead of creating a suffixed copy. Creates the file when that path does not exist yet. |
 
 #### Output
 

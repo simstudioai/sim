@@ -50,7 +50,7 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       required: false,
       visibility: 'user-only',
       description:
-        'Replace the contents of an existing file with the same name instead of creating a suffixed copy. Creates the file when it does not exist yet.',
+        'Replace the contents of an existing file at the exact target path (folder and name) instead of creating a suffixed copy. Creates the file when that path does not exist yet.',
     },
   },
 
