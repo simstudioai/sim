@@ -2577,8 +2577,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 required: ['path'],
               },
+              minItems: 1,
             },
           },
+          required: ['files'],
         },
         outputs: {
           type: 'object',
