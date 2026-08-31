@@ -1,5 +1,5 @@
 import { CLIENT_INFO_HEADER, formatClientInfo } from '@sim/utils/client-info'
-import { CLI_VERSION, USER_AGENT } from '../version'
+import { cliVersion, userAgent } from '../version'
 import { detectCodingAgent, NO_CODING_AGENT } from './coding-agent'
 import { telemetryStatus } from './policy'
 import { loadTelemetryState } from './state'
@@ -32,13 +32,13 @@ export function clientInfoHeader(env: NodeJS.ProcessEnv = process.env): string {
  * differently.
  */
 export function identityHeaders(): Record<string, string> {
-  return { 'user-agent': USER_AGENT, [CLIENT_INFO_HEADER]: clientInfoHeader() }
+  return { 'user-agent': userAgent(), [CLIENT_INFO_HEADER]: clientInfoHeader() }
 }
 
 function buildClientInfoHeader(env: NodeJS.ProcessEnv): string {
   return formatClientInfo({
     surface: 'cli',
-    version: CLI_VERSION,
+    version: cliVersion(),
     runtime: { name: 'node', version: process.versions.node },
     os: process.platform,
     arch: process.arch,

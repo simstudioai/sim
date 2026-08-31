@@ -56,6 +56,7 @@ export async function executeSimCli(
     ? await executeAgentCliCommand(agentMatch, {
         client: createEmbeddedClient(identity),
         workspaceId: context.workspaceId,
+        userId: context.userId,
       })
     : await runEmbeddedCli(args, identity)
   if (!agentMatch && isRootHelpInvocation(args) && result.exitCode === 0) {
