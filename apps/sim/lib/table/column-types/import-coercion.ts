@@ -7,7 +7,7 @@ type ImportValue = Exclude<JsonValue, Date>
 type ImportCoercer = (value: unknown, options?: NormalizeDateCellOptions) => ImportValue
 
 const IMPORT_COERCERS: Partial<Record<ColumnType, ImportCoercer>> = {
-  ttl: (value, options) => parseTtlEpochSeconds(value, options) ?? String(value),
+  ttl: (value, options) => parseTtlEpochSeconds(value, options),
 }
 
 /** Applies lightweight type-specific CSV coercion without loading the full column registry. */

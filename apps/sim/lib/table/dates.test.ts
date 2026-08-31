@@ -82,6 +82,15 @@ describe('normalizeDateCellValue', () => {
     )
   })
 
+  it('uses the requested low year when applying IANA timezone rules', () => {
+    const normalized = normalizeDateCellValue('0050-01-15T12:00:00', {
+      timezone: 'America/New_York',
+    })
+
+    expect(normalized).toBe('0050-01-15T12:00:00-04:56')
+    expect(storedDateToEditable(normalized ?? '')).toBe('0050-01-15T12:00:00-04:56')
+  })
+
   it('reads localized numeric wall clocks before applying the provided IANA zone', () => {
     expect(normalizeDateCellValue('3/8/2026 2:30 AM', { timezone: 'America/New_York' })).toBe(
       '2026-03-08T02:30:00-05:00'

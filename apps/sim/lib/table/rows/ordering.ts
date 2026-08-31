@@ -8,6 +8,7 @@
 
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, gt, inArray, lt, lte, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { getDeleteSnapshotBatchSize, TABLE_LIMITS } from '@/lib/table/constants'
@@ -19,6 +20,8 @@ import { mutateTableRowsWithSecretProvenance } from '@/lib/table/rows/secret-pro
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type { RowData, TableDefinition, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 
+const logger = createLogger('TableRowOrdering')
+
 export interface DeletedTableRow {
   id: string
   data: RowData
@@ -28,6 +31,94 @@ export type DeletedRowsHandler = (
   rows: DeletedTableRow[],
   table?: TableDefinition
 ) => void | Promise<void>
+
+interface DeleteSnapshotSize {
+  id: string
+  snapshotBytes: number
+}
+
+interface DeleteSnapshotBatchPlan {
+  rowIds: string[]
+  consumedCount: number
+  oversizedRow?: DeleteSnapshotSize
+}
+
+/**
+ * Selects the largest input-order prefix whose existing rows fit the snapshot
+ * byte budget. Missing ids are consumed without cost. A legacy row that already
+ * exceeds the budget is isolated as the only existing row in its transaction so
+ * deleting historical data remains possible without combining it with another
+ * snapshot.
+ */
+export function planDeleteSnapshotBatch(
+  candidateRowIds: readonly string[],
+  snapshotSizes: readonly DeleteSnapshotSize[],
+  maxBytes = TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES
+): DeleteSnapshotBatchPlan {
+  const bytesById = new Map(snapshotSizes.map((row) => [row.id, row.snapshotBytes]))
+  let consumedCount = 0
+  let batchBytes = 0
+  let existingRows = 0
+  let oversizedRow: DeleteSnapshotSize | undefined
+
+  for (const id of candidateRowIds) {
+    const measuredBytes = bytesById.get(id)
+    if (measuredBytes === undefined) {
+      consumedCount++
+      continue
+    }
+    const snapshotBytes =
+      Number.isFinite(measuredBytes) && measuredBytes >= 0 ? measuredBytes : maxBytes + 1
+    if (existingRows > 0 && batchBytes + snapshotBytes > maxBytes) break
+
+    consumedCount++
+    existingRows++
+    batchBytes += snapshotBytes
+    if (snapshotBytes > maxBytes) {
+      oversizedRow = { id, snapshotBytes }
+      break
+    }
+  }
+
+  return {
+    rowIds: candidateRowIds.slice(0, consumedCount),
+    consumedCount,
+    oversizedRow,
+  }
+}
+
+async function planLockedDeleteSnapshotBatch(
+  trx: DbTransaction,
+  tableId: string,
+  workspaceId: string,
+  candidateRowIds: readonly string[]
+): Promise<DeleteSnapshotBatchPlan> {
+  const snapshotSizes = await trx
+    .select({
+      id: userTableRows.id,
+      snapshotBytes: sql<number>`octet_length(${userTableRows.data}::text)`.mapWith(Number),
+    })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        inArray(userTableRows.id, [...candidateRowIds])
+      )
+    )
+    .orderBy(asc(userTableRows.id))
+    .for('update')
+  return planDeleteSnapshotBatch(candidateRowIds, snapshotSizes)
+}
+
+function warnForOversizedLegacySnapshot(oversizedRow: DeleteSnapshotSize | undefined): void {
+  if (!oversizedRow) return
+  logger.warn('Deleting oversized legacy row in an isolated snapshot batch', {
+    rowId: oversizedRow.id,
+    snapshotBytes: oversizedRow.snapshotBytes,
+    maxBytes: TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES,
+  })
+}
 
 /**
  * Starting `position` for an append import — `max(position) + 1`, or 0 when empty. Read once,
@@ -295,7 +386,7 @@ export async function deleteOrderedRow(params: {
   proof: MutationProof<'delete'>
 }): Promise<DeletedTableRow | null> {
   const { tableId, rowId, workspaceId } = params
-  return db.transaction(async (trx) => {
+  const deletedRow = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
     const [deleted] = await trx
       .delete(userTableRows)
@@ -309,6 +400,15 @@ export async function deleteOrderedRow(params: {
       .returning({ id: userTableRows.id, data: userTableRows.data })
     return deleted ? { id: deleted.id, data: deleted.data as RowData } : null
   })
+  if (deletedRow) {
+    const snapshotBytes = Buffer.byteLength(JSON.stringify(deletedRow.data), 'utf8')
+    warnForOversizedLegacySnapshot(
+      snapshotBytes > TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES
+        ? { id: deletedRow.id, snapshotBytes }
+        : undefined
+    )
+  }
+  return deletedRow
 }
 
 /**
@@ -332,21 +432,26 @@ export async function deleteOrderedRowsByIds(params: {
   if (rowIds.length === 0) return []
   const batchSize = getDeleteSnapshotBatchSize()
   const deletedIds: string[] = []
-  for (let i = 0; i < rowIds.length; i += batchSize) {
-    const batch = rowIds.slice(i, i + batchSize)
-    const rows = await db.transaction(async (trx) => {
+  let index = 0
+  while (index < rowIds.length) {
+    const candidates = rowIds.slice(index, index + batchSize)
+    const { rows, plan } = await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
-      return trx
+      const plan = await planLockedDeleteSnapshotBatch(trx, tableId, workspaceId, candidates)
+      const rows = await trx
         .delete(userTableRows)
         .where(
           and(
             eq(userTableRows.tableId, tableId),
             eq(userTableRows.workspaceId, workspaceId),
-            inArray(userTableRows.id, batch)
+            inArray(userTableRows.id, plan.rowIds)
           )
         )
         .returning({ id: userTableRows.id, data: userTableRows.data })
+      return { rows, plan }
     })
+    index += plan.consumedCount
+    warnForOversizedLegacySnapshot(plan.oversizedRow)
     const deletedRows = rows.map((row) => ({ id: row.id, data: row.data as RowData }))
     deletedIds.push(...deletedRows.map((row) => row.id))
     await onDeleted?.(deletedRows)
@@ -490,23 +595,27 @@ export async function deletePageByIds(
 ): Promise<number> {
   let deleted = 0
   const batchSize = getDeleteSnapshotBatchSize()
-  for (let i = 0; i < rowIds.length; i += batchSize) {
-    const batch = rowIds.slice(i, i + batchSize)
-    const { rows, table } = await db.transaction(async (trx) => {
+  let index = 0
+  while (index < rowIds.length) {
+    const candidates = rowIds.slice(index, index + batchSize)
+    const { rows, table, plan } = await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
       const table = await guardBatch(trx, tableId, revalidate)
+      const plan = await planLockedDeleteSnapshotBatch(trx, tableId, workspaceId, candidates)
       const rows = await trx
         .delete(userTableRows)
         .where(
           and(
             eq(userTableRows.tableId, tableId),
             eq(userTableRows.workspaceId, workspaceId),
-            inArray(userTableRows.id, batch)
+            inArray(userTableRows.id, plan.rowIds)
           )
         )
         .returning({ id: userTableRows.id, data: userTableRows.data })
-      return { rows, table }
+      return { rows, table, plan }
     })
+    index += plan.consumedCount
+    warnForOversizedLegacySnapshot(plan.oversizedRow)
     const deletedRows = rows.map((row) => ({ id: row.id, data: row.data as RowData }))
     deleted += deletedRows.length
     await onDeleted?.(deletedRows, table)

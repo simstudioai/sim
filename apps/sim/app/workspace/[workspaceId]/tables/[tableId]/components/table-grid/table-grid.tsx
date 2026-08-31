@@ -31,9 +31,10 @@ import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { FindBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
-import { useTimezone } from '@/hooks/queries/general-settings'
+import { useTimezoneState } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -731,9 +732,12 @@ export function TableGrid({
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
 
-  const timeZone = useTimezone()
+  const timezoneState = useTimezoneState()
+  const timeZone = timezoneState.timezone
   const timeZoneRef = useRef(timeZone)
   timeZoneRef.current = timeZone
+  const timezoneStateRef = useRef(timezoneState)
+  timezoneStateRef.current = timezoneState
 
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
@@ -3625,6 +3629,20 @@ export function TableGrid({
       const pasteRows = parsedPaste.rows
       if (pasteRows.length === 0) return
 
+      const touchesDateEditor = pasteRows.some((pasteRow) =>
+        pasteRow.some((_, offset) => {
+          const column = currentCols[currentAnchor.colIndex + offset]
+          return column ? columnTypeOf(column).editor === 'date' : false
+        })
+      )
+      if (touchesDateEditor) {
+        const message = getTimezoneEditBlockedMessage(timezoneStateRef.current)
+        if (message) {
+          toast.error(message)
+          return
+        }
+      }
+
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const createBatchRows: Array<Record<string, unknown>> = []
@@ -3808,6 +3826,15 @@ export function TableGrid({
       const oldValue = row.data[columnName] ?? null
       const normalizedValue = value ?? null
       const column = columnsRef.current.find((c) => c.key === columnName)
+      if (column && columnTypeOf(column).editor === 'date') {
+        const message = getTimezoneEditBlockedMessage(timezoneStateRef.current)
+        if (message) {
+          toast.error(message)
+          setEditingCell(null)
+          setInitialCharacter(null)
+          return
+        }
+      }
       const changed = !cellValuesEqual(oldValue, normalizedValue, column)
 
       if (changed) {
@@ -4918,6 +4945,7 @@ export function TableGrid({
                                 columns={displayColumns}
                                 workspaceId={workspaceId}
                                 timeZone={timeZone}
+                                timezoneStatus={timezoneState.status}
                                 rowIndex={index}
                                 isFirstRow={index === 0}
                                 editingColumnName={

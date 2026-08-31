@@ -24,6 +24,7 @@
  */
 
 import {
+  formatIsoYear,
   formatUtcOffsetSuffix,
   type ZonedWallClockOptions,
   zonedWallClockWithOffset,
@@ -113,11 +114,11 @@ function pad(n: number): string {
 }
 
 function toLocalCalendarDate(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  return `${formatIsoYear(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
 function toUtcCalendarDate(date: Date): string {
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
+  return `${formatIsoYear(date.getUTCFullYear())}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
 }
 
 /**

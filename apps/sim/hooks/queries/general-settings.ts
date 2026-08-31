@@ -9,7 +9,7 @@ import {
   updateUserSettingsContract,
 } from '@/lib/api/contracts/user'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
-import { getBrowserTimezone } from '@/lib/core/utils/timezone'
+import { getBrowserTimezone, isValidTimezone } from '@/lib/core/utils/timezone'
 
 const logger = createLogger('GeneralSettingsQuery')
 
@@ -144,29 +144,52 @@ export function useBillingUsageNotifications(): boolean {
 }
 
 /**
- * The user's effective scheduling timezone: their saved preference, or the
- * browser-detected zone when unset. Use this wherever a task's timezone is
- * captured so scheduling honors the account preference rather than the device.
+ * The user's effective timezone: a valid saved preference, otherwise the browser zone.
+ * Callers that must distinguish Auto from invalid or unavailable settings use
+ * {@link useTimezoneState} instead.
  */
 export function useTimezone(): string {
   return useTimezoneState().timezone
 }
 
 export interface TimezoneState {
+  /** Effective, always-valid timezone used by read-only consumers. */
   timezone: string
-  status: 'loading' | 'ready' | 'error'
+  /** Raw saved preference, or `null` when the browser timezone is intentional. */
+  savedTimezone: string | null
+  status: 'loading' | 'ready' | 'invalid' | 'error'
 }
 
 /**
- * The effective timezone together with whether the saved preference is known.
- * Destructive time-based editors use the status to avoid capturing the browser
- * fallback while the preference request is still in flight.
+ * The effective timezone together with the raw preference's validity. Time-based
+ * editors use the status so only an intentional Auto preference may write with the
+ * browser fallback; loading, invalid, and unavailable preferences remain read-only.
  */
 export function useTimezoneState(): TimezoneState {
   const { data, isError } = useGeneralSettings()
+  if (!data) {
+    return {
+      timezone: getBrowserTimezone(),
+      savedTimezone: null,
+      status: isError ? 'error' : 'loading',
+    }
+  }
+
+  const savedTimezone = data.timezone
+  if (savedTimezone === null) {
+    return {
+      timezone: getBrowserTimezone(),
+      savedTimezone: null,
+      status: 'ready',
+    }
+  }
+  if (isValidTimezone(savedTimezone)) {
+    return { timezone: savedTimezone, savedTimezone, status: 'ready' }
+  }
   return {
-    timezone: data?.timezone ?? getBrowserTimezone(),
-    status: data ? 'ready' : isError ? 'error' : 'loading',
+    timezone: getBrowserTimezone(),
+    savedTimezone,
+    status: 'invalid',
   }
 }
 
