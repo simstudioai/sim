@@ -12,6 +12,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
+  /**
+   * Mirrors the real `capabilityGovernedUserId`: a workspace key reports its
+   * creator's `userId` too, so `keyType` — not the presence of a user — is what
+   * decides whether a permission group governs the caller.
+   */
   capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
     rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null,
   checkRateLimit: mocks.checkRateLimit,
