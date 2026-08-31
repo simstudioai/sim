@@ -2,6 +2,43 @@ import type { BranchProtectionResponse, UpdateBranchProtectionParams } from '@/t
 import { BRANCH_PROTECTION_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * GitHub documents `required_status_checks`, `enforce_admins`,
+ * `required_pull_request_reviews` and `restrictions` as required body fields
+ * that are nullable — each says "Set to null to disable". "Required" there means
+ * *present in the body*, and `null` satisfies it. Sim's `required: true` means
+ * the user must supply a non-empty value, which is strictly stronger and made
+ * the tool unusable. The params below are therefore optional and this builder
+ * supplies the explicit `null` GitHub demands for every field left unset.
+ */
+function toNullableObject(value: unknown): Record<string, unknown> | null {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed === '' || trimmed === 'null') return null
+    const parsed: unknown = JSON.parse(trimmed)
+    if (parsed === null) return null
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Branch protection fields must be JSON objects')
+    }
+    return parsed as Record<string, unknown>
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Branch protection fields must be JSON objects')
+  }
+  return value as Record<string, unknown>
+}
+
+/** Normalizes a nullable boolean body field, tolerating the block's dropdown strings. */
+function toNullableBoolean(value: unknown): boolean | null {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value === 'boolean') return value
+  if (value === 'true') return true
+  if (value === 'false') return false
+  if (value === 'null') return null
+  return Boolean(value)
+}
+
 export const updateBranchProtectionTool: ToolConfig<
   UpdateBranchProtectionParams,
   BranchProtectionResponse
@@ -33,30 +70,31 @@ export const updateBranchProtectionTool: ToolConfig<
     },
     required_status_checks: {
       type: 'object',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Required status check configuration (null to disable). Object with strict (boolean) and contexts (string array)',
+        'Required status check configuration. Object with strict (boolean) and contexts (string array). Omit to disable status checks — GitHub receives an explicit null.',
     },
     enforce_admins: {
       type: 'boolean',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to enforce restrictions for administrators',
+      description:
+        'Whether to enforce restrictions for administrators. Omit to disable admin enforcement — GitHub receives an explicit null.',
     },
     required_pull_request_reviews: {
       type: 'object',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'PR review requirements (null to disable). Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews',
+        'PR review requirements. Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews. Omit to disable review requirements — GitHub receives an explicit null.',
     },
     restrictions: {
       type: 'object',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Push restrictions (null to disable). Object with users (string array) and teams (string array)',
+        'Push restrictions, available only for organization-owned repositories. Object with users (string array), teams (string array) and optional apps (string array). Omit to disable push restrictions — GitHub receives an explicit null.',
     },
     apiKey: {
       type: 'string',
@@ -76,16 +114,12 @@ export const updateBranchProtectionTool: ToolConfig<
       'X-GitHub-Api-Version': '2022-11-28',
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      const body: any = {
-        required_status_checks: params.required_status_checks,
-        enforce_admins: params.enforce_admins,
-        required_pull_request_reviews: params.required_pull_request_reviews,
-        restrictions: params.restrictions,
-      }
-
-      return body
-    },
+    body: (params) => ({
+      required_status_checks: toNullableObject(params.required_status_checks),
+      enforce_admins: toNullableBoolean(params.enforce_admins),
+      required_pull_request_reviews: toNullableObject(params.required_pull_request_reviews),
+      restrictions: toNullableObject(params.restrictions),
+    }),
   },
 
   transformResponse: async (response) => {
