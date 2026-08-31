@@ -16,7 +16,6 @@ import { resolveBillingAttribution } from '@/lib/billing/core/billing-attributio
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { chatOperations } from '@/lib/mothership/application/operations'
-import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
 import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
@@ -232,13 +231,12 @@ export const POST = withRouteHandler(
         })
       }
 
-      const [integrationTools, billingAttribution, delegationToken] = await Promise.all([
+      const [integrationTools, billingAttribution] = await Promise.all([
         buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
         // Hosted execution refuses to run without an attribution snapshot;
         // the executor path receives it as a header, this path resolves it
         // from the authenticated actor and asserted workspace.
         resolveBillingAttribution({ actorUserId: userId, workspaceId }),
-        mintDelegationToken({ workspaceId, userId }),
       ])
 
       /**
@@ -255,7 +253,6 @@ export const POST = withRouteHandler(
         chatId,
         messageId,
         ...(integrationTools.length > 0 ? { integrationTools } : {}),
-        ...(delegationToken ? { delegationToken } : {}),
       }
 
       let allowExplicitAbort = true

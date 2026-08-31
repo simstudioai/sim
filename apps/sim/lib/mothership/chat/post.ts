@@ -12,7 +12,6 @@ import { getSession } from '@/lib/auth'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import type { AtomicClaimResult } from '@/lib/core/idempotency'
 import { chatSendIdempotency } from '@/lib/core/idempotency'
-import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
@@ -1248,9 +1247,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
        * queries and ~900ms p95 per message). Its prep slot now mints the run-scoped
        * delegation credential the worker presents on v2 calls (revamp D23).
        */
-      const delegationTokenPromise = workspaceId
-        ? mintDelegationToken({ workspaceId, userId: authenticatedUserId })
-        : Promise.resolve(null)
       const executionContextPromise = withCopilotSpan(
         TraceSpan.CopilotChatBuildExecutionContext,
         { [TraceAttr.CopilotBranchKind]: branch.kind },
@@ -1294,14 +1290,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
         parentOtelContext: activeOtelRoot.context,
       })
-      const [agentContexts, userPermission, delegationToken, , executionContext] =
-        await Promise.all([
-          agentContextsPromise,
-          userPermissionPromise,
-          delegationTokenPromise,
-          persistUserMessagePromise,
-          executionContextPromise,
-        ])
+      const [agentContexts, userPermission, , executionContext] = await Promise.all([
+        agentContextsPromise,
+        userPermissionPromise,
+        persistUserMessagePromise,
+        executionContextPromise,
+      ])
 
       executionContext.userPermission = userPermission ?? undefined
 
@@ -1375,7 +1369,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         requestPayload: {
           ...requestPayload,
           protocolVersion: PROTOCOL_VERSION,
-          ...(delegationToken ? { delegationToken } : {}),
         },
         userId: authenticatedUserId,
         streamId: userMessageId,

@@ -5,7 +5,6 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { getActivelyBannedUserIds, isEmailBlocked } from '@/lib/auth/ban'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
@@ -225,15 +224,11 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       secretScope: ws.inboxSecretScope,
       mountedSecrets: ws.inboxMountedSecrets,
     })
-    const [attachmentResult, integrationTools, billingAttribution, delegationToken] =
-      await Promise.all([
-        fetchAttachments(),
-        buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
-        resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
-        // Trigger-runtime caveat (see docs/revamp/06-cutover.md): a failed mint falls
-        // back to null and the turn proceeds without CLI-backed capabilities.
-        mintDelegationToken({ workspaceId: ws.id, userId }),
-      ])
+    const [attachmentResult, integrationTools, billingAttribution] = await Promise.all([
+      fetchAttachments(),
+      buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
+      resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
+    ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
 
     const truncatedTask = {
@@ -254,7 +249,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       chatId,
       messageId: userMessageId,
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(delegationToken ? { delegationToken } : {}),
     }
 
     const result = await runHeadlessCopilotLifecycle(requestPayload, {
