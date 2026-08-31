@@ -27,6 +27,9 @@ export function isTerminalToolCallStatus(status?: string): boolean {
 export interface ToolCallState {
   id: string
   name: string
+  /** The model's tool name when `name` is a display identity (the worker's cli_*
+   * names). Execution dispatches on this; rendering and persistence keep `name`. */
+  execName?: string
   status: ToolCallStatus
   /** Bounded registry ID of the agent that invoked this tool. */
   agentId?: string
