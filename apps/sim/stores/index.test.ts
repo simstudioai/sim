@@ -67,10 +67,11 @@ describe('clearUserData', () => {
     localStorage.setItem('private-cache', 'remove-me')
     sessionStorage.setItem('mothership-queue', 'private-queued-message')
 
-    await clearUserData()
+    const inMemoryResetSucceeded = await clearUserData()
 
     expect(mockModuleLoaded).toHaveBeenCalledOnce()
     expect(mockResetAllStores).toHaveBeenCalledOnce()
+    expect(inMemoryResetSucceeded).toBe(true)
     expect(localStorage.getItem('next-favicon')).toBe('favicon')
     expect(localStorage.getItem('sim-theme')).toBe('dark')
     expect(localStorage.getItem(RECENT_IMPERSONATIONS_STORAGE_KEY)).toBeNull()
@@ -92,9 +93,10 @@ describe('clearUserData', () => {
       throw new Error('Chunk unavailable')
     })
 
-    await clearUserData()
+    const inMemoryResetSucceeded = await clearUserData()
 
     expect(mockResetAllStores).toHaveBeenCalledOnce()
+    expect(inMemoryResetSucceeded).toBe(false)
     expect(localStorage.getItem('private-cache')).toBeNull()
   })
 })

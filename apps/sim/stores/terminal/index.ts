@@ -1,4 +1,4 @@
-export type { ConsoleEntry, ConsoleUpdate } from './console'
+export type { ConsoleEntry, ConsolePersistenceExecution, ConsoleUpdate } from './console'
 export {
   clearAllExecutionPointers,
   clearExecutionPointer,

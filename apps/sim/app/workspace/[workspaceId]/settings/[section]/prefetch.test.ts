@@ -26,7 +26,7 @@ vi.mock('@/lib/api/server/routes', () => ({
 }))
 
 import { SECTION_PREFETCHERS } from '@/app/workspace/[workspaceId]/settings/[section]/prefetch'
-import { generalSettingsKeys } from '@/hooks/queries/general-settings-data'
+import { generalSettingsKeys } from '@/hooks/queries/current-user-data'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 
 describe('general settings prefetch', () => {

@@ -71,4 +71,5 @@ export interface OperationQueueState {
 
   triggerOfflineMode: () => void
   clearError: () => void
+  reset: () => void
 }

@@ -47,6 +47,13 @@ const retryTimeouts = new Map<string, NodeJS.Timeout>()
 const operationTimeouts = new Map<string, NodeJS.Timeout>()
 const DEFAULT_WORKFLOW_DRAIN_TIMEOUT_MS = 20000
 
+function clearOperationQueueTimers(): void {
+  retryTimeouts.forEach((timeout) => clearTimeout(timeout))
+  retryTimeouts.clear()
+  operationTimeouts.forEach((timeout) => clearTimeout(timeout))
+  operationTimeouts.clear()
+}
+
 let emitWorkflowOperation: WorkflowOperationEmit | null = null
 let emitSubblockUpdate: SubblockUpdateEmit | null = null
 let emitVariableUpdate: VariableUpdateEmit | null = null
@@ -640,10 +647,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   triggerOfflineMode: () => {
     logger.error('Operation failed after retries - triggering offline mode')
 
-    retryTimeouts.forEach((timeout) => clearTimeout(timeout))
-    retryTimeouts.clear()
-    operationTimeouts.forEach((timeout) => clearTimeout(timeout))
-    operationTimeouts.clear()
+    clearOperationQueueTimers()
 
     set({
       operations: [],
@@ -654,6 +658,23 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
   clearError: () => {
     set({ hasOperationError: false })
+  },
+
+  reset: () => {
+    clearOperationQueueTimers()
+
+    emitWorkflowOperation = null
+    emitSubblockUpdate = null
+    emitVariableUpdate = null
+    currentRegisteredWorkflowId = null
+
+    set({
+      operations: [],
+      workflowOperationVersions: {},
+      remoteApplyVersions: {},
+      isProcessing: false,
+      hasOperationError: false,
+    })
   },
 }))
 

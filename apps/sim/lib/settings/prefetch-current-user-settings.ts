@@ -6,7 +6,7 @@ import {
   GENERAL_SETTINGS_STALE_TIME,
   generalSettingsKeys,
   mapGeneralSettingsResponse,
-} from '@/hooks/queries/general-settings-data'
+} from '@/hooks/queries/current-user-data'
 
 type GetPrincipal = () => ReturnType<typeof internalSessionAuth.authenticate>
 

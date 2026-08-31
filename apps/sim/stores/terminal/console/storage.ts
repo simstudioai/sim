@@ -148,6 +148,12 @@ interface PersistOptions {
   merge?: boolean
 }
 
+declare const consolePersistenceExecutionBrand: unique symbol
+
+export interface ConsolePersistenceExecution {
+  readonly [consolePersistenceExecutionBrand]: never
+}
+
 function entryTimestamp(entry: ConsoleEntry): number {
   return Date.parse(entry.endedAt ?? entry.startedAt ?? entry.timestamp)
 }
@@ -246,7 +252,7 @@ function writeToIndexedDB(
 class ConsolePersistenceManager {
   private dataProvider: (() => PersistedConsoleData) | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
-  private activeExecutions = 0
+  private activeExecutions = new Set<ConsolePersistenceExecution>()
   private needsInitialPersist = false
 
   /**
@@ -261,12 +267,14 @@ class ConsolePersistenceManager {
    * Signals that a workflow execution has started.
    * Starts the long-execution safety-net timer if this is the first active execution.
    */
-  executionStarted(): void {
-    this.activeExecutions++
+  executionStarted(): ConsolePersistenceExecution {
+    const execution = {} as ConsolePersistenceExecution
+    this.activeExecutions.add(execution)
     this.needsInitialPersist = true
-    if (this.activeExecutions === 1) {
+    if (this.activeExecutions.size === 1) {
       this.startSafetyTimer()
     }
+    return execution
   }
 
   /**
@@ -284,10 +292,10 @@ class ConsolePersistenceManager {
    * Signals that a workflow execution has ended (success, error, or cancel).
    * Triggers an immediate persist and stops the safety timer if no executions remain.
    */
-  executionEnded(): void {
-    this.activeExecutions = Math.max(0, this.activeExecutions - 1)
+  executionEnded(execution: ConsolePersistenceExecution): void {
+    if (!this.activeExecutions.delete(execution)) return
     this.persist()
-    if (this.activeExecutions === 0) {
+    if (this.activeExecutions.size === 0) {
       this.stopSafetyTimer()
     }
   }
@@ -303,7 +311,7 @@ class ConsolePersistenceManager {
 
   /** Stops persistence work owned by the previous authenticated session. */
   reset(): void {
-    this.activeExecutions = 0
+    this.activeExecutions.clear()
     this.needsInitialPersist = false
     this.stopSafetyTimer()
   }

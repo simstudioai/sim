@@ -15,7 +15,7 @@ import { sendMothershipMessage } from '@/lib/mothership/events'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings-data'
+import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/current-user-data'
 import { useExecutionStore } from '@/stores/execution'
 import {
   CONSOLE_STORAGE_VERSION,

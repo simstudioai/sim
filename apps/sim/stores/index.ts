@@ -11,11 +11,16 @@ interface ClearUserDataOptions {
   preserveRecentImpersonations?: boolean
 }
 
-/** Clears browser and in-memory data at an authenticated identity boundary. */
-export async function clearUserData(options: ClearUserDataOptions = {}): Promise<void> {
-  if (typeof window === 'undefined') return
+/**
+ * Clears browser and in-memory data at an authenticated identity boundary.
+ * Returns whether the in-memory reset completed, so SPA callers can fall back
+ * to a full document navigation when the reset chunk is unavailable.
+ */
+export async function clearUserData(options: ClearUserDataOptions = {}): Promise<boolean> {
+  if (typeof window === 'undefined') return true
 
   let cleanupFailed = false
+  let inMemoryResetSucceeded = true
 
   try {
     const keysToKeep = [
@@ -42,8 +47,10 @@ export async function clearUserData(options: ClearUserDataOptions = {}): Promise
     await resetAllStores()
   } catch (error) {
     cleanupFailed = true
+    inMemoryResetSucceeded = false
     logger.error('Error resetting in-memory user data:', { error })
   }
 
   if (!cleanupFailed) logger.info('User data cleared successfully')
+  return inMemoryResetSucceeded
 }

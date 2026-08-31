@@ -1,10 +1,11 @@
 /**
  * @vitest-environment jsdom
  */
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CONSOLE_STORAGE_VERSION,
   clearAllExecutionPointers,
+  consolePersistence,
   migratePersistedConsoleData,
   saveExecutionPointer,
 } from '@/stores/terminal/console/storage'
@@ -111,5 +112,45 @@ describe('terminal execution pointers', () => {
     expect(window.sessionStorage.getItem('terminal-active-execution:workflow-1')).toBeNull()
     expect(window.sessionStorage.getItem('terminal-active-execution:workflow-2')).toBeNull()
     expect(window.sessionStorage.getItem('unrelated')).toBe('keep')
+  })
+})
+
+describe('console persistence execution lifecycle', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    consolePersistence.reset()
+  })
+
+  afterEach(() => {
+    consolePersistence.reset()
+    vi.useRealTimers()
+  })
+
+  it('ignores an execution ending after its authenticated session was reset', () => {
+    const previousSessionExecution = consolePersistence.executionStarted()
+    consolePersistence.reset()
+    const currentSessionExecution = consolePersistence.executionStarted()
+
+    consolePersistence.executionEnded(previousSessionExecution)
+
+    expect(vi.getTimerCount()).toBe(1)
+
+    consolePersistence.executionEnded(currentSessionExecution)
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not let a duplicate completion end another active execution', () => {
+    const firstExecution = consolePersistence.executionStarted()
+    const secondExecution = consolePersistence.executionStarted()
+
+    consolePersistence.executionEnded(firstExecution)
+    consolePersistence.executionEnded(firstExecution)
+
+    expect(vi.getTimerCount()).toBe(1)
+
+    consolePersistence.executionEnded(secondExecution)
+
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

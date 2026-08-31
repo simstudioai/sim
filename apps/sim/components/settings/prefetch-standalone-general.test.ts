@@ -23,8 +23,7 @@ vi.mock('@/lib/users/application/read-current-user', () => ({
 }))
 
 import { prefetchStandaloneGeneral } from '@/components/settings/prefetch-standalone-general'
-import { generalSettingsKeys } from '@/hooks/queries/general-settings-data'
-import { userProfileKeys } from '@/hooks/queries/user-profile-data'
+import { generalSettingsKeys, userProfileKeys } from '@/hooks/queries/current-user-data'
 
 describe('prefetchStandaloneGeneral', () => {
   beforeEach(() => {

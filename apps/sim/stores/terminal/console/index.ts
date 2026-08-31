@@ -1,3 +1,4 @@
+export type { ConsolePersistenceExecution } from './storage'
 export {
   clearAllExecutionPointers,
   clearExecutionPointer,

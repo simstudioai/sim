@@ -1,4 +1,4 @@
-import { dbReplica } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { member, userStats, workspace } from '@sim/db/schema'
 import { and, asc, eq, isNull } from 'drizzle-orm'
 import type { DbClient } from '@/lib/db/types'
@@ -12,7 +12,7 @@ export interface BillingBlockState {
 /** Finds an active workspace whose host billing identity is the requested payer. */
 export async function getUpgradeWorkspaceId(
   target: { type: 'user'; id: string } | { type: 'organization'; id: string },
-  executor: DbClient = dbReplica
+  executor: DbClient = db
 ): Promise<string | null> {
   const targetPredicate =
     target.type === 'organization'

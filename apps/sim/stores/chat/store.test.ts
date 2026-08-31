@@ -84,6 +84,38 @@ describe('chat store message ordering', () => {
     })
   })
 
+  it('resets persisted identity and transient UI state', () => {
+    useChatStore.setState({
+      isChatOpen: true,
+      chatPosition: { x: 10, y: 20 },
+      chatWidth: 500,
+      chatHeight: 400,
+      messages: [
+        {
+          id: 'message-a',
+          content: 'private response',
+          workflowId: 'workflow-a',
+          type: 'workflow',
+          timestamp: '2026-08-31T00:00:00.000Z',
+        },
+      ],
+      selectedWorkflowOutputs: { 'workflow-a': ['output-a'] },
+      conversationIds: { 'workflow-a': 'conversation-a' },
+    })
+
+    useChatStore.getState().reset()
+
+    expect(useChatStore.getState()).toMatchObject({
+      isChatOpen: false,
+      chatPosition: null,
+      chatWidth: 305,
+      chatHeight: 286,
+      messages: [],
+      selectedWorkflowOutputs: {},
+      conversationIds: {},
+    })
+  })
+
   describe('exportChatCSV', () => {
     beforeEach(() => {
       mockSaveBlob.mockClear()

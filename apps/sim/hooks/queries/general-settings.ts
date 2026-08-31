@@ -11,7 +11,7 @@ import {
   type GeneralSettings,
   generalSettingsKeys,
   mapGeneralSettingsResponse,
-} from '@/hooks/queries/general-settings-data'
+} from '@/hooks/queries/current-user-data'
 
 const logger = createLogger('GeneralSettingsQuery')
 

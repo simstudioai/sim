@@ -14,6 +14,8 @@ const {
   mockFetch,
   mockHandleExecutionCancelledConsole,
   mockHandleExecutionErrorConsole,
+  mockPersistenceExecutionEnded,
+  mockPersistenceExecutionStarted,
   mockRequestJson,
   mockResolveStartCandidates,
   mockSelectBestTrigger,
@@ -89,6 +91,8 @@ const {
     mockFetch: vi.fn(),
     mockHandleExecutionCancelledConsole: vi.fn(),
     mockHandleExecutionErrorConsole: vi.fn(),
+    mockPersistenceExecutionEnded: vi.fn(),
+    mockPersistenceExecutionStarted: vi.fn(() => ({})),
     mockRequestJson: vi.fn(),
     mockResolveStartCandidates: vi.fn(),
     mockSelectBestTrigger: vi.fn(),
@@ -237,8 +241,8 @@ vi.mock('@/stores/execution', () => ({
 vi.mock('@/stores/terminal', () => ({
   clearExecutionPointer: vi.fn(),
   consolePersistence: {
-    executionStarted: vi.fn(),
-    executionEnded: vi.fn(),
+    executionStarted: mockPersistenceExecutionStarted,
+    executionEnded: mockPersistenceExecutionEnded,
     persist: vi.fn(),
   },
   loadExecutionPointer: vi.fn(),
@@ -402,6 +406,9 @@ describe('useWorkflowExecution cancellation', () => {
 describe('useWorkflowExecution attachment uploads', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    executionStoreState.getWorkflowExecution.mockReturnValue(
+      executionStoreState.workflowExecutions.get('workflow-1')!
+    )
     executionStoreState.getCurrentExecutionId.mockReturnValue(null)
     mockResolveStartCandidates.mockReturnValue([])
     mockSelectBestTrigger.mockReturnValue([])
@@ -534,6 +541,46 @@ describe('useWorkflowExecution attachment uploads', () => {
         }),
       })
     )
+
+    unmount()
+  })
+
+  it('does not let an overlapping run without lifecycle ownership end the active run', async () => {
+    const persistenceExecution = {}
+    let resolveActiveRun: (() => void) | undefined
+    mockPersistenceExecutionStarted.mockReturnValueOnce(persistenceExecution)
+    mockExecute.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveActiveRun = resolve
+        })
+    )
+    const { result, unmount } = renderWorkflowExecutionHook()
+
+    let activeRun: unknown
+    await act(async () => {
+      activeRun = await result().handleRunWorkflow({ input: 'active run' })
+    })
+
+    executionStoreState.getWorkflowExecution.mockReturnValue({
+      ...executionStoreState.getWorkflowExecution(),
+      isExecuting: true,
+    })
+
+    await act(async () => {
+      await result().handleRunWorkflow()
+    })
+
+    expect(mockPersistenceExecutionStarted).toHaveBeenCalledTimes(1)
+    expect(mockPersistenceExecutionEnded).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveActiveRun?.()
+      await drainStream(activeRun)
+    })
+
+    expect(mockPersistenceExecutionEnded).toHaveBeenCalledOnce()
+    expect(mockPersistenceExecutionEnded).toHaveBeenCalledWith(persistenceExecution)
 
     unmount()
   })

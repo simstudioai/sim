@@ -7,7 +7,7 @@ import {
   mapUserProfileResponse,
   USER_PROFILE_STALE_TIME,
   userProfileKeys,
-} from '@/hooks/queries/user-profile-data'
+} from '@/hooks/queries/current-user-data'
 
 /**
  * Hydrates the authenticated viewer's standalone General page with the exact

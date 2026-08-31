@@ -1,4 +1,4 @@
-import { dbReplica } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { desc, eq } from 'drizzle-orm'
 import { defineAuthorizedOrganizationBillingSummaryUseCase } from '@/lib/billing/application/organization-billing-summary/authorized-organization-billing-summary-use-case'
@@ -82,7 +82,7 @@ export const getOrganizationBillingSummary = defineAuthorizedOrganizationBilling
         .orderBy(desc(subscriptionTable.periodStart), desc(subscriptionTable.id))
         .limit(1),
       getOrganizationBillingBlockState(organizationId, actorUserId, dbReplica),
-      getUpgradeWorkspaceId({ type: 'organization', id: organizationId }, dbReplica),
+      getUpgradeWorkspaceId({ type: 'organization', id: organizationId }, db),
     ])
 
     const organizationRecord = organizationRows[0]

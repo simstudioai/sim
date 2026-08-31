@@ -10,6 +10,8 @@ const {
   mockClearAllExecutionPointers,
   mockGetQueryClient,
   mockMothershipQueueReset,
+  mockOperationQueueReset,
+  mockResetRegisteredUserData,
   mockRegistrySetState,
   mockSubBlockSetState,
   mockWaitForConsoleHydration,
@@ -20,6 +22,8 @@ const {
   mockConsoleReset: vi.fn(),
   mockGetQueryClient: vi.fn(),
   mockMothershipQueueReset: vi.fn(),
+  mockOperationQueueReset: vi.fn(),
+  mockResetRegisteredUserData: vi.fn(),
   mockRegistrySetState: vi.fn(),
   mockSubBlockSetState: vi.fn(),
   mockWaitForConsoleHydration: vi.fn(),
@@ -29,6 +33,9 @@ const {
 vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: mockGetQueryClient,
 }))
+vi.mock('@/stores/user-data-reset-registry', () => ({
+  resetRegisteredUserData: mockResetRegisteredUserData,
+}))
 vi.mock('@/stores/execution', () => ({
   useExecutionStore: { getState: () => ({ reset: vi.fn() }) },
 }))
@@ -37,6 +44,9 @@ vi.mock('@/stores/mothership-drafts/store', () => ({
 }))
 vi.mock('@/stores/mothership-queue/store', () => ({
   useMothershipQueueStore: { getState: () => ({ reset: mockMothershipQueueReset }) },
+}))
+vi.mock('@/stores/operation-queue/store', () => ({
+  useOperationQueueStore: { getState: () => ({ reset: mockOperationQueueReset }) },
 }))
 vi.mock('@/stores/terminal', () => ({
   clearAllExecutionPointers: mockClearAllExecutionPointers,
@@ -89,6 +99,8 @@ describe('resetAllStores', () => {
       expect.objectContaining({ currentWorkflowId: null, blocks: {}, edges: [] })
     )
     expect(mockSubBlockSetState).toHaveBeenCalledWith({ workflowValues: {} })
+    expect(mockOperationQueueReset).toHaveBeenCalledOnce()
+    expect(mockResetRegisteredUserData).toHaveBeenCalledOnce()
     expect(mockConsoleReset).toHaveBeenCalledOnce()
     expect(mockClearAllExecutionPointers).toHaveBeenCalledOnce()
     expect(mockMothershipQueueReset).toHaveBeenCalledOnce()
@@ -104,6 +116,8 @@ describe('resetAllStores', () => {
     )
 
     const resetPromise = resetAllStores()
+    expect(mockOperationQueueReset).toHaveBeenCalledOnce()
+    expect(mockResetRegisteredUserData).toHaveBeenCalledOnce()
     await Promise.resolve()
     expect(mockRegistrySetState).not.toHaveBeenCalled()
 

@@ -4,17 +4,21 @@ import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useExecutionStore } from '@/stores/execution'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import {
   clearAllExecutionPointers,
   consolePersistence,
   useTerminalConsoleStore,
   waitForConsoleHydration,
 } from '@/stores/terminal'
+import { resetRegisteredUserData } from '@/stores/user-data-reset-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 export async function resetAllStores(): Promise<void> {
+  useOperationQueueStore.getState().reset()
+  resetRegisteredUserData()
   await waitForConsoleHydration()
 
   useWorkflowRegistry.setState({

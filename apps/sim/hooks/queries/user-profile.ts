@@ -13,7 +13,7 @@ import {
   USER_PROFILE_STALE_TIME,
   type UserProfile,
   userProfileKeys,
-} from '@/hooks/queries/user-profile-data'
+} from '@/hooks/queries/current-user-data'
 
 const logger = createLogger('UserProfileQuery')
 
