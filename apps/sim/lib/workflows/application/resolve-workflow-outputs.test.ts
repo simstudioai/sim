@@ -7,7 +7,9 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
   flatten: vi.fn(),
+  loadDeployed: vi.fn(),
   load: vi.fn(),
+  NoActiveDeploymentError: class NoActiveDeploymentError extends Error {},
   order: vi.fn(),
   resolveContext: vi.fn(),
   resolvePermission: vi.fn(),
@@ -33,10 +35,15 @@ vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
+  NoActiveDeploymentError: mocks.NoActiveDeploymentError,
+  loadDeployedWorkflowState: mocks.loadDeployed,
   loadWorkflowFromNormalizedTables: mocks.load,
 }))
 
-import { resolveWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
+import {
+  loadResolvedDeployedWorkflowOutputs,
+  resolveWorkflowOutputs,
+} from '@/lib/workflows/application/resolve-workflow-outputs'
 
 const principal = {
   kind: 'delegated' as const,
@@ -59,9 +66,13 @@ describe('resolveWorkflowOutputs', () => {
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
-      workflow: { id: 'workflow-1' },
+      workflow: { id: 'workflow-1', isDeployed: true },
     })
     mocks.load.mockResolvedValue({
+      blocks: { block1: { id: 'block-1', type: 'agent', name: 'Agent', subBlocks: {} } },
+      edges: [],
+    })
+    mocks.loadDeployed.mockResolvedValue({
       blocks: { block1: { id: 'block-1', type: 'agent', name: 'Agent', subBlocks: {} } },
       edges: [],
     })
@@ -107,6 +118,42 @@ describe('resolveWorkflowOutputs', () => {
         input: { workflowId: 'workflow-other', assertedWorkspaceId: 'workspace-1' },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Workflow not found' })
+    expect(mocks.load).not.toHaveBeenCalled()
+  })
+
+  it('resolves table mappings from the active deployment state', async () => {
+    const context = await mocks.resolveContext()
+
+    await expect(loadResolvedDeployedWorkflowOutputs(context)).resolves.toMatchObject({
+      workflowId: 'workflow-1',
+      outputs: [{ blockId: 'block-1', path: 'content' }],
+    })
+
+    expect(mocks.loadDeployed).toHaveBeenCalledWith('workflow-1', 'workspace-1')
+    expect(mocks.load).not.toHaveBeenCalled()
+  })
+
+  it('rejects a workflow without an active deployment before resolving mappings', async () => {
+    const context = {
+      ...(await mocks.resolveContext()),
+      workflow: { id: 'workflow-1', isDeployed: false },
+    }
+
+    await expect(loadResolvedDeployedWorkflowOutputs(context)).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Workflow must have an active deployment',
+    })
+    expect(mocks.loadDeployed).not.toHaveBeenCalled()
+  })
+
+  it('rejects inconsistent deployment metadata without returning draft mappings', async () => {
+    const context = await mocks.resolveContext()
+    mocks.loadDeployed.mockRejectedValueOnce(new mocks.NoActiveDeploymentError())
+
+    await expect(loadResolvedDeployedWorkflowOutputs(context)).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Workflow must have an active deployment',
+    })
     expect(mocks.load).not.toHaveBeenCalled()
   })
 

@@ -62,7 +62,6 @@ import type {
   TablePredicateInput,
   TableSchema,
   WorkflowGroupDependencies,
-  WorkflowGroupDeploymentMode,
 } from '@/lib/table/types'
 import { viewConfigIdsToNames } from '@/lib/table/views/service'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -130,16 +129,6 @@ function resolveAuthorizedWorkflowOutputs(
     workflowId,
     assertedWorkspaceId: workspaceId,
   })
-}
-
-/**
- * Narrows a raw `deploymentMode` arg to the `'live' | 'deployed'` union, or
- * `undefined` when absent/invalid (leaving the group's existing value — which
- * itself defaults to `'live'`). Lets Mothership choose whether a group's
- * per-cell runs execute the live draft or the latest active deployment.
- */
-function parseDeploymentMode(value: unknown): WorkflowGroupDeploymentMode | undefined {
-  return value === 'live' || value === 'deployed' ? value : undefined
 }
 
 /** Validates an optional row limit against the policy for the requested surface operation. */
@@ -1242,7 +1231,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const dependencies = args.dependencies as WorkflowGroupDependencies | undefined
           const name = args.name as string | undefined
-          const deploymentMode = parseDeploymentMode(args.deploymentMode)
           assertNotAborted()
           const autoRun = args.autoRun === true
           const { table: updated, group } = await executeCopilotCreateWorkflowTableGroup(context, {
@@ -1252,7 +1240,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             outputs: rawOutputs,
             name,
             dependencies,
-            deploymentMode,
             autoRun,
           })
           return {
@@ -1294,7 +1281,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             dependencies: args.dependencies as WorkflowGroupDependencies | undefined,
             outputs: updateOutputs,
             mappingUpdates,
-            deploymentMode: parseDeploymentMode(args.deploymentMode),
             autoRun: typeof args.autoRun === 'boolean' ? args.autoRun : undefined,
           })
           return {

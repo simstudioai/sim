@@ -35,7 +35,7 @@ import {
 } from '@/lib/table/workflow-groups/service'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import type { ResolveWorkflowOutputsResult } from '@/lib/workflows/application/resolve-workflow-outputs'
-import { loadResolvedWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
+import { loadResolvedDeployedWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
 import { getEnrichment } from '@/enrichments/registry'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
@@ -64,7 +64,7 @@ async function resolveWorkflowForAuthorizedTableCommand(
     workflowId,
     assertedWorkspaceId: workspaceId,
   })
-  return loadResolvedWorkflowOutputs(workflowContext)
+  return loadResolvedDeployedWorkflowOutputs(workflowContext)
 }
 
 async function resolveRelatedWorkflowForTableRoute(
@@ -1079,6 +1079,11 @@ export const addWorkflowTableGroupOutput = defineAuthorizedTableUseCase({
       context.workspaceId
     )
     const outputs = requireWorkflowOutputs(resolvedWorkflow, group.workflowId)
+    validateRequestedOutputs(
+      [...group.outputs, { blockId: input.blockId, path: input.path }],
+      resolvedWorkflow,
+      group.workflowId
+    )
     const output = outputs.find(
       (candidate) => candidate.blockId === input.blockId && candidate.path === input.path
     )

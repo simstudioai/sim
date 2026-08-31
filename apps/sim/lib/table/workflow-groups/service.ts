@@ -752,6 +752,15 @@ export async function addWorkflowGroupOutput(
         const [db, ib] = orderKey(b)
         return da !== db ? da - db : ia - ib
       })
+      const invalidOutput = allGroupOutputs.find(
+        (output) => !resolvedOrder.has(`${output.blockId}::${output.path}`)
+      )
+      if (invalidOutput) {
+        throw new OrchestrationError(
+          'conflict',
+          `Workflow group "${data.groupId}" mappings changed concurrently; retry the add.`
+        )
+      }
       const orderedGroupColIds = allGroupOutputs.map((o) => o.columnName)
       const updatedGroup: WorkflowGroup = {
         ...group,
