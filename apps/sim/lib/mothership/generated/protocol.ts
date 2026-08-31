@@ -39,6 +39,14 @@ export interface ChatRequest {
   /** User attachments / @-mentions packed with the message. */
   context?: ChatContextItem[] | undefined
   userTimezone?: string | undefined
+  /**
+   * What the CALLER can execute client-side. PRESENT = an explicit declaration — an
+   * empty array means "I pick up nothing", so sim-side dispatch must skip client-pickup
+   * grace windows and run tools server-side immediately. ABSENT = legacy/unknown caller —
+   * dispatch keeps its conservative grace (deploy-skew safe: a stale tab that predates
+   * this field still gets waited on). Known capability: "workflow-tool-pickup".
+   */
+  clientCapabilities?: string[] | undefined
 }
 
 export interface ChatContextItem {

@@ -102,6 +102,24 @@ describe('raceWorkflowToolClientPickup', () => {
     expect(waiterSignals.at(0)?.aborted).toBe(true)
   })
 
+  it('claims immediately when the caller declared no client pickup (graceMs 0)', async () => {
+    // ChatRequest.clientCapabilities without 'workflow-tool-pickup' resolves to graceMs 0
+    // at the dispatch site: same claim arbitration, no dead-air grace for a client that
+    // the caller itself said will never come.
+    pendingUntilAborted()
+    claimWorkflowToolExecution.mockResolvedValue({ toolCallId: 'tool-1' })
+    const params = baseParams({ graceMs: 0 })
+
+    const promise = raceWorkflowToolClientPickup(params as never)
+    await vi.advanceTimersByTimeAsync(0)
+    const outcome = await promise
+
+    expect(outcome.winner).toBe('sim')
+    expect(claimWorkflowToolExecution).toHaveBeenCalledTimes(1)
+    expect(params.runOnServer).toHaveBeenCalledTimes(1)
+    expect(waiterSignals.at(0)?.aborted).toBe(true)
+  })
+
   it('keeps waiting on the browser when the claim is lost', async () => {
     // The waiter stays pending until the "browser" reports, so we can assert the
     // helper went back to waiting on the same promise rather than running.

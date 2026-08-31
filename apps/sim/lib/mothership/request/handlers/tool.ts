@@ -834,7 +834,14 @@ async function dispatchToolExecution(
             toolCallId,
             workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
             timeoutMs,
-            graceMs: COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
+            // The caller declared its executors at turn setup (ChatRequest.clientCapabilities):
+            // no pickup capability → zero grace, the race resolves straight to the server
+            // claim. Same claim arbitration either way — the grace only encodes how long a
+            // client might plausibly appear.
+            graceMs:
+              options.clientToolPickupExpected === false
+                ? 0
+                : COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
             abortSignal: options.abortSignal,
             registry: execContext.resolvedSecretTraceRegistry,
             runOnServer: (boundExecutionId) => {
