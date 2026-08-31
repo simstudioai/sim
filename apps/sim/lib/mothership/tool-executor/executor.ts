@@ -101,7 +101,8 @@ export async function executeTool(
     const normalizedParams = normalizeToolParams(toolId, params, context)
 
     const canUseRegisteredHandler =
-      isKnownTool(toolId) && (isSimExecuted(toolId) || usesHeadlessClientFallback)
+      hasHandler(toolId) &&
+      (!isKnownTool(toolId) || isSimExecuted(toolId) || usesHeadlessClientFallback)
     if (!canUseRegisteredHandler) {
       const appParams = buildAppToolParams(normalizedParams, context)
       const options = {
