@@ -350,7 +350,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
-          let forwardedAssistantContent = ''
+          let lastForwardedTextSeq = -1
           const send = (event: unknown) => {
             if (!cancelled) {
               controller.enqueue(encodeNdjson(event))
@@ -372,14 +372,15 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                   event.payload.channel === MothershipStreamV1TextChannel.assistant &&
                   event.payload.text
                 ) {
-                  const text = event.payload.text
-                  const content = text.startsWith(forwardedAssistantContent)
-                    ? text.slice(forwardedAssistantContent.length)
-                    : text
-                  if (content) {
-                    forwardedAssistantContent += content
-                    send({ type: 'chunk', content })
+                  /* The wire carries text DELTAS with monotone seqs; a transport-retry
+                     replay re-delivers earlier seqs. Dedupe replays by seq — the old
+                     string-prefix guess sliced characters off a genuine delta that
+                     happened to begin with the already-forwarded content. */
+                  if (typeof event.seq === 'number') {
+                    if (event.seq <= lastForwardedTextSeq) return
+                    lastForwardedTextSeq = event.seq
                   }
+                  send({ type: 'chunk', content: event.payload.text })
                 }
               })
               allowExplicitAbort = false

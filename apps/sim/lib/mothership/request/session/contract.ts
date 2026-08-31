@@ -33,7 +33,13 @@ type EnvelopeToStreamEvent<T> = T extends {
   payload: infer TPayload
   scope?: infer TScope
 }
-  ? { type: TType; payload: TPayload; scope?: Exclude<TScope, undefined> }
+  ? {
+      type: TType
+      payload: TPayload
+      scope?: Exclude<TScope, undefined>
+      /** Wire ordering key, carried off the envelope; absent on synthetic events. */
+      seq?: number
+    }
   : never
 
 export type SyntheticFilePreviewPhase = (typeof FILE_PREVIEW_PHASE)[keyof typeof FILE_PREVIEW_PHASE]

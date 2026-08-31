@@ -69,6 +69,7 @@ export function eventToStreamEvent<TEnvelope extends PersistedStreamEventEnvelop
   return {
     type: envelope.type,
     payload: envelope.payload,
+    seq: envelope.seq,
     ...(envelope.scope ? { scope: envelope.scope } : {}),
   } as StreamEventFromEnvelope<TEnvelope>
 }
