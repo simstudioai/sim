@@ -24,13 +24,16 @@ export function getTimezonePickerPresentation(
       : null
   const safeInvalidTimezone =
     savedTimezone === null ? '' : sanitizeTimezoneForDisplay(savedTimezone)
+  const browserTimezoneLabel =
+    timezoneOptions.find((option) => option.value === browserTimezone)?.label ??
+    sanitizeTimezoneForDisplay(browserTimezone)
 
   return {
     value: hasInvalidTimezone
       ? INVALID_TIMEZONE_OPTION_VALUE
       : (savedTimezone ?? AUTO_TIMEZONE_OPTION_VALUE),
     options: [
-      { label: `Auto: ${browserTimezone}`, value: AUTO_TIMEZONE_OPTION_VALUE },
+      { label: `Auto: ${browserTimezoneLabel}`, value: AUTO_TIMEZONE_OPTION_VALUE },
       ...(hasInvalidTimezone
         ? [
             {

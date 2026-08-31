@@ -9,14 +9,14 @@ import {
   timezonePreferenceFromPickerValue,
 } from '@/app/workspace/[workspaceId]/settings/components/general/timezone-picker'
 
-const timezoneOptions = [{ label: 'Los Angeles', value: 'America/Los_Angeles' }]
+const timezoneOptions = [{ label: 'Los Angeles (GMT-07:00)', value: 'America/Los_Angeles' }]
 
 describe('getTimezonePickerPresentation', () => {
   it('shows an unset preference as an explicit browser-managed option', () => {
     expect(getTimezonePickerPresentation(null, 'America/Los_Angeles', timezoneOptions)).toEqual({
       value: AUTO_TIMEZONE_OPTION_VALUE,
       options: [
-        { label: 'Auto: America/Los_Angeles', value: AUTO_TIMEZONE_OPTION_VALUE },
+        { label: 'Auto: Los Angeles (GMT-07:00)', value: AUTO_TIMEZONE_OPTION_VALUE },
         ...timezoneOptions,
       ],
     })
