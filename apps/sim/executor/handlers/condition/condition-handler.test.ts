@@ -256,6 +256,28 @@ describe('ConditionBlockHandler', () => {
     expect(toolParams.mountedSecrets).toEqual([])
   })
 
+  it('trusts the resolver record over the word appearing in a resolved expression', async () => {
+    // The resolver saw the author's text before any value was inlined; the expression by now
+    // carries trigger data, where the same word means nothing.
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+
+    const conditions = [
+      {
+        id: 'cond1',
+        title: 'if',
+        value: `'environmentVariables.OPENAI_API_KEY' === 'x'`,
+        _readsEnvironmentVariables: false,
+      },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+
+    const [, toolParams] = mockExecuteTool.mock.calls[0]
+    expect(toolParams.secretScope).toBe('selected')
+    expect(toolParams.mountedSecrets).toEqual([])
+  })
+
   it('keeps the whole environment for a condition that reads the environment directly', async () => {
     // Every shape an expression can reach the map through, including the ones a member-access
     // pattern would miss — narrowing one of those would route the run silently.

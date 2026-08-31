@@ -236,14 +236,48 @@ describe('VariableResolver function block inputs', () => {
     )
 
     expect(result.conditions).toEqual([
-      { id: 'condition-1', title: 'if', value: '123 === 123' },
-      { id: 'condition-2', title: 'else if', value: 'true === true' },
+      { id: 'condition-1', title: 'if', value: '123 === 123', _readsEnvironmentVariables: false },
+      {
+        id: 'condition-2',
+        title: 'else if',
+        value: 'true === true',
+        _readsEnvironmentVariables: false,
+      },
       {
         id: 'condition-3',
         title: 'else if',
         value: '"Bearer {{API_KEY}}" === "Bearer token"',
+        _readsEnvironmentVariables: false,
       },
     ])
+  })
+
+  it('records whether the author, not the trigger data, reads the environment map', async () => {
+    const { ctx, resolver } = createResolver()
+    ctx.environmentVariables = {}
+    const conditionBlock = createBlock('condition', 'Condition', BlockType.CONDITION)
+    // The second branch only quotes a producer output that happens to contain the word.
+    const conditions = [
+      { id: 'c1', title: 'if', value: `environmentVariables.FLAG === 'on'` },
+      { id: 'c2', title: 'else if', value: `"<producer.result>" === 'x'` },
+    ]
+    ;(ctx.blockStates as Map<string, any>).set('producer', {
+      output: { result: 'environmentVariables.OPENAI_API_KEY' },
+      executed: true,
+      executionTime: 0,
+    })
+
+    const result = await resolver.resolveInputs(
+      ctx,
+      conditionBlock.id,
+      { conditions: JSON.stringify(conditions) },
+      conditionBlock
+    )
+
+    const resolvedConditions = result.conditions as Array<Record<string, unknown>>
+    expect(resolvedConditions[0]._readsEnvironmentVariables).toBe(true)
+    expect(resolvedConditions[1]._readsEnvironmentVariables).toBe(false)
+    expect(resolvedConditions[1].value).toContain('environmentVariables.OPENAI_API_KEY')
   })
 
   it('preserves legacy condition outcomes end to end through the boundary compiler', async () => {

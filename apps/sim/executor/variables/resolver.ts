@@ -36,6 +36,18 @@ import {
 import { WorkflowResolver } from '@/executor/variables/resolvers/workflow'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
+/**
+ * Marks a Condition branch whose author-written expression reads the environment map.
+ *
+ * Carried per branch because only the pre-resolution text can answer it: the handler decides
+ * which secrets to mount, and by the time it runs, resolved trigger data quoted inside the
+ * expression would read the same as the author reaching for the map.
+ */
+export const CONDITION_READS_ENVIRONMENT_KEY = '_readsEnvironmentVariables'
+
+/** The sandbox global holding the run's secrets, in whatever shape an expression reaches it. */
+const ENVIRONMENT_MAP_IDENTIFIER = /\benvironmentVariables\b/
+
 /** Key used to carry pre-resolved context variables through the inputs map. */
 export const FUNCTION_BLOCK_CONTEXT_VARS_KEY = '_runtimeContextVars'
 /** Key used to carry display-resolved code through the function execution path. */
@@ -346,6 +358,11 @@ export class VariableResolver {
             const value = Reflect.get(condition, 'value')
             return {
               ...condition,
+              // Recorded before resolution: once values are inlined, an expression that reads
+              // the environment map is indistinguishable from one that merely quotes trigger
+              // data containing the word, and the handler decides what to mount from this.
+              [CONDITION_READS_ENVIRONMENT_KEY]:
+                typeof value === 'string' && ENVIRONMENT_MAP_IDENTIFIER.test(value),
               value:
                 typeof value === 'string'
                   ? await this.resolveTemplateWithoutConditionFormatting(
@@ -1129,14 +1146,17 @@ export class VariableResolver {
   private canStartJavaScriptRegex(
     template: string,
     previousSignificantIndex: number,
-    controlHeadParenCloses: ReadonlySet<number>
+    closes: { controlHeadParenCloses: ReadonlySet<number>; regexCloseIndices: ReadonlySet<number> }
   ): boolean {
     if (previousSignificantIndex < 0) {
       return true
     }
     const previous = template[previousSignificantIndex]
     if (previous === ')') {
-      return controlHeadParenCloses.has(previousSignificantIndex)
+      return closes.controlHeadParenCloses.has(previousSignificantIndex)
+    }
+    if (previous === '/' && closes.regexCloseIndices.has(previousSignificantIndex)) {
+      return false
     }
     if (JAVASCRIPT_REGEX_ALLOWED_AFTER.has(previous)) {
       return true
@@ -1304,6 +1324,7 @@ export class VariableResolver {
     let lastSignificantIndex = -1
     const openParenIsControlHead: boolean[] = []
     const controlHeadParenCloses = new Set<number>()
+    const regexCloseIndices = new Set<number>()
 
     for (let i = 0; i < index; i++) {
       const char = template[i]
@@ -1346,6 +1367,9 @@ export class VariableResolver {
         }
         if (char === '/' && !mode.inCharacterClass) {
           modes.pop()
+          // The literal that just closed is a value, so the next `/` divides it.
+          regexCloseIndices.add(i)
+          lastSignificantIndex = i
         }
         continue
       }
@@ -1414,7 +1438,10 @@ export class VariableResolver {
         if (
           !isPython &&
           char === '/' &&
-          this.canStartJavaScriptRegex(template, previousSignificantIndex, controlHeadParenCloses)
+          this.canStartJavaScriptRegex(template, previousSignificantIndex, {
+            controlHeadParenCloses,
+            regexCloseIndices,
+          })
         ) {
           modes.push({ type: 'regex', inCharacterClass: false })
           continue
@@ -1480,7 +1507,10 @@ export class VariableResolver {
       if (
         !isPython &&
         char === '/' &&
-        this.canStartJavaScriptRegex(template, previousSignificantIndex, controlHeadParenCloses)
+        this.canStartJavaScriptRegex(template, previousSignificantIndex, {
+          controlHeadParenCloses,
+          regexCloseIndices,
+        })
       ) {
         modes.push({ type: 'regex', inCharacterClass: false })
         continue

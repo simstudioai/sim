@@ -17,6 +17,7 @@ import {
   extractBranchIndex,
   isBranchNodeId,
 } from '@/executor/utils/subflow-utils'
+import { CONDITION_READS_ENVIRONMENT_KEY } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import type { ToolResponse } from '@/tools/types'
@@ -29,6 +30,8 @@ interface ConditionEntry {
   id: string
   title: string
   value: string
+  /** Set by the resolver from the author's pre-resolution expression. */
+  [CONDITION_READS_ENVIRONMENT_KEY]?: boolean
 }
 
 /** Verdict for a whole condition list evaluated in one function execution. */
@@ -97,32 +100,36 @@ function buildConditionScript(expressions: string[], evalContext: Record<string,
  * sandbox the full environment only widens what a future defect in this path could reach —
  * the whole map was readable as the `environmentVariables` global.
  *
- * Both scans read the expressions rather than the built script, which also carries the source
- * block's output as data. Reading that data would let it decide what the sandbox holds: a
- * payload containing the word `environmentVariables` would restore the whole map, and one
- * containing `{{SECRET}}` would mount that secret and have the compiler expand it into the
- * data — a caller choosing which secret materializes next to it. Every legitimate route to a
- * secret runs through an expression, including a workflow variable holding `{{NAME}}`, because
- * the resolver inlines that value into the expression before this runs.
+ * Neither signal is read from the built script, which also carries the source block's output as
+ * data. Reading that data would let it decide what the sandbox holds — a payload containing
+ * `{{SECRET}}` would mount that secret and have the compiler expand it beside the payload.
+ * Placeholders are therefore read from the expressions, which is where every legitimate route
+ * to a secret passes, including a workflow variable holding `{{NAME}}`: the resolver inlines
+ * that value into the expression before this runs.
  *
- * Within an expression the bare `environmentVariables` identifier is enough, rather than a
- * member access. Narrowing the secrets an expression can see when it does reach for the map by
- * some shape the pattern did not anticipate — `environmentVariables?.FLAG`, or a read through
- * `Object.keys` — would route the run down a branch the author did not write, silently.
- * Matching too widely only costs the narrowing itself, and never mounts more than this path
- * already mounted.
+ * A direct read of the environment map is not read from the resolved expression either, for the
+ * same reason one step further in: resolved data is quoted inside it, so a payload containing
+ * the word would be indistinguishable from the author reaching for the map. The resolver
+ * records the answer from the author's pre-resolution text instead. When that record is absent
+ * — a caller that did not resolve through it — the expression is scanned as a fallback, because
+ * narrowing a read this missed would route the run down a branch the author did not write,
+ * silently, while matching too widely only costs the narrowing.
  */
-function scopeConditionSecrets(expressions: string[]): {
+function scopeConditionSecrets(conditions: ConditionEntry[]): {
   secretScope: 'all' | 'selected'
   mountedSecrets: string[]
 } {
-  if (expressions.some((expression) => /\benvironmentVariables\b/.test(expression))) {
+  const readsEnvironment = conditions.some((condition) => {
+    const recorded = condition[CONDITION_READS_ENVIRONMENT_KEY]
+    return recorded ?? /\benvironmentVariables\b/.test(condition.value)
+  })
+  if (readsEnvironment) {
     return { secretScope: 'all', mountedSecrets: [] }
   }
 
   const named = new Set<string>()
-  for (const expression of expressions) {
-    for (const match of expression.matchAll(createEnvVarPattern())) {
+  for (const condition of conditions) {
+    for (const match of String(condition.value ?? '').matchAll(createEnvVarPattern())) {
       named.add(String(match[1]).trim())
     }
   }
@@ -141,11 +148,11 @@ function scopeConditionSecrets(expressions: string[]): {
 async function runConditionCode(
   ctx: ExecutionContext,
   code: string,
-  expressions: string[],
+  conditions: ConditionEntry[],
   currentNodeId?: string
 ): Promise<ToolResponse> {
   const { blockNameMapping, blockOutputSchemas } = collectBlockData(ctx, currentNodeId)
-  const { secretScope, mountedSecrets } = scopeConditionSecrets(expressions)
+  const { secretScope, mountedSecrets } = scopeConditionSecrets(conditions)
 
   return executeTool(
     'function_execute',
@@ -188,14 +195,15 @@ function isTimeoutFailure(error: string | undefined): boolean {
 /** Evaluates the whole condition list in a single function execution. */
 async function evaluateConditionList(
   ctx: ExecutionContext,
-  expressions: string[],
+  conditions: ConditionEntry[],
   evalContext: Record<string, unknown>,
   currentNodeId?: string
 ): Promise<ConditionEvaluation> {
+  const expressions = conditions.map((condition) => String(condition.value || ''))
   const result = await runConditionCode(
     ctx,
     buildConditionScript(expressions, evalContext),
-    expressions,
+    conditions,
     currentNodeId
   )
 
@@ -275,12 +283,13 @@ async function evaluateConditionList(
  */
 async function evaluateSingleCondition(
   ctx: ExecutionContext,
-  expression: string,
+  condition: ConditionEntry,
   evalContext: Record<string, unknown>,
   currentNodeId?: string
 ): Promise<boolean> {
+  const expression = String(condition.value || '')
   const code = `const context = ${JSON.stringify(evalContext)};\nreturn ${buildBooleanTest(expression)}`
-  const result = await runConditionCode(ctx, code, [expression], currentNodeId)
+  const result = await runConditionCode(ctx, code, [condition], currentNodeId)
 
   if (!result.success) {
     if (result.retryable === false) {
@@ -464,11 +473,9 @@ export class ConditionBlockHandler implements BlockHandler {
   ): Promise<ConditionEntry | null> {
     if (conditions.length === 0) return null
 
-    const expressions = conditions.map((condition) => String(condition.value || ''))
-
     let evaluation: ConditionEvaluation
     try {
-      evaluation = await evaluateConditionList(ctx, expressions, evalContext, currentNodeId)
+      evaluation = await evaluateConditionList(ctx, conditions, evalContext, currentNodeId)
     } catch (error) {
       if (isNonRetryableExecutionError(error)) throw error
       evaluation = {
@@ -520,7 +527,7 @@ export class ConditionBlockHandler implements BlockHandler {
       try {
         const conditionMet = await evaluateSingleCondition(
           ctx,
-          String(condition.value || ''),
+          condition,
           evalContext,
           currentNodeId
         )
