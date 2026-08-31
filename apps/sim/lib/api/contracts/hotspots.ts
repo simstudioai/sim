@@ -221,6 +221,11 @@ export const functionExecuteBodySchema = z
     isCustomTool: z.boolean().optional().default(false),
     /** Workspace sandbox whose dependency set this execution runs against. */
     sandboxId: z.string().optional(),
+    /**
+     * Reusable session-sandbox identity (one per Mothership chat). Honored only
+     * for trusted Mothership executions; workspace callers cannot opt in.
+     */
+    sandboxSessionKey: z.string().optional(),
     /** `all` (default) or `selected`; see mountedSecrets. */
     secretScope: z.enum(['all', 'selected']).optional(),
     /** Secret names this execution may read when secretScope is `selected`. */

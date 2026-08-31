@@ -74,6 +74,29 @@ export interface SandboxExecutionRequest {
   signal?: AbortSignal
   /** Adds the remote provider cost to a completed, billable Function outcome. */
   meterUsage?: boolean
+  /** See {@link SandboxSessionRequest} — reuses one sandbox across executions. */
+  session?: SandboxSessionRequest
+}
+
+/**
+ * Opts an execution into a reusable session sandbox: the first execution
+ * creates and tags the sandbox, later ones reconnect to it, and each one
+ * refreshes its idle deadline instead of killing it. Never combined with
+ * metered usage — session sandboxes are server-owned (Mothership), not billed
+ * to workspace compute.
+ */
+export interface SandboxSessionRequest {
+  /** Stable identity of the session (e.g. one per Mothership chat). */
+  key: string
+  /**
+   * Shell command run once after a fresh session sandbox is created, before
+   * the first execution — the seam that installs tooling the image does not
+   * bake in yet. Best-effort: a failed bootstrap logs and the execution
+   * proceeds.
+   */
+  bootstrapCommand?: string
+  /** Extra environment variables present on every execution in the session. */
+  envs?: Record<string, string>
 }
 
 export interface SandboxShellExecutionRequest {
@@ -101,6 +124,8 @@ export interface SandboxShellExecutionRequest {
   signal?: AbortSignal
   /** Adds the remote provider cost to a completed, billable Function outcome. */
   meterUsage?: boolean
+  /** See {@link SandboxSessionRequest} — reuses one sandbox across executions. */
+  session?: SandboxSessionRequest
 }
 
 export interface SandboxExecutionCost {
@@ -139,6 +164,13 @@ export interface SandboxExecutionResult {
    */
   collectedFiles?: SandboxCollectedFile[]
   cost?: SandboxExecutionCost
+  /**
+   * Present when the execution ran in a session sandbox: `reused` means prior
+   * session state (files, installed packages) was still there; `created` means
+   * this execution started a fresh sandbox — anything earlier executions wrote
+   * is gone.
+   */
+  sandboxSession?: 'created' | 'reused'
 }
 
 /** One harvested output file, carried as base64 with its decoded length. */
@@ -224,6 +256,11 @@ export interface SandboxHandle {
     }
   ): Promise<SandboxCodeResult>
   runCommand(command: string, options: RunCommandOptions): Promise<SandboxCommandResult>
+  /**
+   * Pushes the provider's reaping deadline out for a session sandbox that just
+   * served an execution. Absent on providers without session support.
+   */
+  extendLifetime?(lifetimeMs: number): Promise<void>
   /** Reads provider metadata without materializing the file contents. */
   getFileSize(path: string): Promise<number>
   readFile(path: string): Promise<string>
@@ -306,6 +343,11 @@ export interface CreateSandboxOptions {
    * and creates the sandbox as ephemeral.
    */
   lifetimeMs?: number
+  /**
+   * Tags the sandbox as a reusable session sandbox so a later execution can
+   * find and reconnect to it via {@link SandboxProvider.findSessionSandbox}.
+   */
+  sessionKey?: string
   /** Reports the instant immediately before the provider SDK create request is dispatched. */
   onProviderRequestStarted?: (startedAtMs: number) => void
 }
@@ -398,4 +440,14 @@ export interface SandboxProvider {
   /** Resolves the provider's rounded lifetime for both creation and metering. */
   resolveLifetimeMs(lifetimeMs: number): number
   create(kind: SandboxKind, options?: CreateSandboxOptions): Promise<SandboxHandle>
+  /**
+   * Reconnects to a live sandbox previously created with
+   * {@link CreateSandboxOptions.sessionKey}, or resolves null when none is
+   * running. Providers without session support omit this method; callers then
+   * run every execution in a fresh sandbox.
+   */
+  findSessionSandbox?(
+    key: string,
+    options: { language?: CodeLanguage }
+  ): Promise<SandboxHandle | null>
 }

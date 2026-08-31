@@ -12,6 +12,7 @@ import {
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits'
 import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metrics'
+import { runDetached } from '@/lib/core/utils/background'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import {
@@ -57,6 +58,7 @@ import type {
   SandboxPrivateInput,
   SandboxProvider,
   SandboxProviderId,
+  SandboxSessionRequest,
   SandboxShellExecutionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 
@@ -105,6 +107,119 @@ async function createSandbox(
     startedAtMs,
     ...(effectiveLifetimeMs !== undefined ? { effectiveLifetimeMs } : {}),
     ...(pricing ? { pricing } : {}),
+  }
+}
+
+/**
+ * How long a session sandbox survives between executions before the provider
+ * reaps it. Refreshed on every acquire and release, so the clock measures idle
+ * time, not total lifetime.
+ */
+const SESSION_SANDBOX_IDLE_MS = 20 * 60_000
+
+/** Budget for a session's one-time bootstrap command (e.g. a CLI install). */
+const SESSION_BOOTSTRAP_TIMEOUT_MS = 120_000
+
+interface SandboxLease {
+  created: CreatedSandbox
+  /** Set when this execution runs in a session sandbox; absent for one-shot. */
+  session?: 'created' | 'reused'
+  /** One-shot: kills the sandbox. Session: refreshes its idle deadline. */
+  release(): Promise<void>
+}
+
+/**
+ * Acquires the sandbox an execution runs in: reconnects to the caller's live
+ * session sandbox, creates and bootstraps a fresh one under the session tag, or
+ * falls back to the classic one-shot create.
+ *
+ * A session lease never binds the abort signal to teardown — cancelling one
+ * execution must not destroy state the next turn builds on — and is never
+ * metered, because session sandboxes are server-owned rather than billed to
+ * workspace compute. Providers without session support degrade to one-shot.
+ */
+async function leaseSandbox(
+  kind: SandboxKind,
+  options: CreateSandboxOptions,
+  selected: ResolvedSandbox | null,
+  signal: AbortSignal,
+  meterUsage: boolean | undefined,
+  session: SandboxSessionRequest | undefined
+): Promise<SandboxLease> {
+  const provider = resolveProvider()
+  const sessionCapable = Boolean(session && !meterUsage && provider.findSessionSandbox)
+
+  if (session && sessionCapable) {
+    const refresh = async (sandbox: SandboxHandle) => {
+      try {
+        await sandbox.extendLifetime?.(SESSION_SANDBOX_IDLE_MS)
+      } catch (error) {
+        logger.warn('Failed to refresh session sandbox lifetime', {
+          sandboxId: sandbox.sandboxId,
+          error: getErrorMessage(error),
+        })
+      }
+    }
+    try {
+      const existing = await provider.findSessionSandbox?.(session.key, {
+        ...(options.language ? { language: options.language } : {}),
+      })
+      if (existing) {
+        await refresh(existing)
+        return {
+          created: { sandbox: existing, providerId: provider.id, startedAtMs: Date.now() },
+          session: 'reused',
+          release: () => refresh(existing),
+        }
+      }
+    } catch (error) {
+      logger.warn('Session sandbox lookup failed; creating a fresh one', {
+        key: session.key,
+        error: getErrorMessage(error),
+      })
+    }
+    const created = await createSelectedSandbox(
+      kind,
+      { ...options, lifetimeMs: SESSION_SANDBOX_IDLE_MS, sessionKey: session.key },
+      selected,
+      signal,
+      false
+    )
+    const bootstrapCommand = session.bootstrapCommand
+    if (bootstrapCommand) {
+      // Detached: the bootstrap (a CLI install, until the images bake it in)
+      // can outlast the caller's execution budget, and the first execution of a
+      // chat must not pay for it. The narrow race — the very first execution
+      // using the bootstrapped tool before the install lands — resolves on
+      // retry against the by-then bootstrapped sandbox.
+      runDetached('session-sandbox-bootstrap', async () => {
+        const bootstrap = await created.sandbox.runCommand(bootstrapCommand, {
+          timeoutMs: SESSION_BOOTSTRAP_TIMEOUT_MS,
+          rootUser: true,
+        })
+        if (bootstrap.exitCode !== 0) {
+          logger.warn('Session sandbox bootstrap exited non-zero', {
+            sandboxId: created.sandbox.sandboxId,
+            exitCode: bootstrap.exitCode,
+          })
+        }
+      })
+    }
+    return {
+      created,
+      session: 'created',
+      release: () => refresh(created.sandbox),
+    }
+  }
+
+  const created = await createSelectedSandbox(kind, options, selected, signal, meterUsage)
+  const abortBinding = bindSandboxAbort(created.sandbox, created.providerId, signal)
+  return {
+    created,
+    release: async () => {
+      abortBinding.detach()
+      await abortBinding.cleanup()
+    },
   }
 }
 
@@ -813,7 +928,7 @@ async function executeInSandboxWithinBudget(
   })
   throwIfAborted(signal)
 
-  const created = await createSelectedSandbox(
+  const lease = await leaseSandbox(
     kind,
     {
       language,
@@ -822,18 +937,20 @@ async function executeInSandboxWithinBudget(
     },
     selected,
     signal,
-    req.meterUsage
+    req.meterUsage,
+    req.session
   )
+  const created = lease.created
   const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
-  const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
+  const sessionField = lease.session ? { sandboxSession: lease.session } : {}
   let billableResult: SandboxExecutionResult | undefined
   let billableOutputError: unknown
 
   try {
     throwIfAborted(signal)
-    // Inside the try so a failed install or mount still kills the sandbox via the
-    // finally below. Dependencies land before the inputs so user code and its
+    // Inside the try so a failed install or mount still releases the sandbox via
+    // the finally below. Dependencies land before the inputs so user code and its
     // mounts always see a complete environment.
     //
     await provisionWithinBudget(sandbox, selected, signal)
@@ -846,10 +963,13 @@ async function executeInSandboxWithinBudget(
     )
     const executionEnvironment = {
       ...selected?.envs,
+      ...req.session?.envs,
       ...privateInputEnvironment,
     }
     const hasExecutionEnvironment =
-      selected?.envs !== undefined || Object.keys(privateInputEnvironment).length > 0
+      selected?.envs !== undefined ||
+      req.session?.envs !== undefined ||
+      Object.keys(privateInputEnvironment).length > 0
 
     let execution: SandboxCodeResult
     try {
@@ -878,6 +998,7 @@ async function executeInSandboxWithinBudget(
         stdout: execution.error.traceback || errorMessage,
         error: errorMessage,
         sandboxId,
+        ...sessionField,
       }
       if (execution.providerFailure !== 'provider_limit') billableResult = executionResult
       return executionResult
@@ -906,6 +1027,7 @@ async function executeInSandboxWithinBudget(
         stdout: cleanedStdout,
         error: SIM_RESULT_CORRUPTED_ERROR,
         sandboxId,
+        ...sessionField,
       }
     }
 
@@ -913,6 +1035,7 @@ async function executeInSandboxWithinBudget(
       result: extraction.result,
       stdout: cleanedStdout,
       sandboxId,
+      ...sessionField,
     }
     try {
       const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
@@ -950,8 +1073,7 @@ async function executeInSandboxWithinBudget(
     if (cost && billableOutputError) {
       attachTrustedSandboxOutputCost(billableOutputError, cost)
     }
-    abortBinding.detach()
-    await abortBinding.cleanup()
+    await lease.release()
   }
 }
 
@@ -978,24 +1100,26 @@ async function executeShellInSandboxWithinBudget(
   })
   throwIfAborted(signal)
 
-  const created = await createSelectedSandbox(
+  const lease = await leaseSandbox(
     kind,
     { imageRef: selected?.imageRef, lifetimeMs: remainingSandboxBudgetMs(signal) },
     selected,
     signal,
-    req.meterUsage
+    req.meterUsage,
+    req.session
   )
+  const created = lease.created
   const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
-  const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
+  const sessionField = lease.session ? { sandboxSession: lease.session } : {}
   let billableResult: SandboxExecutionResult | undefined
   let billableOutputError: unknown
 
   try {
     throwIfAborted(signal)
-    // Inside the try so a failed install or mount still kills the sandbox via the
-    // finally below. The install shares the caller's budget rather than adding to
-    // it — see the note in `executeInSandbox`.
+    // Inside the try so a failed install or mount still releases the sandbox via
+    // the finally below. The install shares the caller's budget rather than adding
+    // to it — see the note in `executeInSandbox`.
     await provisionWithinBudget(sandbox, selected, signal)
     await writeSandboxInputs(sandbox, req.sandboxFiles, {
       rootUser: true,
@@ -1014,6 +1138,7 @@ async function executeShellInSandboxWithinBudget(
         envs: {
           ...selected?.envs,
           ...envs,
+          ...req.session?.envs,
           PATH: selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH,
           ...privateInputEnvironment,
         },
@@ -1041,7 +1166,13 @@ async function executeShellInSandboxWithinBudget(
         sandboxId,
         exitCode: result.exitCode,
       })
-      const executionResult = { result: null, stdout, error: errorMessage, sandboxId }
+      const executionResult = {
+        result: null,
+        stdout,
+        error: errorMessage,
+        sandboxId,
+        ...sessionField,
+      }
       if (result.providerFailure !== 'provider_limit') billableResult = executionResult
       return executionResult
     }
@@ -1056,6 +1187,7 @@ async function executeShellInSandboxWithinBudget(
       result: parsed,
       stdout: extraction.cleanedStdout,
       sandboxId,
+      ...sessionField,
     }
     try {
       const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
@@ -1093,8 +1225,7 @@ async function executeShellInSandboxWithinBudget(
     if (cost && billableOutputError) {
       attachTrustedSandboxOutputCost(billableOutputError, cost)
     }
-    abortBinding.detach()
-    await abortBinding.cleanup()
+    await lease.release()
   }
 }
 
