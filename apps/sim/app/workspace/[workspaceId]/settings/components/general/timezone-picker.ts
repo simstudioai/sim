@@ -16,6 +16,12 @@ export function getTimezonePickerPresentation(
   timezoneOptions: readonly ComboboxOption[]
 ): TimezonePickerPresentation {
   const hasInvalidTimezone = savedTimezone !== null && !isValidTimezone(savedTimezone)
+  const unlistedTimezone =
+    savedTimezone !== null &&
+    !hasInvalidTimezone &&
+    !timezoneOptions.some((option) => option.value === savedTimezone)
+      ? savedTimezone
+      : null
   const safeInvalidTimezone =
     savedTimezone === null ? '' : sanitizeTimezoneForDisplay(savedTimezone)
 
@@ -31,6 +37,14 @@ export function getTimezonePickerPresentation(
               label: `Invalid: ${safeInvalidTimezone || '(empty)'}`,
               value: INVALID_TIMEZONE_OPTION_VALUE,
               disabled: true,
+            },
+          ]
+        : []),
+      ...(unlistedTimezone
+        ? [
+            {
+              label: sanitizeTimezoneForDisplay(unlistedTimezone),
+              value: unlistedTimezone,
             },
           ]
         : []),

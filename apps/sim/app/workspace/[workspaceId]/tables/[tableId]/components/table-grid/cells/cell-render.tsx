@@ -146,7 +146,7 @@ export function resolveCellRender({
   if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
   const definition = columnTypeOf(column)
   if (definition.editor === 'date') {
-    if (timezoneStatus === 'invalid' || timezoneStatus === 'error') {
+    if (timezoneStatus !== undefined && timezoneStatus !== 'ready') {
       return { kind: 'date', text: stringifyValue(value), raw: true }
     }
     return { kind: 'date', text: definition.formatForInput(value, column, { timezone: timeZone }) }

@@ -40,9 +40,11 @@ export const TABLE_LIMITS = {
   /** Batch size for bulk delete operations */
   DELETE_BATCH_SIZE: 1000,
   /**
-   * Maximum serialized row-data bytes returned from one committed delete for
-   * post-commit trigger dispatch. The row-count cap is derived from this budget
-   * and the configured maximum row size before a DELETE materializes snapshots.
+   * Serialized row-data budget for one committed delete snapshot batch. Batch
+   * deletes measure stored JSONB bytes while holding row locks and stop at this
+   * budget. A historical row already larger than the budget is deleted alone
+   * and logged; current writes cannot create another because row admission is
+   * capped at the same value.
    */
   DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024,
   /** Maximum rows per batch insert */
@@ -160,9 +162,10 @@ export function getMaxRowSizeBytes(): number {
 }
 
 /**
- * Maximum rows one delete may materialize with their JSON data for trigger
- * dispatch. Uses the worst-case configured row size so every batch has an
- * explicit byte bound before PostgreSQL returns it to the app process.
+ * Initial row-count cap for a delete snapshot batch. Delete paths additionally
+ * measure the selected rows as stored and shorten each transaction to the byte
+ * budget; this count avoids scanning more candidate ids than current writes can
+ * possibly fit.
  */
 export function getDeleteSnapshotBatchSize(): number {
   return Math.max(

@@ -48,6 +48,19 @@ describe('resolveCellRender', () => {
     ).toEqual({ kind: 'date', text: '1700000000', raw: true })
   })
 
+  it('renders raw epoch seconds while timezone settings are loading', () => {
+    expect(
+      resolveCellRender({
+        value: 1_700_000_000,
+        exec: undefined,
+        column: column('ttl'),
+        waitingOnLabels: undefined,
+        timeZone: 'America/Los_Angeles',
+        timezoneStatus: 'loading',
+      })
+    ).toEqual({ kind: 'date', text: '1700000000', raw: true })
+  })
+
   it('renders the exact stored Date value when timezone settings are unavailable', () => {
     const stored = '2026-01-15T09:00:00-05:00'
     const kind = resolveCellRender({

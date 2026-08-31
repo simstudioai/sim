@@ -29,6 +29,17 @@ describe('getTimezonePickerPresentation', () => {
     ).toBe('America/Los_Angeles')
   })
 
+  it('adds a valid saved timezone that is absent from the curated options', () => {
+    expect(getTimezonePickerPresentation('Etc/GMT+5', 'UTC', timezoneOptions)).toEqual({
+      value: 'Etc/GMT+5',
+      options: [
+        { label: 'Auto: UTC', value: AUTO_TIMEZONE_OPTION_VALUE },
+        { label: 'Etc/GMT+5', value: 'Etc/GMT+5' },
+        ...timezoneOptions,
+      ],
+    })
+  })
+
   it('surfaces an invalid saved timezone without making it selectable', () => {
     expect(getTimezonePickerPresentation('Mars/Olympus', 'UTC', timezoneOptions)).toEqual({
       value: INVALID_TIMEZONE_OPTION_VALUE,

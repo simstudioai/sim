@@ -31,6 +31,8 @@ vi.mock('@sim/emcn', () => {
   const passthrough = ({ children }: { children?: ReactNode }) => children ?? null
   return {
     Checkbox: () => null,
+    Chip: ({ children, ...props }: { children?: ReactNode }) =>
+      createElement('button', { type: 'button', ...props }, children),
     ChipConfirmModal: passthrough,
     ChipDatePicker: ({ value, onChange }: { value?: string; onChange: (value: string) => void }) =>
       createElement(
@@ -41,7 +43,27 @@ vi.mock('@sim/emcn', () => {
     ChipModal: passthrough,
     ChipModalBody: passthrough,
     ChipModalError: passthrough,
-    ChipModalField: passthrough,
+    ChipModalField: ({
+      type,
+      value,
+      onChange,
+      children,
+    }: {
+      type?: string
+      value?: string
+      onChange?: (value: string) => void
+      children?: ReactNode | ((aria: Record<string, string>) => ReactNode)
+    }) =>
+      type === 'input'
+        ? createElement('input', {
+            'data-testid': 'modal-input',
+            value: value ?? '',
+            onChange: (event: { currentTarget: { value: string } }) =>
+              onChange?.(event.currentTarget.value),
+          })
+        : typeof children === 'function'
+          ? children({ 'aria-describedby': 'field-hint' })
+          : (children ?? null),
     ChipModalFooter: ({
       primaryAction,
     }: {
@@ -114,7 +136,9 @@ describe('RowModal expiration editing', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     act(() => root.render(createElement(RowModal, props)))
 
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('Loading timezone…')
+    expect(container.querySelector('[aria-label="Edit expires_at"]')?.textContent).toBe(
+      'Loading timezone…'
+    )
     expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')).toBeNull()
     expect(container.querySelector<HTMLButtonElement>('[data-testid="submit"]')?.disabled).toBe(
       true
@@ -169,7 +193,9 @@ describe('RowModal expiration editing', () => {
 
     act(() => root.render(createElement(RowModal, props)))
 
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('Loading timezone…')
+    expect(container.querySelector('[aria-label="Edit starts_at"]')?.textContent).toBe(
+      'Loading timezone…'
+    )
     expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')).toBeNull()
 
     mockUseTimezoneState.mockReturnValue({
@@ -203,13 +229,71 @@ describe('RowModal expiration editing', () => {
 
     act(() => root.render(createElement(RowModal, props)))
 
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('Invalid timezone')
+    const blockedField = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Edit expires_at"]'
+    )
+    expect(blockedField?.textContent).toBe(String(row.data.expires_at))
     expect(container.querySelector<HTMLButtonElement>('[data-testid="submit"]')?.disabled).toBe(
       true
     )
+    expect(mockToastError).not.toHaveBeenCalled()
+    act(() => blockedField?.click())
     expect(mockToastError).toHaveBeenCalledWith(
       'Your saved timezone “Mars/Olympus” is invalid. Update it in Settings → General before editing Date or Expiration cells.'
     )
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('keeps unrelated fields editable and omits blocked date values from the update', async () => {
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'America/Los_Angeles',
+      savedTimezone: 'Mars/Olympus',
+      status: 'invalid',
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const mixedTable: TableInfo = {
+      ...table,
+      schema: {
+        columns: [
+          { name: 'name', type: 'string' },
+          { name: 'expires_at', type: 'ttl' },
+        ],
+      },
+    }
+    const mixedRow = { ...row, data: { name: 'Ada', expires_at: row.data.expires_at } }
+    const props = {
+      mode: 'edit' as const,
+      isOpen: true,
+      onClose: vi.fn(),
+      table: mixedTable,
+      row: mixedRow,
+      onSuccess: vi.fn(),
+    }
+
+    act(() => root.render(createElement(RowModal, props)))
+
+    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="modal-input"]')
+    const blockedField = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Edit expires_at"]'
+    )
+    const submit = container.querySelector<HTMLButtonElement>('[data-testid="submit"]')
+    expect(nameInput?.value).toBe('Ada')
+    expect(blockedField?.textContent).toBe(String(row.data.expires_at))
+    expect(submit?.disabled).toBe(false)
+
+    act(() => changeInput(nameInput as HTMLInputElement, 'Grace'))
+    await act(async () => submit?.click())
+
+    expect(mockUpdateRow).toHaveBeenCalledWith({
+      rowId: 'row-1',
+      data: { name: 'Grace' },
+    })
+    expect(props.onSuccess).toHaveBeenCalledTimes(1)
+    expect(mockToastError).not.toHaveBeenCalled()
+
     act(() => root.unmount())
     container.remove()
   })
