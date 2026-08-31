@@ -1,7 +1,30 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const { buildWorkflowLintReport } = vi.hoisted(() => ({
+  buildWorkflowLintReport: vi.fn().mockResolvedValue({
+    sources: ['block-1'],
+    sinks: ['block-2'],
+    orphanBlocks: [],
+    emptyOutgoingPorts: [],
+    invalidBranchPorts: [],
+    invalidConnectionTargets: [],
+    fieldIssues: [
+      {
+        blockId: 'block-2',
+        blockName: 'Summarize emails',
+        missingRequiredFields: ['model'],
+        inactiveModeValues: [],
+      },
+    ],
+    unresolvedReferences: [],
+  }),
+}))
+
+vi.mock('@/lib/workflows/editing/lint-report', () => ({ buildWorkflowLintReport }))
+
 import {
   agentCliHelpSection,
   executeAgentCliCommand,
@@ -22,6 +45,7 @@ const WORKFLOW_STATE = {
 function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
   return {
     workspaceId: 'ws-1',
+    userId: 'user-1',
     client: {
       request: async <T>(path: string): Promise<T> => {
         const hit = responses[path]
@@ -131,6 +155,24 @@ describe('workflow grep', () => {
     )
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('Email digest (wf-1).blocks.block-2.name: Summarize emails')
+  })
+
+  it('lints a workflow through the shared engine with the caller scoped as subject', async () => {
+    const match = matchAgentCliCommand(['workflow', 'lint', 'wf-1'])
+    const result = await executeAgentCliCommand(
+      match!,
+      runtimeWith({ [EXPORT_PATH]: exportResponse })
+    )
+    expect(result.stderr).toBe('')
+    expect(result.exitCode).toBe(0)
+    const report = JSON.parse(result.stdout)
+    expect(report.fieldIssues).toHaveLength(1)
+    expect(report.summary.length).toBeGreaterThan(0)
+    expect(buildWorkflowLintReport).toHaveBeenCalledWith(expect.anything(), {
+      workflowId: 'wf-1',
+      workspaceId: 'ws-1',
+      subjectUserId: 'user-1',
+    })
   })
 
   it('surfaces execution errors as a failed result, never a throw', async () => {

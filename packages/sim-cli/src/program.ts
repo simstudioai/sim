@@ -11,7 +11,7 @@ import {
   refuseHelpAfterUnknownCommand,
 } from './runtime/build'
 import { announceUpdateIfAvailable } from './update/check'
-import { CLI_VERSION } from './version'
+import { cliVersion } from './version'
 
 /** Root program description, shared by `--help` and the generated docs. */
 export const PROGRAM_DESCRIPTION = 'Talk to the Sim API from your terminal'
@@ -106,7 +106,11 @@ function addVersionOption(program: Command): void {
       'error: --version reports the Sim CLI version and takes no value. A command that acts on a deployment version reads it from --to-version.'
     )
   })
-  program.version(CLI_VERSION, '-V, --version [none]', 'output the version number (takes no value)')
+  program.version(
+    cliVersion(),
+    '-V, --version [none]',
+    'output the version number (takes no value)'
+  )
 }
 
 /**

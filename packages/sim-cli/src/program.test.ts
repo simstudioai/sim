@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import type { Command } from 'commander'
 import { describe, expect, it } from 'vitest'
 import { buildProgram } from './program'
-import { CLI_VERSION } from './version'
+import { cliVersion } from './version'
 
 /** Parses argv against a program whose output and exits are captured, not taken. */
 async function parse(
@@ -39,7 +39,7 @@ describe('the root version flag', () => {
   it('still reports the version on its own', async () => {
     const { out, code } = await parse(['--version'])
 
-    expect(out.trim()).toBe(CLI_VERSION)
+    expect(out.trim()).toBe(cliVersion())
     expect(code).toBe('commander.version')
   })
 
@@ -52,14 +52,14 @@ describe('the root version flag', () => {
   it('refuses a value instead of answering for a subcommand', async () => {
     const { out, code } = await parse(['workflows', 'rollback', 'wf_1', '--version', '1'])
 
-    expect(out).not.toContain(CLI_VERSION)
+    expect(out).not.toContain(cliVersion())
     expect(code).toBe('commander.error')
   })
 
   it('refuses the same value written with an equals sign', async () => {
     const { out, code } = await parse(['workflows', 'rollback', 'wf_1', '--version=1'])
 
-    expect(out).not.toContain(CLI_VERSION)
+    expect(out).not.toContain(cliVersion())
     expect(code).toBe('commander.error')
   })
 
@@ -70,7 +70,7 @@ describe('the root version flag', () => {
   it('refuses the bare flag typed against a subcommand', async () => {
     const { out, code } = await parse(['workflows', 'rollback', 'wf_1', '--version'])
 
-    expect(out).not.toContain(CLI_VERSION)
+    expect(out).not.toContain(cliVersion())
     expect(code).toBe('commander.error')
   })
 
@@ -78,7 +78,7 @@ describe('the root version flag', () => {
   it('still reports the version after a root option', async () => {
     const { out, code } = await parse(['--profile', 'workflows', '--version'])
 
-    expect(out.trim()).toBe(CLI_VERSION)
+    expect(out.trim()).toBe(cliVersion())
     expect(code).toBe('commander.version')
   })
 
