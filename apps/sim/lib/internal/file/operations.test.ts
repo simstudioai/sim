@@ -164,6 +164,7 @@ vi.mock('@/app/api/files/authorization', () => ({
 
 import { fileManageBodySchema } from '@/lib/api/contracts/tools/file'
 import { executeFileManageOperation } from '@/lib/internal/file/operations'
+import { FileConflictError } from '@/lib/uploads/contexts/workspace'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 
 async function POST(request: Request): Promise<Response> {
@@ -676,8 +677,27 @@ describe('file manage operations', () => {
       Buffer.from('fresh'),
       'report.txt',
       'text/plain',
-      expect.objectContaining({ exactName: false, folderId: null })
+      // Exact, so a path created by a concurrent write conflicts instead of being suffixed.
+      expect.objectContaining({ exactName: true, folderId: null })
     )
+  })
+
+  it('surfaces a conflict when a concurrent write claims the overwrite path', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue(null)
+    mockUploadWorkspaceFile.mockRejectedValue(new FileConflictError('report.txt'))
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'report.txt',
+        content: 'fresh',
+        overwrite: true,
+      })
+    )
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({ success: false })
   })
 
   it('never overwrites a same-named file resolved outside the target folder', async () => {

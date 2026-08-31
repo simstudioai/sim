@@ -974,7 +974,10 @@ export async function executeFileManageOperation(
             content: sourceContent,
             encoding: sourceEncoding,
             folderId,
-            exactName: false,
+            // An overwrite that found no target must land on the exact path or fail. Suffixing
+            // would silently satisfy the request at the wrong name when a concurrent write
+            // created that path in between; exactName surfaces the race as a conflict instead.
+            exactName: Boolean(overwrite),
             ...(writeProvenance ? { secretProvenance: writeProvenance } : {}),
           },
         })
