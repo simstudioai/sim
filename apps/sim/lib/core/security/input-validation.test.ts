@@ -7,22 +7,14 @@ import {
   validateCallbackUrl,
   validateEnum,
   validateExternalUrl,
-  validateFileExtension,
-  validateGoogleCalendarId,
   validateGoogleCloudLocation,
   validateGoogleCloudProject,
-  validateHostname,
-  validateImageUrl,
-  validateInteger,
   validateJiraCloudId,
   validateJiraIssueKey,
   validateMicrosoftGraphId,
-  validateMondayColumnId,
-  validateMondayGroupId,
   validateMondayNumericId,
   validateNumericId,
   validatePathSegment,
-  validateProxyUrl,
   validateS3BucketName,
   validateServiceNowInstanceUrl,
   validateSharePointSiteId,
@@ -387,141 +379,6 @@ describe('validateEnum', () => {
   })
 })
 
-describe('validateHostname', () => {
-  describe('valid hostnames', () => {
-    it.concurrent('should accept valid domain names', () => {
-      const result = validateHostname('example.com')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept subdomains', () => {
-      const result = validateHostname('api.example.com')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept domains with hyphens', () => {
-      const result = validateHostname('my-domain.com')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept multi-level domains', () => {
-      const result = validateHostname('api.v2.example.co.uk')
-      expect(result.isValid).toBe(true)
-    })
-  })
-
-  describe('invalid hostnames - private IPs', () => {
-    it.concurrent('should reject localhost', () => {
-      const result = validateHostname('localhost')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
-    })
-
-    it.concurrent('should reject 127.0.0.1', () => {
-      const result = validateHostname('127.0.0.1')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject 10.x.x.x private range', () => {
-      const result = validateHostname('10.0.0.1')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject 192.168.x.x private range', () => {
-      const result = validateHostname('192.168.1.1')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject 172.16-31.x.x private range', () => {
-      const result = validateHostname('172.16.0.1')
-      expect(result.isValid).toBe(false)
-      const result2 = validateHostname('172.31.255.255')
-      expect(result2.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject link-local addresses', () => {
-      const result = validateHostname('169.254.169.254')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject IPv6 loopback', () => {
-      const result = validateHostname('::1')
-      expect(result.isValid).toBe(false)
-    })
-  })
-
-  describe('invalid hostnames - format', () => {
-    it.concurrent('should reject invalid characters', () => {
-      const result = validateHostname('example_domain.com')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject hostnames starting with hyphen', () => {
-      const result = validateHostname('-example.com')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject hostnames ending with hyphen', () => {
-      const result = validateHostname('example-.com')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject empty string', () => {
-      const result = validateHostname('')
-      expect(result.isValid).toBe(false)
-    })
-  })
-})
-
-describe('validateFileExtension', () => {
-  const allowedExtensions = ['jpg', 'png', 'gif', 'pdf'] as const
-
-  describe('valid extensions', () => {
-    it.concurrent('should accept allowed extensions', () => {
-      const result = validateFileExtension('jpg', allowedExtensions)
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('jpg')
-    })
-
-    it.concurrent('should accept extensions with leading dot', () => {
-      const result = validateFileExtension('.png', allowedExtensions)
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('png')
-    })
-
-    it.concurrent('should normalize to lowercase', () => {
-      const result = validateFileExtension('JPG', allowedExtensions)
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('jpg')
-    })
-
-    it.concurrent('should accept all allowed extensions', () => {
-      for (const ext of allowedExtensions) {
-        const result = validateFileExtension(ext, allowedExtensions)
-        expect(result.isValid).toBe(true)
-      }
-    })
-  })
-
-  describe('invalid extensions', () => {
-    it.concurrent('should reject extensions not in allowed list', () => {
-      const result = validateFileExtension('exe', allowedExtensions)
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('jpg, png, gif, pdf')
-    })
-
-    it.concurrent('should reject empty string', () => {
-      const result = validateFileExtension('', allowedExtensions)
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject null', () => {
-      const result = validateFileExtension(null, allowedExtensions)
-      expect(result.isValid).toBe(false)
-    })
-  })
-})
-
 describe('sanitizeForLogging', () => {
   it.concurrent('should truncate long strings', () => {
     const longString = 'a'.repeat(200)
@@ -572,54 +429,114 @@ describe('sanitizeForLogging', () => {
 describe('validateUrlWithDNS', () => {
   describe('basic validation', () => {
     it('should reject invalid URLs', async () => {
-      const result = await validateUrlWithDNS('not-a-url')
+      const result = await validateUrlWithDNS('not-a-url', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('valid URL')
     })
 
-    it('should reject http:// URLs', async () => {
-      const result = await validateUrlWithDNS('http://example.com')
+    it('should reject http:// URLs to a public host', async () => {
+      const result = await validateUrlWithDNS('http://example.com', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('https://')
     })
 
     it('should accept https localhost URLs (self-hosted)', async () => {
-      const result = await validateUrlWithDNS('https://localhost/api')
+      const result = await validateUrlWithDNS('https://localhost/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
       expect(result.resolvedIP).toBeDefined()
     })
 
     it('should accept http localhost URLs (self-hosted)', async () => {
-      const result = await validateUrlWithDNS('http://localhost/api')
+      const result = await validateUrlWithDNS('http://localhost/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
       expect(result.resolvedIP).toBeDefined()
     })
 
     it('should accept IPv4 loopback URLs (self-hosted)', async () => {
-      const result = await validateUrlWithDNS('http://127.0.0.1/api')
+      const result = await validateUrlWithDNS('http://127.0.0.1/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
       expect(result.resolvedIP).toBeDefined()
     })
 
     it('should accept IPv6 loopback URLs (self-hosted)', async () => {
-      const result = await validateUrlWithDNS('http://[::1]/api')
+      const result = await validateUrlWithDNS('http://[::1]/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
       expect(result.resolvedIP).toBeDefined()
     })
 
     it('should reject private IP URLs', async () => {
-      const result = await validateUrlWithDNS('https://192.168.1.1/api')
+      const result = await validateUrlWithDNS(
+        'https://192.168.1.1/api',
+        'url',
+        'configuredEndpoint'
+      )
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      expect(result.error).toContain('private or reserved address')
+    })
+
+    it('refuses an IP literal outside the configured range without deferring', () => {
+      // A literal was judged against its own address, so a lookup could add
+      // nothing — deferring it would accept literals outside every range.
+      envFlagsMock.egressAllowedIpRanges = '10.0.0.0/8'
+      try {
+        expect(
+          validateExternalUrl('https://192.168.1.1/x', 'url', 'configuredEndpoint').isValid
+        ).toBe(false)
+        expect(validateExternalUrl('https://10.0.0.5/x', 'url', 'configuredEndpoint').isValid).toBe(
+          true
+        )
+      } finally {
+        envFlagsMock.egressAllowedIpRanges = undefined
+      }
+    })
+
+    it('permits a private IP once the operator allowlists its range', async () => {
+      envFlagsMock.egressAllowedIpRanges = '192.168.0.0/16'
+      try {
+        const result = await validateUrlWithDNS(
+          'http://192.168.1.1/api',
+          'url',
+          'configuredEndpoint'
+        )
+        expect(result.isValid).toBe(true)
+        expect(result.resolvedIP).toBe('192.168.1.1')
+      } finally {
+        envFlagsMock.egressAllowedIpRanges = undefined
+      }
+    })
+
+    it('never lets an allowlisted range reach a content-provenance URL', async () => {
+      envFlagsMock.egressAllowedIpRanges = '192.168.0.0/16'
+      try {
+        const result = await validateUrlWithDNS('https://192.168.1.1/api', 'url', 'contentFetch')
+        expect(result.isValid).toBe(false)
+      } finally {
+        envFlagsMock.egressAllowedIpRanges = undefined
+      }
+    })
+
+    it('never lets an allowlisted range reach cloud metadata', async () => {
+      envFlagsMock.egressAllowedIpRanges = '169.254.0.0/16'
+      try {
+        const result = await validateUrlWithDNS(
+          'http://169.254.169.254/latest/meta-data/',
+          'url',
+          'configuredEndpoint'
+        )
+        expect(result.isValid).toBe(false)
+        expect(result.error).toContain('metadata')
+      } finally {
+        envFlagsMock.egressAllowedIpRanges = undefined
+      }
     })
 
     it('should reject null', async () => {
-      const result = await validateUrlWithDNS(null)
+      const result = await validateUrlWithDNS(null, 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
     })
 
     it('should reject empty string', async () => {
-      const result = await validateUrlWithDNS('')
+      const result = await validateUrlWithDNS('', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
     })
   })
@@ -627,7 +544,8 @@ describe('validateUrlWithDNS', () => {
 
 describe('validateDatabaseHost', () => {
   afterEach(() => {
-    envFlagsMock.isPrivateDatabaseHostsAllowed = false
+    envFlagsMock.egressAllowedHosts = undefined
+    envFlagsMock.egressAllowedIpRanges = undefined
   })
 
   describe('default (SSRF guard on)', () => {
@@ -640,25 +558,26 @@ describe('validateDatabaseHost', () => {
     it('rejects localhost', async () => {
       const result = await validateDatabaseHost('localhost')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('localhost')
+      expect(result.error).toContain('loopback')
     })
 
     it('rejects a literal private IP', async () => {
       const result = await validateDatabaseHost('10.0.0.5')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      expect(result.error).toContain('private or reserved address')
     })
 
     it('rejects a literal loopback IP', async () => {
       const result = await validateDatabaseHost('127.0.0.1')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      // A database host gets no loopback carve-out: Sim's own datastore is there.
+      expect(result.error).toContain('loopback')
     })
 
     it('rejects a bracketed IPv6 loopback as a private IP (not unresolvable)', async () => {
       const result = await validateDatabaseHost('[::1]')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      expect(result.error).toContain('loopback')
     })
 
     it('accepts a public IP and pins the resolved address', async () => {
@@ -668,9 +587,43 @@ describe('validateDatabaseHost', () => {
     })
   })
 
-  describe('self-host opt-in (ALLOW_PRIVATE_DATABASE_HOSTS)', () => {
+  describe('deprecated ALLOW_PRIVATE_DATABASE_HOSTS alias', () => {
+    afterEach(() => {
+      envFlagsMock.legacyPrivateDatabaseAccess = false
+    })
+
+    it.each([
+      ['localhost', 'loopback by name'],
+      ['127.0.0.1', 'loopback literal'],
+      ['10.0.0.5', 'RFC1918'],
+      ['100.64.0.1', 'CGNAT, where a Tailscale host lives'],
+    ])('keeps %s reachable for a deployment still on the old flag — %s', async (host) => {
+      envFlagsMock.legacyPrivateDatabaseAccess = true
+      expect((await validateDatabaseHost(host)).isValid).toBe(true)
+    })
+
+    it('still cannot reach cloud metadata through the alias', async () => {
+      envFlagsMock.legacyPrivateDatabaseAccess = true
+      const result = await validateDatabaseHost('169.254.169.254')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('cloud metadata endpoint')
+    })
+
+    it('does not widen HTTP destinations, which the flag never governed', async () => {
+      envFlagsMock.legacyPrivateDatabaseAccess = true
+      expect(
+        (await validateUrlWithDNS('https://10.0.0.5/api', 'url', 'requestTarget')).isValid
+      ).toBe(false)
+      expect(
+        (await validateUrlWithDNS('https://10.0.0.5/api', 'url', 'configuredEndpoint')).isValid
+      ).toBe(false)
+    })
+  })
+
+  describe('self-host opt-in (EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES)', () => {
     beforeEach(() => {
-      envFlagsMock.isPrivateDatabaseHostsAllowed = true
+      envFlagsMock.egressAllowedHosts = 'localhost'
+      envFlagsMock.egressAllowedIpRanges = '10.0.0.0/8,127.0.0.0/8,::1/128'
     })
 
     it('allows localhost and still resolves an IP to pin', async () => {
@@ -732,22 +685,35 @@ describe('validateAndPinProxyUrl', () => {
   it('should reject a proxy host that is a private IP', async () => {
     const result = await validateAndPinProxyUrl('http://user:pass@192.168.1.1:8080')
     expect(result.isValid).toBe(false)
-    expect(result.error).toMatch(/private IP|blocked IP/)
+    expect(result.error).toContain('private or reserved address')
+    // The proxy profile honors no allowlist, so the message must not offer one
+    // as a remedy — there is nothing the operator could set to permit this.
+    expect(result.error).not.toContain('EGRESS_ALLOWED')
   })
 
   it('should reject a loopback proxy host even off the hosted platform', async () => {
     const localhost = await validateAndPinProxyUrl('http://localhost:3128')
     expect(localhost.isValid).toBe(false)
-    expect(localhost.error).toContain('blocked IP')
+    expect(localhost.error).toContain('loopback')
     const loopback = await validateAndPinProxyUrl('http://127.0.0.1:3128')
     expect(loopback.isValid).toBe(false)
-    expect(loopback.error).toContain('blocked IP')
+    expect(loopback.error).toContain('loopback')
   })
 
   it('should reject a proxy host that is the metadata IP', async () => {
     const result = await validateAndPinProxyUrl('http://169.254.169.254:80')
     expect(result.isValid).toBe(false)
-    expect(result.error).toMatch(/private IP|blocked IP/)
+    expect(result.error).toContain('metadata')
+  })
+
+  it('rejects a private proxy even when the operator allowlists its range', async () => {
+    envFlagsMock.egressAllowedIpRanges = '192.168.0.0/16'
+    try {
+      const result = await validateAndPinProxyUrl('http://192.168.1.1:8080')
+      expect(result.isValid).toBe(false)
+    } finally {
+      envFlagsMock.egressAllowedIpRanges = undefined
+    }
   })
 
   it('should accept a public proxy host and pin the hostname to the resolved IP, preserving creds/port', async () => {
@@ -769,98 +735,6 @@ describe('validateAndPinProxyUrl', () => {
     expect(pinned.username).toBe('user')
     expect(pinned.password).toBe('pass')
     expect(pinned.port).toBe('8080')
-  })
-})
-
-describe('validateInteger', () => {
-  describe('valid integers', () => {
-    it.concurrent('should accept positive integers', () => {
-      const result = validateInteger(42, 'count')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept zero', () => {
-      const result = validateInteger(0, 'count')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept negative integers', () => {
-      const result = validateInteger(-10, 'offset')
-      expect(result.isValid).toBe(true)
-    })
-  })
-
-  describe('invalid integers', () => {
-    it.concurrent('should reject null', () => {
-      const result = validateInteger(null, 'value')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('required')
-    })
-
-    it.concurrent('should reject undefined', () => {
-      const result = validateInteger(undefined, 'value')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('required')
-    })
-
-    it.concurrent('should reject strings', () => {
-      const result = validateInteger('42' as any, 'value')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('must be a number')
-    })
-
-    it.concurrent('should reject floating point numbers', () => {
-      const result = validateInteger(3.14, 'value')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('must be an integer')
-    })
-
-    it.concurrent('should reject NaN', () => {
-      const result = validateInteger(Number.NaN, 'value')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('valid number')
-    })
-
-    it.concurrent('should reject Infinity', () => {
-      const result = validateInteger(Number.POSITIVE_INFINITY, 'value')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('valid number')
-    })
-
-    it.concurrent('should reject negative Infinity', () => {
-      const result = validateInteger(Number.NEGATIVE_INFINITY, 'value')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('valid number')
-    })
-  })
-
-  describe('min/max constraints', () => {
-    it.concurrent('should accept values within range', () => {
-      const result = validateInteger(50, 'value', { min: 0, max: 100 })
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should reject values below min', () => {
-      const result = validateInteger(-1, 'value', { min: 0 })
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('at least 0')
-    })
-
-    it.concurrent('should reject values above max', () => {
-      const result = validateInteger(101, 'value', { max: 100 })
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('at most 100')
-    })
-
-    it.concurrent('should accept value equal to min', () => {
-      const result = validateInteger(0, 'value', { min: 0 })
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept value equal to max', () => {
-      const result = validateInteger(100, 'value', { max: 100 })
-      expect(result.isValid).toBe(true)
-    })
   })
 })
 
@@ -1049,46 +923,50 @@ describe('validateJiraIssueKey', () => {
 describe('validateExternalUrl', () => {
   describe('valid URLs', () => {
     it.concurrent('should accept https URLs', () => {
-      const result = validateExternalUrl('https://example.com')
+      const result = validateExternalUrl('https://example.com', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
     })
 
     it.concurrent('should accept URLs with paths', () => {
-      const result = validateExternalUrl('https://api.example.com/v1/data')
+      const result = validateExternalUrl(
+        'https://api.example.com/v1/data',
+        'url',
+        'configuredEndpoint'
+      )
       expect(result.isValid).toBe(true)
     })
 
     it.concurrent('should accept URLs with query strings', () => {
-      const result = validateExternalUrl('https://example.com?foo=bar')
+      const result = validateExternalUrl('https://example.com?foo=bar', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
     })
 
     it.concurrent('should accept URLs with standard ports', () => {
-      const result = validateExternalUrl('https://example.com:443/api')
+      const result = validateExternalUrl('https://example.com:443/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
     })
   })
 
   describe('invalid URLs', () => {
     it.concurrent('should reject null', () => {
-      const result = validateExternalUrl(null)
+      const result = validateExternalUrl(null, 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('required')
     })
 
     it.concurrent('should reject empty string', () => {
-      const result = validateExternalUrl('')
+      const result = validateExternalUrl('', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
     })
 
     it.concurrent('should reject http URLs', () => {
-      const result = validateExternalUrl('http://example.com')
+      const result = validateExternalUrl('http://example.com', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('https://')
     })
 
     it.concurrent('should reject invalid URLs', () => {
-      const result = validateExternalUrl('not-a-url')
+      const result = validateExternalUrl('not-a-url', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('valid URL')
     })
@@ -1096,22 +974,22 @@ describe('validateExternalUrl', () => {
 
   describe('localhost and loopback addresses (self-hosted)', () => {
     it.concurrent('should accept https localhost', () => {
-      const result = validateExternalUrl('https://localhost/api')
+      const result = validateExternalUrl('https://localhost/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
     })
 
     it.concurrent('should accept http localhost', () => {
-      const result = validateExternalUrl('http://localhost/api')
+      const result = validateExternalUrl('http://localhost/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
     })
 
     it.concurrent('should accept https 127.0.0.1', () => {
-      const result = validateExternalUrl('https://127.0.0.1/api')
+      const result = validateExternalUrl('https://127.0.0.1/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
     })
 
     it.concurrent('should accept http 127.0.0.1', () => {
-      const result = validateExternalUrl('http://127.0.0.1/api')
+      const result = validateExternalUrl('http://127.0.0.1/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
     })
 
@@ -1122,201 +1000,120 @@ describe('validateExternalUrl', () => {
      * address was localhost to one caller and a plain http URL to the other.
      */
     it.concurrent('should treat the rest of the loopback range as localhost too', () => {
-      expect(validateExternalUrl('http://127.0.0.2/api').isValid).toBe(true)
-      expect(validateExternalUrl('http://127.1.2.3/api').isValid).toBe(true)
+      expect(validateExternalUrl('http://127.0.0.2/api', 'url', 'configuredEndpoint').isValid).toBe(
+        true
+      )
+      expect(validateExternalUrl('http://127.1.2.3/api', 'url', 'configuredEndpoint').isValid).toBe(
+        true
+      )
       // Still only loopback — neighbouring private ranges stay rejected.
-      expect(validateExternalUrl('http://10.0.0.1/api').isValid).toBe(false)
-      expect(validateExternalUrl('http://192.168.1.1/api').isValid).toBe(false)
+      expect(validateExternalUrl('http://10.0.0.1/api', 'url', 'configuredEndpoint').isValid).toBe(
+        false
+      )
+      expect(
+        validateExternalUrl('http://192.168.1.1/api', 'url', 'configuredEndpoint').isValid
+      ).toBe(false)
     })
 
     it.concurrent('should accept https IPv6 loopback', () => {
-      const result = validateExternalUrl('https://[::1]/api')
+      const result = validateExternalUrl('https://[::1]/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
     })
 
     it.concurrent('should accept http IPv6 loopback', () => {
-      const result = validateExternalUrl('http://[::1]/api')
+      const result = validateExternalUrl('http://[::1]/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(true)
     })
 
     it.concurrent('should reject 0.0.0.0', () => {
-      const result = validateExternalUrl('https://0.0.0.0/api')
+      const result = validateExternalUrl('https://0.0.0.0/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      expect(result.error).toContain('private or reserved address')
     })
   })
 
   describe('private IP ranges', () => {
     it.concurrent('should reject 10.x.x.x', () => {
-      const result = validateExternalUrl('https://10.0.0.1/api')
+      const result = validateExternalUrl('https://10.0.0.1/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      expect(result.error).toContain('private or reserved address')
     })
 
     it.concurrent('should reject 172.16.x.x', () => {
-      const result = validateExternalUrl('https://172.16.0.1/api')
+      const result = validateExternalUrl('https://172.16.0.1/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      expect(result.error).toContain('private or reserved address')
     })
 
     it.concurrent('should reject 192.168.x.x', () => {
-      const result = validateExternalUrl('https://192.168.1.1/api')
+      const result = validateExternalUrl('https://192.168.1.1/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      expect(result.error).toContain('private or reserved address')
     })
 
     it.concurrent('should reject link-local 169.254.x.x', () => {
-      const result = validateExternalUrl('https://169.254.169.254/api')
+      const result = validateExternalUrl('https://169.254.169.254/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      // The metadata endpoint gets its own, more specific refusal.
+      expect(result.error).toContain('cloud metadata endpoint')
     })
   })
 
   describe('blocked ports', () => {
     it.concurrent('should reject SSH port 22', () => {
-      const result = validateExternalUrl('https://example.com:22/api')
+      const result = validateExternalUrl('https://example.com:22/api', 'url', 'configuredEndpoint')
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('blocked port')
     })
 
     it.concurrent('should reject MySQL port 3306', () => {
-      const result = validateExternalUrl('https://example.com:3306/api')
+      const result = validateExternalUrl(
+        'https://example.com:3306/api',
+        'url',
+        'configuredEndpoint'
+      )
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('blocked port')
     })
 
     it.concurrent('should reject PostgreSQL port 5432', () => {
-      const result = validateExternalUrl('https://example.com:5432/api')
+      const result = validateExternalUrl(
+        'https://example.com:5432/api',
+        'url',
+        'configuredEndpoint'
+      )
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('blocked port')
     })
 
     it.concurrent('should reject Redis port 6379', () => {
-      const result = validateExternalUrl('https://example.com:6379/api')
+      const result = validateExternalUrl(
+        'https://example.com:6379/api',
+        'url',
+        'configuredEndpoint'
+      )
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('blocked port')
     })
 
     it.concurrent('should reject MongoDB port 27017', () => {
-      const result = validateExternalUrl('https://example.com:27017/api')
+      const result = validateExternalUrl(
+        'https://example.com:27017/api',
+        'url',
+        'configuredEndpoint'
+      )
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('blocked port')
     })
 
     it.concurrent('should reject Elasticsearch port 9200', () => {
-      const result = validateExternalUrl('https://example.com:9200/api')
+      const result = validateExternalUrl(
+        'https://example.com:9200/api',
+        'url',
+        'configuredEndpoint'
+      )
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('blocked port')
-    })
-  })
-})
-
-describe('validateImageUrl', () => {
-  it.concurrent('should accept valid image URLs', () => {
-    const result = validateImageUrl('https://example.com/image.png')
-    expect(result.isValid).toBe(true)
-  })
-
-  it.concurrent('should accept localhost URLs (self-hosted)', () => {
-    const result = validateImageUrl('https://localhost/image.png')
-    expect(result.isValid).toBe(true)
-  })
-
-  it.concurrent('should use imageUrl as default param name', () => {
-    const result = validateImageUrl(null)
-    expect(result.error).toContain('imageUrl')
-  })
-})
-
-describe('validateProxyUrl', () => {
-  it.concurrent('should accept valid proxy URLs', () => {
-    const result = validateProxyUrl('https://proxy.example.com/api')
-    expect(result.isValid).toBe(true)
-  })
-
-  it.concurrent('should reject private IPs', () => {
-    const result = validateProxyUrl('https://192.168.1.1:8080')
-    expect(result.isValid).toBe(false)
-  })
-
-  it.concurrent('should use proxyUrl as default param name', () => {
-    const result = validateProxyUrl(null)
-    expect(result.error).toContain('proxyUrl')
-  })
-})
-
-describe('validateGoogleCalendarId', () => {
-  describe('valid calendar IDs', () => {
-    it.concurrent('should accept "primary"', () => {
-      const result = validateGoogleCalendarId('primary')
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('primary')
-    })
-
-    it.concurrent('should accept email addresses', () => {
-      const result = validateGoogleCalendarId('user@example.com')
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('user@example.com')
-    })
-
-    it.concurrent('should accept Google calendar format', () => {
-      const result = validateGoogleCalendarId('en.usa#holiday@group.v.calendar.google.com')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept alphanumeric IDs with allowed characters', () => {
-      const result = validateGoogleCalendarId('abc123_def-456')
-      expect(result.isValid).toBe(true)
-    })
-  })
-
-  describe('invalid calendar IDs', () => {
-    it.concurrent('should reject null', () => {
-      const result = validateGoogleCalendarId(null)
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('required')
-    })
-
-    it.concurrent('should reject empty string', () => {
-      const result = validateGoogleCalendarId('')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject path traversal', () => {
-      const result = validateGoogleCalendarId('../etc/passwd')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('path traversal')
-    })
-
-    it.concurrent('should reject URL-encoded path traversal', () => {
-      const result = validateGoogleCalendarId('%2e%2e%2f')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('path traversal')
-    })
-
-    it.concurrent('should reject null bytes', () => {
-      const result = validateGoogleCalendarId('test\0value')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('control characters')
-    })
-
-    it.concurrent('should reject newline characters', () => {
-      const result = validateGoogleCalendarId('test\nvalue')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('control characters')
-    })
-
-    it.concurrent('should reject IDs exceeding 255 characters', () => {
-      const longId = 'a'.repeat(256)
-      const result = validateGoogleCalendarId(longId)
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('maximum length')
-    })
-
-    it.concurrent('should reject invalid characters', () => {
-      const result = validateGoogleCalendarId('test<script>alert(1)</script>')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('format is invalid')
     })
   })
 })
@@ -1883,264 +1680,6 @@ describe('validateMondayNumericId', () => {
   })
 })
 
-describe('validateMondayGroupId', () => {
-  describe('valid inputs', () => {
-    it.concurrent('should accept simple group IDs', () => {
-      const result = validateMondayGroupId('topics')
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('topics')
-    })
-
-    it.concurrent('should accept group IDs with underscores', () => {
-      const result = validateMondayGroupId('new_group')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept group IDs with spaces', () => {
-      const result = validateMondayGroupId('test group id')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept group IDs with uppercase letters', () => {
-      const result = validateMondayGroupId('Group One')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept group IDs with digits', () => {
-      const result = validateMondayGroupId('group123')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept auto-generated group IDs', () => {
-      const result = validateMondayGroupId('group_title')
-      expect(result.isValid).toBe(true)
-    })
-  })
-
-  describe('invalid inputs', () => {
-    it.concurrent('should reject null', () => {
-      const result = validateMondayGroupId(null)
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject empty string', () => {
-      const result = validateMondayGroupId('')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject strings with brackets', () => {
-      const result = validateMondayGroupId('group"]){id}#')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject strings with quotes', () => {
-      const result = validateMondayGroupId('group")')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject control characters', () => {
-      const result = validateMondayGroupId('group\x00id')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject strings exceeding max length', () => {
-      const result = validateMondayGroupId('a'.repeat(256))
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject strings with special characters', () => {
-      const result = validateMondayGroupId('group;DROP')
-      expect(result.isValid).toBe(false)
-    })
-  })
-})
-
-describe('validateMondayColumnId', () => {
-  describe('valid inputs', () => {
-    it.concurrent('should accept simple column IDs', () => {
-      const result = validateMondayColumnId('status')
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('status')
-    })
-
-    it.concurrent('should accept column IDs with digits', () => {
-      const result = validateMondayColumnId('date4')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept auto-generated column IDs', () => {
-      const result = validateMondayColumnId('email_mksr9hcd')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept column IDs with underscores', () => {
-      const result = validateMondayColumnId('color_mksreyj6')
-      expect(result.isValid).toBe(true)
-    })
-
-    it.concurrent('should accept single character column IDs', () => {
-      const result = validateMondayColumnId('a')
-      expect(result.isValid).toBe(true)
-    })
-  })
-
-  describe('invalid inputs', () => {
-    it.concurrent('should reject null', () => {
-      const result = validateMondayColumnId(null)
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject empty string', () => {
-      const result = validateMondayColumnId('')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject uppercase letters', () => {
-      const result = validateMondayColumnId('Status')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject spaces', () => {
-      const result = validateMondayColumnId('my column')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject hyphens', () => {
-      const result = validateMondayColumnId('my-column')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject special characters', () => {
-      const result = validateMondayColumnId('col;DROP')
-      expect(result.isValid).toBe(false)
-    })
-
-    it.concurrent('should reject strings exceeding max length', () => {
-      const result = validateMondayColumnId('a'.repeat(256))
-      expect(result.isValid).toBe(false)
-    })
-  })
-
-  describe('validateSupabaseProjectId', () => {
-    describe('valid inputs', () => {
-      it.concurrent('should accept a typical 20-char lowercase alphanumeric project ID', () => {
-        const result = validateSupabaseProjectId('jdrkgepadsdopsntdlom')
-        expect(result.isValid).toBe(true)
-        expect(result.sanitized).toBe('jdrkgepadsdopsntdlom')
-      })
-
-      it.concurrent('should accept project IDs with digits', () => {
-        const result = validateSupabaseProjectId('abc123def456ghi789jk')
-        expect(result.isValid).toBe(true)
-      })
-
-      it.concurrent('should accept IDs at the minimum length boundary (10)', () => {
-        const result = validateSupabaseProjectId('abcdefghij')
-        expect(result.isValid).toBe(true)
-      })
-
-      it.concurrent('should accept IDs at the maximum length boundary (40)', () => {
-        const result = validateSupabaseProjectId('a'.repeat(40))
-        expect(result.isValid).toBe(true)
-      })
-    })
-
-    describe('SSRF attack vectors', () => {
-      it.concurrent('should reject fragment injection (#)', () => {
-        const result = validateSupabaseProjectId('evil#attacker.com')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject @ for authority injection', () => {
-        const result = validateSupabaseProjectId('evil@attacker.com')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject path traversal with slashes', () => {
-        const result = validateSupabaseProjectId('evil/../../etc/passwd')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject dots (subdomain manipulation)', () => {
-        const result = validateSupabaseProjectId('evil.attacker.com')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject backslashes', () => {
-        const result = validateSupabaseProjectId('evil\\path')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject colons (port injection)', () => {
-        const result = validateSupabaseProjectId('evil:8080')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject URL-encoded characters', () => {
-        const result = validateSupabaseProjectId('evil%23attacker')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject spaces', () => {
-        const result = validateSupabaseProjectId('evil host')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject newlines (header injection)', () => {
-        const result = validateSupabaseProjectId('evil\r\nHost: attacker.com')
-        expect(result.isValid).toBe(false)
-      })
-    })
-
-    describe('invalid formats', () => {
-      it.concurrent('should reject null', () => {
-        const result = validateSupabaseProjectId(null)
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject undefined', () => {
-        const result = validateSupabaseProjectId(undefined)
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject empty string', () => {
-        const result = validateSupabaseProjectId('')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject uppercase letters', () => {
-        const result = validateSupabaseProjectId('JDRKGEPADSDOPSNTDLOM')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject mixed case', () => {
-        const result = validateSupabaseProjectId('jdrkGEPadsdOPSntdlom')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject hyphens', () => {
-        const result = validateSupabaseProjectId('jdrk-gepa-dsdo-psnt')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject underscores', () => {
-        const result = validateSupabaseProjectId('jdrk_gepa_dsdo_psnt')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject IDs shorter than 10 characters', () => {
-        const result = validateSupabaseProjectId('abcdefghi')
-        expect(result.isValid).toBe(false)
-      })
-
-      it.concurrent('should reject IDs longer than 40 characters', () => {
-        const result = validateSupabaseProjectId('a'.repeat(41))
-        expect(result.isValid).toBe(false)
-      })
-    })
-  })
-})
-
 describe('validateCallbackUrl', () => {
   const ORIGIN = 'https://sim.app'
   const originalWindow = (globalThis as { window?: unknown }).window
@@ -2307,7 +1846,7 @@ describe('validateServiceNowInstanceUrl', () => {
     it.concurrent('should reject private IPs', () => {
       const result = validateServiceNowInstanceUrl('https://192.168.1.1')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      expect(result.error).toContain('private or reserved address')
     })
 
     it.concurrent('should reject link-local metadata IP', () => {
@@ -2405,7 +1944,7 @@ describe('validateWorkdayTenantUrl', () => {
     it.concurrent('should reject private IPs', () => {
       const result = validateWorkdayTenantUrl('https://192.168.1.1')
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('private IP')
+      expect(result.error).toContain('private or reserved address')
     })
 
     it.concurrent('should reject link-local metadata IP (SSRF classic)', () => {
@@ -2421,6 +1960,125 @@ describe('validateWorkdayTenantUrl', () => {
 
     it.concurrent('should reject malformed URLs', () => {
       const result = validateWorkdayTenantUrl('not-a-url')
+      expect(result.isValid).toBe(false)
+    })
+  })
+})
+
+describe('validateSupabaseProjectId', () => {
+  describe('valid inputs', () => {
+    it.concurrent('should accept a typical 20-char lowercase alphanumeric project ID', () => {
+      const result = validateSupabaseProjectId('jdrkgepadsdopsntdlom')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('jdrkgepadsdopsntdlom')
+    })
+
+    it.concurrent('should accept project IDs with digits', () => {
+      const result = validateSupabaseProjectId('abc123def456ghi789jk')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept IDs at the minimum length boundary (10)', () => {
+      const result = validateSupabaseProjectId('abcdefghij')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept IDs at the maximum length boundary (40)', () => {
+      const result = validateSupabaseProjectId('a'.repeat(40))
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('SSRF attack vectors', () => {
+    it.concurrent('should reject fragment injection (#)', () => {
+      const result = validateSupabaseProjectId('evil#attacker.com')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject @ for authority injection', () => {
+      const result = validateSupabaseProjectId('evil@attacker.com')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject path traversal with slashes', () => {
+      const result = validateSupabaseProjectId('evil/../../etc/passwd')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject dots (subdomain manipulation)', () => {
+      const result = validateSupabaseProjectId('evil.attacker.com')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject backslashes', () => {
+      const result = validateSupabaseProjectId('evil\\path')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject colons (port injection)', () => {
+      const result = validateSupabaseProjectId('evil:8080')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject URL-encoded characters', () => {
+      const result = validateSupabaseProjectId('evil%23attacker')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject spaces', () => {
+      const result = validateSupabaseProjectId('evil host')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject newlines (header injection)', () => {
+      const result = validateSupabaseProjectId('evil\r\nHost: attacker.com')
+      expect(result.isValid).toBe(false)
+    })
+  })
+
+  describe('invalid formats', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateSupabaseProjectId(null)
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject undefined', () => {
+      const result = validateSupabaseProjectId(undefined)
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateSupabaseProjectId('')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject uppercase letters', () => {
+      const result = validateSupabaseProjectId('JDRKGEPADSDOPSNTDLOM')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject mixed case', () => {
+      const result = validateSupabaseProjectId('jdrkGEPadsdOPSntdlom')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject hyphens', () => {
+      const result = validateSupabaseProjectId('jdrk-gepa-dsdo-psnt')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject underscores', () => {
+      const result = validateSupabaseProjectId('jdrk_gepa_dsdo_psnt')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject IDs shorter than 10 characters', () => {
+      const result = validateSupabaseProjectId('abcdefghi')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject IDs longer than 40 characters', () => {
+      const result = validateSupabaseProjectId('a'.repeat(41))
       expect(result.isValid).toBe(false)
     })
   })

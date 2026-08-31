@@ -251,9 +251,14 @@ function truncateString(value: string, maxChars: number): { value: string; trunc
 }
 
 function normalizeFetchOptions(options?: IsolatedFetchOptions): SecureFetchOptions {
-  if (!options) return { maxResponseBytes: MAX_FETCH_RESPONSE_BYTES }
+  // The Function block's `fetch()` reaches whatever the workflow author's script
+  // asks for, so it is governed as a request target rather than a configured one.
+  if (!options) {
+    return { profile: 'requestTarget', maxResponseBytes: MAX_FETCH_RESPONSE_BYTES }
+  }
 
   const normalized: SecureFetchOptions = {
+    profile: 'requestTarget',
     maxResponseBytes: MAX_FETCH_RESPONSE_BYTES,
   }
 

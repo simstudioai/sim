@@ -48,6 +48,7 @@ Go to **Settings → Security → Single sign-on** in your organization settings
 | **Provider ID** | A short slug identifying this connection. Letters, numbers, and dashes only. It must be **unique across every Sim organization**, so include something specific to you — `azure-ad-acme`, not `azure-ad`. If the ID is taken, Sim tells you and suggests a free one. |
 | **Issuer URL** | The identity provider's issuer URL. Must be HTTPS. |
 | **Domain** | Your organization's email domain, e.g. `company.com`. Users with this domain will be routed through SSO at sign-in. |
+| **Member provisioning** | **Automatic** adds a user authenticated through this verified SSO connection to the organization as a Member and consumes a billed seat. Team seat counts grow with membership; fixed-seat plans require available capacity. **Invite only** authenticates the user without creating organization membership. Neither mode grants workspace access automatically. |
 
 **OIDC additional fields:**
 
@@ -267,16 +268,17 @@ Once SSO is configured, users with your domain (`company.com`) can sign in throu
 1. User goes to `sim.ai` and clicks **Sign in with SSO**
 2. They enter their work email (e.g. `alice@company.com`)
 3. Sim redirects them to your identity provider
-4. After authenticating, they are returned to Sim and added to your organization automatically
-5. They land in the workspace
+4. After authenticating, they are returned to Sim
+5. If **Member provisioning** is **Automatic**, Sim adds them to the organization as a Member, growing a Team seat count or validating available fixed-seat capacity
+6. They land in an accessible workspace, or see a clear no-access state until an admin grants workspace access
 
-Users who sign in via SSO for the first time are automatically provisioned and added to your organization — no manual invite required.
+With **Automatic** provisioning, no invitation is required for organization membership. The join follows the organization's seat policy and does not infer a role from IdP claims: every newly provisioned user starts as a Member. Team subscriptions grow their billed seat count with membership; fixed-seat plans reject the join when capacity is full. With **Invite only**, SSO proves identity but does not create new membership or workspace access; new access must be granted separately, while existing organization membership and workspace access remain available.
 
 <Callout type="warning">
   Sign-in must start from Sim. Launching from your identity provider's app portal (Microsoft's **My Apps**, Okta's dashboard tile) sends an unsolicited assertion, which Sim rejects. This is deliberate — accepting them would let anyone replay an assertion into your tenant — but it means an IdP-initiated test fails even when the configuration is correct.
 </Callout>
 
-SSO provisioning creates internal organization members. External workspace members are different: they are invited to a specific workspace without joining your organization or consuming one of your seats.
+SSO provisioning creates internal organization members but does not grant workspace access. External workspace members are different: they are invited to a specific workspace without joining your organization or consuming one of your seats. Existing invitations and external access take precedence over automatic provisioning so their intended role and workspace grants are preserved.
 
 <Callout type="info">
   Password-based login remains available. Forcing all organization members to use SSO exclusively is not yet supported.
@@ -299,7 +301,11 @@ SSO provisioning creates internal organization members. External workspace membe
   },
   {
     question: "What happens when a user signs in with SSO for the first time?",
-    answer: "Sim creates an account for them automatically and adds them to your organization. No manual invite is needed. They are assigned the member role by default. External workspace members are not provisioned through SSO into your organization; they are invited directly to a workspace and remain outside your org roster."
+    answer: "Sim creates or links their account. If Member provisioning is Automatic and a seat is available, Sim adds them to your organization as a Member; no manual organization invite is needed. Workspace access is always granted separately. If provisioning is Invite only, or the user already has a pending invitation or external workspace access, Sim preserves that flow instead of creating membership automatically."
+  },
+  {
+    question: "Does disabling someone in the identity provider remove their Sim access?",
+    answer: "No. Disabling the IdP account blocks future SSO authentication, but Sim does not currently receive SCIM deprovisioning or IdP logout events to remove membership or revoke active Sim sessions. Remove or suspend the user in Sim as part of offboarding."
   },
   {
     question: "Can I still use email/password login after enabling SSO?",

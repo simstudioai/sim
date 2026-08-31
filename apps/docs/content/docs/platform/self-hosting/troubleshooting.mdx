@@ -25,6 +25,24 @@ OLLAMA_URL=http://host.docker.internal:11434  # macOS/Windows
 OLLAMA_URL=http://192.168.1.x:11434           # Linux (use actual IP)
 ```
 
+## A Workflow Cannot Reach a Service on Your Network
+
+Outbound requests to private, reserved, and loopback addresses are blocked by default, so a workflow pointed at your Docker host, a LAN service, or a Kubernetes service name fails with a message naming the blocker — the private or loopback address it resolved to, a blocked port, or `must use https:// to a public destination` when the URL is plain HTTP — and pointing at the allowlist variables.
+
+Name the destination:
+
+```bash
+EGRESS_ALLOWED_HOSTS=host.docker.internal,*.svc.cluster.local
+EGRESS_ALLOWED_IP_RANGES=10.0.0.0/8
+```
+
+Naming a destination also permits plain HTTP to it and lifts the blocked-port list for it. A database, cache, or mail connector's host carries no scheme or port of its own, so naming one of those only lifts the private-address block. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked however broad the list is, and both variables are ignored on Sim Cloud.
+
+Two things this does not cover:
+
+- Inside a container `localhost` is the container itself, so it will never reach a service on your host. Use `host.docker.internal` (the Compose files map it) and name it above.
+- URLs harvested from content or from a third-party API response — an image URL, a file imported by URL, an MCP OAuth endpoint on a different origin than the MCP server itself — never reach a private network, allowlist or not. Nor does an HTTP block's `proxyUrl`.
+
 ## LM Studio Requests Route to Ollama
 
 Sim identifies dynamically discovered LM Studio and vLLM models by their `vllm/` prefix. If the endpoint is unavailable and you manually enter the raw LM Studio model identifier, Sim treats that unknown identifier as an Ollama model.

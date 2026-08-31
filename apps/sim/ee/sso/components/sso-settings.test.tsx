@@ -39,6 +39,28 @@ vi.mock('@sim/emcn', () => ({
     placeholder?: string
   }) => <input id={id} placeholder={placeholder} value={value ?? ''} onChange={onChange} />,
   ChipSelect: () => <div />,
+  ChipSwitch: ({
+    options,
+    value,
+    onChange,
+  }: {
+    options: Array<{ label: string; value: string }>
+    value: string
+    onChange: (value: string) => void
+  }) => (
+    <div>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type='button'
+          aria-pressed={option.value === value}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  ),
   ChipTextarea: ({
     value,
     onChange,
@@ -125,6 +147,7 @@ function provider(organizationId: string) {
     domain: `org-${suffix}.example.com`,
     issuer: `https://issuer-${suffix}.example.com`,
     organizationId,
+    jitProvisioningEnabled: true,
     providerType: 'oidc',
     oidcConfig: JSON.stringify({
       // What the API actually returns: the sentinel plus a display-only hint,
@@ -206,6 +229,30 @@ describe('SSO organization transitions', () => {
     expect(container).toHaveTextContent('org-b.example.com')
     expect(container).not.toHaveTextContent('org-a.example.com')
     expect(container.querySelector('input[value="client-a"]')).toBeNull()
+  })
+})
+
+describe('SSO member provisioning', () => {
+  it('shows the saved automatic provisioning mode', () => {
+    renderSso('org-a')
+
+    expect(container).toHaveTextContent('Automatic')
+    expect(container).toHaveTextContent('No workspace access is granted automatically.')
+  })
+
+  it('sends invite-only when an admin changes the provisioning mode', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({})
+    mockUseConfigureSSO.mockReturnValue({ isPending: false, mutateAsync })
+
+    renderSso('org-a')
+    startEditing()
+    act(() => findButton('Invite only')?.click())
+    await act(async () => {
+      findButton('Update')?.click()
+    })
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1)
+    expect(mutateAsync.mock.calls[0][0].jitProvisioningEnabled).toBe(false)
   })
 })
 

@@ -111,7 +111,7 @@ function resolveSite(rawUrl: string | undefined): MintlifySite {
     url = `https://${url}`
   }
 
-  const validation = validateExternalUrl(url, 'siteUrl')
+  const validation = validateExternalUrl(url, 'siteUrl', 'configuredEndpoint')
   if (!validation.isValid) {
     throw new Error(validation.error || 'Invalid documentation site URL')
   }
@@ -172,6 +172,7 @@ async function fetchSiteText(
   const response = await secureFetchWithRetry(
     url,
     {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: siteHeaders(accessToken, accept),
       stripAuthOnRedirect: true,

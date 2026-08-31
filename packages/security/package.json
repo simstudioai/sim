@@ -18,6 +18,10 @@
       "types": "./src/dns.ts",
       "default": "./src/dns.ts"
     },
+    "./egress": {
+      "types": "./src/egress.ts",
+      "default": "./src/egress.ts"
+    },
     "./encryption": {
       "types": "./src/encryption.ts",
       "default": "./src/encryption.ts"

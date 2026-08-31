@@ -253,7 +253,7 @@ export function PromptEditor({
           onPaste={readOnly ? undefined : editor.handlePaste}
           data-paste-max-bytes={PASTE_LIMITS.CHAT_BYTES}
           data-paste-max-characters={PASTE_LIMITS.CHAT_CHARACTERS}
-          data-paste-selection-context='reference'
+          data-paste-selection-context={editor.workspaceId}
           onCopy={editor.handleCopy}
           onCut={readOnly ? undefined : editor.handleCut}
           onSelect={readOnly ? undefined : editor.handleSelectAdjust}

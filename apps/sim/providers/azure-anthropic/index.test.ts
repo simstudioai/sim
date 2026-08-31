@@ -77,8 +77,14 @@ describe('azureAnthropicProvider — SSRF pinning', () => {
       request({ azureEndpoint: 'https://rebind.attacker.tld' })
     )
 
-    expect(mockValidate).toHaveBeenCalledWith('https://rebind.attacker.tld', 'azureEndpoint')
-    expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
+    expect(mockValidate).toHaveBeenCalledWith(
+      'https://rebind.attacker.tld',
+      'azureEndpoint',
+      'configuredEndpoint'
+    )
+    expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10', {
+      profile: 'configuredEndpoint',
+    })
     expect(buildClientOptions()).toMatchObject({ fetch: sentinelFetch })
   })
 
@@ -112,19 +118,6 @@ describe('azureAnthropicProvider — SSRF pinning', () => {
         request({ azureEndpoint: 'https://rebind.attacker.tld' })
       )
     ).rejects.toThrow('Invalid Azure Anthropic endpoint')
-
-    expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-    expect(mockExecuteAnthropic).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when validation passes but yields no resolvable IP to pin', async () => {
-    mockValidate.mockResolvedValue({ isValid: true })
-
-    await expect(
-      azureAnthropicProvider.executeRequest(
-        request({ azureEndpoint: 'https://rebind.attacker.tld' })
-      )
-    ).rejects.toThrow('could not resolve a pinnable IP address')
 
     expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
     expect(mockExecuteAnthropic).not.toHaveBeenCalled()

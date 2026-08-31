@@ -993,6 +993,14 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       condition: { field: 'operation', value: 'github_update_branch_protection' },
       mode: 'advanced',
     },
+    {
+      id: 'restrictions',
+      title: 'Push Restrictions',
+      type: 'short-input',
+      placeholder: 'JSON: {"users":["octocat"],"teams":["admins"]}',
+      condition: { field: 'operation', value: 'github_update_branch_protection' },
+      mode: 'advanced',
+    },
     // Issue operations parameters
     {
       id: 'title',
@@ -2407,9 +2415,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     ref: { type: 'string', description: 'Branch, tag, or commit reference' },
     // Branch parameters
     protected: { type: 'string', description: 'Protection status filter' },
-    required_status_checks: { type: 'string', description: 'Required status checks JSON' },
+    required_status_checks: { type: 'json', description: 'Required status checks JSON' },
     enforce_admins: { type: 'boolean', description: 'Enforce for admins' },
-    required_pull_request_reviews: { type: 'string', description: 'Required PR reviews JSON' },
+    required_pull_request_reviews: { type: 'json', description: 'Required PR reviews JSON' },
+    restrictions: { type: 'json', description: 'Push restrictions JSON' },
     // Issue parameters
     labels: { type: 'string', description: 'Comma-separated labels' },
     assignees: { type: 'string', description: 'Comma-separated assignees' },

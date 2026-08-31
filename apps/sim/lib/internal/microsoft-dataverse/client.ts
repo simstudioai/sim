@@ -19,6 +19,8 @@ export async function uploadDataverseFile(
   const response = await secureFetchWithValidation(
     input.uploadUrl,
     {
+      // Built in process from the configured `environmentUrl`, not response-derived.
+      profile: 'configuredEndpoint',
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${input.accessToken}`,

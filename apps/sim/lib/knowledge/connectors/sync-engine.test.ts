@@ -1257,9 +1257,16 @@ describe('executeSync deferred hydration rate limits', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'error',
-        nextSyncAt: new Date(NOW.getTime() + 45 * 60 * 1000),
+        consecutiveFailures: 0,
       })
     )
+    const failureUpdate = dbChainMockFns.set.mock.calls.find(
+      ([update]) => update.status === 'error'
+    )?.[0]
+    expect(failureUpdate?.nextSyncAt.getTime()).toBeGreaterThanOrEqual(
+      NOW.getTime() + 45 * 60 * 1000
+    )
+    expect(failureUpdate?.nextSyncAt.getTime()).toBeLessThanOrEqual(NOW.getTime() + 46 * 60 * 1000)
   })
 })
 
@@ -2386,6 +2393,43 @@ describe('buildSyncFailureUpdate', () => {
     expect(buildSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES, 'boom').lastSyncError).toBe(
       CONNECTOR_AUTO_DISABLED_ERROR
     )
+  })
+})
+
+describe('buildSyncRateLimitUpdate', () => {
+  const now = new Date('2026-08-20T00:00:00.000Z')
+
+  it('preserves the failure counter and schedules after the provider deadline', async () => {
+    const { buildSyncRateLimitUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const providerDelayMs = 45 * 60 * 1000
+    const update = buildSyncRateLimitUpdate(now, 9, 'rate limited', providerDelayMs)
+
+    expect(update.status).toBe('error')
+    expect(update.lastSyncError).toBe('rate limited')
+    expect(update.consecutiveFailures).toBe(9)
+    expect(update.nextSyncAt.getTime()).toBeGreaterThanOrEqual(now.getTime() + providerDelayMs)
+    expect(update.nextSyncAt.getTime()).toBeLessThanOrEqual(
+      now.getTime() + providerDelayMs + 60_000
+    )
+  })
+
+  it('uses a conservative fallback without consuming the breaker', async () => {
+    const { buildSyncRateLimitUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const update = buildSyncRateLimitUpdate(now, null, 'rate limited')
+    const fallbackMs = 30 * 60 * 1000
+
+    expect(update.consecutiveFailures).toBe(0)
+    expect(update.nextSyncAt.getTime()).toBeGreaterThanOrEqual(now.getTime() + fallbackMs)
+    expect(update.nextSyncAt.getTime()).toBeLessThanOrEqual(now.getTime() + fallbackMs + 60_000)
+  })
+
+  it('caps the provider deadline and releases the sync lease', async () => {
+    const { buildSyncRateLimitUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const update = buildSyncRateLimitUpdate(now, 4, 'rate limited', 30 * 24 * 60 * 60 * 1000)
+
+    expect(update.nextSyncAt).toEqual(new Date(now.getTime() + 24 * 60 * 60 * 1000))
+    expect(update.syncLockToken).toBeNull()
+    expect(update.syncLockLeaseAt).toBeNull()
   })
 })
 

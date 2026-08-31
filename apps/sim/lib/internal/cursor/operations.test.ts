@@ -45,7 +45,7 @@ describe('downloadCursorArtifact', () => {
     expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://download.example/artifact',
       '203.0.113.1',
-      { signal: controller.signal }
+      { profile: 'contentFetch', signal: controller.signal }
     )
     expect(result.output.file).toEqual({
       name: 'index.ts',

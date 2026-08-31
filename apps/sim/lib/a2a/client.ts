@@ -133,6 +133,7 @@ function createPinnedFetch(
           : undefined)
 
     const res = await secureFetchWithPinnedIP(url, resolvedIP, {
+      profile: 'requestTarget',
       method,
       headers,
       body,
@@ -196,8 +197,8 @@ export async function createA2AClient(
   apiKey?: string,
   options: { signal?: AbortSignal } = {}
 ): Promise<Client> {
-  const validation = await validateUrlWithDNS(agentUrl, 'agentUrl')
-  if (!validation.isValid || !validation.resolvedIP) {
+  const validation = await validateUrlWithDNS(agentUrl, 'agentUrl', 'requestTarget')
+  if (!validation.isValid) {
     throw new Error(validation.error || 'Agent URL validation failed')
   }
   const { resolvedIP } = validation

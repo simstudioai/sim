@@ -159,6 +159,7 @@ describe('Vision client', () => {
       'https://images.example.com/a.png',
       '203.0.113.10',
       {
+        profile: 'contentFetch',
         method: 'GET',
         maxResponseBytes: MAX_BUFFERED_TRANSFER_BYTES,
         signal: controller.signal,

@@ -84,9 +84,6 @@ start-collector.sh
 # IntelliJ
 .idea
 
-## Helm Chart Tests
-helm/sim/test
-
 ## Claude Code
 .claude/launch.json
 .claude/worktrees/

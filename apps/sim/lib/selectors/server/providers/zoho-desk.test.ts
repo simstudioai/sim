@@ -77,7 +77,10 @@ describe('Zoho Desk server selector adapters', () => {
     expect(cancel).toHaveBeenCalledOnce()
     expect(mockSecureFetchWithValidation).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ logUrlValidationDetails: false })
+      expect.objectContaining({
+        profile: 'configuredEndpoint',
+        logUrlValidationDetails: false,
+      })
     )
   })
 })

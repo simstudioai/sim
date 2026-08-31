@@ -74,6 +74,7 @@ async function fetchZoho(
   let response
   try {
     response = await secureFetchWithValidation(url.toString(), {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers,
       timeout: 15_000,

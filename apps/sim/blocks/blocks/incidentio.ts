@@ -701,8 +701,6 @@ Return ONLY the title - no explanations.`,
       options: [
         { label: 'Newly Created', id: 'newly_created' },
         { label: 'Newly Created and Active', id: 'newly_created_and_active' },
-        { label: 'Active', id: 'active' },
-        { label: 'All', id: 'all' },
       ],
       value: () => 'newly_created',
       condition: {
