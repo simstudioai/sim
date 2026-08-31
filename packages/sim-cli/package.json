@@ -57,5 +57,11 @@
     "@types/node": "24.2.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.0"
+  },
+  "exports": {
+    "./embed": {
+      "types": "./src/embed.ts",
+      "default": "./src/embed.ts"
+    }
   }
 }

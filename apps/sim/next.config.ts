@@ -246,6 +246,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     '@react-email/components',
     '@react-email/render',
+    'sim',
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',

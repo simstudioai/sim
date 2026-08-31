@@ -73,8 +73,13 @@ export async function executeTool(
 
   const normalizedParams = normalizeToolParams(toolId, params, context)
 
+  // A registered handler is authoritative for worker-declared tools OUTSIDE the catalog
+  // (sim_cli, run_code's successors): the catalog gate below would otherwise misroute
+  // them into the app-tool registry and fail with "Tool not found". Catalog-known tools
+  // keep the routing the catalog declares.
   const canUseRegisteredHandler =
-    isKnownTool(toolId) && (isSimExecuted(toolId) || usesHeadlessClientFallback)
+    hasHandler(toolId) &&
+    (!isKnownTool(toolId) || isSimExecuted(toolId) || usesHeadlessClientFallback)
   if (!canUseRegisteredHandler) {
     const appParams = buildAppToolParams(normalizedParams, context)
     const options = {

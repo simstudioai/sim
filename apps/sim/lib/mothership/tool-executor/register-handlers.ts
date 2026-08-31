@@ -7,6 +7,8 @@ import {
 } from '@/lib/mothership/generated/tool-catalog-v1'
 import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/mothership/tools/server/router'
+import { executeRunCode } from '../tools/handlers/run-code'
+import { executeSimCli } from '../tools/handlers/sim-cli'
 import {
   executeRunBlock,
   executeRunFromBlock,
@@ -48,6 +50,13 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [RunWorkflowUntilBlock.id]: h(executeRunWorkflowUntilBlock),
     [RunFromBlock.id]: h(executeRunFromBlock),
     [RunBlock.id]: h(executeRunBlock),
+    // The worker's sandboxed code execution — deferred here because the sandbox
+    // (E2B/VM, mounts, secret materialization) lives on this side, same as the
+    // workflow Function block. Compute-only: the handler rejects write vectors.
+    run_code: h(executeRunCode),
+    // The worker's CLI surface, executed in-process via the CLI's own command
+    // tree (sim/embed) against this deployment's internal API base.
+    sim_cli: h(executeSimCli),
     ...buildServerToolHandlers(),
   }
 }
