@@ -37,8 +37,10 @@ Allowlist when the safe posture is "only what the admin named" and the member se
 | Value | Meaning |
 |---|---|
 | `'capability'` | An operation declares a capability whose rule reads the key; the funnel refuses before the use case runs. Default answer for anything reachable through an application operation |
-| `'executor'` | Read per block/tool/model at run time by `assertPermissionsAllowed` in `ee/access-control/utils/permission-check.ts`. Governs what a *run* may do, which no operation gate can express (one API call executes fifty blocks). Only `allowedIntegrations`, `allowedModelProviders`, `deniedModels`, `deniedTools` live here |
+| `'executor'` | Read per block/tool/model at run time by `assertPermissionsAllowed` in `ee/access-control/utils/permission-check.ts`. Governs what a *run* may do, which no operation gate can express (one API call executes fifty blocks). Only `allowedIntegrations`, `allowedModelProviders`, `deniedModels`, `deniedTools` live here. The matching primitives these four keys are compared with live in `lib/permission-groups/` — `block-access.ts` (exemptions, superseded-version resolution), `operation-access.ts` (`createToolAccessGate`), `model-access.ts` (`createModelAccessGate`), `integration-allowlist.ts` — shared so the run-time gate and the editor/Copilot projections cannot drift |
 | `'ui-only'` | Hides a surface without withholding it. **Almost never right** — nothing ships as `ui-only`. Justify in the `enforcement` comment why a determined caller reaching the data is acceptable, and expect review to question it |
+
+**Is it per-operation at all?** `personal_api_key.use` is the one capability that is not: it withholds a *principal kind* across every operation, checked in the funnel's `personal_api_key` branch (`workspace-authorization.ts`) and again in `app/api/v1/middleware.ts`, so no operation declares it and its absence from every `capability:` field is correct rather than a hole.
 
 **Is the decision knowable from the config alone?** A rule needing a request value (an auth mode, a connector id) is *parameterized* and cannot be declared on an operation — see Step 3.
 
@@ -104,13 +106,13 @@ Capability ids are **domain-shaped** (`tables.create`); config keys are **surfac
 
 `configKeys` is what the audit reads to prove your key is enforced — it must list every key `deniedBy` reads. `describe` is the subject of one shared sentence, `"<describe> is not available under your organization's permission group"`, so make it a singular noun or gerund that agrees with "is". Exactly two functions build it, both defined in `capabilities.ts`: `refuseCapability(cap)` throws it as a `PermissionGroupCapabilityError`; `capabilityRefusal(cap)` returns it as a string for a raw route rendering its own body (`capability-assertions.ts` re-exports it so an inline gate reaches both through one module). Never write the sentence at a call site.
 
-Use `'PERMISSION_GROUP_CAPABILITY_BLOCKED'` for `detailCode`. The set in `lib/core/application/forbidden.ts` is closed **over remedies, not causes** — a new code is warranted only when the remedy differs from "ask an organization admin", and requires an entry in `FORBIDDEN_DETAIL_CODE_DESCRIPTIONS` (a compile-time gate) plus a new value in the generated OpenAPI 403 description.
+Use `'PERMISSION_GROUP_CAPABILITY_BLOCKED'` for `detailCode`. Four rules carry a more specific one — `deploy.chat.auth_mode` (`CHAT_AUTH_MODE_NOT_PERMITTED`), `file_share.publish` / `file_share.auth_mode` (`PUBLIC_SHARING_NOT_ALLOWED`), `personal_api_key.use` (`PERSONAL_API_KEYS_DISABLED`) — which is why a call site reads the code off the rule and never spells one out. The set in `lib/core/application/forbidden.ts` is closed **over remedies, not causes** — a new code is warranted only when the remedy differs from "ask an organization admin", and requires an entry in `FORBIDDEN_DETAIL_CODE_DESCRIPTIONS` (a compile-time gate) plus a new value in the generated OpenAPI 403 description.
 
 A **parameterized** rule is the same shape with `kind: 'parameterized'` and a `deniedBy` taking the request value second — `'knowledge.connectors'` is `(config, connectorType) => allowlistDenies(config.allowedKnowledgeConnectors, connectorType)`. It **cannot be declared on an operation**: the funnel decides from principal, workspace and operation, never request input, and widening it would touch all ~315 operations for the sake of two keys. `defineWorkspaceOperation` throws at definition time (`Operation <id> declares parameterized capability <cap>; assert it from the use case instead`) rather than letting the operation read as gated while the gate never fires.
 
 ## Step 4: Declare it on the operations it governs, or assert it at the call site
 
-`capability` is **required** on `defineWorkspaceOperation`, typed `StaticPermissionGroupCapability | 'none'`, *and* guarded at definition time (`Operation <id> declares no capability; name one, or 'none' with a reason`). The guard is not redundant: **`apps/sim/tsconfig.json` excludes `*.test.ts` / `*.test.tsx` from type-checking** and the enforcement audit walks past test files, so a fixture is the one construction site no static check reads. An absent capability does not deny — it throws `Cannot read properties of undefined` inside `capabilityDeniedBy`, and **only for a caller whose organization actually has a permission group**. It passes CI and every personal workspace, then fails in the tenants that bought the feature.
+`capability` is **required on the `ApplicationOperation` base type** (`lib/core/application/operation.ts:31`), typed `StaticPermissionGroupCapability | 'none'` — required there, not only on `defineWorkspaceOperation`, so a bare object literal minted by a domain factory does not compile without it (five OAuth-connection operations once shipped capability-less that way) — *and* guarded at definition time (`Operation <id> declares no capability; name one, or 'none' with a reason`). The guard is not redundant: **`apps/sim/tsconfig.json` excludes `*.test.ts` / `*.test.tsx` from type-checking** and the enforcement audit walks past test files, so a fixture is the one construction site no static check reads. An absent capability does not deny — it throws `Cannot read properties of undefined` inside `capabilityDeniedBy`, and **only for a caller whose organization actually has a permission group**. It passes CI and every personal workspace, then fails in the tenants that bought the feature.
 
 **Static, and the operation is the whole decision** — set `capability` and write no gate code:
 
@@ -133,6 +135,7 @@ export const shareWidget = defineWorkspaceOperation({
 | `assertWorkspaceCapability(userId, workspaceId, cap, organizationId?)` | inside a use case — the thrown `PermissionGroupCapabilityError` is projected to a 403 for you |
 | `isWorkspaceCapabilityWithheld(userId, workspaceId, cap, organizationId?)` | a raw handler rendering its own body — pair with `capabilityRefusal(cap)` |
 | `isOrganizationCapabilityWithheld(organizationId, cap)` | an action naming an organization rather than a workspace |
+| `isCapabilityWithheldForUser(userId, cap, workspaceId?)` (`lib/permission-groups/user-scope.server.ts`) | a user-level act that *may or may not* name a workspace — a personal API key, a CLI device-auth handoff. Resolves the workspace's group when given one, else falls back to the organization's default group rather than going ungoverned. Deliberately outside `capability-assertions.ts`: it reads org membership through the billing graph, and that module is a guarded root of `check:application-graph` |
 | `capabilityDeniedBy(cap, config)` | you already hold a resolved config |
 
 Annotate the call site either way:
@@ -140,9 +143,11 @@ Annotate the call site either way:
 ```ts
     // permission-group-enforced: logs.export — raw streaming route, no workspace operation to declare it on
     if (capabilityDeniedBy('logs.export', permissionConfig)) {
-      return NextResponse.json({ error: capabilityRefusal('logs.export') }, { status: 403 })
+      return capabilityRefusalResponse('logs.export')
     }
 ```
+
+`capabilityRefusalResponse` (`lib/permission-groups/capability-response.ts`) is the one builder for that 403 — it renders `capabilityRefusal(cap)` *and* reads `details.code` off the rule, so a hand-rolled `NextResponse.json({ error: … }, { status: 403 })` reports the four specifically-coded capabilities as the generic block. v1 is deliberately not converged on it (`resolveCapabilityRefusal` in `app/api/v1/middleware.ts` renders v1's own `{ error: { code, message } }` envelope).
 
 `isOrganizationCapabilityWithheld` resolves through `getUserPermissionConfigForOrganization`, reading the organization's **default** group — a non-default group targets specific workspaces. It sits outside the per-request memo because that memo is keyed by user and workspace, and this decision is keyed by organization alone.
 
@@ -168,6 +173,8 @@ Always route through `CAPABILITY_RULES` and raise with `refuseCapability` — a 
 ## Step 5: Add it to the golden corpus
 
 Add the key to **both** the `input` and `expected` objects of the `'a fully populated config'` fixture in `lib/permission-groups/fields.test.ts`, set to a non-default value. That fixture is the pinned coercion corpus: a row that changes in a later diff is a semantic decision someone defends rather than a silent regression. The file's other assertions derive from `DEFAULT_PERMISSION_GROUP_CONFIG` (wire order, idempotence, read-schema acceptance, the 2000-iteration seeded fuzz, write/default/read key-set agreement, boolean-to-`PLATFORM_FEATURES` coverage) and pick your key up for free, as does `features.test.ts`.
+
+**Give the funnel test a real `workspaceOrganizationId`.** `requireCapability` short-circuits on `context.workspaceOrganizationId === null` (`lib/core/application/workspace-authorization.ts:171`), so a fixture whose workspace context leaves it null passes with the gate present *and* with it removed — a vacuous test that reads as load-bearing.
 
 Add a case to `capabilities.test.ts` for any rule with logic beyond reading one key. For an allowlist assert all three states — `null` permits every member, a populated list only the named ones, `[]` permits **none** — as `capabilities.test.ts` already does for `knowledge.connectors`.
 
