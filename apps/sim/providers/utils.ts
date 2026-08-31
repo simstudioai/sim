@@ -50,7 +50,7 @@ import {
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
-import { collectToolResourceBindings, registerProviderToolBindings } from '@/providers/tool-binding'
+import { collectToolPinnedFields, registerToolPinnedFields } from '@/providers/tool-binding'
 import {
   getProviderToolInputProvenance,
   getProviderToolModelInputRegistry,
@@ -496,7 +496,7 @@ export function extractAndParseJSON(content: string): any {
  *
  * Selector subblocks persist their value under the subblock id (e.g.
  * `tableSelector`), not the canonical id, so any lookup that keys off the
- * canonical id — like {@link collectToolResourceBindings} below — must resolve it first.
+ * canonical id — like {@link collectToolPinnedFields} below — must resolve it first.
  * Mode selection mirrors {@link transformBlockTool}'s execution-time
  * `paramsTransform` so the resolved id matches the params the tool actually runs
  * with. When the active selector has no value, the original canonical value is
@@ -771,7 +771,9 @@ export async function transformBlockTool(
     return null
   }
 
-  const { createLLMToolSchema } = await import('@/tools/params')
+  const { createLLMToolSchema, formatParameterLabel, isPasswordParameter } = await import(
+    '@/tools/params'
+  )
 
   const userProvidedParams = block.params || {}
 
@@ -893,21 +895,30 @@ export async function transformBlockTool(
   }
 
   // A tool that rewrote its own description from a bound param already names that resource, so the
-  // duplicate labeller must not state it twice. Keyed off the declaration rather than the rendered
+  // pinned-param annotation must not state it twice. Keyed off the declaration rather than the rendered
   // text; the inequality catches an enricher that returned the description unchanged.
   const selfDescribedParamId =
     enrichedDescription && enrichedDescription !== toolConfig.description
       ? toolConfig.toolEnrichment?.dependsOn
       : undefined
 
-  registerProviderToolBindings(
+  registerToolPinnedFields(
     providerTool,
-    collectToolResourceBindings({
+    collectToolPinnedFields({
       subBlocks: blockDef?.subBlocks,
       userProvidedParams,
       resolvedResourceParams,
+      toolParams: toolConfig.params,
+      // Matches how the block's own tool selector resolves the operation (see `tools.config.tool`
+      // above): stored params, with the agent's selected operation taking precedence.
+      conditionValues: {
+        ...userProvidedParams,
+        ...(selectedOperation ? { operation: selectedOperation } : {}),
+      },
       selfDescribedParamId,
       workflowLabel,
+      formatParamLabel: formatParameterLabel,
+      isPasswordParam: isPasswordParameter,
     })
   )
 

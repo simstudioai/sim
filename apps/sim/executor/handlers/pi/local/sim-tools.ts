@@ -21,7 +21,7 @@ import type { PiToolResult, PiToolSpec } from '@/executor/handlers/pi/core/backe
 import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
+import { annotateToolPinnedParams } from '@/executor/utils/tool-pinned-params'
 import { assignProviderToolIdentities } from '@/providers/tool-identity'
 import type { ProviderToolConfig } from '@/providers/types'
 import { transformBlockTool } from '@/providers/utils'
@@ -257,7 +257,24 @@ export async function buildSimToolSpecs(
   }
 
   const providers = configuredTools.map(({ provider }) => provider)
-  await annotateDuplicateToolBindings(ctx, providers)
+
+  // Withhold a tool's literal values only when that tool's own params resolved a secret, asking
+  // the registry the same per-input-path question the Agent block asks. A run-wide flag would be
+  // safe but near-useless here: one `{{API_KEY}}` anywhere in a workflow would blank the literals
+  // on every Pi tool for the whole run.
+  const registry = ctx.resolvedSecretTraceRegistry
+  const withheld = new Set<ProviderToolConfig>()
+  if (registry) {
+    for (const { provider, toolIndex } of configuredTools) {
+      const provenance = registry.exportCommittedProvenanceForInputPaths([
+        ['tools', String(toolIndex), 'params'],
+      ])
+      // An incomplete projection means the registry cannot vouch for the value; treat that the
+      // same as carrying a secret.
+      if (!provenance.complete || provenance.entries.length > 0) withheld.add(provider)
+    }
+  }
+  await annotateToolPinnedParams(ctx, providers, (tool) => withheld.has(tool))
   assignProviderToolIdentities(providers)
   return configuredTools.map(({ provider, toolIndex }) =>
     buildSimToolSpec(ctx, inputTools, provider, toolIndex, sandboxCost)

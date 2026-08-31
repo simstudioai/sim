@@ -71,7 +71,7 @@ import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
-import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
+import { annotateToolPinnedParams } from '@/executor/utils/tool-pinned-params'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
@@ -86,6 +86,7 @@ import {
   getInlineHydrationMaxBytes,
 } from '@/providers/file-attachments.server'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import { collectPinnedFieldsFromParams, registerToolPinnedFields } from '@/providers/tool-binding'
 import {
   type ProviderToolInputProvenance,
   registerProviderToolInputProvenance,
@@ -213,6 +214,19 @@ function isTransportTimeout(error: unknown): boolean {
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
  */
+/**
+ * Splits an MCP tool entry's stored params into the keys that identify the server and the values
+ * the user pinned on the call.
+ *
+ * Both MCP paths must strip the same control keys: they name the server rather than the request,
+ * and anything left in `userProvidedParams` is stated to the model as a pinned value. Keeping the
+ * split in one place is what stops the two paths drifting apart.
+ */
+function splitMcpControlParams(params: Record<string, any> | undefined) {
+  const { serverId, serverName, toolName, ...userProvidedParams } = params ?? {}
+  return { serverId, serverName, toolName, userProvidedParams }
+}
+
 export class AgentBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.AGENT
@@ -811,7 +825,9 @@ export class AgentBlockHandler implements BlockHandler {
     const tools = allTools.filter(
       (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
     )
-    await annotateDuplicateToolBindings(ctx, tools)
+    // A tool whose params resolved an environment secret must not have its literal values stated;
+    // the provenance map already identifies exactly those tools.
+    await annotateToolPinnedParams(ctx, tools, (tool) => inputProvenance.has(tool))
     return { tools, inputProvenance }
   }
 
@@ -1130,7 +1146,9 @@ export class AgentBlockHandler implements BlockHandler {
     projectedTool?: ToolInput,
     toolIndex?: number
   ): Promise<any> {
-    const { serverId, toolName, serverName, ...userProvidedParams } = tool.params || {}
+    const { serverId, serverName, toolName, userProvidedParams } = splitMcpControlParams(
+      tool.params
+    )
     const projectedSchema = projectedTool?.schema ?? tool.schema
     if (projectedSchema !== undefined && !isPlainRecord(projectedSchema)) {
       refuseResolvedSecretProjection({
@@ -1302,7 +1320,7 @@ export class AgentBlockHandler implements BlockHandler {
     mcpTool: any,
     serverId: string
   ): Promise<any> {
-    const { toolName, ...userProvidedParams } = tool.params || {}
+    const { toolName, userProvidedParams } = splitMcpControlParams(tool.params)
     return this.buildMcpTool({
       serverId,
       toolName,
@@ -1324,13 +1342,24 @@ export class AgentBlockHandler implements BlockHandler {
     const filteredSchema = filterSchemaForLLM(config.schema, config.userProvidedParams)
     const toolId = createMcpToolId(config.serverId, config.toolName)
 
-    return {
+    const mcpTool = {
       id: toolId,
       description: config.description,
       parameters: filteredSchema,
       params: config.userProvidedParams,
       usageControl: config.usageControl || 'auto',
     }
+
+    const { formatParameterLabel, isPasswordParameter } = await import('@/tools/params')
+    registerToolPinnedFields(
+      mcpTool,
+      collectPinnedFieldsFromParams(config.userProvidedParams, {
+        formatParamLabel: formatParameterLabel,
+        isPasswordParam: isPasswordParameter,
+      })
+    )
+
+    return mcpTool
   }
 
   private async transformBlockTool(
