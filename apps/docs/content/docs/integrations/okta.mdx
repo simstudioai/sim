@@ -300,7 +300,7 @@ Permanently delete a user from your Okta organization. Can only be performed on 
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
-| `userId` | string | Yes | User ID to delete |
+| `userId` | string | Yes | User ID or login \(email\) to delete |
 | `sendEmail` | boolean | No | Send deactivation email to admin \(default: false\) |
 
 #### Output
@@ -690,7 +690,7 @@ List the MFA factors a user has enrolled, with each factor type, provider, and e
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
-| `userId` | string | Yes | User ID or login to list enrolled factors for |
+| `userId` | string | Yes | Okta user ID \(not a login or email\) to list enrolled factors for |
 
 #### Output
 
@@ -718,7 +718,7 @@ Retrieve a single enrolled MFA factor for a user, including its type, provider, 
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
-| `userId` | string | Yes | User ID or login the factor belongs to |
+| `userId` | string | Yes | Okta user ID \(not a login or email\) the factor belongs to |
 | `factorId` | string | Yes | Factor ID to look up |
 
 #### Output
@@ -745,7 +745,7 @@ Enroll an MFA factor for a user. The profile fields required depend on the facto
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
-| `userId` | string | Yes | User ID or login to enroll the factor for |
+| `userId` | string | Yes | Okta user ID \(not a login or email\) to enroll the factor for |
 | `factorType` | string | Yes | Factor type to enroll \(sms, call, email, question, push, token:software:totp, u2f, webauthn\) |
 | `provider` | string | Yes | Factor provider \(OKTA, GOOGLE, FIDO, DUO, RSA, SYMANTEC, YUBICO, CUSTOM\). Each provider supports a subset of factor types |
 | `phoneNumber` | string | No | Phone number in E.164 format. Required for the sms and call factor types |
@@ -779,7 +779,7 @@ Unenroll one specific MFA factor for a user so they can re-enroll it. Destructiv
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
-| `userId` | string | Yes | User ID or login the factor belongs to |
+| `userId` | string | Yes | Okta user ID \(not a login or email\) the factor belongs to |
 | `factorId` | string | Yes | Factor ID to unenroll |
 | `removeRecoveryEnrollment` | boolean | No | Also remove the phone number as a recovery method, not only as a factor. Applies to sms and call factors only \(default: false\) |
 
@@ -822,7 +822,7 @@ Revoke every active Okta session for a user, signing them out of all devices imm
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
-| `userId` | string | Yes | User ID or login whose sessions will be revoked |
+| `userId` | string | Yes | Okta user ID \(not a login or email\) whose sessions will be revoked |
 | `oauthTokens` | boolean | No | Also revoke the user OpenID Connect and OAuth refresh and access tokens \(default: false\) |
 | `forgetDevices` | boolean | No | Clear the user remembered factors for all devices \(default: true\) |
 
@@ -1136,7 +1136,7 @@ List the administrator roles assigned to a user. Returns both standard roles and
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
-| `userId` | string | Yes | User ID or login to list admin roles for |
+| `userId` | string | Yes | Okta user ID \(not a login or email\) to list admin roles for |
 
 #### Output
 
@@ -1165,7 +1165,7 @@ Grant a user an administrator role. Use a standard role type such as USER_ADMIN 
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
-| `userId` | string | Yes | User ID or login to assign the admin role to |
+| `userId` | string | Yes | Okta user ID \(not a login or email\) to assign the admin role to |
 | `roleType` | string | Yes | Role type to assign: SUPER_ADMIN, ORG_ADMIN, APP_ADMIN, USER_ADMIN, HELP_DESK_ADMIN, READ_ONLY_ADMIN, API_ACCESS_MANAGEMENT_ADMIN, GROUP_MEMBERSHIP_ADMIN, REPORT_ADMIN, WORKFLOWS_ADMIN, ACCESS_CERTIFICATIONS_ADMIN, ACCESS_REQUESTS_ADMIN, or CUSTOM |
 | `customRoleId` | string | No | Custom role ID. Required when the role type is CUSTOM |
 | `resourceSetId` | string | No | Resource set ID the custom role applies to. Required when the role type is CUSTOM |
@@ -1197,7 +1197,7 @@ Revoke an administrator role from a user. Destructive: the user immediately lose
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
-| `userId` | string | Yes | User ID or login to revoke the admin role from |
+| `userId` | string | Yes | Okta user ID \(not a login or email\) to revoke the admin role from |
 | `roleAssignmentId` | string | Yes | Role assignment ID to revoke, as returned by List User Roles. For a custom role this is the resource set binding ID |
 
 #### Output
