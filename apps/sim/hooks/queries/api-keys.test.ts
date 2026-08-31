@@ -12,7 +12,7 @@ vi.mock('@/lib/api/client/request', () => ({
 }))
 
 import { listPersonalApiKeysContract, listWorkspaceApiKeysContract } from '@/lib/api/contracts'
-import { fetchApiKeys } from '@/hooks/queries/api-keys'
+import { fetchApiKeys } from '@/hooks/queries/api-key-list'
 
 describe('API key settings scopes', () => {
   beforeEach(() => {

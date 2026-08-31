@@ -1,38 +1,26 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   createBillingPortalContract,
   getInvoicesContract,
-  getUserBillingContract,
   getUserUsageLimitContract,
   type InvoicesApiResponse,
   type SubscriptionApiResponse,
   updateUsageLimitContract,
 } from '@/lib/api/contracts/subscription'
+import {
+  SUBSCRIPTION_DATA_STALE_TIME,
+  subscriptionDataQueryOptions,
+} from '@/hooks/queries/subscription-data'
 import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 
 export type { SubscriptionApiResponse }
 
-export const SUBSCRIPTION_DATA_STALE_TIME = 5 * 60 * 1000
 export const USAGE_LIMIT_STALE_TIME = 30 * 1000
 export const INVOICES_STALE_TIME = 5 * 60 * 1000
-
-/**
- * Fetch user subscription data
- * @param includeOrg - Whether to include organization role data
- */
-async function fetchSubscriptionData(
-  includeOrg = false,
-  signal?: AbortSignal
-): Promise<SubscriptionApiResponse> {
-  return requestJson(getUserBillingContract, {
-    query: { context: 'user', includeOrg },
-    signal,
-  })
-}
 
 interface UseSubscriptionDataOptions {
   /** Include organization membership and role data */
@@ -50,13 +38,7 @@ interface UseSubscriptionDataOptions {
 export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
   const { includeOrg = false, enabled = true, staleTime = SUBSCRIPTION_DATA_STALE_TIME } = options
 
-  return useQuery({
-    queryKey: subscriptionKeys.user(includeOrg),
-    queryFn: ({ signal }) => fetchSubscriptionData(includeOrg, signal),
-    staleTime,
-    placeholderData: keepPreviousData,
-    enabled,
-  })
+  return useQuery({ ...subscriptionDataQueryOptions(includeOrg, staleTime), enabled })
 }
 
 /**
@@ -71,11 +53,7 @@ export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
  * workspace queries land, so it cannot be warmed at hover time.
  */
 export function prefetchUpgradeBillingData(queryClient: QueryClient) {
-  queryClient.prefetchQuery({
-    queryKey: subscriptionKeys.user(true),
-    queryFn: ({ signal }) => fetchSubscriptionData(true, signal),
-    staleTime: SUBSCRIPTION_DATA_STALE_TIME,
-  })
+  queryClient.prefetchQuery(subscriptionDataQueryOptions(true))
   queryClient.prefetchQuery({
     queryKey: subscriptionKeys.usage(),
     queryFn: ({ signal }) => fetchUsageLimitData(signal),

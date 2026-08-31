@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -78,15 +79,17 @@ async function fetchGeneralSettings(signal?: AbortSignal): Promise<GeneralSettin
  * TanStack Query is now the single source of truth for general settings.
  */
 export function useGeneralSettings() {
-  return useQuery({
+  const query = useQuery({
     queryKey: generalSettingsKeys.settings(),
-    queryFn: async ({ signal }) => {
-      const settings = await fetchGeneralSettings(signal)
-      syncThemeToNextThemes(settings.theme)
-      return settings
-    },
+    queryFn: ({ signal }) => fetchGeneralSettings(signal),
     staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
+
+  useEffect(() => {
+    if (query.data?.theme) syncThemeToNextThemes(query.data.theme)
+  }, [query.data?.theme])
+
+  return query
 }
 
 /**
@@ -96,11 +99,7 @@ export function useGeneralSettings() {
 export function prefetchGeneralSettings(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: generalSettingsKeys.settings(),
-    queryFn: async ({ signal }) => {
-      const settings = await fetchGeneralSettings(signal)
-      syncThemeToNextThemes(settings.theme)
-      return settings
-    },
+    queryFn: ({ signal }) => fetchGeneralSettings(signal),
     staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
 }

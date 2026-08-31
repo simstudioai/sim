@@ -10,7 +10,7 @@ import {
   OverflowText,
 } from '@sim/emcn'
 import { ChevronLeft } from '@sim/emcn/icons'
-import { type QueryClient, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import type { DesktopSettingsSurface } from '@/components/settings/navigation'
 import { ORGANIZATION_PLANE_UNIFIED_SECTIONS } from '@/components/settings/navigation'
@@ -28,6 +28,7 @@ import {
   isBillingEnabled,
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { warmSettingsSectionQuery } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-sidebar/settings-query-warmers'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
 import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
@@ -39,7 +40,6 @@ import {
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-available'
-import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import { useInboxConfig } from '@/hooks/queries/inbox'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -69,24 +69,6 @@ const SECTION_CHUNK_WARMERS: Partial<Record<SettingsSection, () => Promise<unkno
   desktop: () => import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop'),
   browser: () => import('@/app/workspace/[workspaceId]/settings/components/browser/browser'),
   terminal: () => import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal'),
-}
-
-/**
- * Sections whose first paint waits on a query the sidebar is able to start early.
- *
- * `general` is absent because a warm cannot help here: this sidebar only renders inside the
- * workspace layout, whose `SettingsLoader` holds a live observer on that key with an hour-long
- * stale time, so `prefetchQuery` short-circuits on every hover.
- *
- * The type argument is load-bearing: workspace credentials are cached per type and the secrets
- * panel subscribes to `env_workspace`, so warming the unfiltered list writes a different cache
- * entry and leaves the panel to fetch cold anyway.
- */
-const SECTION_QUERY_WARMERS: Partial<
-  Record<SettingsSection, (queryClient: QueryClient, workspaceId: string) => void>
-> = {
-  secrets: (queryClient, workspaceId) =>
-    prefetchWorkspaceCredentials(queryClient, workspaceId, 'env_workspace'),
 }
 
 interface SettingsSidebarProps {
@@ -278,7 +260,11 @@ export function SettingsSidebar({
 
   const handleIntent = (section: SettingsSection) => {
     void SECTION_CHUNK_WARMERS[section]?.()
-    SECTION_QUERY_WARMERS[section]?.(queryClient, workspaceId)
+    warmSettingsSectionQuery(
+      queryClient,
+      { workspaceId, billingOrganizationId: hostContext.hostOrganizationId },
+      section
+    )
   }
 
   const handleBack = useCallback(() => {

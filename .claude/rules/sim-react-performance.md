@@ -99,6 +99,12 @@ server state with the consumer's shared React Query options. A short, cancelable
 avoids drive-by downloads. Do not treat `touchstart` as intent because it also begins scrolling;
 let the actual unmodified click start the data request.
 
+A speculative failure must not poison a later visit when the app default disables
+`retryOnMount`: remove only that exact failed query while it is inactive, keep failures visible
+to mounted consumers, and set the shared options to `retryOnMount: true` so a quick-click failure
+can recover after the user leaves and returns. Never carry placeholder data between protected
+resource keys (for example, workspace A to workspace B); an explicit loading state is truthful.
+
 If a continuity-focused surface intentionally omits `loading.tsx` so the current view remains
 mounted until its peer is ready, the intent path must warm both the full route and its critical
 data. Otherwise keep the loading boundary so dynamic navigation remains responsive.

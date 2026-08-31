@@ -100,14 +100,17 @@ vi.mock('@/hooks/queries/general-settings', () => ({
 }))
 
 vi.mock('@/hooks/queries/organization', () => ({
-  useOrganizationBilling: (...args: unknown[]) => {
-    mockUseOrganizationBilling(...args)
-    return mockOrganizationQuery.current
-  },
   useUpdateOrganizationUsageLimit: () => ({
     isPending: false,
     mutateAsync: mockUpdateOrganizationLimit,
   }),
+}))
+
+vi.mock('@/hooks/queries/organization-billing-summary', () => ({
+  useOrganizationBillingSummary: (...args: unknown[]) => {
+    mockUseOrganizationBilling(...args)
+    return mockOrganizationQuery.current
+  },
 }))
 
 vi.mock('@/hooks/queries/subscription', () => ({
@@ -216,14 +219,8 @@ const PERSONAL_DATA = {
 function organizationResponse(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     success: true,
-    context: 'organization',
-    userRole: 'owner',
-    billingBlocked: false,
-    billingBlockedReason: null,
-    blockedByOrgOwner: false,
     data: {
       organizationId: 'org-target',
-      organizationName: 'Target organization',
       subscriptionState: 'active',
       hasSubscription: true,
       subscriptionPlan: 'team_25000',
@@ -245,6 +242,7 @@ function organizationResponse(overrides: Record<string, unknown> = {}): Record<s
       billingBlockedReason: null,
       blockedByOrgOwner: false,
       upgradeWorkspaceId: 'organization-workspace',
+      userRole: 'owner',
       ...overrides,
     },
   }

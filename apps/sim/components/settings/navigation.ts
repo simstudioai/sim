@@ -908,6 +908,16 @@ export const UNIFIED_TO_ORGANIZATION_SECTION: Readonly<
   )
 )
 
+export const UNIFIED_TO_WORKSPACE_SECTION: Readonly<
+  Partial<Record<UnifiedSettingsSection, WorkspaceSettingsSection>>
+> = Object.fromEntries(
+  SETTINGS_SECTION_REGISTRY.flatMap((entry) => {
+    const unifiedSection = entry.unified?.id
+    const workspaceSection = entry.planes?.workspace?.id
+    return unifiedSection && workspaceSection ? [[unifiedSection, workspaceSection] as const] : []
+  })
+)
+
 export type OrganizationSectionAccess = 'unavailable' | 'view' | 'manage'
 
 interface ResolveOrganizationSectionAccessOptions {

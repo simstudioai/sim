@@ -2,13 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/hostnames'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  keepPreviousData,
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -16,9 +10,7 @@ import {
   deleteMcpServerContract,
   discoverMcpToolsContract,
   getAllowedMcpDomainsContract,
-  listMcpServersContract,
   listStoredMcpToolsContract,
-  type McpServer,
   type McpServerTestBody,
   type McpServerTestResult,
   type RefreshMcpServerResult,
@@ -39,13 +31,19 @@ import type {
   McpTransport,
   StoredMcpTool,
 } from '@/lib/mcp/types'
+import { type McpServer, mcpKeys, mcpServersQueryOptions } from '@/hooks/queries/mcp-server-list'
 import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('McpQueries')
 
 export type { McpServerStatusConfig, McpTool, StoredMcpTool }
 
-export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
+export {
+  MCP_SERVER_LIST_STALE_TIME,
+  type McpServer,
+  mcpKeys,
+  mcpServersQueryOptions,
+} from '@/hooks/queries/mcp-server-list'
 /**
  * Tool discovery is kept fresh by the `list_changed` → SSE push (see `useMcpToolsEvents`),
  * so the query only needs a re-probe-on-visit fallback for servers without push. Matches the
@@ -55,22 +53,6 @@ export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
 export const MCP_SERVER_TOOLS_STALE_TIME = 5 * 60 * 1000
 export const MCP_STORED_TOOL_LIST_STALE_TIME = 60 * 1000
 export const MCP_ALLOWED_DOMAINS_STALE_TIME = 5 * 60 * 1000
-
-export const mcpKeys = {
-  all: ['mcp'] as const,
-  servers: () => [...mcpKeys.all, 'servers'] as const,
-  serversList: (workspaceId?: string) => [...mcpKeys.servers(), workspaceId ?? ''] as const,
-  serverTools: () => [...mcpKeys.all, 'serverTools'] as const,
-  serverToolsWorkspace: (workspaceId?: string) =>
-    [...mcpKeys.serverTools(), workspaceId ?? ''] as const,
-  serverToolsList: (workspaceId?: string, serverId?: string) =>
-    [...mcpKeys.serverToolsWorkspace(workspaceId), serverId ?? ''] as const,
-  storedTools: () => [...mcpKeys.all, 'storedTools'] as const,
-  storedToolsList: (workspaceId?: string) => [...mcpKeys.storedTools(), workspaceId ?? ''] as const,
-  allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,
-}
-
-export type { McpServer }
 
 /** Wire shape for create/update; distinct from runtime McpServerConfig. */
 export interface McpServerInput {
@@ -85,29 +67,10 @@ export interface McpServerInput {
   authType?: McpAuthType
 }
 
-async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
-  try {
-    const data = await requestJson(listMcpServersContract, {
-      query: { workspaceId },
-      signal,
-    })
-    return data.data.servers
-  } catch (error) {
-    if (error instanceof ApiClientError && error.status === 404) {
-      return []
-    }
-    throw error
-  }
-}
-
 export function useMcpServers(workspaceId: string) {
   return useQuery({
-    queryKey: mcpKeys.serversList(workspaceId),
-    queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
+    ...mcpServersQueryOptions(workspaceId),
     enabled: !!workspaceId,
-    retry: false,
-    staleTime: MCP_SERVER_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 

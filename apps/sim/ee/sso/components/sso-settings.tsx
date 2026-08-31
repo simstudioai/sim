@@ -230,12 +230,17 @@ export function SSO({ organizationId }: SSOProps) {
 
 function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const { data: session } = useSession()
-  const { data: organizationBillingData, isLoading: isLoadingOrganizationBilling } =
-    useOrganizationBilling(organizationId)
+  const {
+    data: organizationBillingData,
+    isLoading: isLoadingOrganizationBilling,
+    error: organizationBillingError,
+  } = useOrganizationBilling(organizationId)
 
-  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders({
-    organizationId,
-  })
+  const {
+    data: providersData,
+    isLoading: isLoadingProviders,
+    error: providersError,
+  } = useSSOProviders({ organizationId })
 
   const providers = providersData?.providers || []
   const existingProvider = providers[0] as SSOProvider | undefined
@@ -279,6 +284,17 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   if (isLoadingProviders || (isBillingEnabled && isLoadingOrganizationBilling)) {
     return null
+  }
+
+  const loadingError =
+    (providersData === undefined ? providersError : null) ??
+    (isBillingEnabled && organizationBillingData === undefined ? organizationBillingError : null)
+  if (loadingError) {
+    return (
+      <SettingsEmptyState tone='error'>
+        {getErrorMessage(loadingError, 'Failed to load Single Sign-On settings')}
+      </SettingsEmptyState>
+    )
   }
 
   if (isBillingEnabled) {

@@ -1,5 +1,6 @@
 'use client'
 
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -8,6 +9,7 @@ import {
   InboxSettingsTab,
   InboxTaskList,
 } from '@/app/workspace/[workspaceId]/settings/components/inbox/components'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { SettingsUpgradeNotice } from '@/app/workspace/[workspaceId]/settings/components/settings-upgrade-notice'
@@ -17,12 +19,22 @@ export function Inbox() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const { data: config, isLoading } = useInboxConfig(workspaceId)
+  const { data: config, isLoading, error } = useInboxConfig(workspaceId)
   const workspacePermissions = useUserPermissionsContext()
   const canAdmin = canMutateWorkspaceSettingsSection('inbox', workspacePermissions)
 
   if (isLoading) {
     return null
+  }
+
+  if (error && config === undefined) {
+    return (
+      <SettingsPanel>
+        <SettingsEmptyState tone='error'>
+          {getErrorMessage(error, 'Failed to load Inbox settings')}
+        </SettingsEmptyState>
+      </SettingsPanel>
+    )
   }
 
   if (!config?.entitled) {

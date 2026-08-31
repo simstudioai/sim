@@ -64,12 +64,17 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
 
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
 
-  const { data: organizationBillingData, isLoading: isOrgBillingLoading } = useOrganizationBilling(
-    organizationId,
-    { enabled: adminOrOwner }
-  )
+  const {
+    data: organizationBillingData,
+    isLoading: isOrgBillingLoading,
+    error: organizationBillingError,
+  } = useOrganizationBilling(organizationId, { enabled: adminOrOwner })
 
-  const { data: roster, isLoading: isLoadingRoster } = useOrganizationRoster(organizationId)
+  const {
+    data: roster,
+    isLoading: isLoadingRoster,
+    error: rosterError,
+  } = useOrganizationRoster(organizationId)
 
   const removeMemberMutation = useRemoveMember()
   const transferOwnershipMutation = useTransferOwnership()
@@ -347,27 +352,40 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
             : []
         }
       >
-        {adminOrOwner && (
-          <TeamSeatsOverview
-            billingHref={billingHref}
-            subscriptionData={orgSubscription}
-            isLoadingSubscription={isOrgBillingLoading}
-            totalSeats={totalSeats}
-            usedSeats={usedSeats}
-            pendingSeats={pendingSeats}
+        {adminOrOwner &&
+          (organizationBillingError && organizationBillingData === undefined ? (
+            <SettingsEmptyState variant='inline' tone='error'>
+              {getErrorMessage(organizationBillingError, 'Failed to load seat information')}
+            </SettingsEmptyState>
+          ) : (
+            <TeamSeatsOverview
+              billingHref={billingHref}
+              subscriptionData={orgSubscription}
+              isLoadingSubscription={isOrgBillingLoading}
+              totalSeats={totalSeats}
+              usedSeats={usedSeats}
+              pendingSeats={pendingSeats}
+            />
+          ))}
+
+        {isLoadingRoster ? (
+          <SettingsEmptyState variant='inline'>Loading members…</SettingsEmptyState>
+        ) : rosterError && roster === undefined ? (
+          <SettingsEmptyState variant='inline' tone='error'>
+            {getErrorMessage(rosterError, 'Failed to load organization members')}
+          </SettingsEmptyState>
+        ) : (
+          <OrganizationMemberLists
+            canManage={adminOrOwner}
+            organizationId={displayOrganization.id}
+            roster={roster ?? null}
+            isLoadingRoster={false}
+            currentUserId={session?.user?.id ?? ''}
+            query={memberQuery}
+            onRemoveMember={handleRemoveMember}
+            onTransferOwnership={handleOpenTransferDialog}
           />
         )}
-
-        <OrganizationMemberLists
-          canManage={adminOrOwner}
-          organizationId={displayOrganization.id}
-          roster={roster ?? null}
-          isLoadingRoster={isLoadingRoster}
-          currentUserId={session?.user?.id ?? ''}
-          query={memberQuery}
-          onRemoveMember={handleRemoveMember}
-          onTransferOwnership={handleOpenTransferDialog}
-        />
       </SettingsPanel>
 
       {adminOrOwner && (
