@@ -27,7 +27,7 @@
       "!**/public/worker-*.js",
       "!**/public/fallback-*.js",
       "!**/apps/sim/tools/generated",
-      "!**/apps/sim/lib/mothership/generated",
+      "!**/apps/sim/lib/mothership/generated/**",
       "!**/apps/docs/.source",
       "!**/apps/desktop/release",
       "!**/venv",
