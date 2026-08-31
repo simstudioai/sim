@@ -179,6 +179,7 @@ describe('backfillTableWorkflowDeployments', () => {
       deployed: 3,
       alreadyDeployed: 0,
       skippedLocked: 0,
+      skippedUndeployable: 0,
     })
     expect(listCandidates.mock.calls).toEqual([
       ['', 2],
@@ -215,6 +216,7 @@ describe('backfillTableWorkflowDeployments', () => {
       deployed: 0,
       alreadyDeployed: 1,
       skippedLocked: 0,
+      skippedUndeployable: 0,
     })
     expect(deploy).not.toHaveBeenCalled()
   })
@@ -256,6 +258,56 @@ describe('backfillTableWorkflowDeployments', () => {
       deployed: 1,
       alreadyDeployed: 0,
       skippedLocked: 1,
+      skippedUndeployable: 0,
+    })
+    expect(deploy.mock.calls.map(([workflow]) => workflow.workflowId)).toEqual([
+      'workflow-a',
+      'workflow-b',
+    ])
+    expect(listCandidates.mock.calls.slice(-2)).toEqual([
+      ['', 1],
+      ['workflow-a', 1],
+    ])
+  })
+
+  it('reports and skips undeployable workflows while continuing the backfill', async () => {
+    const listCandidates = vi
+      .fn<TableWorkflowDeploymentStore['listCandidates']>()
+      .mockResolvedValueOnce([candidate('workflow-a'), candidate('workflow-b')])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([candidate('workflow-a')])
+      .mockResolvedValueOnce([])
+    const deploymentState = new Map<string, boolean>()
+    const isDeployed = vi
+      .fn<TableWorkflowDeploymentStore['isDeployed']>()
+      .mockImplementation(async (workflowId) => deploymentState.get(workflowId) ?? false)
+    const deploy = vi.fn(async (workflow: TableWorkflowDeploymentCandidate) => {
+      if (workflow.workflowId === 'workflow-a') {
+        return {
+          success: false,
+          error: 'Missing required fields for WhatsApp Webhook: Verification Token, App Secret',
+          errorCode: 'validation' as const,
+        }
+      }
+      deploymentState.set(workflow.workflowId, true)
+      return {
+        success: true,
+        activeDeployment: {
+          deploymentVersionId: `version-${workflow.workflowId}`,
+          version: 1,
+          deployedAt: new Date().toISOString(),
+        },
+      }
+    })
+
+    await expect(
+      backfillTableWorkflowDeployments(store({ listCandidates, isDeployed }), deploy)
+    ).resolves.toEqual({
+      scanned: 2,
+      deployed: 1,
+      alreadyDeployed: 0,
+      skippedLocked: 0,
+      skippedUndeployable: 1,
     })
     expect(deploy.mock.calls.map(([workflow]) => workflow.workflowId)).toEqual([
       'workflow-a',

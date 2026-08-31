@@ -59,6 +59,7 @@ export interface TableWorkflowDeploymentSummary {
   deployed: number
   alreadyDeployed: number
   skippedLocked: number
+  skippedUndeployable: number
 }
 
 interface TableWorkflowDeploymentBackfillOptions {
@@ -194,9 +195,9 @@ function validateCandidatePage(
   return lastWorkflowId
 }
 
-async function assertOnlyLockedCandidatesRemain(
+async function assertOnlySkippedCandidatesRemain(
   store: TableWorkflowDeploymentStore,
-  lockedWorkflowIds: ReadonlySet<string>
+  skippedWorkflowIds: ReadonlySet<string>
 ): Promise<void> {
   let afterWorkflowId = ''
   for (;;) {
@@ -205,7 +206,7 @@ async function assertOnlyLockedCandidatesRemain(
     if (!lastWorkflowId) return
 
     const unexpectedCandidate = candidates.find(
-      (candidate) => !lockedWorkflowIds.has(candidate.workflowId)
+      (candidate) => !skippedWorkflowIds.has(candidate.workflowId)
     )
     if (unexpectedCandidate) {
       throw new Error(
@@ -420,8 +421,9 @@ export async function backfillTableWorkflowDeployments(
     deployed: 0,
     alreadyDeployed: 0,
     skippedLocked: 0,
+    skippedUndeployable: 0,
   }
-  const lockedWorkflowIds = new Set<string>()
+  const skippedWorkflowIds = new Set<string>()
   let afterWorkflowId = ''
 
   for (;;) {
@@ -441,12 +443,22 @@ export async function backfillTableWorkflowDeployments(
         const result = await deploy(candidate)
         if (!result.success) {
           if (result.errorCode === 'locked') {
-            lockedWorkflowIds.add(candidate.workflowId)
+            skippedWorkflowIds.add(candidate.workflowId)
             summary.skippedLocked += 1
             logger.warn('Skipping locked workflow referenced by a table workflow group', {
               workflowId: candidate.workflowId,
               workspaceId: candidate.workspaceId,
               reason: result.error ?? 'Workflow is locked',
+            })
+            continue
+          }
+          if (result.errorCode === 'validation') {
+            skippedWorkflowIds.add(candidate.workflowId)
+            summary.skippedUndeployable += 1
+            logger.warn('Skipping undeployable workflow referenced by a table workflow group', {
+              workflowId: candidate.workflowId,
+              workspaceId: candidate.workspaceId,
+              reason: result.error ?? 'Workflow deployment validation failed',
             })
             continue
           }
@@ -472,7 +484,7 @@ export async function backfillTableWorkflowDeployments(
   }
 
   await store.assertIntegrity()
-  await assertOnlyLockedCandidatesRemain(store, lockedWorkflowIds)
+  await assertOnlySkippedCandidatesRemain(store, skippedWorkflowIds)
 
   return summary
 }
