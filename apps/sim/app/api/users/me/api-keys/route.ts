@@ -8,12 +8,9 @@ import { parseRequest } from '@/lib/api/server'
 import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { performCreatePersonalApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
-import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  capabilityRefusal,
-  isOrganizationCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('ApiKeysAPI')
@@ -24,14 +21,13 @@ const logger = createLogger('ApiKeysAPI')
  * permission-group-enforced: api_keys.manage — a raw handler with inline
  * queries, which the authorization funnel never sees.
  *
- * Personal keys are user-global and so belong to no workspace, which is why
- * this resolves the organization's default group — the group that governs an
- * organization-level action, the same resolution invitations use.
+ * Personal keys are user-global and so belong to no workspace, which is why no
+ * workspace is named: {@link isCapabilityWithheldForUser} then resolves the
+ * organization's default group — the group that governs an organization-level
+ * action, the same resolution invitations use.
  */
-async function personalKeyManagementWithheld(userId: string): Promise<boolean> {
-  const membership = await getUserOrganization(userId)
-  if (!membership?.organizationId) return false
-  return isOrganizationCapabilityWithheld(membership.organizationId, 'api_keys.manage')
+function personalKeyManagementWithheld(userId: string): Promise<boolean> {
+  return isCapabilityWithheldForUser(userId, 'api_keys.manage')
 }
 
 // GET /api/users/me/api-keys - Get all API keys for the current user

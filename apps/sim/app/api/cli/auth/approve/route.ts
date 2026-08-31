@@ -3,68 +3,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { approveCliAuthContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { createApproval } from '@/lib/cli-auth/approval-store'
 import { enforceUserRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  capabilityRefusal,
-  isOrganizationCapabilityWithheld,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CliAuthApproveAPI')
-
-/**
- * Whether `userId`'s permission group withholds CLI access.
- *
- * permission-group-enforced: cli.use — gates a device-auth handoff, which owns
- * no workspace resource for the authorization funnel to authorize.
- *
- * `workspaceId` is set only for a platform-scope handoff. A personal-scope
- * login has no workspace, so it falls back to the organization's default group
- * rather than going ungoverned — otherwise the narrower scope would be the
- * unguarded one.
- */
-async function cliAccessWithheld(userId: string, workspaceId?: string): Promise<boolean> {
-  if (workspaceId) return isWorkspaceCapabilityWithheld(userId, workspaceId, 'cli.use')
-
-  const membership = await getUserOrganization(userId)
-  if (!membership) return false
-  return isOrganizationCapabilityWithheld(membership.organizationId, 'cli.use')
-}
-
-/**
- * Whether `userId`'s permission group withholds minting the key this approval
- * would redeem for.
- *
- * permission-group-enforced: api_keys.manage — a raw device-auth handler with
- * inline queries, which the authorization funnel never sees.
- *
- * This is the door the workspace-key pass-through depends on. A
- * `workspace_api_key` principal resolves no user and therefore no group, so the
- * funnel's capability gate never applies to it; the whole safety argument for
- * that pass-through (`workspace-authorization.ts`, `app/api/table/utils.ts`,
- * `app/api/v1/middleware.ts` all state it) is that minting one is itself
- * capability-gated. `/api/workspaces/[id]/api-keys` gates it; without this the
- * terminal was the way around, and a member denied `api_keys.manage` could mint
- * the identical key with `sim login --workspace` and then out-rank every other
- * capability their group withholds.
- *
- * Resolved from the key's own scope, matching the surface that mints the same
- * key: a bound key belongs to `workspaceId`, so the workspace group governs it,
- * while a personal key is user-global and belongs to no workspace, so it falls
- * back to the organization's default group exactly as
- * `/api/users/me/api-keys` does.
- */
-async function apiKeyMintWithheld(userId: string, workspaceId?: string): Promise<boolean> {
-  if (workspaceId) return isWorkspaceCapabilityWithheld(userId, workspaceId, 'api_keys.manage')
-
-  const membership = await getUserOrganization(userId)
-  if (!membership) return false
-  return isOrganizationCapabilityWithheld(membership.organizationId, 'api_keys.manage')
-}
 
 /**
  * Records a signed-in user's approval of a CLI handoff so the waiting terminal's
@@ -136,7 +82,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   }
 
-  if (await cliAccessWithheld(session.user.id, workspaceId)) {
+  /**
+   * permission-group-enforced: cli.use — gates a device-auth handoff, which owns
+   * no workspace resource for the authorization funnel to authorize.
+   *
+   * `workspaceId` is set only for a platform-scope handoff; a personal-scope
+   * login falls back to the organization's default group.
+   */
+  if (await isCapabilityWithheldForUser(session.user.id, 'cli.use', workspaceId)) {
     logger.warn('CLI authorization blocked by permission group', {
       userId: session.user.id,
       scope,
@@ -150,7 +103,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   // manage, so `cli.use` above is the whole gate for it.
   if (scope === 'platform') {
     const mintWorkspaceId = bindKeyToWorkspace ? workspaceId : undefined
-    if (await apiKeyMintWithheld(session.user.id, mintWorkspaceId)) {
+    /**
+     * permission-group-enforced: api_keys.manage — a raw device-auth handler
+     * with inline queries, which the authorization funnel never sees.
+     *
+     * This is the door the workspace-key pass-through depends on. A
+     * `workspace_api_key` principal resolves no user and therefore no group, so
+     * the funnel's capability gate never applies to it; the whole safety
+     * argument for that pass-through (`workspace-authorization.ts`,
+     * `app/api/table/utils.ts`, `app/api/v1/middleware.ts` all state it) is that
+     * minting one is itself capability-gated. `/api/workspaces/[id]/api-keys`
+     * gates it; without this the terminal was the way around, and a member
+     * denied `api_keys.manage` could mint the identical key with
+     * `sim login --workspace` and then out-rank every other capability their
+     * group withholds.
+     *
+     * Scoped to the key being minted: a bound key belongs to `workspaceId`, so
+     * the workspace group governs it, while a personal key is user-global and
+     * falls back to the organization's default group.
+     */
+    if (await isCapabilityWithheldForUser(session.user.id, 'api_keys.manage', mintWorkspaceId)) {
       logger.warn('CLI key mint blocked by permission group', {
         userId: session.user.id,
         workspaceId: mintWorkspaceId ?? null,

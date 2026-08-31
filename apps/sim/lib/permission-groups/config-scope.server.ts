@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import type { PermissionGroupConfigKey } from '@/lib/permission-groups/request-scope.server'
+import type { PermissionGroupScopeKey } from '@/lib/permission-groups/request-scope.server'
 import { getPermissionGroupConfigStore } from '@/lib/permission-groups/request-scope.server'
 import {
   getUserPermissionConfig,
@@ -58,7 +58,7 @@ export function resolvePermissionGroupConfig(
   const store = getPermissionGroupConfigStore()
   if (!store) return resolveCached(userId, workspaceId, organizationId)
 
-  const key: PermissionGroupConfigKey = `${userId}:${workspaceId}`
+  const key: PermissionGroupScopeKey = `${userId}:${workspaceId}`
   const existing = store.get(key)
   if (existing) return existing
 
