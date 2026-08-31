@@ -21,7 +21,7 @@ afterEach(() => {
 describe('runEmbeddedCli', () => {
   it('runs a real command in-process with the injected identity, capturing stdout', async () => {
     const seen: { url: string; auth: string | null }[] = []
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
       seen.push({ url, auth: new Headers(init?.headers).get('x-api-key') })
       return jsonResponse({ data: [{ id: 'wf-1', name: 'Email digest' }], nextCursor: null })
@@ -58,7 +58,7 @@ describe('runEmbeddedCli', () => {
   })
 
   it('isolates concurrent invocations (identity and output never interleave)', async () => {
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
       const url = new URL(String(input))
       // Answer each invocation with its own workspace id so cross-talk is visible.
       const workspaceId = url.searchParams.get('workspaceId') ?? 'missing'
