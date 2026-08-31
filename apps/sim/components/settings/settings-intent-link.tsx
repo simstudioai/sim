@@ -39,6 +39,7 @@ export function SettingsIntentLink(props: SettingsIntentLinkProps) {
   const destinationPathname = hrefPathname(props.href)
   const isCurrentRoute =
     destinationPathname !== null &&
+    pathname !== null &&
     (destinationPathname === pathname || pathname.startsWith(`${destinationPathname}/`))
   const routeRole = isCurrentRoute ? 'current' : 'destination'
 

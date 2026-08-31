@@ -5,7 +5,9 @@ import { act, type ComponentProps } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockPathname } = vi.hoisted(() => ({ mockPathname: vi.fn(() => '/settings/billing') }))
+const { mockPathname } = vi.hoisted(() => ({
+  mockPathname: vi.fn<() => string | null>(() => '/settings/billing'),
+}))
 
 vi.mock('next/navigation', () => ({ usePathname: mockPathname }))
 vi.mock('next/link', () => ({
@@ -180,5 +182,14 @@ describe('SettingsIntentLink', () => {
 
     expect(link).toHaveAttribute('data-prefetch', 'false')
     expect(onIntent).not.toHaveBeenCalled()
+  })
+
+  it('renders before the pathname is available', () => {
+    mockPathname.mockReturnValue(null)
+
+    const { link } = renderLink()
+
+    expect(link).toHaveAttribute('href', '/settings/general')
+    expect(link).toHaveAttribute('data-prefetch', 'false')
   })
 })
