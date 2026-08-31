@@ -33,6 +33,10 @@ import {
   generalViewParam,
   generalViewUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/general/search-params'
+import {
+  getTimezonePickerPresentation,
+  timezonePreferenceFromPickerValue,
+} from '@/app/workspace/[workspaceId]/settings/components/general/timezone-picker'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -221,7 +225,12 @@ export function General() {
   }
 
   const handleTimezoneChange = async (value: string) => {
-    await updateSetting.mutateAsync({ key: 'timezone', value })
+    const timezone = timezonePreferenceFromPickerValue(value)
+    if (timezone === undefined) return
+    await updateSetting.mutateAsync({
+      key: 'timezone',
+      value: timezone,
+    })
   }
 
   const handleAutoConnectChange = async (checked: boolean) => {
@@ -287,6 +296,14 @@ export function General() {
   if (isLoading) {
     return <SettingsPanel actions={actions} />
   }
+
+  const browserTimezone = getBrowserTimezone()
+  const savedTimezone = settings?.timezone ?? null
+  const timezonePicker = getTimezonePickerPresentation(
+    savedTimezone,
+    browserTimezone,
+    TIMEZONE_OPTIONS
+  )
 
   return (
     <>
@@ -433,10 +450,10 @@ export function General() {
                   dropdownWidth={240}
                   searchable
                   searchPlaceholder='Search timezones'
-                  value={settings?.timezone ?? getBrowserTimezone()}
+                  value={timezonePicker.value}
                   onChange={handleTimezoneChange}
                   placeholder='Select timezone'
-                  options={TIMEZONE_OPTIONS}
+                  options={timezonePicker.options}
                 />
               </div>
             </div>

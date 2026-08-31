@@ -7,12 +7,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableInfo, TableRow } from '@/lib/table'
 import { RowModal } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/row-modal/row-modal'
 
-const { mockUseTimezoneState, mockUpdateRow, mockDeleteRow, mockDeleteRows } = vi.hoisted(() => ({
-  mockUseTimezoneState: vi.fn(),
-  mockUpdateRow: vi.fn(),
-  mockDeleteRow: vi.fn(),
-  mockDeleteRows: vi.fn(),
-}))
+const { mockToastError, mockUseTimezoneState, mockUpdateRow, mockDeleteRow, mockDeleteRows } =
+  vi.hoisted(() => ({
+    mockToastError: vi.fn(),
+    mockUseTimezoneState: vi.fn(),
+    mockUpdateRow: vi.fn(),
+    mockDeleteRow: vi.fn(),
+    mockDeleteRows: vi.fn(),
+  }))
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
@@ -64,6 +66,7 @@ vi.mock('@sim/emcn', () => {
           onChange(event.currentTarget.value),
       }),
     Label: passthrough,
+    toast: { error: mockToastError },
   }
 })
 
@@ -142,6 +145,71 @@ describe('RowModal expiration editing', () => {
     })
     expect(props.onSuccess).toHaveBeenCalledTimes(1)
 
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('also waits for timezone settings on an ordinary Date column', () => {
+    mockUseTimezoneState.mockReturnValue({ timezone: 'Asia/Tokyo', status: 'loading' })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const props = {
+      mode: 'edit' as const,
+      isOpen: true,
+      onClose: vi.fn(),
+      table: {
+        id: 'table-2',
+        name: 'Dates',
+        schema: { columns: [{ name: 'starts_at', type: 'date' as const }] },
+      },
+      row: { ...row, data: { starts_at: '2026-06-15T09:00:00+09:00' } },
+      onSuccess: vi.fn(),
+    }
+
+    act(() => root.render(createElement(RowModal, props)))
+
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Loading timezone…')
+    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')).toBeNull()
+
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'America/Los_Angeles',
+      status: 'ready',
+    })
+    act(() => root.render(createElement(RowModal, props)))
+
+    expect(container.querySelector<HTMLInputElement>('[data-testid="time"]')).not.toBeNull()
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('blocks an invalid saved timezone with the plain-text guidance', () => {
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'America/Los_Angeles',
+      savedTimezone: 'Mars/Olympus',
+      status: 'invalid',
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const props = {
+      mode: 'edit' as const,
+      isOpen: true,
+      onClose: vi.fn(),
+      table,
+      row,
+      onSuccess: vi.fn(),
+    }
+
+    act(() => root.render(createElement(RowModal, props)))
+
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Invalid timezone')
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="submit"]')?.disabled).toBe(
+      true
+    )
+    expect(mockToastError).toHaveBeenCalledWith(
+      'Your saved timezone “Mars/Olympus” is invalid. Update it in Settings → General before editing Date or Expiration cells.'
+    )
     act(() => root.unmount())
     container.remove()
   })

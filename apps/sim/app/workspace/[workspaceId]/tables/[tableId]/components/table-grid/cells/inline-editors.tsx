@@ -17,6 +17,7 @@ import { Check } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { isCalendarDateString } from '@/lib/table/dates'
+import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import { useTimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
 import {
@@ -72,17 +73,22 @@ function InlineDateEditor(props: InlineEditorProps) {
   const { onCancel } = props
   const timezoneState = useTimezoneState()
   const timezoneUnavailable = timezoneState.status !== 'ready'
+  const timezoneBlockedMessage = getTimezoneEditBlockedMessage(timezoneState)
 
   useEffect(() => {
-    if (timezoneState.status !== 'error') return
-    toast.error('Could not load timezone')
+    if (timezoneState.status !== 'error' && timezoneState.status !== 'invalid') return
+    if (timezoneBlockedMessage) toast.error(timezoneBlockedMessage)
     onCancel()
-  }, [onCancel, timezoneState.status])
+  }, [onCancel, timezoneBlockedMessage, timezoneState.status])
 
   if (timezoneUnavailable) {
     return (
       <span role='status' className='w-full min-w-0 truncate text-[var(--text-muted)] text-small'>
-        {timezoneState.status === 'error' ? 'Timezone unavailable' : 'Loading timezone…'}
+        {timezoneState.status === 'loading'
+          ? 'Loading timezone…'
+          : timezoneState.status === 'invalid'
+            ? 'Invalid timezone'
+            : 'Timezone unavailable'}
       </span>
     )
   }

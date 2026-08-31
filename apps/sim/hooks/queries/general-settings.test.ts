@@ -34,6 +34,7 @@ describe('useTimezone', () => {
     expect(useTimezone()).toBe('America/Los_Angeles')
     expect(useTimezoneState()).toEqual({
       timezone: 'America/Los_Angeles',
+      savedTimezone: null,
       status: 'ready',
     })
   })
@@ -42,17 +43,24 @@ describe('useTimezone', () => {
     mockUseQuery.mockReturnValue({ data: { timezone: 'Asia/Kathmandu' } })
 
     expect(useTimezone()).toBe('Asia/Kathmandu')
+    expect(useTimezoneState()).toEqual({
+      timezone: 'Asia/Kathmandu',
+      savedTimezone: 'Asia/Kathmandu',
+      status: 'ready',
+    })
     expect(mockGetBrowserTimezone).not.toHaveBeenCalled()
   })
 
-  it('uses the browser timezone when the saved preference is invalid', () => {
+  it('uses the browser timezone for display while preserving an invalid preference', () => {
     mockUseQuery.mockReturnValue({ data: { timezone: 'Not/AZone' } })
     mockIsValidTimezone.mockReturnValue(false)
 
     expect(useTimezoneState()).toEqual({
       timezone: 'America/Los_Angeles',
-      status: 'ready',
+      savedTimezone: 'Not/AZone',
+      status: 'invalid',
     })
+    expect(useTimezone()).toBe('America/Los_Angeles')
   })
 
   it('reads the current setting again after it changes', () => {
@@ -71,6 +79,7 @@ describe('useTimezone', () => {
 
     expect(useTimezoneState()).toEqual({
       timezone: 'America/Los_Angeles',
+      savedTimezone: null,
       status: 'loading',
     })
   })
@@ -80,6 +89,7 @@ describe('useTimezone', () => {
 
     expect(useTimezoneState()).toEqual({
       timezone: 'America/Los_Angeles',
+      savedTimezone: null,
       status: 'error',
     })
   })

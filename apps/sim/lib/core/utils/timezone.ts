@@ -83,6 +83,11 @@ export function isValidTimezone(timezone: string): boolean {
   }
 }
 
+/** Removes control characters and bounds an untrusted timezone before displaying it. */
+export function sanitizeTimezoneForDisplay(timezone: string, maxLength = 64): string {
+  return truncate(timezone.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' '), maxLength)
+}
+
 /**
  * Rejects a timezone that is not an IANA name.
  *
@@ -99,7 +104,7 @@ export function assertValidTimezone(timezone: string): void {
     // Echoed back trimmed and stripped of line breaks: the rejected value came off
     // a query string, and a raw one carrying newlines or U+2028/U+2029 would forge
     // extra lines in whatever log or error surface renders the message.
-    const safe = truncate(timezone.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' '), 64)
+    const safe = sanitizeTimezoneForDisplay(timezone)
     throw new Error(`Invalid timezone: ${safe}. Use an IANA name like "America/Los_Angeles".`)
   }
 }
