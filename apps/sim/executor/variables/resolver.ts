@@ -1590,17 +1590,22 @@ export class VariableResolver {
   /**
    * Renders a resolved object for a Condition expression.
    *
-   * In expression position the author is comparing or navigating the object itself, so the
-   * JSON has to stay a literal. Inside a quoted string the same text is data, and its own
-   * structural quotes would close the author's string — `"<start.body>" === "{}"` with a
-   * crafted key emits `"{"+attackerCode()+":1}"`, which parses as concatenation and runs.
-   * Escaping the text there keeps it inside the string the author opened, which is also the
-   * only reading of a quoted object reference that is not a syntax error.
+   * Inside a quoted string the object is data, so its JSON is escaped to stay inside the
+   * string the author opened: raw, the JSON's own structural quotes close that string, and
+   * `"<start.body>" === "{}"` with a crafted key emits `"{"+attackerCode()+":1}"`, which
+   * parses as concatenation and runs.
+   *
+   * Everywhere else the object is parsed at runtime rather than spliced as source. The value
+   * is identical to the object literal it replaces, but the payload is a fully escaped
+   * literal, so a crafted key can neither close a string nor forge a regex delimiter — which
+   * matters because the emitted form must be safe even when the quote scanner reads the
+   * surrounding context wrongly, and a quote inside a regex literal is enough to do that.
+   * Splicing raw JSON would make that heuristic load-bearing for injection.
    */
   private formatConditionJson(value: object, template: string, matchIndex: number): string {
-    const json = JSON.stringify(value)
+    const escaped = escapeInertStringContent(JSON.stringify(value))
     const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, 'javascript')
-    return quoteContext === null ? json : escapeInertStringContent(json)
+    return quoteContext === null ? `JSON.parse('${escaped}')` : escaped
   }
 
   private async resolveReference(reference: string, context: ResolutionContext): Promise<any> {

@@ -328,6 +328,41 @@ describe('VariableResolver function block inputs', () => {
     expect(runResolvedCondition(expression).injected).toBe(false)
   })
 
+  it('stops a trigger-supplied object from escaping wherever the quote scanner mis-reads', async () => {
+    // A regex literal is not tracked by the quote scanner, and a quote inside one
+    // desynchronizes it for everything that follows, so the emitted object must be inert
+    // whichever context the scanner reports.
+    const payloads = [
+      { [`+(globalThis.${INJECTION_CANARY}=1)+`]: 1 },
+      { forged: `/ + (globalThis.${INJECTION_CANARY}=1) + /` },
+      { closed: `" + (globalThis.${INJECTION_CANARY}=1) + "` },
+    ]
+    const quotings = [
+      '/<producer.result>/.test("x")',
+      `/['"]/.test('a') && <producer.result>.count === 2`,
+      `/['"]/.test('a') && "<producer.result>" === "{}"`,
+      '<producer.result>.count === 2',
+    ]
+
+    for (const value of quotings) {
+      for (const payload of payloads) {
+        const expression = await resolveConditionWithBlockOutput(value, payload)
+        expect(
+          runResolvedCondition(expression).injected,
+          `condition ${value} executed object data: ${expression}`
+        ).toBe(false)
+      }
+    }
+  })
+
+  it('keeps navigating an object reference the scanner reports as unquoted', async () => {
+    const expression = await resolveConditionWithBlockOutput('<producer.result>.count === 2', {
+      count: 2,
+      note: `a "quoted" / slashed ' value`,
+    })
+    expect(runResolvedCondition(expression).matched).toBe(true)
+  })
+
   it('keeps quoted and bare condition references comparing what they compared before', async () => {
     const cases: Array<{ value: string; result: unknown; expected: boolean }> = [
       { value: `<producer.result> === 'urgent'`, result: 'urgent', expected: true },

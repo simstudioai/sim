@@ -92,21 +92,26 @@ function buildConditionScript(expressions: string[], evalContext: Record<string,
 /**
  * Narrows the secrets a condition evaluation can read to the ones its script names.
  *
- * A condition reaches a secret by writing `{{NAME}}`, which the execution-boundary
- * compiler binds. Nothing else in the script needs the workspace's other secrets, so
- * handing the sandbox the full environment only widens what a future defect in this
- * path could reach — the whole map was readable as the `environmentVariables` global.
+ * A condition reaches a secret by writing `{{NAME}}`, which the execution-boundary compiler
+ * binds. Nothing else in the script needs the workspace's other secrets, so handing the
+ * sandbox the full environment only widens what a future defect in this path could reach —
+ * the whole map was readable as the `environmentVariables` global.
  *
- * Scanning the built script rather than the expressions covers the batched and
- * per-branch scripts with one rule, and mounts exactly the set the compiler could
- * substitute. A script that reads the `environmentVariables` global directly keeps the
- * full map: that access is undocumented for conditions but costs nothing to preserve.
+ * The two scans read different text on purpose. Placeholders are read from the built script,
+ * which is exactly what the compiler substitutes over, so a mounted set derived from anything
+ * narrower would silently stop resolving a placeholder the compiler still expands. The direct
+ * `environmentVariables` read is looked for in the expressions alone, and only as a member
+ * access: the script also carries the source block's output as data, so scanning it would let
+ * a payload that merely contains the word restore the full map.
  */
-function scopeConditionSecrets(code: string): {
+function scopeConditionSecrets(
+  code: string,
+  expressions: string[]
+): {
   secretScope: 'all' | 'selected'
   mountedSecrets: string[]
 } {
-  if (/\benvironmentVariables\b/.test(code)) {
+  if (expressions.some((expression) => /\benvironmentVariables\s*[.[]/.test(expression))) {
     return { secretScope: 'all', mountedSecrets: [] }
   }
 
@@ -129,10 +134,11 @@ function scopeConditionSecrets(code: string): {
 async function runConditionCode(
   ctx: ExecutionContext,
   code: string,
+  expressions: string[],
   currentNodeId?: string
 ): Promise<ToolResponse> {
   const { blockNameMapping, blockOutputSchemas } = collectBlockData(ctx, currentNodeId)
-  const { secretScope, mountedSecrets } = scopeConditionSecrets(code)
+  const { secretScope, mountedSecrets } = scopeConditionSecrets(code, expressions)
 
   return executeTool(
     'function_execute',
@@ -182,6 +188,7 @@ async function evaluateConditionList(
   const result = await runConditionCode(
     ctx,
     buildConditionScript(expressions, evalContext),
+    expressions,
     currentNodeId
   )
 
@@ -266,7 +273,7 @@ async function evaluateSingleCondition(
   currentNodeId?: string
 ): Promise<boolean> {
   const code = `const context = ${JSON.stringify(evalContext)};\nreturn ${buildBooleanTest(expression)}`
-  const result = await runConditionCode(ctx, code, currentNodeId)
+  const result = await runConditionCode(ctx, code, [expression], currentNodeId)
 
   if (!result.success) {
     if (result.retryable === false) {

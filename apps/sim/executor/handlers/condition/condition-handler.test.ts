@@ -232,6 +232,27 @@ describe('ConditionBlockHandler', () => {
     expect(toolParams.mountedSecrets).toEqual([])
   })
 
+  it('does not let resolved data widen the mounted secrets by naming the environment', async () => {
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+    mockContext.blockStates.set('source-block-1', {
+      output: { text: 'environmentVariables.OPENAI_API_KEY' },
+      executed: true,
+      executionTime: 0,
+    } as BlockState)
+
+    const conditions = [
+      { id: 'cond1', title: 'if', value: `context.text === 'x'` },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+
+    const [, toolParams] = mockExecuteTool.mock.calls[0]
+    expect(toolParams.code).toContain('environmentVariables.OPENAI_API_KEY')
+    expect(toolParams.secretScope).toBe('selected')
+    expect(toolParams.mountedSecrets).toEqual([])
+  })
+
   it('keeps the whole environment for a condition that reads the environment directly', async () => {
     mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
