@@ -7,11 +7,13 @@ import { parseRequest } from '@/lib/api/server'
 import { resolveServableDoc } from '@/lib/copilot/tools/server/files/doc-compile'
 import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import {
@@ -69,7 +71,14 @@ export const GET = withRouteHandler(
       }
 
       const { file } = resolved
-      const raw = await downloadFile({ key: file.key, context: 'workspace' })
+      // The same ceiling the authenticated serve route reads this object under
+      // (`fetchWorkspaceFileBuffer`). Without it a share link is the one way to ask
+      // an unauthenticated caller's request to hold a 5 GB workspace file resident.
+      const raw = await downloadFile({
+        key: file.key,
+        context: 'workspace',
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      })
 
       const servable = file.workspaceId
         ? await resolveServableDoc(file.workspaceId, raw, file.originalName)
@@ -108,6 +117,9 @@ export const GET = withRouteHandler(
           }),
           'utf8'
         )
+        // Rendering inlines referenced workspace images, so a source comfortably under
+        // the read ceiling can resolve to a document well over it.
+        assertKnownSizeWithinLimit(buffer.length, MAX_BUFFERED_TRANSFER_BYTES, 'served page render')
         contentType = 'text/html'
       } else if (preview) {
         // Only for a render request: the Download button omits `preview`, so a saved

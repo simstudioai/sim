@@ -1,6 +1,6 @@
-import { readFile } from 'fs/promises'
 import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { fileServeParamsSchema, fileServeQuerySchema } from '@/lib/api/contracts/storage-transfer'
@@ -12,6 +12,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { resolveServableDocBytes } from '@/lib/copilot/tools/server/files/doc-compile'
 import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -19,6 +20,7 @@ import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspac
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
@@ -31,6 +33,7 @@ import {
   FileNotFoundError,
   findLocalFile,
   getContentType,
+  readLocalFileWithinLimit,
 } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesServeAPI')
@@ -42,11 +45,13 @@ const logger = createLogger('FilesServeAPI')
  * workspace file is rewritten under a new key on every content update, so a reader
  * holding the previous key lands here routinely and correctly receives a 404. Each
  * handler rethrows into the outer one, so logging those at `error` reports the same
- * expected 404 twice and buries the failures that do warrant attention.
+ * expected 404 twice and buries the failures that do warrant attention. A file too
+ * large to serve resident is the same kind of answer — a 413 the caller cannot retry
+ * its way out of, not something on call needs to look at.
  */
 function logServeFailure(message: string, error: unknown): void {
-  if (error instanceof FileNotFoundError) {
-    logger.info(message, { reason: error.message })
+  if (error instanceof FileNotFoundError || isPayloadSizeLimitError(error)) {
+    logger.info(message, { reason: getErrorMessage(error) })
     return
   }
   logger.error(message, error)
@@ -104,10 +109,14 @@ async function resolveServableBytes(params: {
   if (fileType === SIM_PAGE_CONTENT_TYPE || filename.toLowerCase().endsWith('.html')) {
     const text = buffer.toString('utf8')
     if (isSimPageSource(text)) {
-      return {
-        buffer: Buffer.from(await renderSimPageDocumentWithAssets(text, { workspaceId }), 'utf8'),
-        contentType: 'text/html',
-      }
+      const rendered = Buffer.from(
+        await renderSimPageDocumentWithAssets(text, { workspaceId }),
+        'utf8'
+      )
+      // Rendering inlines referenced workspace images, so a source comfortably under
+      // the read ceiling can resolve to a document well over it.
+      assertKnownSizeWithinLimit(rendered.length, MAX_BUFFERED_TRANSFER_BYTES, 'served page render')
+      return { buffer: rendered, contentType: 'text/html' }
     }
   }
 
@@ -345,7 +354,11 @@ async function handleLocalFile(
       throw new FileNotFoundError(`File not found: ${filename}`)
     }
 
-    const rawBuffer = await readFile(filePath)
+    const rawBuffer = await readLocalFileWithinLimit(
+      filePath,
+      MAX_BUFFERED_TRANSFER_BYTES,
+      'served file'
+    )
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(filename)
@@ -400,11 +413,14 @@ async function handleCloudProxy(
     let rawBuffer: Buffer
 
     if (context === 'copilot') {
-      rawBuffer = await CopilotFiles.downloadCopilotFile(cloudKey)
+      rawBuffer = await CopilotFiles.downloadCopilotFile(cloudKey, {
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      })
     } else {
       rawBuffer = await downloadFile({
         key: cloudKey,
         context,
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       })
     }
 
@@ -448,11 +464,14 @@ async function handleCloudProxyPublic(
     let fileBuffer: Buffer
 
     if (context === 'copilot') {
-      fileBuffer = await CopilotFiles.downloadCopilotFile(cloudKey)
+      fileBuffer = await CopilotFiles.downloadCopilotFile(cloudKey, {
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      })
     } else {
       fileBuffer = await downloadFile({
         key: cloudKey,
         context,
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       })
     }
 
@@ -485,7 +504,11 @@ async function handleLocalFilePublic(filename: string): Promise<NextResponse> {
       throw new FileNotFoundError(`File not found: ${filename}`)
     }
 
-    const fileBuffer = await readFile(filePath)
+    const fileBuffer = await readLocalFileWithinLimit(
+      filePath,
+      MAX_BUFFERED_TRANSFER_BYTES,
+      'served file'
+    )
     const contentType = getContentType(filename)
 
     logger.info('Public local file served', { filename, size: fileBuffer.length })

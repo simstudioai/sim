@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
@@ -268,7 +269,16 @@ export function createFileResponse(file: FileResponse): NextResponse {
 
 export function createErrorResponse(error: Error, status = 500): NextResponse {
   const statusCode =
-    error instanceof FileNotFoundError ? 404 : error instanceof InvalidRequestError ? 400 : status
+    error instanceof FileNotFoundError
+      ? 404
+      : error instanceof InvalidRequestError
+        ? 400
+        : // A file too large to hold resident is the caller asking for something this
+          // route will not do, not a server fault — 413 keeps it out of the 5xx alarms
+          // and tells the client retrying is pointless.
+          isPayloadSizeLimitError(error)
+          ? 413
+          : status
 
   return NextResponse.json(
     {
@@ -277,6 +287,24 @@ export function createErrorResponse(error: Error, status = 500): NextResponse {
     },
     { status: statusCode }
   )
+}
+
+/**
+ * Reads a local upload into memory only after its on-disk size clears `maxBytes`.
+ *
+ * The self-hosted mirror of the `maxBytes` every cloud provider download takes:
+ * a bare `readFile` inherits the 5 GB admission ceiling workspace files are stored
+ * under and allocates all of it inside the shared app process.
+ */
+export async function readLocalFileWithinLimit(
+  filePath: string,
+  maxBytes: number,
+  label: string
+): Promise<Buffer> {
+  const { readFile, stat } = await import('fs/promises')
+  const { size } = await stat(filePath)
+  assertKnownSizeWithinLimit(size, maxBytes, label)
+  return readFile(filePath)
 }
 
 export function createSuccessResponse(data: ApiSuccessResponse): NextResponse {
