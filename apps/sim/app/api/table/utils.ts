@@ -15,6 +15,7 @@ import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
@@ -379,26 +380,6 @@ export async function checkAccess(
   }
 
   return { ok: true, table }
-}
-
-/**
- * The 403 a raw table route returns when a permission group withholds a
- * capability, as opposed to the caller's role being too low.
- *
- * One place so the sentence and the detail code cannot drift between the routes
- * that gate through {@link checkAccess} and the few that assert inline because
- * they name a workspace rather than a table.
- */
-export function capabilityRefusalResponse(
-  capability: StaticPermissionGroupCapability
-): NextResponse<ApiErrorResponse> {
-  return NextResponse.json(
-    {
-      error: capabilityRefusal(capability),
-      details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
-    },
-    { status: 403 }
-  )
 }
 
 export function accessError(
