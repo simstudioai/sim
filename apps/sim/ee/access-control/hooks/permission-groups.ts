@@ -1,6 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type BulkAddPermissionGroupMembersBody,
@@ -96,6 +97,33 @@ export function useOrganizationWorkspaces(organizationId?: string, enabled = tru
   })
 }
 
+/**
+ * How many times a failed policy read is retried before the UI is left with no
+ * answer, and the app default this raises it from.
+ *
+ * Consumers of this query fail CLOSED — the API-keys page withholds the create
+ * button until the read succeeds, because offering a key type the server would
+ * refuse is the only failure worth avoiding. That makes an unanswered question
+ * a withheld capability, and the client's default query options give it no way
+ * back: `retry: 1` on the web, `retryOnMount: false`, and `refetchOnWindowFocus`
+ * off outside the desktop app. One transient failure would otherwise disable
+ * the button for the rest of the session with nothing to say why.
+ *
+ * The read is a small, idempotent, cacheable GET, so retrying it is close to
+ * free — cheap enough to justify self-healing rather than a page reload.
+ */
+const USER_PERMISSION_CONFIG_RETRIES = 3
+
+/**
+ * A refusal will not heal by asking again: the caller's session or membership
+ * is what the server disagrees with, and three more requests spend latency to
+ * arrive at the same 4xx. Only a transport failure or a 5xx is worth a retry.
+ */
+function retryUserPermissionConfig(failureCount: number, error: Error): boolean {
+  if (isApiClientError(error) && error.status >= 400 && error.status < 500) return false
+  return failureCount < USER_PERMISSION_CONFIG_RETRIES
+}
+
 export function useUserPermissionConfig(workspaceId?: string) {
   return useQuery<UserPermissionConfig>({
     queryKey: permissionGroupKeys.userConfig(workspaceId),
@@ -108,6 +136,14 @@ export function useUserPermissionConfig(workspaceId?: string) {
     },
     enabled: Boolean(workspaceId),
     staleTime: PERMISSION_GROUPS_STALE_TIME,
+    retry: retryUserPermissionConfig,
+    /**
+     * The self-heal. Without it a query left in error stays there for the life
+     * of the browser session, because nothing else remounts it back to life:
+     * `refetchOnWindowFocus` is off on the web, and the settings modal
+     * unmounting and reopening is exactly the moment a user retries by hand.
+     */
+    retryOnMount: true,
   })
 }
 

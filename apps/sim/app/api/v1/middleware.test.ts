@@ -7,7 +7,12 @@
  * `used = limit - remaining` gets a negative number.
  */
 
-import { createMockRequest } from '@sim/testing'
+import {
+  createMockRequest,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  resetPermissionGroupScopeMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
@@ -17,13 +22,21 @@ import {
   recordRateLimitSnapshot,
 } from '@/lib/api/server/rate-limit-context'
 
-const { mockAuthenticateV1Request, mockGetSubscription, mockCheckRateLimit, mockGetRateLimit } =
-  vi.hoisted(() => ({
-    mockAuthenticateV1Request: vi.fn(),
-    mockGetSubscription: vi.fn(),
-    mockCheckRateLimit: vi.fn(),
-    mockGetRateLimit: vi.fn(),
-  }))
+const {
+  mockAuthenticateV1Request,
+  mockGetSubscription,
+  mockCheckRateLimit,
+  mockGetRateLimit,
+  mockGetUserEntityPermissions,
+  mockGetWorkspaceBillingSettings,
+} = vi.hoisted(() => ({
+  mockAuthenticateV1Request: vi.fn(),
+  mockGetSubscription: vi.fn(),
+  mockCheckRateLimit: vi.fn(),
+  mockGetRateLimit: vi.fn(),
+  mockGetUserEntityPermissions: vi.fn(),
+  mockGetWorkspaceBillingSettings: vi.fn(),
+}))
 
 vi.mock('@/app/api/v1/auth', () => ({
   authenticateV1Request: mockAuthenticateV1Request,
@@ -40,9 +53,22 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getUserEntityPermissions: mockGetUserEntityPermissions,
+}))
+
+vi.mock('@/lib/workspaces/utils', () => ({
+  getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
+  getWorkspaceBilledAccountUserId: vi.fn(async () => 'billed-user'),
+}))
+
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   authenticateRequest,
   checkRateLimit,
+  checkWorkspaceScope,
   createRateLimitResponse,
   v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
@@ -272,5 +298,81 @@ describe('rate-limit snapshot context', () => {
     await checkRateLimit(req, 'workflows')
 
     expect(getRateLimitHeaders(req)).toBeNull()
+  })
+})
+
+/**
+ * The table routes authorize with `checkWorkspaceScope` and then a domain
+ * helper (`checkAccess`) that runs the workspace ROLE check. `checkAccess`
+ * gates the module (`tables.use`), never the key kind, so `personal_api_key.use`
+ * has to be asked in the wrapper — which means the wrapper has to order itself
+ * behind the role, because nothing downstream will.
+ *
+ * The workspace column keeps answering first: it names no group, so refusing on
+ * it tells a stranger only what the workspace itself is set to.
+ */
+describe('checkWorkspaceScope', () => {
+  const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
+  const USER_ID = 'user-1'
+
+  function personalKeyRateLimit() {
+    return {
+      allowed: true,
+      remaining: 1,
+      limit: 1,
+      resetAt: new Date(),
+      userId: USER_ID,
+      keyType: 'personal' as const,
+      principal: { kind: 'personal_api_key' as const, userId: USER_ID, keyId: 'key-1' },
+    }
+  }
+
+  function withholdsPersonalKeys() {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disablePersonalApiKeys: true,
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetPermissionGroupScopeMock()
+    mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: true })
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+  })
+
+  it('refuses a member whose group withholds personal API keys', async () => {
+    withholdsPersonalKeys()
+
+    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
+
+    expect(response).not.toBeNull()
+    expect(response?.status).toBe(403)
+    await expect(response?.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/personal API key/i),
+    })
+  })
+
+  it('leaves a non-member to the downstream role check rather than naming the group', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+    withholdsPersonalKeys()
+
+    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
+
+    expect(response).toBeNull()
+    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  it("still refuses a non-member on the workspace's own column, which names no group", async () => {
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+    mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: false })
+
+    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
+
+    expect(response).not.toBeNull()
+    expect(response?.status).toBe(403)
+    await expect(response?.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/personal API key/i),
+    })
   })
 })

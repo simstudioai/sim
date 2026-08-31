@@ -119,9 +119,21 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
    * enterprise organization. The server combines them the same way, so offering
    * a key type here that it would refuse is the only failure worth avoiding —
    * which is why the policy fails closed while its query is pending or errored,
-   * rather than treating an unanswered question as an unrestricted answer. In
-   * personal scope the hook is disabled (no `workspaceId`) and no group
-   * applies, so `isSuccess` is only required when the query actually runs.
+   * rather than treating an unanswered question as an unrestricted answer.
+   *
+   * Failing closed on `isSuccess` needs the query to be able to recover, or one
+   * transient failure disables the create button for the session with nothing
+   * to say why: the client's defaults retry once, never on remount, and do not
+   * refetch on focus outside the desktop app. `useUserPermissionConfig` raises
+   * both, which is what makes this gate self-healing rather than sticky.
+   *
+   * The `!workspaceId` arm is defense, not a live case: this component ships
+   * only from the workspace settings panel, always as `scope='combined'`, and
+   * `workspaceId` is that route's own param, so the query always runs. It
+   * covers the `|| ''` fallback above — a render outside the route would
+   * disable the hook, and `isSuccess` on a query that never runs is false
+   * forever, which would present as a dead button rather than a refusal. The
+   * server is the enforcement either way; this gate is the affordance.
    */
   const permissionPolicyReady = !workspaceId || permissionConfigQuery.isSuccess
 

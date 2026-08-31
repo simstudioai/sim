@@ -380,7 +380,40 @@ export function parseOperationRegistryMembers(source: string): OperationRegistry
   return members
 }
 
-/** Capabilities declared enforced at a call site the funnel cannot reach. */
+/**
+ * Capabilities declared enforced at a call site the funnel cannot reach.
+ *
+ * Deliberately a bare scan of the whole file, with no check that anything below
+ * the annotation actually gates: an annotation left behind after its gate was
+ * deleted still counts the capability as reachable, and assertion C stays
+ * green. That is a real gap, and it is left open because every cheap shape that
+ * would close it is wrong more often than it is right.
+ *
+ * The obvious shapes were measured against the 50-odd annotations in the tree:
+ *
+ *  - "the capability id appears in code in the same file" misses 7, among them
+ *    `logs/application/list-public-logs.ts` and `get-public-log.ts`, which
+ *    annotate `logs.cost` and `logs.trace_spans` over a call to
+ *    `resolveLogFieldProjection` — the one place those two are read, named
+ *    nowhere else because naming them twice is how one copy stops redacting.
+ *  - "a capability sink is called within N lines below" misses 7 at any N,
+ *    including `core/application/workspace-authorization.ts` (delegates to
+ *    `requirePersonalApiKeysAllowed`), `invitations/workspace-invitations.ts`
+ *    (`validateInvitationsAllowed`) and the three `integrations.manage` sites in
+ *    `auth/oauth/credentials/route.ts` (`checkOAuthCredentialAccess`).
+ *
+ * Both fail on the same case, and it is the common one: the annotation sits
+ * above a call to a DOMAIN helper that enforces the group somewhere else. A
+ * lookahead would have to enumerate every such helper — which is the open-ended
+ * set the annotation exists to describe in the first place, so the list would
+ * go stale in exactly the direction that makes the audit lie.
+ *
+ * What does hold the line is assertion E's other half: an annotation cannot
+ * invent enforcement for a key whose field says `ui-only` or `executor`, and a
+ * capability whose gate is deleted along with its annotation is reported by
+ * assertion C immediately. The gap is narrow — a gate deleted while its comment
+ * is kept — and closing it wants a call-graph, not a regex.
+ */
 export function parseEnforcedAnnotations(source: string): string[] {
   return [...source.matchAll(new RegExp(`${ENFORCED_ANNOTATION}\\s*([a-z0-9_.]+)`, 'g'))].map(
     (match) => match[1]

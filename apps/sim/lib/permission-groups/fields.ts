@@ -401,7 +401,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'hide-org-member-directory',
     label: 'Member Directory',
     category: 'Collaboration',
-    hint: 'Withhold the member directory. Members cannot see the names or email addresses of other members.',
+    hint: "Withhold the member directory. Members cannot see the names or email addresses of other members. Read from the organization's default group, because the directory belongs to the organization and names no workspace.",
   }),
   disableCliAccess: booleanRestriction('capability', {
     id: 'disable-cli-access',
