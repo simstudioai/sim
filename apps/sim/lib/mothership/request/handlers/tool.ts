@@ -411,7 +411,7 @@ function handleResultPhase(
     endTime,
   })
   stampToolCallBlockEnd(context, toolCallId, endTime)
-  markToolResultSeen(toolCallId)
+  markToolResultSeen(context, toolCallId)
 }
 
 function stampToolCallBlockEnd(
@@ -460,7 +460,7 @@ async function handleCallPhase(
   }
 
   if (isSubagent) {
-    if (wasToolResultSeen(toolCallId) || existing?.endTime) {
+    if (wasToolResultSeen(context, toolCallId) || existing?.endTime) {
       if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
         if (existing) updateToolCallFromFrame(existing, toolName, args, !isPartial)
       }
@@ -497,7 +497,7 @@ async function handleCallPhase(
   }
 
   if (isPartial) return
-  if (!isSubagent && wasToolResultSeen(toolCallId)) return
+  if (!isSubagent && wasToolResultSeen(context, toolCallId)) return
   if (context.pendingToolPromises.has(toolCallId) || existing?.status === 'executing') {
     return
   }
@@ -743,7 +743,7 @@ async function dispatchToolExecution(
       output: { error },
       error,
     })
-    markToolResultSeen(toolCallId)
+    markToolResultSeen(context, toolCallId)
     await emitSyntheticToolResult(
       toolCallId,
       toolCall.name,
@@ -891,7 +891,7 @@ async function dispatchToolExecution(
           span.setAttribute(TraceAttr.ToolOutcome, completion.status)
         }
         const backgroundIsSuccess = toolName === 'run_workflow' && args?.async === true
-        handleClientCompletion(toolCall, toolCallId, completion, backgroundIsSuccess)
+        handleClientCompletion(context, toolCall, toolCallId, completion, backgroundIsSuccess)
         await emitSyntheticToolResult(
           toolCallId,
           toolCall.name,

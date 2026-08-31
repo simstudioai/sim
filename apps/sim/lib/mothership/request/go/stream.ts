@@ -366,7 +366,10 @@ export async function runStreamLoop(
           })
         }
 
-        if (shouldSkipToolCallEvent(streamEvent) || shouldSkipToolResultEvent(streamEvent)) {
+        if (
+          shouldSkipToolCallEvent(context, streamEvent) ||
+          shouldSkipToolResultEvent(context, streamEvent)
+        ) {
           return
         }
 

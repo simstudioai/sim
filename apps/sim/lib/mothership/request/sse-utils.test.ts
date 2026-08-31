@@ -9,16 +9,19 @@ import { TOOL_CALL_STATUS } from '@/lib/mothership/request/session'
 import type { StreamEvent } from '@/lib/mothership/request/types'
 import { shouldSkipToolCallEvent } from './sse-utils'
 
+const freshScope = () => ({ seenToolCalls: new Set<string>(), seenToolResults: new Set<string>() })
+
 describe('shouldSkipToolCallEvent', () => {
   it('skips pathless read and glob generating placeholders without marking the call seen', () => {
     const readEvent = toolCallEvent('read-generating-placeholder', 'read', undefined, true)
     const globEvent = toolCallEvent('glob-generating-placeholder', 'glob', undefined, true)
 
-    expect(shouldSkipToolCallEvent(readEvent)).toBe(true)
-    expect(shouldSkipToolCallEvent(globEvent)).toBe(true)
+    expect(shouldSkipToolCallEvent(freshScope(), readEvent)).toBe(true)
+    expect(shouldSkipToolCallEvent(freshScope(), globEvent)).toBe(true)
 
     expect(
       shouldSkipToolCallEvent(
+        freshScope(),
         toolCallEvent('read-generating-placeholder', 'read', {
           path: 'components/integrations/slack/README.md',
         })
@@ -26,6 +29,7 @@ describe('shouldSkipToolCallEvent', () => {
     ).toBe(false)
     expect(
       shouldSkipToolCallEvent(
+        freshScope(),
         toolCallEvent('glob-generating-placeholder', 'glob', {
           pattern: 'components/blocks/*/README.md',
         })
@@ -36,6 +40,7 @@ describe('shouldSkipToolCallEvent', () => {
   it('keeps non-vfs generating placeholders visible', () => {
     expect(
       shouldSkipToolCallEvent(
+        freshScope(),
         toolCallEvent('search-generating-placeholder', 'web_search', undefined, true)
       )
     ).toBe(false)
@@ -52,10 +57,11 @@ describe('shouldSkipToolCallEvent', () => {
       credentialId: 'cred-gmail',
     })
 
-    expect(shouldSkipToolCallEvent(gateway)).toBe(false)
-    expect(shouldSkipToolCallEvent(gateway)).toBe(true)
-    expect(shouldSkipToolCallEvent(resolved)).toBe(false)
-    expect(shouldSkipToolCallEvent(resolved)).toBe(true)
+    const scope = freshScope()
+    expect(shouldSkipToolCallEvent(scope, gateway)).toBe(false)
+    expect(shouldSkipToolCallEvent(scope, gateway)).toBe(true)
+    expect(shouldSkipToolCallEvent(scope, resolved)).toBe(false)
+    expect(shouldSkipToolCallEvent(scope, resolved)).toBe(true)
   })
 })
 

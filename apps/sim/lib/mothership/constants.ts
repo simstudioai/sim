@@ -61,9 +61,6 @@ export const COPILOT_CONFIRM_API_PATH = '/api/copilot/confirm'
 export const COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE =
   'COPILOT_WORKFLOW_EXECUTION_CONFLICT' as const
 
-/** Maximum entries in the in-memory SSE tool-event dedup cache. */
-export const STREAM_BUFFER_MAX_DEDUP_ENTRIES = 1_000
-
 /** Approximate max inline tool-result budget before artifact/error handling takes over. */
 export const TOOL_RESULT_MAX_INLINE_TOKENS = 50_000
 

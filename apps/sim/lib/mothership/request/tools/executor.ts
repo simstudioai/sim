@@ -341,7 +341,7 @@ export async function forceFailHungToolCall(
     toolName: toolCall.name,
     message,
   })
-  markToolResultSeen(toolCallId)
+  markToolResultSeen(context, toolCallId)
   await completeAsyncToolCall({
     toolCallId,
     status: MothershipStreamV1AsyncToolRecordStatus.failed,
@@ -503,7 +503,7 @@ async function executeToolAndReportInner(
   await ensureHandlersRegistered()
   if (abortRequested(context, execContext, options)) {
     markToolCallCancelled('Request aborted before tool execution')
-    markToolResultSeen(toolCall.id)
+    markToolResultSeen(context, toolCall.id)
     await completeAsyncToolCall({
       toolCallId: toolCall.id,
       status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
@@ -616,7 +616,7 @@ async function executeToolAndReportInner(
         toolCall.name
       ).result
       markToolCallCancelled('Request aborted during tool execution')
-      markToolResultSeen(toolCall.id)
+      markToolResultSeen(context, toolCall.id)
       await completeAsyncToolCall({
         toolCallId: toolCall.id,
         status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
@@ -648,7 +648,7 @@ async function executeToolAndReportInner(
     )
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool post-processing')
-      markToolResultSeen(toolCall.id)
+      markToolResultSeen(context, toolCall.id)
       await completeAsyncToolCall({
         toolCallId: toolCall.id,
         status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
@@ -677,7 +677,7 @@ async function executeToolAndReportInner(
     )
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool post-processing')
-      markToolResultSeen(toolCall.id)
+      markToolResultSeen(context, toolCall.id)
       await completeAsyncToolCall({
         toolCallId: toolCall.id,
         status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
@@ -706,7 +706,7 @@ async function executeToolAndReportInner(
     )
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool post-processing')
-      markToolResultSeen(toolCall.id)
+      markToolResultSeen(context, toolCall.id)
       await completeAsyncToolCall({
         toolCallId: toolCall.id,
         status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
@@ -800,7 +800,7 @@ async function executeToolAndReportInner(
     const terminalMessage = modelSucceeded ? 'Tool completed' : requireToolCallError(toolCall)
     const terminalData = getToolCallTerminalData(toolCall)
 
-    markToolResultSeen(toolCall.id)
+    markToolResultSeen(context, toolCall.id)
     await completeAsyncToolCall({
       toolCallId: toolCall.id,
       status: modelSucceeded
@@ -888,7 +888,7 @@ async function executeToolAndReportInner(
     const safeThrownMessage = copilotError.error || 'Tool failed'
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool execution')
-      markToolResultSeen(toolCall.id)
+      markToolResultSeen(context, toolCall.id)
       await completeAsyncToolCall({
         toolCallId: toolCall.id,
         status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
@@ -924,7 +924,7 @@ async function executeToolAndReportInner(
       params: toolCall.params,
     })
 
-    markToolResultSeen(toolCall.id)
+    markToolResultSeen(context, toolCall.id)
     await completeAsyncToolCall({
       toolCallId: toolCall.id,
       status: MothershipStreamV1AsyncToolRecordStatus.failed,
