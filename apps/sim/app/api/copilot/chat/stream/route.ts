@@ -37,6 +37,7 @@ export const maxDuration = 3600
 
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
+const POLL_INTERVAL_MAX_MS = 2_000
 const REPLAY_KEEPALIVE_INTERVAL_MS = 15_000
 const MAX_STREAM_MS = 60 * 60 * 1000
 
@@ -334,13 +335,13 @@ async function handleResumeRequestBody({
     }
     request.signal.addEventListener('abort', abortListener, { once: true })
 
-    const flushEvents = async () => {
+    const flushEvents = async (): Promise<number> => {
       if (
         run?.chatId &&
         !(await getAccessibleCopilotChatAuth(run.chatId, authenticatedUserId, { principal }))
       ) {
         closeController()
-        return
+        return 0
       }
       const events = await readEvents(streamId, cursor)
       if (events.length > 0) {
@@ -361,6 +362,7 @@ async function handleResumeRequestBody({
           sawTerminalEvent = true
         }
       }
+      return events.length
     }
 
     const emitTerminalIfMissing = (
@@ -409,6 +411,7 @@ async function handleResumeRequestBody({
 
       await flushEvents()
 
+      let pollDelayMs = POLL_INTERVAL_MS
       while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
         pollIterations += 1
         const currentRun = await getLatestRunForStream(streamId, authenticatedUserId).catch(
@@ -431,7 +434,12 @@ async function handleResumeRequestBody({
 
         currentRequestId = extractRunRequestId(currentRun) || currentRequestId
 
-        await flushEvents()
+        const flushed = await flushEvents()
+        /* Adaptive tail: 4 Hz only while events are actually flowing; a quiet stream
+           decays toward the cap so an attached client doesn't hammer Postgres + Redis
+           at 4 Hz for up to an hour. Any flushed event snaps back to full rate. */
+        pollDelayMs =
+          flushed > 0 ? POLL_INTERVAL_MS : Math.min(pollDelayMs * 2, POLL_INTERVAL_MAX_MS)
 
         if (controllerClosed) {
           break
@@ -459,7 +467,7 @@ async function handleResumeRequestBody({
           enqueueComment('keepalive')
         }
 
-        await sleep(POLL_INTERVAL_MS)
+        await sleep(pollDelayMs)
       }
       if (!controllerClosed && Date.now() - startTime >= MAX_STREAM_MS) {
         emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
