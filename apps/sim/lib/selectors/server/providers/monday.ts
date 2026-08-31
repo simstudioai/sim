@@ -7,9 +7,10 @@ import {
 } from '@/lib/selectors/server/errors'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
-import type {
-  ExecuteServerSelectorArgs,
-  ServerSelectorAttachmentMap,
+import {
+  detailSelectorResult,
+  type ExecuteServerSelectorArgs,
+  type ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
 import { MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
@@ -71,6 +72,28 @@ async function listBoards(args: ExecuteServerSelectorArgs) {
   return { items, truncated }
 }
 
+async function getBoard(
+  args: ExecuteServerSelectorArgs,
+  boardId: string
+): Promise<SafeSelectorOption | null> {
+  const validated = validateMondayNumericId(boardId, 'boardId')
+  if (!validated.isValid) throw new SelectorContextUnavailableError()
+  const token = await accessToken(args)
+  const response = await fetchProviderJson<
+    MondayResponse<{ boards?: Array<{ id: string; name?: string | null }> }>
+  >(MONDAY_API_URL, {
+    method: 'POST',
+    headers: mondayHeaders(token),
+    body: JSON.stringify({
+      query: `{ boards(ids: [${validated.sanitized}]) { id name } }`,
+    }),
+    signal: args.signal,
+    redirect: 'error',
+  })
+  const board = requireMondayData(response).boards?.[0]
+  return board ? { id: boardId, label: board.name?.trim() || board.id } : null
+}
+
 async function listGroups(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
   const boardId = args.context.boardId
   if (!boardId) throw new SelectorContextUnavailableError()
@@ -99,11 +122,14 @@ export const mondaySelectorAttachments = {
     credential,
     destination: 'fixed',
     execute: async (args) => {
+      if (args.request.kind === 'detail') {
+        return detailSelectorResult(await getBoard(args, args.request.id))
+      }
       const result = await listBoards(args)
       return flatSelectorResult(
         args.request,
         result.items,
-        true,
+        false,
         result.truncated ? { truncated: { reason: 'provider-cap', pages: MAX_PAGES } } : undefined
       )
     },

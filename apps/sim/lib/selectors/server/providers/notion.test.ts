@@ -47,7 +47,7 @@ describe('Notion server selector adapter', () => {
           object: 'page',
           id: 'page-provider-id',
           properties: {
-            title: { title: [{ plain_text: 'Planning' }] },
+            Name: { type: 'title', title: [{ plain_text: 'Planning' }] },
           },
         }),
         { status: 200 }

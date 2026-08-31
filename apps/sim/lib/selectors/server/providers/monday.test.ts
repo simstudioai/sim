@@ -52,4 +52,26 @@ describe('Monday server selector adapter', () => {
       items: [{ id: 'board-1', label: 'board-1' }],
     })
   })
+
+  it('hydrates a selected board through a direct ID lookup', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: { boards: [{ id: '9001', name: 'Direct board' }] } }), {
+        status: 200,
+      })
+    )
+
+    await expect(
+      mondaySelectorAttachments['monday.boards'].execute({
+        ...listArgs(),
+        request: { kind: 'detail', id: '9001' },
+      })
+    ).resolves.toEqual({
+      kind: 'detail',
+      item: { id: '9001', label: 'Direct board' },
+    })
+    const body = JSON.parse(String(mockFetch.mock.calls[0]?.[1]?.body)) as { query: string }
+    expect(body.query).toContain('boards(ids: [9001])')
+    expect(body.query).not.toContain('limit:')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
 })
