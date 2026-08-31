@@ -4,20 +4,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildWorkspaceFileSearchTriggerItems,
-  resolveWorkspaceFileSearchDispatchLimit,
+  shouldUseWorkspaceFileSearchTrigger,
 } from '@/lib/workspace-files/search/dispatcher'
 
 describe('workspace file search dispatch policy', () => {
-  it('admits no more than two outstanding revisions from one workspace', () => {
-    expect(resolveWorkspaceFileSearchDispatchLimit(0, 100)).toBe(2)
-    expect(resolveWorkspaceFileSearchDispatchLimit(1, 100)).toBe(1)
-    expect(resolveWorkspaceFileSearchDispatchLimit(2, 100)).toBe(0)
-  })
-
-  it('also respects remaining bounded global queue capacity', () => {
-    expect(resolveWorkspaceFileSearchDispatchLimit(0, 1)).toBe(1)
-    expect(resolveWorkspaceFileSearchDispatchLimit(0, 0)).toBe(0)
-    expect(resolveWorkspaceFileSearchDispatchLimit(0, -1)).toBe(0)
+  it('uses Trigger.dev from inside a task even when the deployment flag is absent', () => {
+    expect(shouldUseWorkspaceFileSearchTrigger(false, true)).toBe(true)
+    expect(shouldUseWorkspaceFileSearchTrigger(true, false)).toBe(true)
+    expect(shouldUseWorkspaceFileSearchTrigger(false, false)).toBe(false)
   })
 
   it('deduplicates each immutable revision without including file contents', () => {

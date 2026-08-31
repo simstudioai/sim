@@ -25,6 +25,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { runDetached } from '@/lib/core/utils/background'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -65,14 +66,11 @@ export interface WorkspaceFileSearchDispatchResult {
   lockAcquired: boolean
 }
 
-export function resolveWorkspaceFileSearchDispatchLimit(
-  workspaceOutstanding: number,
-  remainingGlobalCapacity: number
-): number {
-  return Math.min(
-    Math.max(0, FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING - workspaceOutstanding),
-    Math.max(0, remainingGlobalCapacity)
-  )
+export function shouldUseWorkspaceFileSearchTrigger(
+  triggerDevEnabled: boolean,
+  insideTriggerRun: boolean
+): boolean {
+  return triggerDevEnabled || insideTriggerRun
 }
 
 export function buildWorkspaceFileSearchTriggerItems(
@@ -459,7 +457,7 @@ async function dispatchPreparedJobs(
   payloads: readonly WorkspaceFileSearchIndexPayload[]
 ): Promise<number> {
   if (payloads.length === 0) return 0
-  if (!isTriggerDevEnabled) {
+  if (!shouldUseWorkspaceFileSearchTrigger(isTriggerDevEnabled, isInsideTriggerRun())) {
     runDetached('workspace-file-search-index', async () => {
       for (const payload of payloads) {
         try {
