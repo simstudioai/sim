@@ -174,6 +174,8 @@ export function usePromptEditor({
   const [value, setValueState] = useState(initialValue)
   const valueRef = useRef(value)
   valueRef.current = value
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
 
   /**
    * Commits a new text value, keeping {@link valueRef} in lockstep with state so
@@ -1000,7 +1002,10 @@ export function usePromptEditor({
     // is already attached there is nothing to add, and claiming the event anyway
     // would swallow the keystroke entirely — no chip and no text. Falling through
     // pastes the selection's plain text, which is what the user asked for.
-    const selectionContext = readSelectionContextFromClipboard(e.clipboardData)
+    const selectionContext = readSelectionContextFromClipboard(
+      e.clipboardData,
+      workspaceIdRef.current
+    )
     const preparedSelection = selectionContext
       ? prepareContextForInsert(selectionContext, contextManagementRef.current.selectedContexts)
       : null
@@ -1151,7 +1156,11 @@ export function usePromptEditor({
       if (soleSelectionChip) {
         e.preventDefault()
         e.clipboardData.setData('text/plain', selected)
-        attachSelectionContextToClipboard(e.clipboardData, selectionChips[0])
+        attachSelectionContextToClipboard(
+          e.clipboardData,
+          selectionChips[0],
+          workspaceIdRef.current
+        )
         return true
       }
       const serialized = serializeSelectionForClipboard(selected, contexts)

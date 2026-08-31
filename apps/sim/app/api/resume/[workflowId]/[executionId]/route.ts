@@ -1,51 +1,29 @@
-import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
 import { resumeWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
-import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
-
-const logger = createLogger('WorkflowResumeExecutionAPI')
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { internalWorkflowErrorPolicies, internalWorkflowReadAuth } from '@/lib/workflows/api'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { readPausedWorkflowExecution } from '@/lib/workflows/application/read-paused-workflow-execution'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export const GET = withRouteHandler(
-  async (
-    request: NextRequest,
-    context: { params: Promise<{ workflowId: string; executionId: string }> }
-  ) => {
-    const parsed = await parseRequest(resumeWorkflowExecutionContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { workflowId, executionId } = parsed.data.params
-
-    const access = await validateWorkflowAccess(request, workflowId, false)
-    if (access.error) {
-      return NextResponse.json({ error: access.error.message }, { status: access.error.status })
-    }
-
-    try {
-      const detail = await PauseResumeManager.getPausedExecutionDetail({
-        workflowId,
-        executionId,
-      })
-
-      if (!detail) {
-        return NextResponse.json({ error: 'Paused execution not found' }, { status: 404 })
-      }
-
-      return NextResponse.json(detail)
-    } catch (error: any) {
-      logger.error('Failed to load paused execution detail', {
-        workflowId,
-        executionId,
-        error,
-      })
-      return NextResponse.json(
-        { error: error?.message || 'Failed to load paused execution detail' },
-        { status: 500 }
-      )
-    }
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: resumeWorkflowExecutionContract,
+  auth: internalWorkflowReadAuth,
+  operation: workflowOperations.readPausedExecution,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing authenticated resume-detail behavior',
+  }),
+  errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
+  mapInput: ({ params }) => ({
+    workflowId: params.workflowId,
+    executionId: params.executionId,
+  }),
+  useCase: readPausedWorkflowExecution,
+  responseHeaders: () => ({ 'Cache-Control': 'private, no-store' }),
+  present: (executionDetail) => ({
+    ...executionDetail,
+    pausePoints: executionDetail.pausePoints.map((pausePoint) => ({ ...pausePoint })),
+    queue: executionDetail.queue.map((queueEntry) => ({ ...queueEntry })),
+  }),
+})
