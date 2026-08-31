@@ -136,11 +136,23 @@ export interface ExecuteMessage {
  */
 export interface StreamEnvelope {
   v: 1;
-  type: "session" | "text" | "tool" | "run" | "resource" | "error" | "complete";
+  type: "session" | "text" | "tool" | "span" | "run" | "resource" | "error" | "complete";
   seq: number;
   /** ISO timestamp. */
   ts: string;
   stream: { streamId: string; chatId?: string | undefined; cursor?: string | undefined };
   trace?: { requestId?: string | undefined } | undefined;
+  /** Subagent-lane attribution (mothership-stream-v1 scope): frames carrying it render
+   * inside the named root-level lane instead of the main transcript. */
+  scope?: StreamScope | undefined;
   payload: Record<string, unknown>;
+}
+
+/** One subagent lane: keyed by the delegating tool call; agentId/spanId identify the lane. */
+export interface StreamScope {
+  lane: "subagent";
+  agentId?: string | undefined;
+  parentToolCallId?: string | undefined;
+  spanId?: string | undefined;
+  parentSpanId?: string | undefined;
 }
