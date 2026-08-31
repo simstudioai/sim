@@ -289,7 +289,7 @@ export async function executeCancelWorkflowRun(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workflowId = params.workflowId || context.workflowId
+    const workflowId = params.workflowId
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }

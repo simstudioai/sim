@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import type { CancelWorkflowRunParams } from '@/lib/copilot/tools/handlers/param-types'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 
 const { mocks } = vi.hoisted(() => ({
@@ -226,9 +227,22 @@ describe('workflow mutation Copilot adapters', () => {
   })
 
   it('requires an execution ID before attempting workflow-run cancellation', async () => {
-    const result = await executeCancelWorkflowRun({ workflowId: 'workflow-1' }, context)
+    const result = await executeCancelWorkflowRun(
+      { workflowId: 'workflow-1' } as CancelWorkflowRunParams,
+      context
+    )
 
     expect(result).toEqual({ success: false, error: 'executionId is required' })
+    expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
+  })
+
+  it('requires a workflow ID even when the execution context contains one', async () => {
+    const result = await executeCancelWorkflowRun(
+      { executionId: 'execution-1' } as CancelWorkflowRunParams,
+      context
+    )
+
+    expect(result).toEqual({ success: false, error: 'workflowId is required' })
     expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
   })
 

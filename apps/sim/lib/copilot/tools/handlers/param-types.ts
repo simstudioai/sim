@@ -61,9 +61,9 @@ export interface RunWorkflowParams {
 }
 
 export interface CancelWorkflowRunParams {
-  workflowId?: string
+  workflowId: string
   /** The workflow execution ID returned by run_workflow or query_logs. */
-  executionId?: string
+  executionId: string
 }
 
 export interface RunWorkflowUntilBlockParams {

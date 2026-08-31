@@ -1571,11 +1571,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         workflowId: {
           type: 'string',
-          description:
-            'Workflow ID that owns the execution. Optional; omit it to target the current workflow. Pass it when cancelling a run from another workflow.',
+          description: 'Required workflow ID that owns the execution.',
         },
       },
-      required: ['executionId'],
+      required: ['workflowId', 'executionId'],
     },
     resultSchema: undefined,
   },
