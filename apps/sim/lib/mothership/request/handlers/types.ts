@@ -163,7 +163,7 @@ export function abortPendingToolIfStreamDead(
     status: MothershipStreamV1ToolOutcome.cancelled,
     error: 'Tool was not dispatched because its stream had already been aborted',
   })
-  markToolResultSeen(toolCallId)
+  markToolResultSeen(context, toolCallId)
   // Sim's logs do not reach Loki and the trace span below is collected
   // in-process but never exported, so the counter is the only signal that
   // survives to somewhere queryable.
@@ -216,6 +216,7 @@ export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
  * Shared by both main and subagent scopes.
  */
 export function handleClientCompletion(
+  context: StreamingContext,
   toolCall: ToolCallState,
   toolCallId: string,
   completion: AsyncTerminalCompletionSnapshot | null,
@@ -228,7 +229,7 @@ export function handleClientCompletion(
         : MothershipStreamV1ToolOutcome.skipped,
       ...(completion.data !== undefined ? { output: completion.data } : {}),
     })
-    markToolResultSeen(toolCallId)
+    markToolResultSeen(context, toolCallId)
     return
   }
   if (completion?.status === MothershipStreamV1ToolOutcome.cancelled) {
@@ -237,7 +238,7 @@ export function handleClientCompletion(
       ...(completion.data !== undefined ? { output: completion.data } : {}),
       error: completion.message || 'Tool cancelled',
     })
-    markToolResultSeen(toolCallId)
+    markToolResultSeen(context, toolCallId)
     return
   }
   const success = completion?.status === MothershipStreamV1ToolOutcome.success
@@ -246,7 +247,7 @@ export function handleClientCompletion(
     ...(completion?.data !== undefined ? { output: completion.data } : {}),
     ...(success ? {} : { error: completion?.message || 'Tool failed' }),
   })
-  markToolResultSeen(toolCallId)
+  markToolResultSeen(context, toolCallId)
 }
 
 /**
