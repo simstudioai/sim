@@ -11,7 +11,6 @@ import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
-import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { createRunSegment } from '@/lib/mothership/async-runs/repository'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
@@ -30,6 +29,7 @@ import {
 } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
+import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
 import {
   type CopilotLifecycleOptions,
@@ -51,10 +51,7 @@ import {
 } from '@/lib/mothership/request/session'
 import { SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/session/sse'
 import { TraceCollector } from '@/lib/mothership/request/trace'
-import {
-  getMothershipBaseURL,
-  getMothershipSourceEnvHeaders,
-} from '@/lib/mothership/server/agent-url'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 export { SSE_RESPONSE_HEADERS }
 
@@ -551,13 +548,7 @@ export async function requestChatTitle(params: {
   } = params
   if (!message || !model) return null
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-  if (env.COPILOT_API_KEY) {
-    headers['x-api-key'] = env.COPILOT_API_KEY
-  }
-  Object.assign(headers, getMothershipSourceEnvHeaders())
+  const headers = mothershipRequestHeaders()
 
   try {
     if (organizationId && (!chatId || workspaceId)) {
