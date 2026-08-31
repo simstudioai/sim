@@ -885,6 +885,34 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: ref })
   })
 
+  it('reads the context of a reference that follows a statement-position regex', async () => {
+    // `)` ends a value in `(a + b) / 2` and a control-flow head in `if (a) /re/.test(b)`, and
+    // the closing parenthesis alone does not say which. Guessing either way misreads one of
+    // them, and a quote inside the regex then decides how every later reference is spliced.
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    // Both cases stay on one line: a string mode ends at a newline, so only a reference sharing
+    // the line with the misread slash sees the wrong context.
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      {
+        code: [
+          `if (params.a) /['"]/.test('<producer.result>')`,
+          `const divided = (params.c + 1) / 2 + Number('<producer.result>')`,
+          'return divided',
+        ].join('\n'),
+      },
+      block
+    )
+
+    const code = result.resolvedInputs.code as string
+    // Statement-position regex: the reference after it is inside the author's quotes.
+    expect(code).toContain(`.test('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`)
+    // Division after a value: the slash must not open a regex that swallows the quotes.
+    expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_1"]) + '')`)
+  })
+
   it('binds a workflow variable carrying quote characters instead of splicing it into code', async () => {
     // A Variables block can assign trigger data at runtime, so a variable's value is not
     // necessarily the author's. Inlined as a literal it closed the string it landed in.

@@ -172,8 +172,16 @@ type CodeScanMode =
  * a string, and every reference past that point was then formatted for the wrong context.
  * Division always follows a value — an identifier, literal, `)`, or `]` — so anything else
  * ending the preceding token means a regex may start.
+ *
+ * `)` is the one that is not decidable from the character alone: it ends a value in
+ * `(a + b) / 2` and a control-flow head in `if (a) /re/.test(b)`. Reading it as either one
+ * unconditionally breaks the other, so the scan remembers which kind of parenthesis each `)`
+ * closed rather than guessing — see {@link CONTROL_FLOW_HEAD_KEYWORDS}.
  */
 const JAVASCRIPT_REGEX_ALLOWED_AFTER = new Set('(,=:[!&|?{};+-*%^~<>/'.split(''))
+
+/** Keywords whose parenthesized head is followed by a statement, where a regex may start. */
+const CONTROL_FLOW_HEAD_KEYWORDS = new Set(['if', 'while', 'for', 'switch', 'catch', 'with'])
 
 const WHITESPACE_CHAR = /\s/
 
@@ -1118,11 +1126,18 @@ export class VariableResolver {
    * anything else means a regex may start. Guessing wrong is not silent — the scan would swallow
    * text up to the next `/` — so the check reads the actual preceding token rather than assuming.
    */
-  private canStartJavaScriptRegex(template: string, previousSignificantIndex: number): boolean {
+  private canStartJavaScriptRegex(
+    template: string,
+    previousSignificantIndex: number,
+    controlHeadParenCloses: ReadonlySet<number>
+  ): boolean {
     if (previousSignificantIndex < 0) {
       return true
     }
     const previous = template[previousSignificantIndex]
+    if (previous === ')') {
+      return controlHeadParenCloses.has(previousSignificantIndex)
+    }
     if (JAVASCRIPT_REGEX_ALLOWED_AFTER.has(previous)) {
       return true
     }
@@ -1137,6 +1152,26 @@ export class VariableResolver {
     return JAVASCRIPT_REGEX_ALLOWED_AFTER_KEYWORDS.has(
       template.slice(start, previousSignificantIndex + 1)
     )
+  }
+
+  /**
+   * Whether the `(` at this index opens a control-flow head rather than a value.
+   *
+   * What follows the matching `)` differs entirely between the two — a statement, where a regex
+   * literal may begin, versus an operator, where a `/` divides — and the closing parenthesis
+   * carries no trace of which it was. Reading the keyword in front of the opening one is what
+   * lets `if (a) /re/.test(b)` and `(a + b) / 2` both scan correctly.
+   */
+  private opensControlFlowHead(template: string, index: number): boolean {
+    let end = index
+    while (end > 0 && WHITESPACE_CHAR.test(template[end - 1])) {
+      end--
+    }
+    let start = end
+    while (start > 0 && this.isJavaScriptIdentifierChar(template[start - 1])) {
+      start--
+    }
+    return CONTROL_FLOW_HEAD_KEYWORDS.has(template.slice(start, end))
   }
 
   private matchesKeywordAt(template: string, index: number, keyword: string): boolean {
@@ -1267,6 +1302,8 @@ export class VariableResolver {
     const isPython = language === 'python'
     const modes: CodeScanMode[] = [{ type: 'normal' }]
     let lastSignificantIndex = -1
+    const openParenIsControlHead: boolean[] = []
+    const controlHeadParenCloses = new Set<number>()
 
     for (let i = 0; i < index; i++) {
       const char = template[i]
@@ -1369,10 +1406,15 @@ export class VariableResolver {
         if (!WHITESPACE_CHAR.test(char)) {
           lastSignificantIndex = i
         }
+        if (char === '(') {
+          openParenIsControlHead.push(this.opensControlFlowHead(template, i))
+        } else if (char === ')') {
+          if (openParenIsControlHead.pop()) controlHeadParenCloses.add(i)
+        }
         if (
           !isPython &&
           char === '/' &&
-          this.canStartJavaScriptRegex(template, previousSignificantIndex)
+          this.canStartJavaScriptRegex(template, previousSignificantIndex, controlHeadParenCloses)
         ) {
           modes.push({ type: 'regex', inCharacterClass: false })
           continue
@@ -1430,10 +1472,15 @@ export class VariableResolver {
       if (!WHITESPACE_CHAR.test(char)) {
         lastSignificantIndex = i
       }
+      if (char === '(') {
+        openParenIsControlHead.push(this.opensControlFlowHead(template, i))
+      } else if (char === ')') {
+        if (openParenIsControlHead.pop()) controlHeadParenCloses.add(i)
+      }
       if (
         !isPython &&
         char === '/' &&
-        this.canStartJavaScriptRegex(template, previousSignificantIndex)
+        this.canStartJavaScriptRegex(template, previousSignificantIndex, controlHeadParenCloses)
       ) {
         modes.push({ type: 'regex', inCharacterClass: false })
         continue
