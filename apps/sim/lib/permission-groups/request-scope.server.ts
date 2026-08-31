@@ -3,8 +3,11 @@ import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 /**
  * A resolution key, `userId:workspaceId`. `organizationId` is deliberately not
  * part of it — see `resolvePermissionGroupConfig` for why.
+ *
+ * Named for the scope rather than the config, so it cannot be mistaken for
+ * `PermissionGroupConfigKey` in `fields.ts`, which is a config *field* name.
  */
-export type PermissionGroupConfigKey = `${string}:${string}`
+export type PermissionGroupScopeKey = `${string}:${string}`
 
 /**
  * The per-scope memo: a resolution key to the in-flight resolution for it.
@@ -13,7 +16,7 @@ export type PermissionGroupConfigKey = `${string}:${string}`
  * authorizations share one query instead of racing to start several.
  */
 export type PermissionGroupConfigStore = Map<
-  PermissionGroupConfigKey,
+  PermissionGroupScopeKey,
   Promise<PermissionGroupConfig | null>
 >
 
@@ -47,7 +50,7 @@ if (typeof globalThis.process !== 'undefined' && globalThis.process.versions?.no
  * A request that authorizes several operations — a bulk mutation, a route that
  * runs two use cases — would otherwise resolve the same group once per
  * operation. Nesting this inside the request context means every route handler
- * gets it without threading a parameter through 266 operations.
+ * gets it without threading a parameter through every operation.
  *
  * This module is deliberately free of runtime imports. `withRouteHandler` wraps
  * every route in the app, so anything reachable from here is loaded by every

@@ -5,10 +5,11 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getTableById } from '@/lib/table'
 import { performRestoreTable } from '@/lib/table/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { capabilityRefusalResponse, orchestrationOutcomeErrorResponse } from '@/app/api/table/utils'
+import { orchestrationOutcomeErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('RestoreTableAPI')
 

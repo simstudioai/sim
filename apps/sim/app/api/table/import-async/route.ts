@@ -10,6 +10,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createTable,
@@ -23,7 +24,7 @@ import {
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { capabilityRefusalResponse, orchestrationErrorResponse } from '@/app/api/table/utils'
+import { orchestrationErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportAsync')
 

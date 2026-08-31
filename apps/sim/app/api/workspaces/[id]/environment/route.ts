@@ -26,8 +26,8 @@ import {
   getPersonalAndWorkspaceEnv,
   invalidateEffectiveDecryptedEnvCache,
 } from '@/lib/environment/utils'
-import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
-import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getUserEntityPermissions,
@@ -58,16 +58,8 @@ async function secretsCapabilityRefusal(
   userId: string,
   workspaceId: string
 ): Promise<NextResponse | null> {
-  try {
-    await assertWorkspaceCapability(userId, workspaceId, 'secrets.manage')
-    return null
-  } catch (error) {
-    if (!(error instanceof PermissionGroupCapabilityError)) throw error
-    return NextResponse.json(
-      { error: error.message, details: { code: error.detailCode } },
-      { status: 403 }
-    )
-  }
+  const withheld = await isWorkspaceCapabilityWithheld(userId, workspaceId, 'secrets.manage')
+  return withheld ? capabilityRefusalResponse('secrets.manage') : null
 }
 
 /**

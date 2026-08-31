@@ -77,8 +77,9 @@ export async function isWorkspaceCapabilityWithheld(
  * Outside the per-request memo on purpose. That memo is keyed by user and
  * workspace, and this decision is keyed by organization alone, so sharing it
  * would need a second key vocabulary in the store. No request asks an
- * organization-scoped capability twice — each of the four call sites gates one
- * listing — so the memo would never be hit. Key it if that changes.
+ * organization-scoped capability twice — every call site gates one
+ * organization-level act — so the memo would never be hit. Key it if that
+ * changes.
  */
 export async function isOrganizationCapabilityWithheld(
   organizationId: string,

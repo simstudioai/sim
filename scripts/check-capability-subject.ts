@@ -66,6 +66,7 @@ const CAPABILITY_MODULES = [
  * config or asserts a capability from a user id belongs on this list.
  */
 const CAPABILITY_SINKS: Record<string, number> = {
+  isCapabilityWithheldForUser: 0,
   isWorkspaceCapabilityWithheld: 0,
   assertWorkspaceCapability: 0,
   resolvePermissionGroupConfig: 0,

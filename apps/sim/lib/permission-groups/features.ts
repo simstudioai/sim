@@ -24,10 +24,8 @@ export interface ActivePermissionGroupRestriction {
 /**
  * Render order for the platform-feature category sections; unlisted ones follow.
  *
- * Named after what a group withholds, not after where the key's cosmetic
- * ancestor used to hide a link. Every key here is server-enforced, so a section
- * headed "Sidebar" or "Settings Tabs" would tell an admin they were tidying a
- * nav bar while they were in fact revoking an API.
+ * Named after what a group withholds rather than after the surface the key once
+ * hid, for the reason `PlatformFeatureMeta.hint` in `fields.ts` gives at length.
  */
 export const PLATFORM_CATEGORY_ORDER: readonly string[] = [
   'Modules',

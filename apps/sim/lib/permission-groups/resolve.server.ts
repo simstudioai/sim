@@ -236,32 +236,25 @@ export async function resolveVerifiedUserAccessControlContext(
  * The unverified counterpart of {@link resolveVerifiedUserAccessControlContext}:
  * it loads the workspace itself to learn the owning organization.
  *
- * Module-private on purpose — every caller outside this file has already
- * access-checked the workspace and so holds the organization id, and exporting a
- * resolver that looks it up again invites a second query on a path that does not
- * need one. {@link getUserPermissionConfig} is the one caller.
+ * For the callers that have not already access-checked the workspace — a raw
+ * route, typically. Everything else holds the organization id already and
+ * should pass it, rather than paying for a second lookup of a value it has.
  */
-async function resolveUserAccessControlContext(
-  userId: string,
-  workspaceId: string
-): Promise<UserAccessControlContext> {
-  if (!isHosted && !isAccessControlEnabled) {
-    return inactiveUserAccessControlContext(null)
-  }
-
-  const workspace = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-  return resolveUserAccessControlContextForOrganization(
-    userId,
-    workspaceId,
-    workspace?.organizationId ?? null
-  )
-}
-
 export async function getUserPermissionConfig(
   userId: string,
   workspaceId: string
 ): Promise<PermissionGroupConfig | null> {
-  return (await resolveUserAccessControlContext(userId, workspaceId)).config
+  if (!isHosted && !isAccessControlEnabled) {
+    return mergeEnvAllowlist(null)
+  }
+
+  const workspace = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+  const context = await resolveUserAccessControlContextForOrganization(
+    userId,
+    workspaceId,
+    workspace?.organizationId ?? null
+  )
+  return context.config
 }
 
 /**
