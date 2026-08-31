@@ -632,10 +632,11 @@ async function runWorkflowAndWriteTerminal(
              * running a member's tool denylist against a bystander is wrong in
              * both directions: it fails cells nobody meant to govern, and it
              * skips the denylist for the person who actually triggered one.
-             * Absent means no per-tool gate applies, which is the documented
-             * behavior for an actorless run.
+             * `null` means no per-tool gate applies, which is the documented
+             * behavior for an actorless run — stated, because the field is
+             * required precisely so it cannot be skipped by omission.
              */
-            userId: payload.triggeredByUserId,
+            userId: payload.triggeredByUserId ?? null,
             signal: attemptSignal,
             resolvedSecretTraceRegistry: enrichmentRegistry,
           })
