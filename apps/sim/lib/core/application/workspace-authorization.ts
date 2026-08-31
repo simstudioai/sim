@@ -21,6 +21,39 @@ import {
 } from '@/lib/permission-groups/capability-assertions'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 
+/**
+ * The person whose permission group governs `principal`, or `null` when no
+ * group applies to it.
+ *
+ * THE one statement of that rule, for the checks that cannot ride on an
+ * operation's `capability` because they need the resource in hand — an import's
+ * block allowlist, a bulk download's item count. Those sites otherwise reach for
+ * whatever user id is nearest, and the nearest one is usually a bystander: a
+ * workspace key's creator, or the billing owner an attribution helper
+ * substituted. Both would apply a stranger's group to a caller the funnel
+ * deliberately passes ungated.
+ *
+ * Mirrors {@link authorizeWorkspaceOperation} exactly, including its executor
+ * exemption: a run carries the role of whoever triggered it but not their
+ * capabilities.
+ */
+export function capabilityGovernedPrincipalUserId(principal: Principal): string | null {
+  switch (principal.kind) {
+    case 'session':
+    case 'personal_api_key':
+      return principal.userId
+    case 'workspace_api_key':
+    case 'system':
+    case 'credential_group_enrollment':
+      return null
+    case 'delegated': {
+      if (principal.serviceId === 'executor') return null
+      const subject = resolvePrincipalSubject(principal)
+      return subject?.kind === 'sim_user' ? subject.userId : null
+    }
+  }
+}
+
 export interface WorkspaceAuthorizationContext {
   workspaceId: string
   workspaceOrganizationId: string | null

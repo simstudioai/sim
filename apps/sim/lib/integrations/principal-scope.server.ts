@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { toAccessControlAllowlist } from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 
@@ -54,5 +55,5 @@ export async function allowedIntegrationTypes(
     permissionConfig?.allowedIntegrations ?? null,
     getAllowedIntegrationsFromEnv()
   )
-  return integrations ? new Set(integrations.map((type) => type.toLowerCase())) : null
+  return toAccessControlAllowlist(integrations)
 }

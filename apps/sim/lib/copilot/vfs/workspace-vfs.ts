@@ -141,13 +141,13 @@ import {
   listKnowledgeBases,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import {
+  isBlockTypeAccessControlExempt,
+  toAccessControlAllowlist,
+} from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getActivePermissionGroupRestrictions } from '@/lib/permission-groups/features'
-import {
-  intersectIntegrationAllowlists,
-  toAllowedIntegrationTypes,
-} from '@/lib/permission-groups/integration-allowlist'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
 import {
   listOrganizationWorkspaceRefs,
@@ -3180,7 +3180,7 @@ export class WorkspaceVFS {
           permissionConfigPromise,
         ])
       const credentialVisibility = createIntegrationCredentialVisibility({
-        allowedIntegrationTypes: toAllowedIntegrationTypes(
+        allowedIntegrationTypes: toAccessControlAllowlist(
           intersectIntegrationAllowlists(
             permissionConfig?.allowedIntegrations ?? null,
             getAllowedIntegrationsFromEnv()

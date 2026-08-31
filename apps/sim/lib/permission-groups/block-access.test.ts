@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
+  toAccessControlAllowlist,
 } from '@/lib/permission-groups/block-access'
 import { getBlock } from '@/blocks/registry'
 
@@ -104,5 +105,58 @@ describe('isBlockTypeAccessControlExempt', () => {
     registry({ slack_v2: {} })
 
     expect(isBlockTypeAccessControlExempt('slack_v2')).toBe(false)
+  })
+
+  /**
+   * The editor never offers `start_trigger` as an allowlist row, so a retired
+   * entry point judged as its successor would be refused by every active
+   * allowlist — breaking every saved workflow that still carries one.
+   */
+  it('exempts a retired entry point, whose successor is the universal one', () => {
+    registry({
+      starter: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'start_trigger' } },
+      manual_trigger: {
+        hideFromToolbar: true,
+        sunset: { status: 'legacy', replacedBy: 'start_trigger' },
+      },
+      start_trigger: {},
+    })
+
+    expect(isBlockTypeAccessControlExempt('starter')).toBe(true)
+    expect(isBlockTypeAccessControlExempt('manual_trigger')).toBe(true)
+  })
+})
+
+describe('toAccessControlAllowlist', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('keeps an unrestricted allowlist unrestricted', () => {
+    registry({})
+
+    expect(toAccessControlAllowlist(null)).toBeNull()
+  })
+
+  /**
+   * `ALLOWED_INTEGRATIONS` is written by hand against whatever ids its author
+   * knows, so a deployment that permitted `slack` must not refuse `slack_v2`.
+   */
+  it('judges a policy entry naming a retired id as its successor', () => {
+    registry({
+      slack: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'slack_v2' } },
+      slack_v2: {},
+    })
+
+    const allowlist = toAccessControlAllowlist(['Slack'])
+
+    expect(allowlist?.has('slack_v2')).toBe(true)
+    expect(allowlist?.has('slack')).toBe(false)
+  })
+
+  it('denies everything for an empty allowlist', () => {
+    registry({ slack_v2: {} })
+
+    expect(toAccessControlAllowlist([])?.size).toBe(0)
   })
 })

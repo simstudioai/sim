@@ -32,6 +32,7 @@ export type {
 } from '@/lib/core/application/workspace-authorization'
 export {
   authorizeWorkspaceOperation,
+  capabilityGovernedPrincipalUserId,
   DelegatedServiceAuthorizationError,
   DelegatedWorkspaceAuthorizationError,
   InsufficientWorkspacePermissionsError,

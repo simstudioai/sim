@@ -8,6 +8,7 @@ import {
 import {
   isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
+  toAccessControlAllowlist,
 } from '@/lib/permission-groups/block-access'
 import {
   CAPABILITY_RULES,
@@ -272,9 +273,9 @@ function assertBlockTypeAllowed(
    */
   const allowlistType = resolveAccessControlBlockType(blockType).toLowerCase()
 
-  if (!config.allowedIntegrations.includes(allowlistType)) {
-    const envAllowlist = getAllowedIntegrationsFromEnv()
-    const blockedByEnv = envAllowlist !== null && !envAllowlist.includes(allowlistType)
+  if (!toAccessControlAllowlist(config.allowedIntegrations)?.has(allowlistType)) {
+    const envAllowlist = toAccessControlAllowlist(getAllowedIntegrationsFromEnv())
+    const blockedByEnv = envAllowlist !== null && !envAllowlist.has(allowlistType)
     logger.warn(
       blockedByEnv
         ? 'Integration blocked by env allowlist'

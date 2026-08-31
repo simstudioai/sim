@@ -1,15 +1,28 @@
 import { getBlock } from '@/blocks/registry'
 
 /**
+ * The universal workflow entry point. Every retired entry point resolves to it,
+ * and it is never an allowlist row, so both it and anything that resolves to it
+ * are exempt.
+ */
+const UNIVERSAL_ENTRY_POINT = 'start_trigger'
+
+/**
  * Block types that bypass permission-group access control entirely.
  *
- * Two kinds are exempt:
+ * Three kinds are exempt:
  *  - `start_trigger`: the universal workflow entry point. A workflow must be
  *    startable whatever the integration allowlist says.
  *  - A retired block with no successor. It is hidden from the toolbar and from
  *    the Access Control editor, so an admin has no row to permit it on and
  *    nothing to permit it *as*; denying it would silently break the older
  *    workflows still carrying it.
+ *  - A retired entry point — `starter`, `manual_trigger`, `api_trigger`,
+ *    `chat_trigger` — whose successor is `start_trigger`. It is judged as the
+ *    universal entry point, and the universal entry point is exempt, so it must
+ *    be too. The editor never offers `start_trigger` as an allowlist row, so
+ *    without this every active allowlist refuses every workflow still carrying
+ *    an old starter block.
  *
  * A *superseded* block is deliberately not exempt. Legacy `slack` talks to
  * Slack exactly as `slack_v2` does, so exempting it let an allowlist naming
@@ -22,9 +35,11 @@ import { getBlock } from '@/blocks/registry'
  * set that is hidden and the set that is skipped cannot drift apart.
  */
 export function isBlockTypeAccessControlExempt(blockType: string): boolean {
-  if (blockType === 'start_trigger') return true
+  if (blockType === UNIVERSAL_ENTRY_POINT) return true
   const block = getBlock(blockType)
-  return block?.hideFromToolbar === true && resolveAccessControlBlockType(blockType) === blockType
+  if (block?.hideFromToolbar !== true) return false
+  const successor = resolveAccessControlBlockType(blockType)
+  return successor === blockType || successor === UNIVERSAL_ENTRY_POINT
 }
 
 /**
@@ -48,4 +63,28 @@ export function resolveAccessControlBlockType(blockType: string): string {
     seen.add(successor)
     current = successor
   }
+}
+
+/**
+ * The allowlist, indexed for membership tests against the block type an
+ * allowlist decision is made against. `null` stays `null` — unrestricted, not
+ * "nothing allowed".
+ *
+ * Both sides have to be normalized or they compare different vocabularies. A
+ * policy list can name a retired id: `ALLOWED_INTEGRATIONS` is written by hand
+ * against whatever ids the author knows, so `ALLOWED_INTEGRATIONS=slack` is the
+ * expected way to permit Slack. The checked type is always successor-resolved,
+ * so without normalizing the policy the deployment that permitted `slack` would
+ * refuse every `slack_v2` block in it.
+ */
+export function toAccessControlAllowlist(
+  allowedIntegrations: readonly string[] | null
+): ReadonlySet<string> | null {
+  return allowedIntegrations
+    ? new Set(
+        allowedIntegrations.map((integration) =>
+          resolveAccessControlBlockType(integration.toLowerCase()).toLowerCase()
+        )
+      )
+    : null
 }

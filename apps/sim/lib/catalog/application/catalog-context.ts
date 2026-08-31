@@ -3,7 +3,10 @@ import { type BlockVisibilityState, getBlockVisibility } from '@/lib/core/config
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { allowedIntegrationTypes, principalUserId } from '@/lib/integrations/principal-scope.server'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import {
+  isBlockTypeAccessControlExempt,
+  resolveAccessControlBlockType,
+} from '@/lib/permission-groups/block-access'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   type ActiveWorkspaceApplicationContext,
@@ -74,7 +77,7 @@ export function isBlockVisibleToCaller(block: BlockConfig, gate: CatalogGate): b
 export function isBlockTypeAllowed(blockType: string, gate: CatalogGate): boolean {
   if (gate.allowedIntegrations === null) return true
   if (isBlockTypeAccessControlExempt(blockType)) return true
-  return gate.allowedIntegrations.has(blockType.toLowerCase())
+  return gate.allowedIntegrations.has(resolveAccessControlBlockType(blockType).toLowerCase())
 }
 
 /**

@@ -14,7 +14,11 @@ import {
   isDeploymentGatedIntegrationType,
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import {
+  isBlockTypeAccessControlExempt,
+  resolveAccessControlBlockType,
+  toAccessControlAllowlist,
+} from '@/lib/permission-groups/block-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -88,6 +92,16 @@ export function usePermissionConfig(): PermissionConfigResult {
     return intersectIntegrationAllowlists(config.allowedIntegrations, envAllowlist)
   }, [config.allowedIntegrations, envAllowlistData])
 
+  /**
+   * Both sides of the membership test are judged as the current block, so a
+   * policy naming a retired id — `ALLOWED_INTEGRATIONS=slack` — still permits
+   * the successor the editor offers.
+   */
+  const allowedAccessControlTypes = useMemo(
+    () => toAccessControlAllowlist(mergedAllowedIntegrations),
+    [mergedAllowedIntegrations]
+  )
+
   const integrationAvailability = useMemo(() => {
     const visibility = overlayVisibility()
     return new Map(
@@ -116,10 +130,10 @@ export function usePermissionConfig(): PermissionConfigResult {
         return false
       }
       if (isBlockTypeAccessControlExempt(blockType)) return true
-      if (mergedAllowedIntegrations === null) return true
-      return mergedAllowedIntegrations.includes(normalizedBlockType)
+      if (allowedAccessControlTypes === null) return true
+      return allowedAccessControlTypes.has(resolveAccessControlBlockType(normalizedBlockType))
     }
-  }, [hostContext?.features?.credentialGroups, integrationAvailability, mergedAllowedIntegrations])
+  }, [hostContext?.features?.credentialGroups, integrationAvailability, allowedAccessControlTypes])
 
   const isModelUsable = useMemo(
     () =>

@@ -1,9 +1,9 @@
 import {
   isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
+  toAccessControlAllowlist,
 } from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { toAllowedIntegrationTypes } from '@/lib/permission-groups/integration-allowlist'
 import { BlockType } from '@/executor/constants'
 
 /**
@@ -44,7 +44,7 @@ export async function findWithheldBlockType(params: {
     params.workspaceId,
     undefined
   )
-  const allowed = toAllowedIntegrationTypes(permissionConfig?.allowedIntegrations ?? null)
+  const allowed = toAccessControlAllowlist(permissionConfig?.allowedIntegrations ?? null)
 
   /**
    * Hoisted out of the loop: an unrestricted group is the common case, and every
