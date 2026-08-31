@@ -210,6 +210,7 @@ export interface BrowserPanelAction {
     | 'zoom-out'
     | 'zoom-reset'
     | 'respond-media-permission'
+    | 'respond-site-permission'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
@@ -217,9 +218,9 @@ export interface BrowserPanelAction {
   tabId?: string
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
-  /** Exact pending media request being answered. */
+  /** Exact pending permission request being answered. */
   requestId?: string
-  /** User decision for `respond-media-permission`. */
+  /** User decision for a permission response. */
   allowed?: boolean
 }
 
@@ -230,6 +231,15 @@ export interface BrowserMediaPermissionRequest {
   requestId: string
   origin: string
   devices: BrowserMediaDevice[]
+}
+
+/** One ungranted top-level origin transition awaiting explicit user consent. */
+export interface BrowserSitePermissionRequest {
+  requestId: string
+  /** Exact tab whose suspended request will be resumed or cancelled. */
+  tabId: string
+  /** Destination origin only; credentials, paths, query strings, and fragments are excluded. */
+  origin: string
 }
 
 /** Live state of the active page, pushed to the panel header. */
@@ -246,6 +256,8 @@ export interface BrowserPageState {
   issue?: BrowserPageIssue
   /** Main-frame media request awaiting a renderer-owned permission prompt. */
   mediaPermissionRequest?: BrowserMediaPermissionRequest
+  /** Ungranted top-level origin transition awaiting a renderer-owned permission prompt. */
+  sitePermissionRequest?: BrowserSitePermissionRequest
 }
 
 /** A recoverable top-level page problem rendered by Sim instead of a blank native view. */
@@ -991,6 +1003,11 @@ export interface SimDesktopBrowserAgentApi {
   /** New shells can atomically force-hide a native page before renderer effects paint. */
   readonly supportsAtomicPanelOcclusion?: true
   /**
+   * Confirms that this renderer can present and answer site-origin prompts.
+   * Optional for compatibility with installed shells that predate site consent.
+   */
+  registerSitePermissionPromptSupport?(): void
+  /**
    * Execute one browser tool. Resolves with the tool's outcome; never
    * rejects for tool-level failures (those ride `ok: false`).
    */
@@ -1011,6 +1028,8 @@ export interface SimDesktopBrowserAgentApi {
    * Optional for compatibility with installed shells that predate acknowledged tab creation.
    */
   openTab?(scopeId: string): Promise<BrowserTabsState>
+  /** Atomically creates a user-owned tab and grants/navigates its exact destination origin. */
+  openUrl?(url: string, scopeId: string): Promise<BrowserTabsState>
   /** Makes a chat's browser tab set the renderer-visible set. */
   activateScope(scopeId: string): Promise<BrowserTabsState>
   /** Materializes a lazily activated chat's persisted tabs without showing its panel. */

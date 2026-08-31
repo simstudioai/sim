@@ -14,6 +14,34 @@ export class ScopedEventRouter {
   private readonly browser = this.createSurfaceRoutes()
   private readonly terminal = this.createSurfaceRoutes()
   private readonly observedContents = new WeakSet<WebContents>()
+  private readonly sitePermissionPromptRenderers = new WeakSet<WebContents>()
+
+  /** Records an active renderer handshake without trusting a shell-bundled preload flag. */
+  registerBrowserSitePermissionPromptSupport(contents: WebContents): void {
+    this.sitePermissionPromptRenderers.add(contents)
+    this.observe(contents)
+  }
+
+  /** True only when exactly one live renderer owns the scope and registered prompt support. */
+  browserSitePermissionPromptSupported(scopeId: string): boolean {
+    const recipients = this.browser.contentsByScope.get(scopeId)
+    if (!recipients) return false
+    let liveRecipientCount = 0
+    let supported = false
+    for (const contents of [...recipients]) {
+      if (contents.isDestroyed()) {
+        this.forget(contents)
+        continue
+      }
+      if (this.browser.activeByContents.get(contents) !== scopeId) {
+        this.removeFromScope(this.browser, contents, scopeId)
+        continue
+      }
+      liveRecipientCount++
+      supported ||= this.sitePermissionPromptRenderers.has(contents)
+    }
+    return liveRecipientCount === 1 && supported
+  }
 
   activateBrowser(contents: WebContents, scopeId: string): void {
     this.activate(this.browser, contents, scopeId)
@@ -66,6 +94,7 @@ export class ScopedEventRouter {
   }
 
   private forget(contents: WebContents): void {
+    this.sitePermissionPromptRenderers.delete(contents)
     this.forgetSurface(this.browser, contents)
     this.forgetSurface(this.terminal, contents)
   }
