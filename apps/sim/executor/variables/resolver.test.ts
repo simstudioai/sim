@@ -1000,6 +1000,27 @@ describe('VariableResolver function block inputs', () => {
     expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_2"]) + '')`)
   })
 
+  it('divides after a postfix update rather than opening a regex', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      {
+        code: [
+          `let i = params.i; const half = i++ / 2 + Number('<producer.result>')`,
+          // The same characters as an operator still precede a regex.
+          `const hit = params.n + /['"]/.test('<producer.result>')`,
+        ].join('\n'),
+      },
+      block
+    )
+
+    const code = result.resolvedInputs.code as string
+    expect(code).toContain(`Number('' + JSON.stringify(globalThis["__blockRef_0"]) + '')`)
+    expect(code).toContain(`.test('' + JSON.stringify(globalThis["__blockRef_1"]) + '')`)
+  })
+
   it('does not read a method named after a keyword as a control-flow head', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
 

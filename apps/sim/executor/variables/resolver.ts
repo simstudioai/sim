@@ -1165,6 +1165,13 @@ export class VariableResolver {
     if (previous === '/' && closes.regexCloseIndices.has(previousSignificantIndex)) {
       return false
     }
+    // `+` and `-` precede a regex as operators but end a value when doubled: `i++ / 2` divides.
+    if (
+      (previous === '+' || previous === '-') &&
+      template[previousSignificantIndex - 1] === previous
+    ) {
+      return false
+    }
     if (JAVASCRIPT_REGEX_ALLOWED_AFTER.has(previous)) {
       return true
     }
