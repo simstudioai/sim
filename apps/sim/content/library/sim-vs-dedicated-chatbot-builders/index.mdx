@@ -6,7 +6,7 @@ date: 2026-08-31
 updated: 2026-08-31
 authors:
   - andrew
-readingTime: 8
+readingTime: 7
 tags: [AI Agents, Chatbots, Customer Support, Sim]
 ogImage: /library/sim-vs-dedicated-chatbot-builders/cover.jpg
 canonical: https://www.sim.ai/library/sim-vs-dedicated-chatbot-builders
@@ -21,7 +21,7 @@ faq:
   - q: "Can Sim replace Zendesk or Intercom for customer support?"
     a: "Zendesk and Intercom combine chatbot functions with purpose-built support operations. Sim can power a custom support chatbot, but it does not replace every helpdesk function by default. Choose Sim when custom agent logic matters more than preconfigured ticketing workflows."
   - q: "Does Sim support BYOK or local models?"
-    a: "BYOK uses your own provider credentials, while local-model execution runs through a separate access path. Sim supports BYOK, and local-model workflows require Enterprise access. These options let you choose provider-managed credentials or an eligible local-model setup without treating them as the same feature."
+    a: "BYOK uses your own provider credentials, while local-model execution runs through a separate access path. Sim supports BYOK. Local-model access through Sim Cloud requires Enterprise access, while self-hosted Sim can connect to Ollama or vLLM. These options let you choose provider-managed credentials or an eligible local-model setup without treating them as the same feature."
 ---
 
 ## TL;DR
@@ -37,7 +37,7 @@ A dedicated chatbot builder centers its tools on creating and publishing convers
 
 You can use Mothership for guided workflow creation or build directly on Sim's visual canvas. Agent blocks manage model interactions, and Knowledge Bases ground responses in selected information. You can publish the resulting workflow as hosted chat or use its agent logic in other applications.
 
-Sim and dedicated chatbot builders differ most in model flexibility, integration depth, and deployment options. Model flexibility includes hosted model access, provider choice, and BYOK. [Sim reserves local-model execution for Enterprise access](https://sim.ai/pricing), which differs from regular hosted access and BYOK.
+Sim and dedicated chatbot builders differ most in model flexibility, integration depth, and deployment options. Model flexibility includes hosted model access, provider choice, and BYOK. [Local-model access through Sim Cloud requires Enterprise access](https://sim.ai/pricing), while [self-hosted Sim can connect to Ollama or vLLM](https://docs.sim.ai/platform/costs). Both paths differ from regular hosted access and BYOK.
 
 Integration depth determines what the chatbot can read, update, or trigger in external tools. Deployment options determine whether the same workflow can run as hosted chat, an API, or an MCP service. A dedicated builder packages these capabilities around customer support, while Sim lets one workflow support chat and other applications.
 
@@ -48,7 +48,7 @@ Integration depth determines what the chatbot can read, update, or trigger in ex
 
 ## Model flexibility across Sim and dedicated chatbot builders
 
-Sim gives you provider choice inside the workflow, which lets you select a model based on cost, response quality, or task requirements. Sim offers [access to more than 100 models](https://sim.ai) across providers through hosted access and bring-your-own-key connections. Hosted access uses models available through Sim, while BYOK uses credentials from your chosen provider. Local models such as Ollama follow a separate path that requires Enterprise access. For a closer look at these execution modes, see Sim's [BYOK and multi-model guide](https://www.sim.ai/library/byok-multi-model-ai-agent-builder).
+Sim gives you provider choice inside the workflow, which lets you select a model based on cost, response quality, or task requirements. Sim offers [access to more than 100 models](https://sim.ai) across providers through hosted access and bring-your-own-key connections. Hosted access uses models available through Sim, while BYOK uses credentials from your chosen provider. [Local-model access through Sim Cloud requires Enterprise access](https://sim.ai/pricing), while [self-hosted deployments can connect to Ollama or vLLM](https://docs.sim.ai/platform/costs). For a closer look at these execution modes, see Sim's [BYOK and multi-model guide](https://www.sim.ai/library/byok-multi-model-ai-agent-builder).
 
 Intercom Fin uses an architecture built for customer support. Its Fin AI Engine combines retrieval with the proprietary, support-tuned Apex model, as described in [Intercom's Fin documentation](https://www.intercom.com/help/en/articles/7120684-fin-ai-agent-explained). [Intercom's documentation](https://www.intercom.com/help/en/articles/7120684-fin-ai-agent-explained) does not identify an option to supply your own key or switch among third-party model providers. Intercom Fin provides a packaged support engine. The reviewed material does not document model selection for individual workflows.
 
@@ -70,19 +70,19 @@ A Sim chatbot can connect to external systems through [more than 1,000 integrati
 
 Tidio focuses on frontline support. Tidio's published [Lyro integrations](https://www.tidio.com/integrations/) emphasize a defined set of support and commerce connections. That scope may constrain workflows that need to update records across a broader set of external systems.
 
-Intercom gives Fin [resource types covering knowledge, customer data, and actions](https://www.intercom.com/help/en/articles/10118260-fin-ai-agent-procedures-explained). [Fin Procedures can complete support tasks such as updating records](https://www.intercom.com/help/en/articles/10118260-fin-ai-agent-procedures-explained). Its [action model](https://www.intercom.com/help/en/articles/10118260-fin-ai-agent-procedures-explained) remains organized around customer-service procedures rather than open-ended agent workflows.
+Intercom gives Fin [resource types covering knowledge, customer data, and actions](https://www.intercom.com/help/en/articles/12495167-fin-procedures-explained). [Fin Procedures can complete support tasks such as updating records](https://www.intercom.com/help/en/articles/12495167-fin-procedures-explained). Its [action model](https://www.intercom.com/help/en/articles/12495167-fin-procedures-explained) remains organized around customer-service procedures rather than open-ended agent workflows.
 
-Zendesk documents [MCP connections for AI agents](https://developer.zendesk.com/documentation/ai-agents/advanced-concepts/mcp/) that let them use external tools through a shared protocol. Sim also supports MCP as a workflow surface, which lets an agent expose or consume tools without a separate chatbot integration for each action.
+Zendesk provides [developer documentation for extending and integrating AI agents](https://developer.zendesk.com/documentation/ai-agents/). Sim also supports MCP as a workflow surface, which lets an agent expose or consume tools without a separate chatbot integration for each action.
 
 ## Deployment surfaces: API, hosted chat, and MCP from one workflow
 
 Sim can publish [one versioned workflow as hosted chat, an API endpoint, or an MCP tool or server](https://sim.ai). The same Agent blocks, Knowledge Bases, and connected actions can serve multiple interfaces without requiring you to rebuild the underlying logic. The process for the protocol-based option is covered in [how to turn a workflow into a reusable MCP tool](https://www.sim.ai/library/how-to-turn-a-workflow-into-a-reusable-mcp-tool).
 
-Tidio centers deployment on its [website chat widget and supported channels](https://www.tidio.com/features/live-chat/). [Its documentation](https://www.tidio.com/features/live-chat/) does not identify an MCP deployment path.
+Tidio centers deployment on its [website chat widget and supported channels](https://www.tidio.com/live-chat/). [Its documentation](https://www.tidio.com/live-chat/) does not identify an MCP deployment path.
 
-Intercom gives Fin channel coverage across [Messenger, email, WhatsApp, SMS, and other supported channels](https://www.intercom.com/help/en/articles/9515823-deploy-fin-ai-agent-over-chat). Fin runs those conversations through Intercom's support engine. The [cited material](https://www.intercom.com/help/en/articles/9515823-deploy-fin-ai-agent-over-chat) documents packaged channel support but does not identify a headless deployment path comparable to Sim's API or MCP surfaces.
+Intercom gives Fin channel coverage across [Messenger, email, WhatsApp, SMS, and other supported channels](https://www.intercom.com/help/en/articles/13377077-choose-channels-to-deploy-fin-ai-agent). Fin runs those conversations through Intercom's support engine. The [cited material](https://www.intercom.com/help/en/articles/13377077-choose-channels-to-deploy-fin-ai-agent) documents packaged channel support but does not identify a headless deployment path comparable to Sim's API or MCP surfaces.
 
-Zendesk supports customer service across [messaging, email, voice, help center, and social channels](https://www.zendesk.com/service/). Zendesk delivers [these channels through its service platform](https://www.zendesk.com/service/) and separately [documents MCP connections for AI agents](https://developer.zendesk.com/documentation/ai-agents/advanced-concepts/mcp/). Sim can expose one workflow through hosted chat, API access, or MCP.
+Zendesk supports customer service across [messaging, email, voice, help center, and social channels](https://www.zendesk.com/service/). Zendesk delivers [these channels through its service platform](https://www.zendesk.com/service/) and separately provides [developer documentation for AI agent integrations](https://developer.zendesk.com/documentation/ai-agents/). Sim can expose one workflow through hosted chat, API access, or MCP.
 
 Sim fits when one agent must support customer chat and later serve a product API or another agent through MCP. A dedicated builder fits when its packaged support channels already cover the use case.
 
@@ -90,17 +90,17 @@ Sim fits when one agent must support customer chat and later serve a product API
 
 Dedicated chatbot builders can reduce setup work for support use cases with predictable requests. Requests such as shipping updates or login help can often use predefined support flows without custom model selection.
 
-Intercom Fin packages retrieval and support handoffs into a product designed for rapid deployment after you connect existing help content and set response rules, according to [Intercom's setup documentation](https://www.intercom.com/help/en/articles/9515823-deploy-fin-ai-agent-over-chat). Tidio offers a similar advantage for frontline questions through a [prebuilt website widget](https://www.tidio.com/features/live-chat/). Their prebuilt support flows and channel interfaces reduce the configuration required before launch.
+Intercom Fin packages retrieval and support handoffs into a product designed for rapid deployment after you connect existing help content and set response rules, according to [Intercom's setup documentation](https://www.intercom.com/help/en/articles/13377077-choose-channels-to-deploy-fin-ai-agent). Tidio offers a similar advantage for frontline questions through a [prebuilt website widget](https://www.tidio.com/live-chat/). Their prebuilt support flows and channel interfaces reduce the configuration required before launch.
 
-Sim requires you to define the workflow, configure Agent blocks, and choose how Knowledge Bases ground responses. That work makes sense when the chatbot needs custom logic or must connect with a broader agent system. If you want a standard FAQ bot with minimal setup, [Intercom](https://www.intercom.com/help/en/articles/9515823-deploy-fin-ai-agent-over-chat), [Tidio](https://www.tidio.com/features/live-chat/), [Zendesk](https://www.zendesk.com/service/ai/), or another dedicated builder will usually require less configuration than Sim. For more support-focused options, compare the [best AI agents for customer support automation](https://www.sim.ai/library/best-ai-agents-for-customer-support-automation).
+Sim requires you to define the workflow, configure Agent blocks, and choose how Knowledge Bases ground responses. That work makes sense when the chatbot needs custom logic or must connect with a broader agent system. If you want a standard FAQ bot with minimal setup, [Intercom](https://www.intercom.com/help/en/articles/13377077-choose-channels-to-deploy-fin-ai-agent), [Tidio](https://www.tidio.com/live-chat/), [Zendesk](https://www.zendesk.com/service/ai/), or another dedicated builder will usually require less configuration than Sim. For more support-focused options, compare the [best AI agents for customer support automation](https://www.sim.ai/library/best-ai-agents-for-customer-support-automation).
 
 ## Comparison at a glance
 
 | Comparison | Sim | Botpress | Intercom | Zendesk | Tidio |
 | --- | --- | --- | --- | --- | --- |
-| Model flexibility | [Hosted access, BYOK, and more than 100 models](https://sim.ai). [Local models require Enterprise access](https://sim.ai/pricing). | Not verified in the cited research | [Proprietary support engine](https://www.intercom.com/help/en/articles/7120684-fin-ai-agent-explained). BYOK is not documented in the cited research. | [Zendesk AI models](https://www.zendesk.com/service/ai/). BYOK is not documented in the cited research. | [Underlying models and provider choice are not documented in the cited research](https://help.tidio.com/hc/en-us/categories/10346697427228-Lyro-AI-Agent). |
-| Integration depth | [1,000+ integrations](https://sim.ai) and custom agent workflows | Not verified in the cited research | [Knowledge and support actions](https://www.intercom.com/help/en/articles/10118260-fin-ai-agent-procedures-explained) | [Zendesk data and MCP connections](https://developer.zendesk.com/documentation/ai-agents/advanced-concepts/mcp/) | [Published support and commerce integrations](https://www.tidio.com/integrations/) |
-| Deployment surfaces | [API, hosted chat, and MCP](https://sim.ai) | Not verified in the cited research | [Messenger, email, WhatsApp, SMS, and other supported channels](https://www.intercom.com/help/en/articles/9515823-deploy-fin-ai-agent-over-chat) | [Support channels](https://www.zendesk.com/service/) and documented MCP connections | [Website widget and support channels](https://www.tidio.com/features/live-chat/) |
+| Model flexibility | [Hosted access, BYOK, and more than 100 models](https://sim.ai). [Local-model access through Sim Cloud requires Enterprise access](https://sim.ai/pricing), while [self-hosted Sim can connect to Ollama or vLLM](https://docs.sim.ai/platform/costs). | Not verified in the cited research | [Proprietary support engine](https://www.intercom.com/help/en/articles/7120684-fin-ai-agent-explained). BYOK is not documented in the cited research. | [Zendesk AI models](https://www.zendesk.com/service/ai/). BYOK is not documented in the cited research. | [Underlying models and provider choice are not documented in the cited research](https://help.tidio.com/hc/en-us/categories/10346697427228-Lyro-AI-Agent). |
+| Integration depth | [1,000+ integrations](https://sim.ai) and custom agent workflows | Not verified in the cited research | [Knowledge and support actions](https://www.intercom.com/help/en/articles/12495167-fin-procedures-explained) | [Zendesk AI agent integrations](https://developer.zendesk.com/documentation/ai-agents/) | [Published support and commerce integrations](https://www.tidio.com/integrations/) |
+| Deployment surfaces | [API, hosted chat, and MCP](https://sim.ai) | Not verified in the cited research | [Messenger, email, WhatsApp, SMS, and other supported channels](https://www.intercom.com/help/en/articles/13377077-choose-channels-to-deploy-fin-ai-agent) | [Support channels](https://www.zendesk.com/service/) and [AI agent developer documentation](https://developer.zendesk.com/documentation/ai-agents/) | [Website widget and support channels](https://www.tidio.com/live-chat/) |
 | Best-fit use case | Custom multi-model agents with chat as one surface | Not determined from the cited research | Packaged multichannel support automation | Support operations already using Zendesk | A templated support widget for a small support team |
 
 ## Building a chatbot in Sim as one surface of a larger system
