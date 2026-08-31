@@ -37,7 +37,7 @@ export const oktaAssignUserRoleTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID or login to assign the admin role to',
+      description: 'Okta user ID (not a login or email) to assign the admin role to',
     },
     roleType: {
       type: 'string',
