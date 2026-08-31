@@ -911,7 +911,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   - Search finds literal text across all active workspace files and returns structured results with fileId, lineNumber, and text. Lowercase queries are case-insensitive; adding any uppercase letter makes the search case-sensitive.
   - Search is eventually consistent. Check "complete" and "indexStatus" when pending, failed, skipped, or partially indexed files matter to the task.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
-  - Use Write to create a new workspace file and Append to add content to an existing one.
+  - Use Write to create a new workspace file and Append to add content to an existing one. Write adds a numeric suffix when the name is taken; turn on "Overwrite Existing File" to replace the contents of the file at that exact path (folder and name) instead — a same-named file in another folder is left alone.
   - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "files" output.
   - Use Decompress to extract a .zip archive back into the workspace; the extracted files are returned in the "files" output, ready to chain into Get Content or downstream blocks.
   `,
@@ -1087,6 +1087,12 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: 'text/plain (auto-detected from extension)',
       condition: { field: 'operation', value: 'file_write' },
       mode: 'advanced',
+    },
+    {
+      id: 'overwrite',
+      title: 'Overwrite Existing File',
+      type: 'switch' as SubBlockType,
+      condition: { field: 'operation', value: 'file_write' },
     },
     {
       id: 'appendFile',
@@ -1284,6 +1290,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
             ...(omitContent ? {} : { content: params.content }),
             ...(fileInput ? { fileInput } : {}),
             contentType: params.contentType,
+            overwrite: params.overwrite === true || params.overwrite === 'true',
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -1513,6 +1520,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       description: 'An existing file to store in the workspace, instead of text content',
     },
     contentType: { type: 'string', description: 'MIME content type for write' },
+    overwrite: {
+      type: 'boolean',
+      description: 'Replace an existing file with the same name instead of creating a copy (write)',
+    },
     appendFileInput: { type: 'json', description: 'File to append to' },
     appendContent: { type: 'string', description: 'Content to append to file' },
     compressInput: {

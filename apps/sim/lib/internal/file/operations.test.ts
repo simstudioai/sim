@@ -164,6 +164,7 @@ vi.mock('@/app/api/files/authorization', () => ({
 
 import { fileManageBodySchema } from '@/lib/api/contracts/tools/file'
 import { executeFileManageOperation } from '@/lib/internal/file/operations'
+import { FileConflictError } from '@/lib/uploads/contexts/workspace'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 
 async function POST(request: Request): Promise<Response> {
@@ -617,6 +618,210 @@ describe('file manage operations', () => {
         folderId: null,
         folderPath: undefined,
         secretProvenance: { status: 'unknown' },
+      }
+    )
+  })
+
+  it('replaces the existing file at the target path when overwrite is on', async () => {
+    const existing = workspaceFile('report')
+    mockResolveWorkspaceFileReference.mockResolvedValue(existing)
+    mockUpdateWorkspaceFileContent.mockResolvedValue(existing)
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'report.txt',
+        content: 'fresh',
+        overwrite: true,
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockUpdateWorkspaceFileContent).toHaveBeenCalledWith(
+      'workspace-1',
+      'report',
+      'user-1',
+      Buffer.from('fresh'),
+      'text/plain',
+      {
+        expectedUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenancePolicy: { mode: 'replace', provenance: { status: 'exact', entries: [] } },
+      }
+    )
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      data: { id: 'report', name: 'report.txt' },
+    })
+  })
+
+  it('creates the file when overwrite finds nothing at the target path', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue(null)
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'report.txt',
+        content: 'fresh',
+        overwrite: true,
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockUpdateWorkspaceFileContent).not.toHaveBeenCalled()
+    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      Buffer.from('fresh'),
+      'report.txt',
+      'text/plain',
+      // Exact, so a path created by a concurrent write conflicts instead of being suffixed.
+      expect.objectContaining({ exactName: true, folderId: null })
+    )
+  })
+
+  it('surfaces a conflict when a concurrent write claims the overwrite path', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue(null)
+    mockUploadWorkspaceFile.mockRejectedValue(new FileConflictError('report.txt'))
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'report.txt',
+        content: 'fresh',
+        overwrite: true,
+      })
+    )
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({ success: false })
+  })
+
+  it('never overwrites a same-named file resolved outside the target folder', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue({
+      ...workspaceFile('report'),
+      folderId: 'folder-9',
+    })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'report.txt',
+        content: 'fresh',
+        overwrite: true,
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockUpdateWorkspaceFileContent).not.toHaveBeenCalled()
+    expect(mockUploadWorkspaceFile).toHaveBeenCalled()
+  })
+
+  it('keeps the suffixing create path when overwrite is off', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue(workspaceFile('report'))
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'report.txt',
+        content: 'fresh',
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockUpdateWorkspaceFileContent).not.toHaveBeenCalled()
+    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      Buffer.from('fresh'),
+      'report.txt',
+      'text/plain',
+      expect.objectContaining({ exactName: false })
+    )
+  })
+
+  it('overwrites an existing file with the bytes of a stored file input', async () => {
+    const existing = workspaceFile('report')
+    mockResolveWorkspaceFileReference.mockResolvedValue(existing)
+    mockUpdateWorkspaceFileContent.mockResolvedValue(existing)
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({ status: 'exact', entries: [] })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'report.txt',
+        fileInput: {
+          key: 'workspace/workspace-1/source.txt',
+          name: 'source.txt',
+          type: 'text/plain',
+          size: 6,
+        },
+        overwrite: true,
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockUpdateWorkspaceFileContent).toHaveBeenCalledWith(
+      'workspace-1',
+      'report',
+      'user-1',
+      Buffer.from('content:source.txt'),
+      'text/plain',
+      expect.objectContaining({ expectedUpdatedAt: CONTENT_UPDATED_AT })
+    )
+  })
+
+  it('downgrades provenance when overwriting a file owned by another user', async () => {
+    const existing = workspaceFile('report', 'other-user')
+    mockResolveWorkspaceFileReference.mockResolvedValue(existing)
+    mockUpdateWorkspaceFileContent.mockResolvedValue(existing)
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          operation: 'write',
+          workspaceId: 'workspace-1',
+          fileName: 'report.txt',
+          content: 'secret-value',
+          overwrite: true,
+          __privateSecretProvenance: {
+            version: 1,
+            complete: true,
+            selections: [
+              {
+                key: 'content',
+                provenance: {
+                  version: 1,
+                  complete: true,
+                  entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+                  scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+                },
+              },
+            ],
+          },
+        },
+        PRIVATE_SECRET_PROVENANCE_HEADER
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockUpdateWorkspaceFileContent).toHaveBeenCalledWith(
+      'workspace-1',
+      'report',
+      'user-1',
+      Buffer.from('secret-value'),
+      'text/plain',
+      {
+        expectedUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenancePolicy: { mode: 'replace', provenance: { status: 'unknown' } },
       }
     )
   })
