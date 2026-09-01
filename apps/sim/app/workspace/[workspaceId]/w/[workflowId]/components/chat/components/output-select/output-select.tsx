@@ -18,6 +18,7 @@ import {
   type WorkflowOutputMenuNode,
   type WorkflowOutputOption,
 } from '@/lib/workflows/streaming/nested-output-options'
+import { formatPublicOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import { BlockTile } from '@/blocks/block-tile'
 import { DEFAULTS } from '@/executor/constants'
 import { useWorkflowStates } from '@/hooks/queries/workflows'
@@ -41,8 +42,8 @@ interface OutputSelectProps {
   disabled?: boolean
   /** Placeholder text when no outputs are selected */
   placeholder?: string
-  /** Whether to emit output IDs or labels in onOutputSelect callback */
-  valueMode?: 'id' | 'label'
+  /** Whether to emit internal IDs, display labels, or public dot selectors */
+  valueMode?: 'id' | 'label' | 'public'
   /** Alignment of the dropdown relative to the trigger */
   align?: 'start' | 'end' | 'center'
   /** Maximum height of the dropdown content in pixels */
@@ -64,14 +65,20 @@ interface OutputSelectMenuProps {
   onOutputSelect: (outputIds: string[]) => void
   disabled: boolean
   placeholder: string
-  valueMode: 'id' | 'label'
+  valueMode: 'id' | 'label' | 'public'
   align: 'start' | 'end' | 'center'
   maxHeight: number
   size: 'sm' | 'md'
   className?: string
 }
 
-function getOutputValue(output: WorkflowOutputOption, valueMode: 'id' | 'label'): string {
+function getOutputValue(
+  output: WorkflowOutputOption,
+  valueMode: 'id' | 'label' | 'public'
+): string {
+  if (valueMode === 'public') {
+    return formatPublicOutputSelector(output.blockId, output.path)
+  }
   return valueMode === 'label' && !output.blockId.includes('/') ? output.label : output.id
 }
 

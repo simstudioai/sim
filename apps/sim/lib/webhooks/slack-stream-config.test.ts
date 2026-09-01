@@ -13,7 +13,7 @@ describe('Slack stream response config', () => {
     const providerConfig: Record<string, unknown> = {
       eventType: 'app_mention',
       streamResponse: true,
-      streamOutputs: ['block-1_content', 'workflow-block/block-2_result.value'],
+      streamOutputs: ['block-1.content', 'workflow-block/block-2.result.value'],
       streamIncludeThinking: true,
       streamIncludeToolCalls: false,
       streamTaskTitle: '  Working  ',
@@ -44,14 +44,14 @@ describe('Slack stream response config', () => {
       normalizeSlackStreamResponseConfig({
         eventType: 'message',
         streamResponse: true,
-        streamOutputs: ['block_content'],
+        streamOutputs: ['block.content'],
       })?.taskTitle
     ).toBe('Running')
     expect(
       normalizeSlackStreamResponseConfig({
         eventType: 'message',
         streamResponse: true,
-        streamOutputs: ['block_content'],
+        streamOutputs: ['block.content'],
         streamTaskTitle: '   ',
       })?.taskTitle
     ).toBe('Running')
@@ -88,14 +88,14 @@ describe('Slack stream response config', () => {
       normalizeSlackStreamResponseConfig({
         eventType: 'reaction_added',
         streamResponse: true,
-        streamOutputs: ['block_content'],
+        streamOutputs: ['block.content'],
       })
     ).toThrow('reply-capable')
     expect(() =>
       normalizeSlackStreamResponseConfig({
         eventType: 'message',
         streamResponse: true,
-        streamOutputs: ['content'],
+        streamOutputs: ['block_content'],
       })
     ).toThrow('Invalid Slack stream output selector')
   })

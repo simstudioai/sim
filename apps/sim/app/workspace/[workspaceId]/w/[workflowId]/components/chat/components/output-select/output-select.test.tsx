@@ -184,24 +184,30 @@ beforeEach(() => {
 function outputSelect(
   workflowId: string,
   selectedOutputs: string[],
-  onOutputSelect: (outputIds: string[]) => void
+  onOutputSelect: (outputIds: string[]) => void,
+  valueMode: 'id' | 'label' | 'public' = 'id'
 ) {
   return (
     <OutputSelect
       workflowId={workflowId}
       selectedOutputs={selectedOutputs}
       onOutputSelect={onOutputSelect}
+      valueMode={valueMode}
     />
   )
 }
 
-function renderOutputSelect(selectedOutputs: string[], onOutputSelect = vi.fn()) {
+function renderOutputSelect(
+  selectedOutputs: string[],
+  onOutputSelect = vi.fn(),
+  valueMode: 'id' | 'label' | 'public' = 'id'
+) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
   act(() => {
-    root?.render(outputSelect('root', selectedOutputs, onOutputSelect))
+    root?.render(outputSelect('root', selectedOutputs, onOutputSelect, valueMode))
   })
   return onOutputSelect
 }
@@ -254,6 +260,17 @@ describe('OutputSelect nested workflow menu', () => {
     clickOption('answer')
 
     expect(onOutputSelect).toHaveBeenCalledWith(['workflow/agent_answer'])
+  })
+
+  it('emits public dot selectors for trigger authoring', () => {
+    const onOutputSelect = renderOutputSelect([], vi.fn(), 'public')
+
+    clickOption('content')
+    expect(onOutputSelect).toHaveBeenCalledWith(['summary.content'])
+
+    clickOption('Outputs')
+    clickOption('answer')
+    expect(onOutputSelect).toHaveBeenCalledWith(['workflow/agent.answer'])
   })
 
   it('returns to the root menu when the owning workflow changes', () => {

@@ -34,6 +34,7 @@ export function WorkflowOutputSelector({
       onOutputSelect={setStoredValue}
       disabled={disabled || isPreview}
       placeholder={placeholder}
+      valueMode='public'
       size='md'
       className='w-full'
     />
