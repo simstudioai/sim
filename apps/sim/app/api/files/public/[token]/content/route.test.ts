@@ -3,6 +3,8 @@
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const {
   mockResolveActiveShareByToken,
@@ -78,13 +80,47 @@ describe('GET /api/files/public/[token]/content', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 
-  it('serves the bytes once authorized', async () => {
+  it('serves the bytes once authorized, bounded by the shared transfer ceiling', async () => {
     mockValidateDeploymentAuth.mockResolvedValueOnce({ authorized: true })
     const res = await GET(request(), params())
     expect(res.status).toBe(200)
+    // The ceiling matters most here: this is the only surface that reads a workspace
+    // object for a caller with no session, and the object is admitted at 5 GB.
     expect(mockDownloadFile).toHaveBeenCalledWith({
       key: passwordShare.file.key,
       context: 'workspace',
+      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
     })
+  })
+
+  it('413s when a compiled artifact outgrows the ceiling its source fit inside', async () => {
+    mockValidateDeploymentAuth.mockResolvedValueOnce({ authorized: true })
+    // The source read is bounded, but the artifact is fetched separately — a small
+    // generation source can resolve to a document far larger than the source ever was.
+    mockDownloadFile.mockResolvedValueOnce(Buffer.from('generation source'))
+    mockResolveServableDoc.mockResolvedValueOnce({
+      kind: 'artifact',
+      buffer: Buffer.alloc(MAX_BUFFERED_TRANSFER_BYTES + 1),
+      contentType: 'application/pdf',
+    })
+
+    const res = await GET(request(), params())
+
+    expect(res.status).toBe(413)
+  })
+
+  it('answers 413 rather than 500 when the shared file is too large to serve resident', async () => {
+    mockValidateDeploymentAuth.mockResolvedValueOnce({ authorized: true })
+    mockDownloadFile.mockRejectedValueOnce(
+      new PayloadSizeLimitError({
+        label: 'storage download',
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        observedBytes: 5 * 1024 * 1024 * 1024,
+      })
+    )
+
+    const res = await GET(request(), params())
+
+    expect(res.status).toBe(413)
   })
 })

@@ -150,11 +150,14 @@ describe('Bitbucket server selector adapters', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
-  it('resolves a workspace UUID before listing its repositories', async () => {
-    const workspaceUuid = '{a15fb181-db1f-48f7-b41f-e1eff06929d6}'
+  it.each([
+    ['braced', '{a15fb181-db1f-48f7-b41f-e1eff06929d6}'],
+    ['unbraced', 'a15fb181-db1f-48f7-b41f-e1eff06929d6'],
+  ])('resolves a %s workspace UUID before listing its repositories', async (_, workspaceUuid) => {
+    const providerUuid = '{a15fb181-db1f-48f7-b41f-e1eff06929d6}'
     mockFetch
       .mockResolvedValueOnce(
-        providerResponse({ slug: 'acme-platform', uuid: workspaceUuid, name: 'Acme' })
+        providerResponse({ slug: 'acme-platform', uuid: providerUuid, name: 'Acme' })
       )
       .mockResolvedValueOnce(providerResponse({ values: [] }))
 
@@ -167,7 +170,7 @@ describe('Bitbucket server selector adapters', () => {
     ).resolves.toEqual({ kind: 'list', items: [] })
 
     expect(new URL(String(mockFetch.mock.calls[0]?.[0])).pathname).toBe(
-      `/2.0/workspaces/${encodeURIComponent(workspaceUuid)}`
+      `/2.0/workspaces/${encodeURIComponent(providerUuid)}`
     )
     expect(new URL(String(mockFetch.mock.calls[1]?.[0])).pathname).toBe(
       '/2.0/repositories/acme-platform'

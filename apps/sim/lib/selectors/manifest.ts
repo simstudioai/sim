@@ -159,7 +159,7 @@ export const selectorManifest = {
     readiness: { all: ['oauthCredential', 'spreadsheetId'] },
   }),
   'harmonic.savedSearches': providerSelector([], { detail: true, unknownDetail: true }),
-  'hubspot.lists': providerSelector(),
+  'hubspot.lists': providerSelector([], { listMode: 'paginated', search: true, detail: true }),
   'hubspot.owners': providerSelector(),
   'hubspot.pipelines': providerSelector(['objectType', 'customObjectTypeId']),
   'hubspot.pipelineStages': providerSelector(['objectType', 'customObjectTypeId', 'pipelineId'], {

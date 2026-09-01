@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-31",
+  "updatedAt": "2026-09-01",
   "integrations": [
     {
       "type": "onepassword",
@@ -3804,6 +3804,121 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "data-analytics"]
+    },
+    {
+      "type": "circleback",
+      "slug": "circleback",
+      "name": "Circleback",
+      "description": "AI-powered meeting notes, action items, and transcripts",
+      "longDescription": "Integrate Circleback into your workflow to read meetings, notes, transcripts, and insights, search across meetings, manage action items and tags, and browse the people and companies you meet with. Circleback can also trigger workflows when meetings are processed.",
+      "bgColor": "linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)",
+      "iconName": "CirclebackIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/circleback",
+      "operations": [
+        {
+          "name": "List Meetings",
+          "description": "Lists meetings from Circleback with optional ownership, status, tag, and attendee filters."
+        },
+        {
+          "name": "Get Meeting",
+          "description": "Gets a Circleback meeting by ID, including notes, attendees, action items, insights, and recording details."
+        },
+        {
+          "name": "Search Meetings",
+          "description": "Searches Circleback meetings by name and content, with optional filters for specific meetings, tags, and people."
+        },
+        {
+          "name": "Get Transcript",
+          "description": "Gets the full transcript for a Circleback meeting."
+        },
+        {
+          "name": "Update Meeting",
+          "description": "Updates the name, notes, or private notes of a Circleback meeting. The API returns only the fields that were updated."
+        },
+        {
+          "name": "Delete Meeting",
+          "description": "Deletes a Circleback meeting. Only the owner of the meeting can delete it. Returns the deleted meeting."
+        },
+        {
+          "name": "List Action Items",
+          "description": "Lists action items across the authenticated user meetings, filtered by assignee, status, tags, and attendees. Defaults to incomplete action items assigned to the API key owner."
+        },
+        {
+          "name": "Update Action Item",
+          "description": "Updates the title, description, status, or assignee of a Circleback action item. Returns the updated action item."
+        },
+        {
+          "name": "Delete Action Item",
+          "description": "Deletes a Circleback action item. Returns the deleted action item."
+        },
+        {
+          "name": "List Calendar Events",
+          "description": "Lists upcoming calendar events from the authenticated user connected calendars, with pagination and a configurable time window."
+        },
+        {
+          "name": "List Companies",
+          "description": "Lists the companies whose people attend the authenticated user meetings, with optional tag filters."
+        },
+        {
+          "name": "Get Company",
+          "description": "Gets a company by its domain from Circleback, including its people and external links."
+        },
+        {
+          "name": "List People",
+          "description": "Lists the people who attend the authenticated user meetings, ordered by most recent meeting, with optional company and tag filters."
+        },
+        {
+          "name": "Get Person",
+          "description": "Gets a person by their profile ID from Circleback, including their profile details and external links."
+        },
+        {
+          "name": "List Tags",
+          "description": "Lists every tag available to the authenticated Circleback user."
+        },
+        {
+          "name": "Create Tag",
+          "description": "Creates a new tag in Circleback. If a tag with the same name already exists, a conflict error is returned."
+        },
+        {
+          "name": "Update Tag",
+          "description": "Updates the name or description of a Circleback tag."
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Permanently deletes a Circleback tag and removes it from every meeting it was applied to."
+        },
+        {
+          "name": "Add Tag to Meetings",
+          "description": "Applies an existing Circleback tag to one or more meetings and returns the updated meetings."
+        },
+        {
+          "name": "Remove Tag from Meetings",
+          "description": "Removes a Circleback tag from one or more meetings and returns the updated meetings."
+        }
+      ],
+      "operationCount": 20,
+      "triggers": [
+        {
+          "id": "circleback_meeting_completed",
+          "name": "Circleback Meeting Completed",
+          "description": "Trigger workflow when a meeting is processed and ready in Circleback"
+        },
+        {
+          "id": "circleback_meeting_notes",
+          "name": "Circleback Meeting Notes Ready",
+          "description": "Trigger workflow when meeting notes and action items are ready"
+        },
+        {
+          "id": "circleback_webhook",
+          "name": "Circleback Webhook",
+          "description": "Generic webhook trigger for all Circleback events"
+        }
+      ],
+      "triggerCount": 3,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "ai",
+      "tags": ["meeting", "note-taking"]
     },
     {
       "type": "managed_agent",

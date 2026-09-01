@@ -91,15 +91,24 @@ export async function uploadCopilotFile(options: {
  * Uses the unified storage service with explicit copilot context.
  * Handles S3, Azure Blob, and local storage automatically.
  *
+ * `maxBytes` is required for the same reason it is on `fetchWorkspaceFileBuffer`:
+ * the stored object is admitted far above what one request may hold resident, so a
+ * caller that omits a ceiling inherits "unbounded" inside the shared app process.
+ *
  * @param key File storage key
+ * @param options.maxBytes Hard ceiling; throws `PayloadSizeLimitError` when exceeded
  * @returns File buffer
  * @throws Error if file not found or download fails
  */
-export async function downloadCopilotFile(key: string): Promise<Buffer> {
+export async function downloadCopilotFile(
+  key: string,
+  options: { maxBytes: number }
+): Promise<Buffer> {
   try {
     const fileBuffer = await downloadFile({
       key,
       context: 'copilot',
+      maxBytes: options.maxBytes,
     })
 
     logger.info(`Successfully downloaded copilot file: ${key}`, {

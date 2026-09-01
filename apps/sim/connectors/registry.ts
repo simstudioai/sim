@@ -4,6 +4,7 @@ import { ashbyConnectorMeta } from '@/connectors/ashby/meta'
 import { azureDevopsConnectorMeta } from '@/connectors/azure-devops/meta'
 import { bitbucketConnectorMeta } from '@/connectors/bitbucket/meta'
 import { boxConnectorMeta } from '@/connectors/box/meta'
+import { circlebackConnectorMeta } from '@/connectors/circleback/meta'
 import { clickupConnectorMeta } from '@/connectors/clickup/meta'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { databricksConnectorMeta } from '@/connectors/databricks/meta'
@@ -78,6 +79,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   azure_devops: azureDevopsConnectorMeta,
   bitbucket: bitbucketConnectorMeta,
   box: boxConnectorMeta,
+  circleback: circlebackConnectorMeta,
   clickup: clickupConnectorMeta,
   confluence: confluenceConnectorMeta,
   databricks: databricksConnectorMeta,

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { NextResponse } from 'next/server'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import type { ResolvedInlineImage } from '@/lib/uploads/server/inline-image'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
 import { createFileResponse, FileNotFoundError } from '@/app/api/files/utils'
 
@@ -25,7 +26,11 @@ export async function serveInlineImage(
   image: ResolvedInlineImage,
   { sniff }: { sniff: boolean }
 ): Promise<NextResponse> {
-  const buffer = await downloadFile({ key: image.key, context: 'workspace' })
+  const buffer = await downloadFile({
+    key: image.key,
+    context: 'workspace',
+    maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+  })
 
   let contentType = image.contentType
   if (sniff) {

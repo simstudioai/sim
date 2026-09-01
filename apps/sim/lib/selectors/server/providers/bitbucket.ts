@@ -106,6 +106,10 @@ function normalizeBitbucketUuid(value: string): string {
   return value.replace(/^\{?|\}?$/g, '').toLowerCase()
 }
 
+function formatBitbucketUuid(value: string): string {
+  return `{${normalizeBitbucketUuid(value)}}`
+}
+
 function requireCursorParams(cursor: string): URLSearchParams {
   if (!cursor || cursor.length > BITBUCKET_CURSOR_MAX_LENGTH) {
     throw new SelectorContextUnavailableError()
@@ -193,7 +197,13 @@ async function getWorkspace(
   identifier: string,
   accessToken: string
 ): Promise<z.infer<typeof workspaceDetailSchema>> {
-  const url = new URL(`/2.0/workspaces/${encodeURIComponent(identifier)}`, BITBUCKET_API_ORIGIN)
+  const providerIdentifier = isBitbucketUuid(identifier)
+    ? formatBitbucketUuid(identifier)
+    : identifier
+  const url = new URL(
+    `/2.0/workspaces/${encodeURIComponent(providerIdentifier)}`,
+    BITBUCKET_API_ORIGIN
+  )
   url.searchParams.set('fields', 'slug,uuid,name')
   const body = await fetchProviderJson<unknown>(url, {
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },

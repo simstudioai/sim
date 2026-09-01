@@ -1,5 +1,6 @@
 import type { NotionReadParams, NotionResponse } from '@/tools/notion/types'
 import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
+import { extractTitle } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
@@ -49,19 +50,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
 
   transformResponse: async (response: Response, params?: NotionReadParams) => {
     const data = await response.json()
-    let pageTitle = 'Untitled'
-
-    // Extract title from properties
-    if (data.properties?.title) {
-      const titleProperty = data.properties.title
-      if (
-        titleProperty.title &&
-        Array.isArray(titleProperty.title) &&
-        titleProperty.title.length > 0
-      ) {
-        pageTitle = titleProperty.title.map((t: any) => t.plain_text || '').join('')
-      }
-    }
+    const pageTitle = extractTitle(data.properties ?? {}) || 'Untitled'
 
     // Now fetch the page content using blocks endpoint
     const pageId = params?.pageId?.trim()
@@ -199,18 +188,7 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
 
   transformResponse: async (response: Response, params?: NotionReadParams) => {
     const data = await response.json()
-    let pageTitle = 'Untitled'
-
-    if (data.properties?.title) {
-      const titleProperty = data.properties.title
-      if (
-        titleProperty.title &&
-        Array.isArray(titleProperty.title) &&
-        titleProperty.title.length > 0
-      ) {
-        pageTitle = titleProperty.title.map((t: any) => t.plain_text || '').join('')
-      }
-    }
+    const pageTitle = extractTitle(data.properties ?? {}) || 'Untitled'
 
     const pageId = params?.pageId?.trim()
     const accessToken = params?.accessToken

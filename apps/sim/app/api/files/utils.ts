@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import {
+  isPayloadSizeLimitError,
+  readNodeStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
@@ -268,7 +272,16 @@ export function createFileResponse(file: FileResponse): NextResponse {
 
 export function createErrorResponse(error: Error, status = 500): NextResponse {
   const statusCode =
-    error instanceof FileNotFoundError ? 404 : error instanceof InvalidRequestError ? 400 : status
+    error instanceof FileNotFoundError
+      ? 404
+      : error instanceof InvalidRequestError
+        ? 400
+        : // A file too large to hold resident is the caller asking for something this
+          // route will not do, not a server fault — 413 keeps it out of the 5xx alarms
+          // and tells the client retrying is pointless.
+          isPayloadSizeLimitError(error)
+          ? 413
+          : status
 
   return NextResponse.json(
     {
@@ -277,6 +290,33 @@ export function createErrorResponse(error: Error, status = 500): NextResponse {
     },
     { status: statusCode }
   )
+}
+
+/**
+ * Reads a local upload into memory under a hard byte ceiling.
+ *
+ * The self-hosted mirror of the `maxBytes` every cloud provider download takes:
+ * a bare `readFile` inherits the 5 GB admission ceiling workspace files are stored
+ * under and allocates all of it inside the shared app process.
+ *
+ * The limit is enforced on the bytes as they arrive, through the same bounded-stream
+ * reader the S3/Blob/GCS downloads use, rather than by checking `stat` and then
+ * reading. A declared size only describes the file at the moment it was measured, so
+ * a stat-then-read pair admits whatever the file becomes in between — the cloud
+ * providers check `ContentLength` too, but never trust it as the only bound.
+ */
+export async function readLocalFileWithinLimit(
+  filePath: string,
+  maxBytes: number,
+  label: string
+): Promise<Buffer> {
+  const { createReadStream } = await import('fs')
+  const stream = createReadStream(filePath)
+  try {
+    return await readNodeStreamToBufferWithLimit(stream, { maxBytes, label })
+  } finally {
+    stream.destroy()
+  }
 }
 
 export function createSuccessResponse(data: ApiSuccessResponse): NextResponse {
