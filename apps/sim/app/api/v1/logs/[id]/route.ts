@@ -11,12 +11,13 @@ import {
   resolveLogFieldProjection,
 } from '@/lib/logs/log-projection'
 import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
-import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
+import { createApiResponse, getUserLimits, projectUserLimits } from '@/app/api/v1/logs/meta'
 import {
   capabilityGovernedUserId,
   checkRateLimit,
+  concealedWorkspaceAccessResponse,
   createRateLimitResponse,
-  validateWorkspaceAccess,
+  resolveWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1LogDetailsAPI')
@@ -47,9 +48,9 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Log not found' }, { status: 404 })
       }
 
-      const accessError = await validateWorkspaceAccess(rateLimit, userId, log.workspaceId, 'none')
+      const accessError = await resolveWorkspaceAccess(rateLimit, userId, log.workspaceId, 'none')
       if (accessError) {
-        return NextResponse.json({ error: 'Log not found' }, { status: 404 })
+        return concealedWorkspaceAccessResponse(accessError, 'Log not found')
       }
 
       /**
@@ -101,7 +102,7 @@ export const GET = withRouteHandler(
       }
 
       // Get user's workflow execution limits and usage
-      const limits = await getUserLimits(userId)
+      const limits = projectUserLimits(await getUserLimits(userId), projection)
 
       // Create response with limits information
       const apiResponse = createApiResponse({ data: response }, limits, rateLimit)

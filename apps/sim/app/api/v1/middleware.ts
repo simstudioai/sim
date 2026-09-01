@@ -507,6 +507,31 @@ export async function checkWorkspaceScope(
   return failure ? workspaceAccessErrorResponse(failure) : null
 }
 
+/**
+ * The response a surface that conceals an inaccessible workspace should answer
+ * a {@link resolveWorkspaceAccess} failure with.
+ *
+ * The log surfaces answer "not found" rather than "forbidden" so a stranger
+ * cannot use them to probe which workspaces and executions exist. A
+ * permission-group refusal is the one failure that has nothing left to conceal:
+ * both group keys run only AFTER the caller's workspace role verified, so the
+ * caller is already known to be a member of the workspace being asked about,
+ * and the refusal names how their own organization configured their cohort.
+ * Flattening it into the concealing 404 costs the client the remedy — the key
+ * looks broken rather than switched off — and buys no secrecy.
+ *
+ * `details` is the discriminator because it is set on exactly the two post-role
+ * group refusals; the pre-role scope failures carry none and keep concealing.
+ */
+export function concealedWorkspaceAccessResponse(
+  failure: WorkspaceAccessError,
+  notFoundMessage: string
+): NextResponse {
+  return failure.details
+    ? workspaceAccessErrorResponse(failure)
+    : NextResponse.json({ error: notFoundMessage }, { status: 404 })
+}
+
 /** Renders a {@link WorkspaceAccessError} as the v1 `{ error, details? }` body. */
 function workspaceAccessErrorResponse(failure: WorkspaceAccessError): NextResponse {
   return NextResponse.json(
