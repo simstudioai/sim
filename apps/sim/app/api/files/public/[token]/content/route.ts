@@ -129,7 +129,7 @@ export const GET = withRouteHandler(
       // replace it with bytes fetched or produced separately — a compiled artifact, a
       // page with its images inlined, a transcoded derivative. This is an anonymous
       // route, so the bytes it actually returns are what has to fit.
-      assertKnownSizeWithinLimit(buffer.length, MAX_BUFFERED_TRANSFER_BYTES, 'served file render')
+      assertKnownSizeWithinLimit(buffer.length, MAX_BUFFERED_TRANSFER_BYTES, 'served file response')
 
       logger.info('Public shared file served', { token, key: file.key, size: buffer.length })
 

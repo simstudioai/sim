@@ -94,30 +94,16 @@ async function resolveServableBytes(params: {
   fileType?: string
   signal: AbortSignal | undefined
 }): Promise<{ buffer: Buffer; contentType: string }> {
-  const {
-    buffer,
-    filename,
-    storageKey,
-    workspaceId,
-    options,
-    ownerKey,
-    filePrincipal,
-    fileType,
-    signal,
-  } = params
-  if (options.raw) return { buffer, contentType: getContentType(filename) }
-  return withinTransferCeiling(await resolveTransformedBytes(params))
-}
-
-/** Rejects a resolved response whose bytes outgrew what one request may hold resident. */
-function withinTransferCeiling(resolved: { buffer: Buffer; contentType: string }): {
-  buffer: Buffer
-  contentType: string
-} {
+  // `raw` is the stored source, already bounded by the read that produced it, but it
+  // goes through the same check so the ceiling holds for everything this returns
+  // rather than for every branch someone remembered to cover.
+  const resolved = params.options.raw
+    ? { buffer: params.buffer, contentType: getContentType(params.filename) }
+    : await resolveTransformedBytes(params)
   assertKnownSizeWithinLimit(
     resolved.buffer.length,
     MAX_BUFFERED_TRANSFER_BYTES,
-    'served file render'
+    'served file response'
   )
   return resolved
 }

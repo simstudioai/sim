@@ -36,10 +36,13 @@ describe('measureYamlExpansion', () => {
     const shared = [1, 2, 3, 4, 5]
     const aliased = { a: shared, b: shared, c: shared }
 
-    const measured = measureYamlExpansion(aliased, limits({ maxNodes: 20 }))
-    expect(measured).toEqual({ within: true, depth: 2 })
-    // 18 nodes if every reach is charged; 8 if the shared array were counted once.
-    expect(measureYamlExpansion(aliased, limits({ maxNodes: 12 })).within).toBe(false)
+    // 19 nodes when every reach is charged (root + 3 refs + 3x5 elements); 9 if the
+    // shared array were counted once, which is what makes an alias bomb invisible.
+    expect(measureYamlExpansion(aliased, limits({ maxNodes: 19 }))).toEqual({
+      within: true,
+      depth: 2,
+    })
+    expect(measureYamlExpansion(aliased, limits({ maxNodes: 18 })).within).toBe(false)
   })
 
   it('terminates on a self-referential anchor instead of recursing forever', () => {
