@@ -5004,6 +5004,25 @@ export const tableRowExecutions = pgTable(
     blockErrors: jsonb('block_errors').notNull().default({}),
     cancelledAt: timestamp('cancelled_at'),
     /**
+     * Person whose permission group gates this cell's tools, persisted with the
+     * dispatcher's `pending` pre-stamp.
+     *
+     * The stamp and the worker that runs it are not the same run: a cell task
+     * that finds the row's cascade lock held bails, and the lock owner drains
+     * the marker itself. That owner belongs to whatever dispatch queued IT, so
+     * without the subject on the marker the drained cell would run under the
+     * wrong person's group — or under none, when the owner is an actorless
+     * auto-fire. Read only while the marker is unclaimed (`pending` with a null
+     * `execution_id`); later writes on the same cell carry no subject and null
+     * it, which is why nothing reads it after pickup.
+     *
+     * `ON DELETE SET NULL`, matching `table_run_dispatches`: a deleted person's
+     * runs are stopped by that table's cancel, not held open by this reference.
+     */
+    capabilityGovernedUserId: text('capability_governed_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    /**
      * Enrichment cascade breakdown (provider outcomes, cost, timing) for
      * `enrichment`-type groups. Null for workflow groups and pre-feature runs.
      * Deliberately excluded from the hot grid read (`loadExecutionsByRow`) — read
@@ -5104,6 +5123,15 @@ export const tableRunDispatches = pgTable(
   (table) => ({
     activeIdx: index('table_run_dispatches_active_idx').on(table.tableId, table.status),
     watchdogIdx: index('table_run_dispatches_watchdog_idx').on(table.status, table.requestedAt),
+    /** Account deletion cancels every still-active dispatch the departing
+     *  account governs, and that is the only query keyed on the subject. The
+     *  other two indexes lead with `table_id` / `status`, so without this one
+     *  the deletion scans every active dispatch in the deployment while holding
+     *  its transaction open. Partial on the two live statuses: a terminal row is
+     *  never a cancellation target, and dispatch history is what grows. */
+    governedActiveIdx: index('table_run_dispatches_governed_active_idx')
+      .on(table.capabilityGovernedUserId, table.status)
+      .where(sql`${table.status} IN ('pending', 'dispatching')`),
   })
 )
 

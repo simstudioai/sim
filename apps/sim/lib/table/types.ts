@@ -249,6 +249,14 @@ export interface RowExecutionMetadata {
    *  mid-dispatch must not be overridden by `isManualRun`. */
   cancelledAt?: string
   /**
+   * Person whose permission group gates this cell's tools, written with the
+   * dispatcher's `pending` pre-stamp so the worker that eventually drains the
+   * marker runs it under the subject that requested it rather than its own.
+   * Persisted on `tableRowExecutions` but NOT hydrated by `loadExecutionsByRow`
+   * — it is read on demand, only while the marker is still unclaimed.
+   */
+  capabilityGovernedUserId?: string | null
+  /**
    * Enrichment cascade breakdown for `enrichment`-type groups, written on the
    * terminal cell write. Persisted on `tableRowExecutions` but NOT hydrated by
    * `loadExecutionsByRow` (kept off the hot grid read) — read it on demand via

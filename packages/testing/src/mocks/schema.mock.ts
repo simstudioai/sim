@@ -1444,6 +1444,7 @@ export const schemaMock = {
     runningBlockIds: 'tableRowExecutions.runningBlockIds',
     blockErrors: 'tableRowExecutions.blockErrors',
     cancelledAt: 'tableRowExecutions.cancelledAt',
+    capabilityGovernedUserId: 'tableRowExecutions.capabilityGovernedUserId',
     updatedAt: 'tableRowExecutions.updatedAt',
   },
   tableRunDispatches: {
@@ -1459,6 +1460,7 @@ export const schemaMock = {
     processedCount: 'tableRunDispatches.processedCount',
     isManualRun: 'tableRunDispatches.isManualRun',
     triggeredByUserId: 'tableRunDispatches.triggeredByUserId',
+    capabilityGovernedUserId: 'tableRunDispatches.capabilityGovernedUserId',
     requestedAt: 'tableRunDispatches.requestedAt',
     heartbeatAt: 'tableRunDispatches.heartbeatAt',
     completedAt: 'tableRunDispatches.completedAt',

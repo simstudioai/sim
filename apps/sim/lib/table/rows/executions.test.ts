@@ -33,6 +33,48 @@ describe('writeExecutionsPatch guards', () => {
     resetDbChainMock()
   })
 
+  /**
+   * The dispatcher's `pending` marker is drained by whichever worker owns the
+   * row's cascade lock, which may belong to another dispatch entirely. Storing
+   * the requesting subject with the marker is what lets that drain run under
+   * the person who asked rather than under the owner's own subject.
+   */
+  it('persists the pre-stamp’s governed subject on both the insert and the upsert', async () => {
+    await writeExecutionsPatch(
+      dbChainMock.db as unknown as Parameters<typeof writeExecutionsPatch>[0],
+      'table-1',
+      'row-1',
+      {
+        'group-1': {
+          ...EXECUTION_STATE,
+          status: 'pending',
+          executionId: null,
+          capabilityGovernedUserId: 'requesting-member',
+        },
+      }
+    )
+
+    const values = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(values.capabilityGovernedUserId).toBe('requesting-member')
+    const conflict = dbChainMockFns.onConflictDoUpdate.mock.calls[0]?.[0] as {
+      set: Record<string, unknown>
+    }
+    expect(conflict.set.capabilityGovernedUserId).toBe('requesting-member')
+  })
+
+  /** A write that names no subject clears it — only an unclaimed marker is read. */
+  it('writes null for a state that carries no subject', async () => {
+    await writeExecutionsPatch(
+      dbChainMock.db as unknown as Parameters<typeof writeExecutionsPatch>[0],
+      'table-1',
+      'row-1',
+      { 'group-1': EXECUTION_STATE }
+    )
+
+    const values = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(values.capabilityGovernedUserId).toBeNull()
+  })
+
   it('rejects a worker write when the atomic stale-or-cancel predicate returns no row', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
 

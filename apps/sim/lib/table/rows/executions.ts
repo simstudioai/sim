@@ -5,6 +5,7 @@
  * directly from `@/lib/table/rows/executions`.
  */
 
+import { db } from '@sim/db'
 import { tableRowExecutions, userTableRows } from '@sim/db/schema'
 import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
@@ -309,6 +310,12 @@ export async function writeExecutionsPatch(
       runningBlockIds: value.runningBlockIds ?? [],
       blockErrors: value.blockErrors ?? {},
       cancelledAt: value.cancelledAt ? new Date(value.cancelledAt) : null,
+      /**
+       * Written verbatim rather than made sticky like `enrichmentDetails`: only
+       * an unclaimed pre-stamp is ever read for it, and a re-stamp by a
+       * different dispatch must not inherit the previous run's subject.
+       */
+      capabilityGovernedUserId: value.capabilityGovernedUserId ?? null,
       enrichmentDetails: value.enrichmentDetails ?? null,
       updatedAt: new Date(),
     } as const
@@ -346,6 +353,7 @@ export async function writeExecutionsPatch(
             runningBlockIds: insertValues.runningBlockIds,
             blockErrors: insertValues.blockErrors,
             cancelledAt: insertValues.cancelledAt,
+            capabilityGovernedUserId: insertValues.capabilityGovernedUserId,
             // Sticky: preserve a prior cascade breakdown when this write omits
             // it (e.g. the running pickup stamp) so only an explicit detail
             // overwrites it. Re-runs delete the row first, so this never serves
@@ -374,6 +382,7 @@ export async function writeExecutionsPatch(
           runningBlockIds: insertValues.runningBlockIds,
           blockErrors: insertValues.blockErrors,
           cancelledAt: insertValues.cancelledAt,
+          capabilityGovernedUserId: insertValues.capabilityGovernedUserId,
           // Sticky: preserve a prior cascade breakdown when this write omits it
           // (e.g. the running pickup stamp) so only an explicit detail overwrites
           // it. Re-runs delete the row first, so this never serves stale detail.
@@ -384,6 +393,27 @@ export async function writeExecutionsPatch(
   }
 
   return 'wrote'
+}
+
+/**
+ * The governed subject persisted with a cell's dispatcher pre-stamp.
+ *
+ * Read on the drain path only — a worker taking over a `pending` marker it did
+ * not stamp — so the column stays off the hot grid read (`loadExecutionsByRow`)
+ * and never reaches a client. Returns `null` for a marker written before the
+ * column existed and for a genuinely actorless request; both mean the same
+ * thing to the gate.
+ */
+export async function readStampedCapabilitySubject(
+  rowId: string,
+  groupId: string
+): Promise<string | null> {
+  const [stamped] = await db
+    .select({ capabilityGovernedUserId: tableRowExecutions.capabilityGovernedUserId })
+    .from(tableRowExecutions)
+    .where(and(eq(tableRowExecutions.rowId, rowId), eq(tableRowExecutions.groupId, groupId)))
+    .limit(1)
+  return stamped?.capabilityGovernedUserId ?? null
 }
 
 /**

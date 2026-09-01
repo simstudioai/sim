@@ -815,6 +815,15 @@ async function stampQueuedForBatch(
             jobId: null,
             workflowId: runOpts.workflowId,
             error: null,
+            /**
+             * The marker outlives this dispatch's own worker: a cell task that
+             * finds the row's cascade lock held bails, and whoever owns the lock
+             * drains this marker instead. Persisting the subject is what makes
+             * that drain run under the person who requested THIS cell rather
+             * than under the owner's — a different dispatch, and often an
+             * actorless auto-fire with no gate at all.
+             */
+            capabilityGovernedUserId: runOpts.capabilityGovernedUserId ?? null,
           },
         }
       )

@@ -2206,6 +2206,13 @@
       "when": 1788222849643,
       "tag": "0315_table_dispatch_capability_governed_user",
       "breakpoints": true
+    },
+    {
+      "idx": 316,
+      "version": "7",
+      "when": 1788229583797,
+      "tag": "0316_table_row_execution_capability_subject",
+      "breakpoints": true
     }
   ]
 }

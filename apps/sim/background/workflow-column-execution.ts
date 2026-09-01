@@ -301,6 +301,7 @@ export async function executeWorkflowGroupCellJob(
     const { getTableById } = await import('@/lib/table/service')
     const { getRowById } = await import('@/lib/table/rows/service')
     const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
+    const { readStampedCapabilitySubject } = await import('@/lib/table/rows/executions')
 
     let currentPayload = payload
     while (true) {
@@ -344,6 +345,13 @@ export async function executeWorkflowGroupCellJob(
         // Re-derive so a workflow group after an enrichment group doesn't keep a stale enrichmentId.
         enrichmentId: next.enrichmentId,
         executionId: generateId(),
+        /**
+         * The marker was stamped by whichever dispatch requested THIS cell,
+         * which is not necessarily the one that queued this carrier. Its gate
+         * belongs to the person who asked for it, so take the subject off the
+         * stamp rather than carrying our own into someone else's request.
+         */
+        capabilityGovernedUserId: await readStampedCapabilitySubject(rowId, next.id),
       }
     }
   } finally {
@@ -362,12 +370,14 @@ export async function runRowCascadeLoop(
   const { getTableById } = await import('@/lib/table/service')
   const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
+  const { readStampedCapabilitySubject } = await import('@/lib/table/rows/executions')
 
   let currentGroupId = payload.groupId
   let currentWorkflowId = payload.workflowId
   // Fresh executionId per iteration: SQL guard rejects writes whose id ≠
   // row.executions[gid].executionId, so we need a new claim per group.
   let currentExecutionId = payload.executionId
+  let currentCapabilityGovernedUserId = payload.capabilityGovernedUserId ?? null
 
   while (true) {
     if (signal?.aborted) {
@@ -377,6 +387,7 @@ export async function runRowCascadeLoop(
           groupId: currentGroupId,
           workflowId: currentWorkflowId,
           executionId: currentExecutionId,
+          capabilityGovernedUserId: currentCapabilityGovernedUserId,
         },
         signal
       )
@@ -400,6 +411,7 @@ export async function runRowCascadeLoop(
         groupId: currentGroupId,
         workflowId: currentWorkflowId,
         executionId: currentExecutionId,
+        capabilityGovernedUserId: currentCapabilityGovernedUserId,
       },
       signal,
       freshTable,
@@ -416,6 +428,17 @@ export async function runRowCascadeLoop(
     if (!freshRow) break
     const next = pickNextEligibleGroupForRow(freshTable, freshRow, currentGroupId)
     if (!next) break
+    const nextExec = freshRow.executions?.[next.id]
+    /**
+     * A dep-fill cascade stays under the subject that started it. A group
+     * carrying an unclaimed pre-stamp is a different thing — an explicit
+     * request from another dispatch that this cascade is draining — so it runs
+     * under the subject stamped with that request.
+     */
+    currentCapabilityGovernedUserId =
+      nextExec?.status === 'pending' && nextExec.executionId == null
+        ? await readStampedCapabilitySubject(rowId, next.id)
+        : currentCapabilityGovernedUserId
     currentGroupId = next.id
     currentWorkflowId = next.workflowId
     currentExecutionId = generateId()

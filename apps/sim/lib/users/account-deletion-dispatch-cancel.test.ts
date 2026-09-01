@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockIsSoleOwnerOfPaidOrganization, mockGetPersonalSubscription, mockIsUsingCloudStorage } =
@@ -55,6 +55,39 @@ describe('deleteUserAccount and the governed-subject foreign key', () => {
     expect(cancelled).toBeDefined()
     expect((cancelled?.[0] as { cancelledAt?: Date }).cancelledAt).toBeInstanceOf(Date)
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.user)
+  })
+
+  /**
+   * The subject, not the attribution: `triggered_by_user_id` names the workspace
+   * billed account when the run's credential named no human, so cancelling on it
+   * would stop a workspace-key run this account never governed and leave the
+   * account's own actorless-looking rows alive.
+   */
+  it('cancels on the governed subject and only the still-active statuses', async () => {
+    await deleteUserAccount('user-1')
+
+    const filter = dbChainMockFns.where.mock.calls
+      .map(([condition]) => condition)
+      .find((condition) =>
+        hasMockCondition(
+          condition,
+          (node) => node.left === schemaMock.tableRunDispatches.capabilityGovernedUserId
+        )
+      )
+    expect(filter).toBeDefined()
+    expect(hasMockCondition(filter, (node) => node.type === 'eq' && node.right === 'user-1')).toBe(
+      true
+    )
+    expect(
+      hasMockCondition(
+        filter,
+        (node) =>
+          node.type === 'inArray' &&
+          node.column === schemaMock.tableRunDispatches.status &&
+          Array.isArray(node.values) &&
+          node.values.join(',') === 'pending,dispatching'
+      )
+    ).toBe(true)
   })
 
   /** The cancel must precede the delete, or the FK has already nulled the subject. */
