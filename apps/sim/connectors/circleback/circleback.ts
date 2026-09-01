@@ -88,7 +88,8 @@ function parseNextCursor(response: Response): string | undefined {
     const match = part.match(/<([^>]+)>\s*;\s*rel="?next"?/i)
     if (!match) continue
     try {
-      return new URL(match[1]).searchParams.get('cursor') ?? undefined
+      /* RFC 8288 allows relative references, so resolve against the API base. */
+      return new URL(match[1], CIRCLEBACK_API_BASE).searchParams.get('cursor') ?? undefined
     } catch {
       return undefined
     }

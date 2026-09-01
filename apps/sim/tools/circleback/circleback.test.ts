@@ -58,6 +58,11 @@ describe('circleback pagination', () => {
     expect(parseNextCursor(response)).toBe('cur_2')
   })
 
+  it('resolves a relative next link against the API base', () => {
+    const response = jsonResponse([], { link: '</api/meetings?cursor=rel_2>; rel="next"' })
+    expect(parseNextCursor(response)).toBe('rel_2')
+  })
+
   it('returns null when there is no next link', () => {
     expect(parseNextCursor(jsonResponse([]))).toBeNull()
     expect(
