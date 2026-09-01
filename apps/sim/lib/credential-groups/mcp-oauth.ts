@@ -88,7 +88,9 @@ export async function completeCredentialGroupMcpOAuth(
   const tools = await mcpService.discoverManagedMcpTools(
     context.server.id,
     context.workspaceId,
-    provider
+    provider,
+    undefined,
+    { requireComplete: true }
   )
   const connectionId = await persistManagedMcpCredential({
     enrollmentId: context.enrollmentId,

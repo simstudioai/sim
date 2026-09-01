@@ -187,6 +187,7 @@ export const credentialOperations = {
     id: 'credentials.managed_mcp.use',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['delegated'],
     delegatedServices: ['executor'],
     resourcePolicy: {

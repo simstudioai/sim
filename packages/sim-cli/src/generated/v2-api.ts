@@ -389,6 +389,7 @@ type ApplyWorkflowOperationsBodyRef2 =
   | ApplyWorkflowOperationsBodyRef3
   | ApplyWorkflowOperationsBodyRef4
   | ApplyWorkflowOperationsBodyRef5
+  | ApplyWorkflowOperationsBodyRef6
 
 type ApplyWorkflowOperationsBodyRef3 = {
   type: string
@@ -423,6 +424,14 @@ type ApplyWorkflowOperationsBodyRef5 = {
     serverId: string
     toolName: string
   } & Record<string, unknown>
+  usageControl?: 'auto' | 'force' | 'none'
+}
+
+type ApplyWorkflowOperationsBodyRef6 = {
+  type: 'mcp-server-advanced'
+  params: {
+    serverId: string
+  }
   usageControl?: 'auto' | 'force' | 'none'
 }
 

@@ -5,18 +5,20 @@ import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  discoverTools: vi.fn(),
   executeTool: vi.fn(),
+  loadAuthProvider: vi.fn(),
   loadContext: vi.fn(),
   loadRuntime: vi.fn(),
   requireCredentialAccess: vi.fn(),
   resolvePermission: vi.fn(),
-  saveTokens: vi.fn(),
+  saveToolSnapshot: vi.fn(),
 }))
 
 vi.mock('@/lib/credentials/managed-mcp', () => ({
   loadManagedMcpCredentialApplicationContext: mocks.loadContext,
   loadManagedMcpRuntimeCredential: mocks.loadRuntime,
-  saveManagedMcpRuntimeTokens: mocks.saveTokens,
+  saveManagedMcpToolSnapshot: mocks.saveToolSnapshot,
 }))
 
 vi.mock('@/lib/credential-groups/application/authorization', () => ({
@@ -24,16 +26,20 @@ vi.mock('@/lib/credential-groups/application/authorization', () => ({
 }))
 
 vi.mock('@/lib/mcp/service', () => ({
-  mcpService: { executeManagedMcpTool: mocks.executeTool },
+  mcpService: {
+    discoverManagedMcpTools: mocks.discoverTools,
+    executeManagedMcpTool: mocks.executeTool,
+  },
 }))
 
 vi.mock('@/lib/mcp/oauth', () => ({
-  getOrCreateOauthRow: vi.fn(),
-  loadPreregisteredClient: vi.fn(),
+  withMcpOauthRefreshLock: vi.fn((_credentialId: string, operation: () => Promise<unknown>) =>
+    operation()
+  ),
 }))
 
-vi.mock('@/lib/mcp/oauth/managed-provider', () => ({
-  ManagedMcpOauthProvider: class ManagedMcpOauthProvider {},
+vi.mock('@/lib/mcp/application/managed-auth-provider', () => ({
+  loadManagedMcpAuthProvider: mocks.loadAuthProvider,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -92,6 +98,9 @@ describe('executeManagedMcpToolUseCase', () => {
     })
     mocks.requireCredentialAccess.mockResolvedValue(undefined)
     mocks.resolvePermission.mockResolvedValue('read')
+    mocks.loadAuthProvider.mockResolvedValue({})
+    mocks.discoverTools.mockResolvedValue([])
+    mocks.executeTool.mockResolvedValue({ content: [{ type: 'text', text: 'done' }] })
   })
 
   it('does not load token material when Credential Group policy denies execution', async () => {
@@ -123,16 +132,8 @@ describe('executeManagedMcpToolUseCase', () => {
     expect(mocks.executeTool).not.toHaveBeenCalled()
   })
 
-  it('fails fast when a persisted tool schema is null', async () => {
-    mocks.loadRuntime.mockResolvedValueOnce({
-      credentialId: context.credentialId,
-      mcpServerId: context.mcpServerId,
-      mcpServerName: context.mcpServerName,
-      workspaceId: context.workspaceId,
-      tokenVersion: 'encrypted-token-version-1',
-      tokens: { access_token: 'access-token' },
-      tools: [{ name: 'search_transcripts', inputSchema: null }],
-    })
+  it('fails fast when the live tool schema is invalid', async () => {
+    mocks.discoverTools.mockResolvedValueOnce([{ name: 'search_transcripts', inputSchema: null }])
 
     await expect(
       executeManagedMcpToolUseCase.execute({
@@ -150,5 +151,66 @@ describe('executeManagedMcpToolUseCase', () => {
     })
 
     expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
+  it('discovers and executes with the explicitly selected managed connection', async () => {
+    const signal = new AbortController().signal
+    mocks.discoverTools.mockResolvedValueOnce([
+      {
+        name: 'search_transcripts',
+        description: 'Search Fireflies transcripts',
+        inputSchema: {
+          type: 'object',
+          required: ['query'],
+          properties: { query: { type: 'string' } },
+        },
+      },
+    ])
+
+    const result = await executeManagedMcpToolUseCase.execute({
+      principal,
+      input: {
+        workspaceId: context.workspaceId,
+        credentialId: context.credentialId,
+        toolName: 'search_transcripts',
+        arguments: { query: 'onboarding' },
+        signal,
+      },
+    })
+
+    expect(result).toEqual({
+      success: true,
+      output: { content: [{ type: 'text', text: 'done' }] },
+    })
+    expect(mocks.loadRuntime).toHaveBeenCalledWith(context.credentialId, context.workspaceId)
+    expect(mocks.discoverTools).toHaveBeenCalledWith(
+      context.mcpServerId,
+      context.workspaceId,
+      {},
+      signal,
+      { requireComplete: true }
+    )
+    expect(mocks.saveToolSnapshot).toHaveBeenCalledWith(context.credentialId, [
+      {
+        name: 'search_transcripts',
+        description: 'Search Fireflies transcripts',
+        inputSchema: {
+          type: 'object',
+          required: ['query'],
+          properties: { query: { type: 'string' } },
+        },
+      },
+    ])
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionId: context.credentialId,
+        serverId: context.mcpServerId,
+        workspaceId: context.workspaceId,
+        toolCall: {
+          name: 'search_transcripts',
+          arguments: { query: 'onboarding' },
+        },
+      })
+    )
   })
 })

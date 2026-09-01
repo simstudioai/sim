@@ -7,7 +7,7 @@ import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
   loadManagedMcpCredentialApplicationContext,
   loadManagedMcpRuntimeCredential,
-  saveManagedMcpRuntimeTokens,
+  saveManagedMcpToolSnapshot,
 } from '@/lib/credentials/managed-mcp'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
@@ -16,8 +16,8 @@ import {
   transformToolResult,
   validateToolArguments,
 } from '@/lib/mcp/application/execute-tool'
-import { getOrCreateOauthRow, loadPreregisteredClient } from '@/lib/mcp/oauth'
-import { ManagedMcpOauthProvider } from '@/lib/mcp/oauth/managed-provider'
+import { loadManagedMcpAuthProvider } from '@/lib/mcp/application/managed-auth-provider'
+import { withMcpOauthRefreshLock } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpTool, McpToolCall, McpToolSchema } from '@/lib/mcp/types'
 
@@ -55,14 +55,31 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
   async execute({ input, context }): Promise<ExecuteMcpToolResult> {
     input.signal?.throwIfAborted()
     const runtime = await loadManagedMcpRuntimeCredential(context.credentialId, context.workspaceId)
-    const snapshot = runtime.tools.find((tool) => tool.name === input.toolName)
-    if (!snapshot) {
+    const tools = await withMcpOauthRefreshLock(runtime.credentialId, async () =>
+      mcpService.discoverManagedMcpTools(
+        runtime.mcpServerId,
+        runtime.workspaceId,
+        await loadManagedMcpAuthProvider(runtime.credentialId, runtime.workspaceId),
+        input.signal,
+        { requireComplete: true }
+      )
+    )
+    await saveManagedMcpToolSnapshot(
+      runtime.credentialId,
+      tools.map((tool) => ({
+        name: tool.name,
+        ...(tool.description ? { description: tool.description } : {}),
+        inputSchema: tool.inputSchema,
+      }))
+    )
+    const discovered = tools.find((tool) => tool.name === input.toolName)
+    if (!discovered) {
       throw new OrchestrationError('not_found', 'Tool not found on the managed MCP connection')
     }
     const tool: McpTool = {
-      name: snapshot.name,
-      ...(snapshot.description ? { description: snapshot.description } : {}),
-      inputSchema: requireToolSchema(snapshot.inputSchema),
+      name: discovered.name,
+      ...(discovered.description ? { description: discovered.description } : {}),
+      inputSchema: requireToolSchema(discovered.inputSchema),
       serverId: runtime.credentialId,
       serverName: runtime.mcpServerName,
     }
@@ -81,33 +98,7 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       extraHeaders,
       signal: input.signal,
       timeoutMs: input.timeoutMs,
-      async loadAuthProvider() {
-        const current = await loadManagedMcpRuntimeCredential(
-          context.credentialId,
-          context.workspaceId
-        )
-        const clientRow = await getOrCreateOauthRow({
-          mcpServerId: current.mcpServerId,
-          workspaceId: current.workspaceId,
-        })
-        const preregistered = await loadPreregisteredClient(current.mcpServerId)
-        let tokenVersion: string | null = current.tokenVersion
-        return new ManagedMcpOauthProvider({
-          clientRow,
-          preregistered,
-          tokens: current.tokens,
-          async onSaveTokens(tokens) {
-            if (!tokenVersion) {
-              throw new Error('Managed MCP credential grant is no longer active')
-            }
-            tokenVersion = await saveManagedMcpRuntimeTokens(
-              current.credentialId,
-              tokens,
-              tokenVersion
-            )
-          },
-        })
-      },
+      loadAuthProvider: () => loadManagedMcpAuthProvider(context.credentialId, context.workspaceId),
     })
     input.signal?.throwIfAborted()
     return transformToolResult(providerResult)

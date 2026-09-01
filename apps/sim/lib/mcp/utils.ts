@@ -34,6 +34,13 @@ export function generateManagedMcpConnectionId(): string {
   return `${MANAGED_MCP_CONNECTION_PREFIX}${generateShortId(MANAGED_MCP_RANDOM_ID_LENGTH)}`
 }
 
+export function isManagedMcpConnectionId(value: string): boolean {
+  return (
+    value.startsWith(MANAGED_MCP_CONNECTION_PREFIX) &&
+    value.length === MANAGED_MCP_CONNECTION_ID_LENGTH
+  )
+}
+
 /**
  * Sanitizes a string by removing invisible Unicode characters that cause HTTP header errors.
  * Handles characters like U+2028 (Line Separator) that can be introduced via copy-paste.

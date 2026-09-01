@@ -64,6 +64,7 @@ interface DelegatedPrincipalBase {
     executionId?: string
     credentialId?: string
     credentialGroupId?: string
+    mcpServerId?: string
   }
 }
 
@@ -231,6 +232,7 @@ function parseResourceScope(value: unknown): DelegatedPrincipal['resourceScope']
     'executionId',
     'credentialId',
     'credentialGroupId',
+    'mcpServerId',
   ] as const
   requireExactKeys(scope, [], keys)
   const parsed: NonNullable<DelegatedPrincipal['resourceScope']> = {}

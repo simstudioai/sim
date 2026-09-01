@@ -365,3 +365,24 @@ export async function saveManagedMcpRuntimeTokens(
     return encryptedOauthTokenSet
   })
 }
+
+/** Replaces the editor snapshot only after a complete live tools/list succeeds. */
+export async function saveManagedMcpToolSnapshot(
+  credentialId: string,
+  tools: ManagedMcpToolSnapshot[]
+): Promise<void> {
+  const updated = await db
+    .update(credential)
+    .set({ mcpTools: tools, mcpToolsRefreshedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(credential.id, credentialId),
+        eq(credential.type, 'managed_mcp'),
+        eq(credential.managedOauthStatus, 'active')
+      )
+    )
+    .returning({ id: credential.id })
+  if (updated.length !== 1) {
+    throw new ManagedMcpCredentialError('Managed MCP credential grant changed', 401)
+  }
+}

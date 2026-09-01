@@ -1493,6 +1493,33 @@ describe('collectUnresolvedAgentToolReferences', () => {
     expect(mockValidateSelectorIds).toHaveBeenCalledWith('mcp-server-selector', 'srv_missing', CTX)
   })
 
+  it('defers an advanced MCP server reference until workflow execution', async () => {
+    const state = {
+      blocks: {
+        a1: {
+          type: 'agent',
+          subBlocks: {
+            tools: {
+              value: [
+                {
+                  type: 'mcp-server-advanced',
+                  params: {
+                    serverId: '<listmcpconnections.mcpConnections[0].credentialId>',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }
+
+    const refs = await collectUnresolvedAgentToolReferences(state, CTX)
+
+    expect(refs).toHaveLength(0)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+  })
+
   it('flags a skill whose skillId does not resolve', async () => {
     mockGetSkillById.mockResolvedValue(null)
     const state = {

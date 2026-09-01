@@ -33,6 +33,7 @@ const {
   mockAreModelSafeWorkspaceFileKeys,
   mockBuildAuthHeaders,
   mockBuildAPIUrl,
+  mockDiscoverMcpServerToolsAsExecutor,
   mockExtractAPIErrorMessage,
   mockGenerateId,
   mockReadUserFileContent,
@@ -40,6 +41,7 @@ const {
   mockAreModelSafeWorkspaceFileKeys: vi.fn(),
   mockBuildAuthHeaders: vi.fn(),
   mockBuildAPIUrl: vi.fn(),
+  mockDiscoverMcpServerToolsAsExecutor: vi.fn(),
   mockExtractAPIErrorMessage: vi.fn(),
   mockGenerateId: vi.fn(),
   mockReadUserFileContent: vi.fn(),
@@ -49,6 +51,10 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
   areModelSafeWorkspaceFileKeys: mockAreModelSafeWorkspaceFileKeys,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
     'File cannot be sent to a model because its secret provenance is unavailable',
+}))
+
+vi.mock('@/lib/internal/mcp/discover-tools', () => ({
+  discoverMcpServerToolsAsExecutor: mockDiscoverMcpServerToolsAsExecutor,
 }))
 
 vi.mock('@/executor/utils/http', () => ({
@@ -980,6 +986,48 @@ describe('MothershipBlockHandler', () => {
       },
     ])
     expect(body.contexts).toEqual([{ kind: 'skill', skillId: 'skill-1', label: 'sales-playbook' }])
+  })
+
+  it('expands an explicitly selected managed MCP connection for the request', async () => {
+    const credentialId = 'mcp-cg-123456789012345678901'
+    mockDiscoverMcpServerToolsAsExecutor.mockResolvedValueOnce([
+      {
+        name: 'search_transcripts',
+        description: 'Search transcripts',
+        inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+        serverId: credentialId,
+        serverName: 'Fireflies',
+      },
+    ])
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+
+    await handler.execute(context, block, {
+      prompt: 'Search Fireflies',
+      tools: [
+        {
+          type: 'mcp-server-advanced',
+          params: { serverId: credentialId },
+          usageControl: 'force',
+        },
+      ],
+    })
+
+    expect(mockDiscoverMcpServerToolsAsExecutor).toHaveBeenCalledWith(
+      expect.objectContaining({ serverId: credentialId, workspaceId: context.workspaceId })
+    )
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(String(options.body)).mcpTools).toEqual([
+      {
+        type: 'mcp',
+        usageControl: 'force',
+        schema: { type: 'object', properties: { query: { type: 'string' } } },
+        params: {
+          serverId: credentialId,
+          toolName: 'search_transcripts',
+          serverName: 'Fireflies',
+        },
+      },
+    ])
   })
 
   it('does not scan arbitrary Mothership metadata, attachment names, or payloads', async () => {

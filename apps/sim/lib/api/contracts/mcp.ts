@@ -143,6 +143,7 @@ export const mcpServerSchema = z
     deletedAt: optionalDateStringFromNullableSchema,
     oauthClientId: optionalStringFromNullableSchema,
     hasOauthClientSecret: z.boolean().optional(),
+    credentialGroupId: optionalStringFromNullableSchema,
   })
   .passthrough()
 export type McpServer = z.output<typeof mcpServerSchema>

@@ -248,6 +248,21 @@ describe('McpClient notification handler', () => {
     expect(tools.map((t) => t.name)).toEqual(['a'])
   })
 
+  it('fails instead of returning partial tools when complete discovery is required', async () => {
+    mockSdkListTools
+      .mockResolvedValueOnce({ tools: [{ name: 'a' }], nextCursor: 'c1' })
+      .mockRejectedValueOnce(new Error('page 2 blew up'))
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+    await expect(client.listTools(undefined, { requireComplete: true })).rejects.toThrow(
+      'page 2 blew up'
+    )
+  })
+
   it('keeps an empty partial (does not throw) when page one succeeds but a later page fails', async () => {
     // Page one is valid but empty with a cursor; page two fails. Page one succeeded, so
     // discovery must not fail the server — it returns [] rather than throwing.

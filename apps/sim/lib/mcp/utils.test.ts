@@ -11,6 +11,7 @@ import {
   createMcpToolId,
   generateManagedMcpConnectionId,
   generateMcpServerId,
+  isManagedMcpConnectionId,
   MCP_CLIENT_CONSTANTS,
   MCP_CONSTANTS,
   parseMcpToolId,
@@ -457,5 +458,16 @@ describe('parseMcpToolTarget', () => {
   it('rejects a managed connection ID without a tool name', () => {
     const credentialId = generateManagedMcpConnectionId()
     expect(() => parseMcpToolTarget(credentialId)).toThrow('Invalid managed MCP tool ID format')
+  })
+})
+
+describe('isManagedMcpConnectionId', () => {
+  it('accepts only a complete managed connection ID', () => {
+    const credentialId = generateManagedMcpConnectionId()
+
+    expect(isManagedMcpConnectionId(credentialId)).toBe(true)
+    expect(isManagedMcpConnectionId(`${credentialId}-tool`)).toBe(false)
+    expect(isManagedMcpConnectionId('mcp-cg-short')).toBe(false)
+    expect(isManagedMcpConnectionId('mcp-shared')).toBe(false)
   })
 })

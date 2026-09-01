@@ -4,7 +4,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
-  mcpServerDelegationPolicy,
+  mcpServerExecutionDelegationPolicy,
   requireMcpCredentialUserId,
 } from '@/lib/mcp/application/authorization'
 import { resolveMcpServerContext } from '@/lib/mcp/application/context'
@@ -131,9 +131,15 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.executeTool,
   resolveContext: ({ input }: { input: ExecuteMcpToolInput }) =>
     resolveMcpServerContext(input.workspaceId, input.serverId),
-  authorizationOptions: { delegation: mcpServerDelegationPolicy },
+  authorizationOptions: { delegation: mcpServerExecutionDelegationPolicy },
   async execute({ principal, input, context }): Promise<ExecuteMcpToolResult> {
     input.signal?.throwIfAborted()
+    if (context.server.credentialGroupId) {
+      throw new OrchestrationError(
+        'conflict',
+        'Credential Group MCP servers require an explicit managed connection ID'
+      )
+    }
     const userId = requireMcpCredentialUserId(principal)
     await assertPermissionsAllowed({
       userId,

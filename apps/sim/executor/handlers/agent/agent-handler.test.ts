@@ -3701,6 +3701,74 @@ describe('AgentBlockHandler', () => {
       )
     })
 
+    it('expands every live tool from an explicitly selected managed MCP connection', async () => {
+      const credentialId = 'mcp-cg-123456789012345678901'
+      mockDiscoverMcpServerToolsAsExecutor.mockResolvedValue([
+        {
+          name: 'search_transcripts',
+          description: 'Search transcripts',
+          inputSchema: {
+            type: 'object',
+            properties: { query: { type: 'string' } },
+            required: ['query'],
+          },
+          serverId: credentialId,
+          serverName: 'Fireflies',
+        },
+        {
+          name: 'get_transcript',
+          description: 'Get one transcript',
+          inputSchema: {
+            type: 'object',
+            properties: { transcriptId: { type: 'string' } },
+            required: ['transcriptId'],
+          },
+          serverId: credentialId,
+          serverName: 'Fireflies',
+        },
+      ])
+
+      await handler.execute(
+        {
+          ...mockContext,
+          userId: 'permission-check-user',
+          workspaceId: 'test-workspace-123',
+          workflowId: 'test-workflow-456',
+        },
+        mockBlock,
+        {
+          model: 'gpt-4o',
+          userPrompt: 'Use Fireflies',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'mcp-server-advanced',
+              params: { serverId: credentialId },
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+      )
+
+      expect(mockDiscoverMcpServerToolsAsExecutor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          serverId: credentialId,
+          workspaceId: 'test-workspace-123',
+        })
+      )
+      const providerTools = mockExecuteProviderRequest.mock.calls[0][1].tools
+      expect(providerTools).toEqual([
+        expect.objectContaining({
+          id: `${credentialId}-search_transcripts`,
+          params: {},
+        }),
+        expect.objectContaining({
+          id: `${credentialId}-get_transcript`,
+          params: {},
+        }),
+      ])
+    })
+
     describe('customToolId resolution - DB as source of truth', () => {
       const staleInlineSchema = {
         function: {

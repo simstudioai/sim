@@ -68,6 +68,7 @@ type ResolvedSecretTraceProvenanceCallback = (provenance: ResolvedSecretTracePro
 
 interface McpRequestOptions {
   signal?: AbortSignal
+  requireComplete?: boolean
 }
 
 interface McpToolExecutionOptions extends McpRequestOptions {
@@ -494,14 +495,18 @@ class McpService {
     serverId: string,
     workspaceId: string,
     authProvider: OAuthClientProvider,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options: { requireComplete?: boolean } = {}
   ): Promise<McpTool[]> {
     const config = await this.getServerConfig(serverId, workspaceId)
     if (!config) throw new Error('Managed MCP server is unavailable')
     return this.withServerClient(
       { key: '', serverId, allowPool: false },
       () => this.createManagedOauthClient(config, authProvider, signal),
-      (client) => client.listTools(signal)
+      (client) =>
+        options.requireComplete
+          ? client.listTools(signal, { requireComplete: true })
+          : client.listTools(signal)
     )
   }
 
@@ -596,7 +601,8 @@ class McpService {
     userId: string,
     workspaceId: string,
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    requireComplete = false
   ): Promise<McpTool[]> {
     for (let attempt = 0; ; attempt++) {
       signal?.throwIfAborted()
@@ -622,7 +628,9 @@ class McpService {
               workspaceId,
               onResolvedSecretTraceProvenance
             )
-            return client.listTools(signal)
+            return requireComplete
+              ? client.listTools(signal, { requireComplete: true })
+              : client.listTools(signal)
           }
         )
       } catch (error) {
@@ -1125,18 +1133,19 @@ class McpService {
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
     options: McpRequestOptions = {}
   ): Promise<McpTool[]> {
-    if (onResolvedSecretTraceProvenance || options.signal) {
+    if (onResolvedSecretTraceProvenance || options.signal || options.requireComplete) {
       return this.discoverServerToolsImpl(
         userId,
         serverId,
         workspaceId,
         refresh,
         createInvocationProvenanceReporter(onResolvedSecretTraceProvenance),
-        options.signal
+        options.signal,
+        options.requireComplete
       )
     }
 
-    const inflightKey = `${workspaceId}:${serverId}:${userId}:${refresh}`
+    const inflightKey = `${workspaceId}:${serverId}:${userId}:${refresh}:partial-ok`
     const existing = this.inflightServerDiscovery.get(inflightKey)
     if (existing) return existing
 
@@ -1146,7 +1155,8 @@ class McpService {
       workspaceId,
       refresh,
       undefined,
-      undefined
+      undefined,
+      false
     ).finally(() => {
       this.inflightServerDiscovery.delete(inflightKey)
     })
@@ -1160,14 +1170,15 @@ class McpService {
     workspaceId: string,
     refresh: McpDiscoveryRefresh,
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    requireComplete = false
   ): Promise<McpTool[]> {
     signal?.throwIfAborted()
     const requestId = generateRequestId()
     const discoveryStartedAt = new Date()
     const maxRetries = 2
 
-    if (refresh === 'cache-aside') {
+    if (refresh === 'cache-aside' && !requireComplete) {
       try {
         const cached = await this.cacheAdapter.get(serverCacheKey(workspaceId, serverId))
         if (cached) {
@@ -1203,7 +1214,8 @@ class McpService {
           userId,
           workspaceId,
           onResolvedSecretTraceProvenance,
-          signal
+          signal,
+          requireComplete
         )
         logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
         await Promise.allSettled([

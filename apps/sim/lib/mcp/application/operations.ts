@@ -43,6 +43,7 @@ export const mcpServerOperations = {
     id: 'mcp_servers.managed_connections.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'mcp_tools.use',
     principalKinds: ['session'],
   }),
   discoverTools: defineWorkspaceOperation({

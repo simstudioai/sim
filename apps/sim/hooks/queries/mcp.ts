@@ -144,7 +144,10 @@ export function useMcpToolServers(workspaceId: string) {
   const managed = useManagedMcpCatalog(workspaceId)
   return useMemo(
     () => ({
-      data: [...(shared.data ?? []), ...(managed.data?.servers ?? [])],
+      data: [
+        ...(shared.data ?? []).filter((server) => !server.credentialGroupId),
+        ...(managed.data?.servers ?? []),
+      ],
       isLoading: shared.isLoading || managed.isLoading,
       error: shared.error ?? managed.error,
     }),
@@ -180,6 +183,7 @@ function isServerEligibleForDiscovery(server: McpServer, workspaceId: string): b
   return (
     server.enabled &&
     server.workspaceId === workspaceId &&
+    !server.credentialGroupId &&
     (server.authType !== 'oauth' || server.connectionStatus === 'connected')
   )
 }

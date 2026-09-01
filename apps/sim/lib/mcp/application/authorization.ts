@@ -1,6 +1,7 @@
 import { type Principal, resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
 import type { WorkspaceDelegationPolicy } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { McpServerContext } from '@/lib/mcp/application/context'
 
 export const MCP_SERVER_DELEGATION_AUDIENCE = 'sim:mcp-servers'
 
@@ -12,6 +13,14 @@ export const mcpServerDelegationPolicy = {
   workspaceOrganizationId: string | null
   allowPersonalApiKeys: boolean
 }>
+
+export const mcpServerExecutionDelegationPolicy = {
+  audience: MCP_SERVER_DELEGATION_AUDIENCE,
+  isWithinScope: (
+    principal: Extract<Principal, { kind: 'delegated' }>,
+    context: McpServerContext
+  ) => principal.resourceScope?.mcpServerId === context.server.id,
+} satisfies WorkspaceDelegationPolicy<McpServerContext>
 
 /**
  * The user whose MCP server credentials an operation presents.

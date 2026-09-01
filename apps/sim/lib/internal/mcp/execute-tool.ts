@@ -136,7 +136,7 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
           : MANAGED_MCP_DELEGATION_AUDIENCE,
       ...(target.kind === 'managed_connection'
         ? { resourceScope: { credentialId: target.credentialId } }
-        : {}),
+        : { resourceScope: { mcpServerId: target.serverId } }),
     })
     request.signal?.throwIfAborted()
     const subject = resolvePrincipalSubject(principal)
