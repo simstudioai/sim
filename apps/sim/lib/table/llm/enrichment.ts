@@ -146,7 +146,7 @@ Example order: [{"field":"${numberCol.name}","direction":"desc"}] for highest fi
 
 INSTRUCTIONS:
 1. Build the filter yourself from the user's question - do NOT ask for confirmation. If the question names no condition at all ("the 5 most recent rows"), omit filter entirely and use order and limit instead of inventing one
-2. A single condition is a plain object: {"field":"<column>","op":"<operator>","value":<value>}
+2. A single condition is a plain object: {"field":"<column>","op":"<operator>","value":<value>}; use an array value for in/nin and omit value for isNull, isNotNull, isEmpty, and isNotEmpty
 3. For multiple conditions wrap them in {"all":[...]} for AND or {"any":[...]} for OR; groups nest
 4. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty
 ${wildcardRule}
