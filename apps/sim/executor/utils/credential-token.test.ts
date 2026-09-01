@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
+import { bindPrincipalExecutionMetadata } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ExecutorDelegationOrigin } from '@/executor/types'
 
 const { mockBindExecutorManagedOAuthDelegation, mockResolveCredentialAccessToken } = vi.hoisted(
   () => ({
@@ -21,12 +21,14 @@ vi.mock('@/lib/credentials/application/managed-oauth-delegation', () => ({
 
 import { resolveExecutorCredentialToken } from '@/executor/utils/credential-token'
 
-const ORIGIN: ExecutorDelegationOrigin = {
-  subjectUserId: 'user-1',
-  workflowId: 'wf-1',
-  executionId: 'exec-1',
-  currentWorkflow: { workflowId: 'wf-1' },
-} as ExecutorDelegationOrigin
+const PRINCIPAL = bindPrincipalExecutionMetadata(
+  { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+  {
+    executionId: 'exec-1',
+    rootWorkflowId: 'wf-1',
+    currentWorkflow: { workflowId: 'wf-1', mode: 'draft' },
+  }
+)
 
 describe('resolveExecutorCredentialToken', () => {
   beforeEach(() => {
@@ -78,32 +80,35 @@ describe('resolveExecutorCredentialToken', () => {
     expect(mockResolveCredentialAccessToken.mock.calls[1][0].callerUserId).toBe('user-1')
   })
 
-  it('wires the managed delegation binder only when the run carries an origin', async () => {
-    mockBindExecutorManagedOAuthDelegation.mockResolvedValue({ kind: 'delegated' })
+  it('wires the managed delegation binder only when the run carries a runtime principal', async () => {
+    mockBindExecutorManagedOAuthDelegation.mockResolvedValue(PRINCIPAL)
 
     await resolveExecutorCredentialToken({
       requestId: 'req-1',
       credentialId: 'cred-1',
       userId: 'user-1',
-      executorDelegationOrigin: ORIGIN,
+      principal: PRINCIPAL,
     })
 
     const input = mockResolveCredentialAccessToken.mock.calls[0][0]
     expect(input.resolveManagedPrincipal).toBeTypeOf('function')
     await input.resolveManagedPrincipal('managed-1')
-    expect(mockBindExecutorManagedOAuthDelegation).toHaveBeenCalledWith(ORIGIN, 'managed-1')
+    expect(mockBindExecutorManagedOAuthDelegation).toHaveBeenCalledWith(PRINCIPAL, 'managed-1')
   })
 
-  it('fails before dispatch when the origin lacks current workflow authority', async () => {
-    await expect(
-      resolveExecutorCredentialToken({
-        requestId: 'req-1',
-        credentialId: 'cred-1',
-        userId: 'user-1',
-        executorDelegationOrigin: { ...ORIGIN, currentWorkflow: undefined },
-      })
-    ).rejects.toThrow('Managed credential delegation is missing current workflow authority')
-    expect(mockResolveCredentialAccessToken).not.toHaveBeenCalled()
+  it('passes the runtime principal through without inferring workflow authority', async () => {
+    const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+
+    await resolveExecutorCredentialToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      principal,
+    })
+
+    const input = mockResolveCredentialAccessToken.mock.calls[0][0]
+    await input.resolveManagedPrincipal('managed-1')
+    expect(mockBindExecutorManagedOAuthDelegation).toHaveBeenCalledWith(principal, 'managed-1')
   })
 
   it('throws the executeTool error contract with the tool label on failure', async () => {

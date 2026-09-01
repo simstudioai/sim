@@ -3,6 +3,7 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 const mocks = vi.hoisted(() => ({
@@ -42,7 +43,6 @@ vi.mock('@/lib/workspace-files/application/search-workspace-file-content', () =>
 
 import { executeFileTool } from '@/lib/internal/file/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
-import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 const MANAGE_INPUTS = {
   file_append: { operation: 'append', fileName: 'notes.txt', content: 'next' },
@@ -56,6 +56,7 @@ const MANAGE_INPUTS = {
 } as const
 
 const PARSER_TOOL_IDS = ['file_fetch', 'file_parser', 'file_parser_v2', 'file_parser_v3'] as const
+const PRINCIPAL = createTestRuntimePrincipal()
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -105,13 +106,7 @@ function request(
       userId: 'user-1',
       workspaceId: 'workspace-1',
       billingAttribution: BILLING_ATTRIBUTION,
-      executorDelegationOrigin: {
-        subjectUserId: 'user-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
-      },
+      principal: PRINCIPAL,
     },
     requestId: 'request-1',
     ...overrides,
@@ -121,12 +116,7 @@ function request(
 describe('executeFileTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.createPrincipal.mockResolvedValue({
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
+    mocks.createPrincipal.mockResolvedValue(PRINCIPAL)
     mocks.executeManage.mockResolvedValue(Response.json({ success: true }))
     mocks.executeParser.mockResolvedValue(Response.json({ success: true }))
     mocks.searchContent.mockResolvedValue(SEARCH_RESULT)
@@ -147,7 +137,7 @@ describe('executeFileTool', () => {
       },
     })
     expect(mocks.searchContent).toHaveBeenCalledWith({
-      principal: expect.objectContaining({ serviceId: 'executor' }),
+      principal: PRINCIPAL,
       input: { workspaceId: 'workspace-1', query: 'needle', maxResults: 25, signal: undefined },
     })
     expect(mocks.executeManage).not.toHaveBeenCalled()
@@ -172,7 +162,7 @@ describe('executeFileTool', () => {
       })
     )
     expect(mocks.getProvenance).toHaveBeenCalledWith(
-      expect.objectContaining({ serviceId: 'executor' }),
+      PRINCIPAL,
       'workspace-1',
       expect.arrayContaining([
         expect.objectContaining({
@@ -294,17 +284,17 @@ describe('executeFileTool', () => {
 
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context: executionRequest.context,
-      audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
     })
   })
 
-  it('uses the delegation origin as the file authorization subject in child workflows', async () => {
-    mocks.createPrincipal.mockResolvedValueOnce({
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: 'invoking-user',
-      workspaceId: 'workspace-1',
+  it('uses the preserved runtime actor as the file authorization subject in child workflows', async () => {
+    const childPrincipal = createTestRuntimePrincipal({
+      principal: { kind: 'session', userId: 'invoking-user', sessionId: 'session-invoking' },
+      executionId: 'execution-parent',
+      rootWorkflowId: 'workflow-parent',
+      currentWorkflow: { workflowId: 'workflow-child', mode: 'draft' },
     })
+    mocks.createPrincipal.mockResolvedValueOnce(childPrincipal)
     await executeFileTool(
       request('file_get', MANAGE_INPUTS.file_get, {
         context: {
@@ -312,11 +302,7 @@ describe('executeFileTool', () => {
           executionId: 'execution-child',
           userId: 'workflow-owner',
           workspaceId: 'workspace-1',
-          executorDelegationOrigin: {
-            subjectUserId: 'invoking-user',
-            workflowId: 'workflow-parent',
-            executionId: 'execution-parent',
-          },
+          principal: childPrincipal,
         },
       })
     )
@@ -331,35 +317,20 @@ describe('executeFileTool', () => {
   })
 
   it('uses compatibility attribution without replacing an actorless deployed principal', async () => {
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-      issuedAt: new Date(),
-      expiresAt: new Date(Date.now() + 60_000),
-      delegationContext: {
-        kind: 'workflow_execution' as const,
+    const principal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        principal: {
-          kind: 'system' as const,
-          serviceId: 'schedule' as const,
-          workspaceId: 'workspace-1',
-          workflowId: 'workflow-1',
-        },
-        currentWorkflow: {
-          workflowId: 'workflow-1',
-          mode: 'deployment' as const,
-          deploymentVersionId: 'deployment-1',
-        },
-        compatibilityActor: {
-          kind: 'legacy_execution_user' as const,
-          userId: 'legacy-actor',
-        },
       },
-    }
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-1',
+      },
+      compatibilityActorUserId: 'legacy-actor',
+    })
     mocks.createPrincipal.mockResolvedValueOnce(principal)
 
     await executeFileTool(
@@ -370,12 +341,7 @@ describe('executeFileTool', () => {
           userId: 'legacy-actor',
           workspaceId: 'workspace-1',
           billingAttribution: BILLING_ATTRIBUTION,
-          executorDelegationOrigin: {
-            workflowId: 'workflow-1',
-            executionId: 'execution-1',
-            principal: principal.delegationContext.principal,
-            currentWorkflow: principal.delegationContext.currentWorkflow,
-          },
+          principal,
         },
       })
     )
@@ -398,7 +364,7 @@ describe('executeFileTool', () => {
           ...createExecutionContext({ workflowId: 'workflow-1' }),
           workspaceId: 'workspace-1',
           userId: undefined,
-          executorDelegationOrigin: undefined,
+          principal: undefined,
         },
       })
     )

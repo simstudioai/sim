@@ -1,9 +1,10 @@
 /**
  * @vitest-environment node
  */
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
@@ -35,34 +36,16 @@ function request(): NextRequest {
   })
 }
 
-function executorPrincipal(
-  originalPrincipal: NonNullable<
-    WorkflowExecutionDelegatedPrincipal['delegationContext']
-  >['principal']
-): WorkflowExecutionDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    workspaceId: 'workspace-1',
-    delegationId: 'executor-1',
-    audience: 'sim:knowledge',
-    issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-    expiresAt: new Date('2099-01-01T00:00:00.000Z'),
-    delegationContext: {
-      kind: 'workflow_execution',
+function executorPrincipal(originalPrincipal: WorkflowExecutionPrincipal) {
+  return createTestRuntimePrincipal({
+    principal: originalPrincipal,
+    currentWorkflow: {
       workflowId: 'workflow-1',
-      currentWorkflow: {
-        workflowId: 'workflow-1',
-        mode: 'deployment',
-        deploymentVersionId: 'deployment-1',
-      },
-      compatibilityActor: {
-        kind: 'legacy_execution_user',
-        userId: 'execution-billing-actor-1',
-      },
-      ...(originalPrincipal ? { principal: originalPrincipal } : {}),
+      mode: 'deployment',
+      deploymentVersionId: 'deployment-1',
     },
-  }
+    compatibilityActorUserId: 'execution-billing-actor-1',
+  })
 }
 
 describe('internal Knowledge execution attribution', () => {
@@ -99,11 +82,11 @@ describe('internal Knowledge execution attribution', () => {
     const executor = executorPrincipal(principal)
 
     await expect(
-      resolveInternalKnowledgeBillingAttribution(request(), executor, 'workspace-1')
+      resolveInternalKnowledgeBillingAttribution(request(), executor, 'workspace-1', 'executor_jwt')
     ).resolves.toEqual(BILLING_ATTRIBUTION)
-    expect(internalKnowledgeProvenanceUserId(request().headers, executor, 'workspace-1')).toBe(
-      'execution-billing-actor-1'
-    )
+    expect(
+      internalKnowledgeProvenanceUserId(request().headers, executor, 'workspace-1', 'executor_jwt')
+    ).toBe('execution-billing-actor-1')
     expect(
       resolveKnowledgeAttributedUserId(executor, {
         workspaceId: 'workspace-1',
@@ -123,7 +106,12 @@ describe('internal Knowledge execution attribution', () => {
     })
 
     await expect(
-      resolveInternalKnowledgeBillingAttribution(request(), principal, 'workspace-2')
+      resolveInternalKnowledgeBillingAttribution(
+        request(),
+        principal,
+        'workspace-2',
+        'executor_jwt'
+      )
     ).rejects.toThrow('does not match the authenticated request scope')
   })
 })

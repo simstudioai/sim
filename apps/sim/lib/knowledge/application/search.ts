@@ -228,11 +228,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       )
     }
     const userId = resolveKnowledgeAttributedUserId(principal, context)
-    const shouldMeter = !(
-      input.skipUsageBilling &&
-      principal.kind === 'delegated' &&
-      principal.serviceId === 'executor'
-    )
+    const shouldMeter = !(input.skipUsageBilling && principal.executionMetadata !== undefined)
     const billingAttribution =
       hasQuery && context.workspaceId
         ? input.resolveBillingAttribution

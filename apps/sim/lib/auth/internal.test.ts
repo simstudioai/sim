@@ -2,6 +2,11 @@
  * @vitest-environment node
  */
 
+import {
+  bindPrincipalExecutionMetadata,
+  enterPrincipalWorkflowExecution,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { resetEnvMock } from '@sim/testing'
 import { decodeJwt } from 'jose'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -48,74 +53,53 @@ describe('internal JWT claims', () => {
 })
 
 describe('internal executor delegation claims', () => {
-  it('round-trips a subject-bearing workflow execution delegation', async () => {
-    const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
+  const cases: Array<{
+    name: string
+    principal: WorkflowExecutionPrincipal
+    expectedSubject?: string
+  }> = [
+    {
+      name: 'manual session',
+      principal: { kind: 'session', userId: 'manual-user', sessionId: 'session-1' },
+      expectedSubject: 'manual-user',
+    },
+    {
+      name: 'personal API key',
+      principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key-1' },
+      expectedSubject: 'key-user',
+    },
+    {
+      name: 'workspace API key',
+      principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+    },
+    {
+      name: 'schedule',
       principal: {
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'user-1',
+        kind: 'system',
+        serviceId: 'schedule',
         workspaceId: 'workspace-1',
-        delegationId: 'copilot-1',
-        audience: 'sim:workflows',
-        issuedAt: new Date('2026-01-01T00:00:00.000Z'),
-        expiresAt: new Date('2026-01-01T00:05:00.000Z'),
+        workflowId: 'workflow-1',
       },
-    })
-
-    const delegation = await verifyInternalDelegationToken(token)
-
-    expect(delegation).toMatchObject({
-      serviceId: 'executor',
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      principal: expect.objectContaining({
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'user-1',
-      }),
-    })
-    expect(delegation.delegationId).toBeTruthy()
-    expect(delegation.issuedAt).toBeInstanceOf(Date)
-    expect(delegation.expiresAt.getTime()).toBeGreaterThan(delegation.issuedAt.getTime())
-  })
-
-  it('round-trips an actorless workspace-key delegation without inventing a user', async () => {
-    const token = await generateInternalDelegationToken({
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'key-1',
-      },
-    })
-
-    await expect(verifyInternalDelegationToken(token)).resolves.toMatchObject({
-      serviceId: 'executor',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'key-1',
-      },
-    })
-    expect(decodeJwt(token).sub).toBeUndefined()
-  })
-
-  it('round-trips an external webhook subject without inventing a Sim user', async () => {
-    const token = await generateInternalDelegationToken({
-      workflowId: 'workflow-1',
+    },
+    {
+      name: 'generic webhook',
       principal: {
         kind: 'system',
         serviceId: 'webhook',
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
-        webhookId: 'webhook-1',
+        webhookId: 'webhook-generic',
+        provider: 'generic',
+      },
+    },
+    {
+      name: 'Slack webhook',
+      principal: {
+        kind: 'system',
+        serviceId: 'webhook',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        webhookId: 'webhook-slack',
         provider: 'slack',
         subject: {
           kind: 'external_user',
@@ -124,102 +108,124 @@ describe('internal executor delegation claims', () => {
           subjectId: 'U123',
         },
       },
-    })
+    },
+    {
+      name: 'deployed API',
+      principal: {
+        kind: 'system',
+        serviceId: 'public_api',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+    },
+    {
+      name: 'deployed chat',
+      principal: {
+        kind: 'system',
+        serviceId: 'chat',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+    },
+  ]
 
-    const delegation = await verifyInternalDelegationToken(token)
-    expect(delegation.subjectUserId).toBeUndefined()
-    expect(delegation.principal).toMatchObject({
-      kind: 'system',
-      serviceId: 'webhook',
-      subject: { kind: 'external_user', tenantId: 'T123', subjectId: 'U123' },
+  it.each(cases)('round-trips the $name runtime principal unchanged', async (testCase) => {
+    const principal = bindPrincipalExecutionMetadata(testCase.principal, {
+      executionId: 'execution-1',
+      rootWorkflowId: 'workflow-1',
+      currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
     })
+    const token = await generateInternalDelegationToken({ principal })
+    const delegation = await verifyInternalDelegationToken(token)
+
+    expect(delegation.principal).toEqual(principal)
+    expect(decodeJwt(token).sub).toBe(testCase.expectedSubject)
+    expect(delegation.delegationId).toBeTruthy()
+    expect(delegation.issuedAt).toBeInstanceOf(Date)
+    expect(delegation.expiresAt.getTime()).toBeGreaterThan(delegation.issuedAt.getTime())
   })
 
-  it('round-trips the currently executing deployed workflow authority', async () => {
-    const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'root-workflow',
-      executionId: 'execution-1',
-      currentWorkflow: {
-        workflowId: 'child-workflow',
-        mode: 'deployment',
-        deploymentVersionId: 'deployment-version-1',
-      },
+  it('keeps the original actor and root execution while entering a deployed child', async () => {
+    const root = bindPrincipalExecutionMetadata(
+      { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      {
+        executionId: 'execution-1',
+        rootWorkflowId: 'root-workflow',
+        currentWorkflow: {
+          workflowId: 'root-workflow',
+          mode: 'deployment',
+          deploymentVersionId: 'root-version-1',
+        },
+      }
+    )
+    const child = enterPrincipalWorkflowExecution(root, {
+      workflowId: 'child-workflow',
+      mode: 'deployment',
+      deploymentVersionId: 'child-version-1',
     })
+    const token = await generateInternalDelegationToken({ principal: child })
 
     await expect(verifyInternalDelegationToken(token)).resolves.toMatchObject({
-      workflowId: 'root-workflow',
-      currentWorkflow: {
-        workflowId: 'child-workflow',
-        mode: 'deployment',
-        deploymentVersionId: 'deployment-version-1',
+      principal: {
+        kind: 'session',
+        userId: 'user-1',
+        sessionId: 'session-1',
+        executionMetadata: {
+          executionId: 'execution-1',
+          rootWorkflowId: 'root-workflow',
+          currentWorkflow: {
+            workflowId: 'child-workflow',
+            mode: 'deployment',
+            deploymentVersionId: 'child-version-1',
+          },
+        },
       },
     })
   })
 
-  it('refuses to issue current workflow authority without an execution binding', async () => {
+  it('refuses to issue a delegation without execution metadata', async () => {
     await expect(
       generateInternalDelegationToken({
-        subjectUserId: 'user-1',
-        workflowId: 'root-workflow',
-        currentWorkflow: { workflowId: 'root-workflow', mode: 'draft' },
+        principal: {
+          kind: 'session',
+          userId: 'user-1',
+          sessionId: 'session-1',
+        } as never,
       })
-    ).rejects.toThrow('Internal delegation currentWorkflow requires executionId')
+    ).rejects.toThrow('missing execution metadata')
   })
 
   it('rejects malformed workflow authority instead of dropping its fields', async () => {
     await expect(
       generateInternalDelegationToken({
-        subjectUserId: 'user-1',
-        workflowId: 'root-workflow',
-        currentWorkflow: {
-          workflowId: 'child-workflow',
-          mode: 'draft',
-          unexpected: true,
+        principal: {
+          kind: 'session',
+          userId: 'user-1',
+          sessionId: 'session-1',
+          executionMetadata: {
+            executionId: 'execution-1',
+            rootWorkflowId: 'workflow-1',
+            currentWorkflow: {
+              workflowId: 'workflow-1',
+              mode: 'draft',
+              unexpected: true,
+            },
+          },
         } as never,
       })
-    ).rejects.toBeInstanceOf(InvalidInternalDelegationTokenError)
-  })
-
-  it('rejects laundering actorless or external principals into a Sim user subject', async () => {
-    await expect(
-      generateInternalDelegationToken({
-        subjectUserId: 'billing-owner',
-        workflowId: 'workflow-1',
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: 'workspace-1',
-          keyId: 'key-1',
-        },
-      })
-    ).rejects.toThrow('Actorless workflow principals cannot be represented as Sim users')
-
-    await expect(
-      generateInternalDelegationToken({
-        subjectUserId: 'billing-owner',
-        workflowId: 'workflow-1',
-        principal: {
-          kind: 'system',
-          serviceId: 'webhook',
-          workspaceId: 'workspace-1',
-          workflowId: 'workflow-1',
-          webhookId: 'webhook-1',
-          provider: 'slack',
-          subject: {
-            kind: 'external_user',
-            provider: 'slack',
-            tenantId: 'T123',
-            subjectId: 'U123',
-          },
-        },
-      })
-    ).rejects.toThrow('External workflow subjects cannot be represented as Sim users')
+    ).rejects.toThrow('unsupported field unexpected')
   })
 
   it('derives issued-at and expiry from one timestamp', async () => {
     const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
+      principal: bindPrincipalExecutionMetadata(
+        { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        {
+          executionId: 'execution-1',
+          rootWorkflowId: 'workflow-1',
+          currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
+        }
+      ),
     })
     const payload = decodeJwt(token)
 
@@ -227,15 +233,6 @@ describe('internal executor delegation claims', () => {
       throw new Error('Generated delegation token is missing numeric lifetime claims')
     }
     expect(payload.exp - payload.iat).toBe(5 * 60)
-  })
-
-  it('rejects missing delegation scope at issuance', async () => {
-    await expect(
-      generateInternalDelegationToken({
-        subjectUserId: 'user-1',
-        workflowId: ' ',
-      })
-    ).rejects.toThrow('Internal delegation workflowId must not be empty')
   })
 
   it('does not accept legacy subject or actorless tokens as executor delegations', async () => {

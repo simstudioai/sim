@@ -2,6 +2,8 @@
  * @vitest-environment node
  */
 import {
+  bindPrincipalExecutionMetadata,
+  enterPrincipalWorkflowExecution,
   PrincipalSubjectUserRequiredError,
   parsePrincipal,
   requirePrincipalSubjectUserId,
@@ -12,6 +14,7 @@ import {
   resolvePrincipalSubjectUserId,
   serializePrincipal,
   toPrincipalActor,
+  withPrincipalExecutionActor,
 } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 
@@ -56,7 +59,7 @@ describe('principal subject users', () => {
     expect(
       resolvePrincipalSubjectUserId({
         kind: 'delegated',
-        serviceId: 'executor',
+        serviceId: 'copilot',
         subjectUserId: 'delegated-user',
         workspaceId: 'workspace-1',
         delegationId: 'delegation-1',
@@ -81,21 +84,16 @@ describe('principal subject users', () => {
     ).toBeUndefined()
     expect(
       resolvePrincipalSubjectUserId({
-        kind: 'delegated',
-        serviceId: 'executor',
+        kind: 'system',
+        serviceId: 'schedule',
         workspaceId: 'workspace-1',
-        delegationId: 'delegation-1',
-        audience: 'sim:test',
-        issuedAt: new Date('2026-01-01T00:00:00Z'),
-        expiresAt: new Date('2026-01-01T00:05:00Z'),
-        delegationContext: {
-          kind: 'workflow_execution',
-          workflowId: 'workflow-1',
-          principal: {
-            kind: 'system',
-            serviceId: 'schedule',
-            workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionMetadata: {
+          executionId: 'execution-1',
+          rootWorkflowId: 'workflow-1',
+          currentWorkflow: {
             workflowId: 'workflow-1',
+            mode: 'draft',
           },
         },
       })
@@ -110,43 +108,54 @@ describe('principal subject users', () => {
   })
 
   it('resolves only a principal-bound compatibility actor for actorless execution', () => {
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: 'sim:test',
-      issuedAt: new Date('2026-01-01T00:00:00Z'),
-      expiresAt: new Date('2026-01-01T00:05:00Z'),
-      delegationContext: {
-        kind: 'workflow_execution' as const,
-        workflowId: 'workflow-1',
-        currentWorkflow: {
+    const principal = withPrincipalExecutionActor(
+      bindPrincipalExecutionMetadata(
+        {
+          kind: 'system',
+          serviceId: 'public_api',
+          workspaceId: 'workspace-1',
           workflowId: 'workflow-1',
-          mode: 'deployment' as const,
-          deploymentVersionId: 'deployment-1',
         },
-        compatibilityActor: {
-          kind: 'legacy_execution_user' as const,
-          userId: 'execution-actor',
-        },
-      },
-    }
+        {
+          executionId: 'execution-1',
+          rootWorkflowId: 'workflow-1',
+          currentWorkflow: {
+            workflowId: 'workflow-1',
+            mode: 'deployment',
+            deploymentVersionId: 'deployment-1',
+          },
+        }
+      ),
+      'execution-actor'
+    )
 
     expect(resolvePrincipalSubjectUserId(principal)).toBeUndefined()
     expect(resolvePrincipalExecutionActorUserId(principal)).toBe('execution-actor')
     expect(
-      resolvePrincipalExecutionActorUserId({
-        ...principal,
-        subjectUserId: 'authenticated-user',
-      })
+      resolvePrincipalExecutionActorUserId(
+        bindPrincipalExecutionMetadata(
+          { kind: 'session', userId: 'authenticated-user', sessionId: 'session-1' },
+          {
+            executionId: 'execution-1',
+            rootWorkflowId: 'workflow-1',
+            currentWorkflow: {
+              workflowId: 'workflow-1',
+              mode: 'deployment',
+              deploymentVersionId: 'deployment-1',
+            },
+          }
+        )
+      )
     ).toBe('authenticated-user')
     expect(
       resolvePrincipalExecutionActorUserId({
         ...principal,
-        delegationContext: {
-          ...principal.delegationContext,
-          currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
+        executionMetadata: {
+          ...principal.executionMetadata,
+          currentWorkflow: {
+            workflowId: 'workflow-1',
+            mode: 'draft',
+          },
         },
       })
     ).toBeUndefined()
@@ -213,6 +222,12 @@ describe('principal persistence', () => {
         version: 2,
         principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       })
+    ).toThrow('Serialized principal is missing executionMetadata')
+    expect(() =>
+      parsePrincipal({
+        version: 3,
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      })
     ).toThrow('Unsupported serialized principal version')
     expect(() =>
       parsePrincipal({
@@ -275,6 +290,42 @@ describe('principal persistence', () => {
     }
 
     expect(parsePrincipal(serializePrincipal(principal))).toEqual(principal)
+  })
+
+  it('changes only current workflow authority when entering a regular child', () => {
+    const root = bindPrincipalExecutionMetadata(
+      { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      {
+        executionId: 'execution-1',
+        rootWorkflowId: 'workflow-1',
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment',
+          deploymentVersionId: 'root-version-1',
+        },
+      }
+    )
+
+    const child = enterPrincipalWorkflowExecution(root, {
+      workflowId: 'child-workflow',
+      mode: 'deployment',
+      deploymentVersionId: 'child-version-1',
+    })
+
+    expect(child).toMatchObject({
+      kind: 'session',
+      userId: 'user-1',
+      sessionId: 'session-1',
+      executionMetadata: {
+        executionId: 'execution-1',
+        rootWorkflowId: 'workflow-1',
+        currentWorkflow: {
+          workflowId: 'child-workflow',
+          mode: 'deployment',
+          deploymentVersionId: 'child-version-1',
+        },
+      },
+    })
   })
 
   it('rejects incomplete or cross-provider webhook identity', () => {
@@ -466,25 +517,21 @@ describe('principal actors', () => {
     ).toMatchObject({ attributedUserId: 'user-3' })
   })
 
-  it('uses the workspace billing owner only for actorless execution attribution', () => {
+  it('keeps the system actor while projecting billing-only legacy attribution', () => {
     const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
+      kind: 'system' as const,
+      serviceId: 'webhook' as const,
       workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: 'sim:tables',
-      issuedAt: new Date('2026-01-01T00:00:00Z'),
-      expiresAt: new Date('2026-01-01T00:05:00Z'),
-      delegationContext: {
-        kind: 'workflow_execution' as const,
-        workflowId: 'workflow-1',
-        principal: {
-          kind: 'system' as const,
-          serviceId: 'webhook' as const,
-          workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      webhookId: 'webhook-1',
+      provider: 'generic',
+      executionMetadata: {
+        executionId: 'execution-1',
+        rootWorkflowId: 'workflow-1',
+        currentWorkflow: {
           workflowId: 'workflow-1',
-          webhookId: 'webhook-1',
-          provider: 'generic',
+          mode: 'deployment' as const,
+          deploymentVersionId: 'deployment-version-1',
         },
       },
     }
@@ -495,14 +542,17 @@ describe('principal actors', () => {
       })
     ).toEqual({
       actor: {
-        kind: 'delegated',
-        serviceId: 'executor',
-        delegationId: 'delegation-1',
+        kind: 'system',
+        serviceId: 'webhook',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        webhookId: 'webhook-1',
+        provider: 'generic',
       },
       attributedUserId: 'billing-owner-1',
     })
     expect(resolvePrincipalSubject(principal)).toBeNull()
-    expect(() => resolvePrincipalAttribution(principal)).toThrow(PrincipalSubjectUserRequiredError)
+    expect(resolvePrincipalExecutionActorUserId(principal)).toBeUndefined()
   })
 
   it('fails fast when workspace-key attribution has no billing owner', () => {

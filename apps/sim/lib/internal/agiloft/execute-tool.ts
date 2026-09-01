@@ -76,7 +76,7 @@ async function executeOperation<C extends AnyApiRouteContract>(
   try {
     const result = await operation(parsed.data, {
       requestId: request.requestId,
-      userId: request.context.executorDelegationOrigin?.subjectUserId ?? request.context.userId,
+      userId: request.context.userId,
       signal: request.signal,
     })
     request.signal?.throwIfAborted()

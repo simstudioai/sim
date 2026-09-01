@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const { mockReadWorkflowDefinitionAsExecutor } = vi.hoisted(() => ({
   mockReadWorkflowDefinitionAsExecutor: vi.fn(),
@@ -26,23 +27,23 @@ describe('workflow tool enrichment authority', () => {
       workflow: { name: 'Child workflow', description: 'Runs the child' },
       state: { blocks: {} },
     })
+    const principal = createTestRuntimePrincipal({
+      principal: { kind: 'session', userId: 'actual-user', sessionId: 'session-1' },
+      executionId: 'execution-1',
+      rootWorkflowId: 'parent-workflow',
+    })
 
     await expect(
       readWorkflowMetadataForTool('child-workflow', {
         userId: 'billing-owner',
         workflowId: 'parent-workflow',
         executionId: 'execution-1',
-        executorDelegationOrigin: {
-          workflowId: 'parent-workflow',
-          executionId: 'execution-1',
-          principal: { kind: 'session', userId: 'actual-user', sessionId: 'session-1' },
-          currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
-        },
+        principal,
       })
     ).resolves.toEqual({ name: 'Child workflow', description: 'Runs the child' })
 
     expect(mockReadWorkflowDefinitionAsExecutor).toHaveBeenCalledWith({
-      origin: { subjectUserId: 'actual-user', workflowId: 'child-workflow' },
+      principal,
       workflowId: 'child-workflow',
       state: 'draft',
     })
@@ -53,39 +54,34 @@ describe('workflow tool enrichment authority', () => {
       workflow: { name: 'Child workflow', description: null },
       state: { blocks: {} },
     })
-    const principal = {
-      kind: 'system' as const,
-      serviceId: 'schedule' as const,
-      workspaceId: 'workspace-1',
-      workflowId: 'parent-workflow',
-    }
     const currentWorkflow = {
       workflowId: 'parent-workflow',
       mode: 'deployment' as const,
       deploymentVersionId: 'deployment-1',
     }
+    const principal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-1',
+        workflowId: 'parent-workflow',
+      },
+      executionId: 'execution-1',
+      rootWorkflowId: 'parent-workflow',
+      currentWorkflow,
+    })
 
     await expect(
       readWorkflowInputFieldsForTool('child-workflow', {
         userId: 'billing-owner',
         workflowId: 'parent-workflow',
         executionId: 'execution-1',
-        executorDelegationOrigin: {
-          workflowId: 'parent-workflow',
-          executionId: 'execution-1',
-          principal,
-          currentWorkflow,
-        },
+        principal,
       })
     ).resolves.toEqual([])
 
     expect(mockReadWorkflowDefinitionAsExecutor).toHaveBeenCalledWith({
-      origin: {
-        workflowId: 'parent-workflow',
-        executionId: 'execution-1',
-        principal,
-        currentWorkflow,
-      },
+      principal,
       workflowId: 'child-workflow',
       state: 'deployed',
     })
@@ -96,16 +92,15 @@ describe('workflow tool enrichment authority', () => {
       readWorkflowMetadataForTool('child-workflow', {
         userId: 'billing-owner',
         workflowId: 'parent-workflow',
-        executorDelegationOrigin: {
-          workflowId: 'parent-workflow',
+        principal: createTestRuntimePrincipal({
           principal: {
             kind: 'system',
             serviceId: 'internal',
             workspaceId: 'workspace-1',
             workflowId: 'parent-workflow',
           },
-          currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
-        },
+          rootWorkflowId: 'parent-workflow',
+        }),
       })
     ).rejects.toThrow('Actorless workflow enrichment requires deployed execution authority')
 

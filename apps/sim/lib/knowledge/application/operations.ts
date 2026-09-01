@@ -11,7 +11,8 @@ const COPILOT_PRINCIPAL_POLICY = {
 
 const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-  delegatedServices: ['copilot', 'executor'],
+  delegatedServices: ['copilot'],
+  workflowExecution: 'allow',
 } as const
 
 const HTTP_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'workspace_api_key'] as const
@@ -25,7 +26,8 @@ const HUMAN_AND_COPILOT_PRINCIPAL_POLICY = {
 
 const HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY = {
   principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
-  delegatedServices: ['copilot', 'executor'],
+  delegatedServices: ['copilot'],
+  workflowExecution: 'allow',
 } as const
 
 export const knowledgeOperations = {

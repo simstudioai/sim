@@ -147,8 +147,8 @@ export const credentialOperations = {
     id: 'credentials.managed_oauth.use',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    principalKinds: [],
+    workflowExecution: 'allow',
     resourcePolicy: {
       resourceType: 'credential_group',
       action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,

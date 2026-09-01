@@ -6,6 +6,7 @@ import {
   resetEnvironmentUtilsMock,
 } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBlock } from '@/blocks/registry'
@@ -46,6 +47,7 @@ const {
   mockSetTraceLargeValueAccess,
   mockDispose,
   mockReadWorkflowDefinitionAsExecutor,
+  mockLoadWorkflowDeploymentVersionState,
   mockCheckWorkspaceAccess,
   mockProjectTraceSpansForLiveDisplay,
   executorOptions,
@@ -70,6 +72,7 @@ const {
   mockSetTraceLargeValueAccess: vi.fn(),
   mockDispose: vi.fn(),
   mockReadWorkflowDefinitionAsExecutor: vi.fn(),
+  mockLoadWorkflowDeploymentVersionState: vi.fn(),
   executorOptions: [] as Array<Record<string, any>>,
   loggingSessionArgs: [] as Array<any[]>,
 }))
@@ -143,6 +146,10 @@ vi.mock('@/lib/users/queries', () => ({
 
 vi.mock('@/lib/internal/workflows/read-definition', () => ({
   readWorkflowDefinitionAsExecutor: mockReadWorkflowDefinitionAsExecutor,
+}))
+
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  loadWorkflowDeploymentVersionState: mockLoadWorkflowDeploymentVersionState,
 }))
 
 /**
@@ -227,23 +234,20 @@ describe('WorkflowBlockHandler', () => {
       enabled: true,
     }
 
+    const principal = createTestRuntimePrincipal({
+      executionId: 'parent-execution-id',
+      rootWorkflowId: 'parent-workflow-id',
+    })
     mockContext = {
       workflowId: 'parent-workflow-id',
       executionId: 'parent-execution-id',
       userId: 'user-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      executorDelegationOrigin: {
-        subjectUserId: 'user-1',
-        workflowId: 'parent-workflow-id',
-        executionId: 'parent-execution-id',
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        currentWorkflow: { workflowId: 'parent-workflow-id', mode: 'draft' },
-      },
+      principal,
       blockStates: new Map(),
       blockLogs: [],
       metadata: {
         duration: 0,
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal,
       },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
@@ -264,6 +268,13 @@ describe('WorkflowBlockHandler', () => {
     executorOptions.length = 0
     loggingSessionArgs.length = 0
     mockSafeStart.mockResolvedValue(true)
+    mockLoadWorkflowDeploymentVersionState.mockResolvedValue({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+      deploymentVersionId: 'deployment-version-1',
+    })
     mockAdmitCustomBlockChildExecution.mockResolvedValue(undefined)
     mockBuildTraceSpans.mockReturnValue({ traceSpans: [], totalDuration: 0 })
     // Setup default fetch mock
@@ -441,13 +452,7 @@ describe('WorkflowBlockHandler', () => {
       expect(mockExecutorExecute).not.toHaveBeenCalled()
       expect(mockReadWorkflowDefinitionAsExecutor).toHaveBeenCalledWith(
         expect.objectContaining({
-          origin: {
-            subjectUserId: 'user-1',
-            workflowId: 'parent-workflow-id',
-            executionId: 'parent-execution-id',
-            principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            currentWorkflow: { workflowId: 'parent-workflow-id', mode: 'draft' },
-          },
+          principal: mockContext.principal,
         })
       )
     })
@@ -647,6 +652,8 @@ describe('WorkflowBlockHandler', () => {
 
       mockGetCustomBlockAuthority.mockResolvedValue({
         workflowId: 'source-workflow-id',
+        deploymentVersionId: 'deployment-version-1',
+        workspaceId: 'workspace-source',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
         exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
@@ -692,13 +699,10 @@ describe('WorkflowBlockHandler', () => {
 
       await handler.execute(ctx, customBlock, {})
 
-      expect(mockReadWorkflowDefinitionAsExecutor).toHaveBeenCalledWith(
-        expect.objectContaining({
-          origin: {
-            subjectUserId: 'owner-9',
-            workflowId: 'source-workflow-id',
-          },
-        })
+      expect(mockLoadWorkflowDeploymentVersionState).toHaveBeenCalledWith(
+        'source-workflow-id',
+        'deployment-version-1',
+        'workspace-source'
       )
       expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
         actorUserId: 'owner-9',
@@ -708,19 +712,19 @@ describe('WorkflowBlockHandler', () => {
       expect(executorOptions[0].contextExtensions.billingAttribution).toBe(sourceAttribution)
       expect(executorOptions[0].contextExtensions.userId).toBe('owner-9')
       expect(executorOptions[0].contextExtensions.workspaceId).toBe('workspace-source')
-      expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
+      expect(executorOptions[0].contextExtensions.principal).toEqual({
+        kind: 'system',
+        serviceId: 'internal',
+        workspaceId: 'workspace-source',
         workflowId: 'source-workflow-id',
-        executionId: loggingSessionArgs[0][1],
-        currentWorkflow: {
-          workflowId: 'source-workflow-id',
-          mode: 'deployment',
-          deploymentVersionId: 'deployment-version-1',
-        },
-        principal: {
-          kind: 'system',
-          serviceId: 'internal',
-          workspaceId: 'workspace-source',
-          workflowId: 'source-workflow-id',
+        executionMetadata: {
+          executionId: loggingSessionArgs[0][1],
+          rootWorkflowId: 'source-workflow-id',
+          currentWorkflow: {
+            workflowId: 'source-workflow-id',
+            mode: 'deployment',
+            deploymentVersionId: 'deployment-version-1',
+          },
         },
       })
     })
@@ -745,6 +749,8 @@ describe('WorkflowBlockHandler', () => {
 
       mockGetCustomBlockAuthority.mockResolvedValue({
         workflowId: 'source-workflow-id',
+        deploymentVersionId: 'deployment-version-1',
+        workspaceId: 'workspace-source',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
         exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
@@ -807,6 +813,8 @@ describe('WorkflowBlockHandler', () => {
 
       mockGetCustomBlockAuthority.mockResolvedValue({
         workflowId: 'source-workflow-id',
+        deploymentVersionId: 'deployment-version-1',
+        workspaceId: 'workspace-source',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
         exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
@@ -823,47 +831,24 @@ describe('WorkflowBlockHandler', () => {
       mockGetUserEmailById.mockImplementation(async (userId: string) =>
         userId === 'owner-9' ? 'owner@source.com' : userId === 'consumer-1' ? 'a@corp.com' : null
       )
-      mockFetch.mockImplementation(async (url: unknown) => {
-        if (String(url).includes('/deployed')) {
-          return {
-            ok: true,
-            json: () =>
-              Promise.resolve({
-                data: {
-                  deployedState: {
-                    blocks: {
-                      start: {
-                        id: 'start',
-                        type: 'start_trigger',
-                        name: 'Start',
-                        position: { x: 0, y: 0 },
-                        subBlocks: {
-                          runMetadata: { id: 'runMetadata', type: 'switch', value: true },
-                        },
-                        outputs: {},
-                        enabled: true,
-                      },
-                    },
-                    edges: [],
-                    loops: {},
-                    parallels: {},
-                    deploymentVersionId: 'deployment-version-1',
-                  },
-                },
-              }),
-          }
-        }
-        return {
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              data: {
-                name: 'Source Workflow',
-                workspaceId: 'workspace-source',
-                variables: {},
-              },
-            }),
-        }
+      mockLoadWorkflowDeploymentVersionState.mockResolvedValueOnce({
+        blocks: {
+          start: {
+            id: 'start',
+            type: 'start_trigger',
+            name: 'Start',
+            position: { x: 0, y: 0 },
+            subBlocks: {
+              runMetadata: { id: 'runMetadata', type: 'switch', value: true },
+            },
+            outputs: {},
+            enabled: true,
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+        deploymentVersionId: 'deployment-version-1',
       })
       mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
       mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
@@ -909,6 +894,8 @@ describe('WorkflowBlockHandler', () => {
 
       mockGetCustomBlockAuthority.mockResolvedValue({
         workflowId: 'source-workflow-id',
+        deploymentVersionId: 'deployment-version-1',
+        workspaceId: 'workspace-source',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
         exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
@@ -1328,6 +1315,8 @@ describe('WorkflowBlockHandler', () => {
     beforeEach(() => {
       mockGetCustomBlockAuthority.mockResolvedValue({
         workflowId: 'source-workflow-id',
+        deploymentVersionId: 'deployment-version-1',
+        workspaceId: 'workspace-source',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
         exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
@@ -1397,6 +1386,8 @@ describe('WorkflowBlockHandler', () => {
         // thing that closes the stream for an identified consumer.
         mockGetCustomBlockAuthority.mockResolvedValue({
           workflowId: 'source-workflow-id',
+          deploymentVersionId: 'deployment-version-1',
+          workspaceId: 'workspace-source',
           organizationId: 'org-1',
           ownerUserId: 'owner-9',
           exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
@@ -1485,6 +1476,8 @@ describe('WorkflowBlockHandler', () => {
       it('withholds both the viewer id and the sink when streaming is not permitted', async () => {
         mockGetCustomBlockAuthority.mockResolvedValue({
           workflowId: 'source-workflow-id',
+          deploymentVersionId: 'deployment-version-1',
+          workspaceId: 'workspace-source',
           organizationId: 'org-1',
           ownerUserId: 'owner-9',
           exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
@@ -1540,6 +1533,8 @@ describe('WorkflowBlockHandler', () => {
       function closeTracePolicy() {
         mockGetCustomBlockAuthority.mockResolvedValue({
           workflowId: 'source-workflow-id',
+          deploymentVersionId: 'deployment-version-1',
+          workspaceId: 'workspace-source',
           organizationId: 'org-1',
           ownerUserId: 'owner-9',
           exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
@@ -1761,30 +1756,30 @@ describe('WorkflowBlockHandler', () => {
       expect(ctx.largeValueExecutionIds).toContain(extensions.executionId)
     })
 
-    it('replaces the consumer delegation origin with the source child execution', async () => {
+    it('replaces the consumer runtime principal with the source child execution', async () => {
       const ctx = customBlockContext({
-        executorDelegationOrigin: {
-          subjectUserId: 'consumer-1',
-          workflowId: 'consumer-workflow',
+        principal: createTestRuntimePrincipal({
+          principal: { kind: 'session', userId: 'consumer-1', sessionId: 'session-consumer' },
           executionId: 'parent-execution-id',
-        },
+          rootWorkflowId: 'consumer-workflow',
+        }),
       })
 
       await handler.execute(ctx, customBlock(), {})
 
-      expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
+      expect(executorOptions[0].contextExtensions.principal).toEqual({
+        kind: 'system',
+        serviceId: 'internal',
+        workspaceId: 'workspace-source',
         workflowId: 'source-workflow-id',
-        executionId: executorOptions[0].contextExtensions.executionId,
-        currentWorkflow: {
-          workflowId: 'source-workflow-id',
-          mode: 'deployment',
-          deploymentVersionId: 'deployment-version-1',
-        },
-        principal: {
-          kind: 'system',
-          serviceId: 'internal',
-          workspaceId: 'workspace-source',
-          workflowId: 'source-workflow-id',
+        executionMetadata: {
+          executionId: executorOptions[0].contextExtensions.executionId,
+          rootWorkflowId: 'source-workflow-id',
+          currentWorkflow: {
+            workflowId: 'source-workflow-id',
+            mode: 'deployment',
+            deploymentVersionId: 'deployment-version-1',
+          },
         },
       })
     })
@@ -2024,6 +2019,8 @@ describe('WorkflowBlockHandler', () => {
       // back to exposing the child's raw terminal state.
       mockGetCustomBlockAuthority.mockResolvedValue({
         workflowId: 'source-workflow-id',
+        deploymentVersionId: 'deployment-version-1',
+        workspaceId: 'workspace-source',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
         exposedOutputs: [],
@@ -2080,45 +2077,28 @@ describe('WorkflowBlockHandler', () => {
     it('surfaces a missing-required-input failure verbatim', async () => {
       mockGetCustomBlockAuthority.mockResolvedValue({
         workflowId: 'source-workflow-id',
+        deploymentVersionId: 'deployment-version-1',
+        workspaceId: 'workspace-source',
         organizationId: 'org-1',
         ownerUserId: 'owner-9',
         exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
         requiredInputIds: ['field-1'],
       })
-      mockFetch.mockImplementation(async (url: unknown) => {
-        if (String(url).includes('/deployed')) {
-          return {
-            ok: true,
-            json: () =>
-              Promise.resolve({
-                data: {
-                  deployedState: {
-                    blocks: {
-                      starter: {
-                        type: 'start_trigger',
-                        subBlocks: {
-                          inputFormat: {
-                            value: [{ id: 'field-1', name: 'Username', type: 'string' }],
-                          },
-                        },
-                      },
-                    },
-                    edges: [],
-                    loops: {},
-                    parallels: {},
-                    deploymentVersionId: 'deployment-version-1',
-                  },
-                },
-              }),
-          }
-        }
-        return {
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              data: { name: 'Source Workflow', workspaceId: 'workspace-source', variables: {} },
-            }),
-        }
+      mockLoadWorkflowDeploymentVersionState.mockResolvedValueOnce({
+        blocks: {
+          starter: {
+            type: 'start_trigger',
+            subBlocks: {
+              inputFormat: {
+                value: [{ id: 'field-1', name: 'Username', type: 'string' }],
+              },
+            },
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+        deploymentVersionId: 'deployment-version-1',
       })
 
       const error = await handler
@@ -2159,22 +2139,19 @@ describe('WorkflowBlockHandler', () => {
       const extensions = executorOptions[0].contextExtensions
       expect(extensions.executionId).toBe('parent-execution-id')
       expect(extensions.resolvedSecretTraceRegistry).toBe(registry)
-      expect(extensions.executorDelegationOrigin).toEqual({
-        subjectUserId: 'user-1',
-        workflowId: 'parent-workflow-id',
-        executionId: 'parent-execution-id',
-        currentWorkflow: { workflowId: 'child-workflow-id', mode: 'draft' },
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      expect(extensions.principal).toEqual({
+        kind: 'session',
+        userId: 'user-1',
+        sessionId: 'session-1',
+        executionMetadata: {
+          executionId: 'parent-execution-id',
+          rootWorkflowId: 'parent-workflow-id',
+          currentWorkflow: { workflowId: 'child-workflow-id', mode: 'draft' },
+        },
       })
       expect(mockReadWorkflowDefinitionAsExecutor).toHaveBeenCalledWith(
         expect.objectContaining({
-          origin: {
-            subjectUserId: 'user-1',
-            workflowId: 'parent-workflow-id',
-            executionId: 'parent-execution-id',
-            principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            currentWorkflow: { workflowId: 'parent-workflow-id', mode: 'draft' },
-          },
+          principal: ctx.principal,
         })
       )
       expect(extensions.stream).toBe(false)
@@ -2270,11 +2247,11 @@ describe('WorkflowBlockHandler', () => {
         workspaceId: 'workspace-1',
         workflowId: 'intermediate-workflow-id',
         executionId: 'parent-execution-id',
-        executorDelegationOrigin: {
-          subjectUserId: 'user-1',
-          workflowId: 'root-workflow-id',
+        principal: createTestRuntimePrincipal({
           executionId: 'parent-execution-id',
-        },
+          rootWorkflowId: 'root-workflow-id',
+          currentWorkflow: { workflowId: 'intermediate-workflow-id', mode: 'draft' },
+        }),
       } as ExecutionContext
       mockFetch.mockResolvedValue({
         ok: true,
@@ -2291,11 +2268,17 @@ describe('WorkflowBlockHandler', () => {
       await handler.execute(ctx, mockBlock, { workflowId: 'grandchild-workflow-id' })
 
       expect(mockReadWorkflowDefinitionAsExecutor).toHaveBeenCalledWith(
-        expect.objectContaining({ origin: ctx.executorDelegationOrigin })
+        expect.objectContaining({ principal: ctx.principal })
       )
-      expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
-        ...ctx.executorDelegationOrigin,
-        currentWorkflow: { workflowId: 'grandchild-workflow-id', mode: 'draft' },
+      expect(executorOptions[0].contextExtensions.principal).toEqual({
+        kind: 'session',
+        userId: 'user-1',
+        sessionId: 'session-1',
+        executionMetadata: {
+          executionId: 'parent-execution-id',
+          rootWorkflowId: 'root-workflow-id',
+          currentWorkflow: { workflowId: 'grandchild-workflow-id', mode: 'draft' },
+        },
       })
     })
   })

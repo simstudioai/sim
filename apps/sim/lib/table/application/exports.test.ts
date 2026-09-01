@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { TableDefinition } from '@/lib/table/types'
 
 const mocks = vi.hoisted(() => ({
@@ -82,18 +82,7 @@ const principal = {
   workspaceId: 'workspace-1',
   keyId: 'workspace-key-1',
 }
-const executor: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
-  resourceScope: { tableId: 'table-1' },
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
+const executor = createTestRuntimePrincipal()
 
 describe('table export application use cases', () => {
   beforeEach(() => {
@@ -139,7 +128,7 @@ describe('table export application use cases', () => {
     ).resolves.toMatchObject({ export: { status: 'canceled', startedAt: now } })
   })
 
-  it('supports exact table-scoped executor create and unscoped resource reads', async () => {
+  it('supports runtime-principal create and resource reads', async () => {
     await expect(
       createTableExportUseCase.execute({
         principal: executor,
@@ -148,16 +137,30 @@ describe('table export application use cases', () => {
     ).resolves.toEqual({ export: record })
     await expect(
       readTableExportUseCase.execute({
-        principal: { ...executor, resourceScope: undefined },
+        principal: executor,
         input: { exportId: 'export-1', workspaceId: 'workspace-1' },
       })
     ).resolves.toEqual({ export: record })
   })
 
-  it('rejects a mismatched executor table scope before export mutation', async () => {
+  it('rejects a runtime principal bound to another workspace before export mutation', async () => {
+    const crossWorkspaceExecutor = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-other',
+        workflowId: 'workflow-1',
+      },
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-1',
+      },
+    })
+
     await expect(
       createTableExportUseCase.execute({
-        principal: { ...executor, resourceScope: { tableId: 'table-other' } },
+        principal: crossWorkspaceExecutor,
         input: { tableId: 'table-1', workspaceId: 'workspace-1', format: 'csv' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

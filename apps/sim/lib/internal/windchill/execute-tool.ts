@@ -8,7 +8,10 @@ import { windchillOperationBodySchema } from '@/lib/api/contracts/tools/windchil
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  createExecutorPrincipalFromExecutionContext,
+  requireExecutorWorkspaceId,
+} from '@/lib/internal/principals/executor'
 import {
   classifyInternalToolIdentityFault,
   internalToolIdentityFaultMessage,
@@ -21,8 +24,6 @@ import { executeWindchillOperation } from '@/lib/internal/windchill/operations'
 import { sanitizeWindchillError } from '@/tools/windchill/utils'
 
 const logger = createLogger('WindchillInternalOperation')
-const WINDCHILL_DELEGATION_AUDIENCE = 'sim:windchill'
-
 const WINDCHILL_INTERNAL_TOOL_IDS = new Set([
   'windchill_create_document',
   'windchill_create_documents',
@@ -80,7 +81,6 @@ export const executeWindchillTool: InternalToolOperationHandler = async (request
   try {
     const principal = await createExecutorPrincipalFromExecutionContext({
       context,
-      audience: WINDCHILL_DELEGATION_AUDIENCE,
     })
     signal?.throwIfAborted()
     const input = parseInput(request.input)
@@ -91,6 +91,7 @@ export const executeWindchillTool: InternalToolOperationHandler = async (request
 
     const output = await executeWindchillOperation(input, {
       principal,
+      workspaceId: requireExecutorWorkspaceId(context),
       requestId,
       signal,
     })

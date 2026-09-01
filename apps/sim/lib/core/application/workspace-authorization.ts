@@ -1,6 +1,8 @@
 import {
+  type BoundWorkflowExecutionPrincipal,
   type DelegatedPrincipal,
   type Principal,
+  requirePrincipalExecutionMetadata,
   resolvePrincipalSubject,
 } from '@sim/auth/principal'
 import type { db } from '@sim/db'
@@ -112,6 +114,13 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   principal: Principal,
   operation: O
 ): asserts principal is PrincipalForOperation<O> {
+  if (principal.executionMetadata !== undefined) {
+    requirePrincipalExecutionMetadata(principal)
+    if (operation.workflowExecution !== 'allow') {
+      throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+    }
+    return
+  }
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
     /**
      * A workspace key refused because the operation does not delegate to one is
@@ -137,6 +146,39 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   }
   if (!delegatedServices.some((serviceId) => serviceId === principal.serviceId)) {
     throw new DelegatedServiceAuthorizationError(principal.serviceId, operation.id)
+  }
+}
+
+function requireExecutionPrincipalWorkspace(
+  principal: BoundWorkflowExecutionPrincipal,
+  workspaceId: string
+): void {
+  if (
+    (principal.kind === 'workspace_api_key' ||
+      principal.kind === 'system' ||
+      principal.kind === 'delegated') &&
+    principal.workspaceId !== workspaceId
+  ) {
+    throw new DelegatedWorkspaceAuthorizationError()
+  }
+}
+
+async function authorizeWorkflowExecution<C extends WorkspaceAuthorizationContext>(
+  principal: BoundWorkflowExecutionPrincipal,
+  operation: WorkspaceOperation,
+  context: C,
+  options?: WorkspaceAuthorizationOptions<C>
+): Promise<void> {
+  const executionMetadata = requirePrincipalExecutionMetadata(principal)
+  requireExecutionPrincipalWorkspace(principal, context.workspaceId)
+
+  const subject = resolvePrincipalSubject(principal)
+  if (subject?.kind === 'sim_user') {
+    await requireCurrentHumanPermission(subject.userId, context, operation.minimumRole, options)
+    return
+  }
+  if (executionMetadata.currentWorkflow.mode !== 'deployment') {
+    throw new DelegatedWorkspaceAuthorizationError()
   }
 }
 
@@ -173,6 +215,16 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
 ): Promise<void> {
   requireAllowedWorkspacePrincipal(principal, operation)
 
+  if (principal.executionMetadata !== undefined) {
+    await authorizeWorkflowExecution(
+      principal as BoundWorkflowExecutionPrincipal,
+      operation,
+      context,
+      options
+    )
+    return
+  }
+
   switch (principal.kind) {
     case 'session':
       await requireCurrentHumanPermission(principal.userId, context, operation.minimumRole, options)
@@ -207,17 +259,12 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       ) {
         throw new DelegatedWorkspaceAuthorizationError()
       }
-      const subject = resolvePrincipalSubject(principal)
-      if (subject?.kind === 'sim_user') {
-        await requireCurrentHumanPermission(subject.userId, context, operation.minimumRole, options)
-        return
-      }
-      if (
-        principal.serviceId !== 'executor' ||
-        principal.delegationContext?.currentWorkflow?.mode !== 'deployment'
-      ) {
-        throw new DelegatedWorkspaceAuthorizationError()
-      }
+      await requireCurrentHumanPermission(
+        principal.subjectUserId,
+        context,
+        operation.minimumRole,
+        options
+      )
       return
     }
   }

@@ -514,7 +514,7 @@ export async function executeWebhookJob(
     assertWebhookExecutionPrincipal(principal, payload)
     authenticatedPayload = {
       ...payload,
-      principal: payload.principal ?? serializePrincipal(principal),
+      principal: payload.principal ?? serializePrincipal(principal, 1),
     }
     payloadBillingAttribution = assertBillingAttributionSnapshot(
       authenticatedPayload.billingAttribution

@@ -1,4 +1,9 @@
-import type { DelegatedPrincipal, DelegatedServiceId, Principal } from '@sim/auth/principal'
+import type {
+  BoundWorkflowExecutionPrincipal,
+  DelegatedPrincipal,
+  DelegatedServiceId,
+  Principal,
+} from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import type { ApplicationOperation, PrincipalKind } from '@/lib/core/application/operation'
 import {
@@ -28,23 +33,32 @@ type DelegatedPrincipalForOperation<
   ? DelegatedPrincipal & { serviceId: NonNullable<O['delegatedServices']>[number] }
   : never
 
+type WorkflowExecutionPrincipalForOperation<O extends { readonly workflowExecution?: 'allow' }> =
+  O['workflowExecution'] extends 'allow' ? BoundWorkflowExecutionPrincipal : never
+
 export type PrincipalForOperation<
   O extends {
     readonly principalKinds: readonly PrincipalKind[]
     readonly delegatedServices?: readonly DelegatedServiceId[]
+    readonly workflowExecution?: 'allow'
   },
-> = NonDelegatedPrincipalForOperation<O> | DelegatedPrincipalForOperation<O>
+> =
+  | NonDelegatedPrincipalForOperation<O>
+  | DelegatedPrincipalForOperation<O>
+  | WorkflowExecutionPrincipalForOperation<O>
 
 export interface WorkspaceOperation<
   Id extends string = string,
   Role extends PermissionType = PermissionType,
   PrincipalKinds extends readonly PrincipalKind[] = readonly PrincipalKind[],
   DelegatedServices extends readonly DelegatedServiceId[] = readonly DelegatedServiceId[],
+  WorkflowExecution extends 'allow' | undefined = 'allow' | undefined,
 > extends ApplicationOperation<Id> {
   readonly minimumRole: Role
   readonly workspaceApiKey: WorkspaceApiKeyPolicy<Role>
   readonly principalKinds: PrincipalKinds
   readonly delegatedServices?: DelegatedServices
+  readonly workflowExecution?: WorkflowExecution
 }
 
 type WorkspaceApiKeyPrincipalConsistency<
@@ -73,17 +87,20 @@ export function defineWorkspaceOperation<
   const Role extends PermissionType,
   const PrincipalKinds extends readonly PrincipalKind[],
   const DelegatedServices extends readonly DelegatedServiceId[] = readonly [],
+  const WorkflowExecution extends 'allow' | undefined = undefined,
   const ResourcePolicy extends ResourcePolicyBinding | undefined = undefined,
 >(
-  operation: WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices> &
+  operation: WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices, WorkflowExecution> &
     WorkspaceApiKeyPrincipalConsistency<Role, PrincipalKinds> &
     DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices> &
     ResourcePolicyOperationConsistency<ResourcePolicy>
-): WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices> &
+): WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices, WorkflowExecution> &
   DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices> &
   ResourcePolicyOperationConsistency<ResourcePolicy> {
-  if (operation.principalKinds.length === 0) {
-    throw new Error(`Operation ${operation.id} must allow at least one principal kind`)
+  if (operation.principalKinds.length === 0 && operation.workflowExecution !== 'allow') {
+    throw new Error(
+      `Operation ${operation.id} must allow at least one principal kind or workflow execution`
+    )
   }
   if (new Set(operation.principalKinds).size !== operation.principalKinds.length) {
     throw new Error(`Operation ${operation.id} declares duplicate principal kinds`)

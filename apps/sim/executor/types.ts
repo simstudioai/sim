@@ -1,4 +1,4 @@
-import type { WorkflowExecutionAuthority, WorkflowExecutionPrincipal } from '@sim/auth/principal'
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
@@ -356,21 +356,6 @@ export interface BlockState {
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
-/**
- * Canonical signed execution identity used for executor-delegated internal operations.
- *
- * A nested workflow changes {@link ExecutionContext.workflowId} for execution semantics, but it
- * still belongs to the parent log row identified here. Custom blocks replace this origin with the
- * publisher-owned child execution after opening their own source-workspace log row.
- */
-export interface ExecutorDelegationOrigin {
-  subjectUserId?: string
-  workflowId: string
-  executionId?: string
-  principal?: WorkflowExecutionPrincipal
-  currentWorkflow?: WorkflowExecutionAuthority
-}
-
 export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
@@ -380,10 +365,8 @@ export interface ExecutionContext {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
-  /** Original authenticated caller for resource-policy decisions. */
+  /** Authenticated caller and canonical workflow execution authority. */
   principal?: WorkflowExecutionPrincipal
-  /** Trusted origin for signed executor delegation, distinct from the currently executing child. */
-  executorDelegationOrigin?: ExecutorDelegationOrigin
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean

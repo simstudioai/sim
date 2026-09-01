@@ -20,14 +20,16 @@ import {
   executeLogsList,
   type LogsToolOperationContext,
 } from '@/lib/internal/logs/operations'
-import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  createExecutorPrincipalFromExecutionContext,
+  requireExecutorWorkspaceId,
+} from '@/lib/internal/principals/executor'
 import {
   classifyInternalToolIdentityFault,
   internalToolIdentityFaultMessage,
   internalToolIdentityFaultStatus,
 } from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
-import { LOGS_DELEGATION_AUDIENCE } from '@/lib/logs/application/authorization'
 
 const logger = createLogger('LogsInternalOperation')
 
@@ -68,7 +70,7 @@ async function dispatchLogsTool(
     case 'logs_query_runs': {
       const parsed = listLogsQuerySchema.safeParse({
         ...(isPlainRecord(request.input) ? request.input : {}),
-        workspaceId: context.principal.workspaceId,
+        workspaceId: context.workspaceId,
       })
       return parsed.success
         ? dispatched(listLogsContract, executeLogsList(parsed.data, context))
@@ -126,12 +128,11 @@ export const executeLogsTool: InternalToolOperationHandler = async (request) => 
   try {
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: request.context,
-      audience: LOGS_DELEGATION_AUDIENCE,
-      ...(requestedExecutionId ? { resourceScope: { executionId: requestedExecutionId } } : {}),
     })
     request.signal?.throwIfAborted()
     const dispatched = await dispatchLogsTool(request, {
       principal,
+      workspaceId: requireExecutorWorkspaceId(request.context),
       signal: request.signal,
     })
     if (dispatched instanceof Response) return dispatched

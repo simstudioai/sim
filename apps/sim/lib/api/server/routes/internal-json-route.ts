@@ -1,9 +1,8 @@
 import {
-  type DelegatedPrincipal,
+  type BoundWorkflowExecutionPrincipal,
   type Principal,
   resolvePrincipalSubjectUserId,
   type SessionPrincipal,
-  type WorkflowExecutionDelegatedPrincipal,
 } from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -30,7 +29,7 @@ import {
   verifyInternalDelegationToken,
 } from '@/lib/auth/internal'
 import {
-  bindInternalExecutorDelegation,
+  bindInternalExecutorDelegationAdmission,
   InvalidInternalDelegationBindingError,
 } from '@/lib/auth/internal-delegation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
@@ -49,58 +48,67 @@ export class InternalUnauthenticatedError extends Error {
   }
 }
 
+async function authenticateInternalSession(): Promise<SessionPrincipal> {
+  const session = await getSession()
+  if (!session?.user?.id) throw new InternalUnauthenticatedError()
+  const sessionId = session.session?.id
+  if (!sessionId) throw new Error('Authenticated session is missing its session ID')
+  return { kind: 'session', userId: session.user.id, sessionId }
+}
+
 export const internalSessionAuth = {
-  async authenticate(): Promise<SessionPrincipal> {
-    const session = await getSession()
-    if (!session?.user?.id) throw new InternalUnauthenticatedError()
-    const sessionId = session.session?.id
-    if (!sessionId) throw new Error('Authenticated session is missing its session ID')
-    return { kind: 'session', userId: session.user.id, sessionId }
+  authenticate: authenticateInternalSession,
+  async authenticateWithTransport(): Promise<InternalAuthenticatedPrincipal<SessionPrincipal>> {
+    return { principal: await authenticateInternalSession(), transport: 'session' }
   },
 } as const
 
-interface InternalSessionOrExecutorAuthOptions {
-  audience: string
-  resourceScope?(
-    params: Record<string, string | string[] | undefined>
-  ): DelegatedPrincipal['resourceScope']
-}
+export function createInternalSessionOrExecutorAuth(): InternalAuthPolicy<
+  SessionPrincipal | BoundWorkflowExecutionPrincipal
+> {
+  type InternalSessionOrExecutorPrincipal = SessionPrincipal | BoundWorkflowExecutionPrincipal
 
-export function createInternalSessionOrExecutorAuth(
-  options: InternalSessionOrExecutorAuthOptions
-): InternalAuthPolicy<SessionPrincipal | WorkflowExecutionDelegatedPrincipal> {
-  if (!options.audience.trim()) throw new Error('Internal executor auth audience must not be empty')
+  async function authenticateWithTransport(
+    request: NextRequest
+  ): Promise<InternalAuthenticatedPrincipal<InternalSessionOrExecutorPrincipal>> {
+    if (request.headers.has('x-api-key')) {
+      throw new InternalUnauthenticatedError('Authentication required')
+    }
+
+    const authorization = request.headers.get('authorization')
+    if (!authorization) {
+      return { principal: await authenticateInternalSession(), transport: 'session' }
+    }
+    if (!authorization.startsWith('Bearer ')) {
+      throw new InternalUnauthenticatedError('Authentication required')
+    }
+
+    let delegation
+    try {
+      delegation = await verifyInternalDelegationToken(authorization.slice('Bearer '.length))
+    } catch (error) {
+      if (!(error instanceof InvalidInternalDelegationTokenError)) throw error
+      throw new InternalUnauthenticatedError('Authentication required')
+    }
+
+    try {
+      const admission = await bindInternalExecutorDelegationAdmission(delegation)
+      return {
+        principal: admission.principal,
+        transport: 'executor_jwt',
+        executionWorkspaceId: admission.workspaceId,
+      }
+    } catch (error) {
+      if (!(error instanceof InvalidInternalDelegationBindingError)) throw error
+      throw new InternalUnauthenticatedError('Authentication required')
+    }
+  }
 
   return {
-    async authenticate(request, params) {
-      if (request.headers.has('x-api-key')) {
-        throw new InternalUnauthenticatedError('Authentication required')
-      }
-
-      const authorization = request.headers.get('authorization')
-      if (!authorization) return internalSessionAuth.authenticate()
-      if (!authorization.startsWith('Bearer ')) {
-        throw new InternalUnauthenticatedError('Authentication required')
-      }
-
-      let delegation
-      try {
-        delegation = await verifyInternalDelegationToken(authorization.slice('Bearer '.length))
-      } catch (error) {
-        if (!(error instanceof InvalidInternalDelegationTokenError)) throw error
-        throw new InternalUnauthenticatedError('Authentication required')
-      }
-
-      try {
-        return await bindInternalExecutorDelegation(delegation, {
-          audience: options.audience,
-          resourceScope: options.resourceScope?.(params),
-        })
-      } catch (error) {
-        if (!(error instanceof InvalidInternalDelegationBindingError)) throw error
-        throw new InternalUnauthenticatedError('Authentication required')
-      }
+    async authenticate(request) {
+      return (await authenticateWithTransport(request)).principal
     },
+    authenticateWithTransport,
   }
 }
 
@@ -221,11 +229,45 @@ export const internalJsonPresenters = {
   },
 } as const
 
+export type InternalAuthTransport = 'session' | 'executor_jwt'
+
+/** Selects request scope for sessions and canonical run scope for executor JWTs. */
+export function resolveInternalAuthWorkspaceId(
+  authTransport: InternalAuthTransport | undefined,
+  executionWorkspaceId: string | undefined,
+  sessionWorkspaceId: string
+): string
+export function resolveInternalAuthWorkspaceId(
+  authTransport: InternalAuthTransport | undefined,
+  executionWorkspaceId: string | undefined,
+  sessionWorkspaceId: string | undefined
+): string | undefined {
+  switch (authTransport) {
+    case 'session':
+      return sessionWorkspaceId
+    case 'executor_jwt':
+      if (!executionWorkspaceId?.trim()) {
+        throw new Error('Executor JWT transport is missing its canonical workspace')
+      }
+      return executionWorkspaceId
+    case undefined:
+      throw new Error('Internal route requires an authenticated transport')
+  }
+}
+
+export type InternalAuthenticatedPrincipal<P extends Principal> =
+  | { principal: P; transport: 'session' }
+  | { principal: P; transport: 'executor_jwt'; executionWorkspaceId: string }
+
 export interface InternalAuthPolicy<P extends Principal> {
   authenticate(
     request: NextRequest,
     params: Record<string, string | string[] | undefined>
   ): Promise<P>
+  authenticateWithTransport?(
+    request: NextRequest,
+    params: Record<string, string | string[] | undefined>
+  ): Promise<InternalAuthenticatedPrincipal<P>>
 }
 
 export interface InternalJsonResponseFinalization {
@@ -252,6 +294,8 @@ type InternalJsonParseOptions = Pick<
 export interface InternalJsonPresenterContext<I, P extends Principal> {
   principal: P
   input: I
+  authTransport?: InternalAuthTransport
+  executionWorkspaceId?: string
 }
 
 type InternalJsonPresentFn<C extends JsonApiRouteContract, I, R, P extends Principal> = (
@@ -275,7 +319,15 @@ type InternalJsonRouteOptions<
 > = {
   contract: C
   operation: O
-  mapInput(input: ParsedRequest<C>, context: { principal: P; request: NextRequest }): I | Promise<I>
+  mapInput(
+    input: ParsedRequest<C>,
+    context: {
+      principal: P
+      request: NextRequest
+      authTransport?: InternalAuthTransport
+      executionWorkspaceId?: string
+    }
+  ): I | Promise<I>
   useCase: OperationUseCase<NoInfer<O>, I, R>
   auth: InternalAuthPolicy<P>
   rateLimit: InternalRateLimitPolicy
@@ -297,6 +349,8 @@ type InternalJsonRouteOptions<
     input: NoInfer<I>
     result: NoInfer<R>
     body: ContractJsonResponse<C>
+    authTransport?: InternalAuthTransport
+    executionWorkspaceId?: string
   }): InternalJsonResponseFinalization | Promise<InternalJsonResponseFinalization>
 } & InternalJsonPresenter<C, I, R, P>
 
@@ -357,8 +411,20 @@ export function defineInternalJsonRoute<
 
       const rawParams = context?.params ? await context.params : {}
       let principal: P
+      let authTransport: InternalAuthTransport | undefined
+      let executionWorkspaceId: string | undefined
       try {
-        principal = await options.auth.authenticate(request, rawParams)
+        if (options.auth.authenticateWithTransport) {
+          const authentication = await options.auth.authenticateWithTransport(request, rawParams)
+          principal = authentication.principal
+          authTransport = authentication.transport
+          executionWorkspaceId =
+            authentication.transport === 'executor_jwt'
+              ? authentication.executionWorkspaceId
+              : undefined
+        } else {
+          principal = await options.auth.authenticate(request, rawParams)
+        }
       } catch (error) {
         if (error instanceof InternalUnauthenticatedError) {
           return createJsonErrorResponse(internalErrorResponse(401, { error: error.message }))
@@ -386,14 +452,26 @@ export function defineInternalJsonRoute<
       if (!parsed.success) return responseWithRequestId(parsed.response)
 
       try {
-        const input = await options.mapInput(parsed.data, { principal, request })
+        const input = await options.mapInput(parsed.data, {
+          principal,
+          request,
+          authTransport,
+          executionWorkspaceId,
+        })
         const result = await options.useCase.execute({
           principal,
           input,
           request,
         })
         await options.onSuccess?.({ principal, input, result })
-        const body = options.present ? await options.present(result, { principal, input }) : result
+        const body = options.present
+          ? await options.present(result, {
+              principal,
+              input,
+              authTransport,
+              executionWorkspaceId,
+            })
+          : result
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('Internal JSON route response mode changed after initialization')
@@ -413,6 +491,8 @@ export function defineInternalJsonRoute<
               input,
               result,
               body: validatedBody,
+              authTransport,
+              executionWorkspaceId,
             })
           : undefined
         return NextResponse.json(

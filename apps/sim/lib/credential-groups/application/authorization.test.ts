@@ -2,8 +2,13 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { BoundWorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
+import {
+  requireCredentialGroupCredentialAccess,
+  requireCredentialGroupWorkflowActor,
+} from '@/lib/credential-groups/application/authorization'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 
@@ -19,11 +24,6 @@ vi.mock('@/lib/credential-groups/credentials', () => ({
 vi.mock('@/lib/resource-policies/repository', () => ({
   requireResourcePolicy: mocks.requirePolicy,
 }))
-
-import {
-  requireCredentialGroupCredentialAccess,
-  requireCredentialGroupWorkflowActor,
-} from '@/lib/credential-groups/application/authorization'
 
 const context = {
   workspaceId: 'workspace-1',
@@ -47,43 +47,33 @@ function storedPolicy(allowedWorkflowIds: string[] = []) {
   }
 }
 
-function executorPrincipal(): WorkflowExecutionDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    workspaceId: 'workspace-1',
-    delegationId: 'delegation-1',
-    audience: 'sim:managed-oauth-credentials',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
-    delegationContext: {
-      kind: 'workflow_execution',
+function slackPrincipal(): BoundWorkflowExecutionPrincipal {
+  return createTestRuntimePrincipal({
+    rootWorkflowId: 'root-workflow',
+    currentWorkflow: {
+      workflowId: 'workflow-1',
+      mode: 'deployment',
+      deploymentVersionId: 'version-1',
+    },
+    principal: {
+      kind: 'system',
+      serviceId: 'webhook',
+      workspaceId: 'workspace-1',
       workflowId: 'root-workflow',
-      principal: {
-        kind: 'system',
-        serviceId: 'webhook',
-        workspaceId: 'workspace-1',
-        workflowId: 'root-workflow',
-        webhookId: 'webhook-1',
+      webhookId: 'webhook-1',
+      provider: 'slack',
+      subject: {
+        kind: 'external_user',
         provider: 'slack',
-        subject: {
-          kind: 'external_user',
-          provider: 'slack',
-          tenantId: 'T123',
-          subjectId: 'U123',
-        },
-      },
-      currentWorkflow: {
-        workflowId: 'workflow-1',
-        mode: 'deployment',
-        deploymentVersionId: 'version-1',
+        tenantId: 'T123',
+        subjectId: 'U123',
       },
     },
-  }
+  })
 }
 
 function requireAccess(
-  principal: WorkflowExecutionDelegatedPrincipal,
+  principal: BoundWorkflowExecutionPrincipal,
   accessContext = context
 ): Promise<void> {
   return requireCredentialGroupCredentialAccess(
@@ -103,39 +93,30 @@ describe('requireCredentialGroupCredentialAccess', () => {
     })
   })
 
-  it('allows an external actor to use only their own enrollment', async () => {
-    const principal = executorPrincipal()
+  it('allows an external actor to use only its own enrollment', async () => {
+    const principal = slackPrincipal()
 
     await expect(requireAccess(principal)).resolves.toBeUndefined()
-    expect(mocks.requirePolicy).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      resourceType: 'credential_group',
-      resourceId: 'group-1',
-      codec: expect.objectContaining({ resourceType: 'credential_group' }),
-    })
     expect(mocks.loadEnrollmentAccess).toHaveBeenCalledWith('group-1', {
       kind: 'external_user',
       provider: 'slack',
       tenantId: 'T123',
       subjectId: 'U123',
     })
-
     await expect(
-      requireAccess(principal, {
-        ...context,
-        credentialGroupEnrollmentId: 'enrollment-2',
-      })
+      requireAccess(principal, { ...context, credentialGroupEnrollmentId: 'enrollment-2' })
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
 
-  it('allows a Sim actor to use their own enrollment', async () => {
-    const principal = executorPrincipal()
-    principal.subjectUserId = 'user-1'
-    principal.delegationContext!.principal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
+  it('allows a Sim actor to use its own enrollment', async () => {
+    const principal = createTestRuntimePrincipal({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'version-1',
+      },
+    })
 
     await expect(requireAccess(principal)).resolves.toBeUndefined()
     expect(mocks.loadEnrollmentAccess).toHaveBeenCalledWith('group-1', {
@@ -144,85 +125,69 @@ describe('requireCredentialGroupCredentialAccess', () => {
     })
   })
 
-  it('allows an actorless deployed workflow only when its current workflow is allowlisted', async () => {
-    const principal = executorPrincipal()
-    principal.delegationContext!.principal = {
-      kind: 'system',
-      serviceId: 'schedule',
-      workspaceId: 'workspace-1',
-      workflowId: 'root-workflow',
-    }
+  it('allows an actorless deployment only when its current workflow is allowlisted', async () => {
+    const principal = createTestRuntimePrincipal({
+      rootWorkflowId: 'root-workflow',
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-1',
+        workflowId: 'root-workflow',
+      },
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'version-1',
+      },
+    })
     mocks.requirePolicy.mockResolvedValue(storedPolicy(['workflow-1']))
 
     await expect(requireAccess(principal)).resolves.toBeUndefined()
     expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
-
-    principal.delegationContext!.currentWorkflow = { workflowId: 'workflow-1', mode: 'draft' }
-    await expect(requireAccess(principal)).rejects.toMatchObject({
-      code: 'forbidden',
-    })
   })
 
-  it('uses the current child workflow rather than the root workflow grant', async () => {
-    const principal = executorPrincipal()
-    principal.delegationContext!.principal = {
-      kind: 'system',
-      serviceId: 'schedule',
-      workspaceId: 'workspace-1',
-      workflowId: 'root-workflow',
-    }
-    principal.delegationContext!.currentWorkflow = {
-      workflowId: 'child-workflow',
-      mode: 'deployment',
-      deploymentVersionId: 'child-version',
-    }
+  it('uses the current child rather than the root workflow grant', async () => {
+    const principal = createTestRuntimePrincipal({
+      rootWorkflowId: 'root-workflow',
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-1',
+        workflowId: 'root-workflow',
+      },
+      currentWorkflow: {
+        workflowId: 'child-workflow',
+        mode: 'deployment',
+        deploymentVersionId: 'child-version',
+      },
+    })
     mocks.requirePolicy.mockResolvedValue(storedPolicy(['root-workflow']))
 
-    await expect(requireAccess(principal)).rejects.toMatchObject({
-      code: 'forbidden',
-    })
+    await expect(requireAccess(principal)).rejects.toMatchObject({ code: 'forbidden' })
   })
 
-  it('rejects inconsistent Sim and external subject assertions before loading policy', async () => {
-    const simPrincipal = executorPrincipal()
-    simPrincipal.subjectUserId = 'user-2'
-    simPrincipal.delegationContext!.principal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
-    await expect(requireAccess(simPrincipal)).rejects.toMatchObject({ code: 'forbidden' })
-
-    const externalPrincipal = executorPrincipal()
-    externalPrincipal.subjectUserId = 'invented-user'
-    await expect(requireAccess(externalPrincipal)).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.requirePolicy).not.toHaveBeenCalled()
-  })
-
-  it('requires the original principal and current workflow before loading policy', async () => {
-    const missingPrincipal = executorPrincipal()
-    missingPrincipal.delegationContext!.principal = undefined
-    await expect(requireAccess(missingPrincipal)).rejects.toThrow('missing its workflow principal')
-
-    const missingCurrentWorkflow = executorPrincipal()
-    missingCurrentWorkflow.delegationContext!.currentWorkflow = undefined
-    await expect(requireAccess(missingCurrentWorkflow)).rejects.toThrow(
-      'missing its current workflow authority'
-    )
+  it('fails fast without execution metadata before loading policy', async () => {
+    await expect(
+      requireCredentialGroupCredentialAccess(
+        { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        context,
+        credentialOperations.useManagedOAuth.resourcePolicy
+      )
+    ).rejects.toThrow('missing execution metadata')
     expect(mocks.requirePolicy).not.toHaveBeenCalled()
   })
 
   it('loads and validates the required policy before resolving actor enrollment', async () => {
     mocks.requirePolicy.mockRejectedValue(new Error('Malformed resource policy'))
 
-    await expect(requireAccess(executorPrincipal())).rejects.toThrow('Malformed resource policy')
+    await expect(requireAccess(slackPrincipal())).rejects.toThrow('Malformed resource policy')
     expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
   })
 })
 
 describe('requireCredentialGroupWorkflowActor', () => {
-  it('returns the external subject a Slack-triggered run acts as', () => {
-    expect(requireCredentialGroupWorkflowActor(executorPrincipal())).toEqual({
+  it('returns the verified Slack subject unchanged', () => {
+    expect(requireCredentialGroupWorkflowActor(slackPrincipal())).toEqual({
       kind: 'external_user',
       provider: 'slack',
       tenantId: 'T123',
@@ -231,48 +196,29 @@ describe('requireCredentialGroupWorkflowActor', () => {
   })
 
   it('returns no subject for an actorless deployed run', () => {
-    const principal = executorPrincipal()
-    principal.delegationContext!.principal = {
-      kind: 'system',
-      serviceId: 'schedule',
-      workspaceId: 'workspace-1',
-      workflowId: 'root-workflow',
-    }
+    const principal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'version-1',
+      },
+    })
 
     expect(requireCredentialGroupWorkflowActor(principal)).toBeNull()
   })
 
-  it('returns the Sim subject a session-actor run acts as', () => {
-    const principal = executorPrincipal()
-    principal.subjectUserId = 'user-1'
-    principal.delegationContext!.principal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
+  it('returns the Sim subject for a session-actor run', () => {
+    const principal = createTestRuntimePrincipal()
 
     expect(requireCredentialGroupWorkflowActor(principal)).toEqual({
       kind: 'sim_user',
       userId: 'user-1',
     })
-  })
-
-  it('rejects a delegation whose asserted subject contradicts its run', () => {
-    const invented = executorPrincipal()
-    invented.subjectUserId = 'invented-user'
-    expect(() => requireCredentialGroupWorkflowActor(invented)).toThrow(
-      'Credential Group actor access required'
-    )
-
-    const mismatched = executorPrincipal()
-    mismatched.subjectUserId = 'user-2'
-    mismatched.delegationContext!.principal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
-    expect(() => requireCredentialGroupWorkflowActor(mismatched)).toThrow(
-      'Credential Group actor access required'
-    )
   })
 })

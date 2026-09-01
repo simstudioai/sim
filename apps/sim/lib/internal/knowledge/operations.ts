@@ -1,4 +1,4 @@
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { BoundWorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { z } from 'zod'
 import {
   type createChunkBodySchema,
@@ -53,7 +53,8 @@ import { prepareKnowledgeModelInputProvenance } from '@/lib/knowledge/model-inpu
 import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
 
 export interface KnowledgeOperationContext {
-  principal: WorkflowExecutionDelegatedPrincipal
+  principal: BoundWorkflowExecutionPrincipal
+  workspaceId: string
   headers: Headers
   signal?: AbortSignal
 }
@@ -89,7 +90,12 @@ function resolveChunkContentProvenance(
     headers: context.headers,
     payload,
     authType: AuthType.INTERNAL_JWT,
-    userId: internalKnowledgeProvenanceUserId(context.headers, context.principal, workspaceId),
+    userId: internalKnowledgeProvenanceUserId(
+      context.headers,
+      context.principal,
+      workspaceId,
+      'executor_jwt'
+    ),
     ...(workspaceId ? { workspaceId } : {}),
     selectionKeys: includeContent ? ['chunk-content'] : [],
   })
@@ -115,7 +121,7 @@ export async function listDocumentsOperation(
     principal: context.principal,
     input: {
       knowledgeBaseId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       enabledFilter: query.enabledFilter,
       search: query.search,
       limit: query.limit,
@@ -140,7 +146,8 @@ export async function listDocumentsOperation(
     userId: internalKnowledgeProvenanceUserId(
       context.headers,
       context.principal,
-      result.workspaceId
+      result.workspaceId,
+      'executor_jwt'
     ),
     workspaceId: result.workspaceId,
     body,
@@ -162,7 +169,7 @@ export async function createDocumentsOperation(
   const documents = bodyInput.bulk ? bodyInput.documents : [bodyInput]
   const input = {
     knowledgeBaseId,
-    assertedWorkspaceId: context.principal.workspaceId,
+    assertedWorkspaceId: context.workspaceId,
     documents,
     bulk: bodyInput.bulk,
     processingOptions: bodyInput.bulk ? bodyInput.processingOptions : undefined,
@@ -227,7 +234,7 @@ export async function readDocumentOperation(
     input: {
       knowledgeBaseId,
       documentId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
     },
     request: { headers: context.headers },
   })
@@ -239,7 +246,8 @@ export async function readDocumentOperation(
     userId: internalKnowledgeProvenanceUserId(
       context.headers,
       context.principal,
-      result.workspaceId
+      result.workspaceId,
+      'executor_jwt'
     ),
     workspaceId: result.workspaceId,
     body,
@@ -263,7 +271,7 @@ export async function deleteDocumentOperation(
   const input = {
     knowledgeBaseId,
     documentId,
-    assertedWorkspaceId: context.principal.workspaceId,
+    assertedWorkspaceId: context.workspaceId,
     source: 'ui',
   }
   const result = await deleteKnowledgeDocument.execute({
@@ -289,7 +297,7 @@ export async function upsertDocumentOperation(
   throwIfAborted(context)
   const input = {
     knowledgeBaseId,
-    assertedWorkspaceId: context.principal.workspaceId,
+    assertedWorkspaceId: context.workspaceId,
     documentId: bodyInput.documentId,
     filename: bodyInput.filename,
     fileUrl: bodyInput.fileUrl,
@@ -370,7 +378,7 @@ export async function listChunksOperation(
     input: {
       knowledgeBaseId,
       documentId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       ...query,
     },
     request: { headers: context.headers },
@@ -387,7 +395,8 @@ export async function listChunksOperation(
     userId: internalKnowledgeProvenanceUserId(
       context.headers,
       context.principal,
-      result.workspaceId
+      result.workspaceId,
+      'executor_jwt'
     ),
     workspaceId: result.workspaceId,
     body,
@@ -413,7 +422,7 @@ export async function createChunkOperation(
     input: {
       knowledgeBaseId,
       documentId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       content: bodyInput.content,
       enabled: bodyInput.enabled,
       resolveContentProvenance: ({ workspaceId }) =>
@@ -448,7 +457,7 @@ export async function updateChunkOperation(
       knowledgeBaseId,
       documentId,
       chunkId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       content: bodyInput.content,
       enabled: bodyInput.enabled,
       resolveContentProvenance: ({ workspaceId }) =>
@@ -469,7 +478,8 @@ export async function updateChunkOperation(
     userId: internalKnowledgeProvenanceUserId(
       context.headers,
       context.principal,
-      result.workspaceId
+      result.workspaceId,
+      'executor_jwt'
     ),
     workspaceId: result.workspaceId,
     body,
@@ -498,7 +508,7 @@ export async function deleteChunkOperation(
       knowledgeBaseId,
       documentId,
       chunkId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
     },
     request: { headers: context.headers },
   })
@@ -513,7 +523,7 @@ export async function listConnectorsOperation(
   throwIfAborted(context)
   const result = await listKnowledgeConnectors.execute({
     principal: context.principal,
-    input: { knowledgeBaseId, assertedWorkspaceId: context.principal.workspaceId },
+    input: { knowledgeBaseId, assertedWorkspaceId: context.workspaceId },
     request: { headers: context.headers },
   })
   throwIfAborted(context)
@@ -533,7 +543,7 @@ export async function readConnectorOperation(
     input: {
       knowledgeBaseId,
       connectorId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
     },
     request: { headers: context.headers },
   })
@@ -551,7 +561,7 @@ export async function syncConnectorOperation(
   const input = {
     knowledgeBaseId,
     connectorId,
-    assertedWorkspaceId: context.principal.workspaceId,
+    assertedWorkspaceId: context.workspaceId,
     rehydrate,
     resolveBillingAttribution: (workspaceId: string) =>
       Promise.resolve(billingAttribution(context, workspaceId)),
@@ -574,7 +584,7 @@ export async function listTagsOperation(
   throwIfAborted(context)
   const result = await listKnowledgeTags.execute({
     principal: context.principal,
-    input: { knowledgeBaseId, assertedWorkspaceId: context.principal.workspaceId },
+    input: { knowledgeBaseId, assertedWorkspaceId: context.workspaceId },
     request: { headers: context.headers },
   })
   throwIfAborted(context)
@@ -591,7 +601,7 @@ export async function searchOperation(
   const result = await searchKnowledge.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: context.workspaceId,
       knowledgeBaseIds: Array.isArray(bodyInput.knowledgeBaseIds)
         ? bodyInput.knowledgeBaseIds
         : [bodyInput.knowledgeBaseIds],

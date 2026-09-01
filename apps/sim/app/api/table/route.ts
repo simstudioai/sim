@@ -5,6 +5,7 @@ import {
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
+  resolveInternalAuthWorkspaceId,
 } from '@/lib/api/server/routes'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
@@ -32,8 +33,12 @@ export const POST = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: createErrorPolicy,
-  mapInput: ({ body }, { principal }) => ({
-    workspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+  mapInput: ({ body }, { authTransport, executionWorkspaceId }) => ({
+    workspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      body.workspaceId
+    ),
     name: body.name,
     description: body.description,
     schema: { columns: body.schema.columns.map(normalizeColumn) },
@@ -86,8 +91,12 @@ export const GET = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: listErrorPolicy,
-  mapInput: ({ query }, { principal }) => ({
-    workspaceId: principal.kind === 'delegated' ? principal.workspaceId : query.workspaceId,
+  mapInput: ({ query }, { authTransport, executionWorkspaceId }) => ({
+    workspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      query.workspaceId
+    ),
     scope: query.scope,
   }),
   useCase: listTableDefinitionsUseCase,

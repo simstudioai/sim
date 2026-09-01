@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -29,20 +29,10 @@ import {
   type LogsToolOperationContext,
 } from '@/lib/internal/logs/operations'
 
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-canonical',
-  delegationId: 'delegation-1',
-  audience: 'sim:logs',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2026-08-27T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
+const PRINCIPAL = createTestRuntimePrincipal()
 
 function context(): LogsToolOperationContext {
-  return { principal: PRINCIPAL, signal: undefined }
+  return { principal: PRINCIPAL, workspaceId: 'workspace-canonical', signal: undefined }
 }
 
 describe('Logs direct operations', () => {

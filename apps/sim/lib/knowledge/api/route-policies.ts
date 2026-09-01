@@ -10,7 +10,6 @@ import {
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { KnowledgeSearchProvenanceUnavailableError } from '@/lib/knowledge/application/search'
@@ -51,9 +50,7 @@ const internalKnowledgeSearchErrorPolicy: InternalErrorPolicy = {
   unhandled: () => internalErrorResponse(500, { error: 'Failed to perform vector search' }),
 }
 
-export const internalKnowledgeSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
-  audience: KNOWLEDGE_DELEGATION_AUDIENCE,
-})
+export const internalKnowledgeSessionOrExecutorAuth = createInternalSessionOrExecutorAuth()
 
 export const KNOWLEDGE_BASE_NOT_FOUND_MESSAGE = 'Knowledge base not found'
 

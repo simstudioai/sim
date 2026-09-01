@@ -3,12 +3,14 @@ import {
   type CopilotExecutionContext,
   requireTrustedCopilotExecutionContext,
 } from '@/lib/copilot/auth/application-delegation'
-import { CUSTOM_TOOL_DELEGATION_AUDIENCE } from '@/lib/custom-tools/application/authorization'
 import {
   type ReadAvailableCustomToolByIdOrTitleInput,
   readAvailableCustomToolByIdOrTitleUseCase,
 } from '@/lib/custom-tools/application/use-cases'
-import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  createExecutorPrincipalFromExecutionContext,
+  requireExecutorWorkspaceId,
+} from '@/lib/internal/principals/executor'
 import type { ExecutionContext } from '@/executor/types'
 
 export interface ReadAvailableCustomToolByIdOrTitleAsExecutorInput {
@@ -25,13 +27,12 @@ export async function readAvailableCustomToolByIdOrTitleAsExecutor({
   context.abortSignal?.throwIfAborted()
   const principal = await createExecutorPrincipalFromExecutionContext({
     context,
-    audience: CUSTOM_TOOL_DELEGATION_AUDIENCE,
   })
   context.abortSignal?.throwIfAborted()
   const { tool } = await readAvailableCustomToolByIdOrTitleUseCase.execute({
     principal,
     input: {
-      workspaceId: principal.workspaceId,
+      workspaceId: requireExecutorWorkspaceId(context),
       identifier,
       lookup,
     },

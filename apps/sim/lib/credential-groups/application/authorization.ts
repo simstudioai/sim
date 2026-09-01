@@ -1,6 +1,7 @@
 import {
   type Principal,
   type PrincipalSubject,
+  requirePrincipalExecutionMetadata,
   resolvePrincipalSubject,
   type WorkflowExecutionAuthority,
   type WorkflowExecutionPrincipal,
@@ -30,41 +31,19 @@ export interface CredentialGroupApplicationContext
     CredentialGroupCredentialListContext {}
 
 function requireWorkflowExecutionPrincipal(principal: Principal): WorkflowExecutionPrincipal {
-  if (principal.kind !== 'delegated' || principal.serviceId !== 'executor') {
-    throw new Error('Credential Group use requires an executor delegation')
+  if (principal.kind === 'credential_group_enrollment') {
+    throw new Error('Credential Group use requires a workflow execution principal')
   }
-  const executionPrincipal = principal.delegationContext?.principal
-  if (!executionPrincipal) {
-    throw new Error('Executor delegation is missing its workflow principal')
-  }
-  return executionPrincipal
+  requirePrincipalExecutionMetadata(principal)
+  return principal
 }
 
 function requireCurrentWorkflow(principal: Principal): WorkflowExecutionAuthority {
-  if (principal.kind !== 'delegated' || principal.serviceId !== 'executor') {
-    throw new Error('Credential Group use requires an executor delegation')
-  }
-  const currentWorkflow = principal.delegationContext?.currentWorkflow
-  if (!currentWorkflow) {
-    throw new Error('Executor delegation is missing its current workflow authority')
-  }
-  return currentWorkflow
+  return requirePrincipalExecutionMetadata(principal).currentWorkflow
 }
 
-function requireConsistentWorkflowSubject(
-  principal: Principal,
-  executionPrincipal: WorkflowExecutionPrincipal
-) {
-  if (principal.kind !== 'delegated' || principal.serviceId !== 'executor') {
-    throw new Error('Credential Group use requires an executor delegation')
-  }
+function requireConsistentWorkflowSubject(executionPrincipal: WorkflowExecutionPrincipal) {
   const subject = resolvePrincipalSubject(executionPrincipal)
-  if (
-    (subject?.kind === 'sim_user' && principal.subjectUserId !== subject.userId) ||
-    (subject?.kind !== 'sim_user' && principal.subjectUserId !== undefined)
-  ) {
-    throw new OrchestrationError('forbidden', 'Credential Group actor access required')
-  }
   return subject
 }
 
@@ -80,7 +59,7 @@ function requireConsistentWorkflowSubject(
  * user simply records none.
  */
 export function requireCredentialGroupWorkflowActor(principal: Principal): PrincipalSubject | null {
-  return requireConsistentWorkflowSubject(principal, requireWorkflowExecutionPrincipal(principal))
+  return requireConsistentWorkflowSubject(requireWorkflowExecutionPrincipal(principal))
 }
 
 export async function requireCredentialGroupCredentialAccess(
@@ -90,7 +69,7 @@ export async function requireCredentialGroupCredentialAccess(
 ): Promise<void> {
   const executionPrincipal = requireWorkflowExecutionPrincipal(principal)
   const currentWorkflow = requireCurrentWorkflow(principal)
-  const subject = requireConsistentWorkflowSubject(principal, executionPrincipal)
+  const subject = requireConsistentWorkflowSubject(executionPrincipal)
   const policy = await requireResourcePolicy({
     workspaceId: context.workspaceId,
     resourceType: 'credential_group',

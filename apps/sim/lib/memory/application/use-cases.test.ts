@@ -2,9 +2,9 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 const mocks = vi.hoisted(() => ({
@@ -61,31 +61,19 @@ const BILLING_ATTRIBUTION: BillingAttributionSnapshot = {
   payerSubscription: null,
 }
 
-const ACTORLESS_DEPLOYED_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  workspaceId: WORKSPACE_ID,
-  delegationId: 'delegation-1',
-  audience: 'sim:memory',
-  issuedAt: new Date(Date.now() - 1_000),
-  expiresAt: new Date(Date.now() + 60_000),
-  delegationContext: {
-    kind: 'workflow_execution',
+const ACTORLESS_DEPLOYED_PRINCIPAL = createTestRuntimePrincipal({
+  principal: {
+    kind: 'system',
+    serviceId: 'schedule',
+    workspaceId: WORKSPACE_ID,
     workflowId: 'workflow-1',
-    executionId: 'execution-1',
-    principal: {
-      kind: 'system',
-      serviceId: 'schedule',
-      workspaceId: WORKSPACE_ID,
-      workflowId: 'workflow-1',
-    },
-    currentWorkflow: {
-      workflowId: 'workflow-1',
-      mode: 'deployment',
-      deploymentVersionId: 'deployment-1',
-    },
   },
-}
+  currentWorkflow: {
+    workflowId: 'workflow-1',
+    mode: 'deployment',
+    deploymentVersionId: 'deployment-1',
+  },
+})
 
 describe('Memory application use cases', () => {
   beforeEach(() => {

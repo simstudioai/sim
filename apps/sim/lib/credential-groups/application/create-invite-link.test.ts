@@ -1,8 +1,9 @@
 /**
  * @vitest-environment node
  */
-import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   createInvitationLink: vi.fn(),
@@ -47,19 +48,10 @@ const context = {
   options: [],
 }
 
-function executorPrincipal(credentialGroupId = 'group-1'): WorkflowExecutionDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'admin-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'delegation-1',
-    audience: 'sim:credential-groups',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialGroupId },
-    delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-  }
+function executorPrincipal() {
+  return createTestRuntimePrincipal({
+    principal: { kind: 'session', userId: 'admin-1', sessionId: 'session-1' },
+  })
 }
 
 describe('createCredentialGroupInviteLink', () => {
@@ -78,13 +70,13 @@ describe('createCredentialGroupInviteLink', () => {
     })
   })
 
-  it('allows only admin executor delegation', () => {
+  it('allows only admin workflow execution', () => {
     expect(createCredentialGroupInviteLink.operation).toMatchObject({
       id: 'credential_groups.invites.link.create',
       minimumRole: 'admin',
       workspaceApiKey: 'deny',
-      principalKinds: ['delegated'],
-      delegatedServices: ['executor'],
+      principalKinds: [],
+      workflowExecution: 'allow',
     })
   })
 
@@ -105,32 +97,19 @@ describe('createCredentialGroupInviteLink', () => {
   })
 
   it('issues an unattributed link for an actorless run', async () => {
-    // A schedule (or a webhook with no external subject) reaches this with a real
-    // admin-scoped delegation and no person on it. The delegation is the authority;
-    // the issuer is only recorded, and `created_by` is nullable — so this issues the
-    // link with no issuer rather than refusing, which is what it did when the
-    // subject was demanded here.
-    const { subjectUserId: _subject, ...base } = executorPrincipal()
-    // What actually authorizes an actorless caller: the delegation is running a
-    // deployment. No user is consulted anywhere in that decision.
-    const actorless = {
-      ...base,
-      delegationContext: {
-        kind: 'workflow_execution' as const,
+    const actorless = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
-        principal: {
-          kind: 'system' as const,
-          serviceId: 'schedule' as const,
-          workspaceId: 'workspace-1',
-          workflowId: 'workflow-1',
-        },
-        currentWorkflow: {
-          workflowId: 'workflow-1',
-          mode: 'deployment' as const,
-          deploymentVersionId: 'version-1',
-        },
       },
-    }
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'version-1',
+      },
+    })
 
     const result = await createCredentialGroupInviteLink.execute({
       principal: actorless,
@@ -144,16 +123,6 @@ describe('createCredentialGroupInviteLink', () => {
       undefined,
       'person@example.com'
     )
-  })
-
-  it('rejects delegation scoped to another Credential Group', async () => {
-    await expect(
-      createCredentialGroupInviteLink.execute({
-        principal: executorPrincipal('group-2'),
-        input: { credentialGroupId: 'group-1', email: 'person@example.com' },
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.createInvitationLink).not.toHaveBeenCalled()
   })
 
   it('requires the current subject to remain a workspace admin', async () => {

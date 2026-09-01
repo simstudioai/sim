@@ -21,7 +21,6 @@ import {
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
-import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
 import {
@@ -90,9 +89,7 @@ export const v2WorkflowErrorPolicies = {
   }),
 } as const
 
-export const internalWorkflowSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
-  audience: WORKFLOW_DELEGATION_AUDIENCE,
-})
+export const internalWorkflowSessionOrExecutorAuth = createInternalSessionOrExecutorAuth()
 
 type WorkflowApiKeyPrincipal = PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
 

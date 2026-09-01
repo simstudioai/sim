@@ -1,14 +1,15 @@
 /**
  * @vitest-environment node
  */
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { BlockType } from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
+  requireWorkspaceId: vi.fn(() => 'workspace-1'),
   createInviteLink: vi.fn(),
   enforceInviteRateLimit: vi.fn(),
   listCredentials: vi.fn(),
@@ -50,36 +51,18 @@ vi.mock('@/lib/credential-groups/rate-limit', () => ({
 
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
+  requireExecutorWorkspaceId: mocks.requireWorkspaceId,
 }))
 
 import { CredentialGroupBlockHandler } from '@/executor/handlers/credential-group/credential-group-handler'
 
-const principal: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:credential-groups',
-  issuedAt: new Date(Date.now() - 1_000),
-  expiresAt: new Date(Date.now() + 60_000),
-  delegationContext: {
-    kind: 'workflow_execution',
-    workflowId: 'workflow-1',
-    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-  },
-}
+const principal = createTestRuntimePrincipal()
 
 const context = {
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
   userId: 'user-1',
-  principal: principal.delegationContext.principal,
-  executorDelegationOrigin: {
-    subjectUserId: 'user-1',
-    workflowId: 'workflow-1',
-    principal: principal.delegationContext.principal,
-  },
+  principal,
 } as ExecutionContext
 
 const block = { metadata: { id: BlockType.CREDENTIAL_GROUP } } as SerializedBlock
@@ -118,8 +101,6 @@ describe('CredentialGroupBlockHandler', () => {
 
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context,
-      audience: 'sim:credential-groups',
-      resourceScope: { credentialGroupId: 'group-1' },
     })
     expect(mocks.listCredentials).toHaveBeenCalledWith({
       principal,
@@ -135,41 +116,23 @@ describe('CredentialGroupBlockHandler', () => {
   })
 
   it('lists credentials for an actorless workflow execution', async () => {
-    const executionPrincipal = {
-      kind: 'system' as const,
-      serviceId: 'schedule' as const,
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-    }
-    const actorlessPrincipal: WorkflowExecutionDelegatedPrincipal = {
-      kind: 'delegated',
-      serviceId: 'executor',
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-actorless',
-      audience: 'sim:credential-groups',
-      issuedAt: new Date(Date.now() - 1_000),
-      expiresAt: new Date(Date.now() + 60_000),
-      resourceScope: { credentialGroupId: 'group-1' },
-      delegationContext: {
-        kind: 'workflow_execution',
+    const actorlessPrincipal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
-        principal: executionPrincipal,
-        currentWorkflow: {
-          workflowId: 'workflow-1',
-          mode: 'deployment',
-          deploymentVersionId: 'deployment-version-1',
-        },
       },
-    }
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-version-1',
+      },
+    })
     const actorlessContext = {
       ...context,
       userId: undefined,
-      principal: executionPrincipal,
-      executorDelegationOrigin: {
-        workflowId: 'workflow-1',
-        principal: executionPrincipal,
-        currentWorkflow: actorlessPrincipal.delegationContext.currentWorkflow,
-      },
+      principal: actorlessPrincipal,
     } as ExecutionContext
     mocks.createPrincipal.mockResolvedValueOnce(actorlessPrincipal)
     mocks.listCredentials.mockResolvedValue({
@@ -186,8 +149,6 @@ describe('CredentialGroupBlockHandler', () => {
 
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context: actorlessContext,
-      audience: 'sim:credential-groups',
-      resourceScope: { credentialGroupId: 'group-1' },
     })
     expect(mocks.listCredentials).toHaveBeenCalledWith({
       principal: actorlessPrincipal,
@@ -216,7 +177,6 @@ describe('CredentialGroupBlockHandler', () => {
 
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context,
-      audience: 'sim:credential-groups',
     })
     expect(mocks.listGroups).toHaveBeenCalledWith({
       principal,
@@ -271,8 +231,6 @@ describe('CredentialGroupBlockHandler', () => {
 
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context,
-      audience: 'sim:credential-groups',
-      resourceScope: { credentialGroupId: 'group-1' },
     })
     expect(mocks.enforceInviteRateLimit).toHaveBeenCalledWith('workspace-1')
     expect(mocks.enforceInviteRateLimit.mock.invocationCallOrder[0]).toBeLessThan(

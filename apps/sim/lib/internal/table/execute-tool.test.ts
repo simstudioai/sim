@@ -9,6 +9,7 @@ import type { ExecutionContext } from '@/executor/types'
 
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
+  requireWorkspaceId: vi.fn(() => 'workspace-canonical'),
   create: vi.fn(),
   list: vi.fn(),
   getSchema: vi.fn(),
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
+  requireExecutorWorkspaceId: mocks.requireWorkspaceId,
 }))
 
 vi.mock('@/lib/internal/table/operations', () => ({
@@ -276,8 +278,6 @@ describe('executeTableTool', () => {
     expect(mocks[testCase.operation]).toHaveBeenCalledOnce()
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context: CONTEXT,
-      audience: 'sim:tables',
-      ...(testCase.tableId ? { resourceScope: { tableId: testCase.tableId } } : {}),
     })
   })
 

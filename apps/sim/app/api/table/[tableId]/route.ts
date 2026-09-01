@@ -10,6 +10,7 @@ import {
   defineInternalJsonRoute,
   internalErrorResponse,
   internalRateLimits,
+  resolveInternalAuthWorkspaceId,
 } from '@/lib/api/server/routes'
 import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -53,9 +54,13 @@ export const GET = defineInternalJsonRoute({
     ...internalTableErrorPolicies.concealTableAuthorization,
     unhandled: () => internalErrorResponse(500, { error: 'Failed to get table' }),
   },
-  mapInput: ({ params, query }, { principal }) => ({
+  mapInput: ({ params, query }, { authTransport, executionWorkspaceId }) => ({
     tableId: params.tableId,
-    workspaceId: principal.kind === 'delegated' ? principal.workspaceId : query.workspaceId,
+    workspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      query.workspaceId
+    ),
   }),
   useCase: readTableDetailsUseCase,
   present: ({ table, maxRows }) => ({

@@ -23,7 +23,6 @@ import {
 } from '@/lib/internal/tool-operations/identity-faults'
 import { parseInternalToolInput } from '@/lib/internal/tool-operations/parse-input'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
-import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { searchWorkspaceFileContent } from '@/lib/workspace-files/application/search-workspace-file-content'
 import {
   FILE_SEARCH_DEFAULT_MAX_RESULTS,
@@ -76,7 +75,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
   }
 
   const workspaceId = request.context.workspaceId
-  if (!workspaceId || !request.context.executorDelegationOrigin) {
+  if (!workspaceId || !request.context.principal?.executionMetadata) {
     return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
   }
 
@@ -101,7 +100,6 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
   try {
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: request.context,
-      audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
     })
     if (searchInput) {
       request.signal?.throwIfAborted()

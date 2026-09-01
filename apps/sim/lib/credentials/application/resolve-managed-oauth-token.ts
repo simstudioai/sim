@@ -28,13 +28,18 @@ export const resolveManagedOAuthCredentialToken = defineAuthorizedWorkspaceUseCa
   async authorizeResource({ principal, context, resourcePolicy }) {
     await requireCredentialGroupCredentialAccess(principal, context, resourcePolicy)
   },
-  execute: async ({ input, context }): Promise<ResolvedManagedOAuthToken> =>
-    resolveManagedOAuthToken({
+  execute: async ({
+    input,
+    context,
+  }): Promise<ResolvedManagedOAuthToken & { workspaceId: string }> => ({
+    ...(await resolveManagedOAuthToken({
       credentialId: context.credentialId,
       workspaceId: context.workspaceId,
       expectedProviderId: input.expectedProviderId,
       requiredScopes: input.requiredScopes,
-    }),
+    })),
+    workspaceId: context.workspaceId,
+  }),
   projectAudit({ input, context }) {
     return {
       action: AuditAction.CREDENTIAL_ACCESSED,

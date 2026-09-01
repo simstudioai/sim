@@ -3,6 +3,7 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const resolvePermission = vi.hoisted(() => vi.fn())
 
@@ -126,18 +127,8 @@ describe('file operation authorization', () => {
     )
   })
 
-  it('admits executor delegation only for explicitly declared file-tool operations', async () => {
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: 'sim:workspace-files',
-      issuedAt: new Date(Date.now() - 1_000),
-      expiresAt: new Date(Date.now() + 60_000),
-      resourceScope: { fileId: 'file-1', executionId: 'execution-1' },
-    }
+  it('admits workflow execution only for explicitly declared file-tool operations', async () => {
+    const principal = createTestRuntimePrincipal()
 
     await authorizeWorkspaceFileAccess(
       principal,
@@ -151,7 +142,7 @@ describe('file operation authorization', () => {
       authorizeWorkspaceFileAccess(principal, fileOperations.rename, authorizationContext)
     ).rejects.toMatchObject<Partial<OrchestrationError>>({
       code: 'forbidden',
-      message: 'Delegated service executor cannot perform operation files.rename',
+      message: 'Principal kind session cannot perform operation files.rename',
     })
     expect(resolvePermission).not.toHaveBeenCalled()
   })

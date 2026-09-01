@@ -89,11 +89,6 @@ export async function executeTool(
         executionId: context.executionId,
         chatId: context.chatId,
         toolCallId: context.toolCallId,
-        executorDelegationOrigin: {
-          subjectUserId: context.userId,
-          workflowId: context.workflowId,
-          ...(context.executionId ? { executionId: context.executionId } : {}),
-        },
         copilotToolExecution: context.copilotToolExecution,
         copilotInteractionMode: context.copilotInteractionMode,
         billingAttribution: context.billingAttribution,

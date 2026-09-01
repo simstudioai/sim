@@ -30,10 +30,10 @@ export type InternalToolIdentityFault = 'unauthenticated' | 'subject_user_requir
  * import the executor-principal module: nearly every handler test mocks that
  * module, and an `instanceof` against a mock that omits the export throws.
  */
-export class ExecutorDelegationOriginRequiredError extends Error {
+export class WorkflowExecutionPrincipalRequiredError extends Error {
   constructor() {
-    super('Executor delegation origin is required')
-    this.name = 'ExecutorDelegationOriginRequiredError'
+    super('Workflow execution principal is required')
+    this.name = 'WorkflowExecutionPrincipalRequiredError'
   }
 }
 
@@ -53,7 +53,7 @@ export function classifyInternalToolIdentityFault(
   if (error instanceof PrincipalSubjectUserRequiredError) return 'subject_user_required'
   if (
     error instanceof InvalidInternalDelegationBindingError ||
-    error instanceof ExecutorDelegationOriginRequiredError ||
+    error instanceof WorkflowExecutionPrincipalRequiredError ||
     (error instanceof Error && error.message === 'Authentication required')
   ) {
     return 'unauthenticated'

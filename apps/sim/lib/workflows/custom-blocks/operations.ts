@@ -342,6 +342,10 @@ export async function getCustomBlockAuthority(
    * same lookup — read one value that no consumer input can influence.
    */
   traceChildRuns: boolean
+  workflowName: string
+  workspaceId: string | null
+  variables: unknown
+  deploymentVersionId: string | null
 } | null> {
   // Scope resolution to the consumer's org: `(organizationId, type)` is the unique
   // key, so without the org filter a `custom_block_*` type smuggled in from another
@@ -359,9 +363,20 @@ export async function getCustomBlockAuthority(
       inputs: customBlock.inputs,
       traceChildRuns: customBlock.traceChildRuns,
       ownerUserId: workflow.userId,
+      workflowName: workflow.name,
+      workspaceId: workflow.workspaceId,
+      variables: workflow.variables,
+      deploymentVersionId: workflowDeploymentVersion.id,
     })
     .from(customBlock)
     .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
+    .leftJoin(
+      workflowDeploymentVersion,
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflow.id),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
     .where(and(eq(customBlock.type, type), eq(customBlock.organizationId, organizationId)))
     .limit(1)
 
@@ -373,6 +388,10 @@ export async function getCustomBlockAuthority(
     exposedOutputs: row.outputs ?? [],
     requiredInputIds: (row.inputs ?? []).filter((i) => i.required).map((i) => i.id),
     traceChildRuns: row.traceChildRuns,
+    workflowName: row.workflowName,
+    workspaceId: row.workspaceId,
+    variables: row.variables,
+    deploymentVersionId: row.deploymentVersionId,
   }
 }
 

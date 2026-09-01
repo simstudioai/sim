@@ -494,7 +494,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     triggerType: 'api' | 'schedule' | 'webhook'
     isPublicApiAccess: boolean
   }>)(
-    'preserves the exact $name principal and deployed workflow authority in executor delegation',
+    'preserves the exact $name actor and deployed workflow authority on the runtime principal',
     async ({ principal, triggerType, isPublicApiAccess }) => {
       executorExecuteMock.mockResolvedValue({
         success: true,
@@ -522,17 +522,20 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       })
 
       const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
-      expect(contextExtensions.principal).toBe(principal)
-      expect(contextExtensions.executorDelegationOrigin.principal).toBe(principal)
-      expect(contextExtensions.executorDelegationOrigin).toEqual({
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        principal,
-        currentWorkflow: {
-          workflowId: 'workflow-1',
-          mode: 'deployment',
-          deploymentVersionId: 'dep-1',
+      expect(contextExtensions.principal).toEqual({
+        ...principal,
+        executionMetadata: {
+          executionId: 'execution-1',
+          rootWorkflowId: 'workflow-1',
+          currentWorkflow: {
+            workflowId: 'workflow-1',
+            mode: 'deployment',
+            deploymentVersionId: 'dep-1',
+          },
         },
+      })
+      expect(contextExtensions.principal).not.toMatchObject({
+        userId: 'billing-actor',
       })
     }
   )
@@ -942,11 +945,15 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       expect.objectContaining({ deploymentVersionId: 'dep-historical' })
     )
     expect(executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions).toMatchObject({
-      executorDelegationOrigin: {
-        currentWorkflow: {
-          workflowId: 'workflow-1',
-          mode: 'deployment',
-          deploymentVersionId: 'dep-historical',
+      principal: {
+        executionMetadata: {
+          executionId: 'execution-resumed',
+          rootWorkflowId: 'workflow-1',
+          currentWorkflow: {
+            workflowId: 'workflow-1',
+            mode: 'deployment',
+            deploymentVersionId: 'dep-historical',
+          },
         },
       },
     })
