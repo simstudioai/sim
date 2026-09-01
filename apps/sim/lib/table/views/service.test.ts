@@ -764,6 +764,15 @@ describe('default-view writers share the views lock', () => {
     expect(dbChainMockFns.execute).toHaveBeenCalled()
   })
 
+  it('demoting a view takes the same advisory lock as other default-state writers', async () => {
+    queueTableRows(tableViews, [{ ...viewRow, isDefault: true }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, isDefault: false }])
+
+    await updateTableView({ viewId: 'view-1', tableId: 'table-1', isDefault: false, columns })
+
+    expect(dbChainMockFns.execute).toHaveBeenCalled()
+  })
+
   it('a rename stays a plain transaction, off the lock', async () => {
     queueTableRows(tableViews, [{ id: 'view-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, name: 'Renamed' }])

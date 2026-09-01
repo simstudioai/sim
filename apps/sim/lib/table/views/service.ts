@@ -541,14 +541,14 @@ export interface UpdateTableViewData {
  * the references that row already carries stay writable — see
  * {@link normalizeViewConfigForStorage}.
  *
- * Promotion demotes siblings, so it contends with {@link createTableView}'s
- * default-on-create path; both serialize on the same per-table views lock, or
- * the partial unique index fails one of two valid writes. Plain patches (layout
- * autosave, renames) touch only their own row and skip the lock.
+ * Every explicit default-state change contends with {@link createTableView}'s
+ * default-on-create path, so promotions and demotions serialize on the same
+ * per-table views lock. Plain patches (layout autosave, renames) touch only
+ * their own row and skip the lock.
  */
 export async function updateTableView(data: UpdateTableViewData): Promise<TableView | null> {
   const runWrite = <T>(write: (trx: DbTransaction) => Promise<T>): Promise<T> =>
-    data.isDefault === true ? withTableViewsLock(data.tableId, write) : db.transaction(write)
+    data.isDefault !== undefined ? withTableViewsLock(data.tableId, write) : db.transaction(write)
   const outcome = await runWrite(async (tx) => {
     // Confirm the target exists BEFORE demoting. The demotion has to run first —
     // the partial unique index rejects a second default — but on a PATCH naming a
