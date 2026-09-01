@@ -134,8 +134,8 @@ export function enrichTableToolDescription(
      */
     const textCol = table.columns.find((c) => c.type === 'string')
     const wildcardRule = textCol
-      ? `5. like/ilike use * as the wildcard, e.g. {"field":"${textCol.name}","op":"ilike","value":"*jo*"}`
-      : '5. like/ilike use * as the wildcard, matching anywhere in a text value'
+      ? `5. like, ilike, nlike and nilike all use * as the wildcard - never % - e.g. {"field":"${textCol.name}","op":"ilike","value":"*jo*"}`
+      : '5. like, ilike, nlike and nilike all use * as the wildcard - never % - matching anywhere in a text value'
     const numberCol = table.columns.find((c) => c.type === 'number')
     const orderExample = numberCol
       ? `
@@ -145,7 +145,7 @@ Example order: [{"field":"${numberCol.name}","direction":"desc"}] for highest fi
     return `${originalDescription}
 
 INSTRUCTIONS:
-1. Build the filter yourself from the user's question - do NOT ask for confirmation
+1. Build the filter yourself from the user's question - do NOT ask for confirmation. If the question names no condition at all ("the 5 most recent rows"), omit filter entirely and use order and limit instead of inventing one
 2. A single condition is a plain object: {"field":"<column>","op":"<operator>","value":<value>}
 3. For multiple conditions wrap them in {"all":[...]} for AND or {"any":[...]} for OR; groups nest
 4. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty
@@ -155,7 +155,7 @@ ${wildcardRule}
 8. For ranking queries (highest, lowest, Nth, top N) set order and a small limit, e.g. limit 1 for the highest, 2 for the second highest
 9. Omit limit to return every matching row; the query fails if the result exceeds 5MB, so narrow with a filter instead of guessing a limit
 10. With a limit, a page can end early at the byte budget - a non-null nextCursor means more rows remain, so pass it back as cursor and loop until it is null. Never infer completion from page size
-11. Omit the filter only when the user genuinely wants every row
+11. A filter is optional: omit it whenever the question carries no condition, not only when the user wants every row
 
 Table "${table.name}" columns:
 ${v2ColumnList}
