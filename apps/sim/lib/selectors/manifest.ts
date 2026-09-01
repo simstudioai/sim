@@ -321,6 +321,7 @@ export const selectorManifest = {
     {
       readiness: { all: ['awsAccessKeyId', 'awsSecretAccessKey', 'awsRegion'] },
       sensitive: ['awsAccessKeyId', 'awsSecretAccessKey'],
+      listMode: 'paginated',
       search: true,
       detail: true,
     }
@@ -332,6 +333,7 @@ export const selectorManifest = {
         all: ['awsAccessKeyId', 'awsSecretAccessKey', 'awsRegion', 'logGroupName'],
       },
       sensitive: ['awsAccessKeyId', 'awsSecretAccessKey'],
+      listMode: 'paginated',
       search: true,
       detail: true,
     }

@@ -145,13 +145,23 @@ export interface DescribedLogStream {
 export async function describeLogStreams(
   client: CloudWatchLogsClient,
   logGroupName: string,
-  options?: { prefix?: string; limit?: number; suppressTruncationLog?: boolean },
+  options?: {
+    prefix?: string
+    limit?: number
+    nextToken?: string
+    suppressTruncationLog?: boolean
+  },
   signal?: AbortSignal
-): Promise<{ logStreams: DescribedLogStream[]; truncated: boolean; pages: number }> {
+): Promise<{
+  logStreams: DescribedLogStream[]
+  truncated: boolean
+  pages: number
+  nextToken?: string
+}> {
   const hasPrefix = Boolean(options?.prefix)
   const totalLimit = options?.limit
   const logStreams: DescribedLogStream[] = []
-  let nextToken: string | undefined
+  let nextToken = options?.nextToken
   let pages = 0
   let truncated = false
 
@@ -167,7 +177,7 @@ export async function describeLogStreams(
         ? { orderBy: 'LogStreamName', logStreamNamePrefix: options!.prefix }
         : { orderBy: 'LastEventTime', descending: true }),
       limit: pageLimit,
-      ...(nextToken && { nextToken }),
+      ...(nextToken !== undefined ? { nextToken } : {}),
     })
 
     const response = await client.send(command, { abortSignal: signal })
@@ -202,6 +212,7 @@ export async function describeLogStreams(
     logStreams: totalLimit !== undefined ? logStreams.slice(0, totalLimit) : logStreams,
     truncated,
     pages,
+    ...(nextToken !== undefined ? { nextToken } : {}),
   }
 }
 
