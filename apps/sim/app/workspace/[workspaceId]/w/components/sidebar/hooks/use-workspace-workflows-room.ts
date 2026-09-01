@@ -13,14 +13,17 @@ import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workfl
  * workflow lists AND the workflow folders so every viewer refetches without waiting for staleness.
  * A created/renamed/moved/deleted/duplicated/imported/restored/reordered workflow changes the list
  * result; a folder create/rename/delete/restore changes the folder tree — the sidebar renders both,
- * so both are invalidated. Lists go through {@link invalidateWorkflowLists} (both scopes, plus the
- * workflow selectors) so a remote change refreshes exactly what a local mutation would. Thin
- * binding over {@link useWorkspaceInvalidationRoom}, mirroring `useWorkspaceTablesRoom`.
+ * so both are invalidated — each scoped to this workspace, in both scopes, so one workspace's
+ * broadcast never touches another workspace's cache. Lists go through
+ * {@link invalidateWorkflowLists} (which also covers the workflow selectors) so a remote change
+ * refreshes exactly what a local mutation would. Thin binding over
+ * {@link useWorkspaceInvalidationRoom}, mirroring `useWorkspaceTablesRoom`.
  */
 export function useWorkspaceWorkflowsRoom(workspaceId: string): void {
   const queryClient = useQueryClient()
   useWorkspaceInvalidationRoom(workspaceId, ROOM_TYPES.WORKSPACE_WORKFLOWS, () => {
     invalidateWorkflowLists(queryClient, workspaceId, ['active', 'archived'])
-    queryClient.invalidateQueries({ queryKey: folderKeys.resource('workflow') })
+    queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId, 'active') })
+    queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId, 'archived') })
   })
 }

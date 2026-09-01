@@ -158,6 +158,7 @@ describe('workflow import and export application operations', () => {
         }),
       })
     )
+    expect(mocks.notifyWorkspace).toHaveBeenCalledWith('ws-1')
   })
 
   it('preserves classified import details and does not audit a failure', async () => {

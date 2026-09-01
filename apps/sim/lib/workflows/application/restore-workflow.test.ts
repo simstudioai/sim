@@ -91,6 +91,8 @@ describe('restoreWorkflow', () => {
       })
     )
     expect(mocks.recordAudit).toHaveBeenCalledBefore(mocks.notify)
+    expect(mocks.notify).toHaveBeenCalledWith('workflow-1')
+    expect(mocks.notifyWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
   it('refuses a workflow that is not archived as a conflict', async () => {

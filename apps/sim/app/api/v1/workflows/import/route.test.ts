@@ -24,6 +24,7 @@ const {
   mockDbDelete,
   mockDbUpdate,
   mockWorkspaceRows,
+  mockNotifyWorkspaceWorkflowsChanged,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockValidateWorkspaceAccess: vi.fn(),
@@ -37,6 +38,7 @@ const {
   mockDbDelete: vi.fn(),
   mockDbUpdate: vi.fn(),
   mockWorkspaceRows: { value: [{ id: 'ws-1' }] as Array<{ id: string }> },
+  mockNotifyWorkspaceWorkflowsChanged: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -51,6 +53,10 @@ vi.mock('@/app/api/v1/middleware', () => ({
 
 vi.mock('@/lib/workflows/orchestration', () => ({
   performCreateWorkflow: mockPerformCreateWorkflow,
+}))
+
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspaceWorkflowsChanged,
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
@@ -270,6 +276,7 @@ describe('POST /api/v1/workflows/import', () => {
       expect.anything(),
       expect.anything()
     )
+    expect(mockNotifyWorkspaceWorkflowsChanged).toHaveBeenCalledWith(WORKSPACE_ID)
   })
 
   it('derives the name from the export envelope and deduplicates it', async () => {
