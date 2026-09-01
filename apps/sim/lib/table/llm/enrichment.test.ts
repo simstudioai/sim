@@ -82,6 +82,46 @@ describe('enrichTableToolDescription for table_query_rows_v2', () => {
   })
 })
 
+/**
+ * A select column rejects any operator outside its subset — the query layer
+ * throws rather than returning no rows — so the description has to name the
+ * subset per column instead of advertising the full operator list.
+ */
+describe('select columns in the v2 description', () => {
+  const SELECT_TABLE: TableSummary = {
+    name: 'Transactions',
+    columns: [
+      { name: 'category', type: 'select', multiple: false },
+      { name: 'tags', type: 'select', multiple: true },
+      { name: 'description', type: 'string' },
+    ],
+  }
+
+  const enriched = enrichTableToolDescription('Query rows.', SELECT_TABLE, 'table_query_rows_v2')
+
+  it('names the allowed operators on a single-select column', () => {
+    expect(enriched).toContain(
+      'category (single-select; only eq, ne, in, nin, isEmpty, isNotEmpty)'
+    )
+  })
+
+  it('names the allowed operators on a multi-select column', () => {
+    expect(enriched).toContain('tags (multi-select; only contains, ncontains, isEmpty, isNotEmpty)')
+  })
+
+  it('leaves non-select columns unannotated', () => {
+    expect(enriched).toContain('description (string)')
+  })
+
+  it('never claims the table has no array columns', () => {
+    expect(enriched).not.toContain('no array columns')
+  })
+
+  it('steers multi-select matching to contains rather than ilike', () => {
+    expect(enriched).toContain('match it with contains, never ilike')
+  })
+})
+
 describe('enrichTableToolParameters for table_query_rows_v2', () => {
   const { properties, required } = enrichTableToolParameters(
     V2_SCHEMA,

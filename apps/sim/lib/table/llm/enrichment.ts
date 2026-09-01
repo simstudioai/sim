@@ -34,6 +34,22 @@ export const FILTER_OPERATIONS = new Set([
 const TABLE_QUERY_ROWS_V2 = 'table_query_rows_v2'
 
 /**
+ * Renders one column line for the v2 description.
+ *
+ * A select column accepts only a subset of the operators — `eq`/`ne`/`in`/`nin`
+ * when single, `contains`/`ncontains` when multi — and the query layer THROWS on
+ * anything else (`buildFilterConditions` in `lib/table/sql.ts`). Naming the
+ * subset inline is what stops the model from reaching for `ilike` on a select
+ * column and turning a valid question into a validation error.
+ */
+function v2ColumnLine(column: TableSummary['columns'][number]): string {
+  if (column.type !== 'select') return `  - ${column.name} (${column.type})`
+  const allowed = column.multiple ? 'contains, ncontains' : 'eq, ne, in, nin'
+  const kind = column.multiple ? 'multi-select' : 'single-select'
+  return `  - ${column.name} (${kind}; only ${allowed}, isEmpty, isNotEmpty)`
+}
+
+/**
  * Builds a predicate example from real columns, preferring a numeric `gte` over
  * a string `eq` because ranking and threshold questions are what the grammar
  * most often gets wrong. Returns an empty string when the table has no column
@@ -87,6 +103,7 @@ export function enrichTableToolDescription(
   const columnList = table.columns.map((col) => `  - ${col.name} (${col.type})`).join('\n')
 
   if (toolId === TABLE_QUERY_ROWS_V2) {
+    const v2ColumnList = table.columns.map(v2ColumnLine).join('\n')
     const numberCol = table.columns.find((c) => c.type === 'number')
     const orderExample = numberCol
       ? `
@@ -101,14 +118,15 @@ INSTRUCTIONS:
 3. For multiple conditions wrap them in {"all":[...]} for AND or {"any":[...]} for OR; groups nest
 4. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty
 5. like/ilike use * as the wildcard, e.g. {"field":"name","op":"ilike","value":"*jo*"}
-6. There are no array columns - for substring matching use ilike with *x*
-7. For ranking queries (highest, lowest, Nth, top N) set order and a small limit, e.g. limit 1 for the highest, 2 for the second highest
-8. Omit limit to return every matching row; the query fails if the result exceeds 5MB, so narrow with a filter instead of guessing a limit
-9. With a limit, a page can end early at the byte budget - a non-null nextCursor means more rows remain, so pass it back as cursor and loop until it is null. Never infer completion from page size
-10. Omit the filter only when the user genuinely wants every row
+6. Any column listed below with a restricted operator set accepts ONLY those operators - the query is rejected outright otherwise. A multi-select cell holds a list, so match it with contains, never ilike
+7. For substring matching on a text column use ilike with *x*
+8. For ranking queries (highest, lowest, Nth, top N) set order and a small limit, e.g. limit 1 for the highest, 2 for the second highest
+9. Omit limit to return every matching row; the query fails if the result exceeds 5MB, so narrow with a filter instead of guessing a limit
+10. With a limit, a page can end early at the byte budget - a non-null nextCursor means more rows remain, so pass it back as cursor and loop until it is null. Never infer completion from page size
+11. Omit the filter only when the user genuinely wants every row
 
 Table "${table.name}" columns:
-${columnList}
+${v2ColumnList}
 ${v2PredicateExample(table)}${orderExample}`
   }
 
