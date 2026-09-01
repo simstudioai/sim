@@ -1149,6 +1149,7 @@ export const addWorkflowTableGroupOutput = defineAuthorizedTableUseCase({
         actorUserId: resolvePrincipalAttribution(principal, {
           workspaceBillingOwnerUserId: context.billedAccountUserId,
         }).attributedUserId,
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         resolvedOutput: {
           workflowId: resolvedWorkflow.workflowId,
           columnType: columnTypeForLeaf(output.leafType),

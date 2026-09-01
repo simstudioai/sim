@@ -571,6 +571,7 @@ export async function updateWorkflowGroup(
         overwrite: false,
         requestId,
         actorUserId: data.actorUserId,
+        capabilityGovernedUserId: data.capabilityGovernedUserId,
       })
     } catch (err) {
       logger.warn(
@@ -589,6 +590,7 @@ export async function updateWorkflowGroup(
         overwrite: true,
         requestId,
         actorUserId: data.actorUserId,
+        capabilityGovernedUserId: data.capabilityGovernedUserId,
       })
     } catch (err) {
       logger.warn(
@@ -636,8 +638,12 @@ export async function addWorkflowGroupOutput(
     path: string
     /** Optional override; defaults to a slug derived from `path`. */
     columnName?: string
-    /** The member adding the output — billed/gated for any backfill-triggered re-run. */
+    /** The member adding the output — the billing attribution for the backfill's
+     *  row writes. Not the gate: see `capabilityGovernedUserId`. */
     actorUserId?: string | null
+    /** Person whose permission group gates any cell the backfill's writes
+     *  cascade into; null when the change has no acting person. */
+    capabilityGovernedUserId?: string | null
     resolvedOutput: {
       workflowId: string
       columnType: ColumnDefinition['type']
@@ -869,6 +875,7 @@ export async function addWorkflowGroupOutput(
       overwrite: false,
       requestId,
       actorUserId: data.actorUserId,
+      capabilityGovernedUserId: data.capabilityGovernedUserId,
     })
   } catch (err) {
     logger.warn(

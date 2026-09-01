@@ -290,6 +290,29 @@ describe('workflow and enrichment Table application commands', () => {
     expect(mocks.signal).toHaveBeenCalledWith(table.id)
   })
 
+  /**
+   * Adding an output backfills it from saved runs, and a backfilled cell can
+   * satisfy a downstream group's deps and start it. That cascade is gated on
+   * the acting person, which is not the billing attribution beside it.
+   */
+  it('names the acting person, not the billing actor, as the backfill cascade subject', async () => {
+    await addWorkflowTableGroupOutput.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        groupId: group.id,
+        blockId: 'block-2',
+        path: 'score',
+      },
+    })
+
+    expect(mocks.addOutput).toHaveBeenCalledWith(
+      expect.objectContaining({ capabilityGovernedUserId: 'user-1' }),
+      'request-1'
+    )
+  })
+
   it('persists disabled auto-run on a newly created workflow group', async () => {
     const result = await createWorkflowTableGroup.execute({
       principal,

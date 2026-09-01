@@ -56,6 +56,14 @@ export interface TableBackfillPayload {
   overwrite: boolean
   /** User who triggered the schema change, for usage attribution on the row writes. */
   actorUserId?: string | null
+  /**
+   * Person whose permission group gates any cell the backfill's writes cascade
+   * into. Separate from `actorUserId`, which is a billing attribution and names
+   * the workspace billed account when the schema change carried no human. Null
+   * when the change had no acting person; absent on payloads enqueued before
+   * this field existed, which read as null — the pre-existing behavior.
+   */
+  capabilityGovernedUserId?: string | null
 }
 
 /**
@@ -136,8 +144,11 @@ async function processBackfillPage(opts: {
   execs: Array<{ rowId: string; executionId: string | null }>
   requestId: string
   actorUserId?: string | null
+  /** See {@link TableBackfillPayload.capabilityGovernedUserId}. */
+  capabilityGovernedUserId?: string | null
 }): Promise<number> {
-  const { table, outputs, overwrite, execs, requestId, actorUserId } = opts
+  const { table, outputs, overwrite, execs, requestId, actorUserId, capabilityGovernedUserId } =
+    opts
 
   const executionIdsByRow = new Map<string, string>()
   for (const e of execs) {
@@ -225,11 +236,14 @@ async function processBackfillPage(opts: {
       workspaceId: table.workspaceId,
       actorUserId,
       /**
-       * A backfill replays values already produced by earlier runs; it starts
-       * no enrichment of its own and carries no acting person into this
-       * background pass.
+       * A backfill replays values already produced by earlier runs, but the
+       * cells it fills are dependencies: `batchUpdateRows` starts every
+       * downstream group whose deps just became satisfied. Those cells are
+       * governed by whoever made the schema change, carried separately from
+       * `actorUserId` — an attribution that names the workspace billed account
+       * when the change carried no human, whose denylist is nobody's to run.
        */
-      capabilityGovernedUserId: null,
+      capabilityGovernedUserId: capabilityGovernedUserId ?? null,
       secretProvenanceByRowId,
     },
     table,
@@ -248,7 +262,8 @@ async function processBackfillPage(opts: {
  * passes skip already-filled cells).
  */
 export async function runTableBackfill(payload: TableBackfillPayload): Promise<void> {
-  const { jobId, tableId, groupId, outputs, overwrite, actorUserId } = payload
+  const { jobId, tableId, groupId, outputs, overwrite, actorUserId, capabilityGovernedUserId } =
+    payload
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -274,6 +289,7 @@ export async function runTableBackfill(payload: TableBackfillPayload): Promise<v
         execs,
         requestId,
         actorUserId,
+        capabilityGovernedUserId,
       })
       processed += execs.length
     }
@@ -328,8 +344,11 @@ export async function maybeBackfillGroupOutputs(opts: {
   overwrite: boolean
   requestId: string
   actorUserId?: string | null
+  /** See {@link TableBackfillPayload.capabilityGovernedUserId}. */
+  capabilityGovernedUserId?: string | null
 }): Promise<void> {
-  const { table, groupId, outputs, overwrite, requestId, actorUserId } = opts
+  const { table, groupId, outputs, overwrite, requestId, actorUserId, capabilityGovernedUserId } =
+    opts
   if (outputs.length === 0) return
 
   const [{ count: completedCount }] = await db
@@ -353,7 +372,15 @@ export async function maybeBackfillGroupOutputs(opts: {
       const execs = await selectCompletedExecPage(table.id, groupId, afterRowId, BACKFILL_PAGE_SIZE)
       if (execs.length === 0) break
       afterRowId = execs[execs.length - 1].rowId
-      await processBackfillPage({ table, outputs, overwrite, execs, requestId, actorUserId })
+      await processBackfillPage({
+        table,
+        outputs,
+        overwrite,
+        execs,
+        requestId,
+        actorUserId,
+        capabilityGovernedUserId,
+      })
     }
     return
   }
@@ -376,6 +403,7 @@ export async function maybeBackfillGroupOutputs(opts: {
     outputs,
     overwrite,
     actorUserId,
+    capabilityGovernedUserId,
   }
   if (isTriggerDevEnabled) {
     try {
