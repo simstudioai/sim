@@ -568,3 +568,20 @@ describe('buildJsonSchemaParamShapes', () => {
     expect(decodeToolParamValue(true, getJsonSchemaValueShape({ type: 'boolean' }))).toBe(true)
   })
 })
+
+describe('enum members that are not plain strings', () => {
+  it('keeps a nullable enum as text so a real null member survives the decode', () => {
+    const shape = getJsonSchemaValueShape({ enum: ['a', null] })
+
+    expect(shape).toBe('string')
+    // The dropdown persists the member itself, so `null` arrives already typed and the
+    // decode must not touch it.
+    expect(decodeToolParamValue(null, shape)).toBeNull()
+  })
+
+  it('decodes a numeric enum member that is still stored as its stringified form', () => {
+    expect(
+      decodeToolParamValue('1', getJsonSchemaValueShape({ type: 'integer', enum: [1, 2] }))
+    ).toBe(1)
+  })
+})

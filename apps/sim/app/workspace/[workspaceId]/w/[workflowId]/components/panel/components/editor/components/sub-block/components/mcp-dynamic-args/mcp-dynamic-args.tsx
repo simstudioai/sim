@@ -268,11 +268,11 @@ export function McpDynamicArgs({
           label: String(option),
           value: String(option),
         }))
-        // Options are stringified members, so a decoded numeric/boolean enum value has to
-        // be stringified back to match one. Label and value are the same string here, so
-        // the highlight overlay reads the same expression — a falsy member (`0`, `false`)
-        // is a real selection, not an empty one.
-        const dropdownValue = value === undefined || value === null ? '' : String(value)
+        // Options are stringified members, so a decoded value has to be stringified back
+        // to match one. Presence of the key — not truthiness — decides whether anything is
+        // selected, because `0`, `false` and a literal `null` enum member are all real
+        // selections that would otherwise render as empty.
+        const dropdownValue = Object.hasOwn(current, paramName) ? String(value) : ''
         const selectedLabel = dropdownValue
         const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
           activeSearchTarget,
@@ -289,11 +289,15 @@ export function McpDynamicArgs({
               value={dropdownValue}
               selectedValue={dropdownValue}
               onChange={(selectedValue) => {
-                const matchedOption = dropdownOptions.find(
-                  (opt: { label: string; value: string }) => opt.value === selectedValue
+                // Persist the ENUM MEMBER, not the string the combobox works in. The
+                // options are stringified for display, so writing `selectedValue` back
+                // would send '1' for `1`, 'true' for `true` and 'null' for `null` — the
+                // server then rejects the argument or reads it as a different value.
+                const memberIndex = (paramSchema.enum as unknown[]).findIndex(
+                  (member) => String(member) === selectedValue
                 )
-                if (matchedOption) {
-                  updateParameter(paramName, selectedValue)
+                if (memberIndex !== -1) {
+                  updateParameter(paramName, (paramSchema.enum as unknown[])[memberIndex])
                 }
               }}
               placeholder={`Select ${formatParameterLabel(paramName).toLowerCase()}`}

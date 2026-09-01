@@ -5,6 +5,7 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 interface CheckboxListOption {
   label: string
@@ -58,9 +59,15 @@ export function CheckboxList({
   const handleChange = useCallback(
     (optionId: string, checked: boolean) => {
       if (isPreview || disabled) return
-      setStoreValue({ ...readSelections(storeValue), [optionId]: checked })
+      // Merge onto the value the STORE holds right now, not the one captured at render.
+      // Every option in the group shares one key, so two toggles landing before React
+      // rerenders would otherwise both build from the same stale record and the second
+      // write would drop the first. The store updates synchronously, so reading it here
+      // always sees the preceding toggle.
+      const current = useSubBlockStore.getState().getValue(blockId, subBlockId)
+      setStoreValue({ ...readSelections(current), [optionId]: checked })
     },
-    [storeValue, setStoreValue, isPreview, disabled]
+    [blockId, subBlockId, setStoreValue, isPreview, disabled]
   )
 
   return (
