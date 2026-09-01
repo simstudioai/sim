@@ -184,10 +184,8 @@ function dispatchGroupAutoRun(params: {
   groupId: string
   actorUserId: string
   /**
-   * The gate's subject, which is not the meter's. `actorUserId` is an
-   * attribution and names the workspace billed account when the credential
-   * names no human, so passing it as the gate would run that bystander's tool
-   * denylist against an actorless run. Null means no acting person.
+   * The gate's subject, which is not the meter's `actorUserId`; `null` means no
+   * acting person. See {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
    */
   capabilityGovernedUserId: string | null
   label: string

@@ -195,10 +195,10 @@ export function auditSource(file: string, source: string): { findings: Finding[]
    * the import line — so the audit stayed green with a governed-call count that
    * never moved. Aliases are folded into the sink table for this file.
    */
-  const sinks_ = { ...CAPABILITY_SINKS }
+  const fileSinks = { ...CAPABILITY_SINKS }
   for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)\s+as\s+([A-Za-z_$][\w$]*)/g)) {
     const subjectIndex = CAPABILITY_SINKS[match[1]]
-    if (subjectIndex !== undefined) sinks_[match[2]] = subjectIndex
+    if (subjectIndex !== undefined) fileSinks[match[2]] = subjectIndex
   }
 
   /**
@@ -222,7 +222,7 @@ export function auditSource(file: string, source: string): { findings: Finding[]
     }
   }
 
-  for (const [sink, subjectIndex] of Object.entries(sinks_)) {
+  for (const [sink, subjectIndex] of Object.entries(fileSinks)) {
     for (const match of source.matchAll(new RegExp(`\\b${sink}\\s*\\(`, 'g'))) {
       const openIndex = match.index + match[0].length - 1
       /** A declaration or an import of the sink, not a call into it. */

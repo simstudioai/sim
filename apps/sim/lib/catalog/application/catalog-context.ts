@@ -3,10 +3,8 @@ import { type BlockVisibilityState, getBlockVisibility } from '@/lib/core/config
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { allowedIntegrationTypes, principalUserId } from '@/lib/integrations/principal-scope.server'
-import {
-  isBlockTypeAccessControlExempt,
-  resolveAccessControlBlockType,
-} from '@/lib/permission-groups/block-access'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   type ActiveWorkspaceApplicationContext,

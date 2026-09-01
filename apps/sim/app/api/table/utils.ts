@@ -244,11 +244,9 @@ interface ApiErrorResponse {
  *   itself. It has no user, so there is no group to resolve.
  *   `keyCreatorUserId` is the id `authenticateApiKeyFromHeader` reports: the
  *   person who *minted* the key, a bystander who may not even be the caller. It
- *   carries the workspace role check that predates this union and nothing else
- *   — applying their permission group here would break a live shared credential
- *   for reasons that have nothing to do with whoever is calling it. Same
- *   reasoning as the `workspace_api_key` branch of
- *   `authorizeWorkspaceOperation` and of `resolveCapabilityRefusal`.
+ *   carries the workspace role check that predates this union and nothing else.
+ *   Same rule, and the same reasoning, as `capabilityGovernedPrincipalUserId` in
+ *   `@/lib/core/application`.
  *
  * Required, and with no permissive default, for the same reason `capability` is
  * required on `defineWorkspaceOperation`: an absent declaration cannot be told
@@ -284,19 +282,13 @@ export function capabilityGovernedUserId(principal: TableAccessPrincipal): strin
  * The id whose permission group governs a request authenticated by
  * `checkSessionOrInternalAuth`, or `null` when none does.
  *
- * `auth.userId` is populated for both credentials that helper accepts, and for
- * an internal JWT it is the subject the executor embedded — the run's actor,
- * which may be the workspace billing owner or the member who merely triggered
- * the run. Keying on the presence of a user id therefore hands an executor call
- * that bystander's capabilities, which is the substitution the governed subject
- * exists to remove; the executor is exempt from capabilities by the same rule
- * `capabilityGovernedPrincipalUserId` applies to a delegated executor
- * principal. `authType` is the authoritative signal, and `apiKeyType` covers
- * the personal-key case for a caller that later shares this helper.
- *
  * Distinct from {@link capabilityGovernedUserId}, which answers the same
- * question for a {@link TableAccessPrincipal} — a union that has no way to
- * spell "internal JWT" and reports one as a person.
+ * question for a {@link TableAccessPrincipal} — a union that has no way to spell
+ * "internal JWT" and reports one as a person. An internal JWT's `auth.userId` is
+ * the subject the executor embedded, so keying on its presence would hand the
+ * run's actor's capabilities to a caller the executor exemption deliberately
+ * passes ungated. `authType` is the authoritative signal, and `apiKeyType`
+ * covers the personal-key case for a caller that later shares this helper.
  */
 export function capabilityGovernedAuthUserId(auth: AuthResult): string | null {
   if (!auth.userId) return null
@@ -319,10 +311,9 @@ export function capabilityGovernedAuthUserId(auth: AuthResult): string | null {
  * exists, and refusing on capability first would tell a non-member which
  * modules the organization withholds.
  *
- * The gate applies to a `user` principal only. `/api/v1/tables/**` shares this
- * helper and authenticates with an API key, and a workspace key reports its
- * creator as its user id; gating on that id would apply a bystander's group to
- * every caller of a shared credential. See {@link TableAccessPrincipal}.
+ * The gate applies to a `user` principal only; see {@link TableAccessPrincipal}
+ * for why `/api/v1/tables/**`, which shares this helper under an API key, must
+ * reach the table ungated on a workspace key.
  *
  * Nothing here exempts the executor. A workflow run reaches tables through
  * `tableOperations`, where the delegated-principal branch already withholds

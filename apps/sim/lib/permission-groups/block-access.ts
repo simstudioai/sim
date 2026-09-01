@@ -1,11 +1,5 @@
-import {
-  intersectAccessControlAllowlists,
-  resolveAccessControlBlockType,
-  toAccessControlAllowlist,
-} from '@/lib/permission-groups/integration-allowlist'
+import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import { getBlock } from '@/blocks/registry'
-
-export { intersectAccessControlAllowlists, resolveAccessControlBlockType, toAccessControlAllowlist }
 
 /**
  * The universal workflow entry point. Every retired entry point resolves to it,

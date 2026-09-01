@@ -256,13 +256,8 @@ export async function insertDispatch(input: {
    * The person whose permission group gates this run's cells, or `null` when
    * the run has no acting person (workspace key, schedule, auto-fire).
    *
-   * Required with an explicit `null` rather than optional: the only way to get
-   * this wrong is to not think about it, and an optional field with a fallback
-   * let every producer that had not been taught the distinction silently
-   * inherit `triggeredByUserId` — an *attribution* that names the workspace
-   * billed account when the credential names no human. Making omission a
-   * compile error is what stops the next producer from re-introducing that
-   * bystander substitution.
+   * Never defaulted from `triggeredByUserId`, and required with an explicit
+   * `null`; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
    */
   capabilityGovernedUserId: string | null
 }): Promise<string> {

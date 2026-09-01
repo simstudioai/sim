@@ -236,11 +236,10 @@ export interface PerformTableCsvImportParams {
   requestId?: string
   /**
    * The person whose permission group gates any cell this import auto-fires,
-   * or `null` when no person is behind it. Required with an explicit `null`
-   * rather than optional, matching `insertDispatch`: an import lands rows, and
-   * landing rows starts workflow and enrichment cells on the table's workflow
-   * columns. Threaded from the surface that holds the principal rather than
-   * re-derived here — the route has already gated the same subject.
+   * or `null` when no person is behind it. An import lands rows, and landing
+   * rows starts the table's workflow and enrichment cells. Threaded from the
+   * surface that holds the principal — the route has already gated the same
+   * subject. Required; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
    */
   capabilityGovernedUserId: string | null
 }
@@ -439,11 +438,10 @@ export interface PerformCreateTableFromCsvParams {
   userId: string
   /**
    * The person whose permission group gates any cell this import auto-fires,
-   * or `null` when no person is behind it. Required with an explicit `null`
-   * rather than optional, matching `insertDispatch`: an import lands rows, and
-   * landing rows starts workflow and enrichment cells on the table's workflow
-   * columns. Threaded from the surface that holds the principal rather than
-   * re-derived here — the route has already gated the same subject.
+   * or `null` when no person is behind it. An import lands rows, and landing
+   * rows starts the table's workflow and enrichment cells. Threaded from the
+   * surface that holds the principal — the route has already gated the same
+   * subject. Required; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
    */
   capabilityGovernedUserId: string | null
 

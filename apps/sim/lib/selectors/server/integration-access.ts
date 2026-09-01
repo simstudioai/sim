@@ -2,10 +2,8 @@ import type { Principal } from '@sim/auth/principal'
 import { getIntegrationTypesForOAuthServiceId } from '@sim/deployment-config/integration-availability'
 import { createLogger } from '@sim/logger'
 import { allowedIntegrationTypes } from '@/lib/integrations/principal-scope.server'
-import {
-  isBlockTypeAccessControlExempt,
-  resolveAccessControlBlockType,
-} from '@/lib/permission-groups/block-access'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import type {
   SelectorCredentialPolicy,
   ServerSelectorAttachment,
@@ -15,23 +13,12 @@ import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission
 const logger = createLogger('SelectorIntegrationAccess')
 
 /**
- * The OAuth services a selector execution actually reaches.
- *
- * `serviceIds` answers a different question — which *credentials* the selector
- * accepts. The two diverge whenever one provider API is reachable with several
- * of its sibling connections: `google.drive` accepts a Drive, Docs, Sheets or
- * Forms credential because all four carry Drive scope, and `sharepoint.sites`
- * accepts a SharePoint or an Excel one. Gating on the accepted set asked
- * whether *any* of them was permitted, so a group that allowed
- * `google_sheets_v2` and excluded `google_drive` could still read Drive through
- * `google.drive`.
- *
- * The declaration therefore names its own resource, and that is what the
- * allowlist judges. The credential's provider id is deliberately not consulted:
- * it describes the key, not the API the selector calls, and narrowing by it
- * gated Drive reads on whether a Sheets connection was permitted.
+ * The OAuth service a selector execution actually reaches — its own resource
+ * rather than the set of credentials it accepts. See
+ * {@link SelectorCredentialPolicy} for why those two differ and why the bound
+ * credential's provider id is never consulted.
  */
-export function selectorResourceServiceIds(policy: SelectorCredentialPolicy): readonly string[] {
+function selectorResourceServiceIds(policy: SelectorCredentialPolicy): readonly string[] {
   return policy.resourceServiceId ? [policy.resourceServiceId] : policy.serviceIds
 }
 
@@ -39,19 +26,16 @@ export function selectorResourceServiceIds(policy: SelectorCredentialPolicy): re
  * The block types an allowlist decision about this selector is made against.
  *
  * Two independent sources, because the OAuth credential catalog cannot identify
- * every selector that reaches a third-party API. A selector authenticated from
- * raw context fields (CloudWatch's AWS keys, IMAP's host and password) carries
- * no credential policy, and an API-key integration (Snowflake, NetSuite,
- * Harmonic) owns no OAuth catalog entry, so its service id maps to no block
- * type — both used to yield an empty list and pass the gate untested. They
- * declare `integrationBlockTypes` instead, and it wins over the catalog when
- * both are present.
+ * every selector that reaches a third-party API; the declared
+ * `integrationBlockTypes` cover the shapes it misses and win over the catalog
+ * when both are present. See
+ * {@link ServerSelectorAttachment.integrationBlockTypes} for which shapes those
+ * are.
  *
  * An empty result means "no integration identity", which is a pass. That is
  * reserved for the internal selectors — workspace files, knowledge bases,
- * tables — which read only Sim's own data;
- * `selectorIntegrationCoverage` in the manifest test keeps every
- * `provider-server` selector out of it.
+ * tables — which read only Sim's own data; `selectorIntegrationCoverage` in the
+ * manifest test keeps every `provider-server` selector out of it.
  */
 export function selectorIntegrationBlockTypes(
   attachment: Pick<ServerSelectorAttachment, 'credential' | 'integrationBlockTypes'>
@@ -85,12 +69,8 @@ export function selectorIntegrationBlockTypes(
  * bound to `slack_v2` match.
  *
  * A `null` allowlist, a caller no group governs, and a selector with no
- * integration identity all pass through. The last is now reserved for the
- * internal selectors — workspace files, knowledge bases, tables — which read
- * only Sim's own data and are not an integration at all. Every selector that
- * reaches a third party has an identity, either through the OAuth credential
- * catalog or through the `integrationBlockTypes` a raw-context or API-key
- * selector declares; see {@link selectorIntegrationBlockTypes}.
+ * integration identity all pass through; see {@link selectorIntegrationBlockTypes}
+ * for why the last of those is reserved for the internal selectors.
  *
  * One service can still map to several block types — the `google-drive` entry
  * authenticates both `google_drive` and `google_slides_v2` — and any of them

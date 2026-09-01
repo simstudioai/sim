@@ -19,6 +19,10 @@
  *   D  every key claiming `enforcement: 'capability'` is read by some rule
  *   E  no key claiming a weaker mechanism is read by one, so a key cannot gain
  *      enforcement while still documented as cosmetic or execution-scoped
+ *   F  every member of an exported `*Operations` registry was read by A's
+ *      parsers. Everything above can only speak about what they found, and an
+ *      operation minted in a form they do not follow yields nothing — which
+ *      reads exactly like a clean file
  *
  * A capability the funnel cannot apply — one needing a request value, like an
  * auth mode — is declared at its call site instead:
@@ -85,6 +89,11 @@ interface Finding {
   file: string
   line?: number
   message: string
+}
+
+/** The 1-based line `index` falls on. */
+function lineAt(source: string, index: number): number {
+  return source.slice(0, index).split('\n').length
 }
 
 const CLOSING: Record<string, string> = { '(': ')', '{': '}', '[': ']' }
@@ -189,7 +198,6 @@ interface ParsedOperations {
 export function parseOperationCapabilities(source: string): ParsedOperations {
   const declarations: OperationDeclaration[] = []
   const unreadable: number[] = []
-  const lineAt = (index: number) => source.slice(0, index).split('\n').length
 
   /**
    * Domains that wrap a builder in a same-file factory declare the capability
@@ -237,12 +245,12 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
     accepted.push([openIndex, openIndex + call.length])
     const id = /id\s*:\s*'([^']+)'/.exec(call)?.[1]
     if (!id) {
-      unreadable.push(lineAt(match.index))
+      unreadable.push(lineAt(source, match.index))
       continue
     }
     declarations.push({
       id,
-      line: lineAt(match.index),
+      line: lineAt(source, match.index),
       capability: /capability\s*:\s*'([a-z0-9_.]+)'/.exec(call)?.[1],
     })
   }
@@ -256,7 +264,7 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
       if (insideFactory(match.index)) continue
       declarations.push({
         id: match[1],
-        line: lineAt(match.index),
+        line: lineAt(source, match.index),
         capability: capability === 'positional' ? match[2] : capability,
       })
     }
@@ -359,7 +367,6 @@ function topLevelMembers(body: string): Array<{ key: string; start: number; end:
  */
 export function parseOperationRegistryMembers(source: string): OperationRegistryMember[] {
   const members: OperationRegistryMember[] = []
-  const lineAt = (index: number) => source.slice(0, index).split('\n').length
   OPERATION_REGISTRY.lastIndex = 0
   for (
     let match = OPERATION_REGISTRY.exec(source);
@@ -372,8 +379,8 @@ export function parseOperationRegistryMembers(source: string): OperationRegistry
       members.push({
         registry: match[1],
         member: member.key,
-        startLine: lineAt(openIndex + member.start),
-        endLine: lineAt(openIndex + member.end),
+        startLine: lineAt(source, openIndex + member.start),
+        endLine: lineAt(source, openIndex + member.end),
       })
     }
   }
@@ -389,7 +396,7 @@ export function parseOperationRegistryMembers(source: string): OperationRegistry
  * green. That is a real gap, and it is left open because every cheap shape that
  * would close it is wrong more often than it is right.
  *
- * The obvious shapes were measured against the 50-odd annotations in the tree:
+ * The obvious shapes were measured against the 70-odd annotations in the tree:
  *
  *  - "the capability id appears in code in the same file" misses 7, among them
  *    `logs/application/list-public-logs.ts` and `get-public-log.ts`, which
