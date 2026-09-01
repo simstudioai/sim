@@ -3,8 +3,8 @@
 import { type ComponentType, type ReactNode, useState } from 'react'
 import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
-import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
-import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
+import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import {
   collectGroupTools,
@@ -65,7 +65,7 @@ export interface AgentGroupProps {
 
 function activeToolTitle(tool: ToolCallData): string {
   return getToolStatusDisplayTitle(
-    tool.displayTitle || String(tool.toolName ?? ''),
+    tool.displayTitle || getToolDisplayTitle(String(tool.toolName ?? ''), undefined),
     tool.status === ToolCallStatus.success ? ToolCallStatus.executing : tool.status,
     tool.toolName,
     tool.activityDescription

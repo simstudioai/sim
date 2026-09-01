@@ -166,6 +166,7 @@ export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   table_rows: TableIcon,
   table_views: TableIcon,
   tail_agent: Brain,
+  task: Brain,
   terminal: TerminalWindow,
   terminal_cwd: TerminalWindow,
   terminal_input: TerminalWindow,
