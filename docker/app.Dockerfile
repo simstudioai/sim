@@ -73,9 +73,13 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 # resolved it from the registry at build time, which pulled a different major
 # (13.x vs the pinned 12.4.0) and bypassed the `minimumReleaseAge` supply-chain
 # gate in bunfig.toml on every production image build.
+#
+# This stage contains only the pruned workspace manifests, while the full lockfile
+# still describes every workspace. Bun must be allowed to normalize that lockfile
+# to the pruned graph; the full-repository CI install owns frozen-lockfile validation.
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     --mount=type=cache,id=npm-cache,target=/root/.npm \
-    HUSKY=0 bun install --frozen-lockfile --ignore-scripts --linker=hoisted && \
+    HUSKY=0 bun install --ignore-scripts --linker=hoisted && \
     cd node_modules/isolated-vm && JOBS=4 /app/node_modules/.bin/node-gyp rebuild --release
 
 # ========================================

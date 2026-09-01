@@ -17,9 +17,11 @@ COPY packages/logger/package.json ./packages/logger/package.json
 COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 COPY packages/utils/package.json ./packages/utils/package.json
 
-# Install dependencies with cache mount for faster builds
+# Install dependencies with cache mount for faster builds. This stage contains
+# only the migration workspace manifests, so Bun must normalize the full root
+# lockfile to that subset; full-repository CI owns frozen-lockfile validation.
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile --ignore-scripts
+    bun install --ignore-scripts
 
 # ========================================
 # Runner Stage: Production Environment
