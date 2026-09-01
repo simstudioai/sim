@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   writeWorkflowGroupState: vi.fn(),
   createWorkflowCellProgressWriter: vi.fn(),
   runRowCascadeLoop: vi.fn(),
+  readStampedCapabilitySubject: vi.fn(),
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({ task: mocks.task, timeout: { None: 'none' } }))
@@ -32,6 +33,9 @@ vi.mock('@/lib/table/workflow-columns', () => ({
 }))
 vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
 vi.mock('@/lib/table/rows/service', () => ({ getRowById: mocks.getRowById }))
+vi.mock('@/lib/table/rows/executions', () => ({
+  readStampedCapabilitySubject: mocks.readStampedCapabilitySubject,
+}))
 vi.mock('@/lib/table/cell-write', () => ({
   buildCancelledExecution: vi.fn(),
   createWorkflowCellProgressWriter: mocks.createWorkflowCellProgressWriter,
@@ -88,6 +92,7 @@ describe('resuming a paused table cell', () => {
   beforeAll(async () => {
     await Promise.all([
       import('@/lib/table/cell-write'),
+      import('@/lib/table/rows/executions'),
       import('@/lib/table/rows/service'),
       import('@/lib/table/service'),
       import('@/lib/table/workflow-columns'),
@@ -125,6 +130,7 @@ describe('resuming a paused table cell', () => {
     mocks.getTableById.mockResolvedValue(TABLE)
     mocks.getRowById.mockResolvedValue({ id: 'row-1', data: {}, executions: {} })
     mocks.pickNextEligibleGroupForRow.mockReturnValue(NEXT_GROUP)
+    mocks.readStampedCapabilitySubject.mockResolvedValue('other-dispatchers-member')
     mocks.writeWorkflowGroupState.mockResolvedValue('wrote')
     mocks.createWorkflowCellProgressWriter.mockReturnValue({
       onBlockComplete: vi.fn(),
@@ -165,6 +171,45 @@ describe('resuming a paused table cell', () => {
     const [cascadePayload] = mocks.runRowCascadeLoop.mock.calls[0]
     expect(cascadePayload.capabilityGovernedUserId).toBe('requesting-member')
     expect(cascadePayload.capabilityGovernedUserId).not.toBe(PAYLOAD.userId)
+  }, 20_000)
+
+  /**
+   * The next group is not a dependency this cascade satisfied — it carries
+   * another dispatch's unclaimed pre-stamp, an explicit request from someone
+   * else that this cascade happens to be draining. Carrying the paused cell's
+   * subject into it would run a stranger's request under the wrong denylist,
+   * which is the decision both drain points in `workflow-column-execution.ts`
+   * already make off the stamp.
+   */
+  it('runs another dispatch’s queued marker under the subject stamped with it', async () => {
+    mocks.getRowById.mockResolvedValue({
+      id: 'row-1',
+      data: {},
+      executions: { 'group-2': { status: 'pending', executionId: null, workflowId: 'workflow-1' } },
+    })
+
+    await executeResumeJob(PAYLOAD)
+
+    expect(mocks.readStampedCapabilitySubject).toHaveBeenCalledWith('row-1', 'group-2')
+    const [cascadePayload] = mocks.runRowCascadeLoop.mock.calls[0]
+    expect(cascadePayload.capabilityGovernedUserId).toBe('other-dispatchers-member')
+  }, 20_000)
+
+  /** A claimed cell is ordinary dependency work and keeps the paused subject. */
+  it('keeps the paused cell’s subject for a marker another worker already claimed', async () => {
+    mocks.getRowById.mockResolvedValue({
+      id: 'row-1',
+      data: {},
+      executions: {
+        'group-2': { status: 'pending', executionId: 'execution-9', workflowId: 'workflow-1' },
+      },
+    })
+
+    await executeResumeJob(PAYLOAD)
+
+    expect(mocks.readStampedCapabilitySubject).not.toHaveBeenCalled()
+    const [cascadePayload] = mocks.runRowCascadeLoop.mock.calls[0]
+    expect(cascadePayload.capabilityGovernedUserId).toBe('requesting-member')
   }, 20_000)
 
   it('resumes ungated when the paused cell had no acting person', async () => {
