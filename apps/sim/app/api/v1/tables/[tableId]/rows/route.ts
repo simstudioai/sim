@@ -40,6 +40,7 @@ import {
   type TableAccessPrincipal,
 } from '@/app/api/table/utils'
 import {
+  capabilityGovernedUserId,
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
@@ -63,7 +64,9 @@ async function handleBatchInsert(
   tableId: string,
   validated: V1BatchInsertTableRowsBody,
   principal: TableAccessPrincipal,
-  actorUserId: string
+  actorUserId: string,
+  /** The gate's subject; see {@link BatchInsertData.capabilityGovernedUserId}. */
+  governedUserId: string | null
 ): Promise<NextResponse> {
   const accessResult = await checkAccess(tableId, principal, 'write')
   if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -93,6 +96,7 @@ async function handleBatchInsert(
         rows,
         workspaceId: validated.workspaceId,
         userId: actorUserId,
+        capabilityGovernedUserId: governedUserId,
         secretProvenance: rows.map(createExactEmptyTableRowSecretProvenance),
       },
       table,
@@ -253,7 +257,8 @@ export const POST = withRouteHandler(
           tableId,
           batchValidated,
           tableAccessPrincipal(rateLimit),
-          actorUserId
+          actorUserId,
+          capabilityGovernedUserId(rateLimit)
         )
       }
 
@@ -292,6 +297,7 @@ export const POST = withRouteHandler(
           data: rowData,
           workspaceId: validated.workspaceId,
           userId: actorUserId,
+          capabilityGovernedUserId: capabilityGovernedUserId(rateLimit),
           secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
         },
         table,
@@ -379,6 +385,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
         data: patchData,
         limit: validated.limit,
         actorUserId,
+        capabilityGovernedUserId: capabilityGovernedUserId(rateLimit),
         secretProvenance: createExactEmptyTableRowSecretProvenance(patchData),
       },
       requestId

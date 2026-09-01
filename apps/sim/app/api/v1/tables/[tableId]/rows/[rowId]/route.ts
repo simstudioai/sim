@@ -26,6 +26,7 @@ import {
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 import {
+  capabilityGovernedUserId,
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
@@ -158,6 +159,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
         data: patchData,
         workspaceId: validated.workspaceId,
         actorUserId,
+        capabilityGovernedUserId: capabilityGovernedUserId(rateLimit),
         secretProvenance: createExactEmptyTableRowSecretProvenance(patchData),
       },
       table,

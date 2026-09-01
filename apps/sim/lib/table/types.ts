@@ -703,6 +703,13 @@ export interface InsertRowData {
    * unstamped write.
    */
   secretProvenance: TableRowSecretProvenanceWrite | undefined
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires; `null` when the write has no acting person (workspace API key,
+   *  schedule, internal state patch). Required with an explicit `null` —
+   *  deliberately not the attribution field beside it, which names the
+   *  workspace billed account when the credential names no human, and would run
+   *  that bystander's tool denylist against an actorless run. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface BatchInsertData {
@@ -717,6 +724,13 @@ export interface BatchInsertData {
   orderKeys?: string[]
   /** Encrypted provenance for the values in `rows`, positionally aligned. Required; see {@link InsertRowData.secretProvenance}. */
   secretProvenance: Array<TableRowSecretProvenanceWrite | undefined> | undefined
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires; `null` when the write has no acting person (workspace API key,
+   *  schedule, internal state patch). Required with an explicit `null` —
+   *  deliberately not the attribution field beside it, which names the
+   *  workspace billed account when the credential names no human, and would run
+   *  that bystander's tool denylist against an actorless run. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface UpsertRowData {
@@ -728,6 +742,13 @@ export interface UpsertRowData {
   conflictTarget?: string
   /** Encrypted provenance for the values in `data`. Required; see {@link InsertRowData.secretProvenance}. */
   secretProvenance: TableRowSecretProvenanceWrite | undefined
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires; `null` when the write has no acting person (workspace API key,
+   *  schedule, internal state patch). Required with an explicit `null` —
+   *  deliberately not the attribution field beside it, which names the
+   *  workspace billed account when the credential names no human, and would run
+   *  that bystander's tool denylist against an actorless run. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface UpsertResult {
@@ -776,6 +797,13 @@ export interface UpdateRowData {
   actorUserId?: string | null
   /** Encrypted provenance for the values in this partial patch. Required; see {@link InsertRowData.secretProvenance}. */
   secretProvenance: TableRowSecretProvenanceWrite | undefined
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires; `null` when the write has no acting person (workspace API key,
+   *  schedule, internal state patch). Required with an explicit `null` —
+   *  deliberately not the attribution field beside it, which names the
+   *  workspace billed account when the credential names no human, and would run
+   *  that bystander's tool denylist against an actorless run. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface BulkUpdateData {
@@ -786,6 +814,13 @@ export interface BulkUpdateData {
   actorUserId?: string | null
   /** Encrypted provenance for the values in this partial patch. Required; see {@link InsertRowData.secretProvenance}. */
   secretProvenance: TableRowSecretProvenanceWrite | undefined
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires; `null` when the write has no acting person (workspace API key,
+   *  schedule, internal state patch). Required with an explicit `null` —
+   *  deliberately not the attribution field beside it, which names the
+   *  workspace billed account when the credential names no human, and would run
+   *  that bystander's tool denylist against an actorless run. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface BatchUpdateByIdData {
@@ -800,6 +835,13 @@ export interface BatchUpdateByIdData {
   actorUserId?: string | null
   /** Encrypted provenance for the values in all partial patches; omitted by legacy callers. */
   secretProvenanceByRowId?: Record<string, TableRowSecretProvenanceWrite>
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires; `null` when the write has no acting person (workspace API key,
+   *  schedule, internal state patch). Required with an explicit `null` —
+   *  deliberately not the attribution field beside it, which names the
+   *  workspace billed account when the credential names no human, and would run
+   *  that bystander's tool denylist against an actorless run. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface BulkDeleteData {
@@ -937,8 +979,14 @@ export interface AddWorkflowGroupData {
   autoRun?: boolean
   /** Persist auto-run state without dispatching through the primitive. */
   suppressAutoRunDispatch?: boolean
-  /** The member adding the group — billed/gated for the auto-run enrichment pass. */
+  /** The member adding the group — billed for the auto-run enrichment pass. */
   actorUserId?: string | null
+  /** The person whose permission group gates the auto-run pass this write can
+   *  start; `null` when the write has no acting person (workspace key, system).
+   *  Required with an explicit `null` — deliberately not `actorUserId`, which
+   *  is an attribution and names the workspace billed account when the
+   *  credential names no human. */
+  capabilityGovernedUserId: string | null
 }
 
 /** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */
@@ -976,8 +1024,14 @@ export interface UpdateWorkflowGroupData {
   autoRun?: boolean
   /** Skip primitive dispatch when an authorized caller will start the run itself. */
   suppressAutoRunDispatch?: boolean
-  /** The member updating the group — billed/gated for any triggered re-run. */
+  /** The member updating the group — billed for any triggered re-run. */
   actorUserId?: string | null
+  /** The person whose permission group gates the auto-run pass this write can
+   *  start; `null` when the write has no acting person (workspace key, system).
+   *  Required with an explicit `null` — deliberately not `actorUserId`, which
+   *  is an attribution and names the workspace billed account when the
+   *  credential names no human. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface DeleteWorkflowGroupData {

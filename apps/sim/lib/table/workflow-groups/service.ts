@@ -246,6 +246,7 @@ export async function addWorkflowGroup(
       groupIds: [data.group.id],
       requestId,
       triggeredByUserId: data.actorUserId,
+      capabilityGovernedUserId: data.capabilityGovernedUserId,
     }).catch((err) => logger.error(`[${requestId}] auto-dispatch (addWorkflowGroup) failed:`, err))
   }
 
@@ -609,6 +610,7 @@ export async function updateWorkflowGroup(
       groupIds: [data.groupId],
       requestId,
       triggeredByUserId: data.actorUserId,
+      capabilityGovernedUserId: data.capabilityGovernedUserId,
     }).catch((err) =>
       logger.error(`[${requestId}] auto-dispatch (updateWorkflowGroup autoRun=true) failed:`, err)
     )

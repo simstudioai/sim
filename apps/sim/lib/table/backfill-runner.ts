@@ -224,6 +224,12 @@ async function processBackfillPage(opts: {
       updates,
       workspaceId: table.workspaceId,
       actorUserId,
+      /**
+       * A backfill replays values already produced by earlier runs; it starts
+       * no enrichment of its own and carries no acting person into this
+       * background pass.
+       */
+      capabilityGovernedUserId: null,
       secretProvenanceByRowId,
     },
     table,

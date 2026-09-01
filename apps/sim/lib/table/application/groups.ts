@@ -312,6 +312,7 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
         autoRun: input.autoRun ?? false,
         suppressAutoRunDispatch: true,
         actorUserId,
+        capabilityGovernedUserId,
       },
       generateRequestId()
     )
@@ -437,6 +438,7 @@ export const createWorkflowTableGroup = defineAuthorizedTableUseCase({
         autoRun: input.autoRun ?? false,
         suppressAutoRunDispatch: true,
         actorUserId,
+        capabilityGovernedUserId,
       },
       generateRequestId()
     )
@@ -583,6 +585,7 @@ export const createTableEnrichmentGroup = defineAuthorizedTableUseCase({
         autoRun: input.autoRun ?? false,
         suppressAutoRunDispatch: true,
         actorUserId,
+        capabilityGovernedUserId,
       },
       generateRequestId()
     )
@@ -626,7 +629,11 @@ export interface UpdateTableGroupInput
   extends TableGroupInput,
     Omit<
       UpdateWorkflowGroupData,
-      'tableId' | 'workspaceId' | 'actorUserId' | 'suppressAutoRunDispatch'
+      | 'tableId'
+      | 'workspaceId'
+      | 'actorUserId'
+      | 'capabilityGovernedUserId'
+      | 'suppressAutoRunDispatch'
     > {}
 
 export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
@@ -795,6 +802,7 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         groupId: input.groupId,
         actorUserId,
+        capabilityGovernedUserId,
         suppressAutoRunDispatch: true,
         ...(input.workflowId !== undefined ? { workflowId: input.workflowId } : {}),
         ...(input.name !== undefined ? { name: input.name } : {}),
@@ -996,6 +1004,7 @@ export const updateWorkflowTableGroup = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         groupId: input.groupId,
         actorUserId,
+        capabilityGovernedUserId,
         suppressAutoRunDispatch: true,
         ...(input.workflowId !== undefined ? { workflowId: input.workflowId } : {}),
         ...(input.name !== undefined ? { name: input.name } : {}),

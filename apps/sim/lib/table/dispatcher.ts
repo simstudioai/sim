@@ -252,7 +252,19 @@ export async function insertDispatch(input: {
   limit?: DispatchLimit | null
   isManualRun: boolean
   triggeredByUserId?: string | null
-  capabilityGovernedUserId?: string | null
+  /**
+   * The person whose permission group gates this run's cells, or `null` when
+   * the run has no acting person (workspace key, schedule, auto-fire).
+   *
+   * Required with an explicit `null` rather than optional: the only way to get
+   * this wrong is to not think about it, and an optional field with a fallback
+   * let every producer that had not been taught the distinction silently
+   * inherit `triggeredByUserId` — an *attribution* that names the workspace
+   * billed account when the credential names no human. Making omission a
+   * compile error is what stops the next producer from re-introducing that
+   * bystander substitution.
+   */
+  capabilityGovernedUserId: string | null
 }): Promise<string> {
   const id = `tdsp_${generateId().replace(/-/g, '')}`
   await db.insert(tableRunDispatches).values({
@@ -270,16 +282,7 @@ export async function insertDispatch(input: {
     cursor: -1,
     isManualRun: input.isManualRun,
     triggeredByUserId: input.triggeredByUserId ?? null,
-    /**
-     * Defaults to the trigger actor so every producer that has not been taught
-     * the distinction keeps the gating it has today. Only a producer holding
-     * the principal can tell an acting person from an attribution fallback, and
-     * those pass the governed subject explicitly — `null` included.
-     */
-    capabilityGovernedUserId:
-      input.capabilityGovernedUserId !== undefined
-        ? input.capabilityGovernedUserId
-        : (input.triggeredByUserId ?? null),
+    capabilityGovernedUserId: input.capabilityGovernedUserId,
   })
   return id
 }

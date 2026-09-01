@@ -370,7 +370,8 @@ export async function performTableCsvImport(
       })
       // Fire trigger + scheduler AFTER the tx commits — both read through the
       // global db connection and would otherwise see no rows.
-      dispatchAfterBatchInsert(finalTable, inserted, requestId, userId)
+      /** CSV import is auto-fire: no acting person governs the rows it lands. */
+      dispatchAfterBatchInsert(finalTable, inserted, requestId, userId, null)
 
       logger.info(`[${requestId}] Append CSV imported`, {
         tableId: table.id,
@@ -507,6 +508,8 @@ export async function performCreateTableFromCsv(
         rows: coerced as RowData[],
         workspaceId,
         userId,
+        /** CSV import is auto-fire: no acting person governs the rows it lands. */
+        capabilityGovernedUserId: null,
         secretProvenance: coerced.map(createExactEmptyTableRowSecretProvenance),
       },
       // The created table's rowCount is frozen at 0; pass the running total so the

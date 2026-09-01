@@ -229,6 +229,8 @@ export function buildTableUsageLimitClear(args: {
     secretProvenance: undefined,
     workspaceId,
     executionsPatch: { [groupId]: null },
+    /** Clearing a pre-stamp writes no cell values and fires no enrichment. */
+    capabilityGovernedUserId: null,
     cancellationGuard: { groupId, executionId },
   }
 }

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { runColumnContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { TableQueryValidationError } from '@/lib/table/errors'
@@ -63,6 +64,14 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       limit,
       requestId,
       triggeredByUserId: auth.userId,
+      /**
+       * The gate's subject, not the meter's. An internal JWT resolves to the
+       * executor principal, which carries a role but no capabilities, so it
+       * governs nothing — only a session caller does.
+       */
+      capabilityGovernedUserId: auth.principal
+        ? capabilityGovernedPrincipalUserId(auth.principal)
+        : null,
     })
 
     // Starting a run clears the target group's cells to pending (`bulkClearWorkflowGroupCells`) — a DB

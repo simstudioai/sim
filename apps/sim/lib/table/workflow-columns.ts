@@ -735,6 +735,8 @@ export async function cancelWorkflowGroupRuns(
             secretProvenance: undefined,
             workspaceId: table.workspaceId,
             executionsPatch: mutation.executionsPatch,
+            /** A cancellation stamp writes no cell values and fires no enrichment. */
+            capabilityGovernedUserId: null,
           },
           table,
           `wfgrp-cancel-${mutation.rowId}`
@@ -870,11 +872,13 @@ export async function runWorkflowColumn(opts: {
    *  callers (row writes, CSV import) → falls back to the workspace billed
    *  account at billing time. */
   triggeredByUserId?: string | null
-  /** Person whose permission group gates the run's cells. Omitted by producers
-   *  that cannot tell an acting person from an attribution fallback; those
-   *  default to `triggeredByUserId` in `insertDispatch`. Pass it explicitly —
-   *  `null` included — wherever the principal is in hand. */
-  capabilityGovernedUserId?: string | null
+  /** Person whose permission group gates the run's cells; `null` when the run
+   *  has no acting person (workspace key, schedule, auto-fire). Required with
+   *  an explicit `null` — never defaulted from `triggeredByUserId`, which is an
+   *  attribution and names the workspace billed account when the credential
+   *  names no human. Producers that sit below the principal take it from the
+   *  surface that holds one rather than re-deriving it here. */
+  capabilityGovernedUserId: string | null
 }): Promise<{ dispatchId: string | null; shouldSignalRowsChanged: boolean }> {
   const {
     tableId,
@@ -956,7 +960,7 @@ export async function runWorkflowColumn(opts: {
     limit,
     isManualRun,
     triggeredByUserId,
-    ...('capabilityGovernedUserId' in opts ? { capabilityGovernedUserId } : {}),
+    capabilityGovernedUserId,
   })
 
   try {

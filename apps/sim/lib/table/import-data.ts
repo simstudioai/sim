@@ -294,6 +294,8 @@ export async function importAppendRows(
           rows: batch,
           workspaceId: ctx.workspaceId,
           userId: ctx.userId,
+          /** CSV import is auto-fire: no acting person governs the rows it lands. */
+          capabilityGovernedUserId: null,
           secretProvenance: batch.map(createExactEmptyTableRowSecretProvenance),
         },
         working,
