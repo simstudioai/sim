@@ -127,6 +127,15 @@ export function enrichTableToolDescription(
 
   if (toolId === TABLE_QUERY_ROWS_V2) {
     const v2ColumnList = table.columns.map(v2ColumnLine).join('\n')
+    /*
+     * An unknown field is rejected outright (`Unknown filter column`), so the
+     * wildcard example names a real text column or is dropped entirely rather
+     * than inviting the model to copy a placeholder.
+     */
+    const textCol = table.columns.find((c) => c.type === 'string')
+    const wildcardRule = textCol
+      ? `5. like/ilike use * as the wildcard, e.g. {"field":"${textCol.name}","op":"ilike","value":"*jo*"}`
+      : '5. like/ilike use * as the wildcard, matching anywhere in a text value'
     const numberCol = table.columns.find((c) => c.type === 'number')
     const orderExample = numberCol
       ? `
@@ -140,7 +149,7 @@ INSTRUCTIONS:
 2. A single condition is a plain object: {"field":"<column>","op":"<operator>","value":<value>}
 3. For multiple conditions wrap them in {"all":[...]} for AND or {"any":[...]} for OR; groups nest
 4. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty
-5. like/ilike use * as the wildcard, e.g. {"field":"name","op":"ilike","value":"*jo*"}
+${wildcardRule}
 6. Any column listed below with a restricted operator set accepts ONLY those operators - the query is rejected outright otherwise. A multi-select cell holds a list, so match it by option name with contains, never ilike
 7. For substring matching on a text column use ilike with *x*
 8. For ranking queries (highest, lowest, Nth, top N) set order and a small limit, e.g. limit 1 for the highest, 2 for the second highest

@@ -71,6 +71,25 @@ describe('enrichTableToolDescription for table_query_rows_v2', () => {
     expect(textual).not.toContain('"op":"gte"')
   })
 
+  /**
+   * An unknown field is rejected outright, so every field the instructions name
+   * has to be a column the table actually has.
+   */
+  it('names a real text column in the wildcard example', () => {
+    expect(enriched).toContain('{"field":"status","op":"ilike","value":"*jo*"}')
+    expect(enriched).not.toContain('{"field":"name"')
+  })
+
+  it('drops the wildcard example when the table has no text column', () => {
+    const numeric = enrichTableToolDescription(
+      'Query rows.',
+      { name: 'Scores', columns: [{ name: 'wins', type: 'number' }] },
+      'table_query_rows_v2'
+    )
+    expect(numeric).toContain('matching anywhere in a text value')
+    expect(numeric).not.toContain('"op":"ilike"')
+  })
+
   it('omits the example rather than naming a placeholder column', () => {
     const bare = enrichTableToolDescription(
       'Query rows.',
