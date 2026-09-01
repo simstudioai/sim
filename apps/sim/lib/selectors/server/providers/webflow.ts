@@ -153,9 +153,14 @@ async function listItems(args: ExecuteServerSelectorArgs) {
     throw new SelectorOptionsUnavailableError()
   }
 
-  const reportedLimit = requirePaginationNumber(data.pagination.limit, { positive: true })
-  const reportedOffset = requirePaginationNumber(data.pagination.offset)
-  const reportedTotal = requirePaginationNumber(data.pagination.total)
+  const reportedLimit =
+    data.pagination.limit === undefined
+      ? WEBFLOW_ITEM_PAGE_SIZE
+      : requirePaginationNumber(data.pagination.limit, { positive: true })
+  const reportedOffset =
+    data.pagination.offset === undefined ? offset : requirePaginationNumber(data.pagination.offset)
+  const reportedTotal =
+    data.pagination.total === undefined ? undefined : requirePaginationNumber(data.pagination.total)
   if (
     reportedLimit > WEBFLOW_ITEM_PAGE_SIZE ||
     reportedOffset !== offset ||
@@ -163,7 +168,7 @@ async function listItems(args: ExecuteServerSelectorArgs) {
   ) {
     throw new SelectorOptionsUnavailableError()
   }
-  if (data.items.length === 0 && reportedOffset < reportedTotal) {
+  if (data.items.length === 0 && reportedTotal !== undefined && reportedOffset < reportedTotal) {
     throw new SelectorOptionsUnavailableError()
   }
 
@@ -181,7 +186,12 @@ async function listItems(args: ExecuteServerSelectorArgs) {
   })
   return listSelectorResult(
     items,
-    data.items.length > 0 && nextOffset < reportedTotal ? String(nextOffset) : undefined
+    data.items.length > 0 &&
+      (reportedTotal === undefined
+        ? data.items.length === reportedLimit
+        : nextOffset < reportedTotal)
+      ? String(nextOffset)
+      : undefined
   )
 }
 

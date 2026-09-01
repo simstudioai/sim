@@ -72,6 +72,26 @@ describe('Webflow server selector adapter', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
+  it('continues after a full page when optional pagination fields are omitted', async () => {
+    const items = Array.from({ length: 100 }, (_, index) => ({
+      id: index.toString(16).padStart(24, '0'),
+      fieldData: { name: `Item ${index}` },
+    }))
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ items, pagination: {} }), { status: 200 })
+    )
+
+    const result = await webflowSelectorAttachments['webflow.items'].execute(
+      args({ kind: 'list', cursor: '5000' })
+    )
+
+    expect(result.kind).toBe('list')
+    if (result.kind !== 'list') throw new Error('Expected a list selector result')
+    expect(result.items).toHaveLength(100)
+    expect(result.nextCursor).toBe('5100')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
   it('hydrates saved items directly and treats a missing item as absent', async () => {
     const itemId = '680000000000000000001389'
     const missingItemId = '680000000000000000001390'
