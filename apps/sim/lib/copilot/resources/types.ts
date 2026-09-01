@@ -208,6 +208,34 @@ export function sanitizeChatResources(
   return canonicalizeDesktopSessionResources(resources).filter(isAddressableResource)
 }
 
+/**
+ * Applies a client-supplied order to the canonical stored entries. Reordering
+ * carries identity only: metadata echoed by a stale tab must never overwrite a
+ * newer pin, path, title, or execution id already persisted on the chat.
+ */
+export function reorderStoredChatResources(
+  storedResources: readonly MothershipResource[],
+  requestedOrder: readonly MothershipResource[]
+): MothershipResource[] | null {
+  const stored = sanitizeChatResources(storedResources)
+  const requested = sanitizeChatResources(requestedOrder)
+  if (stored.length !== requested.length) return null
+
+  const storedByKey = new Map(
+    stored.map((resource) => [`${resource.type}:${resource.id}`, resource])
+  )
+  const requestedKeys = requested.map((resource) => `${resource.type}:${resource.id}`)
+  if (new Set(requestedKeys).size !== storedByKey.size) return null
+
+  const reordered: MothershipResource[] = []
+  for (const key of requestedKeys) {
+    const resource = storedByKey.get(key)
+    if (!resource) return null
+    reordered.push(resource)
+  }
+  return reordered
+}
+
 /** Placeholder resource titles that a more specific title may overwrite during dedup. */
 export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Table',
@@ -253,6 +281,28 @@ export function mergeChatResource(
     merged.viewId === prev.viewId &&
     merged.executionId === prev.executionId
   return unchanged ? prev : merged
+}
+
+/**
+ * Coalesces durable updates that have not all reached the server yet. Unlike a
+ * stored resource, the pending value must retain an explicit pin-clear until a
+ * write succeeds; a later row edit that omits `viewId` must not cancel it.
+ */
+export function mergePendingChatResourceUpdate(
+  prev: MothershipResourceUpdate | undefined,
+  next: MothershipResourceUpdate
+): MothershipResourceUpdate {
+  let previousClearViewId: true | undefined
+  let previousResource: MothershipResource | undefined
+  if (prev) {
+    const { clearViewId, ...resource } = prev
+    previousClearViewId = clearViewId
+    previousResource = resource
+  }
+  const merged = mergeChatResource(previousResource, next)
+  const shouldClearViewId =
+    next.viewId === undefined && (next.clearViewId === true || previousClearViewId === true)
+  return shouldClearViewId ? { ...merged, clearViewId: true } : merged
 }
 
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {

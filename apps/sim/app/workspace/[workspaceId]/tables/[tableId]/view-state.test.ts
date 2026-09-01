@@ -92,6 +92,20 @@ describe('resolveTableViewPinTransition', () => {
       resolveTableViewPinTransition('view-pinned', 'view-created', 'view-pinned', 'view-created')
     ).toEqual({ nextViewId: null, pendingCreatedViewId: 'view-created' })
   })
+
+  it('replaces a different active URL even if the pin was applied previously', () => {
+    expect(resolveTableViewPinTransition('view-user', 'view-pinned', 'view-pinned', null)).toEqual({
+      nextViewId: 'view-pinned',
+      pendingCreatedViewId: null,
+    })
+  })
+
+  it('suppresses a redundant URL update while the applied view has no URL selection', () => {
+    expect(resolveTableViewPinTransition(null, 'view-pinned', 'view-pinned', null)).toEqual({
+      nextViewId: null,
+      pendingCreatedViewId: null,
+    })
+  })
 })
 
 describe('shouldApplyTableViewRevision', () => {

@@ -64,7 +64,7 @@ export function resolveTableViewPinTransition(
   pinnedViewId: string,
   pendingCreatedViewId: string | null
 ): TableViewPinTransition {
-  if (activeViewId === pinnedViewId || appliedViewId === pinnedViewId) {
+  if (activeViewId === pinnedViewId || (activeViewId === null && appliedViewId === pinnedViewId)) {
     return { nextViewId: null, pendingCreatedViewId }
   }
   return { nextViewId: pinnedViewId, pendingCreatedViewId: null }

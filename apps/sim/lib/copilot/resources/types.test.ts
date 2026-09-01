@@ -9,7 +9,9 @@ import {
   type MothershipResource,
   MothershipResourceType,
   mergeChatResource,
+  mergePendingChatResourceUpdate,
   PERSISTED_RESOURCE_TYPES,
+  reorderStoredChatResources,
   sanitizeChatResources,
   TERMINAL_SESSION_RESOURCE_ID,
 } from './types'
@@ -236,5 +238,53 @@ describe('mergeChatResource metadata', () => {
       mergeChatResource(log, { type: 'log', id: 'row-1', title: 'Run', executionId: 'exec-1' })
         .executionId
     ).toBe('exec-1')
+  })
+})
+
+describe('mergePendingChatResourceUpdate', () => {
+  const table = resource({ type: 'table', id: 'tbl-1', title: 'Invoices' })
+
+  it('retains a pending clear across an unrelated update', () => {
+    expect(mergePendingChatResourceUpdate({ ...table, clearViewId: true }, table)).toEqual({
+      ...table,
+      clearViewId: true,
+    })
+  })
+
+  it('lets a newer explicit pin replace a pending clear', () => {
+    expect(
+      mergePendingChatResourceUpdate(
+        { ...table, clearViewId: true },
+        { ...table, viewId: 'view-new' }
+      )
+    ).toEqual({ ...table, viewId: 'view-new' })
+  })
+})
+
+describe('reorderStoredChatResources', () => {
+  const table = resource({
+    type: 'table',
+    id: 'tbl-1',
+    title: 'Invoices',
+    viewId: 'view-new',
+  })
+  const file = resource({ id: 'file-1', title: 'report.csv', path: 'files/report.csv' })
+
+  it('uses the request only for order and preserves newer stored metadata', () => {
+    expect(
+      reorderStoredChatResources(
+        [table, file],
+        [
+          { ...file, path: 'stale/report.csv' },
+          { ...table, viewId: 'view-stale' },
+        ]
+      )
+    ).toEqual([file, table])
+  })
+
+  it('rejects missing, extra, and duplicate identities', () => {
+    expect(reorderStoredChatResources([table, file], [table])).toBeNull()
+    expect(reorderStoredChatResources([table], [table, file])).toBeNull()
+    expect(reorderStoredChatResources([table, file], [table, table])).toBeNull()
   })
 })

@@ -102,7 +102,7 @@ const copilotChatResourceItemSchema = z.object({
 
 export const addCopilotChatResourceBodySchema = z
   .object({
-    chatId: z.string(),
+    chatId: requiredFieldSchema('chatId cannot be empty'),
     resource: copilotChatResourceItemSchema,
     clearViewId: z.literal(true).optional(),
   })

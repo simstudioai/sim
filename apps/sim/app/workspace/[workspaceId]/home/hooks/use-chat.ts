@@ -66,6 +66,7 @@ import {
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { canDisplayResource } from '@/lib/copilot/resources/availability'
+import { ResourcePersistenceQueue } from '@/lib/copilot/resources/client-persistence-queue'
 import {
   BROWSER_SESSION_RESOURCE_ID,
   isAddressableResource,
@@ -1384,9 +1385,27 @@ export function useChat(
    * make the tabs disappear for the desktop app too.
    */
   const undisplayableResourcesRef = useRef<MothershipResource[]>([])
-  const pendingPersistResourceKeysRef = useRef<Set<string>>(new Set())
-  const pendingClearViewIdKeysRef = useRef<Set<string>>(new Set())
-  const inFlightResourceAddsRef = useRef<Map<string, Promise<unknown>>>(new Map())
+  const resourcePersistenceQueueRef = useRef<ResourcePersistenceQueue | null>(null)
+  if (!resourcePersistenceQueueRef.current) {
+    resourcePersistenceQueueRef.current = new ResourcePersistenceQueue({
+      persist: (chatId, update) => {
+        const { clearViewId, ...resource } = update
+        return requestJson(addMothershipChatResourceContract, {
+          body: {
+            chatId,
+            resource,
+            ...(clearViewId === true ? { clearViewId: true as const } : {}),
+          },
+        })
+      },
+      onError: (error) => {
+        logger.warn('Failed to persist resource; will retry on next hydration', error)
+      },
+    })
+  }
+  const resourcePersistenceQueue = resourcePersistenceQueueRef.current
+  const pendingPersistResourceKeysRef = useRef(resourcePersistenceQueue.pendingKeys)
+  const inFlightResourceAddsRef = useRef(resourcePersistenceQueue.inFlight)
   const reorderNeededAfterFlushRef = useRef(false)
 
   // Derive the effective active resource ID for rendering without writing a
@@ -1644,9 +1663,7 @@ export function useChat(
     // Pending view pins belong to the chat whose stream issued them.
     useTableViewPinStore.getState().reset()
     undisplayableResourcesRef.current = []
-    pendingPersistResourceKeysRef.current.clear()
-    pendingClearViewIdKeysRef.current.clear()
-    inFlightResourceAddsRef.current.clear()
+    resourcePersistenceQueue.clear()
     reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
     // Editing binds to this hook's composer — release it before rotating chatKey.
@@ -1674,56 +1691,29 @@ export function useChat(
     workspaceId,
   ])
 
-  const flushPendingResources = useCallback(async (chatId: string) => {
-    const pendingKeys = pendingPersistResourceKeysRef.current
-    if (pendingKeys.size === 0) return
-    const flushPromises: Array<Promise<unknown>> = []
-    for (const resource of resourcesRef.current) {
-      if (resource.id === 'streaming-file') continue
-      const key = `${resource.type}:${resource.id}`
-      if (!pendingKeys.has(key)) continue
-      pendingKeys.delete(key)
-      const shouldClearViewId = pendingClearViewIdKeysRef.current.has(key)
-      const promise = requestJson(addMothershipChatResourceContract, {
-        body: {
-          chatId,
-          resource,
-          ...(shouldClearViewId ? { clearViewId: true as const } : {}),
-        },
+  const flushPendingResources = useCallback(
+    async (chatId: string) => {
+      if (pendingPersistResourceKeysRef.current.size === 0) return
+      await resourcePersistenceQueue.flush(chatId)
+      if (!reorderNeededAfterFlushRef.current) return
+      reorderNeededAfterFlushRef.current = false
+      const localOrder = [
+        ...resourcesRef.current.filter(
+          (r) =>
+            r.id !== 'streaming-file' &&
+            !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
+        ),
+        ...undisplayableResourcesRef.current,
+      ]
+      if (localOrder.length === 0) return
+      requestJson(reorderMothershipChatResourcesContract, {
+        body: { chatId, resources: localOrder },
+      }).catch((err) => {
+        logger.warn('Failed to sync resource order after flush', err)
       })
-        .then((result) => {
-          if (shouldClearViewId) pendingClearViewIdKeysRef.current.delete(key)
-          return result
-        })
-        .catch((err) => {
-          pendingPersistResourceKeysRef.current.add(key)
-          logger.warn('Failed to flush pending resource; will retry on next hydration', err)
-        })
-        .finally(() => {
-          inFlightResourceAddsRef.current.delete(key)
-        })
-      inFlightResourceAddsRef.current.set(key, promise)
-      flushPromises.push(promise)
-    }
-    if (flushPromises.length === 0) return
-    await Promise.allSettled(flushPromises)
-    if (!reorderNeededAfterFlushRef.current) return
-    reorderNeededAfterFlushRef.current = false
-    const localOrder = [
-      ...resourcesRef.current.filter(
-        (r) =>
-          r.id !== 'streaming-file' &&
-          !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
-      ),
-      ...undisplayableResourcesRef.current,
-    ]
-    if (localOrder.length === 0) return
-    requestJson(reorderMothershipChatResourcesContract, {
-      body: { chatId, resources: localOrder },
-    }).catch((err) => {
-      logger.warn('Failed to sync resource order after flush', err)
-    })
-  }, [])
+    },
+    [resourcePersistenceQueue]
+  )
 
   const adoptResolvedChatId = useCallback(
     (chatId: string, options?: { replaceHomeHistory?: boolean; invalidateList?: boolean }) => {
@@ -1811,113 +1801,76 @@ export function useChat(
     const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
   }, [chatHistory, pendingMessages])
-  const addResource = useCallback((resourceUpdate: MothershipResourceUpdate): boolean => {
-    // The single fan-in for tab creation, so the invariant lives here.
-    if (!isAddressableResource(resourceUpdate)) {
-      logger.warn('Ignored a resource with no id', {
-        type: resourceUpdate.type,
-        title: resourceUpdate.title,
+  const addResource = useCallback(
+    (resourceUpdate: MothershipResourceUpdate): boolean => {
+      // The single fan-in for tab creation, so the invariant lives here.
+      if (!isAddressableResource(resourceUpdate)) {
+        logger.warn('Ignored a resource with no id', {
+          type: resourceUpdate.type,
+          title: resourceUpdate.title,
+        })
+        return false
+      }
+      const existing = resourcesRef.current.find(
+        (r) => r.type === resourceUpdate.type && r.id === resourceUpdate.id
+      )
+      const resource = mergeChatResource(existing, resourceUpdate)
+      if (existing && resource === existing) {
+        return false
+      }
+
+      setResources((prev) => {
+        const current = prev.find((r) => r.type === resource.type && r.id === resource.id)
+        if (!current) return [...prev, resource]
+        const merged = mergeChatResource(current, resourceUpdate)
+        return merged === current
+          ? prev
+          : prev.map((r) => (r.type === resource.type && r.id === resource.id ? merged : r))
       })
-      return false
-    }
-    const existing = resourcesRef.current.find(
-      (r) => r.type === resourceUpdate.type && r.id === resourceUpdate.id
-    )
-    const resource = mergeChatResource(existing, resourceUpdate)
-    if (existing && resource === existing) {
-      return false
-    }
+      // Synthetic result/preview panels are in-memory only. The browser tab
+      // metadata is persisted even though its live page remains desktop-owned.
+      if (isEphemeralResource(resource)) {
+        return true
+      }
 
-    setResources((prev) => {
-      const current = prev.find((r) => r.type === resource.type && r.id === resource.id)
-      if (!current) return [...prev, resource]
-      const merged = mergeChatResource(current, resourceUpdate)
-      return merged === current
-        ? prev
-        : prev.map((r) => (r.type === resource.type && r.id === resource.id ? merged : r))
-    })
-    // Synthetic result/preview panels are in-memory only. The browser tab
-    // metadata is persisted even though its live page remains desktop-owned.
-    if (isEphemeralResource(resource)) {
-      return true
-    }
-
-    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
-    const key = `${resource.type}:${resource.id}`
-    const shouldClearViewId = resourceUpdate.clearViewId === true
-    if (shouldClearViewId) {
-      pendingClearViewIdKeysRef.current.add(key)
-    } else if (resourceUpdate.viewId !== undefined) {
-      pendingClearViewIdKeysRef.current.delete(key)
-    }
-    // `resourcesRef` is written during render, so adds of the same resource in
-    // one tick all read the pre-render list and all pass the check above. State
-    // converges (the updater is idempotent) but each fired its own POST — 5-6
-    // per resource in production.
-    const alreadyPersisting =
-      inFlightResourceAddsRef.current.has(key) || pendingPersistResourceKeysRef.current.has(key)
-    if (alreadyPersisting) {
-      pendingPersistResourceKeysRef.current.add(key)
+      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+      resourcePersistenceQueue.enqueue(resourceUpdate, persistChatId, existing)
       return existing === undefined
-    }
-    if (persistChatId) {
-      const promise = requestJson(addMothershipChatResourceContract, {
-        body: {
-          chatId: persistChatId,
-          resource,
-          ...(shouldClearViewId ? { clearViewId: true as const } : {}),
-        },
-      })
-        .then((result) => {
-          if (shouldClearViewId) pendingClearViewIdKeysRef.current.delete(key)
-          return result
+    },
+    [resourcePersistenceQueue]
+  )
+
+  const removeResource = useCallback(
+    (resourceType: MothershipResourceType, resourceId: string) => {
+      setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
+      setActiveResourceId((prev) => (prev === resourceId ? null : prev))
+
+      // Ephemeral panels were never persisted; nothing to delete server-side.
+      if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
+
+      const { inFlight: inFlightAdd, wasPending } = resourcePersistenceQueue.remove(
+        resourceType,
+        resourceId
+      )
+      if (wasPending && !inFlightAdd) return
+
+      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+      if (!persistChatId) return
+      const fireDelete = () => {
+        requestJson(removeMothershipChatResourceContract, {
+          body: { chatId: persistChatId, resourceType, resourceId },
+        }).catch((err) => {
+          logger.warn('Failed to persist resource removal', err)
         })
-        .catch((err) => {
-          pendingPersistResourceKeysRef.current.add(key)
-          logger.warn('Failed to persist resource; will retry on next hydration', err)
-        })
-        .finally(() => {
-          inFlightResourceAddsRef.current.delete(key)
-        })
-      inFlightResourceAddsRef.current.set(key, promise)
-    } else {
-      pendingPersistResourceKeysRef.current.add(key)
-    }
-    return existing === undefined
-  }, [])
-
-  const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {
-    setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
-    setActiveResourceId((prev) => (prev === resourceId ? null : prev))
-
-    // Ephemeral panels were never persisted; nothing to delete server-side.
-    if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
-
-    const key = `${resourceType}:${resourceId}`
-    pendingClearViewIdKeysRef.current.delete(key)
-    const wasPending = pendingPersistResourceKeysRef.current.delete(key)
-    const inFlightAdd = inFlightResourceAddsRef.current.get(key)
-    if (wasPending && !inFlightAdd) return
-
-    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
-    if (!persistChatId) return
-    const fireDelete = () => {
-      requestJson(removeMothershipChatResourceContract, {
-        body: { chatId: persistChatId, resourceType, resourceId },
-      }).catch((err) => {
-        logger.warn('Failed to persist resource removal', err)
-      })
-    }
-    if (inFlightAdd) {
-      // Drop the entry now, not when the add settles: an add being deleted must
-      // not suppress a fresh add of the same resource. The chained delete keeps
-      // its own reference to the promise.
-      inFlightResourceAddsRef.current.delete(key)
-      inFlightAdd.finally(fireDelete)
-    } else {
-      fireDelete()
-    }
-  }, [])
+      }
+      if (inFlightAdd) {
+        inFlightAdd.finally(fireDelete)
+      } else {
+        fireDelete()
+      }
+    },
+    [resourcePersistenceQueue]
+  )
 
   /**
    * Drops hydrated workflow tabs whose workflow no longer exists, so an old
@@ -2280,11 +2233,7 @@ export function useChat(
     const streamOwnerId = chatIdRef.current
     const pendingTurn = activeTurnRef.current
     const pendingStreamId = streamIdRef.current ?? pendingTurn?.userMessageId
-    const pendingResources = resourcesRef.current.filter(
-      (resource) =>
-        !isEphemeralResource(resource) &&
-        pendingPersistResourceKeysRef.current.has(`${resource.type}:${resource.id}`)
-    )
+    const pendingResources = resourcePersistenceQueue.getPendingUpdates()
     const navigatedToDifferentChat =
       sendingRef.current &&
       initialChatId !== streamOwnerId &&
@@ -2382,9 +2331,7 @@ export function useChat(
     setResources([])
     setActiveResourceId(null)
     useTableViewPinStore.getState().reset()
-    pendingPersistResourceKeysRef.current.clear()
-    pendingClearViewIdKeysRef.current.clear()
-    inFlightResourceAddsRef.current.clear()
+    resourcePersistenceQueue.clear()
     reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
     // Rotate the bucket key; the previous chat's queue stays in the store.

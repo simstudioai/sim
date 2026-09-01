@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 
 /** A request that the table switch to one of its saved views. */
 export interface TableViewPin {
@@ -61,3 +62,5 @@ export const useTableViewPinStore = create<TableViewPinState>()(
     { name: 'table-view-pin-store' }
   )
 )
+
+registerUserDataReset('table-view-pin', () => useTableViewPinStore.getState().reset())

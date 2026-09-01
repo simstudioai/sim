@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
+import { resetRegisteredUserData } from '@/stores/user-data-reset-registry'
 
 describe('useTableViewPinStore', () => {
   beforeEach(() => {
@@ -59,5 +60,14 @@ describe('useTableViewPinStore', () => {
 
     expect(useTableViewPinStore.getState().pins['tbl-1']).toBeUndefined()
     expect(useTableViewPinStore.getState().pins['tbl-2'].viewId).toBe('view-b')
+  })
+
+  it('clears pending pins when the authenticated identity changes', () => {
+    useTableViewPinStore.getState().pin('tbl-1', 'view-a')
+
+    resetRegisteredUserData()
+
+    expect(useTableViewPinStore.getState().pins).toEqual({})
+    expect(useTableViewPinStore.getState().nextSeq).toBe(1)
   })
 })

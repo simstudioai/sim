@@ -21,6 +21,7 @@ import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
 import {
   canonicalizeDesktopSessionResource,
   mergeChatResource,
+  reorderStoredChatResources,
   sanitizeChatResources,
 } from '@/lib/copilot/resources/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -140,16 +141,8 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
     const existing = sanitizeChatResources(
       Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
     )
-    // The client echoes the tabs it holds; anything it does not carry (a view
-    // pin, a path) is taken from the stored entry rather than dropped.
-    const existingByKey = new Map(existing.map((r) => [`${r.type}:${r.id}`, r]))
-    const canonicalOrder = sanitizeChatResources(newOrder).map((r) =>
-      mergeChatResource(existingByKey.get(`${r.type}:${r.id}`), r)
-    )
-    const existingKeys = new Set(existingByKey.keys())
-    const newKeys = new Set(canonicalOrder.map((r) => `${r.type}:${r.id}`))
-
-    if (existingKeys.size !== newKeys.size || ![...existingKeys].every((k) => newKeys.has(k))) {
+    const canonicalOrder = reorderStoredChatResources(existing, newOrder)
+    if (!canonicalOrder) {
       return createBadRequestResponse('Reordered resources must match existing resources')
     }
 

@@ -11,6 +11,15 @@ const TABLE_RESOURCE = {
 }
 
 describe('addMothershipChatResourceBodySchema', () => {
+  it('rejects an empty chat id', () => {
+    expect(
+      addMothershipChatResourceBodySchema.safeParse({
+        chatId: '',
+        resource: TABLE_RESOURCE,
+      }).success
+    ).toBe(false)
+  })
+
   it('preserves an explicit saved-view pin clear through outbound parsing', () => {
     expect(
       addMothershipChatResourceBodySchema.parse({
