@@ -38,7 +38,7 @@ interface PersistedToolCall {
 }
 
 export interface PersistedContentBlock {
-  type: MothershipStreamV1EventType
+  type: MothershipStreamV1EventType | 'plan'
   lane?: MothershipStreamV1StreamScope['lane']
   /**
    * Subagent name on lane text blocks. The span-tree parser needs a name to
@@ -56,6 +56,8 @@ export interface PersistedContentBlock {
   /** Orchestrator-chosen display name on a subagent start block. */
   name?: string
   toolCall?: PersistedToolCall
+  /** The agent's plan checklist (plan blocks only). */
+  planItems?: import('@/lib/mothership/request/types').AgentPlanItem[]
   timestamp?: number
   endedAt?: number
   parentToolCallId?: string
@@ -227,6 +229,8 @@ function mapContentBlock(block: ContentBlock): PersistedContentBlock {
 
 function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
   switch (block.type) {
+    case 'plan':
+      return { type: 'plan', ...(block.planItems ? { planItems: block.planItems } : {}) }
     case 'text':
       return {
         type: MothershipStreamV1EventType.text,

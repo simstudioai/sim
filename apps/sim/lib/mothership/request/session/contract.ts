@@ -201,7 +201,13 @@ function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
 // already performs strict schema validation; the client only needs enough
 // structural checking to safely dispatch inside the switch statement.
 
-const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(Object.values(MothershipStreamV1EventType))
+// `plan` is a worker-native extension (the update_plan checklist) not present in
+// the generated Go-era enum; accepted here so the shared-path validator treats it
+// as a first-class event rather than a broken stream.
+const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set([
+  ...Object.values(MothershipStreamV1EventType),
+  'plan',
+])
 
 function isValidEnvelopeShell(value: unknown): value is JsonRecord & {
   v: 1
@@ -325,9 +331,23 @@ function isContractEnvelope(value: unknown): value is MothershipStreamV1EventEnv
       return isValidErrorPayload(payload)
     case MothershipStreamV1EventType.complete:
       return isValidCompletePayload(payload)
+    case 'plan':
+      return isValidPlanPayload(payload)
     default:
       return false
   }
+}
+
+/** The update_plan checklist: a whole-list payload of {step, status} items. */
+function isValidPlanPayload(payload: JsonRecord): boolean {
+  const items = payload.items
+  if (!Array.isArray(items) || items.length === 0) return false
+  return items.every(
+    (item) =>
+      isRecordLike(item) &&
+      typeof item.step === 'string' &&
+      (item.status === 'pending' || item.status === 'active' || item.status === 'done')
+  )
 }
 
 // Synthetic file-preview envelope validators

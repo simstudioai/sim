@@ -137,7 +137,7 @@ export interface ExecuteMessage {
  */
 export interface StreamEnvelope {
   v: 1;
-  type: "session" | "text" | "tool" | "span" | "run" | "resource" | "error" | "complete";
+  type: "session" | "text" | "tool" | "span" | "run" | "resource" | "plan" | "error" | "complete";
   seq: number;
   /** ISO timestamp. */
   ts: string;
@@ -147,6 +147,12 @@ export interface StreamEnvelope {
    * inside the named root-level lane instead of the main transcript. */
   scope?: StreamScope | undefined;
   payload: Record<string, unknown>;
+}
+
+/** One step of the agent's visible plan (the update_plan tool's whole-list payload). */
+export interface PlanItem {
+  step: string;
+  status: "pending" | "active" | "done";
 }
 
 /** One subagent lane: keyed by the delegating tool call; agentId/spanId identify the lane. */

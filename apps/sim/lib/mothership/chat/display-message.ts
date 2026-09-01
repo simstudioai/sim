@@ -66,6 +66,9 @@ function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined 
 
 function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefined {
   switch (block.type) {
+    case 'plan':
+      if (!block.planItems?.length) return undefined
+      return { type: ContentBlockType.plan, planItems: block.planItems }
     case MothershipStreamV1EventType.text:
       if (block.lane === 'subagent') {
         if (block.channel === 'thinking') {

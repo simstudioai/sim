@@ -107,12 +107,15 @@ export const ContentBlockType = {
   subagent_thinking: 'subagent_thinking',
   options: 'options',
   stopped: 'stopped',
+  plan: 'plan',
 } as const
 export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
 
 export interface ContentBlock {
   type: ContentBlockType
   content?: string
+  /** The agent's plan checklist (plan blocks only); whole-list, latest wins. */
+  planItems?: import('@/lib/mothership/request/types').AgentPlanItem[]
   subagent?: string
   /** Orchestrator-chosen display name for a `subagent` start block (shown instead of the generic agent label). */
   subagentName?: string
