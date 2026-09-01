@@ -242,6 +242,7 @@ export async function insertRow(
     isManualRun: false,
     requestId,
     triggeredByUserId: data.userId,
+    capabilityGovernedUserId: data.capabilityGovernedUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (insertRow) failed:`, err))
 
   return insertedRow
@@ -279,7 +280,7 @@ export async function batchInsertRows(
     addedRows: result.length,
     limit: rowLimit,
   })
-  dispatchAfterBatchInsert(table, result, requestId, data.userId)
+  dispatchAfterBatchInsert(table, result, requestId, data.userId, data.capabilityGovernedUserId)
   return result
 }
 
@@ -401,7 +402,9 @@ export function dispatchAfterBatchInsert(
   table: TableDefinition,
   result: TableRow[],
   requestId: string,
-  actorUserId?: string | null
+  actorUserId: string | null | undefined,
+  /** The gate's subject for the auto-fire pass; see {@link InsertRowData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
 ): void {
   void fireTableTrigger(
     table.id,
@@ -425,6 +428,7 @@ export function dispatchAfterBatchInsert(
     isManualRun: false,
     requestId,
     triggeredByUserId: actorUserId,
+    capabilityGovernedUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchInsertRows) failed:`, err))
 }
 
@@ -923,6 +927,7 @@ export async function upsertRow(
     isManualRun: false,
     requestId,
     triggeredByUserId: data.userId,
+    capabilityGovernedUserId: data.capabilityGovernedUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (upsertRow) failed:`, err))
 
   return result
@@ -1875,6 +1880,7 @@ export async function updateRow(
           groupIds: inFlightDownstreamGroups,
           requestId,
           triggeredByUserId: data.actorUserId,
+          capabilityGovernedUserId: data.capabilityGovernedUserId,
         })
       } catch (err) {
         logger.error(`[${requestId}] cancel+rerun for in-flight downstream groups failed:`, err)
@@ -1889,6 +1895,7 @@ export async function updateRow(
     isManualRun: false,
     requestId,
     triggeredByUserId: data.actorUserId,
+    capabilityGovernedUserId: data.capabilityGovernedUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (updateRow) failed:`, err))
 
   return updatedRow
@@ -2077,7 +2084,9 @@ function dispatchBulkUpdateEffects(
   patch: RowData,
   now: Date,
   requestId: string,
-  actorUserId: BulkUpdateData['actorUserId']
+  actorUserId: BulkUpdateData['actorUserId'],
+  /** The gate's subject for the auto-fire pass; see {@link BulkUpdateData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
 ): void {
   const affectedRowIdSet = new Set(affectedRowIds)
   const affectedRows = rows.filter((row) => affectedRowIdSet.has(row.id))
@@ -2110,6 +2119,7 @@ function dispatchBulkUpdateEffects(
     isManualRun: false,
     requestId,
     triggeredByUserId: actorUserId,
+    capabilityGovernedUserId,
   }).catch((error) =>
     logger.error(`[${requestId}] auto-dispatch (updateRowsByFilter) failed:`, error)
   )
@@ -2241,7 +2251,8 @@ export async function updateRowsByFilter(
         data.data,
         now,
         requestId,
-        data.actorUserId
+        data.actorUserId,
+        data.capabilityGovernedUserId
       )
       afterId = nextAfterId
       if (batchRows.length < TABLE_LIMITS.UPDATE_BATCH_SIZE) break
@@ -2311,7 +2322,8 @@ export async function updateRowsByFilter(
     data.data,
     now,
     requestId,
-    data.actorUserId
+    data.actorUserId,
+    data.capabilityGovernedUserId
   )
 
   return {
@@ -2550,6 +2562,7 @@ export async function batchUpdateRows(
             groupIds: inFlightDownstreamGroups,
             requestId,
             triggeredByUserId: data.actorUserId,
+            capabilityGovernedUserId: data.capabilityGovernedUserId,
           })
         }
       } catch (err) {
@@ -2569,6 +2582,7 @@ export async function batchUpdateRows(
       isManualRun: false,
       requestId,
       triggeredByUserId: data.actorUserId,
+      capabilityGovernedUserId: data.capabilityGovernedUserId,
     }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchUpdateRows) failed:`, err))
   }
 

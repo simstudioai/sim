@@ -19,8 +19,16 @@ function throwPublicImapError(error: unknown): never {
   throw new SelectorConnectionUnavailableError()
 }
 
+/**
+ * The integration this selector reaches. Declared rather than derived: the selector opens an IMAP connection from raw host and password fields in
+ * the request context and carries no stored connection, so the OAuth
+ * credential catalog can identify nothing to gate it on.
+ */
+const integrationBlockTypes = ['imap'] as const
+
 export const imapSelectorAttachments = {
   'imap.mailboxes': definePreparedSelectorAttachment({
+    integrationBlockTypes,
     destination: {
       kind: 'user-controlled',
       async prepare(args) {

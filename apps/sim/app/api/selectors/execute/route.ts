@@ -17,6 +17,7 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
+import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const PRIVATE_NO_STORE = { 'Cache-Control': 'private, no-store' } as const
 const SELECTOR_SCOPE_NOT_FOUND = 'Selector scope not found'
@@ -33,6 +34,17 @@ const selectorOperationErrorPolicy = extendInternalErrorPolicy(
         { error: 'Connection unavailable' },
         PRIVATE_NO_STORE
       )
+    }
+    /**
+     * The integration allowlist refusal, which is deliberately the one selector
+     * failure that names itself. The other three are normalized so a caller
+     * cannot probe a scope or a credential through them; this one reports the
+     * caller's OWN permission group against their own workspace, tells them the
+     * remedy is an admin changing the allowlist rather than a broken connection,
+     * and reveals nothing they could not read off the block toolbar.
+     */
+    if (error instanceof IntegrationNotAllowedError) {
+      return internalErrorResponse(403, { error: error.message }, PRIVATE_NO_STORE)
     }
     if (error instanceof SelectorOptionsUnavailableError) {
       return internalErrorResponse(

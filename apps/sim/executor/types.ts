@@ -1,7 +1,7 @@
 import type { WorkflowExecutionAuthority, WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { TraceSpan } from '@/lib/logs/types'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import type { BlockOutput } from '@/blocks/types'
 import type {
   ChildWorkflowContext,
@@ -333,6 +333,24 @@ interface ExecutionMetadata {
     depth: number
   }
   userId?: string
+  /**
+   * Person whose permission group gates what this run's tools, models and
+   * blocks may do — the *gate*, deliberately separate from {@link userId},
+   * which is the billing/rate actor and the credential subject.
+   *
+   * The two coincide for a session-triggered run and diverge whenever the
+   * trigger has no acting person to charge: a table cell dispatched by a
+   * workspace API key attributes to the workspace's billing owner, and gating
+   * on that bystander is wrong in both directions — it applies a denylist
+   * nobody meant to apply, and it skips the one belonging to whoever actually
+   * asked.
+   *
+   * Tri-state on purpose. `undefined` means the trigger declares no separate
+   * gate, so the gate stays on {@link userId} (every surface that has always
+   * had one acting person). A declared `string` gates on that person; a
+   * declared `null` is an actorless run and applies no group gate at all.
+   */
+  capabilityGovernedUserId?: string | null
   principal?: WorkflowExecutionPrincipal
   executionId?: string
   triggerType?: string

@@ -139,7 +139,16 @@ export async function createWorkspaceInTransaction(
       variables: {},
     })
     const { workflowState } = buildDefaultWorkflowArtifacts()
-    await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+    await saveWorkflowToNormalizedTables(
+      workflowId,
+      workflowState,
+      {
+        /** Actorless: workspace creation seeds a platform-authored starter workflow. */
+        workspaceId: null,
+        subjectUserId: null,
+      },
+      tx
+    )
   }
 
   return {

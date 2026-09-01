@@ -41,11 +41,9 @@ import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/cus
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import {
+  assertPermissionsAllowed,
   validateBlockType,
-  validateCustomToolsAllowed,
-  validateMcpToolsAllowed,
   validateModelProvider,
-  validateSkillsAllowed,
 } from '@/ee/access-control/utils/permission-check'
 import { AGENT, BlockType, DEFAULTS, stripCustomToolPrefix } from '@/executor/constants'
 import { memoryService } from '@/executor/handlers/agent/memory'
@@ -361,7 +359,12 @@ export class AgentBlockHandler implements BlockHandler {
       const skillInputs = filteredInputs.skills ?? []
       let skillMetadata: Array<{ name: string; description: string }> = []
       if (skillInputs.length > 0 && ctx.workspaceId) {
-        await validateSkillsAllowed(ctx.userId, ctx.workspaceId, ctx)
+        await assertPermissionsAllowed({
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          toolKind: 'skill',
+          ctx,
+        })
         skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
         if (skillMetadata.length > 0) {
           const skillNames = skillMetadata.map((s) => s.name)
@@ -595,11 +598,21 @@ export class AgentBlockHandler implements BlockHandler {
     const hasCustomTools = tools.some((t) => t.type === 'custom-tool')
 
     if (hasMcpTools) {
-      await validateMcpToolsAllowed(ctx.userId, ctx.workspaceId, ctx)
+      await assertPermissionsAllowed({
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        toolKind: 'mcp',
+        ctx,
+      })
     }
 
     if (hasCustomTools) {
-      await validateCustomToolsAllowed(ctx.userId, ctx.workspaceId, ctx)
+      await assertPermissionsAllowed({
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        toolKind: 'custom',
+        ctx,
+      })
     }
   }
 

@@ -36,61 +36,65 @@ interface RouteParams {
  * GET - Get a specific workflow MCP server with its tools
  */
 export const GET = withRouteHandler(
-  withMcpAuth<RouteParams>('read')(
-    async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
-      try {
-        const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
+  withMcpAuth<RouteParams>(
+    'read',
+    'deploy.mcp'
+  )(async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+    try {
+      const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
 
-        logger.info(`[${requestId}] Getting workflow MCP server: ${serverId}`)
+      logger.info(`[${requestId}] Getting workflow MCP server: ${serverId}`)
 
-        const [server] = await db
-          .select({
-            id: workflowMcpServer.id,
-            workspaceId: workflowMcpServer.workspaceId,
-            createdBy: workflowMcpServer.createdBy,
-            name: workflowMcpServer.name,
-            description: workflowMcpServer.description,
-            isPublic: workflowMcpServer.isPublic,
-            createdAt: workflowMcpServer.createdAt,
-            updatedAt: workflowMcpServer.updatedAt,
-          })
-          .from(workflowMcpServer)
-          .where(
-            and(
-              eq(workflowMcpServer.id, serverId),
-              eq(workflowMcpServer.workspaceId, workspaceId),
-              isNull(workflowMcpServer.deletedAt)
-            )
+      const [server] = await db
+        .select({
+          id: workflowMcpServer.id,
+          workspaceId: workflowMcpServer.workspaceId,
+          createdBy: workflowMcpServer.createdBy,
+          name: workflowMcpServer.name,
+          description: workflowMcpServer.description,
+          isPublic: workflowMcpServer.isPublic,
+          createdAt: workflowMcpServer.createdAt,
+          updatedAt: workflowMcpServer.updatedAt,
+        })
+        .from(workflowMcpServer)
+        .where(
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
           )
-          .limit(1)
-
-        if (!server) {
-          return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
-        }
-
-        const tools = await db
-          .select()
-          .from(workflowMcpTool)
-          .where(and(eq(workflowMcpTool.serverId, serverId), isNull(workflowMcpTool.archivedAt)))
-
-        logger.info(
-          `[${requestId}] Found workflow MCP server: ${server.name} with ${tools.length} tools`
         )
+        .limit(1)
 
-        return createMcpSuccessResponse({ server, tools })
-      } catch (error) {
-        logger.error(`[${requestId}] Error getting workflow MCP server:`, error)
-        return createMcpErrorResponse(toError(error), 'Failed to get workflow MCP server', 500)
+      if (!server) {
+        return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
       }
+
+      const tools = await db
+        .select()
+        .from(workflowMcpTool)
+        .where(and(eq(workflowMcpTool.serverId, serverId), isNull(workflowMcpTool.archivedAt)))
+
+      logger.info(
+        `[${requestId}] Found workflow MCP server: ${server.name} with ${tools.length} tools`
+      )
+
+      return createMcpSuccessResponse({ server, tools })
+    } catch (error) {
+      logger.error(`[${requestId}] Error getting workflow MCP server:`, error)
+      return createMcpErrorResponse(toError(error), 'Failed to get workflow MCP server', 500)
     }
-  )
+  })
 )
 
 /**
  * PATCH - Update a workflow MCP server
  */
 export const PATCH = withRouteHandler(
-  withMcpAuth<RouteParams>('write')(
+  withMcpAuth<RouteParams>(
+    'write',
+    'deploy.mcp'
+  )(
     async (
       request: NextRequest,
       { userId, userName, userEmail, workspaceId, requestId },
@@ -147,7 +151,10 @@ export const PATCH = withRouteHandler(
  * DELETE - Delete a workflow MCP server and all its tools
  */
 export const DELETE = withRouteHandler(
-  withMcpAuth<RouteParams>('write')(
+  withMcpAuth<RouteParams>(
+    'write',
+    'deploy.mcp'
+  )(
     async (
       request: NextRequest,
       { userId, userName, userEmail, workspaceId, requestId },

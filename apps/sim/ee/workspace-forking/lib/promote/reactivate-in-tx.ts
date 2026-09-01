@@ -99,7 +99,20 @@ export async function reactivateDeployedVersionInTx(
     restoredState.variables = deployedState.variables || {}
   }
 
-  const saveResult = await saveWorkflowToNormalizedTables(workflowId, restoredState, tx)
+  const saveResult = await saveWorkflowToNormalizedTables(
+    workflowId,
+    restoredState,
+    {
+      /**
+       * Actorless. Promotion restores a draft the platform itself archived, so
+       * the graph is one the workspace already held rather than one a caller
+       * supplied.
+       */
+      workspaceId: null,
+      subjectUserId: null,
+    },
+    tx
+  )
   if (!saveResult.success) {
     throw new Error(saveResult.error || `Failed to restore draft for workflow ${workflowId}`)
   }

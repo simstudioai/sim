@@ -164,39 +164,54 @@ const credential = {
   serviceIds: ['snowflake'],
 } as const
 
+/**
+ * The integration this selector reaches. Declared rather than derived: Snowflake is an
+ * API-key integration with no entry in the deployment OAuth catalog, so its
+ * service id maps to no block type and the allowlist would have nothing to
+ * judge it on.
+ */
+const integrationBlockTypes = ['snowflake'] as const
+
 export const snowflakeSelectorAttachments = {
   'snowflake.databases': definePreparedSelectorAttachment({
     credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
   }),
   'snowflake.schemas': definePreparedSelectorAttachment({
     credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
   }),
   'snowflake.tables': definePreparedSelectorAttachment({
     credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
   }),
   'snowflake.warehouses': definePreparedSelectorAttachment({
     credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
   }),
   'snowflake.roles': definePreparedSelectorAttachment({
     credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
   }),
   'snowflake.fileFormats': definePreparedSelectorAttachment({
     credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
   }),
   'snowflake.procedures': definePreparedSelectorAttachment({
     credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
   }),

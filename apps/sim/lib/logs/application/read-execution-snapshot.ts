@@ -12,6 +12,11 @@ import {
 import { logOperations } from '@/lib/logs/application/operations'
 import { hydrateChildTraces } from '@/lib/logs/execution/hydrate-child-traces'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import {
+  logProjectionSubjectUserId,
+  projectCostTotal,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   type ActiveWorkspaceApplicationContext,
@@ -133,6 +138,27 @@ const authorizedReadExecutionSnapshotUseCase = defineAuthorizedWorkspaceUseCase(
   async execute({ principal, input, context }): Promise<ExecutionSnapshotData> {
     input.signal?.throwIfAborted()
     const record = context.record
+
+    /**
+     * A projection rather than a refusal, resolved through the shared helper the
+     * log-detail and v1 paths read — see {@link resolveLogFieldProjection}. Applied
+     * here in the use case so both doors onto this read inherit it: the internal
+     * snapshot route and the `logs_get_execution` Copilot tool.
+     *
+     * `cost` is the only field on the withheld list this resource carries. The
+     * snapshot's other payloads are the workflow's own definition — its state
+     * snapshot and any child-workflow snapshots — which neither capability
+     * withholds, and the execution data is read only to collect child snapshot
+     * ids; no trace span, block execution, input or final output is returned.
+     *
+     * permission-group-enforced: logs.cost
+     */
+    const projection = await resolveLogFieldProjection(
+      logProjectionSubjectUserId(principal),
+      context.workspaceId,
+      context.workspaceOrganizationId
+    )
+
     if (record.kind === 'job') {
       return {
         executionId: record.executionId,
@@ -144,7 +170,7 @@ const authorizedReadExecutionSnapshotUseCase = defineAuthorizedWorkspaceUseCase(
           startedAt: record.startedAt.toISOString(),
           endedAt: record.endedAt?.toISOString(),
           totalDurationMs: record.totalDurationMs,
-          cost: record.cost || null,
+          cost: projection.hideCostInfo ? null : record.cost || null,
         },
       }
     }
@@ -208,7 +234,7 @@ const authorizedReadExecutionSnapshotUseCase = defineAuthorizedWorkspaceUseCase(
         startedAt: record.startedAt.toISOString(),
         endedAt: record.endedAt?.toISOString(),
         totalDurationMs: record.totalDurationMs,
-        cost: record.costTotal != null ? { total: Number(record.costTotal) } : null,
+        cost: projectCostTotal(record.costTotal, projection),
       },
     }
   },

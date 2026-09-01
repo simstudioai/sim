@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'

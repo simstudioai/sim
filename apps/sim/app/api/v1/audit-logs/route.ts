@@ -46,6 +46,14 @@ const logger = createLogger('V1AuditLogsAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+/**
+ * GET /api/v1/audit-logs — List an organization's audit log.
+ *
+ * permission-group-exempt: none — the counterpart `audit_logs.list` declares
+ * `capability: 'none'` explicitly, because the surface is already restricted to
+ * organization admins and owners, who sit above every permission group. There
+ * is nothing here for a group to withhold.
+ */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 

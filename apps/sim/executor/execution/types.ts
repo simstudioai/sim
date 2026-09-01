@@ -25,6 +25,15 @@ export interface ExecutionMetadata {
   workflowId: string
   workspaceId: string
   userId: string
+  /**
+   * Person whose permission group gates this run — the gate, separate from
+   * {@link userId}, which is the billing/rate actor and the credential subject.
+   * Spread onto the execution context (and so onto the pause snapshot) so a
+   * trigger with no acting person to charge does not end up gating on the
+   * bystander it bills. Tri-state; see the field of the same name on the
+   * context's `ExecutionMetadata` in `@/executor/types`.
+   */
+  capabilityGovernedUserId?: string | null
   /** Original authenticated caller. Billing and executor user IDs never replace it. */
   principal: WorkflowExecutionPrincipal
   /** Immutable actor/payer decision captured before execution. */

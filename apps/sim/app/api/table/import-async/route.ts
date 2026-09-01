@@ -3,12 +3,14 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { importTableAsyncContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createTable,
@@ -45,6 +47,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
   if (permission !== 'write' && permission !== 'admin') {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
+
+  /**
+   * permission-group-enforced: tables.create — raw route that queries directly
+   * and predates the operation boundary. An import always ends in a new table,
+   * so it is creation, not ordinary use. `tables.create` subsumes `tables.use`:
+   * its rule is denied by `disableTableCreation` OR `hideTablesTab`, so gating
+   * on it still refuses a group that hides Tables entirely. Keyed to the
+   * governed subject, which names nobody for an internal-JWT executor call —
+   * the same rule the synchronous `import-csv` route applies. Not re-read before
+   * `createTable` below: `resolvePermissionGroupConfig` is memoized per request
+   * (`withPermissionGroupScope`), so a second call in this handler returns the
+   * promise this one started and could not observe a revocation.
+   */
+  const governedUserId = capabilityGovernedAuthUserId(authResult)
+  if (
+    governedUserId &&
+    (await isWorkspaceCapabilityWithheld(governedUserId, workspaceId, 'tables.create'))
+  ) {
+    return capabilityRefusalResponse('tables.create')
   }
   // The fileKey is client-supplied — ensure it points at this workspace's storage prefix so a
   // caller can't import another workspace's uploaded object.

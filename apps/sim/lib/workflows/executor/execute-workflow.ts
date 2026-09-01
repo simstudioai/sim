@@ -90,6 +90,12 @@ export interface ExecuteWorkflowOptions {
    * Callers set this only when the surface consumes thinking/tool events.
    */
   agentEvents?: boolean
+  /**
+   * Gate subject for this run, separate from the billing actor
+   * (see {@link ExecutionMetadata.capabilityGovernedUserId}). Omit unless the
+   * trigger genuinely has a person distinct from the one it bills.
+   */
+  capabilityGovernedUserId?: string | null
 }
 
 export interface WorkflowInfo {
@@ -150,6 +156,7 @@ export async function executeWorkflow(
       workflowId,
       workspaceId,
       userId: actorUserId,
+      capabilityGovernedUserId: streamConfig?.capabilityGovernedUserId,
       principal,
       billingAttribution,
       workflowUserId: workflow.userId,

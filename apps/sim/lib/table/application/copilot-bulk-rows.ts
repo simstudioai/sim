@@ -3,6 +3,7 @@ import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { runDetached } from '@/lib/core/utils/background'
@@ -255,6 +256,7 @@ export const copilotUpdateRowsByFilter = defineAuthorizedTableUseCase({
         actorUserId: resolvePrincipalAttribution(principal, {
           workspaceBillingOwnerUserId: context.billedAccountUserId,
         }).attributedUserId,
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         secretProvenance: createExactEmptyTableRowSecretProvenance(idData),
       },
       requestId()

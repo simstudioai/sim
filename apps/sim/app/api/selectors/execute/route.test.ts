@@ -77,6 +77,7 @@ import {
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
 import { POST } from '@/app/api/selectors/execute/route'
+import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 function project(error: unknown) {
   const result = mocks.errorPolicy?.project(error)
@@ -122,6 +123,22 @@ describe('POST /api/selectors/execute', () => {
     expect(project(error)).toEqual({
       status,
       body: { error: message },
+      headers: { 'Cache-Control': 'private, no-store' },
+    })
+  })
+
+  /**
+   * The one selector failure that names itself. The other three are normalized
+   * so a caller cannot probe a scope or a credential through them; this one
+   * reports the caller's own permission group against their own workspace and
+   * names the remedy, which "Connection unavailable" would hide.
+   */
+  it('projects an integration-allowlist refusal as its own 403', () => {
+    expect(project(new IntegrationNotAllowedError('gmail_v2'))).toEqual({
+      status: 403,
+      body: {
+        error: 'Integration "gmail_v2" is not allowed based on your permission group settings',
+      },
       headers: { 'Cache-Control': 'private, no-store' },
     })
   })

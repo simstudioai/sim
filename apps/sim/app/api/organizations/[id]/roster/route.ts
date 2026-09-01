@@ -21,6 +21,10 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { expireStalePendingInvitationsForOrganization } from '@/lib/invitations/core'
+import {
+  capabilityRefusal,
+  isOrganizationCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 
 const logger = createLogger('OrganizationRosterAPI')
 
@@ -45,6 +49,27 @@ export const GET = withRouteHandler(
       if (!callerMembership) {
         return NextResponse.json(
           { error: 'Forbidden - Not a member of this organization' },
+          { status: 403 }
+        )
+      }
+
+      /**
+       * permission-group-enforced: organization.member_directory — an
+       * organization-scoped read with no workspace for the funnel to authorize.
+       *
+       * Admins and owners are exempt, for the reason the members route records:
+       * this feeds the page an admin would use to change the setting.
+       */
+      if (
+        !isOrgAdminRole(callerMembership.role) &&
+        (await isOrganizationCapabilityWithheld(organizationId, 'organization.member_directory'))
+      ) {
+        logger.warn('Organization roster blocked by permission group', {
+          organizationId,
+          userId: session.user.id,
+        })
+        return NextResponse.json(
+          { error: capabilityRefusal('organization.member_directory') },
           { status: 403 }
         )
       }

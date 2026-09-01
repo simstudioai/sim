@@ -98,6 +98,10 @@ export interface DispatchRow {
   isManualRun: boolean
   /** User who triggered the run (for usage attribution); null for auto-fire. */
   triggeredByUserId: string | null
+  /** Person whose permission group gates this run's cells; null when the run
+   *  has no acting person. Deliberately not `triggeredByUserId` — see the
+   *  column comment on `table_run_dispatches`. */
+  capabilityGovernedUserId: string | null
   requestedAt: Date
   /** Set when the dispatch reached `complete`; null while it is still active. */
   completedAt: Date | null
@@ -248,6 +252,14 @@ export async function insertDispatch(input: {
   limit?: DispatchLimit | null
   isManualRun: boolean
   triggeredByUserId?: string | null
+  /**
+   * The person whose permission group gates this run's cells, or `null` when
+   * the run has no acting person (workspace key, schedule, auto-fire).
+   *
+   * Never defaulted from `triggeredByUserId`, and required with an explicit
+   * `null`; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
+   */
+  capabilityGovernedUserId: string | null
 }): Promise<string> {
   const id = `tdsp_${generateId().replace(/-/g, '')}`
   await db.insert(tableRunDispatches).values({
@@ -265,6 +277,7 @@ export async function insertDispatch(input: {
     cursor: -1,
     isManualRun: input.isManualRun,
     triggeredByUserId: input.triggeredByUserId ?? null,
+    capabilityGovernedUserId: input.capabilityGovernedUserId,
   })
   return id
 }
@@ -349,6 +362,7 @@ export async function listActiveDispatches(tableId: string): Promise<DispatchRow
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
+    capabilityGovernedUserId: row.capabilityGovernedUserId,
     requestedAt: row.requestedAt,
     completedAt: row.completedAt,
     cancelledAt: row.cancelledAt,
@@ -375,6 +389,7 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
+    capabilityGovernedUserId: row.capabilityGovernedUserId,
     requestedAt: row.requestedAt,
     completedAt: row.completedAt,
     cancelledAt: row.cancelledAt,
@@ -590,7 +605,12 @@ export async function dispatcherStep(
     isManualRun: dispatch.isManualRun,
     groupIds: dispatch.scope.groupIds,
     mode: dispatch.mode,
-  }).map((p) => ({ ...p, dispatchId, triggeredByUserId: dispatch.triggeredByUserId ?? undefined }))
+    capabilityGovernedUserId: dispatch.capabilityGovernedUserId,
+  }).map((p) => ({
+    ...p,
+    dispatchId,
+    triggeredByUserId: dispatch.triggeredByUserId ?? undefined,
+  }))
 
   // Cursor advances to the last position in this chunk regardless of
   // eligibility — otherwise a window full of skipped cells loops forever.
@@ -790,6 +810,15 @@ async function stampQueuedForBatch(
             jobId: null,
             workflowId: runOpts.workflowId,
             error: null,
+            /**
+             * The marker outlives this dispatch's own worker: a cell task that
+             * finds the row's cascade lock held bails, and whoever owns the lock
+             * drains this marker instead. Persisting the subject is what makes
+             * that drain run under the person who requested THIS cell rather
+             * than under the owner's — a different dispatch, and often an
+             * actorless auto-fire with no gate at all.
+             */
+            capabilityGovernedUserId: runOpts.capabilityGovernedUserId,
           },
         }
       )
@@ -1026,6 +1055,7 @@ export async function cancelStaleDispatches(
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
+    capabilityGovernedUserId: row.capabilityGovernedUserId,
     requestedAt: row.requestedAt,
     completedAt: row.completedAt,
     cancelledAt: row.cancelledAt,
@@ -1109,6 +1139,7 @@ export async function markActiveDispatchesCancelled(
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
+    capabilityGovernedUserId: row.capabilityGovernedUserId,
     requestedAt: row.requestedAt,
     completedAt: row.completedAt,
     cancelledAt: row.cancelledAt,

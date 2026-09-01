@@ -41,6 +41,7 @@ export const executeEnrichmentTool: InternalToolOperationHandler = async (reques
 
   return executeEnrichment(parsed.data, {
     workspaceId: request.context.workspaceId,
+    userId: request.context.userId,
     signal: request.signal,
     resolvedSecretTraceRegistry: request.context.resolvedSecretTraceRegistry,
   })

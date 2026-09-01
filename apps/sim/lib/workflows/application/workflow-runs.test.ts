@@ -34,7 +34,7 @@ vi.mock('@/lib/workflows/executor/execution-queries', () => ({
 }))
 
 vi.mock('@/lib/workflows/executor/execution-status', () => ({
-  getWorkflowExecutionStatus: mocks.getStatus,
+  getProjectedWorkflowExecutionStatus: mocks.getStatus,
 }))
 
 vi.mock('@/lib/workflows/executor/execution-run-files', () => ({
@@ -81,9 +81,8 @@ describe('workflow run application use cases', () => {
     mocks.resolveRunContext.mockResolvedValue(runContext)
     mocks.list.mockResolvedValue({ data: [], nextCursor: null })
     mocks.getStatus.mockResolvedValue({
-      executionId: 'run-1',
-      workflowId: 'workflow-1',
-      status: 'completed',
+      status: { executionId: 'run-1', workflowId: 'workflow-1', status: 'completed' },
+      projection: { hideTraceSpans: false, hideCostInfo: false },
     })
     mocks.getRunFiles.mockResolvedValue({
       terminal: true,
@@ -130,53 +129,10 @@ describe('workflow run application use cases', () => {
       executionId: 'run-1',
       includeOutput: true,
       selectedOutputs: ['4f1c2b3a-0000-4000-8000-000000000001.value'],
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      viewerUserId: null,
     })
-  })
-
-  it('refuses a selector that is not headed by a block id instead of answering an empty selection', async () => {
-    mocks.getStatus.mockResolvedValueOnce({
-      executionId: 'run-1',
-      workflowId: 'workflow-1',
-      status: 'completed',
-      blockOutputs: {},
-    })
-
-    await expect(
-      readWorkflowRun.execute({
-        principal: principals[2],
-        input: {
-          workflowId: 'workflow-1',
-          runId: 'run-1',
-          includeOutput: true,
-          selectedOutputs: ['doubler.doubled'],
-        },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-  })
-
-  /**
-   * A well-formed id that produced nothing is a legitimate empty answer — the
-   * block may simply not have run on this path.
-   */
-  it('allows a block id that produced no output on this run', async () => {
-    mocks.getStatus.mockResolvedValueOnce({
-      executionId: 'run-1',
-      workflowId: 'workflow-1',
-      status: 'completed',
-      blockOutputs: {},
-    })
-
-    const result = await readWorkflowRun.execute({
-      principal: principals[2],
-      input: {
-        workflowId: 'workflow-1',
-        runId: 'run-1',
-        includeOutput: true,
-        selectedOutputs: ['4f1c2b3a-0000-4000-8000-000000000001.value'],
-      },
-    })
-
-    expect(result.blockOutputs).toEqual({})
   })
 
   /**

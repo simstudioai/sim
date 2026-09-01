@@ -5004,6 +5004,25 @@ export const tableRowExecutions = pgTable(
     blockErrors: jsonb('block_errors').notNull().default({}),
     cancelledAt: timestamp('cancelled_at'),
     /**
+     * Person whose permission group gates this cell's tools, persisted with the
+     * dispatcher's `pending` pre-stamp.
+     *
+     * The stamp and the worker that runs it are not the same run: a cell task
+     * that finds the row's cascade lock held bails, and the lock owner drains
+     * the marker itself. That owner belongs to whatever dispatch queued IT, so
+     * without the subject on the marker the drained cell would run under the
+     * wrong person's group — or under none, when the owner is an actorless
+     * auto-fire. Read only while the marker is unclaimed (`pending` with a null
+     * `execution_id`); later writes on the same cell carry no subject and null
+     * it, which is why nothing reads it after pickup.
+     *
+     * `ON DELETE SET NULL`, matching `table_run_dispatches`: a deleted person's
+     * runs are stopped by that table's cancel, not held open by this reference.
+     */
+    capabilityGovernedUserId: text('capability_governed_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    /**
      * Enrichment cascade breakdown (provider outcomes, cost, timing) for
      * `enrichment`-type groups. Null for workflow groups and pre-feature runs.
      * Deliberately excluded from the hot grid read (`loadExecutionsByRow`) — read
@@ -5071,6 +5090,24 @@ export const tableRunDispatches = pgTable(
     triggeredByUserId: text('triggered_by_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
+    /** The person whose permission group governs what this run's cells may do.
+     *  Distinct from `triggered_by_user_id`, which is an *attribution* and
+     *  substitutes the workspace billed account when the credential names no
+     *  human — right for a meter, wrong for a gate, since it would run a
+     *  bystander's tool denylist against an actorless request. Null when the
+     *  run has no acting person (workspace API key, schedule, auto-fire), which
+     *  means no per-tool gate applies. Producers set it explicitly, `null`
+     *  included: it is required on every dispatch input precisely so a new one
+     *  cannot inherit the attribution by omission.
+     *
+     *  `set null` on delete, paired with a cancel of this account's non-terminal
+     *  dispatches inside `deleteUserAccount`. Nulling alone would be a silent
+     *  un-gate — the worker cannot tell a subject erased by deletion from one
+     *  that was never there — and `restrict` would block account deletion behind
+     *  background work. Going terminal first makes the nulled row unreachable. */
+    capabilityGovernedUserId: text('capability_governed_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
     /** Last time the dispatcher loop made progress on this dispatch. Stamped by
      *  the same per-window writes that advance `cursor` and `processed_count`,
@@ -5086,6 +5123,15 @@ export const tableRunDispatches = pgTable(
   (table) => ({
     activeIdx: index('table_run_dispatches_active_idx').on(table.tableId, table.status),
     watchdogIdx: index('table_run_dispatches_watchdog_idx').on(table.status, table.requestedAt),
+    /** Account deletion cancels every still-active dispatch the departing
+     *  account governs, and that is the only query keyed on the subject. The
+     *  other two indexes lead with `table_id` / `status`, so without this one
+     *  the deletion scans every active dispatch in the deployment while holding
+     *  its transaction open. Partial on the two live statuses: a terminal row is
+     *  never a cancellation target, and dispatch history is what grows. */
+    governedActiveIdx: index('table_run_dispatches_governed_active_idx')
+      .on(table.capabilityGovernedUserId, table.status)
+      .where(sql`${table.status} IN ('pending', 'dispatching')`),
   })
 )
 

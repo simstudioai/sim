@@ -156,4 +156,43 @@ describe('knowledge operation registry', () => {
     expect(knowledgeOperations.search.delegatedServices).toEqual(['copilot', 'executor'])
     expect(knowledgeOperations.uploadComplete.delegatedServices).toBeUndefined()
   })
+
+  it('withholds knowledge base creation separately from using existing ones', () => {
+    expect(knowledgeOperations.create.capability).toBe('knowledge.create')
+    for (const operation of [
+      knowledgeOperations.list,
+      knowledgeOperations.read,
+      knowledgeOperations.search,
+      knowledgeOperations.update,
+      knowledgeOperations.delete,
+      knowledgeOperations.createFolder,
+      knowledgeOperations.createTag,
+      knowledgeOperations.createConnector,
+    ]) {
+      expect(operation.capability).toBe('knowledge.use')
+    }
+  })
+
+  it('withholds every path that carries caller-supplied document bytes', () => {
+    for (const operation of [
+      knowledgeOperations.uploadDocument,
+      knowledgeOperations.uploadCreate,
+      knowledgeOperations.uploadParts,
+      knowledgeOperations.uploadComplete,
+      knowledgeOperations.uploadCancel,
+    ]) {
+      expect(operation.capability).toBe('knowledge.upload')
+    }
+  })
+
+  it('leaves the connector sync path on the shared knowledge capability', () => {
+    /** A connector's documents are the sanctioned source, so an upload ban must not reach them. */
+    for (const operation of [
+      knowledgeOperations.syncConnector,
+      knowledgeOperations.updateConnectorDocuments,
+      knowledgeOperations.addWorkspaceFiles,
+    ]) {
+      expect(operation.capability).toBe('knowledge.use')
+    }
+  })
 })

@@ -22,6 +22,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import type { ApiKeyScope } from '@/hooks/queries/api-key-list'
 import {
   useApiKeys,
@@ -106,7 +107,54 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const conflictNames = useMemo(() => new Set(conflicts), [conflicts])
   const isLoading = isLoadingKeys
 
-  const allowPersonalApiKeys = hostContext?.workspace.allowPersonalApiKeys ?? true
+  /**
+   * The raw group config, not `usePermissionConfig` — that hook also projects
+   * block and model availability, which would pull the block registry into this
+   * settings page's module graph for one boolean.
+   */
+  const permissionConfigQuery = useUserPermissionConfig(workspaceId)
+
+  /**
+   * Both layers have to agree. The workspace column is the coarse switch every
+   * workspace has; the permission group narrows it for one cohort inside an
+   * enterprise organization. The server combines them the same way, so offering
+   * a key type here that it would refuse is the only failure worth avoiding —
+   * which is why the policy fails closed while its query is pending or errored,
+   * rather than treating an unanswered question as an unrestricted answer.
+   * `useUserPermissionConfig` retries and refetches on remount, which is what
+   * makes the gate self-healing rather than sticky.
+   *
+   * `isSuccess` and not `isSuccess && !isFetching`, on purpose. A background
+   * refetch of an already-answered policy keeps the cached answer, and the
+   * fail-closed window that matters — the first load, where there is nothing
+   * cached — is already covered because `isSuccess` is false until the first
+   * response. Re-closing on every refetch would instead blank the personal-key
+   * affordance and flip the create default to `workspace` on each window focus,
+   * for a policy that changes on the order of never. This gate is the
+   * affordance; `/api/workspaces/[id]/api-keys` is the enforcement, and it
+   * re-reads the group on the request itself, so the seconds of staleness cost
+   * a user a refused create at worst.
+   *
+   * The `!workspaceId` arm covers the account plane, which renders this
+   * component as `scope='personal'` outside `/workspace/[workspaceId]`: the
+   * hook is disabled there and nothing reads the result — a personal key is
+   * not a workspace's to withhold, and `/api/users/me/api-keys` remains the
+   * enforcement for the user-global `api_keys.manage` policy.
+   */
+  const permissionPolicyReady = !workspaceId || permissionConfigQuery.isSuccess
+
+  /**
+   * The stored workspace column alone. The admin switch below binds to this,
+   * not to the combined policy — a group's `disablePersonalApiKeys` must not
+   * render the stored setting as off, or toggling it "on" fires a successful
+   * mutation with no visible effect.
+   */
+  const storedAllowPersonalApiKeys = hostContext?.workspace.allowPersonalApiKeys ?? true
+
+  const allowPersonalApiKeys =
+    storedAllowPersonalApiKeys &&
+    permissionPolicyReady &&
+    !permissionConfigQuery.data?.config?.disablePersonalApiKeys
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
@@ -340,7 +388,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                 </div>
                 <Switch
                   id='allow-personal-api-keys'
-                  checked={allowPersonalApiKeys}
+                  checked={storedAllowPersonalApiKeys}
                   disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
                   onCheckedChange={async (checked) => {
                     try {

@@ -9,6 +9,8 @@ import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { runTableExport, type TableExportPayload } from '@/lib/table/export-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
@@ -45,10 +47,15 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   const { tableId } = parsed.data.params
   const { workspaceId, format } = parsed.data.body
 
-  const access = await checkAccess(tableId, authResult.userId, 'read')
+  const access = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'read')
   if (!access.ok) return accessError(access, requestId, tableId)
   if (access.table.workspaceId !== workspaceId) {
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+  }
+
+  // permission-group-enforced: tables.export — raw route that queries directly and predates the operation boundary
+  if (await isWorkspaceCapabilityWithheld(authResult.userId, workspaceId, 'tables.export')) {
+    return capabilityRefusalResponse('tables.export')
   }
 
   const jobId = generateId()

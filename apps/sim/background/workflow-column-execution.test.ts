@@ -283,6 +283,8 @@ describe('table workflow usage-limit clear', () => {
       data: {},
       workspaceId: 'workspace-1',
       executionsPatch: { 'group-1': null },
+      /** Clearing a pre-stamp writes no values, so no acting person governs it. */
+      capabilityGovernedUserId: null,
       cancellationGuard: { groupId: 'group-1', executionId: 'execution-1' },
     })
   })

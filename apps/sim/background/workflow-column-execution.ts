@@ -229,6 +229,8 @@ export function buildTableUsageLimitClear(args: {
     secretProvenance: undefined,
     workspaceId,
     executionsPatch: { [groupId]: null },
+    /** Clearing a pre-stamp writes no cell values and fires no enrichment. */
+    capabilityGovernedUserId: null,
     cancellationGuard: { groupId, executionId },
   }
 }
@@ -299,6 +301,7 @@ export async function executeWorkflowGroupCellJob(
     const { getTableById } = await import('@/lib/table/service')
     const { getRowById } = await import('@/lib/table/rows/service')
     const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
+    const { readStampedCapabilitySubject } = await import('@/lib/table/rows/executions')
 
     let currentPayload = payload
     while (true) {
@@ -342,6 +345,13 @@ export async function executeWorkflowGroupCellJob(
         // Re-derive so a workflow group after an enrichment group doesn't keep a stale enrichmentId.
         enrichmentId: next.enrichmentId,
         executionId: generateId(),
+        /**
+         * The marker was stamped by whichever dispatch requested THIS cell,
+         * which is not necessarily the one that queued this carrier. Its gate
+         * belongs to the person who asked for it, so take the subject off the
+         * stamp rather than carrying our own into someone else's request.
+         */
+        capabilityGovernedUserId: await readStampedCapabilitySubject(rowId, next.id),
       }
     }
   } finally {
@@ -360,12 +370,14 @@ export async function runRowCascadeLoop(
   const { getTableById } = await import('@/lib/table/service')
   const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
+  const { readStampedCapabilitySubject } = await import('@/lib/table/rows/executions')
 
   let currentGroupId = payload.groupId
   let currentWorkflowId = payload.workflowId
   // Fresh executionId per iteration: SQL guard rejects writes whose id ≠
   // row.executions[gid].executionId, so we need a new claim per group.
   let currentExecutionId = payload.executionId
+  let currentCapabilityGovernedUserId = payload.capabilityGovernedUserId
 
   while (true) {
     if (signal?.aborted) {
@@ -375,6 +387,7 @@ export async function runRowCascadeLoop(
           groupId: currentGroupId,
           workflowId: currentWorkflowId,
           executionId: currentExecutionId,
+          capabilityGovernedUserId: currentCapabilityGovernedUserId,
         },
         signal
       )
@@ -398,6 +411,7 @@ export async function runRowCascadeLoop(
         groupId: currentGroupId,
         workflowId: currentWorkflowId,
         executionId: currentExecutionId,
+        capabilityGovernedUserId: currentCapabilityGovernedUserId,
       },
       signal,
       freshTable,
@@ -414,6 +428,17 @@ export async function runRowCascadeLoop(
     if (!freshRow) break
     const next = pickNextEligibleGroupForRow(freshTable, freshRow, currentGroupId)
     if (!next) break
+    const nextExec = freshRow.executions?.[next.id]
+    /**
+     * A dep-fill cascade stays under the subject that started it. A group
+     * carrying an unclaimed pre-stamp is a different thing — an explicit
+     * request from another dispatch that this cascade is draining — so it runs
+     * under the subject stamped with that request.
+     */
+    currentCapabilityGovernedUserId =
+      nextExec?.status === 'pending' && nextExec.executionId == null
+        ? await readStampedCapabilitySubject(rowId, next.id)
+        : currentCapabilityGovernedUserId
     currentGroupId = next.id
     currentWorkflowId = next.workflowId
     currentExecutionId = generateId()
@@ -466,6 +491,40 @@ async function runWorkflowAndWriteTerminal(
           eventOutputs,
           secretProvenance,
         })
+
+      /**
+       * Dispatch-level cancellation guard.
+       *
+       * The dispatcher blocks on a whole window at a time, so cancelling its
+       * `table_run_dispatches` row stops the NEXT window and nothing that is
+       * already queued: those cells still invoke tools and write their results.
+       * That gap is what account deletion falls into — it cancels the departing
+       * account's dispatches and then deletes the user row, while the cells the
+       * last window queued keep running under a subject that no longer exists.
+       *
+       * The row cannot be reached the other way: `table_row_executions` carries
+       * no dispatch column, so there is nothing to cancel per cell. Reading the
+       * owning dispatch here is the dispatch-linked stop, and it costs one
+       * indexed primary-key read against a whole workflow run.
+       *
+       * `cancelled`, or a row that is gone — nothing deletes a dispatch but the
+       * table cascade, so a missing one means the table it belonged to is gone.
+       * `complete` deliberately does not stop the cell: it is the ordinary
+       * terminal state a dispatch reaches while its last window is finishing.
+       */
+      if (dispatchId) {
+        const { readDispatch } = await import('@/lib/table/dispatcher')
+        const owningDispatch = await readDispatch(dispatchId)
+        if (!owningDispatch || owningDispatch.status === 'cancelled') {
+          logger.info(
+            `Skipping cell — owning dispatch is cancelled (table=${tableId} row=${rowId} group=${groupId} dispatch=${dispatchId})`
+          )
+          await writeState(
+            buildCancelledExecution({ executionId, workflowId, blockErrors: undefined })
+          )
+          return 'cancelled'
+        }
+      }
 
       /** Pre-execution cancellation guard: a cell cancelled while it sat in the
        *  queue (e.g. trigger.dev concurrency backlog) must not run once it
@@ -626,6 +685,19 @@ async function runWorkflowAndWriteTerminal(
             tableId,
             rowId,
             workspaceId,
+            /**
+             * The person who asked, not who pays. `triggeredByUserId` is an
+             * attribution: for a workspace-API-key run it names the workspace's
+             * billing owner, and running that bystander's tool denylist against
+             * an actorless request is wrong in both directions — it fails cells
+             * nobody meant to govern, and it skips the denylist for the person
+             * who actually triggered one. The governed subject is carried
+             * separately from the dispatch. `null` means no per-tool gate
+             * applies, which is the documented behavior for an actorless run —
+             * stated, because the field is required precisely so it cannot be
+             * skipped by omission.
+             */
+            userId: payload.capabilityGovernedUserId ?? null,
             signal: attemptSignal,
             resolvedSecretTraceRegistry: enrichmentRegistry,
           })
@@ -1030,6 +1102,16 @@ async function runWorkflowAndWriteTerminal(
           actorUserId,
           {
             enabled: true,
+            /**
+             * The gate, which is not the actor above. `actorUserId` is an
+             * attribution: for a workspace-API-key run it names the workspace's
+             * billing owner, so gating the run's tools on it applies a
+             * bystander's denylist and skips the requester's. Declared
+             * explicitly — `null` is the actorless run, which the executor
+             * reads as "no per-tool gate", exactly as the enrichment half of
+             * this worker already does.
+             */
+            capabilityGovernedUserId: payload.capabilityGovernedUserId,
             principal: {
               kind: 'system',
               serviceId: 'table',
@@ -1079,6 +1161,12 @@ async function runWorkflowAndWriteTerminal(
             groupId,
             workflowId,
             workspaceId,
+            /**
+             * The gate has to survive the pause. Nothing downstream of a resume
+             * can re-derive it: the marker this cell was stamped with is long
+             * claimed, and the resume worker's own payload has no dispatch.
+             */
+            capabilityGovernedUserId: payload.capabilityGovernedUserId,
           })
           return 'paused'
         }

@@ -152,7 +152,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     // Save using existing persistence logic
-    const saveResult = await saveWorkflowToNormalizedTables(newWorkflowId, importedData)
+    const saveResult = await saveWorkflowToNormalizedTables(newWorkflowId, importedData, {
+      /**
+       * Actorless. The superuser debug import is a platform-operator tool for
+       * reproducing a customer's workflow, not a member authoring one, so no
+       * workspace permission group governs it.
+       */
+      workspaceId: null,
+      subjectUserId: null,
+    })
 
     if (!saveResult.success) {
       // Clean up the workflow record if save failed

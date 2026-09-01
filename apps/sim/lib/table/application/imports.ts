@@ -1,11 +1,15 @@
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkspaceOperation } from '@/lib/core/application'
+import {
+  authorizeWorkspaceOperation,
+  capabilityGovernedPrincipalUserId,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { withFolderTreeLock } from '@/lib/folders/locks'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import {
   type TableAuthorizationContext,
   tableDelegationPolicy,
@@ -168,6 +172,21 @@ export const createTableImportUseCase = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: CreateTableImportInput }) =>
     resolveCreateTableImportContext(input),
   async execute({ principal, input, context, request }): Promise<CreateTableImportResult> {
+    /**
+     * permission-group-enforced: tables.create — an import targeting `new`
+     * creates a table, but one targeting `existing` only fills one, and the
+     * operation cannot tell them apart: the target is request input the
+     * authorization funnel never sees. Keyed to the governed subject, which
+     * names nobody for an actorless run and nobody for an executor delegation —
+     * the funnel exempts a run from capabilities even when it carries the
+     * subject of whoever triggered it. A copilot delegation stays governed.
+     */
+    if (input.body.target.type === 'new') {
+      const actingUserId = capabilityGovernedPrincipalUserId(principal)
+      if (actingUserId) {
+        await assertWorkspaceCapability(actingUserId, context.workspaceId, 'tables.create')
+      }
+    }
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
@@ -273,6 +292,22 @@ export const completeTableImportUseCase = defineAuthorizedTableUseCase({
         await authorizeWorkspaceOperation(principal, tableOperations.completeImport, context, {
           delegation: tableDelegationPolicy,
         })
+        /**
+         * permission-group-enforced: tables.create — the same assertion
+         * `createTableImportUseCase` makes, repeated here because the two are
+         * separate requests: an upload started before the group withheld
+         * creation would otherwise still land a table when it completed. Read
+         * from the claimed session so the target is the one the upload was
+         * created for, and keyed to the governed subject for the reason the
+         * create path is: an actorless run and an executor delegation are both
+         * ungoverned, a copilot delegation is not.
+         */
+        if (tableImportBodyFromUpload(claimed).target.type === 'new') {
+          const actingUserId = capabilityGovernedPrincipalUserId(principal)
+          if (actingUserId) {
+            await assertWorkspaceCapability(actingUserId, context.workspaceId, 'tables.create')
+          }
+        }
         return { value: null }
       },
     })

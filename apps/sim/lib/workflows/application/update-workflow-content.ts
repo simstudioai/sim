@@ -238,6 +238,18 @@ export const setWorkflowBlockEnabled = defineAuthorizedWorkflowUseCase({
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       attributedUserId: attribution.attributedUserId,
+      /**
+       * Actorless on purpose. This operation writes back the graph it just read
+       * under the row lock with one block's `enabled` flipped — the caller
+       * supplies no blocks, so there is no caller-chosen block type for an
+       * allowlist to judge. Governing it would only mean refusing a member the
+       * ability to *disable* a block their group withholds.
+       *
+       * `attribution.attributedUserId` is deliberately not reused: it answers a
+       * workspace API key with the workspace's billing owner, which is right for
+       * custom-tool ownership and wrong for anything reading a person's grants.
+       */
+      subjectUserId: null,
       state: async (tx) => {
         const locked = await loadWorkflowFromNormalizedTables(context.workflowId, tx)
         if (!locked) {

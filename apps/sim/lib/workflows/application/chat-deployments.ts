@@ -14,7 +14,6 @@ import {
   getChatDeploymentIdOwningIdentifier,
   getLiveChatDeploymentForWorkflow,
 } from '@/lib/chat-deployments/queries'
-import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
@@ -22,10 +21,7 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
 import { performChatDeploy, performChatUndeploy } from '@/lib/workflows/orchestration'
 import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
-import {
-  ChatDeployAuthNotAllowedError,
-  validateChatDeployAuth,
-} from '@/ee/access-control/utils/permission-check'
+import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-check'
 
 type ChatAuthType = 'public' | 'password' | 'email' | 'sso'
 type ChatOutputConfig = { workflowId?: string; blockId: string; path: string }
@@ -172,14 +168,7 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
 
     const subjectUserId = requirePrincipalSubjectUserId(principal)
     if (authType !== existingDeployment?.authType) {
-      try {
-        await validateChatDeployAuth(subjectUserId, context.workspaceId, authType)
-      } catch (error) {
-        if (error instanceof ChatDeployAuthNotAllowedError) {
-          throw new ForbiddenOperationError('CHAT_AUTH_MODE_NOT_PERMITTED', error.message)
-        }
-        throw error
-      }
+      await validateChatDeployAuth(subjectUserId, context.workspaceId, authType)
     }
 
     const attribution = resolvePrincipalAttribution(principal, {
