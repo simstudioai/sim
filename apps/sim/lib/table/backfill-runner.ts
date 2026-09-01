@@ -60,8 +60,25 @@ export interface TableBackfillPayload {
    * Person whose permission group gates any cell the backfill's writes cascade
    * into. Separate from `actorUserId`, which is a billing attribution and names
    * the workspace billed account when the schema change carried no human. Null
-   * when the change had no acting person; absent on payloads enqueued before
-   * this field existed, which read as null — the pre-existing behavior.
+   * when the change had no acting person.
+   *
+   * Absent only on a payload enqueued before this field existed and still
+   * running after the deploy that added it — a backfill over more rows than
+   * `BACKFILL_ASYNC_THRESHOLD_ROWS`, mid-flight at the cutover. Such a payload
+   * reads as null, and that is a deliberate choice between two wrong answers
+   * rather than the status quo: before this field, the cascaded cells gated on
+   * `actorUserId`, so for a session-made change the window loosens the gate for
+   * as long as that one job runs.
+   *
+   * Falling back to `actorUserId` would close that and open a worse one.
+   * `attributedUserId` yields the workspace's billed account for a change made
+   * by a workspace API key, and nothing on the payload distinguishes that id
+   * from a human actor — so the fallback would apply a bystander's denylist,
+   * which is the substitution this field exists to remove. Failing closed
+   * instead would abandon the backfill's writes entirely, turning a bounded
+   * governance edge into visible data loss on runs the schema change promised
+   * to fill. Null is the least wrong of the three, and the window is one
+   * deploy long.
    */
   capabilityGovernedUserId?: string | null
 }
