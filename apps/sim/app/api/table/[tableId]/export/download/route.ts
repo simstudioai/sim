@@ -5,10 +5,8 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getTableJob } from '@/lib/table/jobs/service'
 import type { TableExportJobPayload } from '@/lib/table/types'
 import { generatePresignedDownloadUrl } from '@/lib/uploads/core/storage-service'
@@ -56,7 +54,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
    * every colleague's.
    */
   if (await isWorkspaceCapabilityWithheld(authResult.userId, workspaceId, 'tables.export')) {
-    return NextResponse.json({ error: capabilityRefusal('tables.export') }, { status: 403 })
+    return capabilityRefusalResponse('tables.export')
   }
 
   const job = await getTableJob(tableId, jobId)
