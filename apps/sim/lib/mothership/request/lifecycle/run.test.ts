@@ -157,6 +157,13 @@ vi.mock('@/lib/mothership/request/tools/executor', () => ({
   pendingToolWaitBudgetMs: mockPendingToolWaitBudgetMs,
 }))
 
+const { mockResolveEnterpriseByokKey } = vi.hoisted(() => ({
+  mockResolveEnterpriseByokKey: vi.fn().mockResolvedValue(null),
+}))
+vi.mock('@/lib/mothership/request/enterprise-byok', () => ({
+  resolveEnterpriseByokKey: mockResolveEnterpriseByokKey,
+}))
+
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
@@ -426,6 +433,25 @@ describe('runCopilotLifecycle', () => {
     // Non-enterprise workspaces attach no BYOK key; the payload crosses untouched.
     expect(sent).not.toHaveProperty('byokApiKey')
     expect(sent).toEqual(payload)
+  })
+
+  it('attaches the resolved enterprise BYOK key to the outbound payload', async () => {
+    mockResolveEnterpriseByokKey.mockResolvedValueOnce('sk-ant-enterprise-test')
+    const payload = { message: 'hi', workspaceId: 'ws-ent', messageId: 'stream-byok-attach' }
+    let capturedRequestBody = ''
+    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+      capturedRequestBody = String(request.body)
+    })
+
+    await runCopilotLifecycle(payload, {
+      userId: 'user-1',
+      workspaceId: 'ws-ent',
+      executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-ent' },
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
+    })
+
+    const sent = JSON.parse(capturedRequestBody)
+    expect(sent.byokApiKey).toBe('sk-ant-enterprise-test')
   })
 
   it('preserves large ordinary tool catalogs without scanning configured secret values', async () => {

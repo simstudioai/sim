@@ -5,7 +5,6 @@ import { toError } from '@sim/utils/errors'
 import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
-import { getBYOKKey } from '@/lib/api-key/byok'
 import {
   type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
@@ -13,7 +12,6 @@ import {
   checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
 } from '@/lib/billing/core/billing-attribution'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
@@ -33,6 +31,7 @@ import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribut
 import { getAutoAllowedTools } from '@/lib/mothership/persistence/tool-permission/auto-allow'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { buildToolCallSummaries } from '@/lib/mothership/request/context/result'
+import { resolveEnterpriseByokKey } from '@/lib/mothership/request/enterprise-byok'
 import {
   BillingLimitError,
   CopilotBackendError,
@@ -733,11 +732,15 @@ async function driveOneChildChain(
         options.onAbortObserved?.(reason)
       },
     }
+    // Same per-leg BYOK rule as the main loop: this child-chain resume can also land on
+    // a dead run and become a hosted-key continuation without it.
+    const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
     await runResumeLegWithRetry(
       `${baseURL}/api/tools/resume`,
       {
         streamId: context.messageId,
         results,
+        ...(byokApiKey ? { byokApiKey } : {}),
       },
       leg,
       execContext,
@@ -879,14 +882,14 @@ async function runCheckpointLoop(
     payload = { ...payload, workspaceId: lifecycleWorkspaceId }
   }
 
-  // Enterprise BYOK eligibility hint: set once on the initial mothership request
-  // so Go only attempts a BYOK lookup for entitled workspaces. This is only a
-  // gate — Go re-confirms entitlement authoritatively before using any key.
-  payload = await withEnterpriseByokKey(payload, route, lifecycleWorkspaceId)
-
   for (;;) {
     context.streamComplete = false
     const isResume = route === '/api/tools/resume'
+
+    // Enterprise BYOK rides EVERY leg, resume included: a resume that lands on a dead
+    // run becomes a continuation with no closure holding the key. Re-resolved per leg so
+    // revocation is immediate (key rows are read fresh; entitlement is cached).
+    payload = await withEnterpriseByokKey(payload, route, lifecycleWorkspaceId)
 
     if (isResume && isAborted(options, context)) {
       cancelPendingTools(context)
@@ -1397,30 +1400,26 @@ async function ensureHeadlessRunIdentity(input: {
 // Helpers
 
 /**
- * Resolves the enterprise BYOK key sim-side and attaches it as `byokApiKey`
- * (contract field, S27): the worker builds a per-run provider instance from it and
- * retains nothing. Eligibility (enterprise plan) gates resolution server-side, so a
- * client can never assert its own eligibility; key rows are read fresh so revocation
- * is immediate. Failures default to hosted. Mothership-only — other routes untouched.
+ * Routes whose payloads carry `byokApiKey` (see resolveEnterpriseByokKey): every
+ * model-reaching worker call, INCLUDING tool-resume — a resume that lands on a dead run
+ * becomes a continuation leg with no closure holding the key, so omitting it there
+ * silently finishes an enterprise chat on the hosted key.
  */
+const BYOK_ROUTES = [
+  '/api/mothership',
+  '/api/mothership/execute',
+  '/api/copilot',
+  '/api/tools/resume',
+]
+
 async function withEnterpriseByokKey(
   payload: Record<string, unknown>,
   route: string,
   workspaceId?: string
 ): Promise<Record<string, unknown>> {
-  if (!workspaceId || !route.startsWith('/api/mothership')) return payload
-  try {
-    if (!(await isWorkspaceOnEnterprisePlan(workspaceId))) return payload
-    const byok = await getBYOKKey(workspaceId, 'anthropic')
-    if (!byok) return payload
-    return { ...payload, byokApiKey: byok.apiKey }
-  } catch (error) {
-    logger.warn('Failed to resolve BYOK key; defaulting to hosted', {
-      workspaceId,
-      error: toError(error).message,
-    })
-    return payload
-  }
+  if (!BYOK_ROUTES.includes(route)) return payload
+  const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
+  return byokApiKey ? { ...payload, byokApiKey } : payload
 }
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {
