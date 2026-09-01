@@ -21281,8 +21281,12 @@
           "description": "Set the title of a Slack assistant thread (shown in the AI app thread header)."
         },
         {
-          "name": "Set Suggested Prompts",
+          "name": "Set Assistant Suggested Prompts",
           "description": "Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app)."
+        },
+        {
+          "name": "Set Agent Suggested Prompts",
+          "description": "Set suggested prompts in Slack Agent View, optionally scoped to a specific thread."
         },
         {
           "name": "Set Agent Session Status",
@@ -21413,7 +21417,7 @@
           "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
         }
       ],
-      "operationCount": 44,
+      "operationCount": 45,
       "triggers": [
         {
           "id": "slack_oauth",

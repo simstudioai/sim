@@ -16,53 +16,12 @@ import { getTrigger } from '@/triggers'
 const DESTINATION_SWITCH_OPERATIONS = ['send', 'read', 'schedule_message'] as const
 
 const SLACK_V2_AGENT_OPERATIONS = [
-  'set_suggested_prompts',
+  'set_agent_suggested_prompts',
   'set_agent_session_status',
   'rename_agent_session',
 ] as const
 
 const SLACK_V2_SESSION_OPERATIONS = ['set_agent_session_status', 'rename_agent_session'] as const
-
-function hasConfiguredSlackValue(
-  values: Record<string, unknown> | undefined,
-  fieldIds: readonly string[]
-): boolean {
-  return fieldIds.some((fieldId) => {
-    const value = values?.[fieldId]
-    return value !== undefined && value !== null && value !== ''
-  })
-}
-
-function isLegacySuggestedPromptsConfiguration(values?: Record<string, unknown>): boolean {
-  if (values?.operation !== 'set_suggested_prompts') return false
-
-  const hasAgentFields = hasConfiguredSlackValue(values, [
-    'agentBotCredential',
-    'manualAgentBotCredential',
-    'agentChannel',
-    'manualAgentChannel',
-    'agentThreadTs',
-  ])
-  if (hasAgentFields) return false
-
-  return hasConfiguredSlackValue(values, [
-    'credential',
-    'manualCredential',
-    'channel',
-    'manualChannel',
-    'getThreadTimestamp',
-  ])
-}
-
-function getSlackV2AgentOperationCondition(values?: Record<string, unknown>) {
-  return {
-    field: 'operation' as const,
-    value: [
-      ...(isLegacySuggestedPromptsConfiguration(values) ? [] : ['set_suggested_prompts']),
-      ...SLACK_V2_SESSION_OPERATIONS,
-    ],
-  }
-}
 
 const CHANNEL_FIELD = ['channel', 'manualChannel'] as const
 
@@ -2991,20 +2950,14 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
         serviceAccountGroup: 'Custom bots',
         serviceAccountConnect: 'Set up a custom bot',
       },
-      condition: (values?: Record<string, unknown>) =>
-        isLegacySuggestedPromptsConfiguration(values)
-          ? { field: 'operation', value: 'set_suggested_prompts' }
-          : { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true },
+      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true },
     }
   }
   if (sb.id === 'manualCredential') {
     return {
       ...rest,
       placeholder: 'Enter credential ID',
-      condition: (values?: Record<string, unknown>) =>
-        isLegacySuggestedPromptsConfiguration(values)
-          ? { field: 'operation', value: 'set_suggested_prompts' }
-          : { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true },
+      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true },
     }
   }
   if (sb.id === 'channel' || sb.id === 'manualChannel') {
@@ -3012,10 +2965,7 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
       ...sb,
       dependsOn: ['credential'],
       condition: (values?: Record<string, unknown>) => {
-        if (
-          SLACK_V2_AGENT_OPERATIONS.includes(values?.operation as never) &&
-          !isLegacySuggestedPromptsConfiguration(values)
-        ) {
+        if (SLACK_V2_AGENT_OPERATIONS.includes(values?.operation as never)) {
           return { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true }
         }
         if (typeof condition !== 'function') {
@@ -3025,7 +2975,7 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
       },
       required: {
         field: 'operation',
-        value: ['list_canvases', 'list_scheduled_messages', ...SLACK_V2_SESSION_OPERATIONS],
+        value: ['list_canvases', 'list_scheduled_messages', ...SLACK_V2_AGENT_OPERATIONS],
         not: true,
       },
     }
@@ -3033,17 +2983,26 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
   if (sb.id === 'getThreadTimestamp') {
     return {
       ...sb,
-      condition: (values?: Record<string, unknown>) => ({
+      condition: {
         field: 'operation',
         value: [
           'get_thread',
           'get_thread_replies',
           'set_status',
           'set_title',
-          ...(isLegacySuggestedPromptsConfiguration(values) ? ['set_suggested_prompts'] : []),
+          'set_suggested_prompts',
         ],
-      }),
+      },
       required: true,
+    }
+  }
+  if (sb.id === 'suggestedPrompts' || sb.id === 'promptsTitle') {
+    return {
+      ...sb,
+      condition: {
+        field: 'operation',
+        value: ['set_suggested_prompts', 'set_agent_suggested_prompts'],
+      },
     }
   }
   if (dependsOn && !Array.isArray(dependsOn) && dependsOn.all?.includes('authMethod')) {
@@ -3067,7 +3026,7 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
         serviceAccountGroup: 'Custom bots',
         serviceAccountConnect: 'Set up a custom bot',
       },
-      condition: getSlackV2AgentOperationCondition,
+      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS] },
       required: true,
       mode: 'basic',
     },
@@ -3077,7 +3036,7 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
       type: 'short-input',
       canonicalParamId: 'agentCredentialId',
       placeholder: 'Enter custom bot credential ID',
-      condition: getSlackV2AgentOperationCondition,
+      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS] },
       required: true,
       mode: 'advanced',
     },
@@ -3090,7 +3049,7 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
       selectorKey: 'slack.channels',
       placeholder: 'Select Slack channel',
       dependsOn: ['agentBotCredential'],
-      condition: getSlackV2AgentOperationCondition,
+      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS] },
       required: true,
       mode: 'basic',
     },
@@ -3100,7 +3059,7 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
       type: 'short-input',
       canonicalParamId: 'agentChannelId',
       placeholder: 'Enter Slack channel ID',
-      condition: getSlackV2AgentOperationCondition,
+      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS] },
       required: true,
       mode: 'advanced',
     },
@@ -3109,7 +3068,7 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
       title: 'Thread Timestamp',
       type: 'short-input',
       placeholder: 'Thread timestamp (thread_ts)',
-      condition: getSlackV2AgentOperationCondition,
+      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS] },
       required: {
         field: 'operation',
         value: ['set_agent_session_status', 'rename_agent_session'],
@@ -3213,7 +3172,14 @@ export function getSlackV2OperationSentences() {
   }
   return {
     ...operationSentences,
-    set_suggested_prompts: ['Set suggested prompts'],
+    set_agent_suggested_prompts: [
+      {
+        text: 'Set agent suggested prompts in',
+        field: ['agentChannel', 'manualAgentChannel'],
+        core: true,
+      },
+      { text: ', for thread', field: 'agentThreadTs' },
+    ],
     set_agent_session_status: [
       { text: 'Set agent session to', field: 'agentSessionStatus', core: true },
       { text: 'on thread', field: 'agentThreadTs', core: true },
@@ -3291,7 +3257,8 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         { label: 'Get Message Permalink', id: 'get_permalink' },
         { label: 'Set Assistant Status', id: 'set_status' },
         { label: 'Set Assistant Title', id: 'set_title' },
-        { label: 'Set Suggested Prompts', id: 'set_suggested_prompts' },
+        { label: 'Set Assistant Suggested Prompts', id: 'set_suggested_prompts' },
+        { label: 'Set Agent Suggested Prompts', id: 'set_agent_suggested_prompts' },
         { label: 'Set Agent Session Status', id: 'set_agent_session_status' },
         { label: 'Rename Agent Session', id: 'rename_agent_session' },
         { label: 'List Channels', id: 'list_channels' },
@@ -3383,9 +3350,9 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       tool: (params) => {
         switch (params.operation) {
           case 'set_suggested_prompts':
-            return params.agentCredentialId
-              ? 'slack_set_suggested_prompts_v2'
-              : 'slack_set_suggested_prompts'
+            return 'slack_set_suggested_prompts'
+          case 'set_agent_suggested_prompts':
+            return 'slack_set_suggested_prompts_v2'
           case 'set_agent_session_status':
             return 'slack_set_agent_session_status_v2'
           case 'rename_agent_session':
@@ -3402,9 +3369,6 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         if (!mapParams) throw new Error('Slack parameter mapper is required')
         const baseParams = mapParams(params)
         if (!SLACK_V2_AGENT_OPERATIONS.includes(params.operation as never)) return baseParams
-        if (params.operation === 'set_suggested_prompts' && !params.agentCredentialId) {
-          return baseParams
-        }
 
         return {
           ...baseParams,
