@@ -21063,8 +21063,8 @@
       "type": "slack_v2",
       "slug": "slack",
       "name": "Slack",
-      "description": "Send, update, delete messages, manage views and modals, add or remove reactions, manage canvases, get channel info and user presence in Slack",
-      "longDescription": "Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, open/update/push modal views, publish Home tab views, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.",
+      "description": "Send and manage Slack messages, Agent Sessions, streamed replies, views, reactions, conversations, and canvases",
+      "longDescription": "Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Standard messaging and management operations support both the Sim app and custom bot credentials.",
       "bgColor": "#611f69",
       "iconName": "SlackIcon",
       "docsUrl": "https://docs.sim.ai/integrations/slack",
@@ -21106,16 +21106,16 @@
           "description": "Get a stable permalink URL to a specific Slack message."
         },
         {
-          "name": "Set Assistant Status",
-          "description": "Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it."
-        },
-        {
-          "name": "Set Assistant Title",
-          "description": "Set the title of a Slack assistant thread (shown in the AI app thread header)."
-        },
-        {
           "name": "Set Suggested Prompts",
           "description": "Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app)."
+        },
+        {
+          "name": "Set Agent Session Status",
+          "description": "Create or update the state of a Slack agent session associated with a thread."
+        },
+        {
+          "name": "Rename Agent Session",
+          "description": "Rename the Slack agent session associated with a thread."
         },
         {
           "name": "List Channels",
@@ -21243,7 +21243,7 @@
         {
           "id": "slack_oauth",
           "name": "Slack",
-          "description": "Trigger from Slack events (mentions, messages, reactions)"
+          "description": "Trigger from Slack events, interactions, and slash commands"
         }
       ],
       "triggerCount": 1,

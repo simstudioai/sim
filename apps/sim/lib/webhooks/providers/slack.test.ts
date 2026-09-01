@@ -52,6 +52,122 @@ describe('slackHandler formatInput - Events API', () => {
     expect(event.action_value).toBe('')
     expect(event.actions).toEqual([])
   })
+
+  it('maps an agent_session_stopped event', async () => {
+    const { input } = await slackHandler.formatInput!(
+      ctx({
+        team_id: 'T1',
+        event_id: 'Ev2',
+        event: {
+          type: 'agent_session_stopped',
+          channel: 'D1',
+          user: 'U1',
+          thread_ts: '111.000',
+          event_ts: '112.000',
+          streaming_message_ts: ['111.001', '111.002'],
+        },
+      })
+    )
+    expect(eventOf(input)).toMatchObject({
+      event_type: 'agent_session_stopped',
+      channel: 'D1',
+      user: 'U1',
+      thread_ts: '111.000',
+      timestamp: '112.000',
+      streaming_message_ts: ['111.001', '111.002'],
+      team_id: 'T1',
+    })
+  })
+
+  it('maps the nested assistant_thread_started reply target', async () => {
+    const { input } = await slackHandler.formatInput!(
+      ctx({
+        team_id: 'T-install',
+        event: {
+          type: 'assistant_thread_started',
+          assistant_thread: {
+            channel_id: 'C1',
+            user_id: 'U1',
+            thread_ts: '111.000',
+            context: { team_id: 'T-user' },
+          },
+        },
+      })
+    )
+    expect(eventOf(input)).toMatchObject({
+      event_type: 'assistant_thread_started',
+      channel: 'C1',
+      user: 'U1',
+      thread_ts: '111.000',
+      team_id: 'T-install',
+      user_team_id: 'T-user',
+    })
+  })
+
+  it('maps an agent_session_title_changed event and the Agent View tab', async () => {
+    const titleChanged = await slackHandler.formatInput!(
+      ctx({
+        event: {
+          type: 'agent_session_title_changed',
+          channel: 'D1',
+          user: 'U1',
+          thread_ts: '111.000',
+          event_ts: '112.000',
+          team_id: 'T1',
+          enterprise_id: 'E1',
+          title: 'New title',
+          previous_title: 'Old title',
+        },
+      })
+    )
+    expect(eventOf(titleChanged.input)).toMatchObject({
+      event_type: 'agent_session_title_changed',
+      title: 'New title',
+      previous_title: 'Old title',
+      team_id: 'T1',
+      enterprise_id: 'E1',
+    })
+
+    const appHome = await slackHandler.formatInput!(
+      ctx({ event: { type: 'app_home_opened', user: 'U1', tab: 'messages' } })
+    )
+    expect(eventOf(appHome.input).tab).toBe('messages')
+  })
+
+  it('maps app_context_changed and normalizes message.im app_context', async () => {
+    const contextChanged = await slackHandler.formatInput!(
+      ctx({
+        event: {
+          type: 'app_context_changed',
+          user: 'U1',
+          context: {
+            entities: [{ type: 'slack#/types/channel_id', value: 'C1', team_id: 'T1' }],
+          },
+        },
+      })
+    )
+    expect(eventOf(contextChanged.input)).toMatchObject({
+      event_type: 'app_context_changed',
+      context: {
+        entities: [{ type: 'slack#/types/channel_id', value: 'C1', team_id: 'T1' }],
+      },
+    })
+    expect(resolveSlackEventKey({ event: { type: 'app_context_changed', context: {} } })).toBe(
+      'app_context_changed'
+    )
+
+    const directMessage = await slackHandler.formatInput!(
+      ctx({
+        event: {
+          type: 'message',
+          channel: 'D1',
+          channel_type: 'im',
+          app_context: { entities: [] },
+        },
+      })
+    )
+    expect(eventOf(directMessage.input).context).toEqual({ entities: [] })
+  })
 })
 
 describe('slackHandler formatInput - interactivity (block_actions)', () => {
@@ -508,6 +624,39 @@ describe('resolveSlackEventKey - interactions', () => {
     expect(resolveSlackEventKey({ type: 'shortcut' })).toBeNull()
     expect(resolveSlackEventKey({ type: 'view_closed' })).toBeNull()
     expect(resolveSlackEventKey({})).toBeNull()
+  })
+})
+
+describe('shouldSkipSlackTriggerEvent - slash commands', () => {
+  const slashCommand = {
+    command: '/ask-sim',
+    text: 'Summarize this channel',
+    team_id: 'T1',
+    channel_id: 'C1',
+    user_id: 'U1',
+  }
+
+  it('maps slash command payloads to the selectable trigger event', () => {
+    expect(resolveSlackEventKey(slashCommand)).toBe('slash_command')
+  })
+
+  it('fires for any command when no command filter is set', () => {
+    expect(shouldSkipSlackTriggerEvent(slashCommand, { eventType: 'slash_command' })).toBe(false)
+  })
+
+  it('matches the exact configured command', () => {
+    expect(
+      shouldSkipSlackTriggerEvent(slashCommand, {
+        eventType: 'slash_command',
+        commandFilter: '/ask-sim',
+      })
+    ).toBe(false)
+    expect(
+      shouldSkipSlackTriggerEvent(slashCommand, {
+        eventType: 'slash_command',
+        commandFilter: '/deploy',
+      })
+    ).toBe(true)
   })
 })
 

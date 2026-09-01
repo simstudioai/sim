@@ -1880,6 +1880,18 @@ async function executeToolImplementation(
 
         const data = (await response.json()) as CredentialTokenPayload
 
+        if (tool.oauth?.credentialKind) {
+          const actualCredentialKind =
+            data.credentialType === 'service_account'
+              ? 'service-account'
+              : data.credentialType === 'oauth'
+                ? 'oauth'
+                : null
+          if (actualCredentialKind !== tool.oauth.credentialKind) {
+            throw new Error(`${tool.name} requires a ${tool.oauth.credentialKind} credential`)
+          }
+        }
+
         contextParams.accessToken = data.accessToken
         if (data.idToken) {
           contextParams.idToken = data.idToken
