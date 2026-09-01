@@ -17,6 +17,7 @@ import {
   matchAgentCliCommand,
 } from '@/lib/mothership/tools/handlers/agent-cli'
 import { applyPipeline, splitPipeline } from '@/lib/mothership/tools/handlers/sim-cli-pipe'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session'
 
 const logger = createLogger('MothershipSimCli')
 
@@ -61,7 +62,7 @@ export async function executeSimCli(
   // `--text @channel` stays literal), and the server's filesystem is never
   // readable from model argv. A token that names no sandbox file is simply
   // absent from the map; the resolver's refusal then says so.
-  const sessionKey = context.chatId ? `mothership-chat:${context.chatId}` : null
+  const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
   const fileArguments: Record<string, string> = {}
   if (sessionKey) {
     for (const token of args) {

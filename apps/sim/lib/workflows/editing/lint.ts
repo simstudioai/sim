@@ -1,5 +1,6 @@
 import { getBlock } from '@/blocks'
 import { isTriggerBlockType, normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
+import { collectStringLeaves } from '@/executor/utils/reference-validation'
 import {
   collectBlockFieldIssues,
   extractBlockParams,
@@ -388,13 +389,6 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
 const BLOCK_REF_TOKEN = /<([^<>]+)>/g
 const REF_TOKEN_SHAPE = /^[A-Za-z_][\w-]*(?:[\w\s-]*[\w-])?\.[A-Za-z0-9_.[\]]+$/
 
-function stringLeavesForLint(value: unknown, out: string[]): void {
-  if (typeof value === 'string') out.push(value)
-  else if (Array.isArray(value)) for (const item of value) stringLeavesForLint(item, out)
-  else if (typeof value === 'object' && value !== null)
-    for (const item of Object.values(value)) stringLeavesForLint(item, out)
-}
-
 export function collectDanglingBlockOutputReferences(
   workflowState: Pick<WorkflowState, 'blocks'>
 ): WorkflowLintUnresolvedReference[] {
@@ -409,7 +403,7 @@ export function collectDanglingBlockOutputReferences(
     for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
       if (subBlockId === 'code') continue
       const leaves: string[] = []
-      stringLeavesForLint((subBlock as { value?: unknown })?.value, leaves)
+      collectStringLeaves((subBlock as { value?: unknown })?.value, leaves)
       const dangling = new Set<string>()
       for (const leaf of leaves) {
         for (const match of leaf.matchAll(BLOCK_REF_TOKEN)) {
