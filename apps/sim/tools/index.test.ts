@@ -5107,11 +5107,27 @@ describe('MCP Tool Execution', () => {
 
   describe('Tool request retries', () => {
     beforeEach(() => {
+      vi.useFakeTimers()
       mockValidateUrlWithDNS.mockResolvedValue({
         isValid: true,
         resolvedIP: '93.184.216.34',
       })
     })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    /**
+     * Runs the request with every retry backoff elapsed on the fake clock. A
+     * `retryDelayMs` of 0 falls through to the 500ms default, so the sleeps
+     * between attempts are real unless the clock is faked.
+     */
+    async function executeWithRetries(params: Record<string, unknown>) {
+      const pending = executeTool('http_request', params)
+      await vi.runAllTimersAsync()
+      return pending
+    }
 
     function makeJsonResponse(
       status: number,
@@ -5132,7 +5148,7 @@ describe('MCP Tool Execution', () => {
         .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
@@ -5150,7 +5166,7 @@ describe('MCP Tool Execution', () => {
         makeJsonResponse(500, { error: 'server error' })
       )
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
       })
@@ -5162,7 +5178,7 @@ describe('MCP Tool Execution', () => {
     it('stops retrying after max attempts for http_request', async () => {
       mockSecureFetchWithPinnedIP.mockResolvedValue(makeJsonResponse(502, { error: 'bad gateway' }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
@@ -5177,7 +5193,7 @@ describe('MCP Tool Execution', () => {
     it('does not retry on 4xx responses for http_request', async () => {
       mockSecureFetchWithPinnedIP.mockResolvedValue(makeJsonResponse(400, { error: 'bad request' }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 5,
@@ -5194,7 +5210,7 @@ describe('MCP Tool Execution', () => {
         .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'POST',
         retries: 2,
@@ -5211,7 +5227,7 @@ describe('MCP Tool Execution', () => {
         .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'POST',
         retries: 1,
@@ -5232,7 +5248,7 @@ describe('MCP Tool Execution', () => {
         )
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 3,
@@ -5250,7 +5266,7 @@ describe('MCP Tool Execution', () => {
         )
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 3,
@@ -5268,7 +5284,7 @@ describe('MCP Tool Execution', () => {
         )
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
@@ -5288,7 +5304,7 @@ describe('MCP Tool Execution', () => {
         .mockRejectedValueOnce(etimedoutError)
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 1,

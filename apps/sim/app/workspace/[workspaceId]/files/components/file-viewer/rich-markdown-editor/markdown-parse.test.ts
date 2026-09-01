@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { Editor } from '@tiptap/core'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { createMarkdownContentExtensions } from './extensions'
 import { parseMarkdownToDoc, serializeMarkdownBody, splitMarkdownBlocks } from './markdown-parse'
 import { isRoundTripSafe } from './round-trip-safety'
@@ -12,19 +12,20 @@ const isEmptyPara = (n: { type?: string; content?: unknown[] }): boolean =>
   n.type === 'paragraph' && !n.content?.length
 
 let editor: Editor | null = null
-afterEach(() => {
+afterAll(() => {
   editor?.destroy()
   editor = null
 })
 
-/** The current whole-document path: parse markdown in one shot, serialize back. */
+/**
+ * The current whole-document path: parse markdown in one shot, serialize back. One editor serves
+ * every call — `setContent` replaces the document wholesale, so a fresh instance per call only adds
+ * the cost of building the view, which the property tests below paid hundreds of times over.
+ */
 function oneShot(body: string): string {
-  editor = new Editor({ extensions: createMarkdownContentExtensions() })
+  editor ??= new Editor({ extensions: createMarkdownContentExtensions() })
   editor.commands.setContent(body, { contentType: 'markdown' })
-  const out = editor.getMarkdown()
-  editor.destroy()
-  editor = null
-  return out
+  return editor.getMarkdown()
 }
 
 /**
