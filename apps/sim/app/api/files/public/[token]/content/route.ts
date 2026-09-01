@@ -117,9 +117,6 @@ export const GET = withRouteHandler(
           }),
           'utf8'
         )
-        // Rendering inlines referenced workspace images, so a source comfortably under
-        // the read ceiling can resolve to a document well over it.
-        assertKnownSizeWithinLimit(buffer.length, MAX_BUFFERED_TRANSFER_BYTES, 'served page render')
         contentType = 'text/html'
       } else if (preview) {
         // Only for a render request: the Download button omits `preview`, so a saved
@@ -127,6 +124,12 @@ export const GET = withRouteHandler(
         const image = await resolveServableImageBytes(raw, file.key)
         if (image) ({ buffer, contentType } = image)
       }
+
+      // Bounding the source read does not bound the response: each branch above can
+      // replace it with bytes fetched or produced separately — a compiled artifact, a
+      // page with its images inlined, a transcoded derivative. This is an anonymous
+      // route, so the bytes it actually returns are what has to fit.
+      assertKnownSizeWithinLimit(buffer.length, MAX_BUFFERED_TRANSFER_BYTES, 'served file render')
 
       logger.info('Public shared file served', { token, key: file.key, size: buffer.length })
 

@@ -74,6 +74,13 @@ interface ServeOptions {
  * routes through here. An image derivative is the opposite — the stored bytes are
  * the file — so it is served only when the caller asked to preview, never when it
  * asked to download.
+ *
+ * Every branch that replaces the source bytes is re-checked against the transfer
+ * ceiling on the way out. Bounding the read alone does not bound the response: a
+ * page inlines its images, a generated document resolves to a compiled artifact
+ * fetched separately, and a derivative is transcoded here — so each can turn a
+ * source under the ceiling into a response over it. One check where the branches
+ * converge is what makes that impossible to miss when a branch is added.
  */
 async function resolveServableBytes(params: {
   buffer: Buffer
@@ -99,6 +106,44 @@ async function resolveServableBytes(params: {
     signal,
   } = params
   if (options.raw) return { buffer, contentType: getContentType(filename) }
+  return withinTransferCeiling(await resolveTransformedBytes(params))
+}
+
+/** Rejects a resolved response whose bytes outgrew what one request may hold resident. */
+function withinTransferCeiling(resolved: { buffer: Buffer; contentType: string }): {
+  buffer: Buffer
+  contentType: string
+} {
+  assertKnownSizeWithinLimit(
+    resolved.buffer.length,
+    MAX_BUFFERED_TRANSFER_BYTES,
+    'served file render'
+  )
+  return resolved
+}
+
+async function resolveTransformedBytes(params: {
+  buffer: Buffer
+  filename: string
+  storageKey: string
+  workspaceId: string | undefined
+  options: ServeOptions
+  ownerKey: string | undefined
+  filePrincipal?: Principal
+  fileType?: string
+  signal: AbortSignal | undefined
+}): Promise<{ buffer: Buffer; contentType: string }> {
+  const {
+    buffer,
+    filename,
+    storageKey,
+    workspaceId,
+    options,
+    ownerKey,
+    filePrincipal,
+    fileType,
+    signal,
+  } = params
 
   // The pdf model for pages: a page file stores its SOURCE (frontmatter +
   // markdown + sim: fences) and serving compiles it to the rendered document,
@@ -113,9 +158,6 @@ async function resolveServableBytes(params: {
         await renderSimPageDocumentWithAssets(text, { workspaceId }),
         'utf8'
       )
-      // Rendering inlines referenced workspace images, so a source comfortably under
-      // the read ceiling can resolve to a document well over it.
-      assertKnownSizeWithinLimit(rendered.length, MAX_BUFFERED_TRANSFER_BYTES, 'served page render')
       return { buffer: rendered, contentType: 'text/html' }
     }
   }

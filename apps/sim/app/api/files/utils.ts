@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import {
+  isPayloadSizeLimitError,
+  readNodeStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
@@ -290,21 +293,30 @@ export function createErrorResponse(error: Error, status = 500): NextResponse {
 }
 
 /**
- * Reads a local upload into memory only after its on-disk size clears `maxBytes`.
+ * Reads a local upload into memory under a hard byte ceiling.
  *
  * The self-hosted mirror of the `maxBytes` every cloud provider download takes:
  * a bare `readFile` inherits the 5 GB admission ceiling workspace files are stored
  * under and allocates all of it inside the shared app process.
+ *
+ * The limit is enforced on the bytes as they arrive, through the same bounded-stream
+ * reader the S3/Blob/GCS downloads use, rather than by checking `stat` and then
+ * reading. A declared size only describes the file at the moment it was measured, so
+ * a stat-then-read pair admits whatever the file becomes in between — the cloud
+ * providers check `ContentLength` too, but never trust it as the only bound.
  */
 export async function readLocalFileWithinLimit(
   filePath: string,
   maxBytes: number,
   label: string
 ): Promise<Buffer> {
-  const { readFile, stat } = await import('fs/promises')
-  const { size } = await stat(filePath)
-  assertKnownSizeWithinLimit(size, maxBytes, label)
-  return readFile(filePath)
+  const { createReadStream } = await import('fs')
+  const stream = createReadStream(filePath)
+  try {
+    return await readNodeStreamToBufferWithLimit(stream, { maxBytes, label })
+  } finally {
+    stream.destroy()
+  }
 }
 
 export function createSuccessResponse(data: ApiSuccessResponse): NextResponse {

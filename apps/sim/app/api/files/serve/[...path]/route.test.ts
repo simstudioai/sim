@@ -215,6 +215,28 @@ describe('File Serve API Route', () => {
     )
   })
 
+  it('413s when a resolved document outgrows the ceiling its source fit inside', async () => {
+    // The stored source is a small generation script; the compiled artifact it
+    // resolves to is fetched separately and is what the response would carry.
+    mockResolveServableDocBytes.mockResolvedValue({
+      buffer: Buffer.alloc(MAX_BUFFERED_TRANSFER_BYTES + 1),
+      contentType: 'application/pdf',
+    })
+    mockCreateErrorResponse.mockImplementation(
+      (error: Error) =>
+        new Response(JSON.stringify({ error: error.name }), {
+          status: error.name === 'PayloadSizeLimitError' ? 413 : 500,
+        })
+    )
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/files/serve/workspace/ws/report.pdf'),
+      { params: Promise.resolve({ path: ['workspace', 'ws', 'report.pdf'] }) }
+    )
+
+    expect(response.status).toBe(413)
+  })
+
   it('answers 413 rather than 500 when a file is too large to serve resident', async () => {
     const { PayloadSizeLimitError } = await import('@/lib/core/utils/stream-limits')
     mockReadLocalFileWithinLimit.mockRejectedValue(

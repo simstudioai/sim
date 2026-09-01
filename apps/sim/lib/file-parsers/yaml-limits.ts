@@ -85,6 +85,13 @@ function serializedStringLength(value: string): number {
 }
 
 /**
+ * Flat allowance for a value whose serialized form is bounded by its own kind:
+ * `true`, `false`, `null`, and the punctuation a container contributes on its own
+ * line all fit well inside it.
+ */
+const NON_STRING_NODE_BYTES = 16
+
+/**
  * Estimate the pretty-printed (`JSON.stringify(value, null, 2)`) size a single
  * value node contributes, including the indentation/newline overhead that
  * dominates deeply nested alias bombs and the exact escape expansion of strings.
@@ -92,7 +99,14 @@ function serializedStringLength(value: string): number {
 function estimateNodeBytes(value: unknown, depth: number): number {
   const indentOverhead = depth * 2 + 4
   if (typeof value === 'string') return indentOverhead + serializedStringLength(value)
-  return indentOverhead + 16
+  // A double can serialize to 24 characters (`-1.2345678901234567e-308`), so a
+  // number is the one non-string value that outgrows the flat allowance — charging
+  // it the allowance would let a document of them exceed the byte cap by half again.
+  // Taking the larger of the two never charges less than before.
+  if (typeof value === 'number') {
+    return indentOverhead + Math.max(NON_STRING_NODE_BYTES, String(value).length)
+  }
+  return indentOverhead + NON_STRING_NODE_BYTES
 }
 
 /**
@@ -109,15 +123,43 @@ function isContainer(value: unknown): value is object {
   return value !== null && typeof value === 'object'
 }
 
+/** One child of a container, with the serialized cost of naming it. */
+interface YamlChild {
+  keyBytes: number
+  value: unknown
+}
+
+/**
+ * Yields a container's children one at a time.
+ *
+ * Lazily, and via `for...in` rather than `Object.entries`, because this runs on
+ * untrusted input: eagerly building the child list would let a single wide node
+ * allocate an array proportional to its fan-out *before* the first byte of it is
+ * charged, which is the allocation the guard exists to prevent.
+ */
+function* childrenOf(container: object): Generator<YamlChild> {
+  if (Array.isArray(container)) {
+    for (const value of container) yield { keyBytes: 0, value }
+    return
+  }
+  for (const key in container) {
+    if (Object.hasOwn(container, key)) {
+      yield { keyBytes: estimateKeyBytes(key), value: (container as Record<string, unknown>)[key] }
+    }
+  }
+}
+
 /**
  * Iteratively walk the parsed value, charging every reached node against
  * `budget`, and return the document depth.
  *
- * Each node is charged as it is *enqueued*, before its own children are pushed,
- * and only container nodes go on the traversal stack. A pathologically wide
- * fan-out (an array of millions of aliases) therefore trips a limit during the
- * enqueue loop instead of first materializing millions of stack entries and
- * exhausting memory inside the guard itself.
+ * Each node is charged as it is reached, before any of its own children are, so a
+ * pathologically wide fan-out (an array of millions of aliases) trips a limit part
+ * way through that node rather than after enumerating it. The traversal holds one
+ * frame per level of nesting rather than one per pending node, so its own working
+ * set is bounded by `maxDepth` and not by the document's width — a guard that
+ * allocated in proportion to the fan-out it is meant to reject would be its own
+ * exhaustion path.
  *
  * A size or node rejection leaves the budget spent, because reaching it means the
  * allowance ran out mid-walk — a shared budget therefore short-circuits every
@@ -144,37 +186,38 @@ export function measureYamlExpansion(
     return null
   }
 
+  const tooDeep: YamlExpansionResult = {
+    within: false,
+    reason: `YAML document exceeds the maximum nesting depth of ${limits.maxDepth}`,
+  }
+
   const rootOverflow = charge(estimateNodeBytes(root, 0))
   if (rootOverflow) return { within: false, reason: rootOverflow }
 
-  const stack: Array<{ value: object; depth: number }> = []
-  if (isContainer(root)) stack.push({ value: root, depth: 0 })
+  /** One frame per level of nesting; `depth` is the depth of the children it yields. */
+  const stack: Array<{ children: Generator<YamlChild>; depth: number }> = []
+
+  const descend = (container: object, depth: number): boolean => {
+    if (depth > maxDepth) maxDepth = depth
+    if (depth > limits.maxDepth) return false
+    stack.push({ children: childrenOf(container), depth })
+    return true
+  }
+
+  if (isContainer(root) && !descend(root, 1)) return tooDeep
 
   while (stack.length > 0) {
-    const { value, depth } = stack.pop()!
-    const childDepth = depth + 1
-
-    if (childDepth > maxDepth) maxDepth = childDepth
-    if (childDepth > limits.maxDepth) {
-      return {
-        within: false,
-        reason: `YAML document exceeds the maximum nesting depth of ${limits.maxDepth}`,
-      }
+    const frame = stack[stack.length - 1]
+    const next = frame.children.next()
+    if (next.done) {
+      stack.pop()
+      continue
     }
 
-    if (Array.isArray(value)) {
-      for (const child of value) {
-        const overflow = charge(estimateNodeBytes(child, childDepth))
-        if (overflow) return { within: false, reason: overflow }
-        if (isContainer(child)) stack.push({ value: child, depth: childDepth })
-      }
-    } else {
-      for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-        const overflow = charge(estimateKeyBytes(key) + estimateNodeBytes(child, childDepth))
-        if (overflow) return { within: false, reason: overflow }
-        if (isContainer(child)) stack.push({ value: child, depth: childDepth })
-      }
-    }
+    const { keyBytes, value } = next.value
+    const overflow = charge(keyBytes + estimateNodeBytes(value, frame.depth))
+    if (overflow) return { within: false, reason: overflow }
+    if (isContainer(value) && !descend(value, frame.depth + 1)) return tooDeep
   }
 
   return { within: true, depth: maxDepth }
