@@ -18,6 +18,41 @@ import type {
 } from '@/lib/selectors/server/types'
 import type { SelectorContext, SelectorScope } from '@/lib/selectors/types'
 
+function selectorAbortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new DOMException('The operation was aborted.', 'AbortError')
+}
+
+/**
+ * Makes one selector's wait abortable without attaching its signal to shared
+ * refresh or mint work that may still be serving other callers.
+ */
+export function waitForSelectorCredentialResolution<T>(
+  resolution: Promise<T>,
+  signal?: AbortSignal
+): Promise<T> {
+  if (!signal) return resolution
+  if (signal.aborted) return Promise.reject(selectorAbortReason(signal))
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      reject(selectorAbortReason(signal))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    resolution.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      }
+    )
+    if (signal.aborted) onAbort()
+  })
+}
+
 async function resolveCredentialProviderId(input: {
   credentialId: string
   credentialOwnerUserId: string
@@ -116,6 +151,7 @@ export async function resolveSelectorOAuthAccessToken(input: {
   protectedValues: SelectorProtectedValues
   recordCredentialUse?: (providerId: string) => void
 }): Promise<string> {
+  input.credential.signal?.throwIfAborted()
   if (input.credential.fixedToken) return input.credential.fixedToken
 
   const access = input.credential.access
@@ -123,14 +159,18 @@ export async function resolveSelectorOAuthAccessToken(input: {
     throw new SelectorConnectionUnavailableError()
   }
 
-  const result = await resolveCredentialTokenBundle(
-    input.credential.suppliedId,
-    access.credentialOwnerUserId,
-    'selector-execution',
-    input.scopes ? [...input.scopes] : undefined,
-    input.impersonateEmail,
-    { privacyMode: 'selector' }
+  const result = await waitForSelectorCredentialResolution(
+    resolveCredentialTokenBundle(
+      input.credential.suppliedId,
+      access.credentialOwnerUserId,
+      'selector-execution',
+      input.scopes ? [...input.scopes] : undefined,
+      input.impersonateEmail,
+      { privacyMode: 'selector' }
+    ),
+    input.credential.signal
   )
+  input.credential.signal?.throwIfAborted()
   const token = result?.accessToken
 
   if (!token) throw new SelectorConnectionUnavailableError()

@@ -151,15 +151,18 @@ async function executeAuthorizedSelector(args: {
     }
 
     const credential = attachment.credential
-      ? await authorizeSelectorCredential({
-          principal: args.principal,
-          context: resolvedContext,
-          scope: args.input.scope,
-          workspaceId: args.context.workspaceId,
-          policy: attachment.credential,
-          protectedValues,
-          references: resolved.references,
-        })
+      ? {
+          ...(await authorizeSelectorCredential({
+            principal: args.principal,
+            context: resolvedContext,
+            scope: args.input.scope,
+            workspaceId: args.context.workspaceId,
+            policy: attachment.credential,
+            protectedValues,
+            references: resolved.references,
+          })),
+          signal: args.input.signal,
+        }
       : undefined
 
     /**
@@ -220,6 +223,7 @@ async function executeAuthorizedSelector(args: {
         ? undefined
         : await attachment.destination.prepare(selectorArgs)
     const providerResult = await attachment.execute(selectorArgs, preparedDestination)
+    args.input.signal?.throwIfAborted()
     if (providerResult.diagnostics?.truncated) {
       logger.warn('Selector provider result reached a configured cap', {
         selectorKey: args.input.selectorKey,

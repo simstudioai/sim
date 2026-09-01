@@ -390,6 +390,34 @@ describe('executeSelector', () => {
     ])
   })
 
+  it('binds the request signal to credentials and does not present a late provider result', async () => {
+    const controller = new AbortController()
+    let markProviderStarted!: () => void
+    let finishProvider!: (result: { kind: 'list'; items: never[] }) => void
+    const providerStarted = new Promise<void>((resolve) => {
+      markProviderStarted = resolve
+    })
+    mocks.executeAttachment.mockImplementationOnce(
+      (args: ExecuteServerSelectorArgs) =>
+        new Promise((resolve) => {
+          expect(args.credential?.signal).toBe(controller.signal)
+          markProviderStarted()
+          finishProvider = resolve
+        })
+    )
+
+    const pending = execute({ signal: controller.signal })
+    await providerStarted
+
+    const abortReason = new DOMException('Selector request canceled', 'AbortError')
+    controller.abort(abortReason)
+    finishProvider({ kind: 'list', items: [] })
+
+    await expect(pending).rejects.toBe(abortReason)
+    expect(mocks.sanitize).not.toHaveBeenCalled()
+    expect(mocks.logger.info).not.toHaveBeenCalledWith('Executed selector', expect.anything())
+  })
+
   it('records legacy service-account use once with its trusted provider id', async () => {
     mocks.authorizeCredential.mockResolvedValueOnce({
       suppliedId: 'credential-1',

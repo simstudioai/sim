@@ -49,6 +49,8 @@ export interface AuthorizedSelectorCredential {
   fixedToken?: string
   /** Trusted provider id loaded during server-side credential binding. */
   providerId?: string
+  /** Cancels only this selector's wait for shared credential resolution. */
+  signal?: AbortSignal
 }
 
 export interface SelectorProtectedValues {
