@@ -33,6 +33,12 @@ describe('analyzeFileSearchRegex', () => {
       expect(run('ab{2,4}cd')).toBe(3)
     })
 
+    it('measures a run in characters, not UTF-16 units', () => {
+      expect(run('🙂🙂needle')).toBe(8)
+      expect(run('🙂🙂')).toBe(2)
+      expect(run('東京都')).toBe(3)
+    })
+
     it('does not let a bounded repeat expand into a large intermediate', () => {
       expect(run('(?:(?:abc){1000}){1000}')).toBeGreaterThanOrEqual(3)
       expect(run('(?:(?:abc){1000}){1000}')).toBeLessThanOrEqual(512)
@@ -78,6 +84,7 @@ describe('analyzeFileSearchRegex', () => {
       ['*foo', /has no character to repeat/],
       ['foo{2,1}', /counts down/],
       ['a{1,5000}bcd', /exceeds 1000/],
+      ['a{5000,}bcd', /exceeds 1000/],
       ['foo{bar}', /Unescaped "\{"/],
     ])('rejects %s', (source, message) => {
       expect(() => analyzeFileSearchRegex(source)).toThrow(FileSearchPatternError)
@@ -100,6 +107,8 @@ describe('analyzeFileSearchRegex', () => {
       'status: [0-9]{3} failed',
       'cache.*?miss',
       'user_id=\\w+ token',
+      'error a{3,}bcd',
+      'error a{3,10}bcd',
     ])('accepts %s', (source) => {
       expect(() => analyzeFileSearchRegex(source)).not.toThrow()
     })

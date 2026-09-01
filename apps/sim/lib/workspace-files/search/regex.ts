@@ -75,6 +75,15 @@ const POSTGRES_ONLY_ESCAPES: Record<string, string> = {
   Z: '$',
 }
 
+/**
+ * A run is measured in characters, because that is what `pg_trgm` indexes. The
+ * parser walks UTF-16 units, so an astral character arrives as two surrogate
+ * atoms whose concatenation is one character — counting units would score it two.
+ */
+function runLength(text: string): number {
+  return [...text].length
+}
+
 function head(text: string): string {
   return text.length > FILE_SEARCH_PATTERN_LITERAL_CAP
     ? text.slice(0, FILE_SEARCH_PATTERN_LITERAL_CAP)
@@ -92,7 +101,7 @@ function literal(character: string): LiteralGuarantee {
     exact: character,
     prefix: character,
     suffix: character,
-    best: character.length,
+    best: runLength(character),
     zeroWidth: false,
   }
 }
@@ -108,7 +117,7 @@ function concatenate(left: LiteralGuarantee, right: LiteralGuarantee): LiteralGu
     exact: left.exact !== null && right.exact !== null ? head(left.exact + right.exact) : null,
     prefix: head(left.exact !== null ? left.exact + right.prefix : left.prefix),
     suffix: tail(right.exact !== null ? left.suffix + right.exact : right.suffix),
-    best: Math.max(left.best, right.best, joined.length),
+    best: Math.max(left.best, right.best, runLength(joined)),
     zeroWidth: left.zeroWidth && right.zeroWidth,
   }
 }
@@ -447,7 +456,16 @@ class FileSearchRegexParser {
         `Unescaped "{" at position ${this.index + 1} — write "\\{" to match a literal brace`
       )
     }
-    if (bounded.max > FILE_SEARCH_PATTERN_MAX_REPEAT) {
+    /**
+     * `{n,}` has no upper bound to cap — it is `+` with a floor, and both engines
+     * expand it the same way — so only a stated maximum is measured against the
+     * cap. The minimum is always measured, since that is what an expansion
+     * actually unrolls.
+     */
+    if (
+      bounded.min > FILE_SEARCH_PATTERN_MAX_REPEAT ||
+      (Number.isFinite(bounded.max) && bounded.max > FILE_SEARCH_PATTERN_MAX_REPEAT)
+    ) {
       throw new FileSearchPatternError(
         `Repeat count at position ${this.index + 1} exceeds ${FILE_SEARCH_PATTERN_MAX_REPEAT}`
       )

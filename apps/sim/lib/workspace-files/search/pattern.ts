@@ -173,12 +173,17 @@ export function compileFileSearchPattern(
   query: string,
   mode: FileSearchMode
 ): CompiledFileSearchPattern {
-  if (query.length < FILE_SEARCH_MIN_QUERY_LENGTH) {
+  /**
+   * Characters, not UTF-16 units: two astral characters occupy four units, and
+   * measuring those would admit a query shorter than the bound claims to allow.
+   */
+  const queryLength = [...query].length
+  if (queryLength < FILE_SEARCH_MIN_QUERY_LENGTH) {
     throw new FileSearchPatternError(
       `Search query must be at least ${FILE_SEARCH_MIN_QUERY_LENGTH} characters`
     )
   }
-  if (query.length > FILE_SEARCH_MAX_QUERY_LENGTH) {
+  if (queryLength > FILE_SEARCH_MAX_QUERY_LENGTH) {
     throw new FileSearchPatternError(
       `Search query must be at most ${FILE_SEARCH_MAX_QUERY_LENGTH} characters`
     )

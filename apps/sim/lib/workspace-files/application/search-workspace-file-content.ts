@@ -7,7 +7,10 @@ import {
   type FileSearchMode,
   FileSearchPatternError,
 } from '@/lib/workspace-files/search/pattern'
-import { searchWorkspaceFileIndex } from '@/lib/workspace-files/search/repository'
+import {
+  searchWorkspaceFileIndex,
+  WorkspaceFileSearchUnavailableError,
+} from '@/lib/workspace-files/search/repository'
 
 export interface SearchWorkspaceFileContentInput {
   workspaceId: string
@@ -45,6 +48,10 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
        */
       if (error instanceof FileSearchPatternError) {
         throw new OrchestrationError('validation', error.message)
+      }
+      /** Nothing is wrong with the query, so the caller is told to retry, not to rewrite it. */
+      if (error instanceof WorkspaceFileSearchUnavailableError) {
+        throw new OrchestrationError('locked', error.message)
       }
       throw error
     }

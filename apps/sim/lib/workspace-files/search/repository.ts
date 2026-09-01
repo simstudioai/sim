@@ -53,7 +53,20 @@ interface SearchWorkspaceFileIndexInput {
 }
 
 const QUERY_CANCELED = '57014'
+const LOCK_NOT_AVAILABLE = '55P03'
 const INVALID_REGULAR_EXPRESSION = '2201B'
+
+/**
+ * The search could not run, for a reason the caller did not cause and cannot fix
+ * by changing the query — distinct from {@link FileSearchPatternError}, so a
+ * surface reports "try again" rather than blaming the pattern.
+ */
+export class WorkspaceFileSearchUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'WorkspaceFileSearchUnavailableError'
+  }
+}
 
 /**
  * Walks to the driver error. Drizzle wraps a failed query in a `DrizzleQueryError`
@@ -71,17 +84,23 @@ function sqlStateOf(error: unknown): string | undefined {
 }
 
 /**
- * Rewrites the two database faults a search pattern can cause into faults the
- * caller can act on.
+ * Rewrites the database faults this read can raise into faults a caller can act
+ * on, separating the two it causes from the one it merely waits on.
  *
  * `pg_trgm` only indexes a pattern it can extract trigrams from; a
  * punctuation-only, non-ASCII, or too-general one plans as a scan across every
  * workspace's segments, so {@link FILE_SEARCH_STATEMENT_TIMEOUT_MS} is what
- * stops one search holding a pooled connection. And PostgreSQL is the last of
+ * stops one search holding a pooled connection. PostgreSQL is also the last of
  * the engines a regex passes through, so a construct that slipped the pattern
  * analyzer and `RegExp` surfaces here rather than as an unexplained failure.
+ *
+ * {@link FILE_SEARCH_LOCK_TIMEOUT_MS} is different in kind: it fires while
+ * waiting on a conflicting lock — DDL against the segment tables — which no
+ * query can be rewritten to avoid. Without this arm it would reach the caller as
+ * an unclassified server error, and folding it in with the two above would tell
+ * them to fix a pattern that is already correct.
  */
-function asFileSearchPatternFault(error: unknown): FileSearchPatternError | null {
+function asFileSearchFault(error: unknown): Error | null {
   const sqlState = sqlStateOf(error)
   if (sqlState === QUERY_CANCELED) {
     return new FileSearchPatternError(
@@ -90,6 +109,11 @@ function asFileSearchPatternFault(error: unknown): FileSearchPatternError | null
   }
   if (sqlState === INVALID_REGULAR_EXPRESSION) {
     return new FileSearchPatternError('Invalid search pattern.')
+  }
+  if (sqlState === LOCK_NOT_AVAILABLE) {
+    return new WorkspaceFileSearchUnavailableError(
+      'Workspace file search is briefly unavailable while its index is being updated. Try again shortly.'
+    )
   }
   return null
 }
@@ -345,7 +369,7 @@ export async function searchWorkspaceFileIndex({
     }
   } catch (error) {
     signal?.throwIfAborted()
-    const fault = asFileSearchPatternFault(error)
+    const fault = asFileSearchFault(error)
     if (fault) throw fault
     throw error
   }

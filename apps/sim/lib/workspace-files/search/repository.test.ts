@@ -8,7 +8,10 @@ import {
   compileFileSearchPattern,
   FileSearchPatternError,
 } from '@/lib/workspace-files/search/pattern'
-import { searchWorkspaceFileIndex } from '@/lib/workspace-files/search/repository'
+import {
+  searchWorkspaceFileIndex,
+  WorkspaceFileSearchUnavailableError,
+} from '@/lib/workspace-files/search/repository'
 
 /**
  * The shape a failed query really arrives in, captured from PostgreSQL 17
@@ -41,6 +44,20 @@ describe('searchWorkspaceFileIndex fault mapping', () => {
     await expect(search).rejects.toThrow(message)
   })
 
+  it('tells the caller to retry when the lock guard fires, not to fix the query', async () => {
+    dbChainMockFns.transaction.mockRejectedValueOnce(driverError('55P03'))
+
+    const search = searchWorkspaceFileIndex({
+      workspaceId: 'workspace-1',
+      pattern: compileFileSearchPattern('error \\d+', 'regex'),
+      maxResults: 50,
+    })
+
+    await expect(search).rejects.toBeInstanceOf(WorkspaceFileSearchUnavailableError)
+    await expect(search).rejects.not.toBeInstanceOf(FileSearchPatternError)
+    await expect(search).rejects.toThrow(/Try again shortly/)
+  })
+
   it('does not reinterpret an unrelated database fault', async () => {
     dbChainMockFns.transaction.mockRejectedValueOnce(driverError('23505'))
 
@@ -51,6 +68,18 @@ describe('searchWorkspaceFileIndex fault mapping', () => {
         maxResults: 50,
       })
     ).rejects.not.toBeInstanceOf(FileSearchPatternError)
+  })
+
+  it('leaves an unrelated fault unclassified for the surface to generalize', async () => {
+    dbChainMockFns.transaction.mockRejectedValueOnce(driverError('23505'))
+
+    await expect(
+      searchWorkspaceFileIndex({
+        workspaceId: 'workspace-1',
+        pattern: compileFileSearchPattern('needle', 'exact'),
+        maxResults: 50,
+      })
+    ).rejects.not.toBeInstanceOf(WorkspaceFileSearchUnavailableError)
   })
 
   it('caps how long a search may hold its connection', async () => {

@@ -13,6 +13,13 @@ describe('compileFileSearchPattern', () => {
       expect(() => compileFileSearchPattern('a'.repeat(513), mode)).toThrow(/at most 512/)
       expect(() => compileFileSearchPattern('abc\0def', mode)).toThrow(/NUL/)
     })
+
+    /** Two astral characters occupy four UTF-16 units but are still two characters. */
+    it.each(['exact', 'regex'] as const)('bounds the query in characters in %s mode', (mode) => {
+      expect(() => compileFileSearchPattern('🙂🙂', mode)).toThrow(/at least 3 characters/)
+      expect(() => compileFileSearchPattern('🙂🙂🙂', mode)).not.toThrow()
+      expect(() => compileFileSearchPattern('🙂'.repeat(513), mode)).toThrow(/at most 512/)
+    })
   })
 
   describe('exact mode', () => {
