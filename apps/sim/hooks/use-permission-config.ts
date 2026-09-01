@@ -96,11 +96,20 @@ export function usePermissionConfig(): PermissionConfigResult {
    * Both sides of the membership test are judged as the current block, so a
    * policy naming a retired id — `ALLOWED_INTEGRATIONS=slack` — still permits
    * the successor the editor offers.
+   *
+   * Each policy is canonicalized *before* the two are intersected, not after.
+   * `intersectIntegrationAllowlists` case-folds but does not successor-resolve,
+   * so a group naming `slack` and an env allowlist naming `slack_v2` intersect
+   * to nothing textually — hiding an integration both policies allow. Resolving
+   * first puts them in one vocabulary, and the intersection is then exact.
    */
-  const allowedAccessControlTypes = useMemo(
-    () => toAccessControlAllowlist(mergedAllowedIntegrations),
-    [mergedAllowedIntegrations]
-  )
+  const allowedAccessControlTypes = useMemo(() => {
+    const groupAllowlist = toAccessControlAllowlist(config.allowedIntegrations)
+    const envAllowlist = toAccessControlAllowlist(envAllowlistData?.allowedIntegrations ?? null)
+    if (groupAllowlist === null) return envAllowlist
+    if (envAllowlist === null) return groupAllowlist
+    return new Set([...groupAllowlist].filter((type) => envAllowlist.has(type)))
+  }, [config.allowedIntegrations, envAllowlistData])
 
   const integrationAvailability = useMemo(() => {
     const visibility = overlayVisibility()
