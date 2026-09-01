@@ -39,12 +39,22 @@ function compileGrepPattern(raw: string, ignoreCase: boolean): (line: string) =>
   }
 }
 
+function parseContextCount(args: string[], i: number, flag: string): number {
+  const count = Number.parseInt(args[i] ?? '', 10)
+  if (!Number.isFinite(count) || count < 0) {
+    throw new PipeUsageError(`grep ${flag} needs a non-negative number`)
+  }
+  return count
+}
+
 function runGrep(input: string, args: string[]): string {
   let ignoreCase = false
   let invert = false
   let countOnly = false
   let lineNumbers = false
   let maxCount = Number.POSITIVE_INFINITY
+  let before = 0
+  let after = 0
   const positional: string[] = []
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
@@ -59,8 +69,18 @@ function runGrep(input: string, args: string[]): string {
       if (!Number.isFinite(maxCount) || maxCount < 1) {
         throw new PipeUsageError('grep -m needs a positive number')
       }
+    } else if (arg === '-A') {
+      after = parseContextCount(args, ++i, '-A')
+    } else if (arg === '-B') {
+      before = parseContextCount(args, ++i, '-B')
+    } else if (arg === '-C') {
+      const count = parseContextCount(args, ++i, '-C')
+      before = count
+      after = count
     } else if (arg.startsWith('-')) {
-      throw new PipeUsageError(`grep: unsupported flag ${arg} (supported: -i -v -c -n -E -m N)`)
+      throw new PipeUsageError(
+        `grep: unsupported flag ${arg} (supported: -i -v -c -n -E -m N -A N -B N -C N)`
+      )
     } else {
       positional.push(arg)
     }
@@ -68,13 +88,23 @@ function runGrep(input: string, args: string[]): string {
   const pattern = positional[0]
   if (pattern === undefined) throw new PipeUsageError('grep needs a pattern')
   const matches = compileGrepPattern(pattern, ignoreCase)
-  const out: string[] = []
   const lines = input.split('\n')
-  for (let lineNo = 0; lineNo < lines.length && out.length < maxCount; lineNo++) {
+  // Context flags select a window of line indexes around each hit (union, in
+  // order, no duplicates) — matching grep's -A/-B/-C output without separators.
+  const selected = new Set<number>()
+  let hits = 0
+  for (let lineNo = 0; lineNo < lines.length && hits < maxCount; lineNo++) {
     const hit = matches(lines[lineNo])
-    if (hit !== invert) out.push(lineNumbers ? `${lineNo + 1}:${lines[lineNo]}` : lines[lineNo])
+    if (hit !== invert) {
+      hits++
+      const from = Math.max(0, lineNo - before)
+      const to = Math.min(lines.length - 1, lineNo + after)
+      for (let i = from; i <= to; i++) selected.add(i)
+    }
   }
-  return countOnly ? String(out.length) : out.join('\n')
+  if (countOnly) return String(hits)
+  const out = [...selected].sort((a, b) => a - b)
+  return out.map((i) => (lineNumbers ? `${i + 1}:${lines[i]}` : lines[i])).join('\n')
 }
 
 /** Applies the grep stages to stdout. Returns the filtered text, or a usage error. */
