@@ -6,7 +6,7 @@ import { embedStore } from '../embed-context'
 import { readArgumentSource } from './request'
 
 describe('file arguments in embedded runs', () => {
-  it('refuses @path reads in-process, with inline guidance', () => {
+  it('refuses @path reads in-process when the host preloaded nothing', () => {
     const ctx = {
       identity: { endpoint: 'http://x', apiKey: 'k' },
       stdout: [] as string[],
@@ -14,8 +14,23 @@ describe('file arguments in embedded runs', () => {
     }
     embedStore.run(ctx, () => {
       expect(() => readArgumentSource('@/etc/hostname', 'input')).toThrow(
-        /not available in embedded runs.*inline/
+        /no file "\/etc\/hostname" on this machine/
       )
+    })
+  })
+
+  it('serves @path from host-preloaded file arguments, never local disk', () => {
+    const ctx = {
+      identity: { endpoint: 'http://x', apiKey: 'k' },
+      stdout: [] as string[],
+      stderr: [] as string[],
+      fileArguments: { 'env.json': '{"thread":"t1"}' },
+    }
+    embedStore.run(ctx, () => {
+      const resolved = readArgumentSource('@env.json', 'input')
+      expect(resolved.text).toBe('{"thread":"t1"}')
+      expect(resolved.from).toContain('your machine')
+      expect(() => readArgumentSource('@other.json', 'input')).toThrow(/no file "other.json"/)
     })
   })
 
