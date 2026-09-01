@@ -695,6 +695,10 @@ export const ServiceBlock: BlockConfig = {
   type: 'service',
   name: 'Service (Legacy)',
   hideFromToolbar: true,  // Hide from toolbar
+  // Required: drives the amber legacy badge and its click-to-upgrade action.
+  // `check-block-registry` fails a legacy block with no `replacedBy`, one whose
+  // target does not exist, or one whose target is itself sunset or still `preview`.
+  sunset: { status: 'legacy', replacedBy: 'service_v2' },
   // ... rest of config
 }
 
