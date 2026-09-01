@@ -605,11 +605,11 @@ export async function dispatcherStep(
     isManualRun: dispatch.isManualRun,
     groupIds: dispatch.scope.groupIds,
     mode: dispatch.mode,
+    capabilityGovernedUserId: dispatch.capabilityGovernedUserId,
   }).map((p) => ({
     ...p,
     dispatchId,
     triggeredByUserId: dispatch.triggeredByUserId ?? undefined,
-    capabilityGovernedUserId: dispatch.capabilityGovernedUserId,
   }))
 
   // Cursor advances to the last position in this chunk regardless of
@@ -818,7 +818,7 @@ async function stampQueuedForBatch(
              * than under the owner's — a different dispatch, and often an
              * actorless auto-fire with no gate at all.
              */
-            capabilityGovernedUserId: runOpts.capabilityGovernedUserId ?? null,
+            capabilityGovernedUserId: runOpts.capabilityGovernedUserId,
           },
         }
       )
