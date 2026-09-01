@@ -1,8 +1,4 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { instagramCallbackContract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
@@ -18,7 +14,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
-import { safeAccountInsert } from '@/lib/oauth/credential-service'
+import { upsertProviderAccountTokens } from '@/lib/oauth/credential-service'
 import {
   parseInstagramLongLivedToken,
   parseInstagramProfile,
@@ -243,70 +239,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         : getCanonicalScopesForProvider('instagram')
     const scope = permissions.join(' ')
 
-    const now = new Date()
-    const accessTokenExpiresAt = new Date(now.getTime() + expiresIn * 1000)
+    const accessTokenExpiresAt = new Date(Date.now() + expiresIn * 1000)
 
-    const existing = await db.query.account.findFirst({
-      where: and(
-        eq(account.userId, session.user.id),
-        eq(account.providerId, 'instagram'),
-        eq(account.accountId, igUserId)
-      ),
+    const { accountId } = await upsertProviderAccountTokens({
+      userId: session.user.id,
+      providerId: 'instagram',
+      externalAccountId: igUserId,
+      scope,
+      /** Instagram's long-lived token is its own refresh token; both columns hold it. */
+      tokens: { accessToken: longLivedToken, refreshToken: longLivedToken },
+      accessTokenExpiresAt,
+      logIdentifier: profile.username || igUserId,
     })
 
-    if (existing) {
-      await db
-        .update(account)
-        .set({
-          accessToken: longLivedToken,
-          refreshToken: longLivedToken,
-          accessTokenExpiresAt,
-          scope,
-          updatedAt: now,
-        })
-        .where(eq(account.id, existing.id))
-      logger.info('Updated existing Instagram account', {
-        accountId: existing.id,
-        igUserId,
-        username: profile.username,
-      })
-    } else {
-      await safeAccountInsert(
-        {
-          id: generateId(),
-          userId: session.user.id,
-          providerId: 'instagram',
-          accountId: igUserId,
-          accessToken: longLivedToken,
-          refreshToken: longLivedToken,
-          accessTokenExpiresAt,
-          scope,
-          createdAt: now,
-          updatedAt: now,
-        },
-        { provider: 'Instagram', identifier: profile.username || igUserId }
-      )
-      logger.info('Created Instagram account', { igUserId, username: profile.username })
-    }
-
-    const persisted =
-      existing ??
-      (await db.query.account.findFirst({
-        where: and(
-          eq(account.userId, session.user.id),
-          eq(account.providerId, 'instagram'),
-          eq(account.accountId, igUserId)
-        ),
-      }))
-
-    if (!persisted) {
-      throw new Error(`Instagram OAuth account ${igUserId} was not persisted`)
-    }
     await processCredentialDraft({
       draftId,
       userId: session.user.id,
       providerId: 'instagram',
-      accountId: persisted.id,
+      accountId,
     })
 
     const returnUrlCookie = request.cookies.get(INSTAGRAM_RETURN_URL_COOKIE)?.value

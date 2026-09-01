@@ -1,10 +1,7 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import {
   getServiceAccountToken,
-  refreshTokenIfNeeded,
+  resolveAccessTokenForAccount,
   resolveOAuthAccountId,
 } from '@/lib/oauth/credential-service'
 
@@ -28,12 +25,7 @@ export async function resolveVertexAccessToken(
     return accessToken
   }
 
-  const credential = await db.query.account.findFirst({
-    where: eq(account.id, resolved.accountId),
-  })
-  if (!credential) throw new Error(`Vertex AI credential not found: ${credentialId}`)
-
-  const { accessToken } = await refreshTokenIfNeeded(requestId, credential, resolved.accountId)
+  const accessToken = await resolveAccessTokenForAccount(requestId, resolved.accountId)
   if (!accessToken) throw new Error('Failed to get Vertex AI access token')
 
   logger.info(`[${requestId}] Resolved Vertex AI credential`)

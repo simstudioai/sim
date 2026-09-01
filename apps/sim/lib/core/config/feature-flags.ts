@@ -85,6 +85,14 @@ const FEATURE_FLAGS = {
       'Enterprise subscription. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
     fallback: 'CREDENTIAL_GROUPS',
   },
+  'oauth-token-encryption': {
+    description:
+      'Encrypt account.access_token / refresh_token / id_token at rest under the `simenc:v1:` ' +
+      'envelope. Only writes are gated — reads always accept both formats, which is what makes ' +
+      'rollout and rollback safe. Global on/off so a deployment can never be half-encrypted. ' +
+      'Off-AppConfig falls back to OAUTH_TOKEN_ENCRYPTION (unset by default; needs a 64-hex ENCRYPTION_KEY).',
+    fallback: 'OAUTH_TOKEN_ENCRYPTION',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

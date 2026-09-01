@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
-import { account, webhook } from '@sim/db/schema'
+import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
+import { getCredentialOwner } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   FormatInputContext,
   FormatInputResult,
@@ -37,31 +38,17 @@ export const outlookHandler: WebhookProviderHandler = {
         return false
       }
 
-      const resolvedOutlook = await resolveOAuthAccountId(credentialId)
-      if (!resolvedOutlook) {
+      const credentialOwner = await getCredentialOwner(credentialId, requestId)
+      if (!credentialOwner) {
         logger.error(
           `[${requestId}] Could not resolve credential ${credentialId} for Outlook webhook ${webhookData.id}`
         )
         return false
       }
 
-      const rows = await db
-        .select()
-        .from(account)
-        .where(eq(account.id, resolvedOutlook.accountId))
-        .limit(1)
-      if (rows.length === 0) {
-        logger.error(
-          `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
-        )
-        return false
-      }
-
-      const effectiveUserId = rows[0].userId
-
       const accessToken = await refreshAccessTokenIfNeeded(
-        resolvedOutlook.accountId,
-        effectiveUserId,
+        credentialOwner.accountId,
+        credentialOwner.userId,
         requestId
       )
       if (!accessToken) {
@@ -75,7 +62,7 @@ export const outlookHandler: WebhookProviderHandler = {
 
       const configuredProviderConfig = {
         ...providerConfig,
-        userId: effectiveUserId,
+        userId: credentialOwner.userId,
         credentialId,
         maxEmailsPerPoll:
           typeof providerConfig.maxEmailsPerPoll === 'string'

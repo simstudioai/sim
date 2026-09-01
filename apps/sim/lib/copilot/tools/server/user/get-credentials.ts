@@ -17,6 +17,7 @@ import {
   credentialProviderMatchesService,
   getAllOAuthServices,
 } from '@/lib/oauth'
+import { decryptAccountTokenColumnsBatch } from '@/lib/oauth/account-tokens'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
@@ -71,13 +72,21 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       hasWorkflowId: !!params?.workflowId,
     })
 
-    // Fetch OAuth credentials
-    const accounts = await db.select().from(account).where(eq(account.userId, userId))
-    const userRecord = await db
-      .select({ email: user.email })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1)
+    const [accountRows, userRecord] = await Promise.all([
+      db
+        .select({
+          id: account.id,
+          accountId: account.accountId,
+          providerId: account.providerId,
+          // account-token-access-allow: decrypted immediately below; needed for the display-name JWT decode
+          idToken: account.idToken,
+          updatedAt: account.updatedAt,
+        })
+        .from(account)
+        .where(eq(account.userId, userId)),
+      db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1),
+    ])
+    const accounts = await decryptAccountTokenColumnsBatch(accountRows)
     const userEmail = userRecord.length > 0 ? userRecord[0]?.email : null
 
     const permissionConfig = workspaceId ? await getUserPermissionConfig(userId, workspaceId) : null

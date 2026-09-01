@@ -217,7 +217,15 @@ export async function resolveOAuthCredential(
       )
       return serviceAccountToken
     }
-    const rows = await db.select().from(account).where(eq(account.id, resolved.accountId)).limit(1)
+    /**
+     * Not `getCredentialOwner`: the service-account branch above already needs `resolved`,
+     * and that helper would re-run `resolveOAuthAccountId` to rebuild it.
+     */
+    const rows = await db
+      .select({ userId: account.userId })
+      .from(account)
+      .where(eq(account.id, resolved.accountId))
+      .limit(1)
     if (!rows.length) {
       throw new Error(`Credential ${credentialId} not found for webhook ${webhookData.id}`)
     }

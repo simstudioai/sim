@@ -1,7 +1,4 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { storeTrelloTokenContract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
@@ -9,7 +6,7 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
-import { safeAccountInsert } from '@/lib/oauth/credential-service'
+import { upsertProviderAccountTokens } from '@/lib/oauth/credential-service'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
 const logger = createLogger('TrelloStore')
@@ -92,60 +89,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const existing = await db.query.account.findFirst({
-      where: and(
-        eq(account.userId, session.user.id),
-        eq(account.providerId, 'trello'),
-        eq(account.accountId, trelloUser.id)
-      ),
+    const { accountId } = await upsertProviderAccountTokens({
+      userId: session.user.id,
+      providerId: 'trello',
+      externalAccountId: trelloUser.id,
+      scope,
+      /** Trello tokens do not expire and there is no refresh token. */
+      tokens: { accessToken: token },
     })
 
-    const now = new Date()
-
-    if (existing) {
-      await db
-        .update(account)
-        .set({
-          accessToken: token,
-          accountId: trelloUser.id,
-          scope,
-          updatedAt: now,
-        })
-        .where(eq(account.id, existing.id))
-    } else {
-      await safeAccountInsert(
-        {
-          id: `trello_${session.user.id}_${Date.now()}`,
-          userId: session.user.id,
-          providerId: 'trello',
-          accountId: trelloUser.id,
-          accessToken: token,
-          scope,
-          createdAt: now,
-          updatedAt: now,
-        },
-        { provider: 'Trello', identifier: trelloUser.id }
-      )
-    }
-
-    const persisted =
-      existing ??
-      (await db.query.account.findFirst({
-        where: and(
-          eq(account.userId, session.user.id),
-          eq(account.providerId, 'trello'),
-          eq(account.accountId, trelloUser.id)
-        ),
-      }))
-
-    if (!persisted) {
-      throw new Error(`Trello OAuth account ${trelloUser.id} was not persisted`)
-    }
     await processCredentialDraft({
       draftId,
       userId: session.user.id,
       providerId: 'trello',
-      accountId: persisted.id,
+      accountId,
     })
 
     return clearStateCookie(NextResponse.json({ success: true }))

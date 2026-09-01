@@ -1,11 +1,8 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isMicrosoftContentUrl } from '@/lib/core/security/input-validation'
 import {
@@ -14,7 +11,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import {
   getCredentialOwner,
   getNotificationUrl,
@@ -216,25 +213,18 @@ async function formatTeamsGraphNotification(
     })
   } else {
     try {
-      const resolved = await resolveOAuthAccountId(credentialId as string)
-      if (!resolved) {
+      const credentialOwner = await getCredentialOwner(
+        credentialId as string,
+        'teams-graph-notification'
+      )
+      if (!credentialOwner) {
         logger.error('Teams credential could not be resolved', { credentialId })
       } else {
-        const rows = await db
-          .select()
-          .from(account)
-          .where(eq(account.id, resolved.accountId))
-          .limit(1)
-        if (rows.length === 0) {
-          logger.error('Teams credential not found', { credentialId, chatId: resolvedChatId })
-        } else {
-          const effectiveUserId = rows[0].userId
-          accessToken = await refreshAccessTokenIfNeeded(
-            resolved.accountId,
-            effectiveUserId,
-            'teams-graph-notification'
-          )
-        }
+        accessToken = await refreshAccessTokenIfNeeded(
+          credentialOwner.accountId,
+          credentialOwner.userId,
+          'teams-graph-notification'
+        )
       }
 
       if (accessToken) {

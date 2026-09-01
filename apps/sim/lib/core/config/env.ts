@@ -589,6 +589,7 @@ export const env = createEnv({
     TABLES_V2_API:                        z.boolean().optional(),                 // Enable the v2 tables HTTP API (public /api/v2/tables + internal /api/table/[tableId]/query predicate-grammar route)
     TABLE_ROW_TTL:                        z.boolean().optional(),
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable enterprise Credential Groups globally
+    OAUTH_TOKEN_ENCRYPTION:               z.boolean().optional(),                 // Encrypt account OAuth tokens at rest (fallback for the oauth-token-encryption flag when AppConfig is not the source of truth)
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)

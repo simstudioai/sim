@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { and, eq, gt, isNotNull, like, max, sql } from 'drizzle-orm'
+import { decryptAccountTokenColumns, encryptAccountTokenColumns } from '@/lib/oauth/account-tokens'
 
 /**
  * Slack bot tokens belong to the installation (team × app), not to the OAuth
@@ -65,12 +66,19 @@ export async function fanOutSlackTokenChain(
   options?: FanOutOptions
 ): Promise<void> {
   const since = options?.ifChainUnchangedSince
+  /**
+   * One `.set()` covers every sibling, so the whole installation stores byte-identical
+   * ciphertext. Nothing compares tokens across rows — both guards below read `updated_at`.
+   */
+  const encrypted = await encryptAccountTokenColumns({
+    accessToken: chain.accessToken,
+    ...(chain.refreshToken ? { refreshToken: chain.refreshToken } : {}),
+  })
   await db
     .update(account)
     .set({
-      accessToken: chain.accessToken,
+      ...encrypted,
       accessTokenExpiresAt: chain.accessTokenExpiresAt,
-      ...(chain.refreshToken ? { refreshToken: chain.refreshToken } : {}),
       updatedAt: new Date(),
     })
     .where(
@@ -132,10 +140,19 @@ export async function getFreshestSlackChain(teamId: string): Promise<FreshestSla
     .orderBy(sql`${account.accessTokenExpiresAt} DESC NULLS LAST`)
     .limit(1)
 
-  if (!row?.refreshToken) return null
+  if (!row) return null
+
+  /**
+   * Returning `null` rather than ciphertext makes the leader throw, which is caught and
+   * does NOT dead-flag. The flag is keyed per installation, so a bad `ENCRYPTION_KEY`
+   * would otherwise block refreshes for every member of the workspace for an hour.
+   */
+  const decrypted = await decryptAccountTokenColumns(row)
+  if (!decrypted.refreshToken) return null
+
   return {
-    accessToken: row.accessToken,
-    refreshToken: row.refreshToken,
+    accessToken: decrypted.accessToken,
+    refreshToken: decrypted.refreshToken,
     accessTokenExpiresAt: row.accessTokenExpiresAt,
     chainVersion: row.chainVersion ? new Date(row.chainVersion) : new Date(0),
   }

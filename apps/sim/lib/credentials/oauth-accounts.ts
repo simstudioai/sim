@@ -8,6 +8,7 @@ import type { OAuthConnection } from '@/lib/api/contracts/oauth-connections'
 import { deleteCredentialRecord } from '@/lib/credentials/orchestration'
 import type { OAuthProvider } from '@/lib/oauth'
 import { parseProvider } from '@/lib/oauth'
+import { decryptAccountTokenColumnsBatch } from '@/lib/oauth/account-tokens'
 import { providerIdsForService } from '@/lib/oauth/utils'
 
 const logger = createLogger('CredentialOAuthAccounts')
@@ -18,10 +19,22 @@ interface GoogleIdToken {
 }
 
 export async function listOAuthConnectionsForUser(userId: string): Promise<OAuthConnection[]> {
-  const [accounts, userRecord] = await Promise.all([
-    db.select().from(account).where(eq(account.userId, userId)),
+  const [accountRows, userRecord] = await Promise.all([
+    db
+      .select({
+        id: account.id,
+        accountId: account.accountId,
+        providerId: account.providerId,
+        scope: account.scope,
+        // account-token-access-allow: decrypted immediately below; needed for the display-name JWT decode
+        idToken: account.idToken,
+        updatedAt: account.updatedAt,
+      })
+      .from(account)
+      .where(eq(account.userId, userId)),
     db.select({ email: user.email }).from(user).where(eq(user.id, userId)).limit(1),
   ])
+  const accounts = await decryptAccountTokenColumnsBatch(accountRows)
   const userEmail = userRecord[0]?.email ?? null
   const connections: OAuthConnection[] = []
 

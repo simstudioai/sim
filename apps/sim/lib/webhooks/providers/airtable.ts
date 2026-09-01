@@ -1,14 +1,10 @@
 import { db } from '@sim/db'
-import { account, webhook } from '@sim/db/schema'
+import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import {
-  getOAuthToken,
-  refreshAccessTokenIfNeeded,
-  resolveOAuthAccountId,
-} from '@/lib/oauth/credential-service'
+import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import {
   getCredentialOwner,
   getNotificationUrl,
@@ -84,32 +80,14 @@ async function fetchAndProcessAirtablePayloads(
       return
     }
 
-    const resolvedAirtable = await resolveOAuthAccountId(credentialId)
-    if (!resolvedAirtable) {
-      logger.error(
-        `[${requestId}] Could not resolve credential ${credentialId} for Airtable webhook`
-      )
-      return
-    }
-
-    let ownerUserId: string | null = null
-    try {
-      const rows = await db
-        .select()
-        .from(account)
-        .where(eq(account.id, resolvedAirtable.accountId))
-        .limit(1)
-      ownerUserId = rows.length ? rows[0].userId : null
-    } catch (_e) {
-      ownerUserId = null
-    }
-
-    if (!ownerUserId) {
+    const credentialOwner = await getCredentialOwner(credentialId, requestId)
+    if (!credentialOwner) {
       logger.error(
         `[${requestId}] Could not resolve owner for Airtable credential ${credentialId} on webhook ${webhookData.id}`
       )
       return
     }
+    const ownerUserId = credentialOwner.userId
 
     const storedCursor = localProviderConfig.externalWebhookCursor
 
@@ -152,7 +130,7 @@ async function fetchAndProcessAirtablePayloads(
     let accessToken: string | null = null
     try {
       accessToken = await refreshAccessTokenIfNeeded(
-        resolvedAirtable.accountId,
+        credentialOwner.accountId,
         ownerUserId,
         requestId
       )
