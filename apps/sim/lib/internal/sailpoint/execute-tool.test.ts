@@ -413,6 +413,20 @@ describe('SailPoint internal tool handler', () => {
   })
 
   it.each([
+    ['aggregationsDsl', {}],
+    ['aggregationsDsl', '{}'],
+    ['aggregations', {}],
+    ['aggregations', '{}'],
+  ])('rejects an empty %s aggregate definition', async (field, value) => {
+    const response = await request('sailpoint_search_aggregate', { [field]: value })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining('must be a non-empty object'),
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
     [
       'sailpoint_list_entitlements',
       {

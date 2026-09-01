@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import {
   createSailPointListOutputs,
   createSailPointOperationInput,
@@ -170,7 +171,8 @@ function segmentedListInput(params: SailPointSegmentedListParams, maxLimit = 250
 
 function searchInput(
   params: SailPointSearchBodyParams,
-  queryRequired = false
+  queryRequired = false,
+  aggregationsRequired = false
 ): Record<string, unknown> {
   const query = parseJsonValue(params.query, 'query')
   const queryDsl = parseJsonValue(params.queryDsl, 'queryDsl')
@@ -180,6 +182,15 @@ function searchInput(
   const aggregationsDsl = parseJsonValue(params.aggregationsDsl, 'aggregationsDsl')
   const aggregations = parseJsonValue(params.aggregations, 'aggregations')
   const filters = parseJsonValue(params.filters, 'filters')
+
+  if (aggregationsRequired) {
+    const hasAggregationsDsl =
+      isRecordLike(aggregationsDsl) && Object.keys(aggregationsDsl).length > 0
+    const hasAggregations = isRecordLike(aggregations) && Object.keys(aggregations).length > 0
+    if (!hasAggregationsDsl && !hasAggregations) {
+      throw new Error('aggregationsDsl or aggregations must be a non-empty object')
+    }
+  }
 
   const hasQueryInput = Boolean(query || queryDsl || textQuery || typeAheadQuery)
   if (queryRequired || params.queryType || hasQueryInput) {
@@ -441,7 +452,7 @@ export const sailpointSearchAggregateTool = defineSailPointTool<SailPointSearchA
   input: (params) => {
     validatePagination(params.limit, params.offset)
     return {
-      ...searchInput(params),
+      ...searchInput(params, false, true),
       limit: params.limit,
       offset: params.offset,
       count: params.count,

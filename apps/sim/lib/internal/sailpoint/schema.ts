@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
@@ -198,11 +199,15 @@ const schemas = {
     ...pagination(),
   }).superRefine((value, ctx) => {
     validateSearchQuerySelection(value, ctx, false)
-    if (!value.aggregationsDsl && !value.aggregations) {
+    const hasAggregationsDsl =
+      isRecordLike(value.aggregationsDsl) && Object.keys(value.aggregationsDsl).length > 0
+    const hasAggregations =
+      isRecordLike(value.aggregations) && Object.keys(value.aggregations).length > 0
+    if (!hasAggregationsDsl && !hasAggregations) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['aggregationsDsl'],
-        message: 'aggregationsDsl or aggregations is required',
+        message: 'aggregationsDsl or aggregations must be a non-empty object',
       })
     }
   }),
