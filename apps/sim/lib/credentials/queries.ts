@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { credential, credentialMember } from '@sim/db/schema'
-import { and, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, notInArray, or, sql } from 'drizzle-orm'
 import type { V2CredentialSortBy } from '@/lib/api/contracts/v2/credentials'
 import {
   type CursorKey,
@@ -135,7 +135,8 @@ export async function listVisibleWorkspaceCredentials(params: {
 
   const whereClauses = [
     eq(credential.workspaceId, workspaceId),
-    ne(credential.type, 'managed_oauth'),
+    notInArray(credential.type, ['managed_oauth', 'managed_mcp']),
+    isNotNull(credential.createdBy),
   ]
   if (types?.length) whereClauses.push(inArray(credential.type, types))
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
@@ -198,19 +199,23 @@ export async function listVisibleWorkspaceCredentials(params: {
 
   const rows = await (limit === undefined ? query : query.limit(limit + 1))
 
-  const mapped = rows.map(({ memberRole, encryptedServiceAccountKey, ...rest }) => ({
-    ...rest,
-    hasServiceAccountKey: Boolean(encryptedServiceAccountKey),
-    /**
-     * An `env_personal` credential's own env owner administers it regardless of
-     * workspace role — otherwise the owner of a personal secret can't manage it.
-     */
-    role:
-      (rest.type === 'env_personal' && rest.envOwnerUserId === userId) ||
-      (isWorkspaceAdmin && isSharedCredentialType(rest.type))
-        ? ('admin' as const)
-        : (memberRole ?? ('member' as const)),
-  }))
+  const mapped = rows.map(({ memberRole, encryptedServiceAccountKey, ...rest }) => {
+    if (!rest.createdBy) throw new Error(`Credential ${rest.id} has no creator`)
+    return {
+      ...rest,
+      createdBy: rest.createdBy,
+      hasServiceAccountKey: Boolean(encryptedServiceAccountKey),
+      /**
+       * An `env_personal` credential's own env owner administers it regardless of
+       * workspace role — otherwise the owner of a personal secret can't manage it.
+       */
+      role:
+        (rest.type === 'env_personal' && rest.envOwnerUserId === userId) ||
+        (isWorkspaceAdmin && isSharedCredentialType(rest.type))
+          ? ('admin' as const)
+          : (memberRole ?? ('member' as const)),
+    }
+  })
 
   return keysetPage(keys, mapped, limit)
 }
@@ -271,12 +276,16 @@ export async function listWorkspacePrincipalCredentials(params: {
 
   const rows = await query.limit(limit + 1)
 
-  const mapped = rows.map((row) => ({
-    ...row,
-    envKey: null,
-    envOwnerUserId: null,
-    role: 'member' as const,
-  }))
+  const mapped = rows.map((row) => {
+    if (!row.createdBy) throw new Error(`Credential ${row.id} has no creator`)
+    return {
+      ...row,
+      createdBy: row.createdBy,
+      envKey: null,
+      envOwnerUserId: null,
+      role: 'member' as const,
+    }
+  })
 
   return keysetPage(keys, mapped, limit)
 }
@@ -296,7 +305,7 @@ export async function getWorkspaceCredential(params: {
       and(
         eq(credential.id, params.credentialId),
         eq(credential.workspaceId, params.workspaceId),
-        ne(credential.type, 'managed_oauth')
+        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
       )
     )
     .limit(1)
@@ -321,7 +330,7 @@ export async function findWorkspaceCredentialLookup(params: {
       and(
         eq(credential.id, params.credentialId),
         eq(credential.workspaceId, params.workspaceId),
-        ne(credential.type, 'managed_oauth')
+        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
       )
     )
     .limit(1)
@@ -334,7 +343,7 @@ export async function findWorkspaceCredentialLookup(params: {
       and(
         eq(credential.accountId, params.credentialId),
         eq(credential.workspaceId, params.workspaceId),
-        ne(credential.type, 'managed_oauth')
+        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
       )
     )
     .limit(1)
@@ -348,7 +357,12 @@ export async function getCredentialById(credentialId: string): Promise<Credentia
   const [row] = await db
     .select()
     .from(credential)
-    .where(and(eq(credential.id, credentialId), ne(credential.type, 'managed_oauth')))
+    .where(
+      and(
+        eq(credential.id, credentialId),
+        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
+      )
+    )
     .limit(1)
   return row ?? null
 }

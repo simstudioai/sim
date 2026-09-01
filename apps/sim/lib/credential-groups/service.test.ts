@@ -19,6 +19,7 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
 }))
 
 import {
+  CredentialGroupMcpServerError,
   createCredentialGroup,
   deleteCredentialGroup,
   updateCredentialGroup,
@@ -79,7 +80,7 @@ describe('Credential Group service', () => {
           },
         ],
       })
-    ).resolves.toMatchObject({ id: 'group-1' })
+    ).resolves.toMatchObject({ credentialGroup: { id: 'group-1' } })
 
     expect(mockGetPolicy).toHaveBeenCalledWith(
       expect.objectContaining({ slackBotCredentialId: 'bot-1' }),
@@ -169,15 +170,59 @@ describe('Credential Group service', () => {
     ).rejects.toThrow('Required resource policy is missing')
   })
 
+  it('rejects an OAuth MCP server already held by another Credential Group', async () => {
+    const existing = {
+      id: 'group-1',
+      workspaceId: 'workspace-1',
+      publicId: 'public-1',
+      name: 'Support accounts',
+      description: null,
+      options: [],
+      encryptedProviderConfiguration: null,
+      status: 'active' as const,
+      createdBy: 'user-1',
+      createdAt: new Date('2026-08-20T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-20T00:00:00.000Z'),
+    }
+    queueTableRows(schemaMock.credentialGroup, [existing])
+    queueTableRows(schemaMock.mcpServers, [
+      {
+        id: 'mcp-server-1',
+        credentialGroupId: 'group-2',
+        authType: 'oauth',
+        enabled: true,
+        deletedAt: null,
+      },
+    ])
+
+    await expect(
+      updateCredentialGroup('workspace-1', 'group-1', {
+        mcpServerIds: ['mcp-server-1'],
+      })
+    ).rejects.toEqual(
+      new CredentialGroupMcpServerError(
+        'MCP server mcp-server-1 is already assigned to another Credential Group',
+        'conflict'
+      )
+    )
+  })
+
   it('deletes the policy and group in one locked transaction', async () => {
     queueTableRows(schemaMock.credentialGroup, [{ id: 'group-1' }])
+    queueTableRows(schemaMock.credential, [{ id: 'mcp-cg-connection-1' }])
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ id: 'policy-1' }])
       .mockResolvedValueOnce([{ id: 'group-1' }])
 
-    await expect(deleteCredentialGroup('workspace-1', 'group-1')).resolves.toBe(true)
+    await expect(deleteCredentialGroup('workspace-1', 'group-1')).resolves.toEqual({
+      deleted: true,
+      retiredMcpConnectionIds: ['mcp-cg-connection-1'],
+    })
 
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialGroupId: null })
+    )
     expect(dbChainMockFns.delete).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
   })

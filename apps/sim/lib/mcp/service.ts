@@ -1,4 +1,7 @@
-import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import {
+  type OAuthClientProvider,
+  UnauthorizedError,
+} from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
@@ -12,7 +15,7 @@ import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
-import { mcpConnectionPool } from '@/lib/mcp/connection-pool'
+import { evictMcpServerConnections, mcpConnectionPool } from '@/lib/mcp/connection-pool'
 import { MAX_MCP_LAST_ERROR_LENGTH } from '@/lib/mcp/constants'
 import {
   isMcpDomainAllowed,
@@ -43,6 +46,7 @@ import {
   type McpTransport,
 } from '@/lib/mcp/types'
 import { MCP_CLIENT_CONSTANTS, MCP_CONSTANTS } from '@/lib/mcp/utils'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import {
   isResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceProvenanceV1,
@@ -452,6 +456,90 @@ class McpService {
       await client.connect({ signal })
       return client
     })
+  }
+
+  private async createManagedOauthClient(
+    config: McpServerConfig,
+    authProvider: OAuthClientProvider,
+    signal?: AbortSignal
+  ): Promise<McpClient> {
+    if (config.authType !== 'oauth' || !config.url) {
+      throw new Error('Managed MCP connection requires an OAuth HTTP server')
+    }
+    if (
+      [config.url, ...Object.values(config.headers ?? {})].some((value) =>
+        createEnvVarPattern().test(value)
+      )
+    ) {
+      throw new Error('Credential Group MCP servers cannot use personal environment references')
+    }
+    validateMcpDomain(config.url)
+    const resolvedIP = await validateMcpServerSsrf(config.url)
+    const client = new McpClient({
+      config,
+      securityPolicy: {
+        requireConsent: true,
+        auditLevel: 'basic',
+        maxToolExecutionsPerHour: 1000,
+        allowedOrigins: [new URL(config.url).origin],
+      },
+      authProvider,
+      resolvedIP: resolvedIP ?? undefined,
+    })
+    await client.connect({ signal })
+    return client
+  }
+
+  async discoverManagedMcpTools(
+    serverId: string,
+    workspaceId: string,
+    authProvider: OAuthClientProvider,
+    signal?: AbortSignal
+  ): Promise<McpTool[]> {
+    const config = await this.getServerConfig(serverId, workspaceId)
+    if (!config) throw new Error('Managed MCP server is unavailable')
+    return this.withServerClient(
+      { key: '', serverId, allowPool: false },
+      () => this.createManagedOauthClient(config, authProvider, signal),
+      (client) => client.listTools(signal)
+    )
+  }
+
+  async executeManagedMcpTool(params: {
+    connectionId: string
+    serverId: string
+    workspaceId: string
+    toolCall: McpToolCall
+    loadAuthProvider: () => Promise<OAuthClientProvider>
+    extraHeaders?: Record<string, string>
+    signal?: AbortSignal
+    timeoutMs?: number
+  }): Promise<McpToolResult> {
+    const config = await this.getServerConfig(params.serverId, params.workspaceId)
+    if (!config) throw new Error('Managed MCP server is unavailable')
+    const effectiveConfig = params.extraHeaders
+      ? { ...config, headers: { ...config.headers, ...params.extraHeaders } }
+      : config
+    return this.withServerClient(
+      {
+        key: this.poolKey(params.connectionId, params.workspaceId, params.connectionId),
+        serverId: params.connectionId,
+        allowPool: !params.extraHeaders,
+      },
+      () =>
+        withMcpOauthRefreshLock(params.connectionId, async () =>
+          this.createManagedOauthClient(
+            effectiveConfig,
+            await params.loadAuthProvider(),
+            params.signal
+          )
+        ),
+      (client) =>
+        client.callTool(params.toolCall, {
+          signal: params.signal,
+          timeoutMs: params.timeoutMs,
+        })
+    )
   }
 
   /** Auth-scoped pool key: a server's resolved credentials depend on the (user, workspace) env. */
@@ -1265,7 +1353,7 @@ class McpService {
 
   /** Evict a single server's warm pooled connections (all users) — call on config change/delete. */
   async evictServerConnections(serverId: string, reason: string): Promise<void> {
-    await mcpConnectionPool?.evictServer(serverId, reason)
+    await evictMcpServerConnections(serverId, reason)
   }
 }
 

@@ -14,6 +14,7 @@ import {
   loadCredentialGroupInviterIdentity,
   resendCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
+import { mcpService } from '@/lib/mcp/service'
 
 interface CredentialGroupEnrollmentSettingsInput {
   assertedWorkspaceId: string
@@ -122,12 +123,11 @@ export const deleteCredentialGroupEnrollmentSettings = defineAuthorizedWorkspace
   async execute({ input, context }) {
     await requireCredentialGroupSettingsAvailable(context.workspaceId)
     try {
-      const credentialGroupEnrollment = await deleteCredentialGroupEnrollment(
+      return await deleteCredentialGroupEnrollment(
         context.workspaceId,
         context.credentialGroupId,
         input.enrollmentId
       )
-      return { credentialGroupEnrollment }
     } catch (error) {
       normalizeEnrollmentError(error)
     }
@@ -140,4 +140,10 @@ export const deleteCredentialGroupEnrollmentSettings = defineAuthorizedWorkspace
     description: `Deleted ${result.credentialGroupEnrollment.email} from the Credential Group`,
     metadata: { enrollmentId: result.credentialGroupEnrollment.id },
   }),
+  afterSuccess: ({ result }) =>
+    Promise.all(
+      result.retiredMcpConnectionIds.map((connectionId) =>
+        mcpService.evictServerConnections(connectionId, 'credential_group_enrollment_deleted')
+      )
+    ).then(() => undefined),
 })

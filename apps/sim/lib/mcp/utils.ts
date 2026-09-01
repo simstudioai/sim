@@ -1,4 +1,5 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import { generateShortId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import {
@@ -23,6 +24,15 @@ export const MCP_CONSTANTS = {
  * These should be preserved when cleaning up params during schema updates.
  */
 export const MCP_TOOL_CORE_PARAMS = new Set(['serverId', 'serverUrl', 'toolName', 'serverName'])
+
+export const MANAGED_MCP_CONNECTION_PREFIX = 'mcp-cg-'
+const MANAGED_MCP_RANDOM_ID_LENGTH = 21
+const MANAGED_MCP_CONNECTION_ID_LENGTH =
+  MANAGED_MCP_CONNECTION_PREFIX.length + MANAGED_MCP_RANDOM_ID_LENGTH
+
+export function generateManagedMcpConnectionId(): string {
+  return `${MANAGED_MCP_CONNECTION_PREFIX}${generateShortId(MANAGED_MCP_RANDOM_ID_LENGTH)}`
+}
 
 /**
  * Sanitizes a string by removing invisible Unicode characters that cause HTTP header errors.
@@ -218,6 +228,29 @@ export function parseMcpToolId(toolId: string): { serverId: string; toolName: st
   const toolName = parts.slice(2).join('-')
 
   return { serverId, toolName }
+}
+
+export type ParsedMcpToolTarget =
+  | { kind: 'shared_server'; serverId: string; toolName: string }
+  | { kind: 'managed_connection'; credentialId: string; toolName: string }
+
+export function parseMcpToolTarget(toolId: string): ParsedMcpToolTarget {
+  if (toolId.startsWith(MANAGED_MCP_CONNECTION_PREFIX)) {
+    if (
+      toolId.length <= MANAGED_MCP_CONNECTION_ID_LENGTH ||
+      toolId[MANAGED_MCP_CONNECTION_ID_LENGTH] !== '-'
+    ) {
+      throw new Error(
+        `Invalid managed MCP tool ID format: ${toolId}. Expected: mcp-cg-connectionId-toolName`
+      )
+    }
+    const credentialId = toolId.slice(0, MANAGED_MCP_CONNECTION_ID_LENGTH)
+    const toolName = toolId.slice(MANAGED_MCP_CONNECTION_ID_LENGTH + 1)
+    if (!toolName) throw new Error(`Invalid managed MCP tool ID format: ${toolId}`)
+    return { kind: 'managed_connection', credentialId, toolName }
+  }
+  const { serverId, toolName } = parseMcpToolId(toolId)
+  return { kind: 'shared_server', serverId, toolName }
 }
 
 /**

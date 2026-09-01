@@ -14,7 +14,7 @@ import {
 import {
   CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT,
-} from '@/lib/credential-groups/workflow-access-limits'
+} from '@/lib/credential-groups/limits'
 
 describe('credential group contracts', () => {
   it('describes the shared managed OAuth callback as a redirect', () => {
@@ -204,9 +204,13 @@ describe('credential group contracts', () => {
       createdAt: '2026-08-11T12:00:00.000Z',
       updatedAt: '2026-08-11T12:05:00.000Z',
       connections: [{ provider: 'gmail', status: 'active', count: 2 }],
+      mcpConnections: [{ mcpServerId: 'mcp-server-1', name: 'Fireflies', status: 'active' }],
     })
 
     expect(result.connections).toEqual([{ provider: 'gmail', status: 'active', count: 2 }])
+    expect(result.mcpConnections).toEqual([
+      { mcpServerId: 'mcp-server-1', name: 'Fireflies', status: 'active' },
+    ])
   })
 
   it('accepts a bounded unique workflow access selection', () => {

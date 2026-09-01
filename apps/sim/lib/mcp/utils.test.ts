@@ -9,10 +9,12 @@ import {
 import {
   categorizeError,
   createMcpToolId,
+  generateManagedMcpConnectionId,
   generateMcpServerId,
   MCP_CLIENT_CONSTANTS,
   MCP_CONSTANTS,
   parseMcpToolId,
+  parseMcpToolTarget,
   validateRequiredFields,
   validateStringParam,
 } from './utils'
@@ -429,5 +431,31 @@ describe('parseMcpToolId', () => {
     const result = parseMcpToolId('mcp-abc-tool-with-many-parts')
     expect(result.serverId).toBe('mcp-abc')
     expect(result.toolName).toBe('tool-with-many-parts')
+  })
+})
+
+describe('parseMcpToolTarget', () => {
+  it('preserves a managed connection ID even when its random segment contains hyphens', () => {
+    const credentialId = generateManagedMcpConnectionId()
+    const result = parseMcpToolTarget(`${credentialId}-fireflies-search-transcripts`)
+
+    expect(result).toEqual({
+      kind: 'managed_connection',
+      credentialId,
+      toolName: 'fireflies-search-transcripts',
+    })
+  })
+
+  it('keeps existing shared MCP tool IDs unchanged', () => {
+    expect(parseMcpToolTarget('mcp-12345678-search-transcripts')).toEqual({
+      kind: 'shared_server',
+      serverId: 'mcp-12345678',
+      toolName: 'search-transcripts',
+    })
+  })
+
+  it('rejects a managed connection ID without a tool name', () => {
+    const credentialId = generateManagedMcpConnectionId()
+    expect(() => parseMcpToolTarget(credentialId)).toThrow('Invalid managed MCP tool ID format')
   })
 })

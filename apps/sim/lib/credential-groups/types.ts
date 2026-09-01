@@ -20,13 +20,21 @@ export interface CreateCredentialGroupInput {
   name: string
   description?: string
   options: CredentialGroupOptionInput[]
+  mcpServerIds?: string[]
 }
 
 export interface UpdateCredentialGroupInput {
   name?: string
   description?: string | null
   options?: CredentialGroupOptionUpdateInput[]
+  mcpServerIds?: string[]
   status?: 'active' | 'disabled'
+}
+
+export interface CredentialGroupMcpServer {
+  id: string
+  name: string
+  description: string | null
 }
 
 interface CredentialGroupOptionBase {
@@ -53,6 +61,7 @@ export interface CredentialGroupRecord {
   name: string
   description: string | null
   options: CredentialGroupOption[]
+  mcpServers: CredentialGroupMcpServer[]
   status: 'active' | 'disabled'
   createdAt: string
   updatedAt: string
@@ -86,8 +95,15 @@ export interface CredentialGroupEnrollmentConnection {
   count: number
 }
 
+export interface CredentialGroupEnrollmentMcpConnection {
+  mcpServerId: string
+  name: string
+  status: 'active' | 'needs_reauth' | 'revoked'
+}
+
 export interface CredentialGroupEnrollmentDetail extends CredentialGroupEnrollmentRecord {
   connections: CredentialGroupEnrollmentConnection[]
+  mcpConnections: CredentialGroupEnrollmentMcpConnection[]
 }
 
 export interface InviteCredentialGroupEnrollmentsInput {

@@ -18,6 +18,7 @@ vi.mock('@/lib/api/client/request', () => ({
 import {
   discoverMcpToolsContract,
   getAllowedMcpDomainsContract,
+  listManagedMcpCatalogContract,
   listMcpServersContract,
   listStoredMcpToolsContract,
   type McpServer,
@@ -103,6 +104,7 @@ function mockServers(servers: McpServer[]) {
     if (contract === discoverMcpToolsContract) {
       return { success: true, data: { tools: [], totalCount: 0, byServer: {} } }
     }
+    if (contract === listManagedMcpCatalogContract) return { servers: [], tools: [] }
     throw new Error('Unexpected MCP request')
   })
 }
@@ -141,13 +143,54 @@ describe('useMcpToolsQuery', () => {
     const { unmount } = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
     await flush()
 
-    expect(mockRequestJson).toHaveBeenCalledTimes(1)
+    expect(mockRequestJson).toHaveBeenCalledTimes(2)
     expect(mockRequestJson).toHaveBeenCalledWith(
       listMcpServersContract,
       expect.objectContaining({ query: { workspaceId: WORKSPACE_ID } })
     )
 
     unmount()
+  })
+
+  it('includes managed Credential Group connection snapshots without upstream discovery', async () => {
+    const managedServer = server('mcp-cg-123456789012345678901', {
+      name: 'Fireflies — alex@example.com',
+      authType: 'oauth',
+      url: undefined,
+    })
+    mockRequestJson.mockImplementation(async (contract) => {
+      if (contract === listMcpServersContract) {
+        return { success: true, data: { servers: [] } }
+      }
+      if (contract === listManagedMcpCatalogContract) {
+        return {
+          servers: [managedServer],
+          tools: [
+            {
+              name: 'search_transcripts',
+              description: 'Search transcripts',
+              inputSchema: { type: 'object', properties: {} },
+              serverId: managedServer.id,
+              serverName: managedServer.name,
+            },
+          ],
+        }
+      }
+      throw new Error('Managed MCP snapshots must not trigger discovery')
+    })
+
+    const hook = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
+    await flush()
+
+    expect(hook.getResult().data).toEqual([
+      expect.objectContaining({
+        name: 'search_transcripts',
+        serverId: managedServer.id,
+      }),
+    ])
+    expect(mockRequestJson).toHaveBeenCalledTimes(2)
+
+    hook.unmount()
   })
 
   it('defers detail and form metadata queries while their surfaces are closed', async () => {

@@ -9,6 +9,12 @@ import { mcpOauthCallbackContract } from '@/lib/api/contracts/mcp'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
+import { completePublicCredentialGroupMcpOAuth } from '@/lib/credential-groups/application/public-enrollment'
+import {
+  consumeCredentialGroupMcpOAuthAttempt,
+  isCredentialGroupMcpOAuthState,
+} from '@/lib/credential-groups/mcp-oauth-state'
 import {
   assertSafeOauthServerUrl,
   clearState,
@@ -21,6 +27,7 @@ import {
   SimMcpOauthProvider,
 } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
+import { createCredentialGroupEnrollmentRedirect } from '@/app/api/credential-groups/enrollment-redirect'
 
 const logger = createLogger('McpOauthCallbackAPI')
 const timedStep = makeTimedStep(logger)
@@ -70,12 +77,56 @@ function htmlClose(
   })
 }
 
+async function completeManagedMcpCallback(params: {
+  request: NextRequest
+  state: string
+  code?: string
+  error?: string
+}): Promise<NextResponse> {
+  const attempt = await consumeCredentialGroupMcpOAuthAttempt(params.state)
+  if (!attempt) {
+    return htmlClose('Invalid or expired authorization state.', false, 'invalid_state')
+  }
+  if (params.error) {
+    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: 'denied' })
+  }
+  if (!params.code) {
+    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
+      oauth: 'failed',
+    })
+  }
+  try {
+    const principal = await authenticateCredentialGroupEnrollment(attempt.invitationToken)
+    if (!principal) {
+      return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
+        oauth: 'unavailable',
+      })
+    }
+    const result = await completePublicCredentialGroupMcpOAuth.execute({
+      principal,
+      input: { attempt, code: params.code },
+      request: params.request,
+    })
+    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
+      mcp: 'connected',
+      mcpServerId: result.mcpServerId,
+    })
+  } catch (error) {
+    logger.error('Managed MCP OAuth callback failed', error)
+    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: 'failed' })
+  }
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const parsed = await parseRequest(mcpOauthCallbackContract, request, {})
   if (!parsed.success) {
     return htmlClose('Malformed authorization callback.', false, 'missing_params')
   }
   const { state, code, error: errorParam } = parsed.data.query
+
+  if (state && isCredentialGroupMcpOAuthState(state)) {
+    return completeManagedMcpCallback({ request, state, code, error: errorParam })
+  }
 
   // Echo the flow's `state` on every result so the opener can correlate a broadcast back to
   // the exact flow it started — including failures (e.g. `invalid_state`) that never resolve

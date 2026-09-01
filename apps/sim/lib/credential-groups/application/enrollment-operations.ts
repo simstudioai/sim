@@ -34,6 +34,18 @@ export const credentialGroupEnrollmentOperations = {
     principalKind: 'credential_group_enrollment',
   }),
   // permission-group-exempt: the enrollment principal is a one-time credential-connect token, not a workspace member, so no permission group governs it
+  startMcpOAuth: defineCredentialGroupEnrollmentOperation({
+    id: 'credential_groups.enrollment.mcp_oauth.start',
+    capability: 'none',
+    principalKind: 'credential_group_enrollment',
+  }),
+  // permission-group-exempt: the enrollment principal is a one-time credential-connect token, not a workspace member, so no permission group governs it
+  completeMcpOAuth: defineCredentialGroupEnrollmentOperation({
+    id: 'credential_groups.enrollment.mcp_oauth.complete',
+    capability: 'none',
+    principalKind: 'credential_group_enrollment',
+  }),
+  // permission-group-exempt: the enrollment principal is a one-time credential-connect token, not a workspace member, so no permission group governs it
   complete: defineCredentialGroupEnrollmentOperation({
     id: 'credential_groups.enrollment.complete',
     capability: 'none',

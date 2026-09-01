@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipInput, ChipTag, ChipTextarea, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { McpIcon } from '@/components/icons'
 import type { WorkspaceCredential } from '@/lib/api/contracts'
 import type {
   CredentialGroup,
@@ -29,6 +30,7 @@ import { SettingRow } from '@/ee/components/setting-row'
 import { SlackManagedUsersModal } from '@/ee/credential-groups/components/slack-managed-users-modal'
 import { useCredentialGroups, useUpdateCredentialGroup } from '@/hooks/queries/credential-groups'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import { useMcpServers } from '@/hooks/queries/mcp'
 
 /** Stable identity so a pending/errored credentials query cannot churn the modal's `bots` prop. */
 const EMPTY_SLACK_BOTS: WorkspaceCredential[] = []
@@ -77,6 +79,7 @@ export function CredentialGroupDetails({
    */
   const credentialGroups = useCredentialGroups(workspaceId)
   const availableProviders = credentialGroups.data?.availableProviders
+  const mcpServers = useMcpServers(workspaceId)
   const slackBots = useWorkspaceCredentials({
     workspaceId,
     type: 'service_account',
@@ -102,6 +105,19 @@ export function CredentialGroupDetails({
     } catch (error) {
       toast.error(getErrorMessage(error, 'Could not update account collection'))
       return false
+    }
+  }
+
+  const updateMcpServers = async (mcpServerIds: string[], successMessage: string) => {
+    try {
+      await updateGroup.mutateAsync({
+        workspaceId,
+        groupId: credentialGroup.id,
+        body: { mcpServerIds },
+      })
+      toast.success(successMessage)
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Could not update MCP servers'))
     }
   }
 
@@ -160,6 +176,23 @@ export function CredentialGroupDetails({
     }
     if (!providerQuery) return true
     return getCredentialGroupProviderService(provider).name.toLowerCase().includes(providerQuery)
+  })
+  const linkedMcpServerIds = new Set(credentialGroup.mcpServers.map((server) => server.id))
+  const mcpOwnershipReady = credentialGroups.isSuccess
+  const mcpServerOwnerById = new Map(
+    credentialGroups.data?.credentialGroups.flatMap((group) =>
+      group.mcpServers.map((server) => [server.id, group] as const)
+    ) ?? []
+  )
+  const shownMcpServers = (mcpServers.data ?? []).filter((server) => {
+    const linked = linkedMcpServerIds.has(server.id)
+    if (!linked && (server.authType !== 'oauth' || !server.enabled || server.deletedAt))
+      return false
+    if (!providerQuery) return true
+    return (
+      server.name.toLowerCase().includes(providerQuery) ||
+      server.description?.toLowerCase().includes(providerQuery)
+    )
   })
 
   return (
@@ -276,6 +309,64 @@ export function CredentialGroupDetails({
                       {support.configuration === 'oauth' ? 'Add' : 'Set up'}
                     </Chip>
                   )
+                }
+              />
+            )
+          })}
+        </div>
+      </SettingsSection>
+
+      <SettingsSection label='MCP servers people can connect'>
+        {mcpServers.isPending ? (
+          <SettingsEmptyState variant='inline'>Loading OAuth MCP servers...</SettingsEmptyState>
+        ) : shownMcpServers.length === 0 ? (
+          <SettingsEmptyState variant='inline'>
+            {providerSearch.trim()
+              ? `No OAuth MCP servers found matching "${providerSearch}"`
+              : 'No OAuth MCP servers are available. Add one in MCP settings first.'}
+          </SettingsEmptyState>
+        ) : null}
+        <div className={RESOURCE_LIST_STACK}>
+          {shownMcpServers.map((server) => {
+            const linked = linkedMcpServerIds.has(server.id)
+            const owner = mcpServerOwnerById.get(server.id)
+            const assignedElsewhere = owner && owner.id !== credentialGroup.id
+            return (
+              <SettingsResourceRow
+                key={server.id}
+                icon={<McpIcon aria-hidden />}
+                title={server.name}
+                description={
+                  assignedElsewhere
+                    ? `Used by ${owner.name}`
+                    : server.description || 'Each invited person connects their own OAuth account'
+                }
+                badge={
+                  linked ? (
+                    <ChipTag variant='gray'>Added</ChipTag>
+                  ) : assignedElsewhere ? (
+                    <ChipTag variant='gray'>Unavailable</ChipTag>
+                  ) : undefined
+                }
+                trailing={
+                  <Chip
+                    disabled={isUpdating || !mcpOwnershipReady || Boolean(assignedElsewhere)}
+                    onClick={() =>
+                      void updateMcpServers(
+                        linked
+                          ? credentialGroup.mcpServers
+                              .filter((candidate) => candidate.id !== server.id)
+                              .map((candidate) => candidate.id)
+                          : [
+                              ...credentialGroup.mcpServers.map((candidate) => candidate.id),
+                              server.id,
+                            ],
+                        linked ? `${server.name} removed` : `${server.name} added`
+                      )
+                    }
+                  >
+                    {linked ? 'Remove' : 'Add'}
+                  </Chip>
                 }
               />
             )

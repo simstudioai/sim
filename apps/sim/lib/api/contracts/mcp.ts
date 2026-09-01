@@ -147,6 +147,13 @@ export const mcpServerSchema = z
   .passthrough()
 export type McpServer = z.output<typeof mcpServerSchema>
 
+export const managedMcpCatalogSchema = z.object({
+  servers: z.array(mcpServerSchema).max(500),
+  tools: z.array(mcpToolSchema).max(500_000),
+})
+
+export type ManagedMcpCatalog = z.output<typeof managedMcpCatalogSchema>
+
 export const mcpWorkspaceQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
@@ -315,6 +322,16 @@ export const listMcpServersContract = defineRouteContract({
         servers: z.array(mcpServerSchema),
       })
     ),
+  },
+})
+
+export const listManagedMcpCatalogContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mcp/managed-connections',
+  query: mcpWorkspaceQuerySchema,
+  response: {
+    mode: 'json',
+    schema: managedMcpCatalogSchema,
   },
 })
 export type ListMcpServersResponse = ContractJsonResponse<typeof listMcpServersContract>

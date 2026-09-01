@@ -140,6 +140,7 @@ describe('Credential Group Settings application operations', () => {
     expect(mocks.create).toHaveBeenCalledWith('workspace-1', 'admin-1', {
       name: 'Support',
       options: [],
+      mcpServerIds: [],
     })
   })
 

@@ -42,7 +42,7 @@ function hasType(value: unknown): value is SchemaProperty {
   return typeof value === 'object' && value !== null && 'type' in value
 }
 
-function coerceToolArguments(
+export function coerceToolArguments(
   tool: McpTool,
   input: Record<string, unknown>
 ): Record<string, unknown> {
@@ -88,7 +88,7 @@ function coerceToolArguments(
   return result
 }
 
-function validateToolArguments(tool: McpTool, args: Record<string, unknown>): void {
+export function validateToolArguments(tool: McpTool, args: Record<string, unknown>): void {
   const schema = tool.inputSchema
   if (!schema) return
 
@@ -115,7 +115,7 @@ function validateToolArguments(tool: McpTool, args: Record<string, unknown>): vo
   }
 }
 
-function transformToolResult(result: McpToolResult): ExecuteMcpToolResult {
+export function transformToolResult(result: McpToolResult): ExecuteMcpToolResult {
   if (!result.isError) return { success: true, output: result }
   const firstContent = Array.isArray(result.content) ? result.content[0] : undefined
   const errorText =

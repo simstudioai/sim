@@ -2,14 +2,15 @@ import { z } from 'zod'
 import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
-  CREDENTIAL_GROUP_PROVIDER_IDS,
-  CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
-} from '@/lib/credential-groups/providers'
-import {
+  CREDENTIAL_GROUP_MCP_SERVER_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_NAME_MAX_LENGTH,
-} from '@/lib/credential-groups/workflow-access-limits'
+} from '@/lib/credential-groups/limits'
+import {
+  CREDENTIAL_GROUP_PROVIDER_IDS,
+  CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
+} from '@/lib/credential-groups/providers'
 
 export const credentialGroupProviderSchema = z.enum(CREDENTIAL_GROUP_PROVIDER_IDS)
 export const credentialGroupStatusSchema = z.enum(['active', 'disabled'])
@@ -71,12 +72,19 @@ export const credentialGroupOptionUpdateInputSchema = z.discriminatedUnion('prov
   slackCredentialGroupOptionInputSchema.extend({ id: z.string().min(1).max(128).optional() }),
 ])
 
+export const credentialGroupMcpServerSchema = z.object({
+  id: z.string().min(1).max(128),
+  name: z.string().min(1).max(255),
+  description: z.string().nullable(),
+})
+
 export const credentialGroupSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   name: z.string(),
   description: z.string().nullable(),
   options: z.array(credentialGroupOptionSchema).max(CREDENTIAL_GROUP_PROVIDER_IDS.length),
+  mcpServers: z.array(credentialGroupMcpServerSchema).max(CREDENTIAL_GROUP_MCP_SERVER_LIMIT),
   status: credentialGroupStatusSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -85,6 +93,7 @@ export const credentialGroupSchema = z.object({
 export type CredentialGroup = z.output<typeof credentialGroupSchema>
 export type CredentialGroupOption = z.output<typeof credentialGroupOptionSchema>
 export type CredentialGroupOptionInput = z.input<typeof credentialGroupOptionInputSchema>
+export type CredentialGroupMcpServer = z.output<typeof credentialGroupMcpServerSchema>
 
 export const credentialGroupEnrollmentSchema = z.object({
   id: z.string(),
@@ -109,16 +118,48 @@ export const credentialGroupEnrollmentConnectionSchema = z.object({
   count: z.number().int().positive(),
 })
 
+export const credentialGroupEnrollmentMcpConnectionSchema = z.object({
+  mcpServerId: z.string().min(1).max(128),
+  name: z.string().min(1).max(255),
+  status: z.enum(['active', 'needs_reauth', 'revoked']),
+})
+
 export const credentialGroupEnrollmentDetailSchema = credentialGroupEnrollmentSchema.extend({
   connections: z
     .array(credentialGroupEnrollmentConnectionSchema)
     .max(CREDENTIAL_GROUP_PROVIDER_IDS.length * 3),
+  mcpConnections: z
+    .array(credentialGroupEnrollmentMcpConnectionSchema)
+    .max(CREDENTIAL_GROUP_MCP_SERVER_LIMIT),
 })
 
 export type CredentialGroupEnrollmentConnection = z.output<
   typeof credentialGroupEnrollmentConnectionSchema
 >
+export type CredentialGroupEnrollmentMcpConnection = z.output<
+  typeof credentialGroupEnrollmentMcpConnectionSchema
+>
 export type CredentialGroupEnrollmentDetail = z.output<typeof credentialGroupEnrollmentDetailSchema>
+
+const credentialGroupMcpServerIdsSchema = z
+  .array(z.string().min(1, 'MCP server ID is required').max(128))
+  .max(
+    CREDENTIAL_GROUP_MCP_SERVER_LIMIT,
+    `Select at most ${CREDENTIAL_GROUP_MCP_SERVER_LIMIT} MCP servers`
+  )
+  .superRefine((serverIds, ctx) => {
+    const seen = new Set<string>()
+    for (const [index, serverId] of serverIds.entries()) {
+      if (seen.has(serverId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [index],
+          message: 'MCP server selections must be unique',
+        })
+      }
+      seen.add(serverId)
+    }
+  })
 
 export const credentialGroupAccessPolicySchema = z
   .object({
@@ -194,6 +235,11 @@ export const publicCredentialGroupEnrollmentParamsSchema = z.object({
 export const startCredentialGroupOAuthParamsSchema =
   publicCredentialGroupEnrollmentParamsSchema.extend({
     optionId: z.string().min(1, 'Credential option ID is required').max(128),
+  })
+
+export const startCredentialGroupMcpOAuthParamsSchema =
+  publicCredentialGroupEnrollmentParamsSchema.extend({
+    mcpServerId: z.string().min(1, 'MCP server ID is required').max(128),
   })
 
 export const credentialGroupOAuthCallbackQuerySchema = z
@@ -272,6 +318,7 @@ export const createCredentialGroupBodySchema = z
     name: z.string().trim().min(1, 'Name is required').max(100),
     description: z.string().trim().max(500).optional(),
     options: z.array(credentialGroupOptionInputSchema).max(CREDENTIAL_GROUP_PROVIDER_IDS.length),
+    mcpServerIds: credentialGroupMcpServerIdsSchema.default([]),
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -315,6 +362,7 @@ export const updateCredentialGroupBodySchema = z
       .array(credentialGroupOptionUpdateInputSchema)
       .max(CREDENTIAL_GROUP_PROVIDER_IDS.length)
       .optional(),
+    mcpServerIds: credentialGroupMcpServerIdsSchema.optional(),
     status: credentialGroupStatusSchema.optional(),
   })
   .strict()
@@ -498,6 +546,13 @@ export const startCredentialGroupOAuthContract = defineRouteContract({
   method: 'GET',
   path: '/api/credential-groups/enroll/[token]/oauth/[optionId]',
   params: startCredentialGroupOAuthParamsSchema,
+  response: { mode: 'empty' },
+})
+
+export const startCredentialGroupMcpOAuthContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/credential-groups/enroll/[token]/mcp/[mcpServerId]',
+  params: startCredentialGroupMcpOAuthParamsSchema,
   response: { mode: 'empty' },
 })
 

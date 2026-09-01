@@ -6,10 +6,16 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialGroupEnrollmentOperations } from '@/lib/credential-groups/application/enrollment-operations'
 import {
   completeAuthorizedCredentialGroupEnrollment,
+  getAuthorizedCredentialGroupMcpOAuthContext,
   getAuthorizedCredentialGroupOAuthContext,
   getAuthorizedPublicCredentialGroupEnrollment,
   type PublicCredentialGroupEnrollmentIdentity,
 } from '@/lib/credential-groups/enrollments'
+import {
+  completeCredentialGroupMcpOAuth,
+  startCredentialGroupMcpOAuth,
+} from '@/lib/credential-groups/mcp-oauth'
+import type { CredentialGroupMcpOAuthAttempt } from '@/lib/credential-groups/mcp-oauth-state'
 import {
   completeCredentialGroupOAuth,
   startCredentialGroupOAuth,
@@ -186,3 +192,60 @@ export const completePublicCredentialGroupOAuth = defineAuthorizedCredentialGrou
     return { connectedOptionId: context.oauth.option.id }
   },
 })
+
+interface PublicCredentialGroupMcpOAuthInput {
+  invitationToken: string
+  mcpServerId: string
+}
+
+interface PublicCredentialGroupMcpOAuthContext extends PublicCredentialGroupEnrollmentIdentity {
+  oauth: NonNullable<Awaited<ReturnType<typeof getAuthorizedCredentialGroupMcpOAuthContext>>>
+}
+
+async function resolvePublicMcpOAuthContext(
+  principal: CredentialGroupEnrollmentPrincipal,
+  mcpServerId: string
+): Promise<PublicCredentialGroupMcpOAuthContext> {
+  const identity = identityFromPrincipal(principal)
+  const oauth = await getAuthorizedCredentialGroupMcpOAuthContext(identity, mcpServerId)
+  if (!oauth) throw new OrchestrationError('not_found', 'Invitation is invalid or expired')
+  return { ...identity, oauth }
+}
+
+export const startPublicCredentialGroupMcpOAuth = defineAuthorizedCredentialGroupEnrollmentUseCase({
+  operation: credentialGroupEnrollmentOperations.startMcpOAuth,
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: CredentialGroupEnrollmentPrincipal
+    input: PublicCredentialGroupMcpOAuthInput
+  }) => resolvePublicMcpOAuthContext(principal, input.mcpServerId),
+  async execute({ principal, input, context }) {
+    requireInvitationToken(principal, input.invitationToken)
+    return {
+      authorizationUrl: await startCredentialGroupMcpOAuth(context.oauth, input.invitationToken),
+    }
+  },
+})
+
+interface CompletePublicCredentialGroupMcpOAuthInput {
+  attempt: CredentialGroupMcpOAuthAttempt
+  code: string
+}
+
+export const completePublicCredentialGroupMcpOAuth =
+  defineAuthorizedCredentialGroupEnrollmentUseCase({
+    operation: credentialGroupEnrollmentOperations.completeMcpOAuth,
+    resolveContext: ({
+      principal,
+      input,
+    }: {
+      principal: CredentialGroupEnrollmentPrincipal
+      input: CompletePublicCredentialGroupMcpOAuthInput
+    }) => resolvePublicMcpOAuthContext(principal, input.attempt.mcpServerId),
+    async execute({ principal, input, context }) {
+      requireInvitationToken(principal, input.attempt.invitationToken)
+      return completeCredentialGroupMcpOAuth(context.oauth, input.attempt.codeVerifier, input.code)
+    },
+  })

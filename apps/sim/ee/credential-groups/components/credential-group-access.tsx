@@ -5,7 +5,7 @@ import { Chip, toast } from '@sim/emcn'
 import { Workflow } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { CredentialGroupAccessResponse } from '@/lib/api/contracts/credential-groups'
-import { CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT } from '@/lib/credential-groups/workflow-access-limits'
+import { CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT } from '@/lib/credential-groups/limits'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {

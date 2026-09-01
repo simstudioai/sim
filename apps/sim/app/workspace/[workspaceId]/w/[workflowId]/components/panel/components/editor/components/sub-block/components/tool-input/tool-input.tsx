@@ -69,7 +69,7 @@ import {
   useAllowedMcpDomains,
   useCreateMcpServer,
   useForceRefreshMcpTools,
-  useMcpServers,
+  useMcpToolServers,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -455,7 +455,7 @@ export const ToolInput = memo(function ToolInput({
     return names
   }, [mcpTools])
 
-  const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
+  const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpToolServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
   const forceRefreshMcpTools = useForceRefreshMcpTools().mutate
   const { navigateToSettings } = useSettingsNavigation()

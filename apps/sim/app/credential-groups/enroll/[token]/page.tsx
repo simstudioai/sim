@@ -2,6 +2,7 @@ import { type ReactNode, Suspense } from 'react'
 import { Chip } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
+import { McpIcon } from '@/components/icons'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
 import { readPublicCredentialGroupEnrollment } from '@/lib/credential-groups/application/public-enrollment'
@@ -106,6 +107,10 @@ export default async function CredentialGroupEnrollmentPage({
   const resolvedSearchParams = await searchParams
   const oauthStatus = getSearchParam(resolvedSearchParams, 'oauth')
   const connectedOptionId = getSearchParam(resolvedSearchParams, 'connected')
+  const connectedMcpServerId =
+    getSearchParam(resolvedSearchParams, 'mcp') === 'connected'
+      ? getSearchParam(resolvedSearchParams, 'mcpServerId')
+      : undefined
   const oauthMessage =
     oauthStatus && oauthStatus in OAUTH_MESSAGES
       ? OAUTH_MESSAGES[oauthStatus as keyof typeof OAUTH_MESSAGES]
@@ -114,14 +119,22 @@ export default async function CredentialGroupEnrollmentPage({
   const connectedOption = connectedOptionId
     ? activeOptions.find((option) => option.id === connectedOptionId)
     : undefined
-  const notification = connectedOptionId
+  const connectedMcpServer = connectedMcpServerId
+    ? enrollment.mcpServers.find((server) => server.id === connectedMcpServerId)
+    : undefined
+  const notification = connectedMcpServerId
     ? {
-        message: `${connectedOption ? getCredentialGroupProviderService(connectedOption.provider).name : 'Account'} connected successfully.`,
+        message: `${connectedMcpServer?.name ?? 'MCP server'} connected successfully.`,
         variant: 'success' as const,
       }
-    : oauthMessage
-      ? { message: oauthMessage, variant: 'error' as const }
-      : null
+    : connectedOptionId
+      ? {
+          message: `${connectedOption ? getCredentialGroupProviderService(connectedOption.provider).name : 'Account'} connected successfully.`,
+          variant: 'success' as const,
+        }
+      : oauthMessage
+        ? { message: oauthMessage, variant: 'error' as const }
+        : null
   return (
     <PageShell>
       {notification && (
@@ -168,6 +181,26 @@ export default async function CredentialGroupEnrollmentPage({
                 />
               )
             })}
+            {enrollment.mcpServers.map((server) => (
+              <SettingsResourceRow
+                key={server.id}
+                icon={<McpIcon />}
+                title={server.name}
+                description={
+                  server.connection?.status === 'connected'
+                    ? 'Connected'
+                    : server.connection
+                      ? 'Reconnect required'
+                      : server.description || 'Not connected'
+                }
+                trailing={
+                  <OAuthConnectLink
+                    href={`/api/credential-groups/enroll/${token}/mcp/${server.id}`}
+                    reconnect={Boolean(server.connection)}
+                  />
+                }
+              />
+            ))}
           </div>
         </SettingsSection>
         <form

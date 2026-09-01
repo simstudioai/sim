@@ -17,6 +17,7 @@ import {
   updateCredentialGroupContract,
 } from '@/lib/api/contracts/credential-groups'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
+import { mcpKeys } from '@/hooks/queries/mcp'
 import {
   CREDENTIAL_GROUP_ACCESS_STALE_TIME,
   CREDENTIAL_GROUP_DETAIL_STALE_TIME,
@@ -145,6 +146,9 @@ export function useCreateCredentialGroup() {
         queryClient.invalidateQueries({
           queryKey: credentialGroupKeys.list(variables.workspaceId),
         }),
+        queryClient.invalidateQueries({
+          queryKey: mcpKeys.managedCatalogList(variables.workspaceId),
+        }),
         invalidateSelectorQueries(queryClient),
       ]),
   })
@@ -164,6 +168,9 @@ export function useDeleteCredentialGroup() {
       return Promise.all([
         queryClient.invalidateQueries({
           queryKey: credentialGroupKeys.list(variables.workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: mcpKeys.managedCatalogList(variables.workspaceId),
         }),
         invalidateSelectorQueries(queryClient),
       ])
@@ -197,6 +204,9 @@ export function useUpdateCredentialGroup() {
         }),
         queryClient.invalidateQueries({
           queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: mcpKeys.managedCatalogList(variables.workspaceId),
         }),
         invalidateSelectorQueries(queryClient),
       ]),
@@ -242,6 +252,9 @@ export function useInviteCredentialGroupEnrollments() {
         queryClient.invalidateQueries({
           queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
         }),
+        queryClient.invalidateQueries({
+          queryKey: mcpKeys.managedCatalogList(variables.workspaceId),
+        }),
         invalidateSelectorQueries(queryClient),
       ]),
   })
@@ -267,6 +280,9 @@ export function useResendCredentialGroupEnrollment() {
         queryClient.invalidateQueries({
           queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
         }),
+        queryClient.invalidateQueries({
+          queryKey: mcpKeys.managedCatalogList(variables.workspaceId),
+        }),
         invalidateSelectorQueries(queryClient),
       ]),
   })
@@ -291,6 +307,9 @@ export function useDeleteCredentialGroupEnrollment() {
       Promise.all([
         queryClient.invalidateQueries({
           queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: mcpKeys.managedCatalogList(variables.workspaceId),
         }),
         invalidateSelectorQueries(queryClient),
       ]),

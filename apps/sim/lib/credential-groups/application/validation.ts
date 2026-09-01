@@ -1,5 +1,6 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { CREDENTIAL_GROUP_MCP_SERVER_LIMIT } from '@/lib/credential-groups/limits'
 import {
   CREDENTIAL_GROUP_PROVIDER_IDS,
   isCredentialGroupProvider,
@@ -64,6 +65,23 @@ function normalizeOption<T extends CredentialGroupOptionInput | CredentialGroupO
   return { ...option, label: option.label.trim() }
 }
 
+function validateMcpServerIds(serverIds: string[]): string[] {
+  if (serverIds.length > CREDENTIAL_GROUP_MCP_SERVER_LIMIT) {
+    throw new OrchestrationError(
+      'validation',
+      `Select at most ${CREDENTIAL_GROUP_MCP_SERVER_LIMIT} MCP servers`
+    )
+  }
+  const normalized = serverIds.map((serverId) => serverId.trim())
+  if (normalized.some((serverId) => !serverId || serverId.length > 128)) {
+    throw new OrchestrationError('validation', 'Every MCP server ID must be valid')
+  }
+  if (new Set(normalized).size !== normalized.length) {
+    throw new OrchestrationError('validation', 'MCP server selections must be unique')
+  }
+  return normalized
+}
+
 export function validateCreateCredentialGroupInput(
   input: CreateCredentialGroupInput
 ): CreateCredentialGroupInput {
@@ -86,6 +104,7 @@ export function validateCreateCredentialGroupInput(
     name,
     ...(description ? { description } : {}),
     options: input.options.map(normalizeOption),
+    mcpServerIds: validateMcpServerIds(input.mcpServerIds ?? []),
   }
 }
 
@@ -104,10 +123,12 @@ export function validateUpdateCredentialGroupInput(
     throw new OrchestrationError('validation', 'Description must be at most 500 characters')
   }
   if (input.options) validateOptions(input.options)
+  const mcpServerIds = input.mcpServerIds ? validateMcpServerIds(input.mcpServerIds) : undefined
   return {
     ...(name ? { name } : {}),
     ...(input.description !== undefined ? { description: description || null } : {}),
     ...(input.options ? { options: input.options.map(normalizeOption) } : {}),
+    ...(mcpServerIds ? { mcpServerIds } : {}),
     ...(input.status ? { status: input.status } : {}),
   }
 }
