@@ -48,3 +48,25 @@ export function isBlockTypeAccessControlExempt(blockType: string): boolean {
   const successor = resolveAccessControlBlockType(blockType)
   return successor === blockType || successor === UNIVERSAL_ENTRY_POINT
 }
+
+/**
+ * Whether `blockType` is a row in the Access Control editor's allowlist
+ * universe — the set the editor materializes an allowlist from and compares
+ * against to collapse one back to `null`.
+ *
+ * Narrower than {@link isBlockTypeAccessControlExempt} on purpose. A superseded
+ * block must stay non-exempt at runtime (legacy `slack` reaches Slack and is
+ * judged as `slack_v2`), but it must not be an editor row: the editor renders
+ * only visible blocks, so an admin narrowing a previously-unrestricted
+ * allowlist by unchecking `slack_v2` would still write the hidden `slack` into
+ * it — and canonical resolution then reads that entry as `slack_v2` and allows
+ * the very integration the admin just denied.
+ *
+ * Viewer-independent, like the exemption: it reads the pure registry and the
+ * generated successor map, never the visibility projection, so a preview block
+ * gated for the acting admin stays in the universe and keeps its stored grant.
+ */
+export function isAccessControlAllowlistRow(blockType: string): boolean {
+  if (isBlockTypeAccessControlExempt(blockType)) return false
+  return resolveAccessControlBlockType(blockType) === blockType
+}

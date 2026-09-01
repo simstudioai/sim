@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import {
+  isAccessControlAllowlistRow,
+  isBlockTypeAccessControlExempt,
+} from '@/lib/permission-groups/block-access'
 import { getBlock } from '@/blocks/registry'
 
 const mockGetBlock = getBlock as unknown as ReturnType<typeof vi.fn>
@@ -79,5 +82,42 @@ describe('isBlockTypeAccessControlExempt', () => {
 
     expect(isBlockTypeAccessControlExempt('starter')).toBe(true)
     expect(isBlockTypeAccessControlExempt('manual_trigger')).toBe(true)
+  })
+})
+
+describe('isAccessControlAllowlistRow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  /**
+   * The bug this closes: the editor renders only visible blocks but used to
+   * materialize an allowlist from every non-exempt one. Unchecking `slack_v2`
+   * on a previously-unrestricted group therefore wrote `slack` into the stored
+   * list, and the runtime resolves `slack` to `slack_v2` — re-allowing exactly
+   * the integration the admin had just denied.
+   */
+  it('is not a row for a superseded block, which has no row of its own', () => {
+    registry({
+      slack: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'slack_v2' } },
+      slack_v2: {},
+    })
+
+    expect(isAccessControlAllowlistRow('slack')).toBe(false)
+    expect(isBlockTypeAccessControlExempt('slack')).toBe(false)
+  })
+
+  it('is a row for a current block', () => {
+    registry({ slack_v2: {} })
+
+    expect(isAccessControlAllowlistRow('slack_v2')).toBe(true)
+  })
+
+  /** Exempt block types are decided by no row at all. */
+  it('is not a row for an exempt block', () => {
+    registry({ thinking: { hideFromToolbar: true }, start_trigger: {} })
+
+    expect(isAccessControlAllowlistRow('thinking')).toBe(false)
+    expect(isAccessControlAllowlistRow('start_trigger')).toBe(false)
   })
 })
