@@ -7,12 +7,10 @@ import {
   buildSubBlockForToolParam,
   buildSubBlocksFromJsonSchema,
   buildToolParamShapes,
-  decodeJsonSchemaValue,
   decodeToolParams,
   decodeToolParamValue,
   encodeToolParamValue,
   expandSubBlockValueToParams,
-  getJsonSchemaValueShape,
   getSubBlockValueShape,
   getToolParamValueShape,
   subBlockTypeForValueType,
@@ -530,50 +528,28 @@ describe('buildJsonSchemaParamShapes', () => {
     expect(shapes.get('declaredStr')).toBe('string')
   })
 
-  it('infers an untyped enum from its members', () => {
+  it('reads an untyped enum from its members only to tell text from JSON', () => {
     const shapes = buildJsonSchemaParamShapes({
-      properties: {
-        nums: { enum: [1, 2] },
-        bools: { enum: [true, false] },
-        strs: { enum: ['x', 'y'] },
-        structured: { enum: [{ a: 1 }] },
-        mixed: { enum: [1, 'x'] },
-        // `every` is vacuously true on an empty enum — this must not read as numeric.
-        empty: { enum: [] },
-      },
+      properties: { primitive: { enum: ['x', 1, null] }, structured: { enum: [{ a: 1 }] } },
     })
 
-    expect(shapes.get('nums')).toBe('number')
-    expect(shapes.get('bools')).toBe('boolean')
-    expect(shapes.get('strs')).toBe('string')
+    // A structured member renders in a JSON editor; anything else renders as a dropdown,
+    // which stores text. The dropdown persists the member itself, so nothing has to
+    // reverse `String(member)` afterwards.
+    expect(shapes.get('primitive')).toBe('string')
     expect(shapes.get('structured')).toBe('json')
-    expect(shapes.get('mixed')).toBe('string')
-    expect(shapes.get('empty')).toBe('string')
   })
 
   it('round-trips a numeric enum through the dropdown it renders as', () => {
-    const property = { type: 'integer', enum: [1, 2, 3] }
-    const [subBlock] = buildSubBlocksFromJsonSchema({ properties: { n: property } }, (id) => id)
+    const schema = { properties: { n: { type: 'integer', enum: [1, 2, 3] } } }
+    const [subBlock] = buildSubBlocksFromJsonSchema(schema, (id) => id)
 
     expect(subBlock.type).toBe('dropdown')
-    // The dropdown stores the stringified member; the shape decodes it back.
-    expect(decodeToolParamValue('2', getJsonSchemaValueShape(property))).toBe(2)
-  })
-
-  it('inverts the dropdown encoding against the enum members', () => {
-    // Options are `String(member)`, and a shape cannot tell `'null'` the text from
-    // `null` the member — only the member list can.
-    const mixed = { enum: ['a', null, 2, true] }
-
-    expect(decodeJsonSchemaValue('null', mixed)).toBe(null)
-    expect(decodeJsonSchemaValue('2', mixed)).toBe(2)
-    expect(decodeJsonSchemaValue('true', mixed)).toBe(true)
-    expect(decodeJsonSchemaValue('a', mixed)).toBe('a')
+    expect(decodeToolParamValue('2', buildJsonSchemaParamShapes(schema).get('n')!)).toBe(2)
   })
 
   it('normalizes a property the server sent as something other than an object', () => {
-    // `properties: { foo: null }` is malformed but arrives over the wire, and the MCP
-    // executor reads its properties through here before any type guard runs.
+    // `properties: { foo: null }` is malformed but arrives over the wire.
     const shapes = buildJsonSchemaParamShapes({
       properties: { a: null, b: true, c: 'text', d: 42 },
     } as unknown as Parameters<typeof buildJsonSchemaParamShapes>[0])
@@ -581,36 +557,14 @@ describe('buildJsonSchemaParamShapes', () => {
     expect([...shapes.values()]).toEqual(['string', 'string', 'string', 'string'])
   })
 
-  it('leaves a value that is not an enum member to the shape codec', () => {
-    // A variable reference must survive, and an untouched field stays the '' sentinel.
-    expect(decodeJsonSchemaValue('<start.choice>', { enum: ['a', null] })).toBe('<start.choice>')
-    expect(decodeJsonSchemaValue('', { enum: ['a', null] })).toBe('')
-    expect(decodeJsonSchemaValue('false', { type: 'boolean' })).toBe(false)
-  })
-
   it('normalizes a legacy string left by a control that has since changed type', () => {
     // A union-typed property used to render as a text field and now renders as a switch;
     // its stored 'false' must not tick the box.
-    expect(
-      decodeToolParamValue('false', getJsonSchemaValueShape({ type: ['boolean', 'null'] }))
-    ).toBe(false)
-    expect(decodeToolParamValue(true, getJsonSchemaValueShape({ type: 'boolean' }))).toBe(true)
-  })
-})
+    const shapes = buildJsonSchemaParamShapes({
+      properties: { flag: { type: ['boolean', 'null'] }, plain: { type: 'boolean' } },
+    })
 
-describe('enum members that are not plain strings', () => {
-  it('keeps a nullable enum as text so a real null member survives the decode', () => {
-    const shape = getJsonSchemaValueShape({ enum: ['a', null] })
-
-    expect(shape).toBe('string')
-    // The dropdown persists the member itself, so `null` arrives already typed and the
-    // decode must not touch it.
-    expect(decodeToolParamValue(null, shape)).toBeNull()
-  })
-
-  it('decodes a numeric enum member that is still stored as its stringified form', () => {
-    expect(
-      decodeToolParamValue('1', getJsonSchemaValueShape({ type: 'integer', enum: [1, 2] }))
-    ).toBe(1)
+    expect(decodeToolParamValue('false', shapes.get('flag')!)).toBe(false)
+    expect(decodeToolParamValue(true, shapes.get('plain')!)).toBe(true)
   })
 })

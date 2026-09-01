@@ -12,7 +12,6 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import {
-  decodeJsonSchemaValue,
   type JsonSchemaProperty,
   jsonSchemaType,
   subBlockTypeForJsonSchema,
@@ -236,13 +235,7 @@ export function McpDynamicArgs({
 
   const renderParameterInput = (paramName: string, paramSchema: any) => {
     const current = currentArgs()
-    // An argument entered before this control was derived from the NORMALIZED schema type
-    // was collected by a text field, so it is stored as a string — `'false'` would tick the
-    // switch it now renders as. Decoding on read normalizes it to the shape the control
-    // expects; already-typed values pass through untouched, so this is a no-op thereafter.
-    // This is the same decode `coerceToolArguments` applies at execution, so the control
-    // shows what the server will actually receive.
-    const value = decodeJsonSchemaValue(current[paramName], paramSchema)
+    const value = current[paramName]
     const inputType = getInputType(paramSchema)
 
     switch (inputType) {

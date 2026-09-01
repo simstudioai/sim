@@ -16,11 +16,6 @@ import {
   McpToolsNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
-import {
-  jsonSchemaEnumMember,
-  jsonSchemaEnumMembers,
-  jsonSchemaProperties,
-} from '@/tools/param-shape'
 
 const logger = createLogger('McpToolExecution')
 
@@ -52,21 +47,12 @@ function coerceToolArguments(
   input: Record<string, unknown>
 ): Record<string, unknown> {
   const result = { ...input }
+  if (!tool.inputSchema?.properties) return result
 
-  for (const [name, property] of jsonSchemaProperties(tool.inputSchema)) {
+  for (const [name, property] of Object.entries(tool.inputSchema.properties)) {
+    if (!hasType(property)) continue
     const value = result[name]
     if (value === undefined || value === null) continue
-
-    // An enum renders as a dropdown whose option ids are `String(member)`. Only the
-    // member list inverts that, and it has to run before the declared-type branches
-    // below, which never see an untyped property and cannot recover a `null` member.
-    const member = jsonSchemaEnumMember(value, property)
-    if (member !== undefined) {
-      result[name] = member
-      continue
-    }
-
-    if (!hasType(property)) continue
 
     if ((property.type === 'number' || property.type === 'integer') && typeof value === 'string') {
       const numberValue =
@@ -112,14 +98,9 @@ function validateToolArguments(tool: McpTool, args: Record<string, unknown>): vo
     }
   }
 
-  for (const [name, property] of jsonSchemaProperties(schema)) {
+  for (const [name, property] of Object.entries(schema.properties ?? {})) {
     const value = args[name]
-    if (value === undefined) continue
-    // `enum` is narrower than `type`, so a declared member is valid by definition. This
-    // has to precede the type branches: a `null` member satisfies none of them, and
-    // `coerceToolArguments` above has just recovered exactly that member.
-    if (jsonSchemaEnumMembers(property)?.includes(value)) continue
-    if (!hasType(property)) continue
+    if (value === undefined || !hasType(property)) continue
     const isValid =
       (property.type === 'string' && typeof value === 'string') ||
       (property.type === 'number' && typeof value === 'number') ||
