@@ -14,7 +14,8 @@ You are adding one governed item an organization admin can withhold from a cohor
 
 - `lib/permission-groups/fields.ts` — registry, three field builders, `permissionGroupConfigSchema`, `tolerantArray`, `parsePermissionGroupConfig`. There is **no `types.ts`** (folded in here); the DB constraint maps live in `constraints.ts`
 - `lib/permission-groups/capabilities.ts` — `CAPABILITY_IDS`, `CAPABILITY_RULES`, `capabilityRefusal`, `refuseCapability`, the static/parameterized split
-- `lib/permission-groups/capability-assertions.ts` — the sanctioned assertion API; re-exports `capabilityRefusal`
+- `lib/permission-groups/capability-assertions.ts` — the sanctioned assertion API; re-exports `capabilityRefusal`. `capability-error.ts` holds the thrown error, `capability-response.ts` the raw-route 403
+- `lib/permission-groups/integration-allowlist.ts` — the canonicalizing allowlist algebra, over the generated `block-successors.generated.ts`
 - `lib/permission-groups/resolve.server.ts` — `resolveWorkspaceGroup`, `resolveVerifiedUserAccessControlContext`, `getUserPermissionConfig`, `getUserPermissionConfigForOrganization`, `mergeEnvAllowlist`. `ee/access-control/utils/permission-check.ts` re-exports it and keeps the executor gates
 - `lib/permission-groups/config-scope.server.ts` (`resolvePermissionGroupConfig`, the per-request memo every assertion resolves through) and `request-scope.server.ts` (`withPermissionGroupScope`, deliberately import-free because `withRouteHandler` imports it)
 - `lib/core/application/workspace-operation.ts` and `workspace-authorization.ts` — the required `capability` field, and the funnel
@@ -37,14 +38,14 @@ Allowlist when the safe posture is "only what the admin named" and the member se
 | Value | Meaning |
 |---|---|
 | `'capability'` | An operation declares a capability whose rule reads the key; the funnel refuses before the use case runs. Default answer for anything reachable through an application operation |
-| `'executor'` | Read per block/tool/model at run time by `assertPermissionsAllowed` in `ee/access-control/utils/permission-check.ts`. Governs what a *run* may do, which no operation gate can express (one API call executes fifty blocks). Only `allowedIntegrations`, `allowedModelProviders`, `deniedModels`, `deniedTools` live here. The matching primitives these four keys are compared with live in `lib/permission-groups/` — `block-access.ts` (exemptions, superseded-version resolution), `operation-access.ts` (`createToolAccessGate`), `model-access.ts` (`createModelAccessGate`), `integration-allowlist.ts` — shared so the run-time gate and the editor/Copilot projections cannot drift |
+| `'executor'` | Read per block/tool/model at run time by `assertPermissionsAllowed` in `ee/access-control/utils/permission-check.ts`. Governs what a *run* may do, which no operation gate can express (one API call executes fifty blocks). Only `allowedIntegrations`, `allowedModelProviders`, `deniedModels`, `deniedTools` live here. The matching primitives these four keys are compared with live in `lib/permission-groups/` — `block-access.ts` (exemptions, superseded-version resolution), `operation-access.ts` (`createToolAccessGate`), `model-access.ts` (`createModelAccessGate`), `integration-allowlist.ts` — shared so the run-time gate and the editor/Copilot projections cannot drift. `allowedIntegrations` alone is also asserted outside a run, by `assertSelectorIntegrationAllowed` (`lib/selectors/server/integration-access.ts`) ahead of the provider call in `selectors.execute`, against the selector's own `resourceServiceId` / `integrationBlockTypes` rather than the credentials it accepts — reaching a provider API is a use of the integration, so a key here can still need a non-run enforcement site |
 | `'ui-only'` | Hides a surface without withholding it. **Almost never right** — nothing ships as `ui-only`. Justify in the `enforcement` comment why a determined caller reaching the data is acceptable, and expect review to question it |
 
 **Is it per-operation at all?** `personal_api_key.use` is the one capability that is not: it withholds a *principal kind* across every operation, checked in the funnel's `personal_api_key` branch (`workspace-authorization.ts`) and again in `app/api/v1/middleware.ts`, so no operation declares it and its absence from every `capability:` field is correct rather than a hole.
 
 **Is the decision knowable from the config alone?** A rule needing a request value (an auth mode, a connector id) is *parameterized* and cannot be declared on an operation — see Step 3.
 
-**Is it a gate or a projection?** A key that withholds *fields from a response* rather than the response is a projection. `hideTraceSpans` and `hideCostInfo` work this way: the logs routes declare `capability: 'none'` and strip fields, because refusing the read would withhold the status and error message too. Projections have one owner — `lib/logs/log-projection.ts` (`resolveLogFieldProjection`, `projectExecutionData`, `projectCostTotal`), carrying the `permission-group-enforced:` annotations. Add yours there; two copies of a redaction rule is how one of them stops redacting. Corollary: refuse the query that *selects on* a withheld field — otherwise the projection is a filter oracle.
+**Is it a gate or a projection?** A key that withholds *fields from a response* rather than the response is a projection. `hideTraceSpans` and `hideCostInfo` work this way: the logs routes declare `capability: 'none'` and strip fields, because refusing the read would withhold the status and error message too. Projections have one owner — `lib/logs/log-projection.ts` (`resolveLogFieldProjection`, `projectExecutionData`, `projectCostTotal`), carrying the `permission-group-enforced:` annotations. Add yours there; two copies of a redaction rule is how one of them stops redacting. Corollary: refuse the query that *selects on* a withheld field — otherwise the projection is a filter oracle; `logQuerySelectsCost` / `assertLogCostQueryAllowed` in that same module are the shape.
 
 ## Step 1: Append the field entry — never insert
 
@@ -128,7 +129,7 @@ export const shareWidget = defineWorkspaceOperation({
 
 **The factory trap.** An operation minted by a factory that does not call `defineWorkspaceOperation` — a hand-frozen object — bypasses the required type *and*, once bypassed, the audit; twenty-one operations across six domains were invisible that way, and the file still printed a tick because some other operation in it was counted. The audit now matches the whole `define<Domain>Operation` family, resolves a same-file `function` factory (capability fixed in the body or taken as a positional second argument — `lib/table/application/operations.ts` shows both, with **no default** on the positional form so nothing inherits `tables.use` unreviewed), and cross-checks the members of every exported `*Operations` registry against what it parsed. Keep new operations inside an exported `*Operations` registry, mint them through a `define*Operation` builder taking an object literal with a string `id`, and use a `function` factory rather than an arrow const.
 
-**Static, but no operation to hang it on** — a raw route or an organization-level action. There is no `assertOrganizationCapability`; it was deleted.
+**Static, but no operation to hang it on** — a raw route or an organization-level action.
 
 | Helper | Use when |
 |---|---|
@@ -166,7 +167,18 @@ Always route through `CAPABILITY_RULES` and raise with `refuseCapability` — a 
 
 ### Surfaces that do not go through the funnel
 
-- **`/api/v1`** authorizes in `app/api/v1/middleware.ts`. Every route threads a `V1RouteCapability` (`StaticPermissionGroupCapability | 'none'`, required and spelled out) whose value must match what its v2 or internal counterpart declares — v1 gets no mapping of its own. The subject **must** come from `capabilityGovernedUserId(rateLimit)`, which returns `null` for a workspace key: `rateLimit.userId` is populated for *both* key kinds and is the key's **creator** for a workspace key, a bystander. `check-capability-subject.ts` exists because that has shipped and been fixed twice.
+**Whose group applies — never `userId` off whatever identity is nearest.** Each helper below returns `null` for a caller no group governs (workspace key, internal JWT, executor delegation), and `null` is a *pass*, not a denial.
+
+| You hold | Helper |
+|---|---|
+| `Principal` | `capabilityGovernedPrincipalUserId` (`lib/core/application`) — mirrors the funnel exactly, executor exemption included |
+| v1 `RateLimitResult` | `capabilityGovernedUserId(rateLimit)` (`app/api/v1/middleware.ts`) — branches on `keyType`, never on the presence of `userId` |
+| `TableAccessPrincipal` | `capabilityGovernedUserId(principal)` (`app/api/table/utils.ts`) |
+| `AuthResult` from `checkSessionOrInternalAuth` | `capabilityGovernedAuthUserId` (same file) — an internal JWT's `userId` is the run's actor, a bystander |
+
+When the subject is **persisted and read back later** — the table dispatch pipeline stamps it on `table_run_dispatches` / `table_row_executions` so auto-fired cells run under the person the write was gated for — declare it `capabilityGovernedUserId: string | null`, required with an explicit `null` and never optional. An optional field with a fallback is how every producer that had not been taught the distinction silently inherited `triggeredByUserId`, an *attribution* naming the billed account; making omission a compile error is the whole enforcement. A persisted subject also has a lifecycle: `lib/users/account-deletion.ts` cancels the dispatches stamped with a deleted user.
+
+- **`/api/v1`** authorizes in `app/api/v1/middleware.ts`. Every route threads a `V1RouteCapability` (`StaticPermissionGroupCapability | 'none'`, required and spelled out) whose value must match what its v2 or internal counterpart declares — v1 gets no mapping of its own. `check-capability-subject.ts` audits v1's subjects only, because the bug has shipped and been fixed twice there.
 - **Raw internal table routes** (`/api/table/**`) share one gate in `checkAccess` (`app/api/table/utils.ts`), whose signature takes a `TableAccessPrincipal` union — `{ kind: 'user'; userId }` or `{ kind: 'workspace_api_key'; keyCreatorUserId }` — so a bare id no longer type-checks and only the kind that says so skips the gate. `tableAccessPrincipal(rateLimit)` builds it for v1.
 - **The route-wrapper graph.** `withRouteHandler` imports `request-scope.server.ts` and nothing heavier. Import a resolver at the *call site*, never from the wrapper or `lib/core/application` — see Step 6.
 
@@ -174,7 +186,7 @@ Always route through `CAPABILITY_RULES` and raise with `refuseCapability` — a 
 
 Add the key to **both** the `input` and `expected` objects of the `'a fully populated config'` fixture in `lib/permission-groups/fields.test.ts`, set to a non-default value. That fixture is the pinned coercion corpus: a row that changes in a later diff is a semantic decision someone defends rather than a silent regression. The file's other assertions derive from `DEFAULT_PERMISSION_GROUP_CONFIG` (wire order, idempotence, read-schema acceptance, the 2000-iteration seeded fuzz, write/default/read key-set agreement, boolean-to-`PLATFORM_FEATURES` coverage) and pick your key up for free, as does `features.test.ts`.
 
-**Give the funnel test a real `workspaceOrganizationId`.** `requireCapability` short-circuits on `context.workspaceOrganizationId === null` (`lib/core/application/workspace-authorization.ts:171`), so a fixture whose workspace context leaves it null passes with the gate present *and* with it removed — a vacuous test that reads as load-bearing.
+**Give the funnel test a real `workspaceOrganizationId`.** `requireCapability` short-circuits on `context.workspaceOrganizationId === null` (`lib/core/application/workspace-authorization.ts:204`), so a fixture whose workspace context leaves it null passes with the gate present *and* with it removed — a vacuous test that reads as load-bearing.
 
 Add a case to `capabilities.test.ts` for any rule with logic beyond reading one key. For an allowlist assert all three states — `null` permits every member, a populated list only the named ones, `[]` permits **none** — as `capabilities.test.ts` already does for `knowledge.connectors`.
 
@@ -206,12 +218,12 @@ Also `bun run check:api-validation` if you touched a contract or the group route
 Read the success lines, not the exit codes — the counts should have grown by your operation and capability:
 
 ```
-✓ permission-group enforcement: 315 operations declare a capability, 35 capabilities all enforced
+✓ permission-group enforcement: 322 operations declare a capability, 35 capabilities all enforced
 ✅ Application graph clean: 5 roots reach none of 11 forbidden module trees
 check:capability-subject — 32 v1 files, 5 capability subjects resolved through capabilityGovernedUserId.
 ```
 
-The enforcement audit is all-or-nothing — one success line or findings, no migration mode that exits 0 with work outstanding. Because it reads source text with regexes it carries self-checks: it refuses success when `CAPABILITY_IDS`, `CAPABILITY_RULES` or `PERMISSION_GROUP_FIELDS` parse to nothing or when rule and capability counts disagree; it reports per call any operation whose `id` it cannot read; **a file that mints an operation and parses to ZERO declarations is a finding**; and every member of an exported `*Operations` registry that it read no operation from is a finding. If one fires, teach the parsers the new form — do not work around it.
+The enforcement audit is all-or-nothing — one success line or findings, no migration mode that exits 0 with work outstanding. Because it reads source text it also refuses success when its own parsers come up empty or disagree with each other; if a self-check fires, teach the parsers the new form rather than working around it.
 
 The audits prove *reachability*: your capability is named somewhere, your key is read by some rule. They cannot tell whether the rule's logic is right or whether every operation reaching the behavior declares it. Green is not proof the gate fires.
 
@@ -224,6 +236,8 @@ The audits prove *reachability*: your capability is named somewhere, your key is
 **`parsePermissionGroupConfig` must keep its `Array.isArray` guard.** `typeof [] === 'object'`, so a truthy-object check alone lets an array through and `z.object().parse([])` throws — reachable, because the column is `jsonb` and a row can genuinely hold `[]`. The guard returns the defaults there instead of taking down the request. `tolerantArray` carries the mirror-image guard.
 
 **An empty allowlist denies everything; `null` allows everything.** They must never collapse — not in the parser, the UI setter, or a `deniedBy`. `allowlistDenies` encodes it as `allowed !== null && !allowed.includes(member)`; a `?? []` anywhere on this path inverts the unrestricted case.
+
+**Canonicalize both halves of an integration allowlist *before* intersecting, never after.** `allowedIntegrations` and the deployment's `ALLOWED_INTEGRATIONS` are written independently, so one can name `slack` and the other `slack_v2`; fold only case and they intersect to nothing, hiding an integration both policies allow. Compose `intersectAccessControlAllowlists` / `toAccessControlAllowlist` / `resolveAccessControlBlockType` from `integration-allowlist.ts` — never a hand-rolled `Set` intersection — and successor-resolve the type you test against the result the same way. They resolve through `block-successors.generated.ts`, a projection of the block registry because `check:application-graph` forbids the funnel from importing `blocks/`; `check:block-successors` fails the build when it drifts. Read that map only through `Object.hasOwn`: the ids arriving are admin-supplied jsonb, and a group naming `constructor` otherwise gets back an inherited function and 500s every enforcement path that reads it.
 
 **Not everyone goes through the funnel.**
 
@@ -251,7 +265,9 @@ What a run *does* is still governed by `assertPermissionsAllowed`. An item that 
 - [ ] Declared on every operation it governs, or asserted from the use case with a `// permission-group-enforced:` annotation raising through `refuseCapability` / `capabilityRefusal`
 - [ ] New operations minted through a `define*Operation` builder and exported from an `*Operations` registry
 - [ ] Any `capability: 'none'` carries a `// permission-group-exempt:` reason
-- [ ] v1 routes thread the capability through `middleware.ts` and take their subject from `capabilityGovernedUserId`; table routes pass a `TableAccessPrincipal`
+- [ ] Every gate's subject comes from the `capabilityGoverned*` helper for the identity it holds, and a persisted subject is a required `string | null`
+- [ ] v1 routes thread the capability through `middleware.ts`; table routes pass a `TableAccessPrincipal`
+- [ ] An integration-shaped allowlist canonicalizes through `integration-allowlist.ts` on both sides of every comparison
 - [ ] Added to the `'a fully populated config'` fixture in `fields.test.ts`, input and expected
 - [ ] Allowlist three-state (`null` / populated / `[]`) covered in `capabilities.test.ts`
 - [ ] No new runtime import from a guarded root into a forbidden tree
