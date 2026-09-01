@@ -470,7 +470,12 @@ export type TableInfo = Pick<TableDefinition, 'id' | 'name' | 'schema'>
 /** Simplified table summary for LLM enrichment and display contexts. */
 export interface TableSummary {
   name: string
-  columns: Array<Pick<ColumnDefinition, 'name' | 'type'>>
+  /**
+   * `multiple` is carried because a select column's allowed filter operators
+   * depend on it — LLM enrichment has to name the right subset or the model
+   * writes a predicate the query layer rejects.
+   */
+  columns: Array<Pick<ColumnDefinition, 'name' | 'type' | 'multiple'>>
 }
 
 export interface TableRow {
