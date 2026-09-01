@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import type { ResponseFormatStreamProcessor } from '@/executor/types'
 import type { AgentStreamSink, UnsubscribeAgentStreamSink } from '@/providers/stream-events'
 
@@ -13,7 +14,7 @@ interface JsonStringToken {
 }
 
 function selectedFieldsForBlock(blockId: string, selectedOutputs: string[]): string[] {
-  const prefix = `${blockId}_`
+  const prefix = `${formatInternalOutputSelector(blockId)}_`
   return selectedOutputs
     .filter((outputId) => outputId.startsWith(prefix))
     .map((outputId) => outputId.slice(prefix.length))

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import {
   StreamingResponseFormatProcessor,
   streamingResponseFormatProcessor,
@@ -219,6 +220,33 @@ describe('StreamingResponseFormatProcessor', () => {
         { type: 'thinking_delta', text: 'done' },
         { type: 'turn_end', turn: 'final' },
       ])
+    })
+
+    it('matches encoded selectors for block IDs containing underscores', async () => {
+      let sourceSink: AgentStreamSink | undefined
+      const projectedText: string[] = []
+      const subscribe = processor.processEventSubscription(
+        (sink) => {
+          sourceSink = sink
+          return () => {}
+        },
+        'answer_agent',
+        [formatInternalOutputSelector('answer_agent', 'answer')],
+        { schema: { properties: { answer: { type: 'string' } } } }
+      )
+
+      subscribe?.({
+        onEvent: (event) => {
+          if (event.type === 'text_delta') projectedText.push(event.text)
+        },
+      })
+      await sourceSink?.onEvent({
+        type: 'text_delta',
+        text: '{"answer":"Streamed"}',
+        turn: 'final',
+      })
+
+      expect(projectedText).toEqual(['Streamed'])
     })
 
     it('holds incomplete JSON escapes until they can be decoded', async () => {
