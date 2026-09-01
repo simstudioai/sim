@@ -1832,7 +1832,9 @@ async function executeToolImplementation(
         const userId = scope.userId
         const credentialId = contextParams.credential as string
         const toolLabel = tool?.name || toolId
-        const impersonateEmail = contextParams.impersonateUserEmail as string | undefined
+        const impersonateEmail = contextParams.impersonateUserEmail
+          ? (contextParams.impersonateUserEmail as string)
+          : undefined
 
         let providerScopes: string[] | undefined
         if (tool?.oauth?.provider) {

@@ -856,6 +856,7 @@ async function performCoalescedRefresh({
             logger.error('Failed to refresh token', {
               ...logContext,
               errorCode: result.errorCode,
+              message: result.message,
             })
             if (result.errorCode && isTerminalRefreshError(result.errorCode)) {
               // A refresh that lost a race with a concurrent connect fails with
