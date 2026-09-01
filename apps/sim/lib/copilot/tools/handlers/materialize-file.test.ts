@@ -114,6 +114,7 @@ vi.mock('@/app/api/v1/admin/types', () => ({ extractWorkflowMetadata: vi.fn() })
 
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 import { executeMaterializeFile } from '@/lib/copilot/tools/handlers/materialize-file'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -277,6 +278,42 @@ describe('executeMaterializeFile - workflow import', () => {
     expect(JSON.stringify(dbChainMockFns.values.mock.calls)).not.toContain(
       'PRIVATE WORKFLOW DESCRIPTION'
     )
+  })
+
+  /**
+   * Copilot is a surface adapter, not an exemption. The imported graph comes
+   * from a file the user uploaded, so it is exactly the caller-supplied
+   * whole-graph write the integration allowlist judges — and the subject is the
+   * person chatting.
+   */
+  it('names the chatting user as the subject the permission group governs', async () => {
+    await executeMaterializeFile({ fileNames: ['workflow.json'], operation: 'import' }, context)
+
+    expect(saveWorkflowToNormalizedTablesMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.anything(),
+      { workspaceId: 'ws-1', subjectUserId: 'user-1' }
+    )
+  })
+
+  it('surfaces the shared write refusal and rolls the shell workflow row back', async () => {
+    saveWorkflowToNormalizedTablesMock.mockRejectedValue(
+      new OrchestrationError(
+        'forbidden',
+        'Block type "gmail" is not allowed by your organization\'s permission group'
+      )
+    )
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['workflow.json'], operation: 'import' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(
+      (result.output as { failed: { fileName: string; error: string }[] }).failed[0].error
+    ).toContain('gmail')
+    expect(dbChainMockFns.delete).toHaveBeenCalled()
   })
 })
 

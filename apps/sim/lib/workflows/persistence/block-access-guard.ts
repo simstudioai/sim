@@ -1,3 +1,4 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import {
@@ -66,4 +67,58 @@ export async function findWithheldBlockType(params: {
 /** The refusal text every persist path renders for a withheld block type. */
 export function withheldBlockTypeMessage(blockType: string): string {
   return `Block type "${blockType}" is not allowed by your organization's permission group`
+}
+
+/**
+ * Who a normalized-state write is performed *as*, for permission-group purposes.
+ *
+ * Both fields are required at every call site, and `null` is spelled out rather
+ * than omitted, for the reason `capability` is required on
+ * `defineWorkspaceOperation`: an absent declaration cannot be told apart from an
+ * unreviewed one. The guard used to sit at individual doors, and the two that
+ * never grew one — `PUT /api/v2/workflows/{id}/state` and the Copilot
+ * materialize-import — were exactly the doors nobody remembered to add it to.
+ *
+ * `subjectUserId` is `null` only when the write is not a member's authoring
+ * action: an executor run persisting its own graph, a workspace fork copying
+ * rows, or workspace creation seeding a starter workflow. A member's group must
+ * not govern those, because the writer is the platform rather than the member.
+ */
+export interface WorkflowPersistGovernance {
+  /** Canonical workspace whose permission groups govern the write, or `null` when it has none. */
+  workspaceId: string | null
+  /** The human this write is performed as, or `null` when it is performed as no human. */
+  subjectUserId: string | null
+}
+
+/**
+ * Refuses a normalized-state write carrying a block type the writer's permission
+ * group withholds.
+ *
+ * Lives on the shared persistence primitive rather than at each door so a new
+ * caller inherits the check instead of having to remember it. A `null` subject
+ * or workspace no-ops: there is no group to resolve, and inventing one would
+ * either fail open against a bystander's grants or block the executor.
+ *
+ * Throws {@link OrchestrationError} rather than returning a union, matching the
+ * rest of the persistence layer: `statusForOrchestrationError` renders
+ * `forbidden` as the 403 the pre-consolidation doors returned, and
+ * `messageForOrchestrationError` passes this message through unchanged, so the
+ * refusal a caller sees is byte-identical to the one it rendered itself.
+ */
+export async function assertNoWithheldBlockType(
+  governance: WorkflowPersistGovernance,
+  blocks: Iterable<{ type?: string }>
+): Promise<void> {
+  const { workspaceId, subjectUserId } = governance
+  if (!workspaceId || !subjectUserId) return
+
+  const withheldBlockType = await findWithheldBlockType({
+    userId: subjectUserId,
+    workspaceId,
+    blocks,
+  })
+  if (withheldBlockType) {
+    throw new OrchestrationError('forbidden', withheldBlockTypeMessage(withheldBlockType))
+  }
 }

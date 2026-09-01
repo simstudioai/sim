@@ -33,67 +33,71 @@ interface RouteParams {
  * GET - List all tools for a workflow MCP server
  */
 export const GET = withRouteHandler(
-  withMcpAuth<RouteParams>('read')(
-    async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
-      try {
-        const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
+  withMcpAuth<RouteParams>(
+    'read',
+    'deploy.mcp'
+  )(async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+    try {
+      const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
 
-        logger.info(`[${requestId}] Listing tools for workflow MCP server: ${serverId}`)
+      logger.info(`[${requestId}] Listing tools for workflow MCP server: ${serverId}`)
 
-        const [server] = await db
-          .select({ id: workflowMcpServer.id })
-          .from(workflowMcpServer)
-          .where(
-            and(
-              eq(workflowMcpServer.id, serverId),
-              eq(workflowMcpServer.workspaceId, workspaceId),
-              isNull(workflowMcpServer.deletedAt)
-            )
+      const [server] = await db
+        .select({ id: workflowMcpServer.id })
+        .from(workflowMcpServer)
+        .where(
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
           )
-          .limit(1)
+        )
+        .limit(1)
 
-        if (!server) {
-          return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
-        }
-
-        const tools = await db
-          .select({
-            id: workflowMcpTool.id,
-            serverId: workflowMcpTool.serverId,
-            workflowId: workflowMcpTool.workflowId,
-            toolName: workflowMcpTool.toolName,
-            toolDescription: workflowMcpTool.toolDescription,
-            parameterSchema: workflowMcpTool.parameterSchema,
-            parameterDescriptionOverrides: workflowMcpTool.parameterDescriptionOverrides,
-            createdAt: workflowMcpTool.createdAt,
-            updatedAt: workflowMcpTool.updatedAt,
-            workflowName: workflow.name,
-            workflowDescription: workflow.description,
-            isDeployed: workflow.isDeployed,
-          })
-          .from(workflowMcpTool)
-          .leftJoin(
-            workflow,
-            and(eq(workflowMcpTool.workflowId, workflow.id), isNull(workflow.archivedAt))
-          )
-          .where(and(eq(workflowMcpTool.serverId, serverId), isNull(workflowMcpTool.archivedAt)))
-
-        logger.info(`[${requestId}] Found ${tools.length} tools for server ${serverId}`)
-
-        return createMcpSuccessResponse({ tools })
-      } catch (error) {
-        logger.error(`[${requestId}] Error listing tools:`, error)
-        return createMcpErrorResponse(toError(error), 'Failed to list tools', 500)
+      if (!server) {
+        return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
       }
+
+      const tools = await db
+        .select({
+          id: workflowMcpTool.id,
+          serverId: workflowMcpTool.serverId,
+          workflowId: workflowMcpTool.workflowId,
+          toolName: workflowMcpTool.toolName,
+          toolDescription: workflowMcpTool.toolDescription,
+          parameterSchema: workflowMcpTool.parameterSchema,
+          parameterDescriptionOverrides: workflowMcpTool.parameterDescriptionOverrides,
+          createdAt: workflowMcpTool.createdAt,
+          updatedAt: workflowMcpTool.updatedAt,
+          workflowName: workflow.name,
+          workflowDescription: workflow.description,
+          isDeployed: workflow.isDeployed,
+        })
+        .from(workflowMcpTool)
+        .leftJoin(
+          workflow,
+          and(eq(workflowMcpTool.workflowId, workflow.id), isNull(workflow.archivedAt))
+        )
+        .where(and(eq(workflowMcpTool.serverId, serverId), isNull(workflowMcpTool.archivedAt)))
+
+      logger.info(`[${requestId}] Found ${tools.length} tools for server ${serverId}`)
+
+      return createMcpSuccessResponse({ tools })
+    } catch (error) {
+      logger.error(`[${requestId}] Error listing tools:`, error)
+      return createMcpErrorResponse(toError(error), 'Failed to list tools', 500)
     }
-  )
+  })
 )
 
 /**
  * POST - Add a workflow as a tool to an MCP server
  */
 export const POST = withRouteHandler(
-  withMcpAuth<RouteParams>('write')(
+  withMcpAuth<RouteParams>(
+    'write',
+    'deploy.mcp'
+  )(
     async (
       request: NextRequest,
       { userId, userName, userEmail, workspaceId, requestId },

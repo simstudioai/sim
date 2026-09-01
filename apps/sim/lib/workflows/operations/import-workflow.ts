@@ -336,7 +336,19 @@ async function executeImportWorkflowIntoWorkspace(
    */
   try {
     await db.transaction(async (tx) => {
-      const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+      const saveResult = await saveWorkflowToNormalizedTables(
+        workflowId,
+        workflowState,
+        /**
+         * The same subject the pre-check above used. The pre-check stays because
+         * it renders this door's own 403 before the shell workflow row is
+         * created — a refusal after that point would have to roll the row back —
+         * and the two agree by construction: both read `capabilityUserId`, and
+         * an import with no governed user passes `null` to both.
+         */
+        { workspaceId, subjectUserId: capabilityUserId ?? null },
+        tx
+      )
       if (!saveResult.success) {
         throw new Error(saveResult.error || 'Failed to save workflow state')
       }

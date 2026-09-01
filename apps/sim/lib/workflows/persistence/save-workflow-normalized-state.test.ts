@@ -80,32 +80,31 @@ describe('saveWorkflowNormalizedState', () => {
    * The bypass this closes: a graph replace never went through the editing
    * operations, so a member whose group withholds an integration could still
    * store a block using it and have it refused only at run time, if ever.
+   *
+   * The check itself now lives on the shared write, so what this door owes is
+   * naming the right subject and rendering the primitive's `forbidden` refusal
+   * as the 403 it used to build inline.
    */
-  it('refuses a state carrying a block type the permission group withholds', async () => {
-    mocks.getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+  it('names the authorizing user as the subject the permission group governs', async () => {
+    await saveWorkflowNormalizedState(params())
 
-    const result = await saveWorkflowNormalizedState(
-      params({
-        state: {
-          blocks: {
-            'block-1': {
-              id: 'block-1',
-              type: 'gmail',
-              name: 'Send',
-              position: { x: 0, y: 0 },
-              subBlocks: {},
-              outputs: {},
-              enabled: true,
-            },
-          },
-          edges: [],
-        },
-      })
+    expect(mocks.replace).toHaveBeenCalledWith(
+      expect.objectContaining({ subjectUserId: 'user-1', workspaceId: 'workspace-1' })
     )
+  })
+
+  it('refuses a state carrying a block type the permission group withholds', async () => {
+    mocks.replace.mockRejectedValue(
+      new OrchestrationError(
+        'forbidden',
+        'Block type "gmail" is not allowed by your organization\'s permission group'
+      )
+    )
+
+    const result = await saveWorkflowNormalizedState(params())
 
     expect(result).toMatchObject({ success: false, status: 403 })
     expect(result.success === false && result.error).toContain('gmail')
-    expect(mocks.replace).not.toHaveBeenCalled()
     expect(mocks.notify).not.toHaveBeenCalled()
   })
 

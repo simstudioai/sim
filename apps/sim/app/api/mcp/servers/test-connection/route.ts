@@ -84,7 +84,10 @@ function sanitizeConnectionError(error: unknown): string {
  * POST - Test connection to an MCP server before registering it
  */
 export const POST = withRouteHandler(
-  withMcpAuth('write')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  withMcpAuth(
+    'write',
+    'mcp_tools.use'
+  )(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const rawBody = await readMcpJsonBodyWithLimit(request)
       const parsedBody = mcpServerTestBodySchema.safeParse(rawBody)

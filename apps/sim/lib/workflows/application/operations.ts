@@ -104,7 +104,7 @@ export const workflowOperations = {
    * Personal keys keep the capability, so headless authoring is unaffected for a
    * credential that names a human.
    *
-   * permission-group-exempt: which blocks a member may store is judged against allowedIntegrations at persist time, not by a capability the authorization funnel can apply
+   * permission-group-exempt: which blocks a member may store is judged against allowedIntegrations inside replaceWorkflowNormalizedState, which this use case passes the principal's human subject to, not by a capability the authorization funnel can apply
    */
   replaceState: defineWorkspaceOperation({
     id: 'workflows.state.replace',
@@ -130,7 +130,7 @@ export const workflowOperations = {
    * credential that names a human. Re-open this to workspace keys only once the
    * three lookups can express a workspace-scoped policy that fails closed.
    *
-   * permission-group-exempt: which blocks a member may store is judged against allowedIntegrations at persist time, not by a capability the authorization funnel can apply
+   * permission-group-exempt: which blocks a member may store is judged against allowedIntegrations inside replaceWorkflowNormalizedState, which this use case passes the principal's human subject to, not by a capability the authorization funnel can apply
    */
   applyOperations: defineWorkspaceOperation({
     id: 'workflows.operations.apply',
