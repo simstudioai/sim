@@ -5105,6 +5105,10 @@ describe('MCP Tool Execution', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  /**
+   * `retryDelayMs: 1` rather than `0`: the retry config falls back to the 500 ms
+   * default for a falsy delay, so 1 ms is the smallest delay the tool honors.
+   */
   describe('Tool request retries', () => {
     beforeEach(() => {
       vi.useFakeTimers()
@@ -5118,11 +5122,7 @@ describe('MCP Tool Execution', () => {
       vi.useRealTimers()
     })
 
-    /**
-     * Runs the request with every retry backoff elapsed on the fake clock. A
-     * `retryDelayMs` of 0 falls through to the 500ms default, so the sleeps
-     * between attempts are real unless the clock is faked.
-     */
+    /** Runs the request with every retry backoff elapsed on the fake clock. */
     async function executeWithRetries(params: Record<string, unknown>) {
       const pending = executeTool('http_request', params)
       await vi.runAllTimersAsync()
@@ -5152,7 +5152,7 @@ describe('MCP Tool Execution', () => {
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5182,7 +5182,7 @@ describe('MCP Tool Execution', () => {
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5197,7 +5197,7 @@ describe('MCP Tool Execution', () => {
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 5,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5214,7 +5214,7 @@ describe('MCP Tool Execution', () => {
         url: 'https://api.example.com/test',
         method: 'POST',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5232,7 +5232,7 @@ describe('MCP Tool Execution', () => {
         method: 'POST',
         retries: 1,
         retryNonIdempotent: true,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5288,7 +5288,7 @@ describe('MCP Tool Execution', () => {
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 5000,
       })
 
@@ -5308,7 +5308,7 @@ describe('MCP Tool Execution', () => {
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 1,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 

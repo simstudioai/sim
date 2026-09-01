@@ -1,6 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 
+/**
+ * Import parsing migrates sub-block ids against each block's declared config,
+ * which the global registry stub empties. Only the blocks the fixtures name are
+ * registered.
+ */
 vi.unmock('@/blocks/registry')
+vi.mock('@/blocks/registry-maps', async () => {
+  const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
+  return partialBlockRegistry(
+    await import('@/blocks/blocks/knowledge'),
+    await import('@/blocks/blocks/start_trigger')
+  )
+})
 
 vi.mock('@/lib/api/client/request', () => ({
   requestJson: vi.fn().mockResolvedValue({}),

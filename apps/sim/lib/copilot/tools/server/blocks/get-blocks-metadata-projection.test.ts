@@ -9,11 +9,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * off `@/tools/registry`.
  *
  * The sibling suite exercises this tool's gating against a mocked registry; this
- * one runs it against the real block registry and the real generated tool
+ * one runs it against the real Slack block config and the real generated tool
  * metadata, because the thing worth proving is exactly that the metadata
- * artifacts can answer everything the executable registry used to.
+ * artifacts can answer everything the executable registry used to. Only the
+ * Slack block is read, so only it is registered.
  */
 vi.unmock('@/blocks/registry')
+vi.mock('@/blocks/registry-maps', async () => {
+  const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
+  return partialBlockRegistry(await import('@/blocks/blocks/slack'))
+})
 
 const mocks = vi.hoisted(() => ({
   getUserPermissionConfig: vi.fn(),
