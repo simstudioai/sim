@@ -14,6 +14,7 @@
 // union is queryable as one series set.
 
 export const Metric = {
+  CopilotBillingLongContextCount: 'copilot.billing.long_context.count',
   CopilotCacheAttempted: 'copilot.cache.attempted',
   CopilotCacheHit: 'copilot.cache.hit',
   CopilotCacheWrite: 'copilot.cache.write',
@@ -23,6 +24,8 @@ export const Metric = {
   CopilotFileReadDuration: 'copilot.file.read.duration',
   CopilotFileReadSize: 'copilot.file.read.size',
   CopilotMessagesSerializeDuration: 'copilot.messages.serialize.duration',
+  CopilotOptionsEmittedCount: 'copilot.options.emitted.count',
+  CopilotPromptComponentChars: 'copilot.prompt.component.chars',
   CopilotRequestCount: 'copilot.request.count',
   CopilotRequestDuration: 'copilot.request.duration',
   CopilotToolCalls: 'copilot.tool.calls',
@@ -44,6 +47,7 @@ export type MetricValue = (typeof Metric)[MetricKey]
 
 /** Readonly sorted list of every canonical mothership metric name. */
 export const MetricValues: readonly MetricValue[] = [
+  'copilot.billing.long_context.count',
   'copilot.cache.attempted',
   'copilot.cache.hit',
   'copilot.cache.write',
@@ -53,6 +57,8 @@ export const MetricValues: readonly MetricValue[] = [
   'copilot.file.read.duration',
   'copilot.file.read.size',
   'copilot.messages.serialize.duration',
+  'copilot.options.emitted.count',
+  'copilot.prompt.component.chars',
   'copilot.request.count',
   'copilot.request.duration',
   'copilot.tool.calls',

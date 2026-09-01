@@ -188,13 +188,18 @@ export function General() {
   }
 
   const handleSignOut = async () => {
+    const logoutUrl = '/login?fromLogout=true'
+    let canNavigateInApp = false
+
     try {
-      await Promise.all([signOut(), clearUserData()])
-      router.push('/login?fromLogout=true')
+      const [, inMemoryResetSucceeded] = await Promise.all([signOut(), clearUserData()])
+      canNavigateInApp = inMemoryResetSucceeded
     } catch (error) {
       logger.error('Error signing out:', { error })
-      router.push('/login?fromLogout=true')
     }
+
+    if (canNavigateInApp) router.push(logoutUrl)
+    else window.location.assign(logoutUrl)
   }
 
   const handleResetPasswordConfirm = async () => {

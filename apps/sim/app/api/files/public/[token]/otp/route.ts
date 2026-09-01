@@ -36,11 +36,6 @@ const rateLimiter = new RateLimiter()
 
 const SHARE_EMAIL_LABEL = 'a shared file'
 
-/** Allow-list for an email-gated share, read off the resolved row. */
-function shareAllowedEmails(allowedEmails: unknown): string[] {
-  return Array.isArray(allowedEmails) ? (allowedEmails as string[]) : []
-}
-
 function rateLimited(retryAfterMs: number | undefined, fallbackMs: number): NextResponse {
   const response = NextResponse.json(
     { error: 'Too many requests. Please try again later.' },
@@ -131,7 +126,7 @@ export const POST = withRouteHandler(
           { status: 400 }
         )
       }
-      const emailAllowed = isEmailAllowed(email, shareAllowedEmails(resolved.share.allowedEmails))
+      const emailAllowed = isEmailAllowed(email, resolved.share.allowedEmails)
 
       afterResponse(async () => {
         if (!emailAllowed) return
@@ -170,6 +165,9 @@ export const PUT = withRouteHandler(
           { status: 400 }
         )
       }
+      if (!isEmailAllowed(email, resolved.share.allowedEmails)) {
+        return NextResponse.json({ error: 'Email not authorized' }, { status: 403 })
+      }
 
       const storedValue = await getOTP('file', resolved.share.id, email)
       if (!storedValue) {
@@ -202,13 +200,12 @@ export const PUT = withRouteHandler(
       await deleteOTP('file', resolved.share.id, email)
 
       const response = NextResponse.json({ authType: resolved.share.authType })
-      setDeploymentAuthCookie(
+      setDeploymentAuthCookie({
         response,
-        'file',
-        resolved.share.id,
-        resolved.share.authType,
-        resolved.share.password
-      )
+        cookiePrefix: 'file',
+        resource: resolved.share,
+        verifiedEmail: email,
+      })
       logger.info(`[${requestId}] OTP verified for share ${resolved.share.id}`)
       return response
     } catch (error) {

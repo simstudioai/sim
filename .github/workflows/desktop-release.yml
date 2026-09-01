@@ -55,6 +55,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.sha }}
 
       # Prerelease versions carry their environment in the tag: -dev.N is a
@@ -340,10 +341,18 @@ jobs:
             exit 1
           fi
           export GH_TOKEN
-          if ! gh release view "$VERSION" --repo "$RELEASE_REPOSITORY" >/dev/null; then
+          if ! RELEASE_ID="$(
+            gh release view "$VERSION" --repo "$RELEASE_REPOSITORY" \
+              --json databaseId --jq '.databaseId'
+          )"; then
             echo "::error::Release $VERSION does not exist in $RELEASE_REPOSITORY."
             exit 1
           fi
+          if ! [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::Release $VERSION returned an invalid database ID."
+            exit 1
+          fi
+          RELEASE_JSON="$(gh api "repos/${RELEASE_REPOSITORY}/releases/${RELEASE_ID}")"
           SEMVER="${VERSION#v}"
           ARTIFACTS=(
             "apps/desktop/release/Sim-${SEMVER}-universal.dmg"
@@ -354,11 +363,10 @@ jobs:
           )
           upload_or_verify() {
             local ARTIFACT="$1"
-            local NAME SIZE DIGEST RELEASE_JSON REMOTE REMOTE_SIZE REMOTE_DIGEST
+            local NAME SIZE DIGEST REMOTE REMOTE_SIZE REMOTE_DIGEST
             NAME="$(basename "$ARTIFACT")"
             SIZE="$(stat -f%z "$ARTIFACT")"
             DIGEST="sha256:$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
-            RELEASE_JSON="$(gh api "repos/${RELEASE_REPOSITORY}/releases/tags/${VERSION}")"
             REMOTE="$(jq -c --arg name "$NAME" '.assets[] | select(.name == $name)' <<< "$RELEASE_JSON")"
             if [ -n "$REMOTE" ]; then
               REMOTE_SIZE="$(jq -r '.size' <<< "$REMOTE")"

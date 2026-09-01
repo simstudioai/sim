@@ -3,6 +3,7 @@
  */
 import { act, type ChangeEventHandler, type ReactNode } from 'react'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -98,6 +99,24 @@ vi.mock('@/components/settings/save-discard-actions', () => ({
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
   SettingsEmptyState: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  SettingsQueryErrorState: ({
+    error,
+    fallback,
+    isRetrying,
+    onRetry,
+  }: {
+    error: unknown
+    fallback: string
+    isRetrying: boolean
+    onRetry: () => void
+  }) => (
+    <div>
+      <span>{getErrorMessage(error, fallback)}</span>
+      <button type='button' disabled={isRetrying} onClick={onRetry}>
+        {isRetrying ? 'Retrying…' : 'Try again'}
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
@@ -197,7 +216,10 @@ beforeEach(() => {
   mockUseSession.mockReturnValue({ data: { user: { id: 'user-1' } } })
   mockUseOrganizationBilling.mockReturnValue({
     data: { data: { subscriptionPlan: 'enterprise' } },
+    error: null,
+    isFetching: false,
     isLoading: false,
+    refetch: vi.fn(),
   })
   mockUseConfigureSSO.mockReturnValue({
     isPending: false,
@@ -205,7 +227,10 @@ beforeEach(() => {
   })
   mockUseSSOProviders.mockImplementation(({ organizationId }: { organizationId: string }) => ({
     data: { providers: [provider(organizationId)] },
+    error: null,
+    isFetching: false,
     isLoading: false,
+    refetch: vi.fn(),
   }))
 })
 
@@ -229,6 +254,61 @@ describe('SSO organization transitions', () => {
     expect(container).toHaveTextContent('org-b.example.com')
     expect(container).not.toHaveTextContent('org-a.example.com')
     expect(container.querySelector('input[value="client-a"]')).toBeNull()
+  })
+
+  it('shows a billing failure instead of an Enterprise upsell', () => {
+    const refetch = vi.fn()
+    const refetchProviders = vi.fn()
+    mockUseSSOProviders.mockReturnValue({
+      data: { providers: [provider('org-a')] },
+      error: null,
+      isFetching: true,
+      isLoading: false,
+      refetch: refetchProviders,
+    })
+    mockUseOrganizationBilling.mockReturnValue({
+      data: undefined,
+      error: new Error('Billing entitlement failed'),
+      isFetching: false,
+      isLoading: false,
+      refetch,
+    })
+
+    renderSso('org-a')
+
+    expect(container).toHaveTextContent('Billing entitlement failed')
+    expect(container).not.toHaveTextContent('available on Enterprise plans only')
+    expect(findButton('Try again')).not.toBeDisabled()
+    act(() => findButton('Try again')?.click())
+    expect(refetch).toHaveBeenCalledOnce()
+    expect(refetchProviders).not.toHaveBeenCalled()
+  })
+
+  it('retries an initial provider failure without leaving the page', () => {
+    const refetch = vi.fn()
+    const refetchBilling = vi.fn()
+    mockUseOrganizationBilling.mockReturnValue({
+      data: { data: { subscriptionPlan: 'enterprise' } },
+      error: null,
+      isFetching: true,
+      isLoading: false,
+      refetch: refetchBilling,
+    })
+    mockUseSSOProviders.mockReturnValue({
+      data: undefined,
+      error: new Error('Provider lookup failed'),
+      isFetching: false,
+      isLoading: false,
+      refetch,
+    })
+
+    renderSso('org-a')
+
+    expect(container).toHaveTextContent('Provider lookup failed')
+    expect(findButton('Try again')).not.toBeDisabled()
+    act(() => findButton('Try again')?.click())
+    expect(refetch).toHaveBeenCalledOnce()
+    expect(refetchBilling).not.toHaveBeenCalled()
   })
 })
 

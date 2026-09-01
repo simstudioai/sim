@@ -261,6 +261,8 @@ export const workspaceHostContextSchema = z.object({
     name: z.string().min(1),
     workspaceMode: workspaceModeSchema,
     billedAccountUserId: nonEmptyIdSchema,
+    /** Optional for rolling compatibility with app versions that predate API-key policy projection. */
+    allowPersonalApiKeys: z.boolean().optional(),
   }),
   hostOrganizationId: nonEmptyIdSchema.nullable(),
   ownerBilling: workspaceOwnerBillingSchema,

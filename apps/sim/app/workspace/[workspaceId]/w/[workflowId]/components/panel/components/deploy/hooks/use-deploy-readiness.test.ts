@@ -10,7 +10,7 @@ vi.mock('@/stores/operation-queue/store', () => ({
       getState: () => ({
         hasOperationError: false,
         hasPendingOperations: () => false,
-        waitForWorkflowOperations: () => Promise.resolve(true),
+        waitForWorkflowOperations: () => Promise.resolve('drained'),
       }),
     }
   ),

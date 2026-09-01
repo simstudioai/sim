@@ -865,8 +865,13 @@ export function useCollaborativeWorkflow() {
           workflowId,
         })
         diffStore.markExternalUpdatePending(workflowId)
-        void operationQueue.waitForWorkflowOperations(workflowId).then((ready) => {
-          if (!ready) {
+        void operationQueue.waitForWorkflowOperations(workflowId).then((result) => {
+          if (result === 'cancelled') {
+            useWorkflowDiffStore.getState().clearExternalUpdatePending(workflowId)
+            return
+          }
+
+          if (result === 'failed') {
             const latestQueue = useOperationQueueStore.getState()
             if (latestQueue.hasPendingOperations(workflowId) && !latestQueue.hasOperationError) {
               return
@@ -879,6 +884,7 @@ export function useCollaborativeWorkflow() {
             )
             return
           }
+
           void replayPendingExternalUpdate(workflowId, 'deferred external update after local save')
         })
         return

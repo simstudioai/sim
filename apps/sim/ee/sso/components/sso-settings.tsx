@@ -27,7 +27,10 @@ import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -230,12 +233,21 @@ export function SSO({ organizationId }: SSOProps) {
 
 function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const { data: session } = useSession()
-  const { data: organizationBillingData, isLoading: isLoadingOrganizationBilling } =
-    useOrganizationBilling(organizationId)
+  const {
+    data: organizationBillingData,
+    isLoading: isLoadingOrganizationBilling,
+    isFetching: isFetchingOrganizationBilling,
+    error: organizationBillingError,
+    refetch: refetchOrganizationBilling,
+  } = useOrganizationBilling(organizationId)
 
-  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders({
-    organizationId,
-  })
+  const {
+    data: providersData,
+    isLoading: isLoadingProviders,
+    isFetching: isFetchingProviders,
+    error: providersError,
+    refetch: refetchProviders,
+  } = useSSOProviders({ organizationId })
 
   const providers = providersData?.providers || []
   const existingProvider = providers[0] as SSOProvider | undefined
@@ -279,6 +291,27 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   if (isLoadingProviders || (isBillingEnabled && isLoadingOrganizationBilling)) {
     return null
+  }
+
+  const providersLoadingError = providersData === undefined ? providersError : null
+  const organizationBillingLoadingError =
+    isBillingEnabled && organizationBillingData === undefined ? organizationBillingError : null
+  const loadingError = providersLoadingError ?? organizationBillingLoadingError
+  if (loadingError) {
+    return (
+      <SettingsQueryErrorState
+        error={loadingError}
+        fallback='Failed to load Single Sign-On settings'
+        isRetrying={
+          (Boolean(providersLoadingError) && isFetchingProviders) ||
+          (Boolean(organizationBillingLoadingError) && isFetchingOrganizationBilling)
+        }
+        onRetry={() => {
+          if (providersLoadingError) void refetchProviders()
+          if (organizationBillingLoadingError) void refetchOrganizationBilling()
+        }}
+      />
+    )
   }
 
   if (isBillingEnabled) {

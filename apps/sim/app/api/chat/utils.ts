@@ -3,19 +3,27 @@ import { chat, workflow } from '@sim/db/schema'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
-import { setDeploymentAuthCookie } from '@/lib/core/security/deployment'
 import {
+  type DeploymentAuthResource,
+  setDeploymentAuthCookie,
+} from '@/lib/core/security/deployment'
+import {
+  type DeploymentAuthBody,
   type DeploymentAuthResult,
   validateDeploymentAuth,
 } from '@/lib/core/security/deployment-auth'
 
 export function setChatAuthCookie(
   response: NextResponse,
-  chatId: string,
-  type: string,
-  encryptedPassword?: string | null
+  deployment: DeploymentAuthResource,
+  verifiedEmail?: string
 ): void {
-  setDeploymentAuthCookie(response, 'chat', chatId, type, encryptedPassword)
+  setDeploymentAuthCookie({
+    response,
+    cookiePrefix: 'chat',
+    resource: deployment,
+    verifiedEmail,
+  })
 }
 
 /**
@@ -85,9 +93,9 @@ export async function checkChatAccess(
  */
 export async function validateChatAuth(
   requestId: string,
-  deployment: any,
+  deployment: DeploymentAuthResource,
   request: NextRequest,
-  parsedBody?: any
+  parsedBody?: DeploymentAuthBody
 ): Promise<DeploymentAuthResult> {
   return validateDeploymentAuth(requestId, deployment, request, parsedBody, 'chat')
 }

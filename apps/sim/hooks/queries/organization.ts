@@ -14,6 +14,7 @@ import {
   getMemberRemovalImpactContract,
   getOrganizationMemberUsageLimitContract,
   getOrganizationRosterContract,
+  type OrganizationBillingSummary,
   type OrganizationMemberUsageLimitData,
   type OrganizationRoster,
   type RemovalImpactCredential,
@@ -32,6 +33,7 @@ import {
 } from '@/lib/api/contracts/subscription'
 import { client } from '@/lib/auth/auth-client'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
@@ -63,25 +65,7 @@ function readNumber(value: unknown): number | undefined {
   return undefined
 }
 
-/**
- * Query key factories for organization-related queries
- * This ensures consistent cache invalidation across the app
- */
-export const organizationKeys = {
-  all: ['organizations'] as const,
-  lists: () => [...organizationKeys.all, 'list'] as const,
-  details: () => [...organizationKeys.all, 'detail'] as const,
-  detail: (id: string) => [...organizationKeys.details(), id] as const,
-  subscription: (id: string) => [...organizationKeys.detail(id), 'subscription'] as const,
-  billing: (id: string) => [...organizationKeys.detail(id), 'billing'] as const,
-  members: (id: string) => [...organizationKeys.detail(id), 'members'] as const,
-  memberUsage: (id: string) => [...organizationKeys.detail(id), 'member-usage'] as const,
-  memberUsageLimit: (id: string, userId: string) =>
-    [...organizationKeys.detail(id), 'member-usage-limit', userId] as const,
-  roster: (id: string) => [...organizationKeys.detail(id), 'roster'] as const,
-  removalImpact: (id: string, userId: string) =>
-    [...organizationKeys.detail(id), 'removal-impact', userId] as const,
-}
+export { organizationKeys }
 
 export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
 
@@ -228,10 +212,17 @@ export function useUpdateOrganizationUsageLimit() {
       })
     },
     onMutate: async ({ organizationId, limit }) => {
-      await queryClient.cancelQueries({ queryKey: organizationKeys.billing(organizationId) })
-      await queryClient.cancelQueries({ queryKey: organizationKeys.subscription(organizationId) })
+      await queryClient.cancelQueries({
+        queryKey: organizationKeys.billing(organizationId),
+      })
+      await queryClient.cancelQueries({
+        queryKey: organizationKeys.subscription(organizationId),
+      })
 
       const previousBillingData = queryClient.getQueryData(organizationKeys.billing(organizationId))
+      const previousBillingSummary = queryClient.getQueryData(
+        organizationKeys.billingSummary(organizationId)
+      )
       const previousSubscriptionData = queryClient.getQueryData(
         organizationKeys.subscription(organizationId)
       )
@@ -264,7 +255,24 @@ export function useUpdateOrganizationUsageLimit() {
         }
       )
 
-      return { previousBillingData, previousSubscriptionData, organizationId }
+      queryClient.setQueryData<{
+        success: true
+        data: OrganizationBillingSummary
+      }>(organizationKeys.billingSummary(organizationId), (old) =>
+        old
+          ? {
+              ...old,
+              data: { ...old.data, totalUsageLimit: limit },
+            }
+          : old
+      )
+
+      return {
+        previousBillingData,
+        previousBillingSummary,
+        previousSubscriptionData,
+        organizationId,
+      }
     },
     onError: (_err, _variables, context) => {
       if (context?.previousBillingData && context?.organizationId) {
@@ -277,6 +285,12 @@ export function useUpdateOrganizationUsageLimit() {
         queryClient.setQueryData(
           organizationKeys.subscription(context.organizationId),
           context.previousSubscriptionData
+        )
+      }
+      if (context?.previousBillingSummary && context?.organizationId) {
+        queryClient.setQueryData(
+          organizationKeys.billingSummary(context.organizationId),
+          context.previousBillingSummary
         )
       }
     },
@@ -309,11 +323,21 @@ export function useRemoveMember() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.detail(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.billing(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.memberUsage(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.subscription(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.roster(variables.orgId),
+      })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.all })
@@ -340,8 +364,12 @@ export function useUpdateOrganizationMemberRole() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.detail(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.roster(variables.orgId),
+      })
     },
   })
 }
@@ -411,10 +439,18 @@ export function useTransferOwnership() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.detail(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.roster(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.billing(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.subscription(variables.orgId),
+      })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
@@ -438,8 +474,12 @@ export function useUpdateInvitation() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.detail(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.roster(variables.orgId),
+      })
     },
   })
 }
@@ -467,9 +507,15 @@ export function useCancelInvitation() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.detail(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.roster(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.billing(variables.orgId),
+      })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: invitationListsKey })
     },
@@ -494,8 +540,12 @@ export function useResendInvitation() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.detail(variables.orgId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.roster(variables.orgId),
+      })
     },
   })
 }

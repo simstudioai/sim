@@ -150,9 +150,8 @@ function mockOrganizationDbRows({
     .mockResolvedValueOnce([{ role }])
     .mockResolvedValueOnce([{ id: 'org-target', name: 'Target organization' }])
     .mockResolvedValueOnce(latestSubscription ? [latestSubscription] : [])
-    .mockResolvedValueOnce([{ userId: ownerId }])
+    .mockResolvedValueOnce([{ userId: ownerId, billingBlocked, billingBlockedReason }])
     .mockResolvedValueOnce(upgradeWorkspaceId ? [{ id: upgradeWorkspaceId }] : [])
-    .mockResolvedValueOnce([{ billingBlocked, billingBlockedReason }])
 }
 
 describe('GET /api/billing', () => {

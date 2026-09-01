@@ -124,13 +124,11 @@ export const POST = withRouteHandler(
       }
 
       const response = NextResponse.json({ authType: resolved.share.authType })
-      setDeploymentAuthCookie(
+      setDeploymentAuthCookie({
         response,
-        'file',
-        resolved.share.id,
-        resolved.share.authType,
-        resolved.share.password
-      )
+        cookiePrefix: 'file',
+        resource: resolved.share,
+      })
       logger.info('Public file share password accepted', { token, shareId: resolved.share.id })
       return response
     } catch (error) {
