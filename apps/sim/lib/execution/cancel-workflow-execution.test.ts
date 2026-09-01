@@ -14,6 +14,7 @@ const {
   mockBlockQueuedResumesForCancellation,
   mockClearPausedCancellationIntent,
   mockCompletePausedCancellation,
+  mockFinalizePausedCancellationForTerminalRun,
   mockGetPausedCancellationStatus,
   mockGetActiveResumeCancellationTarget,
   mockRollbackActiveResumeCancellation,
@@ -35,6 +36,7 @@ const {
   mockBlockQueuedResumesForCancellation: vi.fn(),
   mockClearPausedCancellationIntent: vi.fn(),
   mockCompletePausedCancellation: vi.fn(),
+  mockFinalizePausedCancellationForTerminalRun: vi.fn(),
   mockGetPausedCancellationStatus: vi.fn(),
   mockGetActiveResumeCancellationTarget: vi.fn(),
   mockRollbackActiveResumeCancellation: vi.fn(),
@@ -75,6 +77,8 @@ vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
     clearPausedCancellationIntent: (...args: unknown[]) =>
       mockClearPausedCancellationIntent(...args),
     completePausedCancellation: (...args: unknown[]) => mockCompletePausedCancellation(...args),
+    finalizePausedCancellationForTerminalRun: (...args: unknown[]) =>
+      mockFinalizePausedCancellationForTerminalRun(...args),
     getPausedCancellationStatus: (...args: unknown[]) => mockGetPausedCancellationStatus(...args),
     getActiveResumeCancellationTarget: (...args: unknown[]) =>
       mockGetActiveResumeCancellationTarget(...args),
@@ -184,6 +188,7 @@ describe('cancelWorkflowExecution', () => {
     mockBlockQueuedResumesForCancellation.mockReset().mockResolvedValue(false)
     mockClearPausedCancellationIntent.mockReset().mockResolvedValue(undefined)
     mockCompletePausedCancellation.mockReset().mockResolvedValue(false)
+    mockFinalizePausedCancellationForTerminalRun.mockReset().mockResolvedValue(true)
     mockGetPausedCancellationStatus.mockReset().mockResolvedValue(null)
     mockGetActiveResumeCancellationTarget.mockReset().mockResolvedValue(null)
     mockRollbackActiveResumeCancellation.mockReset().mockResolvedValue(true)
@@ -1626,7 +1631,7 @@ describe('cancelWorkflowExecution', () => {
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
-  it('rolls back paused cancellation intent when resume completion wins the log claim', async () => {
+  it('finalizes paused cancellation state when resume completion wins the log claim', async () => {
     mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
     const returning = vi.fn().mockResolvedValue([])
     const where = vi.fn(() => ({ returning }))
@@ -1645,12 +1650,14 @@ describe('cancelWorkflowExecution', () => {
     })
     expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
     expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
-    expect(mockClearPausedCancellationIntent).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockFinalizePausedCancellationForTerminalRun).toHaveBeenCalledWith('ex-1', 'wf-1')
   })
 
-  it('retries paused cancellation cleanup before returning a terminal-race conflict', async () => {
+  it('retries paused cancellation finalization before returning a terminal-race conflict', async () => {
     mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
-    mockClearPausedCancellationIntent.mockRejectedValueOnce(new Error('database unavailable'))
+    mockFinalizePausedCancellationForTerminalRun.mockRejectedValueOnce(
+      new Error('database unavailable')
+    )
     const returning = vi.fn().mockResolvedValue([])
     const where = vi.fn(() => ({ returning }))
     databaseMock.db.update.mockReturnValueOnce({ set: vi.fn(() => ({ where })) })
@@ -1666,8 +1673,35 @@ describe('cancelWorkflowExecution', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Execution cannot be cancelled while completed',
     })
-    expect(mockClearPausedCancellationIntent).toHaveBeenCalledTimes(2)
+    expect(mockFinalizePausedCancellationForTerminalRun).toHaveBeenCalledTimes(2)
     expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
+  })
+
+  it('keeps the active-resume stop marker when a terminal parent wins the log claim', async () => {
+    mockStagePausedCancellation.mockResolvedValue({
+      kind: 'active_resume',
+      target: ACTIVE_RESUME_TARGET,
+    })
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    const returning = vi.fn().mockResolvedValue([])
+    const where = vi.fn(() => ({ returning }))
+    databaseMock.db.update.mockReturnValueOnce({ set: vi.fn(() => ({ where })) })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { executionDeadlineAt: null, status: 'running', workspaceId: 'workspace-1' },
+      ])
+      .mockResolvedValueOnce([{ status: 'completed' }])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Execution cannot be cancelled while completed',
+    })
+    expect(mockFinalizePausedCancellationForTerminalRun).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockRollbackActiveResumeCancellation).not.toHaveBeenCalled()
+    expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
   })
 
   it('treats a concurrent cancellation as an idempotent success', async () => {

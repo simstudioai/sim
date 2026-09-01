@@ -314,6 +314,35 @@ async function clearPausedCancellationIntentWithRetry(
   return false
 }
 
+async function finalizePausedCancellationForTerminalRunWithRetry(
+  executionId: string,
+  workflowId: string
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= PAUSED_CANCELLATION_DB_ATTEMPTS; attempt++) {
+    try {
+      const finalized = await PauseResumeManager.finalizePausedCancellationForTerminalRun(
+        executionId,
+        workflowId
+      )
+      if (finalized) return true
+      logger.warn('Paused cancellation terminal cleanup was rejected', {
+        executionId,
+        attempt,
+      })
+    } catch (error) {
+      logger.warn('Failed to finalize paused cancellation after terminal race', {
+        executionId,
+        attempt,
+        error: toError(error).message,
+      })
+    }
+    if (attempt < PAUSED_CANCELLATION_DB_ATTEMPTS) {
+      await sleep(PAUSED_CANCELLATION_DB_RETRY_MS)
+    }
+  }
+  return false
+}
+
 async function restorePausedCancellationAfterRejectedCommit(args: {
   executionId: string
   workflowId: string
@@ -346,10 +375,10 @@ async function restorePausedCancellationAfterRejectedCommit(args: {
   return clearPausedCancellationIntentWithRetry(args.executionId, args.workflowId)
 }
 
-function throwPausedCancellationRestoreFailed(): never {
+function throwPausedCancellationReconciliationFailed(): never {
   throw new OrchestrationError(
     'internal',
-    'Failed to restore paused execution after cancellation was rejected'
+    'Failed to reconcile paused execution after cancellation was rejected'
   )
 }
 
@@ -742,11 +771,11 @@ export async function cancelWorkflowExecution({
     }
 
     if (execution.status !== 'running' && execution.status !== 'pending') {
-      const pausedCancellationRestored = await clearPausedCancellationIntentWithRetry(
+      const pausedCancellationFinalized = await finalizePausedCancellationForTerminalRunWithRetry(
         executionId,
         workflowId
       )
-      if (!pausedCancellationRestored) throwPausedCancellationRestoreFailed()
+      if (!pausedCancellationFinalized) throwPausedCancellationReconciliationFailed()
 
       if (!isWorkflowGroupExecution && isWorkflowRunAlreadyTerminalStatus(execution.status)) {
         throw new WorkflowRunAlreadyTerminalError({
@@ -926,7 +955,7 @@ export async function cancelWorkflowExecution({
         effectivePausedCancellationPath,
         activeResumeEntryId,
       })
-      if (!pausedCancellationRestored) throwPausedCancellationRestoreFailed()
+      if (!pausedCancellationRestored) throwPausedCancellationReconciliationFailed()
       throw new OrchestrationError(
         'conflict',
         'Workflow group execution is no longer the active table execution'
@@ -934,14 +963,24 @@ export async function cancelWorkflowExecution({
     }
 
     if (competingTerminalStatus) {
-      await clearStopSignalMarkers(stopSummary)
-      const pausedCancellationRestored = await restorePausedCancellationAfterRejectedCommit({
-        executionId,
-        workflowId,
-        effectivePausedCancellationPath,
-        activeResumeEntryId,
-      })
-      if (!pausedCancellationRestored) throwPausedCancellationRestoreFailed()
+      if (isWorkflowGroupExecution) {
+        await clearStopSignalMarkers(stopSummary)
+        const pausedCancellationRestored = await restorePausedCancellationAfterRejectedCommit({
+          executionId,
+          workflowId,
+          effectivePausedCancellationPath,
+          activeResumeEntryId,
+        })
+        if (!pausedCancellationRestored) throwPausedCancellationReconciliationFailed()
+      } else if (effectivePausedCancellationPath) {
+        const pausedCancellationFinalized = await finalizePausedCancellationForTerminalRunWithRetry(
+          executionId,
+          workflowId
+        )
+        if (!pausedCancellationFinalized) throwPausedCancellationReconciliationFailed()
+      } else {
+        await clearStopSignalMarkers(stopSummary)
+      }
       if (
         !isWorkflowGroupExecution &&
         isWorkflowRunAlreadyTerminalStatus(competingTerminalStatus)

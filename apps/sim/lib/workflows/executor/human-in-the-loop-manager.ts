@@ -2732,6 +2732,102 @@ export class PauseResumeManager {
     return transition.cancelled
   }
 
+  /**
+   * Finalizes only pause and resume state when a non-cancellation terminal
+   * transition wins the parent execution race. The parent log is locked and
+   * inspected but never mutated, so a late claimed resume cannot revive it.
+   */
+  static async finalizePausedCancellationForTerminalRun(
+    executionId: string,
+    workflowId: string
+  ): Promise<boolean> {
+    const now = new Date()
+
+    const transition = await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (executionLog?.status === 'running' || executionLog?.status === 'pending') {
+        return { finalized: false, claimedResumeEntryIds: [] as string[] }
+      }
+
+      const pausedExecution = await tx
+        .select({ id: pausedExecutions.id, status: pausedExecutions.status })
+        .from(pausedExecutions)
+        .where(
+          and(
+            eq(pausedExecutions.executionId, executionId),
+            eq(pausedExecutions.workflowId, workflowId),
+            inArray(pausedExecutions.status, ['cancelling', 'cancelled'])
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (!pausedExecution) {
+        return { finalized: true, claimedResumeEntryIds: [] as string[] }
+      }
+
+      const claimedResumeEntries = await tx
+        .select({ id: resumeQueue.id })
+        .from(resumeQueue)
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            eq(resumeQueue.status, 'claimed')
+          )
+        )
+        .for('update')
+
+      if (pausedExecution.status !== 'cancelled') {
+        await tx
+          .update(pausedExecutions)
+          .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+          .where(
+            and(
+              eq(pausedExecutions.id, pausedExecution.id),
+              eq(pausedExecutions.status, 'cancelling')
+            )
+          )
+      }
+
+      await tx
+        .update(resumeQueue)
+        .set({
+          status: 'failed',
+          completedAt: now,
+          failureReason: 'Paused execution cancelled',
+        })
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            inArray(resumeQueue.status, ['pending', 'claimed'])
+          )
+        )
+
+      return {
+        finalized: true,
+        claimedResumeEntryIds: claimedResumeEntries.map((entry) => entry.id),
+      }
+    })
+
+    await releaseCancelledResumeReservations(transition.claimedResumeEntryIds)
+    return transition.finalized
+  }
+
   static async blockQueuedResumesForCancellation(
     executionId: string,
     workflowId: string
