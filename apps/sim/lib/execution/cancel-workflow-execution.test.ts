@@ -1613,7 +1613,8 @@ describe('cancelWorkflowExecution', () => {
   })
 
   it('updates execution log status in DB when durably recorded', async () => {
-    const mockWhere = vi.fn().mockResolvedValue(undefined)
+    const mockReturning = vi.fn().mockResolvedValue([{ status: 'cancelled' }])
+    const mockWhere = vi.fn(() => ({ returning: mockReturning }))
     const mockSet = vi.fn(() => ({ where: mockWhere }))
     databaseMock.db.update.mockReturnValueOnce({ set: mockSet })
     mockMarkExecutionCancelled.mockResolvedValue({
@@ -1621,8 +1622,10 @@ describe('cancelWorkflowExecution', () => {
       reason: 'recorded',
     })
 
-    await POST(makeRequest(), makeParams())
+    const response = await POST(makeRequest(), makeParams())
 
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ success: true, reason: 'recorded' })
     expect(databaseMock.db.update).toHaveBeenCalled()
     expect(mockSet).toHaveBeenCalledWith({
       status: 'cancelled',
@@ -1633,7 +1636,8 @@ describe('cancelWorkflowExecution', () => {
   })
 
   it('updates execution log status in DB when locally aborted', async () => {
-    const mockWhere = vi.fn().mockResolvedValue(undefined)
+    const mockReturning = vi.fn().mockResolvedValue([{ status: 'cancelled' }])
+    const mockWhere = vi.fn(() => ({ returning: mockReturning }))
     const mockSet = vi.fn(() => ({ where: mockWhere }))
     databaseMock.db.update.mockReturnValueOnce({ set: mockSet })
     mockMarkExecutionCancelled.mockResolvedValue({
@@ -1642,8 +1646,13 @@ describe('cancelWorkflowExecution', () => {
     })
     mockAbortManualExecution.mockReturnValue(true)
 
-    await POST(makeRequest(), makeParams())
+    const response = await POST(makeRequest(), makeParams())
 
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      reason: 'redis_unavailable',
+    })
     expect(databaseMock.db.update).toHaveBeenCalled()
     expect(mockSet).toHaveBeenCalledWith({
       status: 'cancelled',
