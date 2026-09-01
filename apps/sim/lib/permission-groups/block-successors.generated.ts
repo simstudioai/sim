@@ -24,6 +24,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   google_sheets: 'google_sheets_v2',
   google_slides: 'google_slides_v2',
   grain: 'grain_v2',
+  human_in_the_loop: 'human_in_the_loop_v2',
   image_generator: 'image_generator_v2',
   input_trigger: 'start_trigger',
   intercom: 'intercom_v2',
