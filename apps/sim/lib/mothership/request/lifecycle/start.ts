@@ -485,6 +485,7 @@ function fireTitleGeneration(params: {
     provider: titleProvider,
     userId,
     workspaceId,
+    chatId,
     billingAttribution,
     otelContext,
   })
@@ -516,10 +517,12 @@ export async function requestChatTitle(params: {
   provider?: string
   userId?: string
   workspaceId?: string
+  chatId?: string
   billingAttribution?: BillingAttributionSnapshot
   otelContext?: Context
 }): Promise<string | null> {
-  const { message, model, provider, userId, workspaceId, billingAttribution, otelContext } = params
+  const { message, model, provider, userId, workspaceId, chatId, billingAttribution, otelContext } =
+    params
   if (!message || !model) return null
 
   const headers = mothershipRequestHeaders()
@@ -550,6 +553,10 @@ export async function requestChatTitle(params: {
       body: JSON.stringify({
         message,
         ...(byokApiKey ? { byokApiKey } : {}),
+        // Metering identity: the worker records title spend into run_analytics.
+        ...(chatId ? { chatId } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
+        ...(userId ? { userId } : {}),
       }),
       otelContext,
       spanName: 'sim → go /api/generate-chat-title',
