@@ -6,6 +6,9 @@ interface ResourcePersistenceQueueOptions {
   onError: (error: unknown) => void
 }
 
+const UNSCOPED_QUEUE_ID = 'unscoped'
+const QUEUE_KEY_SEPARATOR = '\u0000'
+
 export interface RemovedResourcePersistence {
   inFlight: Promise<unknown> | undefined
   scheduleDelete: (chatId: string, remove: () => Promise<unknown>) => void
@@ -40,9 +43,10 @@ export class ResourcePersistenceQueue {
   enqueue(
     update: MothershipResourceUpdate,
     chatId: string | undefined,
-    base?: MothershipResource
+    base?: MothershipResource,
+    scopeId: string | undefined = chatId
   ): void {
-    const key = this.getKey(update)
+    const key = this.getKey(scopeId, update.type, update.id)
     const trackedLocally =
       this.desiredUpdates.has(key) || this.pendingKeys.has(key) || this.inFlight.has(key)
     if (base && !trackedLocally) this.persistedKeys.add(key)
@@ -60,20 +64,31 @@ export class ResourcePersistenceQueue {
     this.start(key, chatId)
   }
 
-  async flush(chatId: string): Promise<void> {
-    for (const key of this.pendingKeys) this.failedKeys.delete(key)
+  async flush(chatId: string, sourceScopeId: string = chatId): Promise<void> {
+    this.adoptScope(sourceScopeId, chatId)
+    for (const key of this.getScopedKeys(this.pendingKeys, chatId)) this.failedKeys.delete(key)
     this.startPending(chatId)
 
-    while (this.inFlight.size > 0) {
-      await Promise.allSettled(Array.from(this.inFlight.values()))
+    while (true) {
+      const inFlight = this.getInFlightWrites(chatId)
+      if (inFlight.length === 0) return
+      await Promise.allSettled(inFlight)
     }
   }
 
-  remove(type: string, id: string): RemovedResourcePersistence {
-    const key = `${type}:${id}`
+  remove(
+    type: string,
+    id: string,
+    scopeId: string | undefined,
+    assumePersisted = false
+  ): RemovedResourcePersistence {
+    const key = this.getKey(scopeId, type, id)
+    const trackedLocally =
+      this.desiredUpdates.has(key) || this.pendingKeys.has(key) || this.inFlight.has(key)
+    if (assumePersisted && !trackedLocally) this.persistedKeys.add(key)
     const wasPending = this.pendingKeys.delete(key)
     const inFlight = this.inFlight.get(key)
-    const wasPersisted = this.persistedKeys.delete(key)
+    const wasPersisted = this.persistedKeys.has(key)
     const removalToken = Symbol(key)
     this.pendingRemovals.delete(key)
     this.removalTokens.set(key, removalToken)
@@ -95,10 +110,24 @@ export class ResourcePersistenceQueue {
     }
   }
 
-  getPendingUpdates(): MothershipResourceUpdate[] {
-    return Array.from(this.pendingKeys).flatMap((key) => {
+  getPendingUpdates(scopeId?: string): MothershipResourceUpdate[] {
+    return this.getScopedKeys(this.pendingKeys, scopeId).flatMap((key) => {
       const update = this.desiredUpdates.get(key)
       return update ? [update] : []
+    })
+  }
+
+  getPendingResourceKeys(scopeId?: string): Set<string> {
+    const prefix = this.getScopePrefix(scopeId)
+    return new Set(
+      this.getScopedKeys(this.pendingKeys, scopeId).map((key) => key.slice(prefix.length))
+    )
+  }
+
+  getInFlightWrites(scopeId?: string): Promise<unknown>[] {
+    return this.getScopedKeys(this.inFlight, scopeId).flatMap((key) => {
+      const write = this.inFlight.get(key)
+      return write ? [write] : []
     })
   }
 
@@ -114,7 +143,7 @@ export class ResourcePersistenceQueue {
   }
 
   private startPending(chatId: string): void {
-    for (const key of this.pendingKeys) {
+    for (const key of this.getScopedKeys(this.pendingKeys, chatId)) {
       if (this.failedKeys.has(key) || this.inFlight.has(key)) continue
       const pendingRemoval = this.pendingRemovals.get(key)
       const removalToken = this.removalTokens.get(key)
@@ -205,7 +234,41 @@ export class ResourcePersistenceQueue {
     this.inFlight.set(key, tracked)
   }
 
-  private getKey(resource: Pick<MothershipResource, 'type' | 'id'>): string {
-    return `${resource.type}:${resource.id}`
+  private adoptScope(sourceScopeId: string, targetScopeId: string): void {
+    if (sourceScopeId === targetScopeId) return
+    const sourcePrefix = this.getScopePrefix(sourceScopeId)
+    for (const sourceKey of this.getScopedKeys(this.pendingKeys, sourceScopeId)) {
+      const resourceKey = sourceKey.slice(sourcePrefix.length)
+      const targetKey = `${this.getScopePrefix(targetScopeId)}${resourceKey}`
+      const sourceUpdate = this.desiredUpdates.get(sourceKey)
+      const targetUpdate = this.desiredUpdates.get(targetKey)
+      if (sourceUpdate) {
+        this.desiredUpdates.set(
+          targetKey,
+          targetUpdate ? mergePendingChatResourceUpdate(targetUpdate, sourceUpdate) : sourceUpdate
+        )
+      }
+      this.desiredUpdates.delete(sourceKey)
+      this.pendingKeys.delete(sourceKey)
+      this.pendingKeys.add(targetKey)
+      if (this.failedKeys.delete(sourceKey)) this.failedKeys.add(targetKey)
+      if (this.persistedKeys.delete(sourceKey)) this.persistedKeys.add(targetKey)
+    }
+  }
+
+  private getScopedKeys(
+    collection: ReadonlySet<string> | ReadonlyMap<string, unknown>,
+    scopeId?: string
+  ): string[] {
+    const prefix = this.getScopePrefix(scopeId)
+    return Array.from(collection.keys()).filter((key) => key.startsWith(prefix))
+  }
+
+  private getScopePrefix(scopeId?: string): string {
+    return `${scopeId ?? UNSCOPED_QUEUE_ID}${QUEUE_KEY_SEPARATOR}`
+  }
+
+  private getKey(scopeId: string | undefined, type: string, id: string): string {
+    return `${this.getScopePrefix(scopeId)}${type}:${id}`
   }
 }

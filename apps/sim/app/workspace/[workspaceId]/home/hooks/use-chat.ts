@@ -1404,9 +1404,8 @@ export function useChat(
     })
   }
   const resourcePersistenceQueue = resourcePersistenceQueueRef.current
-  const pendingPersistResourceKeysRef = useRef(resourcePersistenceQueue.pendingKeys)
-  const inFlightResourceAddsRef = useRef(resourcePersistenceQueue.inFlight)
-  const reorderNeededAfterFlushRef = useRef(false)
+  const pendingResourceReordersRef = useRef(new Map<string, MothershipResource[]>())
+  const pendingResourceReorderFlushesRef = useRef(new Map<string, Promise<void>>())
 
   // Derive the effective active resource ID for rendering without writing a
   // passive fallback back into the user's URL selection.
@@ -1663,8 +1662,6 @@ export function useChat(
     // Pending view pins belong to the chat whose stream issued them.
     useTableViewPinStore.getState().reset()
     undisplayableResourcesRef.current = []
-    resourcePersistenceQueue.clear()
-    reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
     // Editing binds to this hook's composer — release it before rotating chatKey.
     useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
@@ -1691,28 +1688,57 @@ export function useChat(
     workspaceId,
   ])
 
-  const flushPendingResources = useCallback(
-    async (chatId: string) => {
-      if (pendingPersistResourceKeysRef.current.size === 0) return
-      await resourcePersistenceQueue.flush(chatId)
-      if (!reorderNeededAfterFlushRef.current) return
-      reorderNeededAfterFlushRef.current = false
-      const localOrder = [
-        ...resourcesRef.current.filter(
-          (r) =>
-            r.id !== 'streaming-file' &&
-            !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
-        ),
-        ...undisplayableResourcesRef.current,
-      ]
-      if (localOrder.length === 0) return
-      requestJson(reorderMothershipChatResourcesContract, {
-        body: { chatId, resources: localOrder },
-      }).catch((err) => {
-        logger.warn('Failed to sync resource order after flush', err)
+  const flushPendingResourceReorder = useCallback(
+    (chatId: string): Promise<void> => {
+      const activeFlush = pendingResourceReorderFlushesRef.current.get(chatId)
+      if (activeFlush) return activeFlush
+
+      const flush = async () => {
+        while (true) {
+          const pendingOrder = pendingResourceReordersRef.current.get(chatId)
+          if (!pendingOrder) return
+          if (resourcePersistenceQueue.getPendingResourceKeys(chatId).size > 0) return
+
+          const inFlightWrites = resourcePersistenceQueue.getInFlightWrites(chatId)
+          if (inFlightWrites.length > 0) {
+            await Promise.allSettled(inFlightWrites)
+            continue
+          }
+
+          pendingResourceReordersRef.current.delete(chatId)
+          if (pendingOrder.length === 0) return
+          try {
+            await requestJson(reorderMothershipChatResourcesContract, {
+              body: { chatId, resources: pendingOrder },
+            })
+          } catch (error) {
+            if (!pendingResourceReordersRef.current.has(chatId)) {
+              pendingResourceReordersRef.current.set(chatId, pendingOrder)
+            }
+            logger.warn('Failed to persist resource reorder; will retry on next hydration', error)
+            return
+          }
+        }
+      }
+      const tracked = flush().finally(() => {
+        if (pendingResourceReorderFlushesRef.current.get(chatId) === tracked) {
+          pendingResourceReorderFlushesRef.current.delete(chatId)
+        }
       })
+      pendingResourceReorderFlushesRef.current.set(chatId, tracked)
+      return tracked
     },
     [resourcePersistenceQueue]
+  )
+
+  const flushPendingResources = useCallback(
+    async (chatId: string, sourceScopeId: string = chatId) => {
+      if (resourcePersistenceQueue.getPendingResourceKeys(sourceScopeId).size > 0) {
+        await resourcePersistenceQueue.flush(chatId, sourceScopeId)
+      }
+      await flushPendingResourceReorder(chatId)
+    },
+    [flushPendingResourceReorder, resourcePersistenceQueue]
   )
 
   const adoptResolvedChatId = useCallback(
@@ -1790,7 +1816,7 @@ export function useChat(
       if (options?.invalidateList) {
         queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
       }
-      flushPendingResources(chatId)
+      flushPendingResources(chatId, pendingChatKey)
     },
     [flushPendingResources, queryClient, workspaceId]
   )
@@ -1834,7 +1860,8 @@ export function useChat(
       }
 
       const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
-      resourcePersistenceQueue.enqueue(resourceUpdate, persistChatId, existing)
+      const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
+      resourcePersistenceQueue.enqueue(resourceUpdate, persistChatId, existing, persistenceScopeId)
       return existing === undefined
     },
     [resourcePersistenceQueue]
@@ -1848,15 +1875,24 @@ export function useChat(
       // Ephemeral panels were never persisted; nothing to delete server-side.
       if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
 
+      const existing = resourcesRef.current.find(
+        (resource) => resource.type === resourceType && resource.id === resourceId
+      )
+      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+      const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
       const {
         inFlight: inFlightAdd,
         scheduleDelete,
         wasPending,
         wasPersisted,
-      } = resourcePersistenceQueue.remove(resourceType, resourceId)
+      } = resourcePersistenceQueue.remove(
+        resourceType,
+        resourceId,
+        persistenceScopeId,
+        Boolean(existing && persistChatId)
+      )
       if (wasPending && !inFlightAdd && !wasPersisted) return
 
-      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
       if (!persistChatId) return
       scheduleDelete(persistChatId, () =>
         requestJson(removeMothershipChatResourceContract, {
@@ -1898,53 +1934,20 @@ export function useChat(
     [workspaceId, removeResource]
   )
 
-  const reorderResources = useCallback((newOrder: MothershipResource[]) => {
-    setResources(newOrder)
-    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
-    if (!persistChatId) return
-    const pendingKeys = pendingPersistResourceKeysRef.current
-    const inFlightAdds = inFlightResourceAddsRef.current
-    const hasUnsyncedAdds = newOrder.some((r) => {
-      const key = `${r.type}:${r.id}`
-      return pendingKeys.has(key) || inFlightAdds.has(key)
-    })
-    if (hasUnsyncedAdds) {
-      reorderNeededAfterFlushRef.current = true
-      if (pendingKeys.size === 0 && inFlightAdds.size > 0) {
-        Promise.allSettled(Array.from(inFlightAdds.values())).then(() => {
-          if (!reorderNeededAfterFlushRef.current) return
-          reorderNeededAfterFlushRef.current = false
-          const chatId = chatIdRef.current ?? selectedChatIdRef.current
-          if (!chatId) return
-          const order = [
-            ...resourcesRef.current.filter(
-              (r) =>
-                !isEphemeralResource(r) &&
-                !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
-            ),
-            ...undisplayableResourcesRef.current,
-          ]
-          if (order.length === 0) return
-          requestJson(reorderMothershipChatResourcesContract, {
-            body: { chatId, resources: order },
-          }).catch((err) => {
-            logger.warn('Failed to sync resource order after in-flight ADDs', err)
-          })
-        })
-      }
-      return
-    }
-    const persistableResources = [
-      ...newOrder.filter((r) => !isEphemeralResource(r)),
-      ...undisplayableResourcesRef.current,
-    ]
-    if (persistableResources.length === 0) return
-    requestJson(reorderMothershipChatResourcesContract, {
-      body: { chatId: persistChatId, resources: persistableResources },
-    }).catch((err) => {
-      logger.warn('Failed to persist resource reorder', err)
-    })
-  }, [])
+  const reorderResources = useCallback(
+    (newOrder: MothershipResource[]) => {
+      setResources(newOrder)
+      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+      if (!persistChatId) return
+      const persistableResources = [
+        ...newOrder.filter((resource) => !isEphemeralResource(resource)),
+        ...undisplayableResourcesRef.current,
+      ]
+      pendingResourceReordersRef.current.set(persistChatId, persistableResources)
+      void flushPendingResourceReorder(persistChatId)
+    },
+    [flushPendingResourceReorder]
+  )
 
   const ensureWorkflowToolResource = useCallback(
     (toolArgs: Record<string, unknown>): string | undefined => {
@@ -2228,7 +2231,8 @@ export function useChat(
     const streamOwnerId = chatIdRef.current
     const pendingTurn = activeTurnRef.current
     const pendingStreamId = streamIdRef.current ?? pendingTurn?.userMessageId
-    const pendingResources = resourcePersistenceQueue.getPendingUpdates()
+    const pendingResourceScopeId =
+      streamOwnerId ?? pendingTurn?.pendingChatKey ?? pendingChatKeyRef.current
     const navigatedToDifferentChat =
       sendingRef.current &&
       initialChatId !== streamOwnerId &&
@@ -2273,18 +2277,7 @@ export function useChat(
             if (pendingChatKey) {
               useMothershipQueueStore.getState().migrate(pendingChatKey, resolvedChatId)
             }
-            await Promise.allSettled(
-              pendingResources.map((update) => {
-                const { clearViewId, ...resource } = update
-                return requestJson(addMothershipChatResourceContract, {
-                  body: {
-                    chatId: resolvedChatId,
-                    resource,
-                    ...(clearViewId === true ? { clearViewId: true as const } : {}),
-                  },
-                })
-              })
-            )
+            await resourcePersistenceQueue.flush(resolvedChatId, pendingResourceScopeId)
             queryClient.invalidateQueries({
               queryKey: mothershipChatKeys.detail(resolvedChatId),
             })
@@ -2331,8 +2324,6 @@ export function useChat(
     setResources([])
     setActiveResourceId(null)
     useTableViewPinStore.getState().reset()
-    resourcePersistenceQueue.clear()
-    reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
     // Rotate the bucket key; the previous chat's queue stays in the store.
     // Release editing on the chat we're leaving (composer-scoped).
