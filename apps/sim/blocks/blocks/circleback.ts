@@ -31,7 +31,7 @@ export const CirclebackBlock: BlockConfig = {
         list_action_items: [
           'List action items',
           { text: 'assigned to', field: 'assigneeType' },
-          { text: 'with status', field: 'status' },
+          { text: 'with status', field: 'statusFilter' },
         ],
         update_action_item: [{ text: 'Update action item', field: 'actionItemId', core: true }],
         delete_action_item: [{ text: 'Delete action item', field: 'actionItemId', core: true }],
@@ -160,12 +160,20 @@ export const CirclebackBlock: BlockConfig = {
       title: 'Meeting IDs',
       type: 'short-input',
       placeholder: 'Comma-separated meeting IDs',
-      description:
-        'For Search Meetings, restricts the search to these meetings. For the tag operations, the meetings to update.',
+      description: 'The meetings to add the tag to or remove it from.',
       condition: {
         field: 'operation',
-        value: ['search_meetings', 'add_tag_to_meetings', 'remove_tag_from_meetings'],
+        value: ['add_tag_to_meetings', 'remove_tag_from_meetings'],
       },
+    },
+    {
+      id: 'searchMeetingIds',
+      title: 'Meeting IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated meeting IDs',
+      description: 'Restrict the search to these meetings.',
+      condition: { field: 'operation', value: 'search_meetings' },
+      mode: 'advanced',
     },
     {
       id: 'tagIds',
@@ -218,8 +226,17 @@ export const CirclebackBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'e.g., 42',
       description:
-        'For List Action Items, filters by this assignee. For Update Action Item, assigns to this profile, or the literal text null to remove the assignee.',
-      condition: { field: 'operation', value: ['list_action_items', 'update_action_item'] },
+        'The profile to assign the action item to, or the literal text null to remove the assignee.',
+      condition: { field: 'operation', value: 'update_action_item' },
+      mode: 'advanced',
+    },
+    {
+      id: 'assigneeFilterProfileId',
+      title: 'Assignee Profile ID',
+      type: 'short-input',
+      placeholder: 'e.g., 42',
+      description: 'Only return action items assigned to this profile.',
+      condition: { field: 'operation', value: 'list_action_items' },
       mode: 'advanced',
     },
     {
@@ -235,14 +252,27 @@ export const CirclebackBlock: BlockConfig = {
       title: 'Status',
       type: 'dropdown',
       options: [
-        { label: 'Leave unchanged / default', id: '' },
+        { label: 'Leave unchanged', id: '' },
         { label: 'Pending', id: 'PENDING' },
         { label: 'Done', id: 'DONE' },
       ],
       value: () => '',
-      description:
-        'For List Action Items, the completion status to filter by (defaults to incomplete). For Update Action Item, the status to set.',
-      condition: { field: 'operation', value: ['list_action_items', 'update_action_item'] },
+      description: 'The completion status to set on the action item.',
+      condition: { field: 'operation', value: 'update_action_item' },
+    },
+    {
+      id: 'statusFilter',
+      title: 'Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (incomplete)', id: '' },
+        { label: 'Pending', id: 'PENDING' },
+        { label: 'Done', id: 'DONE' },
+      ],
+      value: () => '',
+      description: 'The completion status to filter by. Defaults to incomplete action items.',
+      condition: { field: 'operation', value: 'list_action_items' },
+      mode: 'advanced',
     },
     {
       id: 'actionItemId',
@@ -419,6 +449,22 @@ export const CirclebackBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `circleback_${params.operation}`,
+      params: (params) => {
+        /* Filter variants live on their own subBlocks so an operation switch
+           cannot leak a mutation input into a list filter; remap them onto the
+           tool param names here. */
+        const result: Record<string, unknown> = {}
+        if (params.operation === 'list_action_items') {
+          if (params.statusFilter) result.status = params.statusFilter
+          if (params.assigneeFilterProfileId) {
+            result.assigneeProfileId = params.assigneeFilterProfileId
+          }
+        }
+        if (params.operation === 'search_meetings' && params.searchMeetingIds) {
+          result.meetingIds = params.searchMeetingIds
+        }
+        return result
+      },
     },
   },
 
@@ -432,7 +478,14 @@ export const CirclebackBlock: BlockConfig = {
     searchTerm: { type: 'string', description: 'Text to search for across meetings' },
     ownership: { type: 'string', description: 'Which meetings to list: All, Mine, or Shared' },
     statuses: { type: 'string', description: 'Comma-separated meeting statuses to filter by' },
-    meetingIds: { type: 'string', description: 'Comma-separated meeting IDs' },
+    meetingIds: {
+      type: 'string',
+      description: 'Comma-separated IDs of the meetings to add the tag to or remove it from',
+    },
+    searchMeetingIds: {
+      type: 'string',
+      description: 'Comma-separated meeting IDs to restrict the search to',
+    },
     tagIds: { type: 'string', description: 'Comma-separated tag IDs to filter by' },
     attendeeProfileIds: {
       type: 'string',
@@ -441,10 +494,18 @@ export const CirclebackBlock: BlockConfig = {
     assigneeType: { type: 'string', description: 'Assignee scope filter for action items' },
     assigneeProfileId: {
       type: 'string',
-      description: 'Assignee profile ID to filter by or assign to',
+      description: 'Profile to assign the action item to, or null to remove the assignee',
+    },
+    assigneeFilterProfileId: {
+      type: 'string',
+      description: 'Only return action items assigned to this profile',
     },
     assigneeTeamId: { type: 'string', description: 'Assignee team ID to filter by' },
-    status: { type: 'string', description: 'Action item status, PENDING or DONE' },
+    status: { type: 'string', description: 'The completion status to set, PENDING or DONE' },
+    statusFilter: {
+      type: 'string',
+      description: 'The completion status to filter by, PENDING or DONE',
+    },
     actionItemId: { type: 'string', description: 'Action item ID' },
     title: { type: 'string', description: 'New action item title' },
     description: { type: 'string', description: 'New action item description' },
@@ -525,7 +586,11 @@ export const CirclebackBlock: BlockConfig = {
     assignee: { type: 'json', description: 'Action item assignee, or null if unassigned' },
     completedAt: { type: 'string', description: 'When an action item was marked done' },
     meetingId: { type: 'string', description: 'The meeting an action item belongs to' },
-    status: { type: 'string', description: 'Action item status, PENDING or DONE' },
+    status: { type: 'string', description: 'The completion status to set, PENDING or DONE' },
+    statusFilter: {
+      type: 'string',
+      description: 'The completion status to filter by, PENDING or DONE',
+    },
     companyId: { type: 'number', description: 'The company a person belongs to' },
     companyName: { type: 'string', description: 'The company name of a person' },
     email: { type: 'string', description: 'A person email address' },
