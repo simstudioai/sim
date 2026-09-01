@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getTableById: vi.fn(),
@@ -105,6 +105,20 @@ const CARRIER = {
 } as Parameters<typeof runRowCascadeLoop>[0]
 
 describe('draining another dispatch’s pre-stamped marker', () => {
+  /**
+   * The loop under test resolves its collaborators with dynamic imports, which
+   * under a loaded parallel run can take whole seconds. Paying that cost inside
+   * a test's own budget is what made this file flaky: one test timed out
+   * mid-loop and its continuation spilled calls into the next. Warm the graph
+   * once, outside any per-test budget.
+   */
+  beforeAll(async () => {
+    await import('@/lib/table/service')
+    await import('@/lib/table/rows/service')
+    await import('@/lib/table/workflow-columns')
+    await import('@/lib/table/rows/executions')
+  }, 60_000)
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
