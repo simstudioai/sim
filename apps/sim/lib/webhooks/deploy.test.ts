@@ -255,6 +255,7 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
         canonicalParamId: 'botCredential',
         required: true,
       },
+      { id: 'commandFilter', mode: 'trigger', required: false },
     ],
   }
 
@@ -291,6 +292,31 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(result.config.triggerPath).toBeNull()
     expect(result.config.providerConfig.bot_user_id).toBe('BUSER')
     expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
+  })
+
+  it('deploys a slash command trigger and preserves its command filter', async () => {
+    mockGetSlackBotCredential.mockResolvedValue({
+      workspaceId: 'ws-1',
+      botToken: 'xoxb-token',
+      teamId: 'T123',
+      botUserId: 'BUSER',
+      signingSecret: 'secret',
+    })
+
+    const result = await resolveSlack({
+      eventType: 'slash_command',
+      commandFilter: '/ask-sim',
+      customBotCredential: 'cred_bot_1',
+    })
+
+    expect(result?.success).toBe(true)
+    if (!result?.success) throw new Error('expected success')
+    expect(result.config.provider).toBe('slack')
+    expect(result.config.routingKey).toBe('cred_bot_1')
+    expect(result.config.providerConfig).toMatchObject({
+      eventType: 'slash_command',
+      commandFilter: '/ask-sim',
+    })
   })
 
   it('does not validate an identity-less migrated bot for ordinary triggers', async () => {

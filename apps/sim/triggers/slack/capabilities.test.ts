@@ -77,12 +77,17 @@ describe('buildSlackManifest - Agent View', () => {
     })
   })
 
-  it('emits a custom description, actions, and suggested prompts', () => {
+  it('emits a custom description and slash commands', () => {
     const manifest = buildSlackManifest(new Set(), {
       ...opts,
       description: ' Answers support questions. ',
-      agentActions: [{ name: ' Search docs ', description: ' Find answers in the support docs. ' }],
-      suggestedPrompts: [{ title: ' Reset password ', message: ' Help me reset my password. ' }],
+      slashCommands: [
+        {
+          command: ' /ask-support ',
+          description: ' Ask the support agent. ',
+          usageHint: ' question or task ',
+        },
+      ],
     })
     expect(manifest.display_information).toEqual({
       name: 'Test Bot',
@@ -91,36 +96,56 @@ describe('buildSlackManifest - Agent View', () => {
     const features = manifest.features as Record<string, Record<string, unknown>>
     expect(features.agent_view).toEqual({
       agent_description: 'Answers support questions.',
-      actions: [{ name: 'Search docs', description: 'Find answers in the support docs.' }],
-      suggested_prompts: [{ title: 'Reset password', message: 'Help me reset my password.' }],
+    })
+    expect(features.slash_commands).toEqual([
+      {
+        command: '/ask-support',
+        description: 'Ask the support agent.',
+        should_escape: true,
+        usage_hint: 'question or task',
+        url: opts.webhookUrl,
+      },
+    ])
+    expect(manifest.oauth_config).toEqual({
+      scopes: { bot: [...REQUIRED_AGENT_SCOPES, 'commands'].sort() },
     })
   })
 
-  it('fails fast for incomplete agent actions or suggested prompts', () => {
+  it('fails fast for invalid slash commands', () => {
     expect(() =>
       buildSlackManifest(new Set(), {
         ...opts,
-        agentActions: [{ name: 'Search docs', description: ' ' }],
+        slashCommands: [{ command: '/ask-support', description: ' ' }],
       })
-    ).toThrow('Slack agent action 1 requires a name and description')
+    ).toThrow('Slack slash command 1 requires a command and description')
 
     expect(() =>
       buildSlackManifest(new Set(), {
         ...opts,
-        suggestedPrompts: [{ title: ' ', message: 'Find a document' }],
+        slashCommands: [{ command: '/ask support', description: 'Ask support' }],
       })
-    ).toThrow('Slack suggested prompt 1 requires a title and message')
+    ).toThrow('Slack slash command 1 must be one word beginning with /')
+
+    expect(() =>
+      buildSlackManifest(new Set(), {
+        ...opts,
+        slashCommands: [
+          { command: '/ask', description: 'Ask once' },
+          { command: ' /ask ', description: 'Ask twice' },
+        ],
+      })
+    ).toThrow('Slack slash command /ask is configured more than once')
   })
 
-  it('fails fast when Agent View has more than four suggested prompts', () => {
-    const suggestedPrompts = Array.from({ length: 5 }, (_, index) => ({
-      title: `Prompt ${index + 1}`,
-      message: `Message ${index + 1}`,
-    }))
+  it('uses the manifest placeholder for slash commands before deployment', () => {
+    const manifest = buildSlackManifest(new Set(), {
+      appName: 'Test Bot',
+      webhookUrl: null,
+      slashCommands: [{ command: '/ask', description: 'Ask the bot' }],
+    })
+    const features = manifest.features as Record<string, Record<string, unknown>[]>
 
-    expect(() => buildSlackManifest(new Set(), { ...opts, suggestedPrompts })).toThrow(
-      'Slack Agent View supports at most four suggested prompts'
-    )
+    expect(features.slash_commands[0].url).toBe('<deploy workflow to generate webhook URL>')
   })
 
   it("fails fast when the Agent View description exceeds Slack's limit", () => {

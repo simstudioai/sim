@@ -21243,7 +21243,7 @@
         {
           "id": "slack_oauth",
           "name": "Slack",
-          "description": "Trigger from Slack events (mentions, messages, reactions)"
+          "description": "Trigger from Slack events, interactions, and slash commands"
         }
       ],
       "triggerCount": 1,

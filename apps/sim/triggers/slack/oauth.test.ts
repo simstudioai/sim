@@ -36,11 +36,25 @@ describe('Slack trigger extended-scope capability', () => {
       'agent_session_stopped',
       'agent_session_title_changed',
       'app_context_changed',
+      'slash_command',
     ]
     expect(SLACK_EVENT_CATALOG.map((event) => event.id)).toEqual(
       expect.arrayContaining(agentEvents)
     )
     expect(SIM_SUBSCRIBED_EVENTS).not.toEqual(expect.arrayContaining(agentEvents))
+  })
+
+  it('offers a command filter for custom-bot slash command triggers', () => {
+    const commandFilter = slackOAuthTrigger.subBlocks.find(
+      (subBlock) => subBlock.id === 'commandFilter'
+    )
+
+    expect(commandFilter).toMatchObject({
+      title: 'Command',
+      condition: { field: 'eventType', value: ['slash_command'] },
+      required: false,
+      mode: 'trigger',
+    })
   })
 })
 

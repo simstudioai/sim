@@ -29,15 +29,14 @@ import {
   getSlackManagedUserAuthorizationManifestConfig,
   SLACK_CAPABILITIES,
   SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY,
-  type SlackAgentAction,
-  type SlackAgentSuggestedPrompt,
+  type SlackSlashCommand,
 } from '@/triggers/slack/capabilities'
 import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
 const logger = createLogger('ConnectSlackBotModal')
 
 const DEFAULT_APP_NAME = 'Sim Bot'
-const DONE_STEP = 5
+const DONE_STEP = 4
 
 /** Every capability is granted by default; trimming is an opt-in dropdown. */
 const CUSTOM_BOT_CAPABILITIES = [
@@ -52,26 +51,28 @@ const CAPABILITY_OPTIONS: ChipDropdownOption[] = CUSTOM_BOT_CAPABILITIES.map((ca
   label: capability.label,
 }))
 
-interface SlackAgentActionDraft extends SlackAgentAction {
+interface SlackSlashCommandDraft extends SlackSlashCommand {
   id: string
 }
 
-interface SlackSuggestedPromptDraft extends SlackAgentSuggestedPrompt {
-  id: string
-}
-
-function getAgentConfigurationError(
-  actions: readonly SlackAgentActionDraft[],
-  prompts: readonly SlackSuggestedPromptDraft[]
-): string | null {
-  if (actions.some((action) => !action.name.trim() || !action.description.trim())) {
-    return 'Every agent action needs a name and description.'
+function getSlashCommandsError(commands: readonly SlackSlashCommandDraft[]): string | null {
+  if (commands.some((entry) => !entry.command.trim() || !entry.description.trim())) {
+    return 'Every slash command needs a command and description.'
   }
-  if (prompts.some((prompt) => !prompt.title.trim() || !prompt.message.trim())) {
-    return 'Every suggested prompt needs a title and message.'
+  if (
+    commands.some((entry) => {
+      const command = entry.command.trim()
+      return !command.startsWith('/') || command.length === 1 || /\s/.test(command)
+    })
+  ) {
+    return 'Slash commands must be one word beginning with /.'
   }
-  if (prompts.length > 4) {
-    return 'Slack Agent View supports at most four suggested prompts.'
+  if (commands.some((entry) => entry.command.trim().length > 32)) {
+    return 'Slash commands must be 32 characters or fewer.'
+  }
+  const normalizedCommands = commands.map((entry) => entry.command.trim())
+  if (new Set(normalizedCommands).size !== normalizedCommands.length) {
+    return 'Each slash command must be unique.'
   }
   return null
 }
@@ -124,8 +125,7 @@ export function ConnectSlackBotModal({
   const [appName, setAppName] = useState(initialDisplayName ?? '')
   const [appDescription, setAppDescription] = useState(initialDescription ?? '')
   const [selected, setSelected] = useState<Set<string>>(() => new Set(ALL_CAPABILITIES))
-  const [agentActions, setAgentActions] = useState<SlackAgentActionDraft[]>([])
-  const [suggestedPrompts, setSuggestedPrompts] = useState<SlackSuggestedPromptDraft[]>([])
+  const [slashCommands, setSlashCommands] = useState<SlackSlashCommandDraft[]>([])
   const [signingSecret, setSigningSecret] = useState('')
   const [botToken, setBotToken] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
@@ -140,8 +140,7 @@ export function ConnectSlackBotModal({
     setAppName(initialDisplayName ?? '')
     setAppDescription(initialDescription ?? '')
     setSelected(new Set(ALL_CAPABILITIES))
-    setAgentActions([])
-    setSuggestedPrompts([])
+    setSlashCommands([])
     setSigningSecret('')
     setBotToken('')
     setCreateError(null)
@@ -162,8 +161,8 @@ export function ConnectSlackBotModal({
   const requestUrl = useMemo(() => buildSlackCustomBotRequestUrl(credentialId), [credentialId])
 
   const descriptionError = getAgentDescriptionError(appDescription)
-  const agentConfigurationError = getAgentConfigurationError(agentActions, suggestedPrompts)
-  const manifestConfigurationError = descriptionError ?? agentConfigurationError
+  const slashCommandsError = getSlashCommandsError(slashCommands)
+  const manifestConfigurationError = descriptionError ?? slashCommandsError
 
   const manifestJson = useMemo(() => {
     if (manifestConfigurationError) return ''
@@ -174,20 +173,15 @@ export function ConnectSlackBotModal({
       appName: appName.trim() || DEFAULT_APP_NAME,
       webhookUrl: requestUrl,
       description: appDescription,
-      agentActions: agentActions.map(({ name, description }) => ({ name, description })),
-      suggestedPrompts: suggestedPrompts.map(({ title, message }) => ({ title, message })),
+      slashCommands: slashCommands.map(({ command, description, usageHint }) => ({
+        command,
+        description,
+        usageHint,
+      })),
       ...(managedUserAuthorization ? { managedUserAuthorization } : {}),
     })
     return JSON.stringify(manifest, null, 2)
-  }, [
-    manifestConfigurationError,
-    selected,
-    appName,
-    appDescription,
-    agentActions,
-    suggestedPrompts,
-    requestUrl,
-  ])
+  }, [manifestConfigurationError, selected, appName, appDescription, slashCommands, requestUrl])
 
   const capabilityIds = useMemo(() => [...selected], [selected])
   const setCapabilityIds = useCallback((next: string[]) => setSelected(new Set(next)), [])
@@ -268,7 +262,7 @@ export function ConnectSlackBotModal({
           fallback, which collides for a second bot in the same workspace. */}
       <Wizard.Step
         title='Configure your bot'
-        canAdvance={appName.trim().length > 0 && !descriptionError}
+        canAdvance={appName.trim().length > 0 && !descriptionError && !slashCommandsError}
       >
         <StepConfigure
           appName={appName}
@@ -276,17 +270,11 @@ export function ConnectSlackBotModal({
           appDescription={appDescription}
           onAppDescriptionChange={setAppDescription}
           descriptionError={descriptionError}
+          slashCommands={slashCommands}
+          onSlashCommandsChange={setSlashCommands}
+          slashCommandsError={slashCommandsError}
           capabilityIds={capabilityIds}
           onCapabilityIdsChange={setCapabilityIds}
-        />
-      </Wizard.Step>
-      <Wizard.Step title='Customize Agent View' canAdvance={!agentConfigurationError}>
-        <StepAgentView
-          actions={agentActions}
-          onActionsChange={setAgentActions}
-          suggestedPrompts={suggestedPrompts}
-          onSuggestedPromptsChange={setSuggestedPrompts}
-          error={agentConfigurationError}
         />
       </Wizard.Step>
       <Wizard.Step title='Create the app in Slack'>
@@ -335,6 +323,9 @@ interface StepConfigureProps {
   appDescription: string
   onAppDescriptionChange: (next: string) => void
   descriptionError: string | null
+  slashCommands: readonly SlackSlashCommandDraft[]
+  onSlashCommandsChange: (commands: SlackSlashCommandDraft[]) => void
+  slashCommandsError: string | null
   capabilityIds: string[]
   onCapabilityIdsChange: (next: string[]) => void
 }
@@ -344,6 +335,9 @@ function StepConfigure({
   appDescription,
   onAppDescriptionChange,
   descriptionError,
+  slashCommands,
+  onSlashCommandsChange,
+  slashCommandsError,
   capabilityIds,
   onCapabilityIdsChange,
 }: StepConfigureProps) {
@@ -395,159 +389,93 @@ function StepConfigure({
             users, and people can authorize it through Credential Groups.
           </p>
         )}
-        <p className='text-[var(--text-muted)] text-caption'>
-          Agent View, Agent Sessions, streaming, message posting, and direct messages are always
-          enabled for custom bots.
-        </p>
       </div>
+      <SlashCommandsEditor
+        commands={slashCommands}
+        onChange={onSlashCommandsChange}
+        error={slashCommandsError}
+      />
     </div>
   )
 }
 
-interface StepAgentViewProps {
-  actions: readonly SlackAgentActionDraft[]
-  onActionsChange: (actions: SlackAgentActionDraft[]) => void
-  suggestedPrompts: readonly SlackSuggestedPromptDraft[]
-  onSuggestedPromptsChange: (prompts: SlackSuggestedPromptDraft[]) => void
+interface SlashCommandsEditorProps {
+  commands: readonly SlackSlashCommandDraft[]
+  onChange: (commands: SlackSlashCommandDraft[]) => void
   error: string | null
 }
 
-function StepAgentView({
-  actions,
-  onActionsChange,
-  suggestedPrompts,
-  onSuggestedPromptsChange,
-  error,
-}: StepAgentViewProps) {
-  const addAction = () => {
-    onActionsChange([...actions, { id: generateId(), name: '', description: '' }])
+function SlashCommandsEditor({ commands, onChange, error }: SlashCommandsEditorProps) {
+  const addCommand = () => {
+    onChange([...commands, { id: generateId(), command: '', description: '', usageHint: '' }])
   }
-  const updateAction = (
+  const updateCommand = (
     id: string,
-    field: keyof Pick<SlackAgentActionDraft, 'name' | 'description'>,
+    field: keyof Pick<SlackSlashCommandDraft, 'command' | 'description' | 'usageHint'>,
     value: string
   ) => {
-    onActionsChange(
-      actions.map((action) => (action.id === id ? { ...action, [field]: value } : action))
-    )
+    onChange(commands.map((entry) => (entry.id === id ? { ...entry, [field]: value } : entry)))
   }
-  const removeAction = (id: string) => {
-    onActionsChange(actions.filter((action) => action.id !== id))
-  }
-
-  const addSuggestedPrompt = () => {
-    onSuggestedPromptsChange([...suggestedPrompts, { id: generateId(), title: '', message: '' }])
-  }
-  const updateSuggestedPrompt = (
-    id: string,
-    field: keyof Pick<SlackSuggestedPromptDraft, 'title' | 'message'>,
-    value: string
-  ) => {
-    onSuggestedPromptsChange(
-      suggestedPrompts.map((prompt) => (prompt.id === id ? { ...prompt, [field]: value } : prompt))
-    )
-  }
-  const removeSuggestedPrompt = (id: string) => {
-    onSuggestedPromptsChange(suggestedPrompts.filter((prompt) => prompt.id !== id))
+  const removeCommand = (id: string) => {
+    onChange(commands.filter((entry) => entry.id !== id))
   }
 
   return (
-    <div className='space-y-5'>
-      <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
-        Optionally advertise what your agent can do and give people clickable conversation starters.
-        Agent actions describe capabilities in Slack; they do not create slash commands or workflow
-        handlers.
-      </p>
-
-      <div className='space-y-2'>
-        <div>
-          <Label className='text-[var(--text-muted)] text-small'>Agent actions</Label>
-          <p className='text-[var(--text-muted)] text-caption'>
-            Short names and descriptions shown in the Agent View capability menu.
-          </p>
-        </div>
-        {actions.map((action, index) => (
-          <div
-            key={action.id}
-            className='flex items-start gap-2 rounded-lg border border-[var(--border-1)] p-2'
-          >
-            <div className='min-w-0 flex-1 space-y-2'>
-              <ChipInput
-                value={action.name}
-                onChange={(event) => updateAction(action.id, 'name', event.target.value)}
-                placeholder='Action name, e.g. Search docs'
-                aria-label={`Agent action ${index + 1} name`}
-              />
-              <ChipInput
-                value={action.description}
-                onChange={(event) => updateAction(action.id, 'description', event.target.value)}
-                placeholder='What this action lets the agent do'
-                aria-label={`Agent action ${index + 1} description`}
-              />
-            </div>
-            <Button
-              variant='quiet'
-              size='icon'
-              aria-label={`Remove agent action ${index + 1}`}
-              onClick={() => removeAction(action.id)}
-            >
-              <Trash className='size-[14px]' />
-            </Button>
-          </div>
-        ))}
-        <Chip className='w-fit' leftIcon={Plus} onClick={addAction}>
-          Add action
-        </Chip>
-      </div>
-
-      <div className='space-y-2'>
-        <div>
-          <Label className='text-[var(--text-muted)] text-small'>Suggested prompts</Label>
-          <p className='text-[var(--text-muted)] text-caption'>
-            Static prompts pinned to the Messages tab. Slack recommends two to four.
-          </p>
-        </div>
-        {suggestedPrompts.map((prompt, index) => (
-          <div
-            key={prompt.id}
-            className='flex items-start gap-2 rounded-lg border border-[var(--border-1)] p-2'
-          >
-            <div className='min-w-0 flex-1 space-y-2'>
-              <ChipInput
-                value={prompt.title}
-                onChange={(event) => updateSuggestedPrompt(prompt.id, 'title', event.target.value)}
-                placeholder='Prompt title, e.g. Reset password'
-                aria-label={`Suggested prompt ${index + 1} title`}
-              />
-              <ChipInput
-                value={prompt.message}
-                onChange={(event) =>
-                  updateSuggestedPrompt(prompt.id, 'message', event.target.value)
-                }
-                placeholder='Message sent when someone chooses this prompt'
-                aria-label={`Suggested prompt ${index + 1} message`}
-              />
-            </div>
-            <Button
-              variant='quiet'
-              size='icon'
-              aria-label={`Remove suggested prompt ${index + 1}`}
-              onClick={() => removeSuggestedPrompt(prompt.id)}
-            >
-              <Trash className='size-[14px]' />
-            </Button>
-          </div>
-        ))}
+    <div className='flex flex-col gap-[9px]'>
+      <div className='flex items-center justify-between gap-2'>
+        <Label className='text-[var(--text-muted)] text-small'>Slash commands (optional)</Label>
         <Chip
           className='w-fit'
           leftIcon={Plus}
-          onClick={addSuggestedPrompt}
-          disabled={suggestedPrompts.length >= 4}
+          onClick={addCommand}
+          disabled={commands.length >= 50}
         >
-          Add suggested prompt
+          Add
         </Chip>
       </div>
-
+      {commands.length > 0 && (
+        <div className='space-y-2'>
+          {commands.map((entry, index) => (
+            <div
+              key={entry.id}
+              className='flex items-start gap-2 rounded-lg border border-[var(--border)] p-2'
+            >
+              <div className='min-w-0 flex-1 space-y-2'>
+                <ChipInput
+                  value={entry.command}
+                  onChange={(event) => updateCommand(entry.id, 'command', event.target.value)}
+                  placeholder='/ask-sim'
+                  maxLength={32}
+                  inputClassName='font-mono'
+                  aria-label={`Slash command ${index + 1}`}
+                />
+                <ChipInput
+                  value={entry.description}
+                  onChange={(event) => updateCommand(entry.id, 'description', event.target.value)}
+                  placeholder='Short description shown in Slack'
+                  maxLength={2000}
+                  aria-label={`Slash command ${index + 1} description`}
+                />
+                <ChipInput
+                  value={entry.usageHint ?? ''}
+                  onChange={(event) => updateCommand(entry.id, 'usageHint', event.target.value)}
+                  placeholder='Usage hint (optional), e.g. question or task'
+                  maxLength={1000}
+                  aria-label={`Slash command ${index + 1} usage hint`}
+                />
+              </div>
+              <Button
+                variant='quiet'
+                size='icon'
+                aria-label={`Remove slash command ${index + 1}`}
+                onClick={() => removeCommand(entry.id)}
+              >
+                <Trash className='size-[14px]' />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
       {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
     </div>
   )

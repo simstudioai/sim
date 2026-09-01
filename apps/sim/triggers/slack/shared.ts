@@ -197,8 +197,16 @@ export const SLACK_TRIGGER_OUTPUTS: Record<string, TriggerOutput> = {
  * - `name`: substring match on a created channel's name.
  * - `interaction`: restrict an interactivity event to specific `action_id`s
  *   (block_actions) or `callback_id`s (view_submission).
+ * - `command`: restrict slash-command requests to specific command names.
  */
-export type SlackEventFilter = 'source' | 'channels' | 'threads' | 'emoji' | 'name' | 'interaction'
+export type SlackEventFilter =
+  | 'source'
+  | 'channels'
+  | 'threads'
+  | 'emoji'
+  | 'name'
+  | 'interaction'
+  | 'command'
 
 export interface SlackEventCatalogEntry {
   /** Selected value stored under the `eventType` sub-block. */
@@ -312,6 +320,12 @@ export const SLACK_EVENT_CATALOG: readonly SlackEventCatalogEntry[] = [
     label: 'Modal submitted',
     simSubscribed: true,
     filters: ['interaction'],
+  },
+  {
+    id: 'slash_command',
+    label: 'Slash command',
+    simSubscribed: false,
+    filters: ['command'],
   },
 ] as const
 

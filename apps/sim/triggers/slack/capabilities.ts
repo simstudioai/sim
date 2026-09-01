@@ -213,14 +213,10 @@ export const SLACK_AGENT_EVENTS = [
   'message.im',
 ] as const
 
-export interface SlackAgentAction {
-  name: string
+export interface SlackSlashCommand {
+  command: string
   description: string
-}
-
-export interface SlackAgentSuggestedPrompt {
-  title: string
-  message: string
+  usageHint?: string
 }
 
 export interface BuildManifestOptions {
@@ -228,38 +224,64 @@ export interface BuildManifestOptions {
   webhookUrl: string | null
   /** Shown on the bot's Slack profile and as the agent description. */
   description?: string
-  agentActions?: readonly SlackAgentAction[]
-  suggestedPrompts?: readonly SlackAgentSuggestedPrompt[]
+  slashCommands?: readonly SlackSlashCommand[]
   managedUserAuthorization?: {
     redirectUrls: readonly string[]
     userScopes: readonly string[]
   }
 }
 
-function normalizeAgentActions(actions: readonly SlackAgentAction[]): SlackAgentAction[] {
-  return actions.map((action, index) => {
-    const name = action.name.trim()
-    const description = action.description.trim()
-    if (!name || !description) {
-      throw new Error(`Slack agent action ${index + 1} requires a name and description`)
-    }
-    return { name, description }
-  })
-}
-
-function normalizeSuggestedPrompts(
-  prompts: readonly SlackAgentSuggestedPrompt[]
-): SlackAgentSuggestedPrompt[] {
-  if (prompts.length > 4) {
-    throw new Error('Slack Agent View supports at most four suggested prompts')
+function normalizeSlashCommands(
+  commands: readonly SlackSlashCommand[],
+  webhookUrl: string
+): Array<{
+  command: string
+  description: string
+  should_escape: true
+  url: string
+  usage_hint?: string
+}> {
+  if (commands.length > 50) {
+    throw new Error('Slack apps support at most 50 slash commands')
   }
-  return prompts.map((prompt, index) => {
-    const title = prompt.title.trim()
-    const message = prompt.message.trim()
-    if (!title || !message) {
-      throw new Error(`Slack suggested prompt ${index + 1} requires a title and message`)
+
+  const seen = new Set<string>()
+  return commands.map((entry, index) => {
+    const command = entry.command.trim()
+    const description = entry.description.trim()
+    const usageHint = entry.usageHint?.trim() || ''
+
+    if (!command || !description) {
+      throw new Error(`Slack slash command ${index + 1} requires a command and description`)
     }
-    return { title, message }
+    if (!command.startsWith('/') || command.length === 1 || /\s/.test(command)) {
+      throw new Error(`Slack slash command ${index + 1} must be one word beginning with /`)
+    }
+    if (command.length > 32) {
+      throw new Error(`Slack slash command ${index + 1} must be 32 characters or fewer`)
+    }
+    if (description.length > 2000) {
+      throw new Error(
+        `Slack slash command ${index + 1} description must be 2000 characters or fewer`
+      )
+    }
+    if (usageHint.length > 1000) {
+      throw new Error(
+        `Slack slash command ${index + 1} usage hint must be 1000 characters or fewer`
+      )
+    }
+    if (seen.has(command)) {
+      throw new Error(`Slack slash command ${command} is configured more than once`)
+    }
+    seen.add(command)
+
+    return {
+      command,
+      description,
+      should_escape: true,
+      url: webhookUrl,
+      ...(usageHint ? { usage_hint: usageHint } : {}),
+    }
   })
 }
 
@@ -279,16 +301,18 @@ export function buildSlackManifest(
     appName,
     webhookUrl,
     description,
-    agentActions = [],
-    suggestedPrompts = [],
+    slashCommands = [],
     managedUserAuthorization,
   }: BuildManifestOptions
 ): Record<string, unknown> {
   const active = SLACK_CAPABILITIES.filter((c) => enabled.has(c.id))
+  const requestUrl = webhookUrl ?? WEBHOOK_URL_PLACEHOLDER
+  const normalizedSlashCommands = normalizeSlashCommands(slashCommands, requestUrl)
   const scopes = [
     ...new Set([
       ...SLACK_AGENT_SCOPES,
       ...active.flatMap((c) => c.scopes),
+      ...(normalizedSlashCommands.length > 0 ? ['commands'] : []),
       ...(managedUserAuthorization ? ['users:read'] : []),
     ]),
   ].sort()
@@ -297,8 +321,6 @@ export function buildSlackManifest(
   const trimmedDescription = description?.trim() || ''
   const isInteractive = active.some((c) => c.interactivity)
   const agentDescription = trimmedDescription || `${displayName} — an AI agent powered by Sim.`
-  const normalizedActions = normalizeAgentActions(agentActions)
-  const normalizedPrompts = normalizeSuggestedPrompts(suggestedPrompts)
 
   if (agentDescription.length > 300) {
     throw new Error('Slack agent description must be 300 characters or fewer')
@@ -308,9 +330,8 @@ export function buildSlackManifest(
     bot_user: { display_name: displayName, always_online: true },
     agent_view: {
       agent_description: agentDescription,
-      ...(normalizedActions.length > 0 ? { actions: normalizedActions } : {}),
-      ...(normalizedPrompts.length > 0 ? { suggested_prompts: normalizedPrompts } : {}),
     },
+    ...(normalizedSlashCommands.length > 0 ? { slash_commands: normalizedSlashCommands } : {}),
     app_home: {
       home_tab_enabled: false,
       messages_tab_enabled: true,
@@ -348,7 +369,7 @@ export function buildSlackManifest(
 
   const settings = manifest.settings as Record<string, unknown>
   settings.event_subscriptions = {
-    request_url: webhookUrl ?? WEBHOOK_URL_PLACEHOLDER,
+    request_url: requestUrl,
     bot_events: events,
   }
 
@@ -357,7 +378,7 @@ export function buildSlackManifest(
   if (isInteractive) {
     settings.interactivity = {
       is_enabled: true,
-      request_url: webhookUrl ?? WEBHOOK_URL_PLACEHOLDER,
+      request_url: requestUrl,
     }
   }
 

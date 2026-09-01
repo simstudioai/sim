@@ -627,6 +627,39 @@ describe('resolveSlackEventKey - interactions', () => {
   })
 })
 
+describe('shouldSkipSlackTriggerEvent - slash commands', () => {
+  const slashCommand = {
+    command: '/ask-sim',
+    text: 'Summarize this channel',
+    team_id: 'T1',
+    channel_id: 'C1',
+    user_id: 'U1',
+  }
+
+  it('maps slash command payloads to the selectable trigger event', () => {
+    expect(resolveSlackEventKey(slashCommand)).toBe('slash_command')
+  })
+
+  it('fires for any command when no command filter is set', () => {
+    expect(shouldSkipSlackTriggerEvent(slashCommand, { eventType: 'slash_command' })).toBe(false)
+  })
+
+  it('matches the exact configured command', () => {
+    expect(
+      shouldSkipSlackTriggerEvent(slashCommand, {
+        eventType: 'slash_command',
+        commandFilter: '/ask-sim',
+      })
+    ).toBe(false)
+    expect(
+      shouldSkipSlackTriggerEvent(slashCommand, {
+        eventType: 'slash_command',
+        commandFilter: '/deploy',
+      })
+    ).toBe(true)
+  })
+})
+
 /** True when an interaction (top-level payload, no event envelope) fires. */
 function interactionFires(config: Record<string, unknown>, body: Record<string, unknown>): boolean {
   return !shouldSkipSlackTriggerEvent(

@@ -1912,7 +1912,7 @@ A **Trigger** is a block that starts a workflow when an event happens in this se
 
 ### Slack
 
-Trigger from Slack events (mentions, messages, reactions)
+Trigger from Slack events, interactions, and slash commands
 
 #### Configuration
 
@@ -1934,6 +1934,7 @@ Trigger from Slack events (mentions, messages, reactions)
 | `emoji` | string | No | Comma-separated emoji names to restrict to. Leave empty to match any emoji. |
 | `nameContains` | string | No | Only fire when the created channel name contains this text. |
 | `interactionFilter` | string | No | Comma-separated action_ids \(buttons/selects\) or callback_ids \(modals\) to restrict to. Leave empty to fire on any interaction. |
+| `commandFilter` | string | No | Restrict this trigger to one slash command. Leave empty to fire for every command configured on the bot. |
 | `filterBotMessages` | boolean | No | Ignore messages sent by other bots. This app's own output is always ignored. |
 | `includeOwnMessages` | boolean | No | Also fire on this app's own messages and reactions. Can cause loops — use with care. |
 | `includeFiles` | boolean | No | Download and include file attachments from messages. Requires files:read. |

@@ -593,6 +593,10 @@ const CONTENT_MESSAGE_SUBTYPES = new Set([
  * fans out to `message` / `message_edited` / `message_deleted` by subtype.
  */
 export function resolveSlackEventKey(body: Record<string, unknown>): string | null {
+  if (typeof body.command === 'string' && body.command.startsWith('/')) {
+    return 'slash_command'
+  }
+
   const event = body.event as Record<string, unknown> | undefined
   if (!event) {
     // Interactivity payloads (button clicks, modal submits) have no `event`
@@ -781,6 +785,12 @@ export function shouldSkipSlackTriggerEvent(
           : (actions[0]?.action_id as string | undefined)
       if (!interactionId || !ids.includes(interactionId)) return true
     }
+  }
+
+  if (supports('command')) {
+    const expectedCommand =
+      typeof providerConfig.commandFilter === 'string' ? providerConfig.commandFilter.trim() : ''
+    if (expectedCommand && body.command !== expectedCommand) return true
   }
 
   // Channels — picker or manual IDs, the basic/advanced sides of one canonical
