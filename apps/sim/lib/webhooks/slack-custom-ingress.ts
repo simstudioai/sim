@@ -133,7 +133,7 @@ export async function handleSlackAgentSessionStopped(
       await cancelWorkflowExecution({
         executionId: execution.executionId,
         workflowId: execution.workflowId,
-        userId: execution.userId,
+        attributedUserId: execution.userId,
         workspaceId: execution.workspaceId,
       })
       await unregisterSlackStreamSession(credentialId, target, execution.executionId)

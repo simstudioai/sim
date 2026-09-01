@@ -1023,6 +1023,9 @@ type CancelWorkflowRunResponseRef0 = {
     | 'redis_write_failed'
     | 'paused_event_publish_failed'
     | 'paused_database_cancel_failed'
+    | 'queue_cancelled'
+    | 'active_resume_signal_failed'
+    | 'cancellation_not_finalized'
 }
 
 export type CancelWorkflowRunResponse = {
@@ -4038,6 +4041,7 @@ type GetLogResponseRef2 = {
   endedAt: string | null
   totalDurationMs: number | null
   files: Array<GetLogResponseRef0> | null
+  executedByEmail: string | null
   workflow: {
     id: string | null
     name: string

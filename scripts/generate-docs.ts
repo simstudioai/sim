@@ -2473,7 +2473,15 @@ function extractOutputsFromContent(content: string): Record<string, any> {
 }
 
 function extractToolsAccessFromContent(content: string): string[] {
-  const accessMatch = content.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
+  const toolsMatch = /\btools\s*:\s*\{/.exec(content)
+  if (!toolsMatch) return []
+
+  const toolsStart = toolsMatch.index + toolsMatch[0].lastIndexOf('{')
+  const toolsEnd = findMatchingClose(content, toolsStart)
+  if (toolsEnd === -1) return []
+
+  const toolsContent = content.substring(toolsStart, toolsEnd)
+  const accessMatch = toolsContent.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
   if (!accessMatch) return []
   return [...accessMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1])
 }

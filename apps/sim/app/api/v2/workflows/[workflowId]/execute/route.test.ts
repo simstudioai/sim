@@ -218,6 +218,22 @@ function callPublicExecute(body: Record<string, unknown>, headers: Record<string
   return POST(req, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
 }
 
+/**
+ * Queues the two reads the anonymous public path makes, in order: the workflow's
+ * public-API eligibility, then the workspace billing account it runs as. Keeping
+ * them together stops a caller queueing only the first and getting an
+ * indistinguishable 401 from the missing second.
+ */
+function queuePublicWorkflowReads(
+  overrides: { isPublicApi?: boolean; isDeployed?: boolean; billedAccountUserId?: string } = {}
+) {
+  const { isPublicApi = true, isDeployed = true, billedAccountUserId = 'billing-1' } = overrides
+  dbChainMockFns.limit.mockResolvedValueOnce([
+    { isPublicApi, isDeployed, workspaceId: 'workspace-1' },
+  ])
+  dbChainMockFns.limit.mockResolvedValueOnce([{ billedAccountUserId }])
+}
+
 function authenticatePersonalKey() {
   mockAuthenticateV2ApiKey.mockResolvedValue({
     principal: { kind: 'personal_api_key', userId: 'actor-1', keyId: 'key-1' },
@@ -759,9 +775,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
   it('runs the anonymous public path sync but refuses async', async () => {
     dbChainMockFns.limit.mockReset()
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
-    ])
+    queuePublicWorkflowReads()
 
     const okRes = await callPublicExecute({ input: {} })
     expect(okRes.status).toBe(200)
@@ -774,18 +788,14 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       expect.objectContaining({ rateLimitCounter: 'sync' })
     )
 
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
-    ])
+    queuePublicWorkflowReads()
     const asyncRes = await callPublicExecute({ input: {}, async: true })
     expect(asyncRes.status).toBe(400)
   })
 
   it('never permits manual execution on the anonymous public path', async () => {
     dbChainMockFns.limit.mockReset()
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
-    ])
+    queuePublicWorkflowReads()
 
     const response = await callPublicExecute({ run: { source: 'manual' } })
 
@@ -798,9 +808,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
   it('returns not found when a public workflow disappears before authorization', async () => {
     dbChainMockFns.limit.mockReset()
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
-    ])
+    queuePublicWorkflowReads()
     mockAuthorize.mockResolvedValueOnce({
       allowed: false,
       status: 404,
@@ -837,7 +845,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
   it('401s non-public workflows without a key', async () => {
     dbChainMockFns.limit.mockReset()
     dbChainMockFns.limit.mockResolvedValueOnce([
-      { isPublicApi: false, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
+      { isPublicApi: false, isDeployed: true, workspaceId: 'workspace-1' },
     ])
 
     const res = await callPublicExecute({ input: {} })
@@ -870,9 +878,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(keyedBody.error.message).toContain('Maximum workflow call chain depth (25) exceeded')
 
     dbChainMockFns.limit.mockReset()
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
-    ])
+    queuePublicWorkflowReads()
     const anonymous = await callPublicExecute({ input: {} }, { 'X-Sim-Via': maxChain })
     expect(anonymous.status).toBe(409)
     expect((await anonymous.json()).error.code).toBe('CONFLICT')
@@ -891,9 +897,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     ])
 
     dbChainMockFns.limit.mockReset()
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
-    ])
+    queuePublicWorkflowReads()
     const anonymous = await callPublicExecute({ input: {} }, { 'X-Sim-Via': 'wf-a, wf-b' })
     expect(anonymous.status).toBe(200)
     expect(mockExecuteWorkflowCore.mock.calls[1][0].snapshot.metadata.callChain).toEqual([

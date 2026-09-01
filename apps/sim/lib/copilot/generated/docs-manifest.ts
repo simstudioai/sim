@@ -275,6 +275,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/rocketlane.mdx',
   'integrations/rootly.mdx',
   'integrations/s3.mdx',
+  'integrations/sailpoint.mdx',
   'integrations/salesforce-service-account.mdx',
   'integrations/salesforce.mdx',
   'integrations/sap_concur.mdx',

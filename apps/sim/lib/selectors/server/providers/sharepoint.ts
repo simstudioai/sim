@@ -9,19 +9,18 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
 import {
   detailSelectorResult,
   type ExecuteServerSelectorArgs,
+  listSelectorResult,
+  requireListRequest,
   type ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
 import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 type SharePointSelectorKey = Extract<ServerSelectorKey, 'sharepoint.lists' | 'sharepoint.sites'>
-
-const MAX_GRAPH_PAGES = 10
 
 const sharepointCredential = {
   kind: 'stored',
@@ -45,24 +44,43 @@ async function graphToken(args: ExecuteServerSelectorArgs): Promise<string> {
   })
 }
 
-async function drainGraph<T>(
+interface GraphPage<T> {
+  items: T[]
+  nextCursor?: string
+}
+
+function graphPageUrl(cursor: string | undefined, initialUrl: string): string {
+  if (!cursor) return initialUrl
+  let cursorUrl: string
+  try {
+    cursorUrl = assertGraphNextPageUrl(cursor)
+  } catch {
+    throw new SelectorContextUnavailableError()
+  }
+  if (new URL(cursorUrl).pathname !== new URL(initialUrl).pathname) {
+    throw new SelectorContextUnavailableError()
+  }
+  return cursorUrl
+}
+
+async function fetchGraphPage<T>(
   args: ExecuteServerSelectorArgs,
   initialUrl: string
-): Promise<{ values: T[]; truncated: boolean }> {
+): Promise<GraphPage<T>> {
+  const request = requireListRequest(args.selectorKey, args.request)
+  const requestUrl = graphPageUrl(request.cursor, initialUrl)
   const token = await graphToken(args)
-  const values: T[] = []
-  let nextUrl: string | undefined = initialUrl
-  for (let page = 0; page < MAX_GRAPH_PAGES && nextUrl; page++) {
-    const data = await fetchProviderJson<{ value?: T[] } & Record<string, unknown>>(nextUrl, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: args.signal,
-      redirect: 'error',
-    })
-    if (Array.isArray(data.value)) values.push(...data.value)
-    const nextLink = getGraphNextPageUrl(data)
-    nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
+  const data = await fetchProviderJson<{ value?: T[] } & Record<string, unknown>>(requestUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: args.signal,
+    redirect: 'error',
+  })
+  const nextLink = getGraphNextPageUrl(data)
+  const nextCursor = nextLink ? graphPageUrl(nextLink, initialUrl) : undefined
+  return {
+    items: Array.isArray(data.value) ? data.value : [],
+    ...(nextCursor ? { nextCursor } : {}),
   }
-  return { values, truncated: Boolean(nextUrl) }
 }
 
 function requireSiteId(value: string | undefined): string {
@@ -131,7 +149,7 @@ async function getSite(
 
 async function listLists(args: ExecuteServerSelectorArgs) {
   const siteId = requireSiteId(args.context.siteId)
-  const result = await drainGraph<{
+  const page = await fetchGraphPage<{
     id: string
     displayName: string
     list?: { hidden?: boolean }
@@ -140,21 +158,26 @@ async function listLists(args: ExecuteServerSelectorArgs) {
     `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists?$select=id,displayName,description,webUrl,list&$top=999`
   )
   return {
-    items: result.values
+    items: page.items
       .filter((list) => list.list?.hidden !== true)
       .map((list) => ({ id: list.id, label: list.displayName })),
-    truncated: result.truncated,
+    nextCursor: page.nextCursor,
   }
 }
 
 async function listSites(args: ExecuteServerSelectorArgs) {
-  const result = await drainGraph<{ id: string; name: string; displayName?: string }>(
+  const request = requireListRequest(args.selectorKey, args.request)
+  const url = new URL('https://graph.microsoft.com/v1.0/sites')
+  url.searchParams.set('search', request.search?.trim() || '*')
+  url.searchParams.set('$select', 'id,name,displayName,webUrl,createdDateTime,lastModifiedDateTime')
+  url.searchParams.set('$top', '999')
+  const page = await fetchGraphPage<{ id: string; name: string; displayName?: string }>(
     args,
-    'https://graph.microsoft.com/v1.0/sites?search=*&$select=id,name,displayName,webUrl,createdDateTime,lastModifiedDateTime&$top=999'
+    url.toString()
   )
   return {
-    items: result.values.map((site) => ({ id: site.id, label: site.displayName || site.name })),
-    truncated: result.truncated,
+    items: page.items.map((site) => ({ id: site.id, label: site.displayName || site.name })),
+    nextCursor: page.nextCursor,
   }
 }
 
@@ -166,15 +189,8 @@ export const sharepointSelectorAttachments = {
       if (args.request.kind === 'detail') {
         return detailSelectorResult(await getList(args, args.request.id))
       }
-      const result = await listLists(args)
-      return flatSelectorResult(
-        args.request,
-        result.items,
-        false,
-        result.truncated
-          ? { truncated: { reason: 'provider-cap', pages: MAX_GRAPH_PAGES } }
-          : undefined
-      )
+      const page = await listLists(args)
+      return listSelectorResult(page.items, page.nextCursor)
     },
   },
   'sharepoint.sites': {
@@ -184,15 +200,8 @@ export const sharepointSelectorAttachments = {
       if (args.request.kind === 'detail') {
         return detailSelectorResult(await getSite(args, args.request.id))
       }
-      const result = await listSites(args)
-      return flatSelectorResult(
-        args.request,
-        result.items,
-        false,
-        result.truncated
-          ? { truncated: { reason: 'provider-cap', pages: MAX_GRAPH_PAGES } }
-          : undefined
-      )
+      const page = await listSites(args)
+      return listSelectorResult(page.items, page.nextCursor)
     },
   },
 } satisfies ServerSelectorAttachmentMap<SharePointSelectorKey>

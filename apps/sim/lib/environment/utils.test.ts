@@ -18,6 +18,7 @@ const {
   mockGetUserEntityPermissions,
   mockGetWorkspaceEnvKeyAdminAccess,
   mockRecordAudit,
+  mockGetActivelyBannedUserIds,
 } = vi.hoisted(() => ({
   mockCreateWorkspaceEnvCredentials: vi.fn(),
   mockCheckWorkspaceAccess: vi.fn(),
@@ -25,6 +26,7 @@ const {
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
   mockRecordAudit: vi.fn(),
+  mockGetActivelyBannedUserIds: vi.fn().mockResolvedValue([]),
 }))
 
 // vitest.setup.ts mocks this module globally; this suite tests the real one.
@@ -41,6 +43,9 @@ vi.mock('@/lib/credentials/environment', () => ({
   getAccessibleEnvCredentials: mockGetAccessibleEnvCredentials,
   getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser: vi.fn(),
+}))
+vi.mock('@/lib/auth/ban', () => ({
+  getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
@@ -444,6 +449,7 @@ describe('getExecutionEnvironment', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockGetAccessibleEnvCredentials.mockResolvedValue([])
+    mockGetActivelyBannedUserIds.mockResolvedValue([])
     encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
       decrypted: `plain:${encryptedValue}`,
     }))
@@ -462,14 +468,16 @@ describe('getExecutionEnvironment', () => {
   it('resolves each slice against its own identity', async () => {
     grantAdminTo('actor-1')
     /**
-     * Queued rows are FIFO per table, and the actor resolves first: its access was
-     * already decided, so it skips the `checkWorkspaceAccess` await the personal
-     * resolution still performs. Only the actor is a workspace admin, so the owner's
-     * own workspace slice resolves empty and could not be the one that lands.
+     * Queued rows are FIFO per table, and the personal slice resolves first because
+     * it is the first element of the implementation's `Promise.all` — both accesses
+     * are now decided up front and handed in, so neither resolution awaits before
+     * issuing its queries and the order is plain argument evaluation rather than a
+     * race between interleaved awaits. Only the actor is a workspace admin, so the
+     * owner's own workspace slice resolves empty and could not be the one that lands.
      */
-    queueTableRows(environment, [{ variables: { ACTOR_ONLY: 'actor-cipher' } }])
-    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
     queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+    queueTableRows(environment, [{ variables: { ACTOR_ONLY: 'actor-cipher' } }])
     queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
 
     const snapshot = await getExecutionEnvironment('owner-1', 'actor-1', 'workspace-1')
@@ -559,6 +567,148 @@ describe('getExecutionEnvironment', () => {
 
     expect(snapshot.personalDecrypted).toEqual({ PERSONAL_KEY: 'plain:personal-cipher' })
     expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  /**
+   * A deployed chat, schedule, or webhook keeps running after the identity its
+   * personal-variable fallback points at leaves the workspace. That pointer is
+   * stored state, not a permission the run holds, so it must not fail the run
+   * before any block has started.
+   */
+  it('resolves workspace variables only when the personal identity cannot reach the workspace', async () => {
+    mockCheckWorkspaceAccess.mockImplementation(async (_workspaceId: string, userId: string) => ({
+      exists: true,
+      hasAccess: userId === 'actor-1',
+      canWrite: true,
+      canAdmin: true,
+    }))
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('departed-owner', 'actor-1', 'workspace-1')
+
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+    expect(snapshot.personalDecrypted).toEqual({})
+    expect(snapshot.personalEncrypted).toEqual({})
+    expect(snapshot.personalOwners).toEqual({})
+    expect(snapshot.conflicts).toEqual([])
+  })
+
+  /** The departed identity's own variables must not reach the run that dropped it. */
+  /**
+   * Degrading must not widen the credential-group filter. The workspace slice is
+   * still selected by the actor's own grants and the actor's own admin flag —
+   * dropping the personal slice removes secrets, it never adds any.
+   */
+  it('does not read the departed personal identity when resolving workspace variables only', async () => {
+    mockCheckWorkspaceAccess.mockImplementation(async (_workspaceId: string, userId: string) => ({
+      exists: true,
+      hasAccess: userId === 'actor-1',
+      canWrite: true,
+      canAdmin: false,
+    }))
+    queueTableRows(environment, [{ variables: { ACTOR_ONLY: 'actor-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('departed-owner', 'actor-1', 'workspace-1')
+
+    expect(mockGetAccessibleEnvCredentials).toHaveBeenCalledOnce()
+    expect(mockGetAccessibleEnvCredentials).toHaveBeenCalledWith('workspace-1', 'actor-1', {
+      isWorkspaceAdmin: false,
+    })
+    // No credential grant, and the actor is not an admin, so the workspace
+    // secret stays filtered out rather than falling through unfiltered.
+    expect(snapshot.workspaceDecrypted).toEqual({})
+  })
+
+  /**
+   * Admission deliberately stops blocking runs on the personal-variable
+   * identity, so that a suspended member does not take down their teammates'
+   * schedules and webhooks. That must not become a way for a suspended account's
+   * own credentials to keep running — the run continues, their namespace does not.
+   */
+  it('resolves workspace variables only when the personal identity is suspended', async () => {
+    grantAdminTo('actor-1')
+    mockGetActivelyBannedUserIds.mockResolvedValue(['suspended-owner'])
+    queueTableRows(environment, [{ variables: { OWNER_KEY: 'owner-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('suspended-owner', 'actor-1', 'workspace-1')
+
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['suspended-owner'])
+    expect(snapshot.personalDecrypted).toEqual({})
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  /**
+   * The arrangement that slipped past a split-path-only check: a custom-block
+   * publisher who is also their workspace's billing account makes both
+   * identities equal, taking the single-identity shortcut. That path has no
+   * admission gate at all — `admitCustomBlockChildExecution` checks usage limits
+   * and nothing else — so the suspension has to be enforced here.
+   */
+  it('withholds the personal namespace when both identities are the same suspended user', async () => {
+    grantAdminTo('publisher-1')
+    mockGetActivelyBannedUserIds.mockResolvedValue(['publisher-1'])
+    queueTableRows(environment, [{ variables: { PUBLISHER_KEY: 'publisher-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('publisher-1', 'publisher-1', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({})
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  /** A workspaceless run has no workspace slice either, so a suspended identity lends nothing. */
+  it('resolves nothing personal for a suspended identity with no workspace', async () => {
+    mockGetActivelyBannedUserIds.mockResolvedValue(['suspended-1'])
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('suspended-1', 'suspended-1', undefined)
+
+    expect(snapshot.personalDecrypted).toEqual({})
+  })
+
+  /** The actor is cleared by admission, so only the personal identity is looked up. */
+  it('does not re-check the execution actor for a ban', async () => {
+    grantAdminTo('actor-1')
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [{ variables: {} }])
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [{ variables: {} }])
+
+    await getExecutionEnvironment('owner-1', 'actor-1', 'workspace-1')
+
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledOnce()
+    expect(mockGetActivelyBannedUserIds.mock.calls[0][0]).not.toContain('actor-1')
+  })
+
+  /** With no reachable identity there is nobody to authorize the workspace slice against. */
+  it('raises when neither identity can reach the workspace', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: false,
+      canWrite: false,
+      canAdmin: false,
+    })
+
+    await expect(
+      getExecutionEnvironment('departed-owner', 'departed-payer', 'workspace-1')
+    ).rejects.toThrow('Access denied to workspace workspace-1')
+  })
+
+  /** A workspace that is gone is a different fact from one an identity may not read. */
+  it('raises when the workspace no longer exists', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: false,
+      hasAccess: false,
+      canWrite: false,
+      canAdmin: false,
+    })
+
+    await expect(getExecutionEnvironment('owner-1', 'actor-1', 'workspace-1')).rejects.toThrow(
+      'Workspace workspace-1 does not exist'
+    )
   })
 })
 

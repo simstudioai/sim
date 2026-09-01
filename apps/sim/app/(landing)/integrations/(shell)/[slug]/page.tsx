@@ -18,6 +18,7 @@ import { BackLink } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { ShareButton } from '@/app/(landing)/components/share-button'
+import { IntegrationComparisonSection } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-comparison-section/integration-comparison-section'
 import { IntegrationCtaButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-cta-button'
 import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/template-card-button'
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
@@ -391,10 +392,12 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
   const relatedIntegrations = relatedSlugs
     .map((s) => bySlug.get(s))
     .filter((i): i is Integration => i !== undefined)
-  const faqs = buildFAQs(
-    integration,
-    relatedIntegrations.map((i) => i.name)
-  )
+  const faqs =
+    seo?.faqs ??
+    buildFAQs(
+      integration,
+      relatedIntegrations.map((i) => i.name)
+    )
   const matchingTemplates = getTemplatesForBlock(integration.type)
     .sort(
       (a, b) =>
@@ -685,6 +688,13 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
         <div className='h-px w-full bg-[var(--border)]' />
 
+        {seo?.comparison && (
+          <>
+            <IntegrationComparisonSection comparison={seo.comparison} />
+            <div className='h-px w-full bg-[var(--border)]' />
+          </>
+        )}
+
         {/* Triggers - rows */}
         {triggers.length > 0 && (
           <section aria-labelledby='triggers-heading'>
@@ -881,6 +891,34 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               </div>
             ))}
           </section>
+        )}
+
+        {seo?.narrativeComparison && (
+          <>
+            <section
+              id={seo.narrativeComparison.id}
+              aria-labelledby={`${seo.narrativeComparison.id}-heading`}
+              className='px-6 py-10'
+            >
+              <h2
+                id={`${seo.narrativeComparison.id}-heading`}
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
+              >
+                {seo.narrativeComparison.heading}
+              </h2>
+              <div className='max-w-[900px] space-y-4'>
+                {seo.narrativeComparison.paragraphs.map((paragraph) => (
+                  <p
+                    key={paragraph}
+                    className='text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em]'
+                  >
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+            </section>
+            <div className='h-px w-full bg-[var(--border)]' />
+          </>
         )}
 
         {/* FAQ - full width */}

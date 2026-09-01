@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import {
+  CancelWorkflowRun,
   ConnectSlackBot,
   Cp as CpTool,
   CreateWorkflow,
@@ -92,6 +93,7 @@ import {
   executeVfsRm,
 } from '../tools/handlers/vfs-mutate'
 import {
+  executeCancelWorkflowRun,
   executeCreateWorkflow,
   executeGenerateApiKey,
   executeMoveWorkflow,
@@ -146,6 +148,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     rename_workflow: h(executeRenameWorkflow),
     move_workflow: h(executeMoveWorkflow),
     [RunWorkflow.id]: h(executeRunWorkflow),
+    [CancelWorkflowRun.id]: h(executeCancelWorkflowRun),
     [RunWorkflowUntilBlock.id]: h(executeRunWorkflowUntilBlock),
     [RunFromBlock.id]: h(executeRunFromBlock),
     [RunBlock.id]: h(executeRunBlock),

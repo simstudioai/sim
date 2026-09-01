@@ -1344,6 +1344,19 @@
             ],
             "description": "Files the run produced, or null when none are recorded. Only the run's own output files appear; input attachments a caller supplied are addressed through the files API instead."
           },
+          "executedByEmail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email of the identity the run executed as: the caller for an interactive or personal-API-key run, and the workspace billing account for a schedule, webhook, deployed chat, or public API call. Null when the run failed before an identity was resolved."
+          },
           "workflow": {
             "type": "object",
             "properties": {
@@ -1398,7 +1411,8 @@
                     "type": "null"
                   }
                 ],
-                "description": "Workflow owner email, or null when unavailable."
+                "description": "Deprecated — use the run-level `executedByEmail` instead. Email of the workflow's current owner, or null when unavailable. This is a property of the workflow as it stands today, not of the run: it changes when workflow ownership is reassigned, and the owner is not the identity a background run executes as.",
+                "deprecated": true
               },
               "workspaceId": {
                 "anyOf": [
@@ -1577,6 +1591,7 @@
           "endedAt",
           "totalDurationMs",
           "files",
+          "executedByEmail",
           "workflow",
           "workflowState",
           "traceSpans",
@@ -1614,6 +1629,7 @@
               "endedAt": "2026-01-15T10:30:01.250Z",
               "totalDurationMs": 1250,
               "files": null,
+              "executedByEmail": "billing@example.com",
               "workflow": {
                 "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                 "name": "Customer Support Agent",

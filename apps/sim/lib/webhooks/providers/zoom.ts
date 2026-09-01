@@ -7,7 +7,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
+import { resolveBackgroundWebhookEnv, resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import type {
   AuthContext,
   EventMatchContext,
@@ -73,10 +73,18 @@ async function resolveZoomChallengeSecrets(
         : {}
 
       try {
+        /**
+         * Two identities, because a failed challenge is not a failed delivery:
+         * Zoom deactivates the endpoint outright when URL validation does not
+         * answer, so an owner who left the workspace would take the webhook down
+         * at the provider rather than drop one request.
+         */
+        const envVars = await resolveBackgroundWebhookEnv(row.userId, row.workspaceId ?? undefined)
         const config = await resolveEnvVarsInObject(
           rawConfig,
           row.userId,
-          row.workspaceId ?? undefined
+          row.workspaceId ?? undefined,
+          { envVars }
         )
         const secretToken = typeof config.secretToken === 'string' ? config.secretToken : ''
         return { secretToken }

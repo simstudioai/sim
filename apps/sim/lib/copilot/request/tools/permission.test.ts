@@ -214,6 +214,7 @@ describe('gated tools are askable', () => {
         .sort()
     ).toEqual([
       'call_integration_tool',
+      'cancel_workflow_run',
       'delete_workspace_mcp_server',
       'deploy_as_api',
       'deploy_as_chat',

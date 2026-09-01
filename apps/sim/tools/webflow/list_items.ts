@@ -8,7 +8,7 @@ import {
 export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowListItemsResponse> = {
   id: 'webflow_list_items',
   name: 'Webflow List Items',
-  description: 'List all items from a Webflow CMS collection',
+  description: 'List items from a Webflow CMS collection',
   version: '1.0.0',
 
   oauth: {
@@ -78,8 +78,9 @@ export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowLis
         items: data.items || [],
         metadata: {
           itemCount: (data.items || []).length,
-          offset: data.offset,
-          limit: data.limit,
+          offset: data.pagination?.offset,
+          limit: data.pagination?.limit,
+          total: data.pagination?.total,
         },
       },
     }
