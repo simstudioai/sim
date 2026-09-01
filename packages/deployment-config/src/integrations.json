@@ -21310,7 +21310,7 @@
         },
         {
           "name": "List Channels",
-          "description": "List all channels in a Slack workspace. Returns public and private channels the bot has access to."
+          "description": "List accessible Slack conversations. Credential-group user tokens also return one-to-one and group direct messages."
         },
         {
           "name": "List Channel Members",

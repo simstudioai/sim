@@ -453,6 +453,7 @@ export async function resolveCredentialAccessToken(
       ok: true,
       token: {
         accessToken: result.accessToken,
+        credentialType: 'managed_oauth',
         idToken: result.idToken,
       },
     }

@@ -541,7 +541,11 @@ describe('resolveCredentialAccessToken', () => {
 
     expect(result).toEqual({
       ok: true,
-      token: { accessToken: 'managed-token', idToken: 'id-1' },
+      token: {
+        accessToken: 'managed-token',
+        credentialType: 'managed_oauth',
+        idToken: 'id-1',
+      },
     })
     expect(mockExecuteManagedToken).toHaveBeenCalledWith({
       principal: EXECUTOR_PRINCIPAL,

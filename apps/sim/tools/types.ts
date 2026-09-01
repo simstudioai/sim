@@ -129,6 +129,7 @@ export interface OAuthConfig {
     | 'apiDomain'
     | 'authStyle'
     | 'cloudId'
+    | 'credentialType'
     | 'domain'
     | 'instanceUrl'
   )[]
