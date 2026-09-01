@@ -4,6 +4,7 @@
 import { hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const {
   mockCheckAccess,
@@ -15,6 +16,7 @@ const {
   mockFindActiveFolder,
   mockGetLimits,
   mockAuthenticate,
+  mockAuthenticateWithTransport,
   mockReadTable,
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
@@ -26,11 +28,15 @@ const {
   mockFindActiveFolder: vi.fn(),
   mockGetLimits: vi.fn(),
   mockAuthenticate: vi.fn(),
+  mockAuthenticateWithTransport: vi.fn(),
   mockReadTable: vi.fn(),
 }))
 
 vi.mock('@/lib/table/api', () => ({
-  internalTableSessionOrExecutorAuth: { authenticate: mockAuthenticate },
+  internalTableSessionOrExecutorAuth: {
+    authenticate: mockAuthenticate,
+    authenticateWithTransport: mockAuthenticateWithTransport,
+  },
   internalTableErrorPolicies: {
     concealTableAuthorization: { project: () => null },
   },
@@ -182,15 +188,16 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
 describe('GET /api/table/[tableId] application adapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAuthenticate.mockResolvedValue({
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-canonical',
-      delegationId: 'delegation-1',
-      audience: 'sim:tables',
-      issuedAt: new Date('2026-01-01'),
-      expiresAt: new Date('2026-01-02'),
+    const principal = createTestRuntimePrincipal({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      executionId: 'execution-1',
+      rootWorkflowId: 'workflow-1',
+    })
+    mockAuthenticate.mockResolvedValue(principal)
+    mockAuthenticateWithTransport.mockResolvedValue({
+      principal,
+      transport: 'executor_jwt',
+      executionWorkspaceId: 'workspace-canonical',
     })
     mockReadTable.mockResolvedValue({
       table: {

@@ -1,9 +1,6 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  credentialGroupWorkspaceDelegationPolicy,
-  requireCredentialGroupWorkflowActor,
-} from '@/lib/credential-groups/application/authorization'
+import { requireCredentialGroupWorkflowActor } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
   resolveCredentialGroupWorkspaceContext,
@@ -33,7 +30,7 @@ export const listCredentialGroupsForWorkflow = defineAuthorizedWorkspaceUseCase(
   operation: credentialGroupOperations.listGroups,
   resolveContext: ({ input }: { input: ListCredentialGroupsInput }) =>
     resolveCredentialGroupWorkspaceContext(input.workspaceId),
-  authorizationOptions: { delegation: credentialGroupWorkspaceDelegationPolicy },
+  authorizationOptions: {},
   authorizeResource({ principal }) {
     requireCredentialGroupWorkflowActor(principal)
   },

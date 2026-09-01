@@ -82,7 +82,7 @@ describe('CredentialGroupBlockHandler', () => {
     )
   })
 
-  it('lists credentials with an optional email selector', async () => {
+  it('keeps the selected group on application input instead of principal metadata', async () => {
     mocks.listCredentials.mockResolvedValue({
       credentials: [],
       count: 0,

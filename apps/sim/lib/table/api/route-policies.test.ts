@@ -44,26 +44,30 @@ describe('internal Table route authentication', () => {
     }))
   })
 
-  it('binds table scope to the current workflow without trusting route workspace input', async () => {
+  it('restores the runtime principal and canonical workspace without deriving identity from route parameters', async () => {
     const token = await generateInternalDelegationToken({
       principal: createTestRuntimePrincipal(),
     })
 
-    const principal = await internalTableSessionOrExecutorAuth.authenticate(
+    const authentication = await internalTableSessionOrExecutorAuth.authenticateWithTransport?.(
       new NextRequest('http://localhost/api/table/table-1/groups?workspaceId=forged-workspace', {
         headers: { authorization: `Bearer ${token}` },
       }),
       { tableId: 'table-1', workspaceId: 'forged-workspace' }
     )
 
-    expect(principal).toMatchObject({
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-      executionMetadata: {
-        executionId: 'execution-1',
-        rootWorkflowId: 'workflow-1',
-        currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
+    expect(authentication).toMatchObject({
+      transport: 'executor_jwt',
+      executionWorkspaceId: 'canonical-workspace',
+      principal: {
+        kind: 'session',
+        userId: 'user-1',
+        sessionId: 'session-1',
+        executionMetadata: {
+          executionId: 'execution-1',
+          rootWorkflowId: 'workflow-1',
+          currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
+        },
       },
     })
     expect(mockBindDelegationAdmission).toHaveBeenCalledWith(

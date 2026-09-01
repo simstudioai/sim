@@ -3,7 +3,6 @@ import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
   resolveCredentialGroupContext,
@@ -24,7 +23,7 @@ export const createCredentialGroupInviteLink = defineAuthorizedWorkspaceUseCase(
   operation: credentialGroupOperations.createInviteLink,
   resolveContext: ({ input }: { input: CreateCredentialGroupInviteLinkInput }) =>
     resolveCredentialGroupContext(input.credentialGroupId),
-  authorizationOptions: { delegation: credentialGroupDelegationPolicy },
+  authorizationOptions: {},
   execute: async ({ principal, input, context }) => {
     if (context.status !== 'active') {
       throw new OrchestrationError('conflict', 'Credential group is disabled')
