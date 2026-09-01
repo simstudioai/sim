@@ -177,6 +177,29 @@ export async function validateChatDeployAuth(
 }
 
 /**
+ * The person a run's group gates are decided about.
+ *
+ * A run's actor and its gate subject are not the same id. `userId` is the
+ * billing/rate actor and the credential subject, and for a trigger with no
+ * acting person — a table cell dispatched by a workspace API key — it names the
+ * workspace's billing owner. Gating on that bystander denies tools nobody meant
+ * to deny and skips the denylist of whoever actually asked, so a trigger that
+ * knows its acting person declares it on the run's metadata instead.
+ *
+ * `undefined` there means "not declared": the surface has always had exactly
+ * one person, and the actor stays the subject. A declared `null` is the
+ * actorless run — no group, hence no group gate.
+ */
+function governedSubjectUserId(
+  actorUserId: string | undefined,
+  ctx: ExecutionContext | undefined
+): string | undefined {
+  const declared = ctx?.metadata?.capabilityGovernedUserId
+  if (declared === undefined) return actorUserId
+  return declared ?? undefined
+}
+
+/**
  * Cache-aware wrapper around `getUserPermissionConfig`. When an
  * `ExecutionContext` is provided, the resolved config is memoized on the
  * context so repeated checks during a single workflow run share one DB hit.
@@ -479,7 +502,8 @@ interface PermissionAssertion {
 /** permission-group-enforced: custom_tools.use — gates tool invocation during a run, not an operation */
 /** permission-group-enforced: skills.use — gates skill loading during a run, not an operation */
 export async function assertPermissionsAllowed(req: PermissionAssertion): Promise<void> {
-  const { userId, workspaceId, model, blockType, toolId, toolKind, ctx } = req
+  const { workspaceId, model, blockType, toolId, toolKind, ctx } = req
+  const userId = governedSubjectUserId(req.userId, ctx)
 
   const blockTypeExempt = blockType ? isBlockTypeAccessControlExempt(blockType) : false
 
