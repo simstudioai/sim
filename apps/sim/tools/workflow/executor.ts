@@ -1,11 +1,15 @@
-import type { ToolConfig } from '@/tools/types'
+import {
+  normalizeWorkflowExecutorInput,
+  WORKFLOW_EXECUTOR_INPUT_PROVENANCE_KEY,
+} from '@/lib/workflows/executor/input-secret-provenance'
+import type { InternalToolConfig } from '@/tools/types'
 import type { WorkflowExecutorParams, WorkflowExecutorResponse } from '@/tools/workflow/types'
 
 /**
  * Tool for executing workflows as blocks within other workflows.
  * This tool is used by the WorkflowBlockHandler to provide the execution capability.
  */
-export const workflowExecutorTool: ToolConfig<
+export const workflowExecutorTool: InternalToolConfig<
   WorkflowExecutorParams,
   WorkflowExecutorResponse['output']
 > = {
@@ -29,20 +33,18 @@ export const workflowExecutorTool: ToolConfig<
         'JSON object with keys matching the child workflow\'s input field names. Each key should map to the value you want to pass for that input field. Example: {"fieldName": "value", "otherField": 123}',
     },
   },
-  request: {
-    url: (params: WorkflowExecutorParams) => `/api/workflows/${params.workflowId}/execute`,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params: WorkflowExecutorParams) => {
-      let inputData = params.inputMapping || {}
-      if (typeof inputData === 'string') {
-        try {
-          inputData = JSON.parse(inputData)
-        } catch {
-          inputData = {}
-        }
-      }
-      // Use draft state for manual runs (not deployed), deployed state for deployed runs
+  operation: {
+    secretProvenance: {
+      request: (params) => [
+        {
+          key: WORKFLOW_EXECUTOR_INPUT_PROVENANCE_KEY,
+          inputPaths: [['inputMapping']],
+        },
+      ],
+      response: { incomplete: 'reject' },
+    },
+    input: (params: WorkflowExecutorParams) => {
+      const inputData = normalizeWorkflowExecutorInput(params.inputMapping)
       const isDeployedContext = params._context?.isDeployedContext
       const parentWorkspaceId = params._context?.workspaceId
       return {

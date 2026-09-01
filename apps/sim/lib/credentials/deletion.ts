@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, notExists, or, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
 
@@ -21,6 +21,12 @@ interface DeleteCredentialParams {
   actorEmail?: string | null
   reason: CredentialDeleteReason
   request?: NextRequest
+}
+
+export interface DeleteConnectionCredentialParams {
+  credentialId: string
+  workspaceId: string
+  reason: CredentialDeleteReason
 }
 
 /**
@@ -71,6 +77,68 @@ export async function deleteCredential(params: DeleteCredentialParams): Promise<
   logger.info('Deleted credential', { credentialId, workspaceId: row.workspaceId, reason })
 }
 
+/** Clears references and deletes one connection without surface audit attribution. */
+export async function deleteConnectionCredential(
+  params: DeleteConnectionCredentialParams
+): Promise<boolean> {
+  const { credentialId, workspaceId } = params
+  await clearCredentialRefs(credentialId, workspaceId)
+  const deleted = await db
+    .delete(schema.credential)
+    .where(
+      and(eq(schema.credential.id, credentialId), eq(schema.credential.workspaceId, workspaceId))
+    )
+    .returning({ id: schema.credential.id })
+  if (deleted.length > 1) throw new Error('Credential deletion affected multiple rows')
+
+  if (deleted.length === 1) {
+    logger.info('Deleted credential', {
+      credentialId,
+      workspaceId,
+      reason: params.reason,
+    })
+  }
+  return deleted.length === 1
+}
+
+/**
+ * Deletes the stored OAuth grant behind a credential once nothing references
+ * it. The `account` row is an OAuth credential's secret source, so leaving it
+ * behind keeps a usable grant; nothing is revoked provider-side.
+ *
+ * Scoped by `accountId`, not by owner — the caller is already authorized
+ * against the credential, which may belong to another user.
+ *
+ * The reference check is a predicate on the delete rather than a separate
+ * SELECT, which narrows the race from check-then-act down to a single
+ * statement — it does not close it. The caller issues the credential delete and
+ * this account delete as two statements (`orchestration/index.ts`), so under
+ * READ COMMITTED a `credential` row another workspace commits after this
+ * statement takes its snapshot is invisible here and is then reaped by
+ * `credential.accountId ON DELETE CASCADE` without {@link clearCredentialRefs}
+ * ever running. The window is narrow, but a hit is silent data loss.
+ */
+export async function deleteOrphanedOAuthAccount(accountId: string): Promise<void> {
+  const deleted = await db
+    .delete(schema.account)
+    .where(
+      and(
+        eq(schema.account.id, accountId),
+        notExists(
+          db
+            .select({ referenced: sql`1` })
+            .from(schema.credential)
+            .where(eq(schema.credential.accountId, accountId))
+        )
+      )
+    )
+    .returning({ id: schema.account.id })
+
+  if (deleted.length > 0) {
+    logger.info('Deleted orphaned OAuth account', { accountId })
+  }
+}
+
 /**
  * Clears stored references to a credential across mutable workspace state
  * (editor blocks, copilot checkpoints, knowledge connectors) and frozen
@@ -90,18 +158,18 @@ export async function clearCredentialRefs(
     clearInPausedExecutions(credentialId, workspaceId, needle),
     clearInWorkflowCheckpoints(credentialId, workspaceId, needle),
     clearInKnowledgeConnectors(credentialId),
-    deactivateSlackAppWebhooks(credentialId),
+    deactivateCredentialBoundWebhooks(credentialId),
   ])
 }
 
 /**
- * Deactivates Slack trigger webhooks bound to this credential so inbound
- * events stop routing once the account is disconnected: native (`slack_app`)
- * rows reference it via `providerConfig.credentialId`, custom-bot (`slack`)
- * rows via `routingKey` = the bot credential id. Neither is a foreign key, so
+ * Deactivates app-level trigger webhooks bound to this credential so inbound
+ * events stop routing once the account is disconnected. Native Slack and
+ * TikTok rows reference it via `providerConfig.credentialId`; custom-bot Slack
+ * rows use `routingKey` = the bot credential id. Neither is a foreign key, so
  * neither is covered by CASCADE.
  */
-async function deactivateSlackAppWebhooks(credentialId: string): Promise<void> {
+async function deactivateCredentialBoundWebhooks(credentialId: string): Promise<void> {
   await db
     .update(schema.webhook)
     .set({ isActive: false, updatedAt: new Date() })
@@ -111,6 +179,10 @@ async function deactivateSlackAppWebhooks(credentialId: string): Promise<void> {
         or(
           and(
             eq(schema.webhook.provider, 'slack_app'),
+            sql`${schema.webhook.providerConfig}->>'credentialId' = ${credentialId}`
+          ),
+          and(
+            eq(schema.webhook.provider, 'tiktok'),
             sql`${schema.webhook.providerConfig}->>'credentialId' = ${credentialId}`
           ),
           and(eq(schema.webhook.provider, 'slack'), eq(schema.webhook.routingKey, credentialId))

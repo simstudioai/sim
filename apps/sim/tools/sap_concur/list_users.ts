@@ -1,14 +1,13 @@
-import type { ListUsersParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListUsersParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
   scimListResponseOutputProperties,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listUsersTool: ToolConfig<ListUsersParams, SapConcurProxyResponse> = {
+export const listUsersTool: InternalToolConfig<ListUsersParams, SapConcurResponse> = {
   id: 'sap_concur_list_users',
   name: 'SAP Concur List Users',
   description: 'List Concur user identities (GET /profile/identity/v4.1/Users).',
@@ -66,7 +65,7 @@ export const listUsersTool: ToolConfig<ListUsersParams, SapConcurProxyResponse> 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'SCIM v4.1 pagination cursor returned by a prior call',
+      description: 'SCIM v4.1 pagination cursor — the nextCursor value returned by a prior call',
     },
     attributes: {
       type: 'string',
@@ -81,12 +80,9 @@ export const listUsersTool: ToolConfig<ListUsersParams, SapConcurProxyResponse> 
       description: 'Comma-separated list of attributes to exclude from the response',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: `/profile/identity/v4.1/Users`,
       method: 'GET',
       query: buildListQuery({
@@ -97,7 +93,7 @@ export const listUsersTool: ToolConfig<ListUsersParams, SapConcurProxyResponse> 
       }),
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

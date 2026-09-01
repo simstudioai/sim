@@ -4,7 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import type { Filter, TableDefinition } from '@/lib/table'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
-import { appendTableEvent } from '@/lib/table/events'
+import { appendTableEvent, signalTableRowsChanged } from '@/lib/table/events'
 import {
   getJobProgress,
   markJobCanceled,
@@ -14,9 +14,10 @@ import {
 } from '@/lib/table/jobs/service'
 import { assertRowDelete, type MutationProof, TableLockedError } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
-import { deletePageByIds, selectRowIdPage } from '@/lib/table/rows/ordering'
+import { type DeletedTableRow, deletePageByIds, selectRowIdPage } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
+import { fireTableTrigger } from '@/lib/table/trigger'
 
 const logger = createLogger('TableDeleteRunner')
 
@@ -64,6 +65,12 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
   const { jobId, tableId, workspaceId, filter, excludeRowIds, cutoff, maxRows } = payload
   const requestId = generateId().slice(0, 8)
   const budget = maxRows ?? Number.POSITIVE_INFINITY
+
+  // Whether any row was actually deleted this run. Signalled in `finally` so open editors refetch the
+  // grid on EVERY exit path — normal completion, a cancel/supersede between batches, a mid-batch lock,
+  // or a rethrown error after a partial delete — not only the throttled/`ready` paths (which a cancel
+  // landing after a committed batch would bypass, leaving deleted rows on screen).
+  let deletedAny = false
 
   try {
     const table = await getTableById(tableId, { includeArchived: true })
@@ -116,6 +123,22 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     // an absent filter is still legitimate (delete-all is an explicit caller mode).
     if (filter && !filterClause) throw new Error('Filter is required for bulk delete')
     const excluded = new Set(excludeRowIds ?? [])
+    const dispatchDeleteTriggers = async (
+      rows: DeletedTableRow[],
+      committedTable?: TableDefinition
+    ) => {
+      const triggerTable = committedTable ?? table
+      await fireTableTrigger(
+        triggerTable.id,
+        triggerTable.workspaceId,
+        triggerTable.name,
+        'delete',
+        rows,
+        null,
+        triggerTable.schema,
+        requestId
+      )
+    }
 
     // Resume the persisted count: a retried attempt's earlier batches are already committed,
     // so starting at zero would overwrite cumulative progress with this attempt's smaller
@@ -158,8 +181,20 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
 
       const toDelete = excluded.size > 0 ? page.filter((id) => !excluded.has(id)) : page
       if (toDelete.length > 0) {
+        // Mark BEFORE the call, not from its return: `deletePageByIds` commits in internal batches, so a
+        // mid-page lock can persist earlier batches and THEN throw — the catch below returns without a
+        // count. Setting this up front guarantees the `finally` grid refetch fires whether the call
+        // returns or throws. (An attempt that ends up committing nothing only over-refetches — harmless.)
+        deletedAny = true
         try {
-          processed += await deletePageByIds(tableId, workspaceId, toDelete, pageProof, revalidate)
+          processed += await deletePageByIds(
+            tableId,
+            workspaceId,
+            toDelete,
+            pageProof,
+            revalidate,
+            dispatchDeleteTriggers
+          )
         } catch (err) {
           if (!(err instanceof TableLockedError)) throw err
           // A lock landed between batches. Batches already committed stay
@@ -183,6 +218,10 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
           status: 'running',
           progress: processed,
         })
+        // Refetch the live grid as rows drop out (throttled with the progress event above) — the `job`
+        // event only drives the progress meter, not the rows query. The `finally` below guarantees a
+        // final refetch on every exit, so a cancel after the last un-throttled batch can't leave stale rows.
+        signalTableRowsChanged(tableId)
       }
     }
 
@@ -222,6 +261,10 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     const error = cause ? toError(cause) : toError(err)
     logger.error(`[${requestId}] Delete failed for table ${tableId}:`, error)
     throw error
+  } finally {
+    // Guaranteed final grid refetch on every exit — completion, cancel/supersede, mid-batch lock, or a
+    // rethrown error — whenever this run deleted anything, so no open editor keeps showing deleted rows.
+    if (deletedAny) signalTableRowsChanged(tableId)
   }
 }
 

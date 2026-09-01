@@ -1,19 +1,19 @@
-import type { Editor, Range } from '@tiptap/core'
+import type { ComponentType, SVGProps } from 'react'
 import {
-  Code2,
+  Code,
   Heading1,
   Heading2,
   Heading3,
-  Image as ImageIcon,
+  ImageUp as ImageIcon,
   List,
   ListChecks,
   ListOrdered,
-  type LucideIcon,
   Minus,
   Pilcrow,
   Table as TableIcon,
   TextQuote,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import type { Editor, Range } from '@tiptap/core'
 
 export interface SlashCommandContext {
   editor: Editor
@@ -33,7 +33,7 @@ export interface SlashCommandItem {
   title: string
   /** Group heading the item is shown under in the menu. */
   group: string
-  icon: LucideIcon
+  icon: ComponentType<SVGProps<SVGSVGElement>>
   /** Extra search terms matched against the slash query, beyond the title. */
   aliases: string[]
   /** Keyboard shortcut shown on the right of the item (omitted when there is none). */
@@ -116,7 +116,7 @@ export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
   {
     title: 'Code block',
     group: 'Blocks',
-    icon: Code2,
+    icon: Code,
     aliases: ['codeblock', 'snippet', 'fence'],
     shortcut: '⌘⌥C',
     run: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),

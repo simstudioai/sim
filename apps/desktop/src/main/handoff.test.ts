@@ -8,9 +8,11 @@ import {
   buildRedeemScript,
   type ConnectHandoffCallback,
   createAuthFlow,
+  createConnectFlow,
   createHandoffManager,
   type HandoffCallback,
   type HandoffCallbacks,
+  type HandoffManager,
   type HandoffManagerDeps,
 } from '@/main/handoff'
 import type { EventRecorder } from '@/main/observability'
@@ -241,6 +243,27 @@ describe('createHandoffManager', () => {
     expect(manager.consume(state, 'login')).toBe(false)
     expect(manager.consume(state, 'connect')).toBe(true)
   })
+
+  it('returns the chat attempt correlated with the accepted connect state', async () => {
+    const deps = makeDeps()
+    const manager = createHandoffManager(deps, makeCallbacks())
+    await manager.beginConnect('google-email', {
+      workspaceId: 'workspace-1',
+      draftId: 'draft-1',
+      chatAttemptId: 'attempt-1',
+    })
+    const landing = new URL(vi.mocked(deps.openExternal).mock.calls[0][0])
+    const state = landing.searchParams.get('state') as string
+
+    expect(landing.searchParams.get('draftId')).toBe('draft-1')
+
+    expect(manager.consumeConnect(state)).toEqual({
+      workspaceId: 'workspace-1',
+      draftId: 'draft-1',
+      chatAttemptId: 'attempt-1',
+    })
+    expect(manager.consumeConnect(state)).toBeNull()
+  })
 })
 
 describe('connect handoff account pinning', () => {
@@ -270,6 +293,50 @@ describe('connect handoff account pinning', () => {
     const landing = new URL(vi.mocked(deps.openExternal).mock.calls[0][0])
     expect(landing.searchParams.has('user')).toBe(false)
     manager.clear()
+  })
+})
+
+describe('connect completion correlation', () => {
+  function makeConnectManager(scope: { chatAttemptId?: string }): HandoffManager {
+    return {
+      begin: vi.fn(async () => true),
+      beginConnect: vi.fn(async () => true),
+      consume: vi.fn(() => true),
+      consumeConnect: vi.fn(() => scope),
+      clear: vi.fn(),
+    }
+  }
+
+  it('echoes the accepted handoff chat attempt to the renderer', () => {
+    const notifyRenderer = vi.fn()
+    const flow = createConnectFlow({
+      handoff: makeConnectManager({ chatAttemptId: 'attempt-1' }),
+      events: makeEvents(),
+      focusMainWindow: vi.fn(),
+      notifyRenderer,
+    })
+
+    flow.handleCallback({ state: VALID_STATE })
+
+    expect(notifyRenderer).toHaveBeenCalledWith({ ok: true, chatAttemptId: 'attempt-1' })
+  })
+
+  it('marks ordinary integrations-page completions as explicitly uncorrelated', () => {
+    const notifyRenderer = vi.fn()
+    const flow = createConnectFlow({
+      handoff: makeConnectManager({}),
+      events: makeEvents(),
+      focusMainWindow: vi.fn(),
+      notifyRenderer,
+    })
+
+    flow.handleCallback({ state: VALID_STATE, error: 'oauth_failed' })
+
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      ok: false,
+      error: 'oauth_failed',
+      chatAttemptId: null,
+    })
   })
 })
 

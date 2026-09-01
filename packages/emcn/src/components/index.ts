@@ -19,16 +19,21 @@ export {
 export { ChipChevronDown } from './chip/chip-chevron'
 export {
   cellIconNodeClass,
+  chipActiveSurfaceClass,
   chipBorderShadowRing,
   chipContentGap,
   chipContentIconClass,
   chipContentLabelClass,
+  chipDropTargetSurfaceClass,
   chipFieldSurfaceClass,
   chipFieldTextClass,
   chipFilledFillTokens,
   chipFilledSurfaceTokens,
   chipGeometryClass,
+  chipHoverSurfaceClass,
+  chipIconSlotClass,
   chipPrimaryFillTokens,
+  disclosureChevronClass,
 } from './chip/chip-chrome'
 export { ChipCombobox } from './chip-combobox/chip-combobox'
 export {
@@ -41,15 +46,21 @@ export {
   type ChipDropdownOption,
   type ChipDropdownProps,
 } from './chip-dropdown/chip-dropdown'
+export {
+  ChipEmailsInput,
+  type ChipEmailsInputProps,
+} from './chip-emails-input/chip-emails-input'
 export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
 export {
   type ChipConfirmAction,
+  type ChipConfirmDefaultAction,
   ChipConfirmModal,
   type ChipConfirmModalProps,
   type ChipConfirmText,
   type ChipConfirmTextSegment,
   ChipModal,
   ChipModalBody,
+  type ChipModalBodyProps,
   type ChipModalDropdownOption,
   type ChipModalEmailsFieldProps,
   ChipModalError,
@@ -59,6 +70,7 @@ export {
   ChipModalFooter,
   type ChipModalFooterAction,
   type ChipModalFooterCustomAction,
+  type ChipModalFooterDefaultAction,
   type ChipModalFooterProps,
   type ChipModalFooterSlotAction,
   ChipModalHeader,
@@ -101,6 +113,8 @@ export {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuItemAction,
+  DropdownMenuItemLabel,
+  type DropdownMenuItemLabelProps,
   DropdownMenuLabel,
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
@@ -112,6 +126,7 @@ export {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  dropdownMenuRowClass,
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
 export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
@@ -145,7 +160,17 @@ export {
   ModalTabsTrigger,
   ModalTitle,
   ModalTrigger,
+  NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
+  type NativeSurfaceOcclusionPrepareDetail,
+  useModalDismissDisabled,
+  useNativeSurfaceOcclusionReady,
 } from './modal/modal'
+export {
+  OverflowText,
+  type OverflowTextProps,
+  overflowTextClipClass,
+  overflowTextFadeClass,
+} from './overflow-text/overflow-text'
 export {
   Popover,
   PopoverAnchor,
@@ -170,9 +195,14 @@ export { Switch } from './switch/switch'
 export {
   isTabTitleTruncated,
   TabStrip,
+  type TabStripDragContext,
   type TabStripItem,
   type TabStripProps,
+  type TabStripSelectionSource,
+  type TabStripVariant,
   tabDropIndex,
+  tabStripItemSelector,
+  tabStripWheelPosition,
 } from './tab-strip/tab-strip'
 export {
   Table,
@@ -196,6 +226,7 @@ export {
   isFocusVisible,
   isTextClipped,
   Tooltip,
+  type UseFloatingTooltipOptions,
   useFloatingTooltip,
   useIsOverflowing,
 } from './tooltip/tooltip'

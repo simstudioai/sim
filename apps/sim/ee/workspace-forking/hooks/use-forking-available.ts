@@ -8,7 +8,7 @@ export const forkAvailabilityKeys = {
   detail: (workspaceId?: string) => [...forkAvailabilityKeys.details(), workspaceId ?? ''] as const,
 }
 
-/** Availability flips only on plan changes or flag rollouts - cache generously. */
+/** Availability flips only on plan or deployment configuration changes. */
 export const FORK_AVAILABILITY_STALE_TIME = 5 * 60 * 1000
 
 interface ForkingAvailability {
@@ -18,10 +18,9 @@ interface ForkingAvailability {
 }
 
 /**
- * Server-evaluated fork availability for the workspace: the verdict of the exact gate
- * every fork route enforces (env/plan + the `workspace-forking` AppConfig rollout
- * flag), served by the availability route. Used to hide the Forks settings tab and
- * the fork context-menu entries; the server gate remains the security boundary.
+ * Server-evaluated fork availability for the workspace, based on deployment
+ * configuration and plan. Used to hide the Forks settings tab and context-menu
+ * entries; the server remains the security boundary.
  */
 export function useForkingAvailability(workspaceId?: string): ForkingAvailability {
   const { data, isLoading } = useQuery({

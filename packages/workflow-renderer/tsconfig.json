@@ -2,8 +2,9 @@
   "extends": "@sim/tsconfig/library.json",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["@testing-library/jest-dom/vitest"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "vitest.setup.ts"],
   "exclude": ["node_modules", "dist"]
 }

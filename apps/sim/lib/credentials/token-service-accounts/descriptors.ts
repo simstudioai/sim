@@ -68,6 +68,7 @@ export const AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID = 'airtable-service-account' a
 export const NOTION_SERVICE_ACCOUNT_PROVIDER_ID = 'notion-service-account' as const
 export const ASANA_SERVICE_ACCOUNT_PROVIDER_ID = 'asana-service-account' as const
 export const ATTIO_SERVICE_ACCOUNT_PROVIDER_ID = 'attio-service-account' as const
+export const HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID = 'harmonic-service-account' as const
 export const CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID = 'clickup-service-account' as const
 export const LINEAR_SERVICE_ACCOUNT_PROVIDER_ID = 'linear-service-account' as const
 export const MONDAY_SERVICE_ACCOUNT_PROVIDER_ID = 'monday-service-account' as const
@@ -79,8 +80,16 @@ export const WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID = 'wealthbox-service-account'
 export const PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'pipedrive-service-account' as const
 export const CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID =
   'claude-platform-service-account' as const
+export const SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID = 'snowflake-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
+
+/**
+ * Account hostnames carry a variable number of labels — `myorg-myaccount`,
+ * but also the legacy `xy12345.us-east-1` locator form — so dots are allowed
+ * before the `snowflakecomputing` suffix. China accounts use `.cn`.
+ */
+const SNOWFLAKE_HOST_HINT_REGEX = /^[a-z0-9][a-z0-9.-]*\.snowflakecomputing\.(com|cn)$/i
 
 export type TokenServiceAccountProviderId =
   | typeof HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID
@@ -88,6 +97,7 @@ export type TokenServiceAccountProviderId =
   | typeof NOTION_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ASANA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATTIO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof LINEAR_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof MONDAY_SERVICE_ACCOUNT_PROVIDER_ID
@@ -98,6 +108,7 @@ export type TokenServiceAccountProviderId =
   | typeof WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   TokenServiceAccountProviderId,
@@ -194,6 +205,21 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     helpText:
       'Check the scopes granted to the key in Attio — tools whose scopes are missing will fail at run time.',
   },
+  [HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Harmonic',
+    tokenNoun: 'team API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Team API key',
+        placeholder: 'Paste Harmonic team API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/harmonic',
+  },
   [CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'ClickUp',
@@ -270,7 +296,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/shopify-service-account',
     helpText:
-      'Legacy admin-created custom apps reveal the shpat_ token once; new Dev Dashboard apps issue tokens via OAuth, not a UI reveal. The token is store-bound and does not expire.',
+      'The token is revealed once, is bound to a single store, and does not expire. Dev Dashboard apps issue tokens through OAuth rather than a UI reveal.',
     invalidCredentialsHelp:
       'Shopify rejected this token. Make sure you copied the Admin API access token (starts with shpat_) — not the API key or API secret key — for an app installed on this exact store domain, and that it has not since been revoked or regenerated.',
   },
@@ -289,7 +315,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/webflow-service-account',
     helpText:
-      'Create the token with at least the sites:read and CMS read/write scopes. Site tokens expire after 365 days without API activity, and each token grants access to a single site.',
+      'Site tokens expire after 365 days without API activity, and each token grants access to a single site.',
   },
   [TRELLO_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -300,15 +326,13 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API token',
-        placeholder: 'ATTA...',
+        placeholder: 'Paste API token',
         secret: true,
-        hintPattern: /^ATTA/,
-        hintMessage: 'Trello API tokens usually start with ATTA.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/trello-service-account',
     helpText:
-      "Generate the token with the setup guide's authorize link (expiration=never) so it works with Sim and doesn't expire.",
+      'A read-only or short-expiration token validates here and then fails at run time — Sim cannot tell either from the token itself.',
   },
   [CALCOM_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: CALCOM_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -326,7 +350,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/calcom-service-account',
-    helpText: 'Choose a non-expiring key (or note the expiry date) when creating it in Cal.com.',
+    helpText:
+      'Cal.com preselects a 30-day expiry when you create a key — switch on "Never expires" or runs stop on that date.',
   },
   [WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -344,6 +369,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/wealthbox-service-account',
     helpText:
       'Trial accounts cannot use the Wealthbox API; contact Wealthbox support if API Access is missing from your Settings.',
+    invalidCredentialsHelp:
+      'Wealthbox rejected this token. Check that it is still active under API Access in your Wealthbox settings, and that the account is not on an expired trial. If the same token works elsewhere, note that Sim authenticates with a Bearer header — a token Wealthbox accepts only over its ACCESS_TOKEN header is refused here.',
   },
   [PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -379,6 +406,31 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/managed-agent',
+  },
+  [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Snowflake',
+    tokenNoun: 'programmatic access token',
+    connectNoun: 'programmatic access token',
+    fields: [
+      {
+        id: 'domain',
+        label: 'Account host',
+        placeholder: 'myorg-myaccount.snowflakecomputing.com',
+        secret: false,
+        hintPattern: SNOWFLAKE_HOST_HINT_REGEX,
+        hintMessage: 'Snowflake account hosts end in .snowflakecomputing.com.',
+      },
+      {
+        id: 'apiToken',
+        label: 'Programmatic access token',
+        placeholder: 'Paste a programmatic access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/snowflake-service-account',
+    invalidCredentialsHelp:
+      'Snowflake rejected this token. Check that it belongs to a user on this exact account host, that it has not expired or been revoked, that a network policy allows Sim to reach the account, and that the SQL API is enabled for the account.',
   },
 }
 

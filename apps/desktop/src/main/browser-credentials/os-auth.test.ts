@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const promptTouchID = vi.fn(async () => undefined)
 const canPromptTouchID = vi.fn(() => true)
 const showMessageBox = vi.fn(async () => ({ response: 1 }))
+const getFocusedWindow = vi.fn(() => null as { isDestroyed(): boolean } | null)
 
 vi.mock('electron', () => ({
   systemPreferences: {
@@ -16,6 +17,11 @@ vi.mock('electron', () => ({
   dialog: {
     get showMessageBox() {
       return showMessageBox
+    },
+  },
+  BrowserWindow: {
+    get getFocusedWindow() {
+      return getFocusedWindow
     },
   },
 }))
@@ -67,6 +73,7 @@ describe('authorizeForSecret', () => {
     vi.useRealTimers()
     revokeSecretAuthorization()
     setPlatform('darwin')
+    getFocusedWindow.mockReturnValue(null)
     canPromptTouchID.mockReturnValue(true)
     promptTouchID.mockResolvedValue(undefined)
   })
@@ -199,8 +206,23 @@ describe('authorizeForSecret', () => {
       expect.objectContaining({
         message: 'Copy password?',
         buttons: ['Cancel', 'Copy password'],
+        defaultId: 0,
+        cancelId: 0,
         detail: expect.stringContaining('copy a saved password'),
       })
+    )
+  })
+
+  it('parents fallback confirmation to the focused app window', async () => {
+    canPromptTouchID.mockReturnValue(false)
+    const parent = { isDestroyed: vi.fn(() => false) }
+    getFocusedWindow.mockReturnValue(parent)
+
+    await authorizeForSecret(copyRequest('c1'))
+
+    expect(showMessageBox).toHaveBeenCalledWith(
+      parent,
+      expect.objectContaining({ message: 'Copy password?' })
     )
   })
 

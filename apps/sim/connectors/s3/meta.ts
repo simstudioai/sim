@@ -6,7 +6,7 @@ export const s3ConnectorMeta: ConnectorMeta = {
   name: 'Amazon S3',
   description:
     'Sync text-based objects from Amazon S3 or any S3-compatible store (Cloudflare R2, MinIO) into your knowledge base',
-  version: '1.1.0',
+  version: '1.2.0',
   icon: S3Icon,
 
   auth: {

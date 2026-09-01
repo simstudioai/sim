@@ -64,24 +64,6 @@ export const DETAILED_VERSION_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete detailed version object output definition.
- */
-export const DETAILED_VERSION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Detailed version information',
-  properties: DETAILED_VERSION_OUTPUT_PROPERTIES,
-}
-
-/**
- * Complete version object output definition.
- */
-export const VERSION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Version information',
-  properties: VERSION_OUTPUT_PROPERTIES,
-}
-
-/**
  * Page item properties from Confluence API v2.
  * Based on GET /wiki/api/v2/pages response structure.
  */
@@ -111,18 +93,6 @@ export const PAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Confluence page object',
   properties: PAGE_ITEM_PROPERTIES,
-}
-
-/**
- * Pages array output definition for list endpoints.
- */
-export const PAGES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Confluence pages',
-  items: {
-    type: 'object',
-    properties: PAGE_ITEM_PROPERTIES,
-  },
 }
 
 /**
@@ -161,15 +131,6 @@ export const SPACE_ITEM_PROPERTIES = {
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete space object output definition.
- */
-export const SPACE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Confluence space object',
-  properties: SPACE_ITEM_PROPERTIES,
-}
 
 /**
  * Spaces array output definition for list endpoints.
@@ -220,16 +181,6 @@ export const CONTENT_BODY_OUTPUT_PROPERTIES = {
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete body object output definition for pages and blog posts.
- */
-export const CONTENT_BODY_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Page or blog post body content in requested format(s)',
-  properties: CONTENT_BODY_OUTPUT_PROPERTIES,
-  optional: true,
-}
 
 /**
  * Comment body object properties.
@@ -448,14 +399,6 @@ export const SEARCH_RESULTS_OUTPUT: OutputProperty = {
 }
 
 /**
- * Pagination links properties for list responses.
- */
-export const PAGINATION_LINKS_PROPERTIES = {
-  next: { type: 'string', description: 'URL to fetch the next page of results', optional: true },
-  base: { type: 'string', description: 'Base URL for the API', optional: true },
-} as const satisfies Record<string, OutputProperty>
-
-/**
  * Common timestamp output property.
  */
 export const TIMESTAMP_OUTPUT: OutputProperty = {
@@ -464,35 +407,11 @@ export const TIMESTAMP_OUTPUT: OutputProperty = {
 }
 
 /**
- * Common page ID output property.
- */
-export const PAGE_ID_OUTPUT: OutputProperty = {
-  type: 'string',
-  description: 'Confluence page ID',
-}
-
-/**
  * Common success status output property.
  */
 export const SUCCESS_OUTPUT: OutputProperty = {
   type: 'boolean',
   description: 'Operation success status',
-}
-
-/**
- * Common deleted status output property.
- */
-export const DELETED_OUTPUT: OutputProperty = {
-  type: 'boolean',
-  description: 'Deletion status',
-}
-
-/**
- * Common URL output property.
- */
-export const URL_OUTPUT: OutputProperty = {
-  type: 'string',
-  description: 'URL to view in Confluence',
 }
 
 export interface ConfluenceRetrieveParams {

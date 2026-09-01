@@ -1,6 +1,6 @@
 ---
 name: add-integration
-description: Add a complete Sim integration from API docs, covering tools, block, icon, optional triggers, registrations, and integration conventions. Use when introducing a new service under `apps/sim/tools`, `apps/sim/blocks`, and `apps/sim/triggers`.
+description: Add a complete Sim integration from API docs, covering tools, block, icon, optional triggers, registrations, resolved-secret/model-input safety, and integration conventions. Use when introducing a new service under `apps/sim/tools`, `apps/sim/blocks`, and `apps/sim/triggers`.
 argument-hint: <service-name> [api-docs-url]
 ---
 
@@ -17,7 +17,8 @@ Adding an integration involves these steps in order:
 4. **Add Icon** - Add the service's brand icon
 5. **Create Triggers** (optional) - If the service supports webhooks
 6. **Register** - Register tools, block, and triggers in their registries
-7. **Generate Docs** - Run the docs generation script
+7. **Configure Deployment Availability** - Wire OAuth client and service-account metadata
+8. **Generate and Validate the Catalog** - Regenerate docs/catalog artifacts and run drift checks
 
 ## Step 1: Research the API
 
@@ -59,6 +60,18 @@ apps/sim/tools/{service}/
 
 ### Key Patterns
 
+Choose the tool boundary before writing the declaration:
+
+- Use `InternalToolConfig.operation` for same-process Sim/provider work. Put the handler under
+  `apps/sim/lib/internal/{service}/execute-tool.ts` and register every ID in
+  `apps/sim/lib/internal/tool-operations/registry.server.ts`.
+- Use `ToolConfig.request` only for an absolute external HTTP(S) provider endpoint.
+
+Never point a tool at `/api/...`, construct an absolute URL back to Sim, declare
+`request.internal`, add the retired `directExecution` property, or add an API route merely to reuse code, normalize files, or authorize
+resources. A real external/browser route and an in-process tool may share the same operation, but
+neither calls the other. Follow the full transport and handler rules in the `add-tools` skill.
+
 **types.ts:**
 ```typescript
 import type { ToolResponse } from '@/tools/types'
@@ -81,7 +94,7 @@ export interface {Service}Response extends ToolResponse {
 
 **Tool file pattern:**
 ```typescript
-export const {service}{Action}Tool: ToolConfig<Params, Response> = {
+export const {service}{Action}Tool: InternalToolConfig<Params, Response> = {
   id: '{service}_{action}',
   name: '{Service} {Action}',
   description: '...',
@@ -94,16 +107,11 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
     // ... other params
   },
 
-  request: { url, method, headers, body },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        field: data.field ?? null,  // Always handle nullables
-      },
-    }
+  operation: {
+    input: (params) => ({
+      accessToken: params.accessToken,
+      // Map only the semantic operation input.
+    }),
   },
 
   outputs: { /* ... */ },
@@ -120,6 +128,68 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 - Never output raw JSON dumps - extract meaningful fields
 - When using `type: 'json'` and you know the object shape, define `properties` with the inner fields so downstream consumers know the structure. Only use bare `type: 'json'` when the shape is truly dynamic
 - If you do not know the response JSON shape from docs or verified examples, you MUST tell the user and stop. Never guess outputs or response mappings.
+
+### Resolved Secrets at Model and Persistence Boundaries
+
+Classify every request field before implementing the tool:
+
+This is opt-in, not a blanket integration migration. Add a model-input declaration only when the
+service's official documentation or an unambiguous local execution path proves that the exact
+field is consumed by an AI model. If that cannot be established, preserve existing tool behavior
+and leave the field unannotated.
+
+- **Ordinary provider/API input:** leave it unchanged. Explicit `{{...}}` references resolve and are
+  sent with their normal request semantics. A URL, domain, resource ID, control field, or opaque
+  payload is not model-visible merely because the provider is AI-backed or may process the
+  referenced resource later.
+- **Text or structured content consumed by an AI model:** declare `request.modelInput` for an
+  external provider request or `operation.modelInput` for an in-process operation, with
+  `mode: 'project'` and select only the exact model-visible fields. The shared executor replaces
+  activated Sim secrets with canonical `{{NAME}}` labels before request formatting. For nested or
+  JSON-string fields, use a small shared selector plus `applyProjected`; verify that selecting the
+  rebuilt params reproduces the projected selection.
+- **Serialized model content sent directly to an external provider:** include the serialized
+  top-level param in `request.modelInput`. Project the private copy before the existing request
+  formatter parses it; keep formatter behavior deterministic when a whole-value placeholder is not
+  valid in the serialized grammar. Do not introduce a second hard-rejection path.
+- **Opaque model input owned by an in-process operation** such as inline audio, image, video, or
+  document bytes: add `privateProvenance` to the operation model-input declaration, or use
+  `mode: 'private-provenance'` when there is no textual projection. Do not select storage keys,
+  paths, signed URLs, or ordinary remote URLs as byte provenance; the owning operation must
+  authorize stored bytes independently at model egress. The operation must call
+  `validateOpaqueModelInputProvenance` before downloading or sending content to the model and must
+  apply the workspace-file provenance guard before reading a persisted workspace file.
+- **Sim-owned durable storage or internal execution handoff** that can later enter a workflow/model
+  (table cells, Agent memory, knowledge documents/chunks, workspace-file contents, or child-workflow
+  input): transport encrypted field-scoped provenance with `operation.secretProvenance`. The
+  operation validates the exact selection and trusted scope, then persists, imports, or propagates
+  it at the owning boundary. Preserve shared legacy behavior for rows/files whose provenance marker
+  is `NULL`; never invent a tool-local migration rule.
+
+Hard rules:
+
+- Never substitute secret plaintext into source or serialize plaintext provenance.
+- Never hand-roll private provenance headers/envelopes; the shared `executeTool` boundary owns
+  transport and strips private metadata from functional results.
+- Never attach private provenance to an external URL. Project proven
+  model-visible external fields with `request.modelInput`; otherwise preserve ordinary request
+  semantics. Use a registered in-process operation when encrypted provenance must cross the
+  boundary.
+- Never sanitize arbitrary third-party tool results. Projection applies only to secrets activated
+  by Sim's resolved-secret provenance for that execution/tool call.
+- Do not add provenance merely because a value is persisted, returned by a tool, or appears in a
+  filename. Require a concrete Sim `{{...}}` resolution path and a later model/log boundary. If an
+  unsupported field can resolve a secret but does not justify durable tracking (for example a
+  `file_write` path), reject it at that exact ingress.
+- At diagnostic boundaries, project only values carrying execution-scoped provenance. Ordinary
+  provider responses, filenames, URLs, and errors remain unchanged when Sim did not resolve a
+  secret into them.
+
+Add focused tests covering named projection, ordinary identical text without provenance, nested and
+serialized shape handling, unchanged ordinary external inputs, malformed/incomplete private metadata
+failing closed, headerless legacy requests, and absence of private metadata in the public tool result.
+For durable sinks, also cover legacy `NULL` markers, exact-empty new writes, tracked secret writes,
+stale/missing sidecars, and scope isolation.
 
 ## Step 3: Create Block
 
@@ -200,14 +270,23 @@ export const {Service}Block: BlockConfig = {
 {
   id: 'project',
   type: 'project-selector',
+  selectorKey: '{service}.projects',
   dependsOn: ['credential'],
 },
 {
   id: 'issue',
   type: 'file-selector',
+  selectorKey: '{service}.issues',
   dependsOn: ['credential', 'project'],
 }
 ```
+
+Every remote `selectorKey` must use the unified server selector path. Apply the `add-selector` skill:
+add browser-safe metadata to `apps/sim/lib/selectors/manifest.ts`, reuse or extract a server-only
+provider listing primitive, and add a credential- and destination-bound server attachment. Do not
+add code under `hooks/selectors/providers`, a provider-specific query key, browser token acquisition,
+or a selector-only API route. The shared context builder sends only active `dependsOn` values and
+preserves exact `{{KEY}}` environment references for server-side resolution.
 
 **Basic/Advanced mode for dual UX:**
 ```typescript
@@ -415,6 +494,16 @@ export const tools: Record<string, ToolConfig> = {
 }
 ```
 
+Then regenerate the generated tool metadata and commit it:
+
+```bash
+bun run tool-metadata:generate
+```
+
+Client code reads `params`/`outputs` from these artifacts rather than importing
+the registry, so a tool you add, change or remove is invisible to the UI until they are regenerated,
+and CI fails on stale ones. See `.agents/skills/tool-registry-boundary/SKILL.md`.
+
 ### Block Registry (`apps/sim/blocks/registry-maps.ts`)
 
 The data maps (`BLOCK_REGISTRY` + `BLOCK_META_REGISTRY`) live in `registry-maps.ts`; `registry.ts` holds only the accessor functions. Add the import and an entry to each map alphabetically:
@@ -455,14 +544,53 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
 }
 ```
 
-## Step 7: Generate Docs
+## Step 7: Configure Deployment Availability
+
+Do this for every visible OAuth integration. API-key and unauthenticated integrations do not need
+an OAuth client capability.
+
+The block's `oauth-input.serviceId` is the canonical link between the generated integration catalog,
+the OAuth service configuration, deployment availability, and the setup CLI.
+
+1. Ensure the block has exactly one distinct OAuth `serviceId` and that it matches the canonical
+   service entry in `apps/sim/lib/oauth/oauth.ts`.
+2. Confirm `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended provider entry in
+   `OAUTH_CLIENT_CAPABILITIES` in `packages/deployment-config/src/env-capabilities.ts`. Google and
+   Microsoft service IDs deliberately share provider-level capabilities.
+3. For a new OAuth provider, add the required client fields to `OAUTH_CLIENT_CAPABILITIES`, add
+   every referenced field to the env schema in `apps/sim/lib/core/config/env.ts`, and add the
+   matching `text` or `secret` entries to `OAUTH_CLIENT_SETUP_FIELDS` in
+   `packages/sim-setup/src/capability-config.ts`. Do not create integration-specific setup logic or
+   infer secret fields from naming; the CLI mapping is exhaustively checked against the runtime
+   fields.
+4. If the canonical OAuth service has `serviceAccountProviderId`, run
+   `bun run deployment-config:generate` to refresh
+   `packages/deployment-config/src/service-account-providers.generated.ts`; never hand-edit the
+   generated provider-ID map. In `packages/deployment-config/src/service-account-metadata.ts`, use:
+   - no `deploymentRequirement` when the service-account path works independently of OAuth client fields;
+   - `'oauth-client'` when it requires the same deployment OAuth client fields;
+   - `'preview-gated'` when availability is controlled by the service-account preview block.
+
+Never add a permissive fallback for missing capability metadata. A visible OAuth integration without
+a resolvable capability must fail validation.
+
+## Step 8: Generate and Validate the Catalog
 
 Run the documentation generator:
 ```bash
 bun run scripts/generate-docs.ts
+bun run deployment-config:generate
+bun run integration-catalog:check
+bun run deployment-config:check
+bun run docs:check
 ```
 
-This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
+This creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
+
+The docs generator refreshes `packages/deployment-config/src/integrations.json`, and the deployment
+config generator projects service-account provider IDs from that catalog plus the canonical OAuth
+registry. The checks compare both committed projections with their sources. Review the generated
+diff and keep only intentional changes.
 
 ## V2 Integration Pattern
 
@@ -485,11 +613,23 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created `tools/{service}/` directory
 - [ ] Created `types.ts` with all interfaces
 - [ ] Created tool file for each operation
+- [ ] Chose exactly one boundary per tool: registered `InternalToolConfig.operation` or absolute
+      external HTTP(S) `ToolConfig.request`
+- [ ] No tool points to `/api/...`, constructs a URL back to Sim, declares `request.internal` or the
+      retired `directExecution` property, or has an HTTP fallback for an in-process operation
 - [ ] All params have correct visibility
 - [ ] All nullable fields use `?? null`
 - [ ] All optional outputs have `optional: true`
 - [ ] Created `index.ts` barrel export
 - [ ] Registered all tools in `tools/registry.ts`
+- [ ] Ran `bun run tool-metadata:generate` and committed the regenerated artifacts
+- [ ] Classified every model-visible, opaque, Sim-durable, and internal-execution request field
+- [ ] Added shared model-input projection or private provenance only where required; ordinary
+      external resource locators and control inputs retain their request semantics
+- [ ] Confirmed ordinary third-party tool results are not generically sanitized
+- [ ] Added provenance compatibility and fail-closed boundary tests where applicable
+- [ ] `bun run check:tool-request-boundary` passes
+- [ ] Internal-operation registry completeness test passes for every operation-backed tool
 
 ### Block
 - [ ] Created `blocks/blocks/{service}.ts`
@@ -499,6 +639,10 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Added credential field with `requiredScopes: getScopesForService('{service}')`
 - [ ] Added conditional fields per operation
 - [ ] Set up dependsOn for cascading selectors
+- [ ] Every remote `selectorKey` exists in the shared manifest and has one server attachment with
+      trusted credential provider binding and a fixed, credential-bound, or explicitly reviewed
+      user-controlled destination policy
+- [ ] No selector provider logic, credential resolution, or provider route call runs in the browser
 - [ ] Configured tools.access with all tool IDs
 - [ ] Configured tools.config.tool selector
 - [ ] Defined outputs matching tool outputs
@@ -512,6 +656,13 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Added scope descriptions in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
 - [ ] Used `getCanonicalScopesForProvider()` in `auth.ts` (never hardcode)
 - [ ] Used `getScopesForService()` in block `requiredScopes` (never hardcode)
+
+### Deployment Availability (if OAuth service)
+- [ ] Block declares exactly one distinct `oauth-input.serviceId`
+- [ ] `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended `OAUTH_CLIENT_CAPABILITIES` entry
+- [ ] Every new OAuth capability field exists in `apps/sim/lib/core/config/env.ts`
+- [ ] Runtime OAuth fields live in `OAUTH_CLIENT_CAPABILITIES`; matching CLI input modes live in the exhaustively checked `OAUTH_CLIENT_SETUP_FIELDS`
+- [ ] If `serviceAccountProviderId` is configured, `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` has the matching projection and deployment requirement
 
 ### Icon
 - [ ] Asked user to provide SVG
@@ -528,9 +679,16 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created `index.ts` barrel export
 - [ ] Registered all triggers in `triggers/registry.ts`
 
-### Docs
+### Docs and deployment metadata
 - [ ] Ran `bun run scripts/generate-docs.ts`
+- [ ] Ran `bun run deployment-config:generate` for OAuth or service-account changes
 - [ ] Verified docs file created
+- [ ] Reviewed and committed the generated `packages/deployment-config/src/integrations.json` change
+- [ ] `bun run integration-catalog:check` passes
+- [ ] `bun run docs:check` passes — CI fails on stale generated docs, so commit the full generator
+      output, including catch-up regeneration for pages another PR left stale (never revert it as
+      "unrelated drift")
+- [ ] `bun run deployment-config:check` passes
 
 ### Final Validation (Required)
 - [ ] Read every tool file and cross-referenced inputs/outputs against the API docs
@@ -590,7 +748,8 @@ interface UserFile {
 
 ### File Input Pattern (Uploads)
 
-For tools that accept file uploads, **always route through an internal API endpoint** rather than calling external APIs directly. This ensures proper file content retrieval.
+File authorization, normalization, storage reads, provider upload, and response mapping belong in a
+registered in-process operation. Do not create an internal API route for file tools.
 
 #### 1. Block SubBlocks for File Input
 
@@ -626,135 +785,36 @@ Use the basic/advanced mode pattern:
 
 #### 2. Normalize File Input in Block Config
 
-In `tools.config.tool`, use `normalizeFileInput` to handle all input variants:
+`tools.config.tool` selects the tool before variable resolution and must not mutate or coerce input.
+Use `tools.config.params`, which runs after variable resolution, to normalize all file variants:
 
 ```typescript
 import { normalizeFileInput } from '@/blocks/utils'
 
 tools: {
   config: {
-    tool: (params) => {
-      // Normalize file from basic (uploadFile), advanced (fileRef), or legacy (fileContent)
-      const normalizedFile = normalizeFileInput(
-        params.uploadFile || params.fileRef || params.fileContent,
-        { single: true }
-      )
-      if (normalizedFile) {
-        params.file = normalizedFile
-      }
-      return `{service}_${params.operation}`
+    tool: (params) => `{service}_${params.operation}`,
+    params: (params) => {
+      // Serialization collapses the basic/advanced pair into the canonical `file` key.
+      const normalizedFile = normalizeFileInput(params.file, { single: true })
+      return normalizedFile ? { file: normalizedFile } : {}
     },
   },
 }
 ```
 
-#### 3. Create Internal API Route
-
-Create `apps/sim/app/api/tools/{service}/{action}/route.ts`. Internal tool routes are HTTP boundaries and follow the same contract policy as public routes — define the request/response shape in `apps/sim/lib/api/contracts/tools/{service}.ts` (or an existing aggregate) and validate with canonical helpers from `@/lib/api/server`. Never write a route-local Zod schema.
+#### 3. Define and register the in-process operation
 
 ```typescript
-// apps/sim/lib/api/contracts/tools/{service}.ts
-import { z } from 'zod'
-import { defineRouteContract } from '@/lib/api/contracts'
-import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
-
-export const {service}UploadBodySchema = z.object({
-  accessToken: z.string(),
-  file: FileInputSchema.optional().nullable(),
-  fileContent: z.string().optional().nullable(),
-  // ... other params
-})
-
-export const {service}UploadResponseSchema = z.object({
-  success: z.boolean(),
-  output: z.object({ id: z.string(), url: z.string() }).optional(),
-  error: z.string().optional(),
-})
-
-export const {service}UploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/{service}/upload',
-  body: {service}UploadBodySchema,
-  response: { mode: 'json', schema: {service}UploadResponseSchema },
-})
-
-export type {Service}UploadBody = z.input<typeof {service}UploadBodySchema>
-export type {Service}UploadResponse = z.output<typeof {service}UploadResponseSchema>
-```
-
-```typescript
-// apps/sim/app/api/tools/{service}/upload/route.ts
-import { createLogger } from '@sim/logger'
-import { NextResponse, type NextRequest } from 'next/server'
-import { {service}UploadContract } from '@/lib/api/contracts/tools/{service}'
-import { parseRequest } from '@/lib/api/server'
-import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { type RawFileInput } from '@/lib/uploads/utils/file-schemas'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
-
-const logger = createLogger('{Service}UploadAPI')
-
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
-  // Auth always runs BEFORE parseRequest — never validate untrusted input before authenticating.
-  const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-  if (!authResult.success) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const parsed = await parseRequest({service}UploadContract, request, {})
-  if (!parsed.success) return parsed.response
-  const data = parsed.data.body
-
-  let fileBuffer: Buffer
-  let fileName: string
-
-  // Prefer UserFile input, fall back to legacy base64
-  if (data.file) {
-    const userFiles = processFilesToUserFiles([data.file as RawFileInput], requestId, logger)
-    if (userFiles.length === 0) {
-      return NextResponse.json({ success: false, error: 'Invalid file' }, { status: 400 })
-    }
-    const userFile = userFiles[0]
-    fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
-    fileName = userFile.name
-  } else if (data.fileContent) {
-    // Legacy: base64 string (backwards compatibility)
-    fileBuffer = Buffer.from(data.fileContent, 'base64')
-    fileName = 'file'
-  } else {
-    return NextResponse.json({ success: false, error: 'File required' }, { status: 400 })
-  }
-
-  // Now call external API with fileBuffer
-  const response = await fetch('https://api.{service}.com/upload', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${data.accessToken}` },
-    body: new Uint8Array(fileBuffer),  // Convert Buffer for fetch
-  })
-
-  // ... handle response
-})
-```
-
-#### 4. Update Tool to Use Internal Route
-
-```typescript
-export const {service}UploadTool: ToolConfig<Params, Response> = {
+export const {service}UploadTool: InternalToolConfig<Params, Response> = {
   id: '{service}_upload',
   // ...
   params: {
     file: { type: 'file', required: false, visibility: 'user-or-llm' },
     fileContent: { type: 'string', required: false, visibility: 'hidden' }, // Legacy
   },
-  request: {
-    url: '/api/tools/{service}/upload',  // Internal route
-    method: 'POST',
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       file: params.file,
       fileContent: params.fileContent,
@@ -762,6 +822,13 @@ export const {service}UploadTool: ToolConfig<Params, Response> = {
   },
 }
 ```
+
+Implement `apps/sim/lib/internal/{service}/execute-tool.ts` and keep the file/provider work in typed
+operations beside it. The handler validates `request.input`, derives storage authority only from
+trusted `request.context`, authorizes every stored file before reading bytes, forwards
+`request.signal`, enforces declared and actual byte caps, and returns the canonical tool response.
+Register `{service}_upload` in `apps/sim/lib/internal/tool-operations/registry.server.ts` and add a
+registry/direct-handler test. There is no HTTP fallback.
 
 ### File Output Pattern (Downloads)
 
@@ -790,11 +857,11 @@ transformResponse: async (response, context) => {
 }
 ```
 
-#### In API Route (for complex file handling)
+#### In the operation handler (for complex file handling)
 
 ```typescript
-// Return file data that FileToolProcessor can handle
-return NextResponse.json({
+// Return file data that FileToolProcessor can handle. No API route is involved.
+return Response.json({
   success: true,
   output: {
     file: {
@@ -868,10 +935,13 @@ requiredScopes: getScopesForService('{service}'),
 3. **Block type is snake_case** - `type: 'stripe'`, not `type: 'Stripe'`
 4. **Alphabetical ordering** - Keep imports and registry entries alphabetically sorted
 5. **Required can be conditional** - Use `required: { field: 'op', value: 'create' }` instead of always true
-6. **DependsOn clears options** - When a dependency changes, selector options are refetched
+6. **DependsOn clears options** - When an active dependency changes, the shared selector facade
+   refetches with an opaque query revision; dependency values and references never enter query keys
 7. **Never pass Buffer directly to fetch** - Convert to `new Uint8Array(buffer)` for TypeScript compatibility
 8. **Always handle legacy file params** - Keep hidden `fileContent` params for backwards compatibility
 9. **Optional fields use advanced mode** - Set `mode: 'advanced'` on rarely-used optional fields
 10. **Complex inputs need wandConfig** - Timestamps, JSON arrays, and other hard-to-type values should have `wandConfig` enabled
 11. **Never hardcode scopes** - Use `getScopesForService()` in blocks and `getCanonicalScopesForProvider()` in auth.ts
 12. **Always add scope descriptions** - New scopes must have entries in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
+13. **OAuth service IDs need deployment capabilities** - Every visible OAuth integration must resolve through `OAUTH_CLIENT_CAPABILITIES`; shared Google/Microsoft aliases map to their provider capability
+14. **Keep runtime and presentation separate** - Runtime OAuth fields live in `packages/deployment-config/src/env-capabilities.ts`; CLI input modes live in the exhaustively checked `packages/sim-setup/src/capability-config.ts` mapping

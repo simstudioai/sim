@@ -125,6 +125,45 @@ export function buildCanonicalIndex(subBlocks: SubBlockConfig[]): CanonicalIndex
 }
 
 /**
+ * The subblocks that define a block's canonical groups on the surface it is being rendered or
+ * resolved on.
+ *
+ * A block that is both an action and a trigger holds ONE `subBlocks` array: its own fields plus
+ * its trigger's, spread in after them. Those two sets routinely share a `canonicalParamId` while
+ * using DIFFERENT ids — Webflow's `siteSelector`/`manualSiteId` (action) and `triggerSiteId`
+ * (trigger) are all `siteId`. Indexed together they collapse into one group whose `basicId`
+ * belongs to the other surface, so the trigger member matches neither `basicId` nor `advancedIds`
+ * and every group-relative question about it answers wrong: {@link isSubBlockVisibleForMode} hides
+ * it outright, and {@link resolveDependencyValue} answers with the dormant surface's stale value.
+ *
+ * The serializer is deliberately exempt and keeps the unscoped index: `shouldSerializeSubBlock`
+ * drops the inactive surface's members BEFORE the canonical collapse reads them, so it resolves
+ * against a value map the dormant surface cannot appear in. That filter-then-resolve ordering is
+ * the whole reason execution has always been correct here. Every other caller resolves against the
+ * block's FULL value map, so for them the scoping has to live in the index instead.
+ *
+ * Only the trigger surface is filtered. The action surface keeps the whole array because a trigger
+ * member is already excluded by each caller's own trigger-mode filter, and because dropping it
+ * would also drop the `canonicalIdBySubBlockId` entry that lets a legacy alias still resolve
+ * through {@link resolveDependencyValue}. Mirrors `getSelectorContextSubBlocks`.
+ */
+export function getCanonicalSubBlocksForSurface(
+  subBlocks: SubBlockConfig[],
+  triggerSurface: boolean
+): SubBlockConfig[] {
+  if (!triggerSurface) return subBlocks
+  return subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
+}
+
+/** {@link buildCanonicalIndex} over {@link getCanonicalSubBlocksForSurface}'s active set. */
+export function buildCanonicalIndexForSurface(
+  subBlocks: SubBlockConfig[],
+  triggerSurface: boolean
+): CanonicalIndex {
+  return buildCanonicalIndex(getCanonicalSubBlocksForSurface(subBlocks, triggerSurface))
+}
+
+/**
  * Resolve if a canonical group is a swap pair (basic + advanced).
  */
 export function isCanonicalPair(group?: CanonicalGroup): boolean {
@@ -281,10 +320,15 @@ function extractPrefixedModes(
  * `type` — so that two tool entries of the SAME type (e.g. two Table tools on one Agent block) get
  * independent canonical modes instead of colliding on a shared `${toolType}:${canonicalId}` key.
  *
- * Falls back to the legacy `${legacyToolType}:` prefix (the pre-instance-scoping format) when no
- * index-scoped key matches, so an override saved before this scoping change isn't silently dropped -
- * it keeps applying (type-shared, the old behavior) until the user re-toggles it explicitly, at which
- * point it's rewritten under the new index-scoped key.
+ * The legacy `${legacyToolType}:` prefix (the pre-instance-scoping format) is the BASELINE, with
+ * index-scoped entries layered over it per canonical id, so an override saved before this scoping
+ * change isn't silently dropped - it keeps applying (type-shared, the old behavior) until the user
+ * re-toggles that specific canonical id, at which point the new index-scoped key wins for it alone.
+ *
+ * Merging per key rather than preferring one map wholesale is what keeps a PARTIALLY re-toggled
+ * tool intact. Toggles are written one key at a time (`setBlockCanonicalMode`), so the first toggle
+ * on a legacy tool produces a map holding both formats; returning only the index-scoped side there
+ * would silently revert every canonical id the user had not yet re-toggled back to basic.
  *
  * Returns `undefined` when there are no overrides, no `toolIndex`, and no legacy match.
  */
@@ -296,8 +340,9 @@ export function scopeCanonicalModesForTool(
   if (!overrides) return undefined
   const scoped =
     toolIndex !== undefined ? extractPrefixedModes(overrides, `${toolIndex}:`) : undefined
-  if (scoped) return scoped
-  return legacyToolType ? extractPrefixedModes(overrides, `${legacyToolType}:`) : undefined
+  const legacy = legacyToolType ? extractPrefixedModes(overrides, `${legacyToolType}:`) : undefined
+  if (!scoped) return legacy
+  return legacy ? { ...legacy, ...scoped } : scoped
 }
 
 const INDEX_SCOPED_KEY = /^(\d+):(.+)$/
@@ -365,21 +410,6 @@ export function reindexToolCanonicalModes<T>(
     if (newIndex !== undefined) newIndexByOldIndex.set(oldIndex, newIndex)
   })
   return reindexCanonicalModesByPosition(newIndexByOldIndex, overrides)
-}
-
-/**
- * Check if a block has any standalone advanced-only fields (not part of canonical pairs).
- * These require the block-level advanced mode toggle to be visible.
- */
-export function hasStandaloneAdvancedFields(
-  subBlocks: SubBlockConfig[],
-  canonicalIndex: CanonicalIndex
-): boolean {
-  for (const subBlock of subBlocks) {
-    if (!isStandaloneAdvancedMode(subBlock.mode)) continue
-    if (!canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) return true
-  }
-  return false
 }
 
 /**
@@ -481,7 +511,19 @@ export function isSubBlockVisibleForTriggerMode(
 }
 
 /**
- * Resolve the dependency value for a dependsOn key, honoring canonical swaps.
+ * Resolve what a `dependsOn` key currently points at, honoring canonical swaps.
+ *
+ * Deliberately PERMISSIVE, unlike {@link resolveActiveCanonicalValue}: it falls back across the
+ * pair and then scans the group's other members, so a dependant stays satisfied whenever the group
+ * holds a usable value anywhere. That is the right answer for a gate ("is my parent chosen yet?")
+ * and the wrong answer for a value read ("what is live?") - use `resolveActiveCanonicalValue` for
+ * the latter, which is why the two differ.
+ *
+ * Pass a {@link buildCanonicalIndexForSurface} index. The member scan predates surface scoping and
+ * was how a trigger alias (`triggerCredentials` under an action `oauthCredential` group) used to be
+ * found at all; a scoped index now makes that alias the group's own `basicId`, so the scan is left
+ * only as the fallback for state the mode backfill has not reached. Handing it an UNSCOPED index on
+ * a trigger-mode block puts the dormant action surface back in scan range.
  */
 export function resolveDependencyValue(
   dependencyKey: string,
@@ -519,11 +561,36 @@ export function resolveDependencyValue(
 }
 
 /**
+ * Whether a subblock only applies when the block is used as an agent tool.
+ *
+ * `paramVisibility` filters what appears *inside* tool-input but cannot hide a
+ * subblock from the canvas, so this is a separate axis rather than another
+ * visibility level.
+ */
+export function isToolInputOnlySubBlock(subBlock: Pick<SubBlockConfig, 'context'>): boolean {
+  return subBlock.context === 'tool-input'
+}
+
+/**
+ * Whether any env var named by an env-gate spec is truthy.
+ *
+ * A gate may name several vars, comma-separated, meaning "any of these" — that
+ * is what lets a renamed flag ship without every existing deployment losing the
+ * field until it sets the new var. Shared by both gates so the two cannot
+ * interpret their value differently.
+ */
+function anyEnvSet(spec: string): boolean {
+  return spec.split(',').some((name) => isTruthy(getEnv(name.trim())))
+}
+
+/**
  * Check if a subblock is gated by a feature flag.
  */
-export function isSubBlockFeatureEnabled(subBlock: SubBlockConfig): boolean {
+export function isSubBlockFeatureEnabled(
+  subBlock: Pick<SubBlockConfig, 'showWhenEnvSet'>
+): boolean {
   if (!subBlock.showWhenEnvSet) return true
-  return isTruthy(getEnv(subBlock.showWhenEnvSet))
+  return anyEnvSet(subBlock.showWhenEnvSet)
 }
 
 /**
@@ -539,6 +606,6 @@ export function isSubBlockHidden(
 ): boolean {
   const hosted = options?.hosted ?? isHosted
   if (subBlock.hideWhenHosted && hosted) return true
-  if (subBlock.hideWhenEnvSet && isTruthy(getEnv(subBlock.hideWhenEnvSet))) return true
+  if (subBlock.hideWhenEnvSet && anyEnvSet(subBlock.hideWhenEnvSet)) return true
   return false
 }

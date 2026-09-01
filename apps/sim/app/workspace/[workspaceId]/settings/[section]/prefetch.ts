@@ -1,78 +1,56 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { headers } from 'next/headers'
-import { getSession } from '@/lib/auth'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { getUserProfile, getUserSettings } from '@/lib/users/queries'
+import { listCredentialGroupsContract } from '@/lib/api/contracts/credential-groups'
+import { internalSessionAuth } from '@/lib/api/server/routes/internal-json-route'
+import { listCredentialGroupSettings } from '@/lib/credential-groups/application/manage-groups'
+import { prefetchCurrentUserSettings } from '@/lib/settings/prefetch-current-user-settings'
+import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
-  GENERAL_SETTINGS_STALE_TIME,
-  generalSettingsKeys,
-  mapGeneralSettingsResponse,
-} from '@/hooks/queries/general-settings'
-import { SUBSCRIPTION_DATA_STALE_TIME, subscriptionKeys } from '@/hooks/queries/subscription'
-import {
-  mapUserProfileResponse,
-  USER_PROFILE_STALE_TIME,
-  userProfileKeys,
-} from '@/hooks/queries/user-profile'
+  CREDENTIAL_GROUP_LIST_STALE_TIME,
+  credentialGroupKeys,
+} from '@/hooks/queries/utils/credential-group-queries'
 
-/**
- * Prefetch general settings server-side via the shared data layer.
- * Uses the same query keys as the client `useGeneralSettings` hook
- * so data is shared via HydrationBoundary.
- */
-export function prefetchGeneralSettings(queryClient: QueryClient) {
+/** Prefetches credential groups through the route's authorization and response boundaries. */
+async function prefetchCredentialGroups(
+  queryClient: QueryClient,
+  { workspaceId }: SettingsSectionPrefetchContext
+) {
   return queryClient.prefetchQuery({
-    queryKey: generalSettingsKeys.settings(),
+    queryKey: credentialGroupKeys.list(workspaceId),
     queryFn: async () => {
-      const session = await getSession()
-      const data = await getUserSettings(session?.user?.id ?? null)
-      return mapGeneralSettingsResponse(data)
-    },
-    staleTime: GENERAL_SETTINGS_STALE_TIME,
-  })
-}
-
-/**
- * Prefetch subscription data server-side. Unlike the other prefetches this goes
- * through the internal billing API rather than calling the data layer directly:
- * the billing summary contains `Date` fields (and an untyped `metadata` blob) that
- * `NextResponse.json` serializes to the string wire shape the client caches. Going
- * through the route yields that exact shape, avoiding a Date-vs-string mismatch
- * between server-hydrated and client-fetched data. Uses the same query key as the
- * client `useSubscriptionData` hook (with includeOrg=false) so data is shared via
- * HydrationBoundary.
- */
-export function prefetchSubscriptionData(queryClient: QueryClient) {
-  return queryClient.prefetchQuery({
-    queryKey: subscriptionKeys.user(false),
-    queryFn: async () => {
-      const h = await headers()
-      const cookie = h.get('cookie')
-      const response = await fetch(`${getInternalApiBaseUrl()}/api/billing?context=user`, {
-        headers: cookie ? { cookie } : {},
+      const principal = await internalSessionAuth.authenticate()
+      const result = await listCredentialGroupSettings.execute({
+        principal,
+        input: { workspaceId },
       })
-      if (!response.ok) throw new Error(`Subscription prefetch failed: ${response.status}`)
-      return response.json()
+      /**
+       * Hydrates the whole response envelope, matching what `fetchCredentialGroupSettings` caches
+       * under this key. Narrowing to the groups array here would seed the shared entry with a
+       * shape its consumers do not read, so every one of them would see an empty list until the
+       * first refetch replaced it.
+       */
+      return listCredentialGroupsContract.response.schema.parse(result)
     },
-    staleTime: SUBSCRIPTION_DATA_STALE_TIME,
+    staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
   })
 }
 
+export interface SettingsSectionPrefetchContext {
+  workspaceId: string
+}
+
 /**
- * Prefetch user profile server-side via the shared data layer.
- * Uses the same query keys as the client `useUserProfile` hook
- * so data is shared via HydrationBoundary.
+ * First-paint prefetches keyed by section. Keep this sparse: each entry blocks dehydration,
+ * must preserve authorization and route projection, and must match the client hook's cache shape.
+ * Never bypass a route that redacts sensitive fields.
  */
-export function prefetchUserProfile(queryClient: QueryClient) {
-  return queryClient.prefetchQuery({
-    queryKey: userProfileKeys.profile(),
-    queryFn: async () => {
-      const session = await getSession()
-      if (!session?.user?.id) throw new Error('Unauthorized')
-      const user = await getUserProfile(session.user.id)
-      if (!user) throw new Error('User not found')
-      return mapUserProfileResponse(user)
-    },
-    staleTime: USER_PROFILE_STALE_TIME,
-  })
+export const SECTION_PREFETCHERS: Partial<
+  Record<
+    SettingsSection,
+    (queryClient: QueryClient, context: SettingsSectionPrefetchContext) => Promise<unknown>
+  >
+> = {
+  general: (queryClient) => prefetchCurrentUserSettings(queryClient),
+  billing: (queryClient) => prefetchCurrentUserSettings(queryClient),
+  admin: (queryClient) => prefetchCurrentUserSettings(queryClient),
+  'credential-groups': prefetchCredentialGroups,
 }

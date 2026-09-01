@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   ChevronDown,
+  disclosureChevronClass,
   handleKeyboardActivation,
   Popover,
   PopoverContent,
@@ -12,17 +13,17 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@sim/emcn'
-import { Download } from '@sim/emcn/icons'
+import { ArrowDown, ArrowUp, Download, MoreHorizontal, Palette, Trash } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import clsx from 'clsx'
-import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
+  EntryBlockTile,
   LogRowContextMenu,
   OutputPanel,
   StatusDisplay,
@@ -40,17 +41,13 @@ import {
   type ExecutionGroup,
   flattenBlockEntriesOnly,
   flattenVisibleExecutionRows,
-  getBlockColor,
-  getBlockIcon,
   groupEntriesByExecution,
   isEventFromEditableElement,
   type NavigableBlockEntry,
   TERMINAL_CONFIG,
   type VisibleTerminalRow,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
-import { useShowTrainingControls } from '@/hooks/queries/general-settings'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
 import {
@@ -71,6 +68,16 @@ const DEFAULT_EXPANDED_HEIGHT = TERMINAL_HEIGHT.DEFAULT
 const MIN_OUTPUT_PANEL_WIDTH_PX = OUTPUT_PANEL_WIDTH.MIN
 
 const MAX_TREE_DEPTH = 50
+
+/**
+ * Gutter every log row and run separator is inset by.
+ *
+ * One value on both edges: a row's selected fill and the separator above it are
+ * the two widest things in the list, and a separator that stops short of the
+ * fill it sits against reads as a ragged right edge. `pl-[10px]` on the row and
+ * `mx-[4px]` on the separator used to disagree by exactly those 4px.
+ */
+const LOG_ROW_GUTTER_CLASS = 'px-[10px]'
 
 function hasMatchInTree(
   nodes: EntryNode[],
@@ -98,22 +105,16 @@ const BlockRow = memo(function BlockRow({
   isSelected: boolean
   onSelect: (entry: ConsoleEntry) => void
 }) {
-  const BlockIcon = getBlockIcon(entry.blockType)
   const hasError = Boolean(entry.error)
   const isRunning = Boolean(entry.isRunning)
   const isCanceled = Boolean(entry.isCanceled)
-  const bgColor = getBlockColor(entry.blockType)
 
   return (
     <div
       data-entry-id={entry.id}
       role='button'
       tabIndex={0}
-      className={clsx(
-        ROW_STYLES.base,
-        'h-[30px]',
-        isSelected ? ROW_STYLES.selected : ROW_STYLES.hover
-      )}
+      className={isSelected ? ROW_STYLES.rowSelected : ROW_STYLES.row}
       onClick={(e) => {
         e.stopPropagation()
         onSelect(entry)
@@ -122,25 +123,13 @@ const BlockRow = memo(function BlockRow({
         handleKeyboardActivation(event, () => onSelect(entry), { stopPropagation: true })
       }
     >
-      <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <div
-          className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-          style={{ background: bgColor }}
-        >
-          {BlockIcon && (
-            <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
-          )}
-        </div>
-        <span
-          className={clsx(
-            'min-w-0 truncate text-sm',
-            hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
-          )}
-        >
+      <div className={ROW_STYLES.content}>
+        <EntryBlockTile blockType={entry.blockType} />
+        <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
           {entry.blockName}
         </span>
       </div>
-      <span className={clsx('flex-shrink-0 text-sm', !isRunning && 'text-[var(--text-secondary)]')}>
+      <span className={clsx(ROW_STYLES.status, !isRunning && ROW_STYLES.statusIdle)}>
         <StatusDisplay
           isRunning={isRunning}
           isCanceled={isCanceled}
@@ -189,37 +178,22 @@ const IterationNodeRow = memo(function IterationNodeRow({
       <div
         role='button'
         tabIndex={0}
-        className={clsx(ROW_STYLES.base, 'h-[30px]', ROW_STYLES.hover)}
+        className={ROW_STYLES.row}
         onClick={(e) => {
           e.stopPropagation()
           onToggle()
         }}
         onKeyDown={(event) => handleKeyboardActivation(event, onToggle, { stopPropagation: true })}
       >
-        <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <span
-            className={clsx(
-              'min-w-0 truncate text-sm',
-              hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
-            )}
-          >
+        <div className={ROW_STYLES.content}>
+          <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
             {iterationLabel}
           </span>
           {hasChildren && (
-            <ChevronDown
-              className={clsx(
-                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
-                !isExpanded && '-rotate-90'
-              )}
-            />
+            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
         </div>
-        <span
-          className={clsx(
-            'flex-shrink-0 text-sm',
-            !hasRunningChild && 'text-[var(--text-secondary)]'
-          )}
-        >
+        <span className={clsx(ROW_STYLES.status, !hasRunningChild && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningChild}
             isCanceled={hasCanceledChild}
@@ -266,9 +240,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
   renderChildren?: boolean
 }) {
   const { entry, children } = node
-  const BlockIcon = getBlockIcon(entry.blockType)
   const hasError = Boolean(entry.error) || hasErrorInTree(children)
-  const bgColor = getBlockColor(entry.blockType)
   const nodeId = entry.id
   const isExpanded = expandedNodes.has(nodeId)
   const hasChildren = children.length > 0
@@ -289,7 +261,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
       <div
         role='button'
         tabIndex={0}
-        className={clsx(ROW_STYLES.base, 'h-[30px]', ROW_STYLES.hover)}
+        className={ROW_STYLES.row}
         onClick={(e) => {
           e.stopPropagation()
           onToggleNode(nodeId)
@@ -298,38 +270,14 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           handleKeyboardActivation(event, () => onToggleNode(nodeId), { stopPropagation: true })
         }
       >
-        <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <div
-            className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-            style={{ background: bgColor }}
-          >
-            {BlockIcon && (
-              <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
-            )}
-          </div>
-          <span
-            className={clsx(
-              'min-w-0 truncate text-sm',
-              hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
-            )}
-          >
-            {displayName}
-          </span>
+        <div className={ROW_STYLES.content}>
+          <EntryBlockTile blockType={entry.blockType} />
+          <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>{displayName}</span>
           {hasChildren && (
-            <ChevronDown
-              className={clsx(
-                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
-                !isExpanded && '-rotate-90'
-              )}
-            />
+            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
         </div>
-        <span
-          className={clsx(
-            'flex-shrink-0 text-sm',
-            !hasRunningDescendant && 'text-[var(--text-secondary)]'
-          )}
-        >
+        <span className={clsx(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningDescendant}
             isCanceled={hasCanceledDescendant}
@@ -378,8 +326,6 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
   renderChildren?: boolean
 }) {
   const { entry, children } = node
-  const BlockIcon = getBlockIcon(entry.blockType)
-  const bgColor = getBlockColor(entry.blockType)
   const nodeId = entry.id
   const isExpanded = expandedNodes.has(nodeId)
   const hasChildren = children.length > 0
@@ -404,11 +350,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
       <div
         role='button'
         tabIndex={0}
-        className={clsx(
-          ROW_STYLES.base,
-          'h-[30px]',
-          isSelected ? ROW_STYLES.selected : ROW_STYLES.hover
-        )}
+        className={isSelected ? ROW_STYLES.rowSelected : ROW_STYLES.row}
         onClick={(e) => {
           e.stopPropagation()
           if (!isSelected) onSelectEntry(entry)
@@ -425,38 +367,16 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           )
         }
       >
-        <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <div
-            className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-            style={{ background: bgColor }}
-          >
-            {BlockIcon && (
-              <BlockIcon className={clsx('size-[10px]', getTileIconColorClass(bgColor))} />
-            )}
-          </div>
-          <span
-            className={clsx(
-              'min-w-0 truncate text-sm',
-              hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
-            )}
-          >
+        <div className={ROW_STYLES.content}>
+          <EntryBlockTile blockType={entry.blockType} />
+          <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
             {entry.blockName}
           </span>
           {hasChildren && (
-            <ChevronDown
-              className={clsx(
-                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
-                !isExpanded && '-rotate-90'
-              )}
-            />
+            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
         </div>
-        <span
-          className={clsx(
-            'flex-shrink-0 text-sm',
-            !hasRunningDescendant && 'text-[var(--text-secondary)]'
-          )}
-        >
+        <span className={clsx(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningDescendant}
             isCanceled={hasCanceledDescendant}
@@ -572,15 +492,15 @@ function TerminalLogListRow({
 }: TerminalLogListRowProps) {
   if (row.rowType === 'separator') {
     return (
-      <div className='px-[6px]'>
-        <div className='mx-[4px] mt-[6px] border-[var(--border)] border-t' />
+      <div className={LOG_ROW_GUTTER_CLASS}>
+        <div className='mt-[6px] border-[var(--border)] border-t' />
       </div>
     )
   }
 
   return (
-    <div className='px-[6px]'>
-      <div className='ml-[4px]' style={{ paddingLeft: row.depth === 0 ? 0 : row.depth * 16 }}>
+    <div className={LOG_ROW_GUTTER_CLASS}>
+      <div style={{ paddingLeft: row.depth === 0 ? 0 : row.depth * 16 }}>
         <EntryNodeRow
           node={row.node!}
           selectedEntryId={selectedEntryId}
@@ -710,14 +630,6 @@ export const Terminal = memo(function Terminal() {
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
 
-  const [isTrainingEnvEnabled] = useState(() =>
-    isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
-  )
-  const showTrainingControls = useShowTrainingControls()
-  const isTraining = false
-  const toggleTrainingModal = useCallback(() => {}, [])
-  const stopTraining = useCallback(() => {}, [])
-
   const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
   const { handlePointerDown } = useTerminalResize()
@@ -725,7 +637,7 @@ export const Terminal = memo(function Terminal() {
 
   const {
     filters,
-    sortConfig,
+    sortDirection,
     toggleBlock,
     toggleStatus,
     toggleSort,
@@ -1036,20 +948,6 @@ export const Terminal = memo(function Terminal() {
     [closeLogRowMenu]
   )
 
-  const handleTrainingClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (isTraining) {
-        stopTraining()
-      } else {
-        toggleTrainingModal()
-      }
-    },
-    [isTraining, stopTraining, toggleTrainingModal]
-  )
-
-  const shouldShowTrainingButton = isTrainingEnvEnabled && showTrainingControls
-
   useRegisterGlobalCommands(() =>
     createCommands([
       {
@@ -1352,10 +1250,10 @@ export const Terminal = memo(function Terminal() {
                           aria-label='Sort by timestamp'
                           className='!p-1.5 -m-1.5'
                         >
-                          {sortConfig.direction === 'desc' ? (
-                            <ArrowDown className='h-3.5 w-3.5' />
+                          {sortDirection === 'desc' ? (
+                            <ArrowDown className='size-[14px]' />
                           ) : (
-                            <ArrowUp className='h-3.5 w-3.5' />
+                            <ArrowUp className='size-[14px]' />
                           )}
                         </Button>
                       </Tooltip.Trigger>
@@ -1374,37 +1272,12 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Component Playground'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Palette className='h-3.5 w-3.5' />
+                            <Palette className='size-[14px]' />
                           </Button>
                         </Link>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
                         <span>Component Playground</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
-                  {shouldShowTrainingButton && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={handleTrainingClick}
-                          aria-label={isTraining ? 'Stop training' : 'Train Sim'}
-                          className={clsx(
-                            '!p-1.5 -m-1.5',
-                            isTraining && 'text-orange-600 dark:text-orange-400'
-                          )}
-                        >
-                          {isTraining ? (
-                            <Pause className='h-3.5 w-3.5' />
-                          ) : (
-                            <Database className='h-3.5 w-3.5' />
-                          )}
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}
@@ -1419,7 +1292,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Export console CSV'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Download className='h-3.5 w-3.5' />
+                            <Download className='size-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
@@ -1434,7 +1307,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Clear console'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Trash2 className='h-3.5 w-3.5' />
+                            <Trash className='size-[14px]' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
@@ -1454,7 +1327,7 @@ export const Terminal = memo(function Terminal() {
                         aria-label='Terminal options'
                         className='!p-1.5 -m-1.5'
                       >
-                        <MoreHorizontal className='h-3.5 w-3.5' />
+                        <MoreHorizontal className='size-[14px]' />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
@@ -1520,9 +1393,6 @@ export const Terminal = memo(function Terminal() {
               setShowInput={setShowInput}
               hasInputData={hasInputData}
               isPlaygroundEnabled={isPlaygroundEnabled}
-              shouldShowTrainingButton={shouldShowTrainingButton}
-              isTraining={isTraining}
-              handleTrainingClick={handleTrainingClick}
               showCopySuccess={showCopySuccess}
               handleCopy={handleCopy}
               hasEntries={filteredEntries.length > 0}

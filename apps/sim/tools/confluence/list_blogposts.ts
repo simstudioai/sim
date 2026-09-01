@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListBlogPostsParams {
   accessToken: string
@@ -33,7 +33,7 @@ export interface ConfluenceListBlogPostsResponse {
   }
 }
 
-export const confluenceListBlogPostsTool: ToolConfig<
+export const confluenceListBlogPostsTool: InternalToolConfig<
   ConfluenceListBlogPostsParams,
   ConfluenceListBlogPostsResponse
 > = {
@@ -88,14 +88,14 @@ export const confluenceListBlogPostsTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    url: (params: ConfluenceListBlogPostsParams) => {
+  operation: {
+    input: (params: ConfluenceListBlogPostsParams) => {
       const query = new URLSearchParams({
         domain: params.domain,
         accessToken: params.accessToken,
@@ -113,13 +113,8 @@ export const confluenceListBlogPostsTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/blogposts?${query.toString()}`
+      return Object.fromEntries(query)
     },
-    method: 'GET',
-    headers: (params: ConfluenceListBlogPostsParams) => ({
-      Accept: 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
   },
 
   transformResponse: async (response: Response) => {

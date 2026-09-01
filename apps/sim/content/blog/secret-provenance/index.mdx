@@ -1,0 +1,111 @@
+---
+slug: secret-provenance
+title: 'Tracking Secrets Through an Agent Run'
+description: 'How Sim tracks the secrets an agent run actually uses, carries that provenance across tools and storage, redacts values at every egress boundary, and records which run touched which credential.'
+date: 2026-08-08
+updated: 2026-08-18
+authors:
+  - vik
+readingTime: 7
+tags: [Security, Secrets, Provenance, Architecture, Observability]
+ogImage: /blog/secret-provenance/cover.jpg
+ogAlt: 'Sim secret provenance technical overview'
+about: ['Security', 'Execution']
+timeRequired: PT7M
+canonical: https://www.sim.ai/blog/secret-provenance
+featured: true
+draft: false
+faq:
+  - q: "How does Sim keep API keys out of workflow execution logs?"
+    a: "Sim labels a secret when it is resolved into a running workflow, then replaces that exact value with its variable name before content reaches a trace, diagnostic, model, or other egress boundary. A Stripe key renders as {{STRIPE_KEY}}, so the trace remains useful without exposing the credential."
+  - q: "Does Sim use regular expressions to detect secrets in logs?"
+    a: "No. Sim resolved the secret itself, so it can compare content against the exact values activated in that run. Pattern matching is useful when a scanner does not know which secrets exist; the execution runtime has stronger context."
+  - q: "What happens if Sim cannot determine whether content contains a secret?"
+    a: "The boundary fails closed. The payload is withheld, while non-sensitive structure such as timing, block identity, and status remains available for debugging."
+  - q: "Are secrets tracked across files and tables, or only within one execution?"
+    a: "Across both. Durable content such as workspace files, table cells, knowledge documents, and agent memory carries encrypted provenance so a later run does not mistake secret-bearing data for clean data."
+  - q: "Is the model treated as an internal component or an egress boundary?"
+    a: "An egress boundary. Model-bound content leaves Sim's infrastructure, may be retained by the provider, and can be echoed in a later turn, so it is projected before the request is sent."
+  - q: "Can code inside a workflow defeat redaction and print a secret anyway?"
+    a: "Code that never emits the value can avoid a value matcher — printing a key one character at a time produces no output that matches it. Deciding this in general is undecidable, so Sim pairs redaction with attribution: every run records which secrets it resolved, under which identity, so misuse is visible even when the value never appears."
+---
+
+Secrets usually do not leak when an application first reads them. They leak after they have been copied into an error, passed to another service, or written somewhere that outlives the request.
+
+Take a failed API call. An agent resolves a credential, sends the request, and receives an error containing some of the request context. The error goes to a model so the agent can decide what to do next, while the execution trace records the exchange. If a later block writes the result to a file, the same data can reappear in another run. None of these steps is unusual. Together, they give one credential several chances to escape.
+
+That is the problem behind [sensitive information disclosure](https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/) in LLM applications. By the time a secret reaches a prompt, trace, tool result, or file, it may be several layers removed from the variable that introduced it.
+
+Most masking systems see the data near the end of that journey. [LangSmith](https://docs.langchain.com/langsmith/mask-inputs-outputs) supports rule-based masking and custom processors; [Langfuse](https://langfuse.com/docs/observability/features/masking) lets applications transform trace data before export. When a library receives an opaque payload, looking for patterns is a reasonable approach. It has little else to go on.
+
+Sim sits earlier in the path. The runtime resolves the credential, calls the tool, invokes the model, and writes the file. It already knows the value, the variable it came from, and which execution used it. We can preserve that context instead of trying to rediscover the secret later.
+
+## Follow the Secret, Not Its Shape
+
+Every workflow execution carries a **resolved-secret registry**. It starts with the credentials available to the run, but only activates a secret when its runtime value matches the configured value. Seeing the name `STRIPE_KEY` somewhere is not proof that the key was used; resolving the stored value is.
+
+From there, the registry follows a three-part lifecycle:
+
+![Activation, propagation and projection across an agent run](/blog/secret-provenance/lifecycle.png)
+
+The secret is **activated** when it is resolved, its provenance is **propagated** as data moves through tools and blocks, and the value is **projected** before it crosses a boundary. Projection replaces the raw value with its variable name, so a trace shows `{{STRIPE_KEY}}` instead of the key itself.
+
+That is more useful than a generic `[REDACTED]`. If a request fails, the trace still tells the operator which credential was involved. The value is gone, but the identity needed to debug or rotate it remains.
+
+## Everywhere the Value Can Go
+
+An agent has more ways to move data than a conventional request-response service, which is why projection cannot live in one logging hook.
+
+A model request is an egress boundary. Content sent to a provider has left Sim's infrastructure, may be retained, and may be repeated in a later turn. We project it before the provider request is formatted, not after the response comes back.
+
+Traces and diagnostics need the same treatment. Block inputs, tool arguments, provider responses, error bodies, and stack traces are projected before they are stored or displayed. Failure paths are especially important because upstream services often echo request context in their errors.
+
+Results returning from tools and Function blocks are checked before they become model context. The check runs over the structured result rather than only its top-level strings, so a value nested inside JSON does not slip through because of where it landed.
+
+Storage is the boundary that is easiest to miss. Workspace files, table cells, knowledge documents, and agent memory can all survive the execution that created them. Without durable provenance, a secret written during one run would look like ordinary data when another run read it back. Sim stores an encrypted provenance record and version marker alongside that content, allowing a later read to distinguish data known to be clean from data whose history is unknown.
+
+When that history cannot be established, we do not treat `unknown` as `clean`. At a run's own boundaries the payload is withheld, while safe parts of the record remain available: block identity, timing, status, and error type. A tool result can be kept out of model context without hiding the fact that the tool ran. The refusal also records where it happened and what made the registry incomplete, so failing closed does not mean debugging blind.
+
+Stored data is different, because a record written months ago outlives the run that could explain it. Refusing to read it would strand a team on its own tables and memory to protect against a risk we cannot confirm is there. So for that content the read proceeds and the workspace gets an audit entry naming the surface and what could not be vouched for. The judgment is deliberate: withholding is right when a run is asking to send something out, and visibility is right when the alternative is a workspace that can no longer read what it stored.
+
+## Exact Matching, With One Limit
+
+A scanner reading arbitrary text has to guess. It looks for known prefixes, regular expressions, or strings that appear random enough to be credentials. Sim has a narrower job: compare the content produced by this run with the exact secret values the run activated.
+
+Exact matching avoids depending on a known credential format, and it keeps the work scoped to the current execution rather than every secret in the workspace. It also raises a practical question: how short can a value be before literal replacement does more harm than good?
+
+Sim uses eight characters as the floor.
+
+![Which values clear the eight-character substitution floor](/blog/secret-provenance/length-floor.png)
+
+Short values appear constantly in normal data. Booleans, counters, environment names, and small configuration values can all be sensitive in context, but replacing every identical occurrence would distort the trace without meaningfully hiding the value. Anyone who can see the surrounding context can usually enumerate a tiny value anyway.
+
+Entropy does not answer this question. It measures variation within a string, not the chance that an exact match occurred by accident. A valid credential may be repetitive or numeric, while a short random sample may score lower than expected. Length tracks the collision problem more directly, leaving us with a rule that can be tested without a growing list of format-specific exceptions:
+
+**A value of eight characters or more is substituted at any offset in any surrounding text. A shorter value is not substituted.**
+
+Eight characters is not a universal definition of a secret. It is the point at which literal replacement becomes useful for this system. API keys, bearer tokens, webhook signing secrets, database passwords, payment card numbers, and similar identifiers clear the floor. A genuinely short secret does not, and we document that limit rather than pretending a heuristic can remove it.
+
+There is another boundary to the guarantee: matching uses exact bytes. A hash, signature, or re-encoding derived from a secret no longer contains those bytes and will not be caught by the same matcher.
+
+## Recording What a Run Used
+
+Projection stops a value at a boundary. It cannot stop code that never produces the value: a few lines in a Function block can print a key one character at a time, and no output ever matches the secret it came from. That is not a gap in the matcher. Deciding whether arbitrary code will eventually reveal a value is undecidable in general, which is why [ShellCheck](https://www.shellcheck.net/wiki/SC2154) says the same about tracking indirect references.
+
+So the second posture is attribution rather than prevention. Every run records which configured secrets it actually resolved, under whose identity, and through which surface. Execution logs cannot answer that: they persist the environment a run *could* have read rather than the subset it referenced, and they expire on the workspace's retention window.
+
+Redaction keeps the value out of the record. The trail says whose hands it passed through.
+
+## Taint Tracking in Reverse
+
+Seen through the lens of information-flow security, this is an old idea pointed in a different direction. Dorothy Denning's [lattice model](https://dl.acm.org/doi/10.1145/360051.360056) described how data can be classified and constrained as it moves between security levels. Myers and Liskov's [decentralized label model](https://www.cs.cornell.edu/andru/papers/iflow-sosp97/paper.html) added controlled declassification: releasing labeled data only after transforming it into a safe form.
+
+Perl users may recognize the shape from [taint mode](https://perldoc.perl.org/perlsec), which marks external input as untrusted and stops it from reaching sensitive operations without validation. Sim flips the polarity. We label trusted secrets, carry that label through the runtime, and check it wherever data leaves.
+
+The visible part is the substitution from a raw key to `{{STRIPE_KEY}}`. The useful part is everything that made the substitution dependable: knowing that this run used the key, keeping that knowledge attached as the value moved, and refusing to guess when the chain was incomplete.
+
+By the time a log filter receives a string, most of that context is already gone. Keeping it from the moment of resolution lets the trace say which credential was involved without ever showing the credential itself. That small difference is what makes the logs both safer and worth reading.
+
+---
+
+*Sim is open source. The provenance system described here runs on every workflow execution — [github.com/simstudioai/sim](https://github.com/simstudioai/sim).*

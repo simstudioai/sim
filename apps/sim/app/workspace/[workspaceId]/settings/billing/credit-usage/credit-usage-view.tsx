@@ -18,8 +18,8 @@ import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { UsageLogEntry, UsageLogPeriod } from '@/lib/api/contracts/user'
 import { formatApportionedCreditCost, formatCreditsLabel } from '@/lib/billing/credits/conversion'
-import { USAGE_LOG_SOURCE_LABELS } from '@/app/api/users/me/usage-logs/source-labels'
-import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
+import { BILLING_USAGE_LOG_SOURCE_LABELS } from '@/lib/billing/usage-sources'
+import { formatDateShort } from '@/lib/core/utils/date-display'
 import {
   creditUsageParsers,
   creditUsageUrlKeys,
@@ -39,7 +39,7 @@ const PERIOD_OPTIONS: ComboboxOption[] = [
 /** Workflow-sourced rows name the specific workflow; everything else uses the plain source label. */
 function rowLabel(log: UsageLogEntry): string {
   if (log.source === 'workflow' && log.workflowName) return `Workflow: ${log.workflowName}`
-  return USAGE_LOG_SOURCE_LABELS[log.source]
+  return BILLING_USAGE_LOG_SOURCE_LABELS[log.source]
 }
 
 interface UsageLogRowProps {
@@ -56,7 +56,7 @@ function UsageLogRow({ log }: UsageLogRowProps) {
         {rowLabel(log)}
       </span>
       <span className='flex-shrink-0 text-[var(--text-muted)] text-caption tabular-nums'>
-        {formatApportionedCreditCost(log.creditCost, log.dollarCost)}
+        {formatApportionedCreditCost(log.creditCost, log.hasCost)}
       </span>
     </div>
   )
@@ -146,12 +146,20 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
   })
 
   const logs = data?.pages.flatMap((page) => page.logs) ?? []
-  const totalCredits = data?.pages[0]?.summary.totalCredits ?? 0
+  const totalCredits = data?.pages[0]?.summary.totalCredits
+  const hasBlockingError = isError && data === undefined
+  const totalCreditsLabel = isLoading
+    ? 'Loading…'
+    : hasBlockingError
+      ? 'Unavailable'
+      : isPlaceholderData
+        ? 'Updating…'
+        : formatCreditsLabel(totalCredits ?? 0)
 
   return (
     <SettingsPanel
       back={{
-        text: 'Billing',
+        text: 'Subscription',
         icon: ArrowLeft,
         onSelect: () => router.push(backHref),
       }}
@@ -167,9 +175,7 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
       description='Every credit-consuming event behind your usage.'
     >
       <div className='flex items-center justify-between'>
-        <span className='text-[var(--text-muted)] text-small'>
-          Total: {formatCreditsLabel(totalCredits)}
-        </span>
+        <span className='text-[var(--text-muted)] text-small'>Total: {totalCreditsLabel}</span>
         <div className='relative'>
           <ChipCombobox
             options={PERIOD_OPTIONS}
@@ -208,8 +214,10 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
       >
         {isLoading ? (
           <SettingsEmptyState variant='inline'>Loading usage…</SettingsEmptyState>
-        ) : isError ? (
-          <SettingsEmptyState variant='inline'>Couldn't load credit usage.</SettingsEmptyState>
+        ) : hasBlockingError ? (
+          <SettingsEmptyState variant='inline' tone='error'>
+            Couldn't load credit usage.
+          </SettingsEmptyState>
         ) : logs.length === 0 ? (
           <SettingsEmptyState variant='inline'>No credit usage in this period.</SettingsEmptyState>
         ) : (

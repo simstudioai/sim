@@ -1,6 +1,9 @@
 import { useCallback, useMemo } from 'react'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
-import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
+import {
+  buildCanonicalIndexForSurface,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { EMPTY_BLOCK_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -15,12 +18,22 @@ export function useReactiveConditions(
   subBlocks: SubBlockConfig[],
   blockId: string,
   activeWorkflowId: string | null,
-  canonicalModeOverrides?: CanonicalModeOverrides
+  canonicalModeOverrides?: CanonicalModeOverrides,
+  triggerSurface = false
 ): Set<string> {
   const reactiveSubBlock = useMemo(() => subBlocks.find((sb) => sb.reactiveCondition), [subBlocks])
   const reactiveCond = reactiveSubBlock?.reactiveCondition
 
-  const canonicalIndex = useMemo(() => buildCanonicalIndex(subBlocks), [subBlocks])
+  /**
+   * Scoped so a trigger-mode block watches its own credential. The only shipped reactive
+   * condition (`SERVICE_ACCOUNT_SUBBLOCKS`) watches `oauthCredential`, which on Gmail, Drive,
+   * Sheets, Forms and Calendar spans both surfaces under different ids — unscoped, trigger mode
+   * resolves it to the dormant action credential and fetches the wrong one.
+   */
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndexForSurface(subBlocks, triggerSurface),
+    [subBlocks, triggerSurface]
+  )
 
   // Resolve watchFields through canonical index to get the active credential value
   const watchedCredentialId = useSubBlockStore(

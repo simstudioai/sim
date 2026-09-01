@@ -44,14 +44,22 @@ import {
   getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
   getThinkingLevelsForModel as getThinkingLevelsForModelFromDefinitions,
   getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
+  isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
   supportsTemperature as supportsTemperatureFromDefinitions,
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
+import { collectToolResourceBindings, registerProviderToolBindings } from '@/providers/tool-binding'
+import {
+  getProviderToolInputProvenance,
+  getProviderToolModelInputRegistry,
+  registerPreparedProviderToolInputProvenance,
+} from '@/providers/tool-input-provenance'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
 import { useProvidersStore } from '@/stores/providers/store'
-import { mergeToolParameters } from '@/tools/params'
+import { mergeToolParameters } from '@/tools/merge-params'
+import type { WorkflowToolExecutionContext } from '@/tools/types'
 
 const logger = createLogger('ProviderUtils')
 
@@ -71,30 +79,20 @@ function isDefaultWorkflowDescription(
   )
 }
 
-/**
- * Fetches workflow metadata (name and description) from the API
- */
+/** Reads workflow metadata through the authorized application operation. */
 async function fetchWorkflowMetadata(
-  workflowId: string
+  workflowId: string,
+  executionContext: WorkflowToolExecutionContext | undefined,
+  readWorkflowMetadata?: (
+    workflowId: string,
+    context: WorkflowToolExecutionContext
+  ) => Promise<{ name: string; description: string | null }>
 ): Promise<{ name: string; description: string | null } | null> {
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
-
-    const headers = await buildAuthHeaders()
-    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
-
-    const response = await fetch(url.toString(), { headers })
-    if (!response.ok) {
-      await response.text().catch(() => {})
-      logger.warn(`Failed to fetch workflow metadata for ${workflowId}`)
-      return null
+    if (!executionContext?.executorDelegationOrigin || !readWorkflowMetadata) {
+      throw new Error('Workflow metadata enrichment requires trusted execution authority')
     }
-
-    const { data } = await response.json()
-    return {
-      name: data?.name || 'Workflow',
-      description: data?.description || null,
-    }
+    return await readWorkflowMetadata(workflowId, executionContext)
   } catch (error) {
     logger.error('Error fetching workflow metadata:', error)
     return null
@@ -270,26 +268,34 @@ export function getAllModelProviders(): Record<string, ProviderId> {
   )
 }
 
+/**
+ * The provider that declares `model`, or `null` when none does.
+ *
+ * The non-guessing half of {@link getProviderFromModel}. A caller that *gates*
+ * on the answer needs "unknown" to stay distinct from "ollama": this registry
+ * holds chat models only, so every embedding, speech, image and video model id
+ * would otherwise read as an Ollama model and be judged against an allowlist
+ * that was never about it.
+ */
+export function findProviderFromModel(model: string): ProviderId | null {
+  const normalizedModel = model.toLowerCase()
+
+  const declared = getAllModelProviders()[normalizedModel]
+  if (declared) return declared
+
+  for (const [id, config] of Object.entries(providers)) {
+    for (const pattern of config.modelPatterns ?? []) {
+      if (pattern.test(normalizedModel)) return id as ProviderId
+    }
+  }
+
+  return null
+}
+
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
 
-  let providerId: ProviderId | null = null
-
-  if (normalizedModel in getAllModelProviders()) {
-    providerId = getAllModelProviders()[normalizedModel]
-  } else {
-    for (const [id, config] of Object.entries(providers)) {
-      if (config.modelPatterns) {
-        for (const pattern of config.modelPatterns) {
-          if (pattern.test(normalizedModel)) {
-            providerId = id as ProviderId
-            break
-          }
-        }
-      }
-      if (providerId) break
-    }
-  }
+  let providerId = findProviderFromModel(model)
 
   if (!providerId) {
     logger.warn(`No provider found for model: ${model}, defaulting to ollama`)
@@ -485,15 +491,16 @@ export function extractAndParseJSON(content: string): any {
 
 /**
  * Resolves canonical pair ids (e.g. `tableId`, `knowledgeBaseId`) from a tool's
- * raw params, filling them in from their basic/advanced selector subblock source
- * values when the canonical key isn't already present.
+ * raw params, preferring the active basic/advanced selector subblock source over
+ * a previously resolved canonical value.
  *
  * Selector subblocks persist their value under the subblock id (e.g.
  * `tableSelector`), not the canonical id, so any lookup that keys off the
- * canonical id — like the unique-tool-id suffix below — must resolve it first.
+ * canonical id — like {@link collectToolResourceBindings} below — must resolve it first.
  * Mode selection mirrors {@link transformBlockTool}'s execution-time
  * `paramsTransform` so the resolved id matches the params the tool actually runs
- * with.
+ * with. When the active selector has no value, the original canonical value is
+ * preserved for direct-id callers and nested tools in advanced mode.
  *
  * @returns The params with canonical resource ids resolved (non-destructive)
  */
@@ -505,8 +512,6 @@ function resolveCanonicalResourceParams(
   if (canonicalGroups.length === 0) return params
   const resolved = { ...params }
   for (const group of canonicalGroups) {
-    const existing = resolved[group.canonicalId]
-    if (existing !== undefined && existing !== null && existing !== '') continue
     // Route through the canonical SOT: an explicit scoped override wins, else the value heuristic -
     // no `?? 'basic'` (which ignored an advanced-only value when basic was empty).
     const explicitMode = scopedCanonicalModes?.[group.canonicalId]
@@ -581,6 +586,45 @@ function buildCustomBlockInputMappingSchema(
  * @param options Additional options including dependencies and selected operation
  * @returns The provider tool config or null if transform fails
  */
+/**
+ * Drops model-supplied arguments for params the tool declares off-limits to the
+ * model (`user-only` / `hidden`).
+ *
+ * Deliberately keyed on the declared visibility rather than on "absent from
+ * `parameters.properties`": an MCP or custom tool may legitimately accept keys
+ * beyond its advertised properties (`additionalProperties`), and silently
+ * dropping those would truncate its arguments. Only a param the tool itself
+ * marked as not-for-the-model is removed.
+ */
+function stripModelBlockedParams(
+  blockedParams: string[] | undefined,
+  llmArgs: Record<string, any>
+): Record<string, any> {
+  if (!blockedParams?.length) return llmArgs
+  const blocked = new Set(blockedParams)
+  const filtered: Record<string, any> = {}
+  for (const [key, value] of Object.entries(llmArgs)) {
+    if (!blocked.has(key)) filtered[key] = value
+  }
+  return filtered
+}
+
+/** Reads a multi-select value that may still be JSON-encoded from `StoredTool.params`. */
+function readMountedSecretNames(raw: unknown): string[] {
+  let value = raw
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      // A bare name rather than a list — treat it as a single entry.
+      return value ? [value as string] : []
+    }
+  }
+  return Array.isArray(value)
+    ? value.filter((name): name is string => typeof name === 'string' && name.length > 0)
+    : []
+}
+
 export async function transformBlockTool(
   block: any,
   options: {
@@ -589,6 +633,15 @@ export async function transformBlockTool(
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
     canonicalModes?: Record<string, 'basic' | 'advanced'>
+    enrichmentContext?: WorkflowToolExecutionContext
+    readWorkflowInputFields?: (
+      workflowId: string,
+      context: WorkflowToolExecutionContext
+    ) => Promise<Array<{ name: string; type: string; description?: string }>>
+    readWorkflowMetadata?: (
+      workflowId: string,
+      context: WorkflowToolExecutionContext
+    ) => Promise<{ name: string; description: string | null }>
     /**
      * Server-only resolver for a custom (deploy-as-block) tool's binding (bound
      * workflow + input schema), org-scoped to the consumer. Injected as a dependency
@@ -606,8 +659,17 @@ export async function transformBlockTool(
     toolIndex?: number
   }
 ): Promise<ProviderToolConfig | null> {
-  const { selectedOperation, getAllBlocks, getTool, getToolAsync, canonicalModes, toolIndex } =
-    options
+  const {
+    selectedOperation,
+    getAllBlocks,
+    getTool,
+    getToolAsync,
+    canonicalModes,
+    enrichmentContext,
+    readWorkflowInputFields,
+    readWorkflowMetadata,
+    toolIndex,
+  } = options
   const scopedCanonicalModes = scopeCanonicalModesForTool(canonicalModes, toolIndex, block.type)
 
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
@@ -651,11 +713,9 @@ export async function transformBlockTool(
       return null
     }
     return {
-      // Unique per block so two custom-block tools never collide on the wire.
-      id: `deployed_block_executor_${block.type}`,
-      // Name/description come from the block itself — never the source workflow's
-      // metadata, which the consumer has no access to.
-      name: blockDef.name,
+      id: customToolConfig.id,
+      // The description comes from the block itself — never the source workflow's metadata,
+      // which the consumer has no access to.
       description: blockDef.description || customToolConfig.description,
       params: {
         blockType: block.type,
@@ -715,13 +775,10 @@ export async function transformBlockTool(
 
   const userProvidedParams = block.params || {}
 
-  const { schema: llmSchema, enrichedDescription } = await createLLMToolSchema(
-    toolConfig,
-    userProvidedParams
-  )
-
   const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
-    ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
+    ? // canonical-index-unscoped: an agent tool resolves against `block.params`, which only ever
+      // holds action-surface values — a tool is never invoked in trigger mode.
+      Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
     : []
 
   const resolvedResourceParams = resolveCanonicalResourceParams(
@@ -730,16 +787,28 @@ export async function transformBlockTool(
     scopedCanonicalModes
   )
 
-  let uniqueToolId = toolConfig.id
-  let toolName = toolConfig.name
+  const {
+    schema: llmSchema,
+    enrichedDescription,
+    modelBlockedParams,
+  } = await createLLMToolSchema(
+    toolConfig,
+    resolvedResourceParams,
+    enrichmentContext,
+    readWorkflowInputFields
+  )
+
   let toolDescription = enrichedDescription || toolConfig.description
+  let workflowLabel: string | undefined
 
   if (toolId === 'workflow_executor' && resolvedResourceParams.workflowId) {
-    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.workflowId}`
-
-    const workflowMetadata = await fetchWorkflowMetadata(resolvedResourceParams.workflowId)
+    const workflowMetadata = await fetchWorkflowMetadata(
+      resolvedResourceParams.workflowId,
+      enrichmentContext,
+      readWorkflowMetadata
+    )
     if (workflowMetadata) {
-      toolName = workflowMetadata.name || toolConfig.name
+      workflowLabel = workflowMetadata.name
       if (
         workflowMetadata.description &&
         !isDefaultWorkflowDescription(workflowMetadata.description, workflowMetadata.name)
@@ -747,10 +816,18 @@ export async function transformBlockTool(
         toolDescription = workflowMetadata.description
       }
     }
-  } else if (toolId.startsWith('knowledge_') && resolvedResourceParams.knowledgeBaseId) {
-    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.knowledgeBaseId}`
-  } else if (toolId.startsWith('table_') && resolvedResourceParams.tableId) {
-    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.tableId}`
+  } else if (toolId === 'function_execute') {
+    if (resolvedResourceParams.secretScope === 'selected') {
+      // Scoping alone would leave the model guessing: the secrets are injected
+      // server-side and nothing else advertises them. Names only — values never
+      // enter the provider request, matching the copilot's workspace-context rule.
+      // `StoredTool.params` holds strings, so a multi-select arrives JSON-encoded;
+      // the executor's paramsTransform parses it later, but this runs before that.
+      const mounted = readMountedSecretNames(resolvedResourceParams.mountedSecrets)
+      toolDescription = mounted.length
+        ? `${toolDescription}\n\nWorkspace secret names available to this code: ${mounted.join(', ')}. Reference one with the exact {{NAME}} syntax. Its value is bound only while the code executes and is not included in the model request. No other secrets are readable.`
+        : `${toolDescription}\n\nThis code has no access to workspace secrets.`
+    }
   }
 
   const blockParamsFn = blockDef?.tools?.config?.params as
@@ -806,14 +883,35 @@ export async function transformBlockTool(
       }
     : undefined
 
-  return {
-    id: uniqueToolId,
-    name: toolName,
+  const providerTool: ProviderToolConfig = {
+    id: toolConfig.id,
     description: toolDescription,
     params: userProvidedParams,
     parameters: llmSchema,
+    modelBlockedParams,
     paramsTransform,
   }
+
+  // A tool that rewrote its own description from a bound param already names that resource, so the
+  // duplicate labeller must not state it twice. Keyed off the declaration rather than the rendered
+  // text; the inequality catches an enricher that returned the description unchanged.
+  const selfDescribedParamId =
+    enrichedDescription && enrichedDescription !== toolConfig.description
+      ? toolConfig.toolEnrichment?.dependsOn
+      : undefined
+
+  registerProviderToolBindings(
+    providerTool,
+    collectToolResourceBindings({
+      subBlocks: blockDef?.subBlocks,
+      userProvidedParams,
+      resolvedResourceParams,
+      selfDescribedParamId,
+      workflowLabel,
+    })
+  )
+
+  return providerTool
 }
 
 /**
@@ -1185,6 +1283,30 @@ export function prepareToolsWithUsageControl(
 }
 
 /**
+ * Narrows the SDK's `ChatCompletionMessageToolCall` union to its function variant.
+ *
+ * v5 of the `openai` SDK widened that union with a `custom` tool call carrying no `function`
+ * field, so every `.function` access needs narrowing first. Sim only ever declares function
+ * tools, so a custom call should not arrive.
+ *
+ * Deliberately tests for the `function` payload rather than `type === 'function'`: many
+ * OpenAI-compatible vendors omit `type` on tool calls entirely, and discriminating on it would
+ * silently drop every tool call those providers return. Total by construction, because these
+ * same gateways are the ones that emit a malformed `tool_calls` entry, and this now runs on
+ * every tool-bearing response.
+ */
+export function isFunctionToolCall(
+  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall
+): toolCall is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall {
+  return (
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    toolCall.function != null
+  )
+}
+
+/**
  * Checks if a forced tool has been used in a response and manages the tool_choice accordingly
  *
  * @param toolCallsResponse Array of tool calls in the response
@@ -1330,6 +1452,30 @@ export function supportsTemperature(model: string): boolean {
   return supportsTemperatureFromDefinitions(model)
 }
 
+/**
+ * Levels the pickers offer on top of what a model declares. `auto` means "say nothing" and
+ * `none` means "explicitly off"; provider adapters special-case both, so neither is an
+ * unrecognized level.
+ */
+const MODEL_LEVEL_SENTINELS = new Set(['auto', 'none'])
+
+/**
+ * Renders a tuning level for a log line or an error message.
+ *
+ * The agent block's reasoning effort, verbosity, and thinking level fields accept variable and
+ * environment references, so an unrecognized level is not necessarily a mistyped level — it is
+ * whatever the reference resolved to, up to and including secret content. Only a level the
+ * catalogue declares somewhere is safe to echo; anything else is reported by length alone,
+ * which still distinguishes a stray level from a resolved blob.
+ *
+ * Every site that puts a caller-supplied level into a message must go through this.
+ */
+export function describeModelLevel(value: string | undefined): string {
+  if (!value) return '(unset)'
+  const isSafe = MODEL_LEVEL_SENTINELS.has(value) || isKnownModelLevelValue(value)
+  return isSafe ? value : `[redacted ${value.length} chars]`
+}
+
 export function supportsReasoningEffort(model: string): boolean {
   return MODELS_WITH_REASONING_EFFORT.includes(model.toLowerCase())
 }
@@ -1408,6 +1554,7 @@ export function prepareToolExecution(
   tool: {
     params?: Record<string, any>
     parameters?: Record<string, any>
+    modelBlockedParams?: string[]
     paramsTransform?: (params: Record<string, any>) => Record<string, any>
   },
   llmArgs: Record<string, any>,
@@ -1423,18 +1570,80 @@ export function prepareToolExecution(
     isDeployedContext?: boolean
     callChain?: string[]
     billingAttribution?: BillingAttributionSnapshot
-  }
+    /** Invoking run's execution id — see `ProviderRequest.executionId`. */
+    executionId?: string
+    /** Invoking agent block's id — see `ProviderRequest.blockId`. */
+    blockId?: string
+    /**
+     * The model's own id for this tool call. It is what makes a keyed tool's
+     * idempotency token distinguishing on the agent path: one agent block can
+     * issue the same tool several times inside one execution, and `executionId`
+     * plus `blockId` alone would collapse them into a single token the provider
+     * would dedupe down to one delivery. Stable across retries because it is read
+     * from the model's response rather than minted per attempt.
+     */
+    invocationId?: string
+  },
+  /**
+   * The model's own id for this tool call, read from the provider's response.
+   *
+   * Required rather than optional — `string | undefined` — so the argument
+   * cannot be forgotten. A provider with no model-supplied id must pass
+   * `undefined` explicitly and take the loud fallback; omitting it entirely
+   * would silently leave `invocationId` unset, which is the unstable-token path
+   * this parameter exists to close.
+   */
+  toolCallId: string | undefined
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  let toolParams = mergeToolParameters(tool.params || {}, llmArgs) as Record<string, any>
+  // Providers are supposed to emit only declared arguments, but nothing enforces
+  // it on the parsed tool call — and `mergeToolParameters` seeds its result from
+  // the model's args, so an undeclared key survives whenever the user's value is
+  // empty. That is a privilege escalation for `user-only` params: a Function tool
+  // scoped to "Selected secrets" with an empty list is an explicit deny, and a
+  // model emitting `mountedSecrets: ['STRIPE_KEY']` would otherwise mount it.
+  const modelParams = stripModelBlockedParams(tool.modelBlockedParams, llmArgs)
+  const modelInputRegistry = getProviderToolModelInputRegistry(tool)
+  const modelReferenceResolution = modelInputRegistry?.resolveModelExposedEnvReferences(modelParams)
+  if (modelReferenceResolution && !modelReferenceResolution.complete) {
+    throw new Error('Agent tool input environment references could not be safely resolved')
+  }
+  const resolvedModelParams = modelReferenceResolution?.value ?? modelParams
+  let toolParams = mergeToolParameters(tool.params || {}, resolvedModelParams)
+  const inputProvenance = getProviderToolInputProvenance(tool)
+  let inputRegistry = inputProvenance?.registry.forkForInputPaths([inputProvenance.sourcePath])
+  if (modelReferenceResolution?.matched) {
+    if (inputRegistry) {
+      inputRegistry.mergeToolCallRegistry(modelReferenceResolution.registry)
+    } else {
+      inputRegistry = modelReferenceResolution.registry
+    }
+  }
+  if (inputRegistry && !inputRegistry.isComplete()) {
+    throw new Error('Agent tool input environment references could not be safely resolved')
+  }
+  let projectedToolParams = inputRegistry
+    ? mergeToolParameters(inputProvenance?.projectedParams ?? tool.params ?? {}, modelParams)
+    : undefined
 
   if (tool.paramsTransform) {
+    let transformed = false
     try {
       toolParams = tool.paramsTransform(toolParams)
+      transformed = true
     } catch (err) {
       logger.warn('paramsTransform failed, using raw params', { error: err })
+    }
+
+    if (transformed && projectedToolParams && inputRegistry) {
+      try {
+        projectedToolParams = tool.paramsTransform(projectedToolParams)
+      } catch {
+        inputRegistry.markIncomplete('tool-params-transform-failed')
+        projectedToolParams = undefined
+      }
     }
   }
 
@@ -1451,6 +1660,11 @@ export function prepareToolExecution(
               ? { isDeployedContext: request.isDeployedContext }
               : {}),
             ...(request.callChain ? { callChain: request.callChain } : {}),
+            ...(request.executionId ? { executionId: request.executionId } : {}),
+            ...(request.blockId ? { blockId: request.blockId } : {}),
+            ...((toolCallId ?? request.invocationId)
+              ? { invocationId: toolCallId ?? request.invocationId }
+              : {}),
             ...(request.billingAttribution
               ? { billingAttribution: request.billingAttribution }
               : {}),
@@ -1468,6 +1682,20 @@ export function prepareToolExecution(
       ? { blockNameMapping: normalizeStringRecord(request.blockNameMapping) }
       : {}),
     ...(tool.parameters ? { _toolSchema: tool.parameters } : {}),
+  }
+
+  if (inputRegistry) {
+    const inputPaths = [['params']] as const
+    if (projectedToolParams) {
+      inputRegistry.recordTransformedInputProjection(
+        { params: toolParams },
+        { params: projectedToolParams }
+      )
+    }
+    registerPreparedProviderToolInputProvenance(executionParams, {
+      registry: inputRegistry,
+      inputPaths,
+    })
   }
 
   return { toolParams, executionParams }
@@ -1498,8 +1726,11 @@ export function checkForForcedToolUsageOpenAI(
   let hasUsedForcedTool = false
   let updatedUsedForcedTools = [...usedForcedTools]
 
-  if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-    const toolCallsResponse = response.choices[0].message.tool_calls
+  const toolCallsResponse =
+    typeof toolChoice === 'object'
+      ? response.choices?.[0]?.message?.tool_calls?.filter(isFunctionToolCall)
+      : undefined
+  if (toolCallsResponse?.length) {
     const result = trackForcedToolUsage(
       toolCallsResponse,
       toolChoice,

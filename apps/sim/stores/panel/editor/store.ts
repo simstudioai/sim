@@ -41,7 +41,15 @@ interface PanelEditorState {
   currentBlockId: string | null
   /** Sets the current selected block identifier (use null to clear) */
   setCurrentBlockId: (blockId: string | null) => void
-  /** Clears the current selection */
+  /**
+   * Clears the current selection.
+   *
+   * Leaves {@link PanelEditorSearchState.activeSearchTarget} alone: the search
+   * panel owns that target's lifetime, and deselecting a block is not the end
+   * of a search. Clearing it here made a Note match impossible to render — the
+   * editor answers a Note by deselecting it, which destroyed the very target
+   * the Note card was about to paint.
+   */
   clearCurrentBlock: () => void
   /** Height of the connections section in pixels */
   connectionsHeight: number
@@ -56,7 +64,16 @@ interface PanelEditorState {
 }
 
 interface PanelEditorSearchState {
-  /** Ephemeral workflow search target used for scrolling/highlighting editor fields */
+  /**
+   * Ephemeral workflow search target used for scrolling/highlighting editor fields.
+   *
+   * Re-published with a fresh object identity on most of the search panel's own
+   * renders — its match-hydration hooks hand back new arrays, so the effect that
+   * publishes this re-runs constantly with an equal target. Subscribe to the
+   * fields you need as primitives (or under `useShallow`), never to the object.
+   * Any component that both holds the object and can re-render the search panel
+   * closes an unbounded update loop the moment a search opens.
+   */
   activeSearchTarget: ActiveSearchTarget | null
   /** Sets an active search target to highlight in the editor */
   setActiveSearchTarget: (target: ActiveSearchTarget | null) => void
@@ -95,7 +112,6 @@ export const usePanelEditorStore = create<PanelEditorState>()(
       },
       clearCurrentBlock: () => {
         set({ currentBlockId: null })
-        usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
       },
       setConnectionsHeight: (height) => {
         const clampedHeight = Math.max(

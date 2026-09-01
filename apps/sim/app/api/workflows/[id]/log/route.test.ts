@@ -13,6 +13,7 @@ const {
   mockResolveBillingAttribution,
   mockAssertBillingAttributionSnapshot,
   mockStart,
+  mockSetResolvedSecretTraceRegistry,
   mockSafeComplete,
   mockSafeCompleteWithError,
 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const {
   mockResolveBillingAttribution: vi.fn(),
   mockAssertBillingAttributionSnapshot: vi.fn((value) => value),
   mockStart: vi.fn().mockResolvedValue(undefined),
+  mockSetResolvedSecretTraceRegistry: vi.fn(),
   mockSafeComplete: vi.fn().mockResolvedValue(undefined),
   mockSafeCompleteWithError: vi.fn().mockResolvedValue(undefined),
 }))
@@ -42,6 +44,7 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
   LoggingSession: vi.fn(function LoggingSession() {
     return {
       start: mockStart,
+      setResolvedSecretTraceRegistry: mockSetResolvedSecretTraceRegistry,
       markAsFailed: vi.fn().mockResolvedValue(undefined),
       safeCompleteWithError: mockSafeCompleteWithError,
       safeComplete: mockSafeComplete,
@@ -306,5 +309,105 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
       })
     )
     expect(mockSafeComplete).toHaveBeenCalledOnce()
+  })
+
+  it('restores trusted Secrets provenance before projecting legacy completion traces', async () => {
+    const trustedExecutionState = {
+      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+      executedBlocks: ['function-1'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: ['function-1'],
+      resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        workflowId: OWNER_WORKFLOW_ID,
+        workspaceId: 'workspace-1',
+        executionData: {
+          billingAttribution: storedBillingAttribution,
+          executionState: trustedExecutionState,
+        },
+      },
+    ])
+
+    const res = await POST(
+      makeRequest(OWNER_WORKFLOW_ID, {
+        executionId: 'trusted-provenance-execution-id',
+        result: validResult,
+      }),
+      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
+    )
+
+    expect(res.status).toBe(200)
+    const registry = mockSetResolvedSecretTraceRegistry.mock.calls[0]?.[0]
+    expect(registry?.isComplete()).toBe(true)
+    expect(registry?.exportProvenance()).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+    expect(mockSafeComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ executionState: trustedExecutionState })
+    )
+  })
+
+  it('forwards trusted execution state through legacy error completion', async () => {
+    const trustedExecutionState = {
+      blockStates: { 'function-1': { output: { error: 'raw-secret-value' } } },
+      executedBlocks: ['function-1'],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: ['function-1'],
+      resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        workflowId: OWNER_WORKFLOW_ID,
+        workspaceId: 'workspace-1',
+        executionData: {
+          billingAttribution: storedBillingAttribution,
+          executionState: trustedExecutionState,
+        },
+      },
+    ])
+
+    const res = await POST(
+      makeRequest(OWNER_WORKFLOW_ID, {
+        executionId: 'trusted-error-execution-id',
+        result: { success: false, error: 'failed' },
+      }),
+      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockSafeCompleteWithError).toHaveBeenCalledWith(
+      expect.objectContaining({ executionState: trustedExecutionState })
+    )
+  })
+
+  it('forces structural-only traces when trusted stored provenance is unavailable', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        workflowId: OWNER_WORKFLOW_ID,
+        workspaceId: 'workspace-1',
+        executionData: { billingAttribution: storedBillingAttribution },
+      },
+    ])
+
+    const res = await POST(
+      makeRequest(OWNER_WORKFLOW_ID, {
+        executionId: 'legacy-no-provenance-execution-id',
+        result: validResult,
+      }),
+      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
+    )
+
+    expect(res.status).toBe(200)
+    const registry = mockSetResolvedSecretTraceRegistry.mock.calls[0]?.[0]
+    expect(registry?.isComplete()).toBe(false)
   })
 })

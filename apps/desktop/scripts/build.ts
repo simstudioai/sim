@@ -1,5 +1,8 @@
-import { copyFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { build } from 'esbuild'
+import { identityForOrigin } from './channels'
 
 const watch = process.argv.includes('--watch')
 
@@ -23,21 +26,57 @@ if (bakedDefaultOrigin) {
   console.log(`• Baking default server origin: ${bakedDefaultOrigin}`)
 }
 
-/** Selects the branded app icon that matches the build's baked environment. */
-function iconForOrigin(origin: string): string {
-  if (!origin) return 'build/icon.icns'
-  const host = new URL(origin).hostname.toLowerCase()
-  if (host === 'localhost' || host === '127.0.0.1') return 'build/icon-local.icns'
-  if (host === 'dev.sim.ai' || host.endsWith('.dev.sim.ai')) return 'build/icon-dev.icns'
-  if (host === 'staging.sim.ai' || host.endsWith('.staging.sim.ai')) {
-    return 'build/icon-staging.icns'
-  }
-  return 'build/icon.icns'
-}
-
-const appIcon = iconForOrigin(bakedDefaultOrigin)
-copyFileSync(appIcon, 'build/generated-icon.icns')
+const appIcon = identityForOrigin(bakedDefaultOrigin).icon
+const generatedIcon = 'build/generated-icon.icon'
+rmSync(generatedIcon, { force: true, recursive: true })
+cpSync(appIcon, generatedIcon, { recursive: true })
 console.log(`• Selecting desktop icon: ${appIcon}`)
+
+function compileNativeHelpSearch(): void {
+  const outputDirectory = 'dist/native'
+  rmSync(outputDirectory, { force: true, recursive: true })
+  if (process.platform !== 'darwin') return
+
+  const nodeExecutable = execFileSync('node', ['-p', 'process.execPath'], {
+    encoding: 'utf8',
+  }).trim()
+  const nodeIncludeDirectory = join(dirname(nodeExecutable), '..', 'include', 'node')
+  const nodeApiHeader = join(nodeIncludeDirectory, 'node_api.h')
+  if (!existsSync(nodeApiHeader)) {
+    throw new Error(`Could not find Node-API headers at ${nodeApiHeader}`)
+  }
+
+  mkdirSync(outputDirectory, { recursive: true })
+  execFileSync(
+    'xcrun',
+    [
+      'clang++',
+      '-std=c++17',
+      '-DNAPI_VERSION=8',
+      '-fobjc-arc',
+      '-fblocks',
+      '-bundle',
+      '-undefined',
+      'dynamic_lookup',
+      '-mmacosx-version-min=12.0',
+      '-arch',
+      'arm64',
+      '-arch',
+      'x86_64',
+      '-I',
+      nodeIncludeDirectory,
+      '-framework',
+      'AppKit',
+      '-framework',
+      'Foundation',
+      '-o',
+      join(outputDirectory, 'help-search.node'),
+      'native/help-search.mm',
+    ],
+    { stdio: 'inherit' }
+  )
+  console.log('• Compiled native macOS documentation Help search')
+}
 
 const common = {
   bundle: true,
@@ -56,6 +95,7 @@ const common = {
 }
 
 async function run(): Promise<void> {
+  compileNativeHelpSearch()
   if (watch) {
     const { context } = await import('esbuild')
     const mainCtx = await context({

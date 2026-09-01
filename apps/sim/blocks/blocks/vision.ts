@@ -21,6 +21,10 @@ const VISION_MODEL_OPTIONS = [
   { label: 'Gemini 2.5 Flash Lite', id: 'gemini-2.5-flash-lite' },
 ]
 
+const IMAGE_FIELD = ['imageFile', 'imageFileReference', 'imageUrl'] as const
+/* v2 drops the URL input, keeping only the upload/reference pair. */
+const IMAGE_V2_FIELD = ['imageFile', 'imageFileReference'] as const
+
 export const VisionBlock: BlockConfig<VisionResponse> = {
   type: 'vision',
   name: 'Vision (Legacy)',
@@ -33,6 +37,15 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#4D5FFF',
   icon: EyeIcon,
+  canvasPresentation: {
+    defaultTitle: 'Vision',
+    sentences: {
+      default: [
+        { text: 'Analyze', field: IMAGE_FIELD, core: true },
+        { text: ', asking', field: 'prompt' },
+      ],
+    },
+  },
   subBlocks: [
     // Image file upload (basic mode)
     {
@@ -109,6 +122,15 @@ export const VisionV2Block: BlockConfig<VisionResponse> = {
   name: 'Vision',
   description: 'Analyze images with vision models',
   hideFromToolbar: true,
+  canvasPresentation: {
+    defaultTitle: 'Vision',
+    sentences: {
+      default: [
+        { text: 'Analyze', field: IMAGE_V2_FIELD, core: true },
+        { text: ', asking', field: 'prompt' },
+      ],
+    },
+  },
   tools: {
     access: ['vision_tool_v2'],
     config: {

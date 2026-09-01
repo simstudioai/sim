@@ -22,6 +22,7 @@ import {
   getTokenServiceAccountDescriptor,
   type TokenServiceAccountProviderId,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -29,6 +30,7 @@ import {
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
 import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import {
   useCreateWorkspaceCredential,
   useUpdateWorkspaceCredential,
@@ -59,6 +61,17 @@ function openDocs(url: string): void {
  * that doesn't look like `<tenant>.atlassian.net`.
  */
 const ATLASSIAN_DOMAIN_HINT_REGEX = /^[a-z0-9-]+\.atlassian\.net$/i
+
+/**
+ * States the token's reach up front — the ambiguity this modal exists to remove.
+ * Sits on the API token field, not Site domain: it describes the token, and
+ * `ChipModalField` hides a `hint` whenever that field shows an `error`, which
+ * would drop it exactly while the user is correcting a domain typo. Derived
+ * from the catalog so it cannot drift as Atlassian integrations are added.
+ */
+const ATLASSIAN_COVERAGE_HINT = getServiceAccountCoverageSentence(
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
+)
 
 /**
  * Maps server `error.code` values returned by the Atlassian service-account
@@ -149,6 +162,7 @@ export function ConnectServiceAccountModal({
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
         initialDescription={credentialDescription}
+        onCreated={onCreated}
       />
     )
   }
@@ -193,6 +207,7 @@ export function ConnectServiceAccountModal({
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
         initialDescription={credentialDescription}
+        onCreated={onCreated}
       />
     )
   }
@@ -206,6 +221,7 @@ export function ConnectServiceAccountModal({
       credentialId={credentialId}
       initialDisplayName={credentialDisplayName}
       initialDescription={credentialDescription}
+      onCreated={onCreated}
     />
   )
 }
@@ -221,6 +237,8 @@ interface ProviderModalProps {
   /** Existing name/description, seeded into the fields on reconnect. */
   initialDisplayName?: string
   initialDescription?: string
+  /** Called with the credential id after a successful create or reconnect. */
+  onCreated?: (credentialId: string) => void
 }
 
 /**
@@ -237,6 +255,7 @@ function GoogleServiceAccountModal({
   credentialId,
   initialDisplayName,
   initialDescription,
+  onCreated,
 }: ProviderModalProps) {
   const [jsonInput, setJsonInput] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
@@ -306,6 +325,7 @@ function GoogleServiceAccountModal({
       return
     }
     try {
+      let connectedCredentialId = credentialId
       if (credentialId) {
         await updateCredential.mutateAsync({
           credentialId,
@@ -314,14 +334,16 @@ function GoogleServiceAccountModal({
           description: description.trim() || undefined,
         })
       } else {
-        await createCredential.mutateAsync({
+        const created = await createCredential.mutateAsync({
           workspaceId,
           type: 'service_account',
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
           serviceAccountJson: trimmed,
         })
+        connectedCredentialId = created.credential.id
       }
+      if (connectedCredentialId) onCreated?.(connectedCredentialId)
       onOpenChange(false)
     } catch (err: unknown) {
       const message = getErrorMessage(err, 'Failed to add service account')
@@ -339,7 +361,7 @@ function GoogleServiceAccountModal({
       onOpenChange={onOpenChange}
       srTitle={`Add ${serviceName} service account`}
     >
-      <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>
@@ -424,6 +446,7 @@ function AtlassianServiceAccountModal({
   credentialId,
   initialDisplayName,
   initialDescription,
+  onCreated,
 }: ProviderModalProps) {
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
@@ -455,6 +478,7 @@ function AtlassianServiceAccountModal({
     setError(null)
     if (isDisabled) return
     try {
+      let connectedCredentialId = credentialId
       if (credentialId) {
         await updateCredential.mutateAsync({
           credentialId,
@@ -464,7 +488,7 @@ function AtlassianServiceAccountModal({
           description: description.trim() || undefined,
         })
       } else {
-        await createCredential.mutateAsync({
+        const created = await createCredential.mutateAsync({
           workspaceId,
           type: 'service_account',
           providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -473,7 +497,9 @@ function AtlassianServiceAccountModal({
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })
+        connectedCredentialId = created.credential.id
       }
+      if (connectedCredentialId) onCreated?.(connectedCredentialId)
       onOpenChange(false)
     } catch (err: unknown) {
       setError(messageForAtlassianError(err))
@@ -487,25 +513,28 @@ function AtlassianServiceAccountModal({
       onOpenChange={onOpenChange}
       srTitle={`Add ${serviceName} service account`}
     >
-      <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='API token' required>
-          <SecretInput
-            value={apiToken}
-            onChange={(value) => {
-              setApiToken(value)
-              if (error) setError(null)
-            }}
-            placeholder='Paste API token'
-            name='atlassian_service_account_api_token'
-            autoComplete='new-password'
-            autoCorrect='off'
-            autoCapitalize='off'
-            data-lpignore='true'
-            data-form-type='other'
-          />
+        <ChipModalField type='custom' title='API token' required hint={ATLASSIAN_COVERAGE_HINT}>
+          {(aria) => (
+            <SecretInput
+              {...aria}
+              value={apiToken}
+              onChange={(value) => {
+                setApiToken(value)
+                if (error) setError(null)
+              }}
+              placeholder='Paste API token'
+              name='atlassian_service_account_api_token'
+              autoComplete='new-password'
+              autoCorrect='off'
+              autoCapitalize='off'
+              data-lpignore='true'
+              data-form-type='other'
+            />
+          )}
         </ChipModalField>
 
         <ChipModalField

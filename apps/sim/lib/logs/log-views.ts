@@ -45,10 +45,7 @@ const DEFAULT_MATCH_TIME_BUDGET_MS = 5_000
  */
 const DEFAULT_MAX_SCANNED_CHARS = 64 * 1024 * 1024
 
-// ---------------------------------------------------------------------------
-// Overview (Level 2): block tree with timing + cost, NO input/output.
-// ---------------------------------------------------------------------------
-
+/** Block tree with timing and cost, without input/output. */
 export interface OverviewSpan {
   id: string
   blockId?: string
@@ -77,10 +74,54 @@ export function toOverview(spans: TraceSpan[]): OverviewSpan[] {
   })
 }
 
-// ---------------------------------------------------------------------------
-// Full (Level 3): block tree WITH materialized input/output.
-// ---------------------------------------------------------------------------
+/** Condensed per-block digest: names, statuses, counts. */
+export interface TraceDigestEntry {
+  /** Block id when the spans carry one; the drill-in key for `full` blockIds. */
+  blockId?: string
+  name: string
+  type: string
+  /** How many spans (loop iterations included) this block produced. */
+  executions: number
+  /** Span count per status, e.g. { success: 498, error: 2 }. */
+  statuses: Record<string, number>
+  totalDurationMs: number
+}
 
+/**
+ * Project trace spans to a flat per-block digest in first-execution order.
+ * Every span in the tree is counted (loop iterations collapse into their
+ * block's entry), so a 500-iteration loop is one line, not 500. Never
+ * materializes refs.
+ */
+export function toTrace(spans: TraceSpan[]): TraceDigestEntry[] {
+  const byKey = new Map<string, TraceDigestEntry>()
+  const walk = (list: TraceSpan[]): void => {
+    for (const s of list) {
+      const key = s.blockId ?? `${s.type}:${s.name}`
+      let entry = byKey.get(key)
+      if (!entry) {
+        entry = {
+          ...(s.blockId ? { blockId: s.blockId } : {}),
+          name: s.name,
+          type: s.type,
+          executions: 0,
+          statuses: {},
+          totalDurationMs: 0,
+        }
+        byKey.set(key, entry)
+      }
+      entry.executions++
+      const status = s.status ?? 'unknown'
+      entry.statuses[status] = (entry.statuses[status] ?? 0) + 1
+      entry.totalDurationMs += s.duration ?? 0
+      if (s.children && s.children.length > 0) walk(s.children)
+    }
+  }
+  walk(spans)
+  return Array.from(byKey.values())
+}
+
+/** Block tree with materialized input/output. */
 export interface FullSpan extends OverviewSpan {
   startTime?: string
   endTime?: string
@@ -92,6 +133,8 @@ export interface FullSpan extends OverviewSpan {
 
 export interface BlockSelector {
   blockId?: string
+  /** Multiple drill-in targets at once (ids from the trace digest). */
+  blockIds?: string[]
   blockName?: string
 }
 
@@ -104,19 +147,76 @@ export interface BlockSelector {
 export async function toFull(
   spans: TraceSpan[],
   ctx: LogViewContext,
-  selector?: BlockSelector
+  selector?: BlockSelector,
+  fields?: string[]
 ): Promise<FullSpan[]> {
   const roots = selectSpans(spans, selector)
-  return Promise.all(roots.map((s) => fullSpan(s, ctx)))
+  const full = await Promise.all(roots.map((s) => fullSpan(s, ctx)))
+  if (!fields || fields.length === 0) return full
+  return full.map((s) => projectSpanFields(s, fields))
+}
+
+/**
+ * Narrows a full span to the requested fields so the caller loads only what it
+ * needs. A field is either a whole payload key (`input` / `output` / `error`)
+ * or a dotted path into one (`output.result.rows`); dotted selections land
+ * under `selected` keyed by the full path. Span identity/status/timing always
+ * stay, and children are projected recursively.
+ */
+function projectSpanFields(span: FullSpan, fields: string[]): FullSpan {
+  const node: FullSpan = {
+    id: span.id,
+    blockId: span.blockId,
+    name: span.name,
+    type: span.type,
+    status: span.status,
+    durationMs: span.durationMs,
+    startTime: span.startTime,
+    endTime: span.endTime,
+  }
+  if (span.cost) node.cost = span.cost
+  const selected: Record<string, unknown> = {}
+  let hasSelected = false
+  for (const field of fields) {
+    if (field === 'input' || field === 'output' || field === 'error') {
+      if (span[field] !== undefined) node[field] = span[field] as never
+      continue
+    }
+    const [head, ...rest] = field.split('.')
+    if ((head === 'input' || head === 'output') && rest.length > 0) {
+      let value: unknown = span[head]
+      for (const key of rest) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          value = (value as Record<string, unknown>)[key]
+        } else if (Array.isArray(value) && /^\d+$/.test(key)) {
+          value = value[Number(key)]
+        } else {
+          value = undefined
+          break
+        }
+      }
+      selected[field] = value
+      hasSelected = true
+    }
+  }
+  if (hasSelected) (node as FullSpan & { selected?: Record<string, unknown> }).selected = selected
+  if (span.children && span.children.length > 0) {
+    node.children = span.children.map((c) => projectSpanFields(c, fields))
+  }
+  return node
 }
 
 function selectSpans(spans: TraceSpan[], selector?: BlockSelector): TraceSpan[] {
-  if (!selector || (!selector.blockId && !selector.blockName)) return spans
+  if (!selector || (!selector.blockId && !selector.blockIds?.length && !selector.blockName)) {
+    return spans
+  }
+  const idSet = new Set<string>(selector.blockIds ?? [])
+  if (selector.blockId !== undefined) idSet.add(selector.blockId)
   const out: TraceSpan[] = []
   const walk = (list: TraceSpan[]): void => {
     for (const s of list) {
       const matches =
-        (selector.blockId !== undefined && s.blockId === selector.blockId) ||
+        (s.blockId !== undefined && idSet.has(s.blockId)) ||
         (selector.blockName !== undefined && s.name === selector.blockName)
       if (matches) {
         out.push(s)
@@ -179,9 +279,7 @@ async function materializeField(value: unknown, ctx: LogViewContext): Promise<un
   return value
 }
 
-// ---------------------------------------------------------------------------
 // Grep (single execution): stream large refs chunk-by-chunk, release each.
-// ---------------------------------------------------------------------------
 
 export interface GrepSpanMatch {
   spanId: string

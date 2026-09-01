@@ -2,9 +2,9 @@ import type {
   AppConfigCreateApplicationParams,
   AppConfigCreateApplicationResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createApplicationTool: ToolConfig<
+export const createApplicationTool: InternalToolConfig<
   AppConfigCreateApplicationParams,
   AppConfigCreateApplicationResponse
 > = {
@@ -46,11 +46,8 @@ export const createApplicationTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/create-application',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

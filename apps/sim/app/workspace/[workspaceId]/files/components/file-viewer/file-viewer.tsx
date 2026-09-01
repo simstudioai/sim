@@ -1,11 +1,15 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Music } from 'lucide-react'
+import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { useWorkspaceFileBinary, useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
+import { resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
+import {
+  useWorkspaceFileBinary,
+  useWorkspaceFileContent,
+  useWorkspaceImageDimensionsAdapter,
+} from '@/hooks/queries/workspace-files'
 import {
   createWorkspaceFileContentSource,
   type FileContentSource,
@@ -24,6 +28,7 @@ import {
   PreviewErrorBoundary,
   PreviewLoadingFrame,
   resolvePreviewError,
+  UnsupportedPreview,
 } from './preview-shared'
 import { TextEditor } from './text-editor'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
@@ -108,15 +113,38 @@ interface FileViewerProps {
   streamingContent?: string
   isAgentEditing?: boolean
   streamIsIncremental?: boolean
+  streamOperation?: string
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
+  /**
+   * Opt this surface into live collaborative editing (markdown files only). Set by the
+   * Files page; the agent/Chat surface leaves it off so collaboration and agent-streaming
+   * never target one editor. See {@link RichMarkdownEditorProps.collaborative}.
+   */
+  collaborative?: boolean
+  /**
+   * Called (debounced) with the markdown document's leading-heading text while the file is still
+   * untitled, so the caller can name the file after it. Only wired for the editable markdown editor.
+   */
+  onDeriveTitleFromHeading?: (headingText: string) => void
+  /**
+   * Let an open markdown file claim Cmd/Ctrl+F for find-in-document. Set wherever the file is the
+   * whole pane the user is reading — the Files page, the mothership file view, the public share
+   * page. Left off for the streaming-file preview, which is a pane beside a conversation that owns
+   * its own find. See {@link RichMarkdownEditorProps.enableFind}.
+   */
+  enableFind?: boolean
 }
 
 export function FileViewer(props: FileViewerProps) {
   const { contentSource, workspaceId } = props
+  // A caller-supplied contentSource means the adapter is unused (and its `workspaceId` may be a share token).
+  const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId, {
+    enabled: !contentSource,
+  })
   const source = useMemo(
-    () => contentSource ?? createWorkspaceFileContentSource(workspaceId),
-    [contentSource, workspaceId]
+    () => contentSource ?? createWorkspaceFileContentSource(workspaceId, imageDimensions),
+    [contentSource, workspaceId, imageDimensions]
   )
   return (
     <FileContentSourceProvider value={source}>
@@ -139,8 +167,12 @@ function FileViewerContent({
   streamingContent,
   isAgentEditing,
   streamIsIncremental,
+  streamOperation,
   disableStreamingAutoScroll = false,
   previewContextKey,
+  collaborative,
+  onDeriveTitleFromHeading,
+  enableFind = false,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -150,14 +182,20 @@ function FileViewerContent({
       // browser. CsvTablePreview's streamed fallback is workspace-only, so on the
       // read-only public path a large CSV is download-only.
       if (isCsvStreamOnly(file)) {
-        return <UnsupportedPreview file={file} />
+        return <UnsupportedPreview name={file.name} />
       }
       // Markdown renders through the inline rich editor (non-editable) so the public share
       // surface matches the in-app reading experience; canEdit={false} disables autosave,
       // the bubble menu, and every other editing affordance.
       if (isMarkdownFile(file)) {
         return (
-          <RichMarkdownEditor key={file.id} file={file} workspaceId={workspaceId} canEdit={false} />
+          <RichMarkdownEditor
+            key={file.id}
+            file={file}
+            workspaceId={workspaceId}
+            canEdit={false}
+            enableFind={enableFind}
+          />
         )
       }
       return <ReadOnlyTextPreview file={file} workspaceId={workspaceId} />
@@ -183,8 +221,12 @@ function FileViewerContent({
           streamingContent={streamingContent}
           isAgentEditing={isAgentEditing}
           streamIsIncremental={streamIsIncremental}
+          streamOperation={streamOperation}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
+          collaborative={collaborative}
+          onDeriveTitleFromHeading={onDeriveTitleFromHeading}
+          enableFind={enableFind}
         />
       )
     }
@@ -236,7 +278,7 @@ function FileViewerContent({
     return <XlsxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
-  return <UnsupportedPreview file={file} />
+  return <UnsupportedPreview name={file.name} />
 }
 
 /**
@@ -260,16 +302,18 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
 
   const resolvedError = resolvePreviewError((error as Error | null) ?? null, null)
   if (resolvedError) return <PreviewError label='file' error={resolvedError} />
-  if (isLoading || content == null) return <PreviewLoadingFrame className='h-full' tone='surface' />
+  if (isLoading || content == null)
+    return <PreviewLoadingFrame className='min-h-0 flex-1' tone='surface' />
 
   if (resolvePreviewType(file.type, file.name)) {
     return (
-      <div className='h-full min-h-0 w-full overflow-auto'>
+      <div className='flex min-h-0 w-full flex-1 flex-col overflow-auto'>
         <PreviewPanel
           content={content}
           mimeType={file.type}
           filename={file.name}
           workspaceId={workspaceId}
+          fileId={file.id}
           fileKey={file.key}
           readOnly
         />
@@ -278,7 +322,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
   }
 
   return (
-    <div className='h-full min-h-0 w-full overflow-auto bg-[var(--surface-1)] p-4'>
+    <div className='min-h-0 w-full flex-1 overflow-auto bg-[var(--surface-1)] p-4'>
       <pre className='whitespace-pre-wrap break-words font-mono text-[13px] text-[var(--text-body)]'>
         {content}
       </pre>
@@ -338,8 +382,6 @@ function useBlobUrl(workspaceId: string, fileId: string, fileKey: string) {
   return { fileData, isLoading, error, blobUrl, replaceBlobUrl }
 }
 
-const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
-
 /**
  * Shared blob-backed preview for audio and video files — the fetch, blob-URL
  * lifecycle, and error/loading handling are identical; only the rendered
@@ -362,12 +404,12 @@ const MediaPreview = memo(function MediaPreview({
     replaceBlobUrl,
   } = useBlobUrl(workspaceId, file.id, file.key)
 
+  const mediaType = resolveMediaMimeType(file.type, file.name, kind)
+
   useEffect(() => {
     if (!fileData) return
-    replaceBlobUrl(
-      URL.createObjectURL(new Blob([fileData], { type: file.type || MEDIA_FALLBACK_MIME[kind] }))
-    )
-  }, [file.type, fileData, kind, replaceBlobUrl])
+    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: mediaType })))
+  }, [fileData, mediaType, replaceBlobUrl])
 
   const error = blobUrl !== null ? null : resolvePreviewError(fetchError, null)
   if (error) return <PreviewError label={kind} error={error} />
@@ -380,8 +422,8 @@ const MediaPreview = memo(function MediaPreview({
     return (
       <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
         <div className='flex flex-col items-center gap-2 text-center'>
-          <Music className='size-[32px] text-[var(--text-muted)]' strokeWidth={1.5} />
-          <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
+          <Music className='size-[32px] text-[var(--text-muted)]' />
+          <p className='text-[14px] text-[var(--text-primary)]'>{file.name}</p>
         </div>
         {blobUrl && (
           // biome-ignore lint/a11y/useMediaCaption: audio from workspace files
@@ -397,25 +439,6 @@ const MediaPreview = memo(function MediaPreview({
         // biome-ignore lint/a11y/useMediaCaption: video from workspace files
         <video src={blobUrl} controls className='max-h-full max-w-full' />
       )}
-    </div>
-  )
-})
-
-const UnsupportedPreview = memo(function UnsupportedPreview({
-  file,
-}: {
-  file: WorkspaceFileRecord
-}) {
-  const ext = getFileExtension(file.name)
-
-  return (
-    <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[14px] text-[var(--text-primary)]'>
-        Preview not available{ext ? ` for .${ext} files` : ' for this file'}
-      </p>
-      <p className='text-[13px] text-[var(--text-muted)]'>
-        Use the download button to view this file
-      </p>
     </div>
   )
 })

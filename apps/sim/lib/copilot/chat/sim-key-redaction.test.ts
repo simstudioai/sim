@@ -8,6 +8,7 @@ import {
   captureRevealedSimKeys,
   extractRevealedSimKeys,
   extractRevealedSimKeysFromBlocks,
+  redactSensitiveContent,
   restoreRevealedSimKeysForMessage,
   toolResultForModel,
 } from './sim-key-redaction'
@@ -17,6 +18,7 @@ const credential = (value: string) =>
 const redacted = `<credential>${JSON.stringify({ type: 'sim_key', redacted: true })}</credential>`
 // The value-less placeholder the model now emits (no `redacted` flag).
 const placeholder = `<credential>${JSON.stringify({ type: 'sim_key' })}</credential>`
+const credentialBatch = (items: unknown[]) => `<credential>${JSON.stringify(items)}</credential>`
 
 const apiKeyBlock = (key: string) => ({
   type: 'tool_call' as const,
@@ -34,6 +36,23 @@ describe('sim-key-redaction', () => {
       const link = `<credential>${JSON.stringify({ value: 'https://x', type: 'link', provider: 'slack' })}</credential>`
       const text = `${link} ${credential('sk-sim-A')} ${redacted}`
       expect(extractRevealedSimKeys(text)).toEqual(['sk-sim-A'])
+    })
+
+    it('returns sim_key values from a mixed credential-card array', () => {
+      const batch = credentialBatch([
+        { type: 'link', value: 'https://x', provider: 'slack' },
+        { type: 'sim_key', value: 'sk-sim-A' },
+        { type: 'sim_key', value: 'sk-sim-B' },
+      ])
+      expect(extractRevealedSimKeys(batch)).toEqual(['sk-sim-A', 'sk-sim-B'])
+    })
+  })
+
+  describe('redactSensitiveContent', () => {
+    it('redacts sim_key rows in a mixed credential-card array without changing other rows', () => {
+      const link = { type: 'link', value: 'https://x', provider: 'slack' }
+      const batch = credentialBatch([link, { type: 'sim_key', value: 'sk-sim-secret' }])
+      expect(redactSensitiveContent(batch)).toBe(credentialBatch([link, { type: 'sim_key' }]))
     })
   })
 
@@ -172,6 +191,21 @@ describe('sim-key-redaction', () => {
       const restored = restoreRevealedSimKeysForMessage(msg, cache)
       expect(restored.content).toBe(
         `first ${credential('sk-sim-A')} second ${credential('sk-sim-B')}`
+      )
+    })
+
+    it('fills sim_key rows positionally inside a mixed credential-card array', () => {
+      const link = { type: 'link', value: 'https://x', provider: 'slack' }
+      const batch = credentialBatch([link, { type: 'sim_key' }, { type: 'sim_key' }])
+      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A', 'sk-sim-B']]])
+      const msg: ChatMessage = { id: 'msg-1', role: 'assistant', content: batch }
+
+      expect(restoreRevealedSimKeysForMessage(msg, cache).content).toBe(
+        credentialBatch([
+          link,
+          { value: 'sk-sim-A', type: 'sim_key' },
+          { value: 'sk-sim-B', type: 'sim_key' },
+        ])
       )
     })
 

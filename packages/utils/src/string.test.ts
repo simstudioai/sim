@@ -3,14 +3,46 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  forEachSearchOccurrence,
   formatQuotedNameList,
   isVersionedType,
   normalizeEmail,
+  projectEscapedMarkdownForSearch,
   sanitizeForJsonb,
   sanitizeValueForJsonb,
+  slugify,
   stripVersionSuffix,
   truncate,
 } from './string.js'
+
+describe('slugify', () => {
+  it('lowercases and hyphenates a display name', () => {
+    expect(slugify('Acme Corp')).toBe('acme-corp')
+  })
+
+  it('collapses each run of non-alphanumerics into a single hyphen', () => {
+    expect(slugify('Sim.ai <> RVTech')).toBe('sim-ai-rvtech')
+  })
+
+  it('drops leading and trailing separators', () => {
+    expect(slugify('  !!Hello World!!  ')).toBe('hello-world')
+  })
+
+  it('returns an empty string when nothing survives', () => {
+    expect(slugify('***')).toBe('')
+    expect(slugify('')).toBe('')
+  })
+
+  /* ASCII-only: the class drops non-Latin text rather than transliterating it. */
+  it('drops characters outside the ASCII alphanumerics', () => {
+    expect(slugify('Café')).toBe('caf')
+    expect(slugify('日本語')).toBe('')
+  })
+
+  it('preserves digits and hyphens already in the input', () => {
+    expect(slugify('workspace-2024')).toBe('workspace-2024')
+  })
+})
 
 describe('truncate', () => {
   it('appends the suffix when the string exceeds the slice length', () => {
@@ -134,5 +166,83 @@ describe('formatQuotedNameList', () => {
 
   it('returns an empty string for no names', () => {
     expect(formatQuotedNameList([], 3)).toBe('')
+  })
+})
+
+describe('projectEscapedMarkdownForSearch', () => {
+  it('leaves text with no escapes alone', () => {
+    const { text, starts } = projectEscapedMarkdownForSearch('plain text')
+    expect(text).toBe('plain text')
+    expect(starts[0]).toBe(0)
+    expect(starts[text.length]).toBe(10)
+  })
+
+  it('drops the backslash a markdown escape carries', () => {
+    expect(projectEscapedMarkdownForSearch('SB\\_ACTION\\_ROUTER').text).toBe('SB_ACTION_ROUTER')
+    expect(projectEscapedMarkdownForSearch('{{TE\\_SERET}}').text).toBe('{{TE_SERET}}')
+  })
+
+  it('keeps a backslash that escapes nothing markdown cares about', () => {
+    expect(projectEscapedMarkdownForSearch('a\\nb').text).toBe('a\\nb')
+    expect(projectEscapedMarkdownForSearch('trailing\\').text).toBe('trailing\\')
+  })
+
+  /* The span must cover the backslash, or replacing a match would leave it stranded. */
+  it('maps a projected range back over the escape it consumed', () => {
+    const source = 'x SB\\_ACTION y'
+    const { text, starts } = projectEscapedMarkdownForSearch(source)
+    const start = text.indexOf('SB_ACTION')
+    const end = start + 'SB_ACTION'.length
+    expect(source.slice(starts[start], starts[end])).toBe('SB\\_ACTION')
+  })
+
+  it('maps every position when escapes repeat', () => {
+    const source = 'a\\_b\\_c'
+    const { text, starts } = projectEscapedMarkdownForSearch(source)
+    expect(text).toBe('a_b_c')
+    for (let i = 0; i < text.length; i += 1) {
+      expect(source.slice(starts[i], starts[i + 1]).endsWith(text[i])).toBe(true)
+    }
+    expect(starts[text.length]).toBe(source.length)
+  })
+})
+
+describe('forEachSearchOccurrence', () => {
+  const spans = (text: string, query: string, caseSensitive?: boolean) => {
+    const found: string[] = []
+    forEachSearchOccurrence(
+      text,
+      query,
+      (start, end) => found.push(text.slice(start, end)),
+      caseSensitive
+    )
+    return found
+  }
+
+  it('visits every non-overlapping occurrence, case-insensitively by default', () => {
+    expect(spans('Ab ab AB', 'ab')).toEqual(['Ab', 'ab', 'AB'])
+    expect(spans('aaaa', 'aa')).toEqual(['aa', 'aa'])
+    expect(spans('Ab', 'ab', true)).toEqual([])
+  })
+
+  it('folds whitespace so a typed space matches a non-breaking one', () => {
+    expect(spans('a\u00a0b', 'a b')).toEqual(['a\u00a0b'])
+  })
+
+  it('visits nothing for an empty query', () => {
+    expect(spans('abc', '')).toEqual([])
+  })
+
+  it('keeps context-sensitive lowercasing in the length-preserving fallback', () => {
+    // '\u0130' expands, so the whole-string fast path is unavailable. Folding the rest character by
+    // character would lowercase the word-final '\u03a3' to '\u03c3' instead of '\u03c2', making one
+    // unrelated code point change how every sigma in the string matches.
+    expect(spans('\u0130\u03a3', '\u0130\u03c2')).toEqual(['\u0130\u03a3'])
+  })
+
+  it('reports bounds into the caller\u2019s own string after a length-changing lowercase', () => {
+    // '\u0130'.toLowerCase() is TWO characters. A plain lowercase would slide every later index by
+    // one, so the caller would slice the wrong span out of the string it passed in.
+    expect(spans('\u0130xyz target', 'target')).toEqual(['target'])
   })
 })

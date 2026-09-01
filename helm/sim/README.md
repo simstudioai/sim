@@ -219,6 +219,24 @@ Before installing in production, confirm each of the following:
 * **Secrets management** — provide secrets via External Secrets Operator (ESO) or pre-created Kubernetes Secrets. Never commit secrets to `values.yaml`.
 * **TLS / Ingress** — set the `cert-manager.io/cluster-issuer` annotation on the ingress and tune `proxy-body-size` / `proxy-read-timeout` for your workload. See commented examples in `values.yaml`.
 * **Network policy egress** — review `networkPolicy.egressExceptCidrs`. Defaults block cloud metadata endpoints (`169.254.169.254/32`, `169.254.170.2/32`); add your cluster's API server CIDR for stronger isolation. Custom egress rules go in `networkPolicy.egress` (a list).
+
+  **Every datastore you run outside the chart needs its own egress rule.** The default policy allows HTTPS (443) plus the bundled Postgres and Redis by pod selector — nothing else on a non-443 port. So a managed Postgres, a managed Redis, or any `REDIS_URL` you supply through a Secret is reachable only if you add a rule for it. This bites hardest when the URL comes from a Secret, because the chart cannot see the host and cannot generate the rule for you:
+
+  ```yaml
+  networkPolicy:
+    enabled: true
+    egress:
+      - to:
+          - ipBlock:
+              cidr: 10.0.0.0/16   # your VPC / managed-service subnet
+        ports:
+          - protocol: TCP
+            port: 6379           # managed Redis
+          - protocol: TCP
+            port: 5432           # managed Postgres
+  ```
+
+  If you would rather not maintain CIDR lists, `networkPolicy.allowExternalEgress: true` drops the port restriction entirely while still blocking the cloud metadata endpoints. It defaults to `false` — this chart is deliberately stricter than the common chart default of unrestricted egress.
 * **Network policy ingress** — `networkPolicy.ingressFrom` defaults to `[{}]` (an empty peer selector), which allows ingress traffic from **any pod in the cluster**, not just your ingress controller. This is a deliberate simple default, not a locked-down one. On a shared or multi-tenant cluster, scope it down, e.g. to the ingress-nginx namespace:
   ```yaml
   networkPolicy:
@@ -340,8 +358,39 @@ User-supplied `securityContext` values are merged with the defaults — your val
 Other security features:
 
 * `automountServiceAccountToken: false` on the ServiceAccount **and** every pod.
-* Every value in `app.env` and `realtime.env` is written to a chart-managed Secret and mounted via `envFrom: secretRef` — no values are inlined on the container spec. This eliminates a sensitivity classifier (no static list of "secret" keys to maintain) and ensures new provider keys can never accidentally leak into pod manifests. Two categories are inlined on the container instead: chart-computed values (`DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL`, `PII_URL`) and operational defaults under `app.envDefaults` / `realtime.envDefaults` (rate limits, timeouts, IVM tunables, feature-flag defaults, branding defaults, `http://localhost:3000` URL fallbacks). Operational defaults are non-sensitive by design — moving them out of `app.env` keeps the Secret small and means External Secrets Operator users only have to map the keys they actually set, not every chart default. A value placed in `app.env` always wins over the same key in `app.envDefaults` (the template skips the inline default when an override exists).
+* Every value in `app.env` and `realtime.env` is written to a chart-managed Secret and mounted via `envFrom: secretRef` — no values are inlined on the container spec. This eliminates a sensitivity classifier (no static list of "secret" keys to maintain) and ensures new provider keys can never accidentally leak into pod manifests. Two categories are inlined on the container instead: chart-computed values (`DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL`, `PII_URL`) and operational defaults under `app.envDefaults` / `realtime.envDefaults` (rate limits, timeouts, IVM tunables, feature-flag defaults, branding defaults, `http://localhost:3000` URL fallbacks). Operational defaults are non-sensitive by design — moving them out of `app.env` keeps the Secret small and means External Secrets Operator users only have to map the keys they actually set, not every chart default. A **non-empty** value placed in `app.env` wins over the same key in `app.envDefaults` (the template skips the inline default when an override exists). An **empty** value does not — to remove a key rather than change it, see [Removing an inherited env key](#removing-an-inherited-env-key).
 * Optional `networkPolicy.enabled=true` enforces east-west isolation and blocks cloud metadata endpoints in egress.
+
+---
+
+## Removing an inherited env key
+
+To remove a key the chart (or an older values file) sets, override it with `null` — [Helm's documented way](https://helm.sh/docs/chart_template_guide/values_files/) to delete a default key:
+
+```yaml
+app:
+  envDefaults:
+    FREE_TABLES_LIMIT: null
+    FREE_TABLE_ROWS_LIMIT: null
+```
+
+Or on the CLI: `--set app.envDefaults.FREE_TABLES_LIMIT=null`.
+
+**Null the key in every layer that sets it.** `null` deletes the key from the map you null, not from the pod — so if a key is set in both `app.env` and `app.envDefaults`, nulling only the `app.env` entry makes the inline `envDefaults` value apply again and the variable stays on the pod. The same holds for `realtime.env` / `realtime.envDefaults`. Under ESO there is a third source: a key mapped in `externalSecrets.remoteRefs.app` keeps being synced into the Secret regardless of `app.env`, so remove that mapping too. Rendering the manifest (below) is the reliable way to confirm the key is actually gone.
+
+**Setting the key to `""` instead does not remove it.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates have to treat an empty string as "the operator said nothing" — if they did not, the ten placeholders that collide with a real `app.envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `NEXT_PUBLIC_BRAND_NAME`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`, …) would blank themselves out on every default install. An empty entry is a silent no-op; `null` is the deletion.
+
+With the chart-managed Secret (the default), nulling a key the application cannot start without (`BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, or `CRON_SECRET` with `cronjobs.enabled=true`) fails at template time with the existing required-secret error rather than at runtime. In `existingSecret` mode the chart skips that validation entirely — those values come from your pre-created Secret, which the chart cannot read — so a null there renders successfully and the key is simply absent from `app.env`. Under ESO the key must still be mapped in `externalSecrets.remoteRefs.app`, which is validated at template time.
+
+> **Caveats.** `null` deletion does not take effect under `helm upgrade --reuse-values` ([helm#30765](https://github.com/helm/helm/issues/30765)) — pass your full values with `-f`, or use `--reset-then-reuse-values` (Helm ≥ 3.14).
+>
+> On **Argo CD**, put the `null` in `spec.source.helm.valueFiles` or the `values` string. Argo CD strips nulls from the structured `valuesObject` field ([argo-cd#16312](https://github.com/argoproj/argo-cd/issues/16312), [#19781](https://github.com/argoproj/argo-cd/issues/19781)), so a null written there silently does nothing.
+
+The common case is a free-tier cap inherited from a chart release older than the one that stopped presetting them, which shipped `FREE_TABLES_LIMIT: "3"` and `FREE_TABLE_ROWS_LIMIT: "1000"` under `app.envDefaults`. With billing disabled, Sim reads an unset limit as unlimited, so nulling these lifts the cap. Verify before rolling out:
+
+```bash
+helm template sim ./helm/sim -f values.yaml | grep -A1 FREE_TABLE   # expect no output
+```
 
 ---
 
@@ -384,12 +433,11 @@ pii:
 
 When enabled, the chart deploys it as a standalone `<release>-pii` Deployment + Service and **auto-wires** `PII_URL` on the app to the in-cluster service. The service bundles five large spaCy models (en/es/it/pl/fi, ~2.2GB), so the first start takes ~3 minutes while models load — the `startupProbe` allows for this. Size the `pii.resources` for at least ~4Gi memory.
 
-This alone powers the **Guardrails PII block** and on-demand masking. To additionally turn on **automatic log redaction** (the org/workspace data-retention scrub), you must:
+This powers the **Guardrails PII block**, on-demand masking, and PII policies configured under **Settings → Enterprise → Data Retention**. Automatic redaction also requires the app to reach its own masking endpoint:
 
 ```yaml
 app:
   env:
-    PII_REDACTION: "true"
     # The log-redaction path calls the app's own /api/guardrails/mask-batch,
     # which must be reachable from inside the cluster. Set this to the in-cluster
     # app Service URL (NOT the public ingress, which usually isn't hairpin-reachable).
@@ -466,6 +514,22 @@ kubectl --namespace sim logs deploy/sim-app -c migrations
 ```
 
 ---
+
+## Upgrading to 1.6.4
+
+* `appVersion` — the default image tag for every first-party image (`app`, `realtime`, `migrations`, `pii`, `copilot`) when `image.tag` is unset — moves from `v0.7.44` to `v0.8.18`. It had not been bumped since chart 1.2.0, so an unpinned install deployed an application dozens of releases behind the chart it shipped with, and values keys added by newer charts had no effect because the running image did not read them. **An unpinned release rolls every first-party pod on upgrade.** Installs that pin `image.tag` or `image.digest` are unaffected; pinning explicitly remains the recommendation for production.
+
+## Upgrading to 1.5.0
+
+Two changes alter behavior on an existing release. Neither requires action, but read both.
+
+* **Free-tier plan limits are no longer preset.** `app.envDefaults` previously shipped `RATE_LIMIT_FREE_SYNC`, `RATE_LIMIT_FREE_ASYNC`, `EXECUTION_TIMEOUT_FREE`, `EXECUTION_TIMEOUT_ASYNC_FREE`, `FREE_TABLES_LIMIT: 3`, and `FREE_TABLE_ROWS_LIMIT: 1000`. With billing disabled the application treats these as **opt-in** — unset means unlimited — so presetting them imposed hosted-plan caps on self-hosted deployments and diverged from Docker Compose, which presets nothing. They are now commented out. **On upgrade, these limits stop being enforced.** To keep them, set the keys explicitly under `app.env`. An explicitly set value has always taken precedence and is unaffected.
+
+* **Redis is now bundled** (`redis.enabled: true`), matching the Docker Compose stack. Redis backs pub/sub and the Socket.IO adapter, and multi-replica deployments silently drop cross-pod events without it.
+
+  **An existing `REDIS_URL` always wins, wherever it comes from — no action needed on upgrade.** The bundled URL ships as a ConfigMap listed *before* the app Secret in `envFrom`. Kubernetes resolves duplicate keys by letting the last source win, so a `REDIS_URL` in your chart-managed Secret, a pre-created `existingSecret`, or one synced by External Secrets overrides the bundled value — the chart never has to read it. The bundled Redis simply fills the gap when nothing else provides a URL.
+
+  Set `app.env.REDIS_URL` to skip the bundled Deployment entirely (no unused pod), or `redis.enabled: false` to opt out.
 
 ## Upgrading to 1.2.0
 

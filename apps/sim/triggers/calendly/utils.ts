@@ -11,34 +11,6 @@ export const calendlyTriggerOptions = [
 ]
 
 /**
- * Generate setup instructions for a specific Calendly event type
- */
-export function calendlySetupInstructions(eventType: string, additionalNotes?: string): string {
-  const instructions = [
-    '<strong>Note:</strong> Webhooks require a paid Calendly subscription (Professional, Teams, or Enterprise plan).',
-    '<strong>Important:</strong> Calendly does not provide a UI for creating webhooks. You must create them programmatically using the API. See the <a href="https://developer.calendly.com/api-docs" target="_blank" rel="noopener noreferrer">Calendly Developer documentation</a> for details.',
-    'Get your Calendly <strong>Personal Access Token</strong> from the Calendly dashboard under <strong>Integrations > API & Webhooks</strong>.',
-    'In your workflow, add a Calendly block and select the <strong>"Create Webhook"</strong> operation.',
-    'Enter your Personal Access Token in the Calendly block.',
-    'Copy the <strong>Webhook URL</strong> shown above and paste it into the webhook URL field in the Create Webhook operation.',
-    `Select the event types to monitor. For this trigger, select <strong>${eventType}</strong>.`,
-    'Set the scope to <strong>Organization</strong> or <strong>User</strong> as needed (routing form submissions require organization scope).',
-    'Run the workflow to create the webhook subscription. You can use the "List Webhooks" operation to verify it was created.',
-  ]
-
-  if (additionalNotes) {
-    instructions.push(additionalNotes)
-  }
-
-  return instructions
-    .map(
-      (instruction, index) =>
-        `<div class="mb-3">${index === 0 ? instruction : `<strong>${index}.</strong> ${instruction}`}</div>`
-    )
-    .join('')
-}
-
-/**
  * Shared tracking output schema
  */
 export const trackingOutputs = {
@@ -320,22 +292,4 @@ export function buildRoutingFormOutputs(): Record<string, TriggerOutput> {
       },
     },
   } as any
-}
-
-/**
- * Check if a Calendly event matches the expected trigger configuration
- */
-export function isCalendlyEventMatch(triggerId: string, eventType: string): boolean {
-  const eventMap: Record<string, string> = {
-    calendly_invitee_created: 'invitee.created',
-    calendly_invitee_canceled: 'invitee.canceled',
-    calendly_routing_form_submitted: 'routing_form_submission.created',
-  }
-
-  const expectedEvent = eventMap[triggerId]
-  if (!expectedEvent) {
-    return true // Unknown trigger or general webhook, allow through
-  }
-
-  return expectedEvent === eventType
 }

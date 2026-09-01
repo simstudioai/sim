@@ -1,6 +1,6 @@
 ---
 name: validate-integration
-description: Validate an existing Sim integration (tools, block, registry) against the service's API docs
+description: Validate an existing Sim integration (tools, block, registry, and resolved-secret/model-input boundaries) against the service's API docs and Sim execution conventions
 argument-hint: <service-name> [api-docs-url]
 ---
 
@@ -29,8 +29,18 @@ apps/sim/blocks/registry-maps.ts    # Block + meta registry entry (BLOCK_REGISTR
 apps/sim/components/icons.tsx        # Icon definition
 apps/sim/lib/auth/auth.ts           # OAuth config — should use getCanonicalScopesForProvider()
 apps/sim/lib/oauth/oauth.ts         # OAuth provider config — single source of truth for scopes
-apps/sim/lib/oauth/utils.ts               # Scope utilities, SCOPE_DESCRIPTIONS for modal UI
+apps/sim/lib/oauth/utils.ts         # Scope utilities, SCOPE_DESCRIPTIONS for modal UI
+packages/deployment-config/src/env-capabilities.ts # OAuth client runtime capability source of truth
+apps/sim/lib/core/config/env.ts     # Runtime env schema for capability fields
+packages/sim-setup/src/capability-config.ts # Exhaustive CLI input-mode mapping for OAuth fields
+packages/deployment-config/src/integrations.json # Generated client-safe integration catalog
+packages/deployment-config/src/service-account-providers.generated.ts # Generated provider-ID facts
+packages/deployment-config/src/service-account-metadata.ts # Handwritten deployment policy
 ```
+
+If the block, its triggers, or connector fields use a `selectorKey`, also apply the `validate-selector` skill and read
+the key's entry in `apps/sim/lib/selectors/manifest.ts`, its server attachment and provider listing
+primitive, and the shared context builder. There is no client provider selector registry.
 
 ## Step 2: Pull API Documentation
 
@@ -123,6 +133,57 @@ For **every** tool file, check:
 - [ ] Every tool is imported and registered
 - [ ] Registry keys use snake_case and match tool IDs exactly
 - [ ] Entries are in alphabetical order within the file
+
+### Resolved-Secret Provenance and Model Input
+
+For every request field, determine whether it is ordinary API input, model-visible text/structured
+content, opaque model input, or a value persisted into Sim-owned durable storage.
+
+Treat model-input provenance as opt-in. Require official documentation or an unambiguous local
+execution path proving that the exact field reaches an AI model. If the evidence is ambiguous,
+leave the integration unchanged; do not infer a model boundary merely from natural-language,
+search, extraction, or "AI-powered" marketing terminology.
+
+- [ ] AI-consumed text/structured fields use `request.modelInput` with `mode: 'project'` and a
+      minimal exact selector; nested/JSON-string adapters preserve shape through `applyProjected`
+- [ ] Ordinary external URLs, domains, resource IDs, and control fields retain normal request
+      semantics unless the exact field is proven model-visible; an AI-backed provider or later model
+      processing of the referenced resource is not sufficient evidence
+- [ ] Serialized content proven to be sent directly to an external model is selected by
+      `request.modelInput`, projected before the existing formatter parses it, and has deterministic
+      formatter behavior when a whole-value placeholder is invalid for the serialized grammar
+- [ ] Actual inline/raw AI-consumed bytes owned by an authenticated internal route use
+      `privateProvenance` (or `mode: 'private-provenance'`), and the route validates
+      `validateOpaqueModelInputProvenance` before model egress; storage keys, paths, signed URLs,
+      and ordinary remote URLs are not treated as byte provenance, while tracked stored bytes are
+      authorized independently at the owning model-egress boundary
+- [ ] Persisted workspace-file contents are checked with the shared provenance guard only when
+      their bytes or decoded content cross into a model/tool-result boundary; ordinary file APIs
+      remain unchanged. Unsupported secret-bearing file paths are rejected at `file_write`
+- [ ] Sim-owned durable writes and internal execution handoffs that can enter workflows/models use
+      field-scoped `request.secretProvenance`; authenticated receivers validate the exact selection
+      and scope, strip private metadata, and persist, import, or propagate it at the owning boundary
+- [ ] Private provenance is never attached to external URLs; registered in-process operations
+      preserve it through `operation.modelInput` / `operation.secretProvenance`, while proven
+      model-visible external fields use request projection and other external inputs remain unchanged
+- [ ] No tool performs raw secret plaintext/source substitution or serializes plaintext provenance
+- [ ] No `transformResponse` or tool-local helper blanket-sanitizes ordinary third-party results;
+      only execution-scoped, activated Sim provenance is projected at shared model/log boundaries
+- [ ] Private headers/envelopes are produced and stripped by the shared tool executor, never
+      hand-rolled or returned as functional output
+- [ ] Every added provenance hook has a concrete Sim `{{...}}` resolution path and a later
+      persistence/model/log crossing; there is no generic handling for arbitrary filenames,
+      metadata, provider results, or API payloads
+- [ ] Diagnostic projection is applied only to values carrying execution-scoped provenance;
+      ordinary provider responses, filenames, URLs, and errors are unchanged
+- [ ] Tests cover named `{{NAME}}` projection, unproven identical public text, nested and serialized
+      shape handling, unchanged ordinary external inputs, malformed/incomplete metadata, headerless
+      legacy requests, metadata stripping, and durable legacy/stale/scope cases when applicable
+
+Treat a missing or bypassed model, durable, or internal-execution provenance boundary as
+**critical**. Do not fix it with a tool-specific string replacer or by sanitizing every provider
+result; repair the shared request, authenticated internal-route, persistence, or re-entry boundary
+that owns the data.
 
 ## Step 4: Validate Block
 
@@ -222,6 +283,22 @@ For **each tool** in `tools.access`:
 - [ ] Input types match the subBlock types
 - [ ] When using `canonicalParamId`, inputs list the canonical ID (not the raw subBlock IDs)
 
+### Dynamic Selectors
+
+- [ ] Every remote `selectorKey` is classified in the browser-safe manifest and has exactly one
+      server attachment
+- [ ] The manifest allowlists the minimal active `dependsOn` context and matches list/search/detail,
+      pagination, scope, and stale-time behavior
+- [ ] Canonical basic/advanced and trigger/action modes project only their active values; exact
+      `{{KEY}}` references remain unresolved in the browser
+- [ ] Stored credentials are bound to the actor, workspace, and trusted provider/service
+- [ ] Each attachment declares and enforces a `fixed`, `credential-bound`, or explicitly reviewed
+      `user-controlled` destination policy
+- [ ] Provider results are explicitly projected to safe option fields; secrets, tokens, credential
+      IDs, context values, and raw upstream errors do not enter responses, logs, or query keys
+- [ ] No selector provider module, provider fetch, or OAuth-token request runs in the browser, and no
+      selector-only provider route remains
+
 ## Step 5: Validate OAuth Scopes (if OAuth service)
 
 Scopes are centralized — the single source of truth is `OAUTH_PROVIDERS` in `lib/oauth/oauth.ts`.
@@ -233,7 +310,28 @@ Scopes are centralized — the single source of truth is `OAUTH_PROVIDERS` in `l
 - [ ] Each scope has a human-readable description in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
 - [ ] No excess scopes that aren't needed by any tool
 
-## Step 6: Validate Pagination Consistency
+## Step 6: Validate Deployment Availability (if OAuth service)
+
+The deployment UI and setup CLI do not infer OAuth client fields from scopes. They resolve the
+block's generated `oauthServiceId` through the shared deployment capability catalog.
+
+- [ ] The visible integration block has exactly one distinct `oauth-input.serviceId`
+- [ ] `resolveOAuthClientCapabilityId(serviceId)` returns the intended provider capability
+- [ ] The resolved provider exists in `OAUTH_CLIENT_CAPABILITIES`
+- [ ] Every field listed by that capability exists in `apps/sim/lib/core/config/env.ts`
+- [ ] Every capability field has the correct `text` or `secret` entry in `OAUTH_CLIENT_SETUP_FIELDS`; no CLI naming heuristic is required
+- [ ] Shared Google/Microsoft service IDs resolve to their provider capability rather than duplicate entries
+- [ ] `npx sim-setup add integration <capabilityId>` is the command emitted by availability; the CLI has only the exhaustive input-mode projection, not a second runtime provider definition
+- [ ] If the canonical OAuth service declares `serviceAccountProviderId`,
+      the generated `SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID[serviceId]` has the same provider ID
+- [ ] The service-account `deploymentRequirement` matches how that credential actually works:
+      omitted for an independent path, `'oauth-client'` when it needs the OAuth client fields, or
+      `'preview-gated'` when controlled by a preview block
+
+Treat a missing capability as **critical**: runtime availability intentionally throws instead of
+silently exposing an unusable integration.
+
+## Step 7: Validate Pagination Consistency
 
 If any tools support pagination:
 - [ ] Pagination param names match the API docs (e.g., `pagination_token` vs `next_token` vs `cursor`)
@@ -241,7 +339,7 @@ If any tools support pagination:
 - [ ] Pagination response fields (`nextToken`, `cursor`, etc.) are included in tool outputs
 - [ ] Pagination subBlocks are set to `mode: 'advanced'`
 
-## Step 7: Validate Memory Load Safety
+## Step 8: Validate Memory Load Safety
 
 If any tool lists, searches, exports, imports, downloads, uploads, paginates, batches, transforms arrays, or reads file/HTTP bodies, read `.agents/skills/memory-load-check/SKILL.md` and apply it to the integration.
 
@@ -251,13 +349,13 @@ If any tool lists, searches, exports, imports, downloads, uploads, paginates, ba
 - [ ] Large result payloads are summarized, paginated, referenced, or capped rather than raw-dumped
 - [ ] Pagination and download tests cover caps, early stop behavior, or partial-result preservation when relevant
 
-## Step 8: Validate Error Handling
+## Step 9: Validate Error Handling
 
 - [ ] `transformResponse` checks for error conditions before accessing data
 - [ ] Error responses include meaningful messages (not just generic "failed")
 - [ ] HTTP error status codes are handled (check `response.ok` or status codes)
 
-## Step 9: Report and Fix
+## Step 10: Report and Fix
 
 ### Report Format
 
@@ -270,8 +368,20 @@ Group findings by severity:
 - Missing error handling that would cause crashes
 - Tool ID mismatch between tool file, registry, and block `tools.access`
 - OAuth scopes missing in `auth.ts` that tools need
+- OAuth integration `serviceId` missing from the deployment capability catalog
+- Capability references an env field absent from the runtime env schema
+- Service-account metadata disagrees with the canonical OAuth service configuration
 - `tools.config.tool` returning wrong tool ID for an operation
 - Type coercions in `tools.config.tool` instead of `tools.config.params`
+- Proven model-visible request fields bypass the shared projection or private-provenance boundary
+- Opaque model input is downloaded or sent before provenance and workspace-file checks
+- A Sim-owned durable sink or internal execution handoff drops encrypted provenance or breaks
+  legacy headerless/`NULL` data
+- A tool substitutes secret plaintext into source, leaks private metadata, or generically sanitizes
+  unrelated third-party results
+- A selector resolves shared secret plaintext in the browser, lacks credential provider binding or
+  destination enforcement, or returns provider payloads or protected values across the selector
+  boundary
 
 **Warning** (follows conventions incorrectly or has usability issues):
 - Optional field not set to `mode: 'advanced'`
@@ -295,13 +405,52 @@ Group findings by severity:
 
 After reporting, fix every **critical** and **warning** issue. Apply **suggestions** where they don't add unnecessary complexity.
 
+### Regenerate Derived Artifacts
+
+Several files are generated from tool and block definitions. Editing a tool or block WITHOUT regenerating them fails CI, so run these before pushing:
+
+```bash
+bun run tool-metadata:generate       # repo root — apps/sim/tools/generated/*
+bun run scripts/generate-docs.ts     # docs .mdx + deployment-config/integrations.json + docs icons
+bun run deployment-config:generate  # canonical OAuth registry + catalog → provider-ID facts
+bun run integration-catalog:check    # registry ↔ committed deployment metadata drift
+bun run docs:check                   # committed docs ↔ what the generator renders today
+bun run deployment-config:check     # OAuth registry/catalog ↔ provider-ID fact drift
+```
+
+- **`tool-metadata:generate`** — required whenever a tool's `outputs`, `params`, or descriptions change. CI enforces this with `bun run tool-metadata:check`, which fails with *"Generated tool metadata is stale"*. This is the easiest gate to miss, because nothing in the tool file hints that a generated artifact mirrors it.
+- **`generate-docs`** — required whenever block metadata changes (`bgColor`, `name`, `description`, operations, outputs). Regenerates the integration `.mdx`, `packages/deployment-config/src/integrations.json`, and the docs copy of `components/icons.tsx`.
+- **`deployment-config:generate`** — required for OAuth or service-account changes. Regenerates provider-ID facts from the canonical OAuth registry and integration catalog; special deployment requirements remain handwritten policy.
+- **`integration-catalog:check`** — loads the executable block registry, derives visible integration
+  deployment fields, and compares them with the committed catalog. It catches missing/unexpected
+  entries and stale auth/service IDs without loading the executable registry in client code.
+- **`docs:check`** — check mode of `generate-docs.ts`: renders every generated docs artifact in
+  memory and fails listing any committed file that differs. Runs in CI via `check:audits`.
+
+**Always diff the regen output before committing — but commit all of it.** These generators rewrite
+every file they own, so they also true up drift that accumulated on the base branch (pages whose
+source changed without a regen). That catch-up is correct output, not a regression: `docs:check`
+fails CI on any page left stale, so reverting swept-in hunks with `git checkout --` reintroduces the
+failure. Review the diff to confirm each hunk is explained by a real source change (yours or an
+upstream PR that skipped regeneration), and investigate anything that looks like content loss — a
+page losing a section usually means its source block moved or a generator input broke, not that the
+hunk should be reverted.
+
+If an icon changed, `apps/sim/components/icons.tsx` is the source of truth and `apps/docs/components/icons.tsx` is its generated mirror — they must end up byte-identical for that component.
+
 ### Validation Output
 
 After fixing, confirm:
 1. `bun run lint` passes with no fixes needed
-2. TypeScript compiles clean (no type errors)
-3. Re-read all modified files to verify fixes are correct
-4. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
+2. TypeScript compiles clean (no type errors) — check the error list is empty for the files you touched; pre-existing unrelated errors in a worktree usually mean workspace packages resolve to the main checkout
+3. The integration's tests pass, and any test you added actually fails without its fix (revert it once and watch it go red)
+4. Derived artifacts regenerated and their diffs reviewed (see above)
+5. `bun run integration-catalog:check` passes
+6. `bun run docs:check` passes
+7. For OAuth or service-account changes, `bun run deployment-config:check` passes
+8. For OAuth or service-account changes, `bun run --cwd apps/sim test lib/integrations/availability.server.test.ts` passes
+9. Re-read all modified files to verify fixes are correct
+10. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary
 
@@ -315,12 +464,24 @@ After fixing, confirm:
 - [ ] Validated block outputs match what tools return, with typed JSON where possible
 - [ ] Validated OAuth scopes use centralized utilities (getScopesForService, getCanonicalScopesForProvider) — no hardcoded arrays
 - [ ] Validated scope descriptions exist in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts` for all scopes
+- [ ] Validated OAuth `serviceId` resolves to the intended `OAUTH_CLIENT_CAPABILITIES` entry and all capability fields exist in the env schema
+- [ ] Validated service-account projection and deployment requirement against the canonical OAuth service config
+- [ ] Regenerated deployment config when block/OAuth metadata changed and ran both catalog checks
 - [ ] Validated pagination consistency across tools and block
 - [ ] Validated memory load safety using `.agents/skills/memory-load-check/SKILL.md` when tools list/search/download/import/export/batch data
 - [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)
+- [ ] Validated model-visible/opaque inputs and Sim-durable/internal-execution provenance at their
+      owning boundaries
+- [ ] Confirmed legacy persisted data keeps working and tracked invalid provenance fails closed
+- [ ] Confirmed ordinary third-party results remain unchanged absent activated Sim provenance
 - [ ] Validated `{Service}BlockMeta` exported with at least 7 templates
+- [ ] Validated every dynamic selector through the shared manifest, server attachment, and
+      `selectors.execute` boundary
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
+- [ ] Ran `bun run tool-metadata:generate` if any tool outputs/params changed, and confirmed `bun run tool-metadata:check` passes
+- [ ] Ran `bun run generate-docs` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run docs:check` fails CI on reverted generator output)
 - [ ] Ran `bun run lint` after fixes
 - [ ] Verified TypeScript compiles clean
+- [ ] Verified added tests fail without their fix

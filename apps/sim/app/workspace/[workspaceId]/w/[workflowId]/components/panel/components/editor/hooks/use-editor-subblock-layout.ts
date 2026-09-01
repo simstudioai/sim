@@ -1,12 +1,12 @@
 import { useCallback, useMemo } from 'react'
 import {
-  buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
   isSubBlockVisibleForTriggerMode,
-  shouldUseSubBlockForTriggerModeCanonicalIndex,
+  isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -47,7 +47,8 @@ export function useEditorSubblockLayout(
     config?.subBlocks || [],
     blockId,
     activeWorkflowId,
-    blockDataFromStore?.canonicalModes
+    blockDataFromStore?.canonicalModes,
+    displayTriggerMode
   )
 
   return useMemo(() => {
@@ -101,10 +102,7 @@ export function useEditorSubblockLayout(
       {}
     )
 
-    const subBlocksForCanonical = displayTriggerMode
-      ? (config.subBlocks || []).filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
-      : config.subBlocks || []
-    const canonicalIndex = buildCanonicalIndex(subBlocksForCanonical)
+    const canonicalIndex = buildCanonicalIndexForSurface(config.subBlocks || [], displayTriggerMode)
     const effectiveAdvanced = displayAdvancedMode
     const canonicalModeOverrides = blockData?.canonicalModes
 
@@ -116,6 +114,9 @@ export function useEditorSubblockLayout(
 
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
       if (block.hidden) return false
+
+      // Configures the block as an agent tool; it has no meaning on the canvas.
+      if (isToolInputOnlySubBlock(block)) return false
 
       // Filter by reactive condition (evaluated via hooks before useMemo)
       if (hiddenByReactiveCondition.has(block.id)) return false

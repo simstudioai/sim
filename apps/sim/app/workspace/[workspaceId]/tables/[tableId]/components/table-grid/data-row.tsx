@@ -6,12 +6,15 @@ import { PlayOutline, Square } from '@sim/emcn/icons'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
+import type { TimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../types'
 import { CellContent } from './cells'
 import {
   CELL,
   CELL_CHECKBOX,
   CELL_CONTENT,
+  CELL_OVERLAY_INSET,
+  FIND_MATCH_TINT_BG,
   SELECTION_OVERLAY,
   SELECTION_TINT_BG,
 } from './constants'
@@ -24,6 +27,10 @@ export interface DataRowProps {
   /** Current workspace id — forwarded to cells so in-workspace resource URLs
    *  render as tagged-resource chips. */
   workspaceId: string
+  /** Effective viewer timezone used to render TTL instants. */
+  timeZone: string
+  /** Whether Date and Expiration values can be formatted and edited safely. */
+  timezoneStatus: TimezoneState['status']
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -67,6 +74,13 @@ export interface DataRowProps {
   pinnedOffsets?: Map<string, number>
   /** Key of the rightmost pinned column, used to render a separator shadow. */
   lastPinnedColKey?: string | null
+  /**
+   * Column keys in this row matching the active find query, tinted so every hit
+   * is visible at once rather than only the one being navigated to. Absent when
+   * the row has no match, which is the common case and keeps this row's memo
+   * from re-running for a search elsewhere in the table.
+   */
+  findMatchColumns?: ReadonlySet<string>
 }
 
 function cellRangeRowChanged(
@@ -105,6 +119,8 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.row !== next.row ||
     prev.columns !== next.columns ||
     prev.workspaceId !== next.workspaceId ||
+    prev.timeZone !== next.timeZone ||
+    prev.timezoneStatus !== next.timezoneStatus ||
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
@@ -128,7 +144,8 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.workflowGroups !== next.workflowGroups ||
     prev.activeDispatches !== next.activeDispatches ||
     prev.pinnedOffsets !== next.pinnedOffsets ||
-    prev.lastPinnedColKey !== next.lastPinnedColKey
+    prev.lastPinnedColKey !== next.lastPinnedColKey ||
+    prev.findMatchColumns !== next.findMatchColumns
   ) {
     return false
   }
@@ -151,6 +168,8 @@ export const DataRow = React.memo(function DataRow({
   row,
   columns,
   workspaceId,
+  timeZone,
+  timezoneStatus,
   rowIndex,
   isFirstRow,
   editingColumnName,
@@ -177,6 +196,7 @@ export const DataRow = React.memo(function DataRow({
   activeDispatches,
   pinnedOffsets,
   lastPinnedColKey,
+  findMatchColumns,
 }: DataRowProps) {
   const sel = normalizedSelection
   /**
@@ -299,6 +319,7 @@ export const DataRow = React.memo(function DataRow({
         const isAnchor = sel !== null && rowIndex === sel.anchorRow && colIndex === sel.anchorCol
         const isEditing = editingColumnName === column.key
         const isHighlighted = inRange || isRowChecked
+        const isFindMatch = findMatchColumns?.has(column.key)
 
         const isTopEdge = inRange ? rowIndex === sel!.startRow : isRowChecked
         const isBottomEdge = inRange ? rowIndex === sel!.endRow : isRowChecked
@@ -306,6 +327,11 @@ export const DataRow = React.memo(function DataRow({
         const isRightEdge = inRange ? colIndex === sel!.endCol : colIndex === columns.length - 1
 
         const pinnedLeft = pinnedOffsets?.get(column.key)
+        /**
+         * Whether this cell is frozen in the sticky left zone. Drives the sticky offset and,
+         * via the `data-pinned` attribute below, tells overlays measured off these cells
+         * (see `remote-selection-overlay.tsx`) a frozen cell from one scrolled behind the zone.
+         */
         const isPinnedCell = pinnedLeft !== undefined
         const isPinnedSeparator = column.key === lastPinnedColKey
 
@@ -315,9 +341,10 @@ export const DataRow = React.memo(function DataRow({
             data-row={rowIndex}
             data-row-id={row.id}
             data-col={colIndex}
+            data-pinned={isPinnedCell ? '' : undefined}
             className={cn(
               CELL,
-              (isHighlighted || isAnchor || isEditing) && 'relative',
+              (isHighlighted || isAnchor || isEditing || isFindMatch) && 'relative',
               isPinnedCell && 'z-[6] bg-[var(--bg)]',
               isPinnedSeparator && '[box-shadow:2px_0_0_0_var(--border)]'
             )}
@@ -336,10 +363,26 @@ export const DataRow = React.memo(function DataRow({
             }
             onDoubleClick={() => onDoubleClick(row.id, column.key, column.key)}
           >
+            {/* No z-index on purpose: with `auto` it paints in DOM order, so it
+                sits above the cell background but BELOW the cell text, the
+                selection tint (z-4) and the anchor outline (z-5). The active
+                match therefore still reads as the selected cell, and the wash
+                never dims the value it is pointing at. */}
+            {isFindMatch && (
+              <div
+                className={cn(
+                  CELL_OVERLAY_INSET,
+                  colIndex === 0 ? 'left-0' : '-left-px',
+                  isFirstRow && 'top-0',
+                  FIND_MATCH_TINT_BG
+                )}
+              />
+            )}
             {isHighlighted && (isMultiCell || isRowChecked) && (
               <div
                 className={cn(
-                  '-top-px -right-px -bottom-px pointer-events-none absolute z-[4]',
+                  CELL_OVERLAY_INSET,
+                  'z-[4]',
                   colIndex === 0 ? 'left-0' : '-left-px',
                   SELECTION_TINT_BG,
                   isFirstRow && isTopEdge && 'top-0',
@@ -362,6 +405,8 @@ export const DataRow = React.memo(function DataRow({
             <div className={CELL_CONTENT}>
               <CellContent
                 workspaceId={workspaceId}
+                timeZone={timeZone}
+                timezoneStatus={timezoneStatus}
                 value={
                   pendingCellValue && column.key in pendingCellValue
                     ? pendingCellValue[column.key]

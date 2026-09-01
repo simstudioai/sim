@@ -18,11 +18,11 @@ import {
   type ComboboxOption,
   cn,
   handleKeyboardActivation,
+  OverflowText,
   Search,
 } from '@sim/emcn'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -37,6 +37,7 @@ import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/component
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { getBlock } from '@/blocks'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
@@ -79,10 +80,13 @@ export function AddConnectorModal({
   const { ownerBilling } = useWorkspaceHostContext()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
-  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling, isBillingEnabled)
+  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
+  /** True when the connector declares its key optional (public sources need none). */
+  const isApiKeyOptional =
+    connectorConfig?.auth.mode === 'apiKey' && connectorConfig.auth.optional === true
   const connectorProviderId = useMemo(
     () =>
       connectorConfig && connectorConfig.auth.mode === 'oauth'
@@ -161,7 +165,7 @@ export function AddConnectorModal({
   const canSubmit = useMemo(() => {
     if (!connectorConfig) return false
     if (isApiKeyMode) {
-      if (!apiKeyValue.trim()) return false
+      if (!isApiKeyOptional && !apiKeyValue.trim()) return false
     } else {
       if (!effectiveCredentialId) return false
     }
@@ -175,6 +179,7 @@ export function AddConnectorModal({
   }, [
     connectorConfig,
     isApiKeyMode,
+    isApiKeyOptional,
     apiKeyValue,
     effectiveCredentialId,
     isFieldVisible,
@@ -208,7 +213,11 @@ export function AddConnectorModal({
       {
         knowledgeBaseId,
         connectorType: selectedType,
-        ...(isApiKeyMode ? { apiKey: apiKeyValue } : { credentialId: effectiveCredentialId! }),
+        ...(isApiKeyMode
+          ? apiKeyValue.trim()
+            ? { apiKey: apiKeyValue }
+            : {}
+          : { credentialId: effectiveCredentialId! }),
         sourceConfig: finalSourceConfig,
         syncIntervalMinutes: syncInterval,
       },
@@ -236,9 +245,10 @@ export function AddConnectorModal({
     <>
       <ChipModal
         open={open}
-        onOpenChange={(val) => !isCreating && onOpenChange(val)}
+        onOpenChange={onOpenChange}
         srTitle={step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
         size='md'
+        dismissDisabled={isCreating}
       >
         <ChipModalHeader onClose={() => onOpenChange(false)}>
           {step === 'configure' ? (
@@ -324,7 +334,7 @@ export function AddConnectorModal({
                         (cred): ComboboxOption => ({
                           label: cred.name || cred.provider,
                           value: cred.id,
-                          icon: connectorConfig.icon,
+                          icon: withBrandIcon(connectorConfig.icon),
                         })
                       ),
                       {
@@ -429,7 +439,6 @@ export function AddConnectorModal({
         {step === 'configure' && (
           <ChipModalFooter
             onCancel={() => onOpenChange(false)}
-            cancelDisabled={isCreating}
             primaryAction={{
               label: isCreating ? 'Connecting…' : 'Connect & Sync',
               onClick: handleSubmit,
@@ -500,8 +509,11 @@ function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
         </div>
       </div>
       <div className='flex min-w-0 flex-1 flex-col'>
-        <span className='truncate text-[var(--text-body)] text-sm'>{config.name}</span>
-        <span className='truncate text-[var(--text-muted)] text-caption'>{config.description}</span>
+        <OverflowText label={config.name} className='text-[var(--text-body)] text-sm' />
+        <OverflowText
+          label={config.description}
+          className='text-[var(--text-muted)] text-caption'
+        />
       </div>
       <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
     </button>

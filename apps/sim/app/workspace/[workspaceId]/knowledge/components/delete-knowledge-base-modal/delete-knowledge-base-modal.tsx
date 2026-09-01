@@ -43,6 +43,7 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
       onOpenChange={onClose}
       srTitle='Delete Knowledge Base'
       title='Delete Knowledge Base'
+      defaultAction='dismiss'
       text={
         knowledgeBaseName
           ? [

@@ -98,13 +98,25 @@ export function generateVerificationToken(): string {
 }
 
 /**
- * Resolves the challenge host's TXT records against public nameservers and
- * returns true when the expected `sim-domain-verification=<token>` value is
- * present. Never throws — resolution failures (NXDOMAIN, timeout, missing
- * record) resolve to `false` so a not-yet-propagated record simply reads as
- * unverified.
+ * Outcome of a TXT challenge lookup.
+ *
+ * `absent` and `unavailable` are kept apart because they place the fault on
+ * opposite sides: the first means the admin's record is not published yet, the
+ * second means our own resolver path failed and we learned nothing about their
+ * DNS. Collapsing both to "not found" tells an admin to fix a record that may
+ * already be correct.
  */
-export async function checkDomainTxtRecord(domain: string, token: string): Promise<boolean> {
+export type DomainTxtLookup = 'present' | 'absent' | 'unavailable'
+
+/**
+ * Resolves the challenge host's TXT records against public nameservers. Never
+ * throws: a missing record resolves to `absent`, and an infrastructure failure
+ * (blocked egress, timeout, SERVFAIL) to `unavailable`.
+ */
+export async function checkDomainTxtRecord(
+  domain: string,
+  token: string
+): Promise<DomainTxtLookup> {
   const host = buildChallengeHost(domain)
   const expected = buildTxtRecordValue(token)
 
@@ -115,24 +127,20 @@ export async function checkDomainTxtRecord(domain: string, token: string): Promi
     // would otherwise fail an exact match forever with no way for the admin to
     // tell why. Concatenation happens first, so trimming cannot corrupt a
     // legitimate chunk boundary.
-    return records.some((chunks) => chunks.join('').trim() === expected)
+    return records.some((chunks) => chunks.join('').trim() === expected) ? 'present' : 'absent'
   } catch (error) {
     const code = (error as NodeJS.ErrnoException)?.code
     if (code && RECORD_ABSENT_DNS_CODES.has(code)) {
       logger.debug('TXT verification record not published yet', { host, code })
-    } else {
-      // Not a missing record — our resolver path itself is failing (blocked
-      // egress, timeout, SERVFAIL). Log at ERROR, not warn: the default minimum
-      // level in production is ERROR, so anything below it is dropped and the
-      // fault stays invisible while the admin is told their record "isn't
-      // published yet". This is a genuine infrastructure fault, so ERROR is also
-      // the honest severity.
-      logger.error('TXT verification lookup failed for an infrastructure reason', {
-        host,
-        code,
-        error: getErrorMessage(error),
-      })
+      return 'absent'
     }
-    return false
+    // Our resolver path itself is failing. Log at ERROR: production's minimum
+    // level drops anything lower, so a warn would keep the fault invisible.
+    logger.error('TXT verification lookup failed for an infrastructure reason', {
+      host,
+      code,
+      error: getErrorMessage(error),
+    })
+    return 'unavailable'
   }
 }

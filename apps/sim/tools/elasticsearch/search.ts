@@ -2,53 +2,8 @@ import type {
   ElasticsearchSearchParams,
   ElasticsearchSearchResponse,
 } from '@/tools/elasticsearch/types'
+import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
-
-// Helper to build base URL from connection params
-function buildBaseUrl(params: ElasticsearchSearchParams): string {
-  if (params.deploymentType === 'cloud' && params.cloudId) {
-    // Parse Cloud ID: format is "name:base64data"
-    // The base64 data contains: es_host$kibana_host ($ separated)
-    const parts = params.cloudId.split(':')
-    if (parts.length >= 2) {
-      try {
-        const decoded = Buffer.from(parts[1], 'base64').toString('utf-8')
-        const [esHost] = decoded.split('$')
-        if (esHost) {
-          // Cloud endpoints are always HTTPS with port 443
-          return `https://${parts[0]}.${esHost}`
-        }
-      } catch {
-        // If decoding fails, try using cloudId directly as host
-      }
-    }
-    throw new Error('Invalid Cloud ID format')
-  }
-
-  if (!params.host) {
-    throw new Error('Host is required for self-hosted deployments')
-  }
-
-  return params.host.replace(/\/$/, '') // Remove trailing slash
-}
-
-// Helper to build auth headers
-function buildAuthHeaders(params: ElasticsearchSearchParams): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-
-  if (params.authMethod === 'api_key' && params.apiKey) {
-    headers.Authorization = `ApiKey ${params.apiKey}`
-  } else if (params.authMethod === 'basic_auth' && params.username && params.password) {
-    const credentials = Buffer.from(`${params.username}:${params.password}`).toString('base64')
-    headers.Authorization = `Basic ${credentials}`
-  } else {
-    throw new Error('Invalid authentication configuration')
-  }
-
-  return headers
-}
 
 export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSearchResponse> = {
   id: 'elasticsearch_search',
@@ -154,6 +109,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
     body: (params) => {
       const body: Record<string, unknown> = {}
 
@@ -161,8 +117,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
         try {
           body.query = JSON.parse(params.query)
         } catch {
-          // If not valid JSON, treat as simple match query
-          body.query = { match_all: {} }
+          throw new Error('Invalid JSON provided for query')
         }
       }
 
@@ -173,7 +128,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
         try {
           body.sort = JSON.parse(params.sort)
         } catch {
-          // Ignore invalid sort
+          throw new Error('Invalid JSON provided for sort')
         }
       }
 

@@ -44,6 +44,7 @@ import {
   requireAccountBillingDecisionHeader,
   requireBillingAttributionHeader,
   requireBillingRequestIdHeader,
+  requireWorkspaceBillingAttributionHeader,
   resolveBillingAttribution,
   resolveLegacyV0BillingAttribution,
   resolveSystemBillingAttribution,
@@ -110,6 +111,7 @@ describe('resolveBillingAttribution', () => {
       billingEntity: { id: 'org-b', type: 'organization' },
       billingPeriod: {
         end: '2026-08-01T00:00:00.000Z',
+        source: 'stripe',
         start: '2026-07-01T00:00:00.000Z',
       },
       organizationId: 'org-b',
@@ -258,7 +260,7 @@ describe('resolveBillingAttribution', () => {
     expect(JSON.stringify(attribution)).not.toContain('stripe-subscription')
   })
 
-  it('carries only the normalized Enterprise concurrency metadata needed by admission', async () => {
+  it('carries only normalized Enterprise execution metadata needed by admission', async () => {
     dbChainMockFns.limit.mockResolvedValue([
       {
         billedAccountUserId: 'owner-b',
@@ -268,7 +270,11 @@ describe('resolveBillingAttribution', () => {
     mockGetOrganizationSubscription.mockResolvedValue({
       ...ORG_SUBSCRIPTION,
       plan: 'enterprise',
-      metadata: { concurrencyLimit: '1250', secret: 'must-not-cross-boundary' },
+      metadata: {
+        concurrencyLimit: '1250',
+        workflowExecutionTimeoutSeconds: '86400',
+        secret: 'must-not-cross-boundary',
+      },
     })
 
     const attribution = await resolveBillingAttribution({
@@ -279,6 +285,7 @@ describe('resolveBillingAttribution', () => {
     expect(attribution.payerSubscription).toMatchObject({
       plan: 'enterprise',
       enterpriseConcurrencyLimit: 1250,
+      enterpriseWorkflowExecutionTimeoutSeconds: 86_400,
     })
     expect(JSON.stringify(attribution)).not.toContain('must-not-cross-boundary')
   })
@@ -366,6 +373,7 @@ describe('resolveBillingAttribution', () => {
       billingEntity: { type: 'organization', id: 'org-b' },
       billingPeriod: {
         end: new Date('2026-08-01T00:00:00.000Z'),
+        source: 'stripe',
         start: new Date('2026-07-01T00:00:00.000Z'),
       },
     })
@@ -380,6 +388,7 @@ describe('serialized attribution boundaries', () => {
     billingPeriod: {
       start: '2026-07-01T00:00:00.000Z',
       end: '2026-08-01T00:00:00.000Z',
+      source: 'stripe',
     },
     organizationId: 'org-b',
     payerSubscription: {
@@ -416,6 +425,19 @@ describe('serialized attribution boundaries', () => {
         workspaceId: 'workspace-b',
       })
     ).toThrow('Billing attribution header is required')
+  })
+
+  it('restores an executor snapshot by canonical workspace without making its actor authority', () => {
+    const headers = new Headers({
+      'x-sim-billing-attribution': serializeBillingAttributionHeader(attribution),
+    })
+
+    expect(
+      requireWorkspaceBillingAttributionHeader(headers, { workspaceId: 'workspace-b' })
+    ).toEqual(attribution)
+    expect(() =>
+      requireWorkspaceBillingAttributionHeader(headers, { workspaceId: 'workspace-other' })
+    ).toThrow('does not match the authenticated request scope')
   })
 
   it('rejects inconsistent or cross-scope serialized snapshots', () => {
@@ -459,6 +481,7 @@ describe('serialized attribution boundaries', () => {
         billingPeriod: {
           start: '2026-06-30T20:00:00.000-04:00',
           end: '2026-07-31T20:00:00.000-04:00',
+          source: 'stripe',
         },
       })
     ).toBe(true)
@@ -669,6 +692,19 @@ describe('checkAttributedUsageLimits', () => {
       start: new Date('2026-07-01T00:00:00.000Z'),
     })
   })
+
+  it('preserves a custom reporting-period source for the per-member cap', async () => {
+    await checkAttributedUsageLimits({
+      ...attribution,
+      billingPeriod: { ...attribution.billingPeriod, source: 'reporting' },
+    })
+
+    expect(mockCheckOrganizationMemberUsageLimit).toHaveBeenCalledWith('external-a', 'org-b', {
+      end: new Date('2026-08-01T00:00:00.000Z'),
+      source: 'reporting',
+      start: new Date('2026-07-01T00:00:00.000Z'),
+    })
+  })
 })
 
 describe('modern billing envelopes', () => {
@@ -706,6 +742,7 @@ describe('modern billing envelopes', () => {
       billingPeriod: {
         start: '2026-07-01T00:00:00.000Z',
         end: '2026-08-01T00:00:00.000Z',
+        source: 'reporting' as const,
       },
     }
     const serialized = serializeAccountBillingDecisionHeader(decision)

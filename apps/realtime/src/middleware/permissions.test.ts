@@ -7,6 +7,7 @@
  * - Edge cases and invalid inputs
  */
 
+import { ALL_SOCKET_OPERATIONS, BLOCK_OPERATIONS } from '@sim/realtime-protocol/constants'
 import {
   expectPermissionAllowed,
   expectPermissionDenied,
@@ -116,9 +117,10 @@ describe('checkRolePermission', () => {
   })
 
   describe('read role', () => {
-    it('should only allow update-position for read role', () => {
+    it('should deny update-position for read role (it persists block coordinates)', () => {
       const result = checkRolePermission('read', 'update-position')
-      expectPermissionAllowed(result)
+      expectPermissionDenied(result, 'read')
+      expectPermissionDenied(result, 'update-position')
     })
 
     it('should deny batch-add-blocks operation for read role', () => {
@@ -137,9 +139,10 @@ describe('checkRolePermission', () => {
       expectPermissionDenied(result, 'read')
     })
 
-    it('should allow batch-update-positions operation for read role', () => {
+    it('should deny batch-update-positions for read role (it persists block coordinates)', () => {
       const result = checkRolePermission('read', 'batch-update-positions')
-      expectPermissionAllowed(result)
+      expectPermissionDenied(result, 'read')
+      expectPermissionDenied(result, 'batch-update-positions')
     })
 
     it('should deny replace-state operation for read role', () => {
@@ -157,11 +160,11 @@ describe('checkRolePermission', () => {
       expectPermissionDenied(result, 'read')
     })
 
-    it('should deny all write operations for read role', () => {
-      const readAllowedOps = ['update-position', 'batch-update-positions']
-      const writeOperations = SOCKET_OPERATIONS.filter((op) => !readAllowedOps.includes(op))
-
-      for (const operation of writeOperations) {
+    it('grants the read role NO operation at all', () => {
+      // Every operation reaching this gate is persisted, so a read-only member must
+      // hold none of them — including the position updates that used to be granted
+      // here on the mistaken premise that they were ephemeral cursor sync.
+      for (const operation of ALL_SOCKET_OPERATIONS) {
         const result = checkRolePermission('read', operation)
         expect(result.allowed).toBe(false)
         expect(result.reason).toContain('read')
@@ -209,28 +212,53 @@ describe('checkRolePermission', () => {
   })
 
   describe('permission hierarchy verification', () => {
-    it('should verify admin has same permissions as write', () => {
-      const adminOps = ROLE_ALLOWED_OPERATIONS.admin
-      const writeOps = ROLE_ALLOWED_OPERATIONS.write
+    // These assert the PRODUCTION ACL over the protocol's complete operation list.
+    // They used to compare the shared test fixture against itself, which certified
+    // whatever the fixture said — including, for a while, the read-role grants that
+    // let a read-only member persist block positions.
 
-      // Admin and write should have same operations
-      expect(adminOps).toEqual(writeOps)
-    })
-
-    it('should verify read is a subset of write permissions', () => {
-      const readOps = ROLE_ALLOWED_OPERATIONS.read
-      const writeOps = ROLE_ALLOWED_OPERATIONS.write
-
-      for (const op of readOps) {
-        expect(writeOps).toContain(op)
+    it('grants admin everything write has, plus the admin-only operations', () => {
+      for (const operation of ALL_SOCKET_OPERATIONS) {
+        if (checkRolePermission('write', operation).allowed) {
+          expect(checkRolePermission('admin', operation).allowed).toBe(true)
+        }
       }
+      // Strictly greater: at least one operation admin holds and write does not.
+      const adminOnly = ALL_SOCKET_OPERATIONS.filter(
+        (operation) =>
+          checkRolePermission('admin', operation).allowed &&
+          !checkRolePermission('write', operation).allowed
+      )
+      expect(adminOnly.length).toBeGreaterThan(0)
     })
 
-    it('should verify read has minimal permissions', () => {
-      const readOps = ROLE_ALLOWED_OPERATIONS.read
-      expect(readOps).toHaveLength(2)
-      expect(readOps).toContain('update-position')
-      expect(readOps).toContain('batch-update-positions')
+    it('grants write every per-block operation the protocol declares', () => {
+      // A block operation that reaches this gate is an ordinary editor edit, so the
+      // write role must hold all of them. Without this, adding a block setting to
+      // the protocol and forgetting the ACL entry fails silently at runtime: the
+      // editor applies the change optimistically and the server drops the write.
+      const denied = Object.values(BLOCK_OPERATIONS).filter(
+        (operation) => !checkRolePermission('write', operation).allowed
+      )
+      expect(denied).toEqual([])
+    })
+
+    it('grants read nothing, so it is trivially a subset of write', () => {
+      const readAllowed = ALL_SOCKET_OPERATIONS.filter(
+        (operation) => checkRolePermission('read', operation).allowed
+      )
+      expect(readAllowed).toEqual([])
+    })
+
+    it('keeps the shared fixture in step with the production ACL', () => {
+      // The fixture is a convenience mirror; drift between it and the real table is
+      // what made the stale read grants look intentional.
+      for (const operation of ALL_SOCKET_OPERATIONS) {
+        const fixtureAllows = ROLE_ALLOWED_OPERATIONS.read.includes(
+          operation as (typeof ROLE_ALLOWED_OPERATIONS.read)[number]
+        )
+        expect(fixtureAllows).toBe(checkRolePermission('read', operation).allowed)
+      }
     })
   })
 
@@ -244,7 +272,7 @@ describe('checkRolePermission', () => {
         readAllowed: false,
       },
       { operation: 'update', adminAllowed: true, writeAllowed: true, readAllowed: false },
-      { operation: 'update-position', adminAllowed: true, writeAllowed: true, readAllowed: true },
+      { operation: 'update-position', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'update-name', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'toggle-enabled', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'update-parent', adminAllowed: true, writeAllowed: true, readAllowed: false },
@@ -265,7 +293,7 @@ describe('checkRolePermission', () => {
         operation: 'batch-update-positions',
         adminAllowed: true,
         writeAllowed: true,
-        readAllowed: true,
+        readAllowed: false,
       },
       { operation: 'replace-state', adminAllowed: true, writeAllowed: true, readAllowed: false },
     ]
@@ -337,21 +365,32 @@ describe('checkWorkflowOperationPermission', () => {
     expect(result.reason).toMatch(/revoked/i)
   })
 
-  it('denies writes after a downgrade to read but still allows position updates', async () => {
+  it('denies every persisted operation after a downgrade to read, positions included', async () => {
     mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'read' })
 
     const denied = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'write')
     expect(denied.allowed).toBe(false)
     expect(denied.role).toBe('read')
 
-    const allowed = await checkWorkflowOperationPermission(
+    // A committed position update writes workflow_blocks, so a downgraded member
+    // loses it too — this used to be allowed and was the escalation path.
+    const position = await checkWorkflowOperationPermission(
       userId,
       workflowId,
       'update-position',
       'write'
     )
-    expect(allowed.allowed).toBe(true)
-    expect(allowed.role).toBe('read')
+    expect(position.allowed).toBe(false)
+    expect(position.role).toBe('read')
+
+    const batch = await checkWorkflowOperationPermission(
+      userId,
+      workflowId,
+      'batch-update-positions',
+      'write'
+    )
+    expect(batch.allowed).toBe(false)
+    expect(batch.role).toBe('read')
   })
 
   it('caches the role within the TTL to avoid a DB read on every operation', async () => {
@@ -517,6 +556,43 @@ describe('verifyWorkflowAccess role-cache refresh', () => {
     // cached null recorded before the re-grant.
     mockAuthorize.mockRejectedValue(new Error('must not re-query'))
     expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBe('write')
+  })
+
+  it('does not let a stale join-time allow bury a sweep denial that started later', async () => {
+    const userId = 'vw-user-3'
+    const workflowId = 'vw-wf-3'
+
+    // Hand out a controllable promise per authorization call, so the two reads can be
+    // started in one order and settled in the other.
+    const settle: Array<(value: { allowed: boolean; workspacePermission: string | null }) => void> =
+      []
+    mockAuthorize.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settle.push(resolve)
+        })
+    )
+
+    // A join-style verify starts FIRST (against pre-revocation state) and stalls.
+    const staleJoin = verifyWorkflowAccess(userId, workflowId)
+    for (let i = 0; i < 10 && settle.length < 1; i++) await Promise.resolve()
+    expect(settle).toHaveLength(1)
+
+    // The sweep's authorization starts AFTER it, and stalls too.
+    const sweep = resolveCurrentWorkflowRole(userId, workflowId, 'read')
+    for (let i = 0; i < 10 && settle.length < 2; i++) await Promise.resolve()
+    expect(settle).toHaveLength(2)
+
+    // The sweep's denial lands first, then the older join's allow. Ordering by WRITE
+    // time would let the join bury the denial and hand the socket another full TTL of
+    // access; ordering by read start keeps the denial in force.
+    settle[1]({ allowed: false, workspacePermission: null })
+    expect(await sweep).toBeNull()
+    settle[0]({ allowed: true, workspacePermission: 'write' })
+    await staleJoin
+
+    mockAuthorize.mockRejectedValue(new Error('must not re-query'))
+    expect(await resolveCurrentWorkflowRole(userId, workflowId, 'read')).toBeNull()
   })
 
   it('does not let a stale in-flight resolution overwrite a fresher verify decision', async () => {

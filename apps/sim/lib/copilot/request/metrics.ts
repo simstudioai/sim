@@ -5,12 +5,13 @@
 // contracts/metrics_v1.go) so the Go∪Sim union is queryable as one series set
 // — e.g. `copilot.tool.duration` split by `tool.executor` (go|client|sim).
 //
-// Bounded cardinality only: tool.name is capped to the shared tool catalog
-// (else "other"); vfs phase / file-read outcome are bounded sets. NEVER a
-// user/chat/request id (those explode Prometheus series).
+// Bounded cardinality only: tool.name and gen_ai.agent.name are capped to the
+// shared catalogs (else "other"); vfs phase / file-read outcome are bounded
+// sets. NEVER a user/chat/request id (those explode Prometheus series).
 import { type Counter, type Histogram, metrics } from '@opentelemetry/api'
 import { Metric } from '@/lib/copilot/generated/metrics-v1'
 import { TOOL_CATALOG } from '@/lib/copilot/generated/tool-catalog-v1'
+import type { CopilotDegradedReasonValue } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 
 // MUST match Go's copilot/internal/telemetry/metrics.go LatencyBucketsMs
@@ -26,6 +27,7 @@ const BYTE_BUCKETS = [1024, 8192, 65536, 262144, 1048576, 4194304, 16777216, 671
 interface CopilotMeterInstruments {
   toolDuration: Histogram
   toolCalls: Counter
+  degradedCount: Counter
   vfsMaterializeDuration: Histogram
   fileReadDuration: Histogram
   fileReadBytes: Histogram
@@ -45,6 +47,7 @@ function instruments(): CopilotMeterInstruments {
       advice: { explicitBucketBoundaries: LATENCY_BUCKETS_MS },
     }),
     toolCalls: meter.createCounter(Metric.CopilotToolCalls),
+    degradedCount: meter.createCounter(Metric.CopilotDegradedCount),
     vfsMaterializeDuration: meter.createHistogram(Metric.CopilotVfsMaterializeDuration, {
       unit: 'ms',
       advice: { explicitBucketBoundaries: LATENCY_BUCKETS_MS },
@@ -68,18 +71,45 @@ function cappedToolName(name: string): string {
   return TOOL_CATALOG[name] ? name : 'other'
 }
 
+const REGISTERED_AGENT_IDS = new Set([
+  'main',
+  ...Object.values(TOOL_CATALOG).flatMap(({ subagentId }) => (subagentId ? [subagentId] : [])),
+])
+
+export function normalizeToolAgentId(agentId: string): string {
+  return REGISTERED_AGENT_IDS.has(agentId) ? agentId : 'other'
+}
+
 // recordSimToolMetric emits copilot.tool.calls (+1) and copilot.tool.duration
 // for one server-side Sim tool dispatch (executor=sim). outcome is the bounded
 // tool outcome (success/error/…). Pure telemetry.
-export function recordSimToolMetric(name: string, outcome: string, durationMs: number): void {
+export function recordSimToolMetric(
+  name: string,
+  agentId: string,
+  outcome: string,
+  durationMs: number
+): void {
   const { toolDuration, toolCalls } = instruments()
   const attrs = {
     [TraceAttr.ToolName]: cappedToolName(name),
     [TraceAttr.ToolExecutor]: 'sim',
     [TraceAttr.ToolOutcome]: outcome,
+    [TraceAttr.GenAiAgentName]: normalizeToolAgentId(agentId),
   }
   toolCalls.add(1, attrs)
   if (durationMs >= 0) toolDuration.record(durationMs, attrs)
+}
+
+// recordDegraded counts one non-fatal fallback, labelled by the bounded reason
+// it took. Every degradation path reports here so "are we degrading, and why" is
+// one query instead of a per-incident investigation — and so a path that should
+// be impossible can be alerted on at > 0. Sim's own logs do not reach Loki and
+// the in-process TraceCollector is not exported, so without this a fallback is
+// invisible.
+export function recordDegraded(reason: CopilotDegradedReasonValue): void {
+  instruments().degradedCount.add(1, {
+    [TraceAttr.CopilotDegradedReason]: reason,
+  })
 }
 
 // recordVfsMaterialize records VFS materialization time. Call once per phase

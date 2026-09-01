@@ -4,7 +4,7 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { loadOauthRow } from '@/lib/mcp/oauth/storage'
 import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
@@ -15,12 +15,14 @@ const REVOKE_TIMEOUT_MS = 5000
 /**
  * Best-effort RFC 7009 revocation of tokens at the authorization server.
  * Never throws — revocation is advisory and must not block disconnect/delete flows.
+ * The workspace scope is mandatory so a caller cannot revoke a server it has not
+ * already resolved inside its authorized workspace.
  */
-export async function revokeMcpOauthTokens(mcpServerId: string): Promise<void> {
+export async function revokeMcpOauthTokens(
+  mcpServerId: string,
+  workspaceId: string
+): Promise<void> {
   try {
-    const row = await loadOauthRow({ mcpServerId })
-    if (!row?.tokens) return
-
     const [server] = await db
       .select({
         url: mcpServers.url,
@@ -28,11 +30,14 @@ export async function revokeMcpOauthTokens(mcpServerId: string): Promise<void> {
         oauthClientSecret: mcpServers.oauthClientSecret,
       })
       .from(mcpServers)
-      .where(eq(mcpServers.id, mcpServerId))
+      .where(and(eq(mcpServers.id, mcpServerId), eq(mcpServers.workspaceId, workspaceId)))
       .limit(1)
     if (!server?.url) return
 
-    const ssrfGuardedFetch = createSsrfGuardedMcpFetch()
+    const row = await loadOauthRow({ mcpServerId })
+    if (!row?.tokens) return
+
+    const ssrfGuardedFetch = createSsrfGuardedMcpFetch({ serverUrl: server.url })
     const info = await discoverOAuthServerInfo(server.url, { fetchFn: ssrfGuardedFetch }).catch(
       () => undefined
     )

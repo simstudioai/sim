@@ -19,12 +19,17 @@
  *   - ownerId: string - User ID of the organization owner (required)
  *
  * Response: AdminSingleResponse<AdminOrganization & { memberId: string }>
+ *
+ * Creates the organization and its owner membership, and nothing else. Attaching
+ * or creating a workspace for it is deliberately not done here — see the note on
+ * `adminV1CreateOrganizationContract`.
  */
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, dbReplica } from '@sim/db'
-import { member, organization, user } from '@sim/db/schema'
+import { member, organization, organizationColumns, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { slugify } from '@sim/utils/string'
 import { count, eq } from 'drizzle-orm'
 import {
   adminV1CreateOrganizationContract,
@@ -80,7 +85,6 @@ export const GET = withRouteHandler(
             logo: organization.logo,
             orgUsageLimit: organization.orgUsageLimit,
             storageUsedBytes: organization.storageUsedBytes,
-            departedMemberUsage: organization.departedMemberUsage,
             createdAt: organization.createdAt,
             updatedAt: organization.updatedAt,
           })
@@ -142,12 +146,7 @@ export const POST = withRouteHandler(
         )
       }
 
-      const slug =
-        requestedSlug?.trim() ||
-        name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')
+      const slug = requestedSlug?.trim() || slugify(name)
 
       const { organizationId, memberId } = await createOrganizationWithOwner({
         ownerUserId: ownerId,
@@ -156,7 +155,7 @@ export const POST = withRouteHandler(
       })
 
       const [createdOrg] = await db
-        .select()
+        .select(organizationColumns)
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)

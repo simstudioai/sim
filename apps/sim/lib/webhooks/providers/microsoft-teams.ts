@@ -3,7 +3,7 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -14,6 +14,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import {
   getCredentialOwner,
   getNotificationUrl,
@@ -29,7 +30,6 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookProvider:MicrosoftTeams')
 
@@ -94,7 +94,7 @@ async function fetchWithDNSPinning(
   requestId: string
 ): Promise<SecureFetchResponse | null> {
   try {
-    const urlValidation = await validateUrlWithDNS(url, 'contentUrl')
+    const urlValidation = await validateUrlWithDNS(url, 'contentUrl', 'contentFetch')
     if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] Invalid content URL: ${urlValidation.error}`, { url })
       return null
@@ -103,7 +103,10 @@ async function fetchWithDNSPinning(
     if (accessToken) {
       headers.Authorization = `Bearer ${accessToken}`
     }
-    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, { headers })
+    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
+      profile: 'contentFetch',
+      headers,
+    })
     return response
   } catch (error) {
     logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {
@@ -733,9 +736,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         error
       )
       throw new Error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to create Teams subscription. Please try again.'
+        getErrorMessage(error, 'Failed to create Teams subscription. Please try again.')
       )
     }
   },

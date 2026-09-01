@@ -131,6 +131,38 @@ describe('Validation', () => {
     })
   })
 
+  describe('validateColumnDefinition — currency', () => {
+    const base: ColumnDefinition = { name: 'price', type: 'currency' }
+
+    it('accepts a currency column with no code (it defaults on write)', () => {
+      expect(validateColumnDefinition(base).valid).toBe(true)
+    })
+
+    it('accepts a supported ISO 4217 code', () => {
+      expect(validateColumnDefinition({ ...base, currencyCode: 'JPY' }).valid).toBe(true)
+    })
+
+    it('rejects a code no runtime can format', () => {
+      const result = validateColumnDefinition({ ...base, currencyCode: 'ZZZ' })
+      expect(result.valid).toBe(false)
+      expect(result.errors.join(' ')).toContain('invalid currency code')
+    })
+
+    it('rejects a currency code stashed on a non-currency column', () => {
+      const result = validateColumnDefinition({
+        name: 'price',
+        type: 'number',
+        currencyCode: 'USD',
+      })
+      expect(result.valid).toBe(false)
+      expect(result.errors.join(' ')).toContain('cannot define a currency')
+    })
+
+    it('allows a unique constraint, unlike select', () => {
+      expect(validateColumnDefinition({ ...base, unique: true }).valid).toBe(true)
+    })
+  })
+
   describe('validateTableSchema', () => {
     it('should accept valid schema', () => {
       const schema: TableSchema = {
@@ -161,6 +193,18 @@ describe('Validation', () => {
       const result = validateTableSchema(schema)
       expect(result.valid).toBe(false)
       expect(result.errors).toContain('Duplicate column names found')
+    })
+
+    it('rejects more than one TTL column', () => {
+      const result = validateTableSchema({
+        columns: [
+          { name: 'expires_at', type: 'ttl' },
+          { name: 'delete_at', type: 'ttl' },
+        ],
+      } as TableSchema)
+
+      expect(result.valid).toBe(false)
+      expect(result.errors).toContain('A table can have at most 1 Expiration column')
     })
 
     it('should reject null schema', () => {
@@ -326,7 +370,13 @@ describe('Validation', () => {
       expect(data.founded).toBe(1999)
     })
 
-    it('nulls an un-coercible value for an optional number column', () => {
+    it('rejects an un-coercible value for an optional number column under `reject`', () => {
+      const data = { name: 'Acme', founded: 2000, age: 'unknown' }
+      const result = coerceRowToSchema(data, schema, 'reject')
+      expect(result.valid).toBe(false)
+    })
+
+    it('nulls an un-coercible optional value by default', () => {
       const data = { name: 'Acme', founded: 2000, age: 'unknown' }
       const result = coerceRowToSchema(data, schema)
       expect(result.valid).toBe(true)
@@ -355,7 +405,13 @@ describe('Validation', () => {
       expect(data.active).toBe(false)
     })
 
-    it('coerces an epoch number to an ISO date string', () => {
+    it('refuses a bare epoch number under `reject`, whose unit the value cannot state', () => {
+      const data = { name: 'Acme', founded: 2000, created: Date.parse('2024-01-15T00:00:00Z') }
+      const result = coerceRowToSchema(data, schema, 'reject')
+      expect(result.valid).toBe(false)
+    })
+
+    it('coerces an epoch number to an ISO date string by default', () => {
       const epoch = Date.parse('2024-01-15T00:00:00Z')
       const data = { name: 'Acme', founded: 2000, created: epoch }
       const result = coerceRowToSchema(data, schema)
@@ -371,14 +427,14 @@ describe('Validation', () => {
       expect(data.created).toBe(date.toISOString())
     })
 
-    it('nulls an out-of-range epoch number for an optional date column without throwing', () => {
+    it('nulls an out-of-range epoch number without throwing', () => {
       const data = { name: 'Acme', founded: 2000, created: 1e20 }
       const result = coerceRowToSchema(data, schema)
       expect(result.valid).toBe(true)
       expect(data.created).toBeNull()
     })
 
-    it('nulls an invalid Date instance for an optional date column without throwing', () => {
+    it('nulls an invalid Date instance without throwing', () => {
       const data = { name: 'Acme', founded: 2000, created: new Date('not-a-date') }
       const result = coerceRowToSchema(data, schema)
       expect(result.valid).toBe(true)
@@ -415,7 +471,13 @@ describe('Validation', () => {
       expect(patch.age).toBe(42)
     })
 
-    it('nulls an un-coercible optional value in a patch', () => {
+    it('leaves an un-coercible optional patch value in place under `reject`', () => {
+      const patch: { age: unknown } = { age: 'nope' }
+      coerceRowValues(patch as never, schema, 'reject')
+      expect(patch.age).toBe('nope')
+    })
+
+    it('nulls an un-coercible optional patch value by default', () => {
       const patch: { age: unknown } = { age: 'nope' }
       coerceRowValues(patch as never, schema)
       expect(patch.age).toBeNull()
@@ -468,6 +530,46 @@ describe('Validation', () => {
         const patch: Record<string, unknown> = { tags: ['Alpha', 'opt_a', 'Beta'] }
         coerceRowValues(patch as never, selectSchema)
         expect(patch.tags).toEqual(['opt_a', 'opt_b'])
+      })
+    })
+
+    describe('currency coercion', () => {
+      const currencySchema: TableSchema = {
+        columns: [
+          { id: 'price', name: 'price', type: 'currency', currencyCode: 'USD' },
+          { id: 'cost', name: 'cost', type: 'currency', currencyCode: 'EUR', required: true },
+        ],
+      }
+
+      it('parses a formatted amount down to a bare number', () => {
+        const patch: Record<string, unknown> = { price: '$1,234.56' }
+        coerceRowValues(patch as never, currencySchema)
+        expect(patch.price).toBe(1234.56)
+      })
+
+      it('leaves an already-numeric cell untouched', () => {
+        const patch: Record<string, unknown> = { price: 42 }
+        coerceRowValues(patch as never, currencySchema)
+        expect(patch.price).toBe(42)
+      })
+
+      it('leaves an unreadable amount in place on an optional column under `reject`', () => {
+        const patch: Record<string, unknown> = { price: 'ask sales' }
+        coerceRowValues(patch as never, currencySchema, 'reject')
+        expect(patch.price).toBe('ask sales')
+      })
+
+      it('nulls an unreadable amount on an optional column by default', () => {
+        const patch: Record<string, unknown> = { price: 'ask sales' }
+        coerceRowValues(patch as never, currencySchema)
+        expect(patch.price).toBeNull()
+      })
+
+      it('leaves an unreadable amount in place on a required column so validation reports it', () => {
+        const patch: Record<string, unknown> = { cost: 'ask sales' }
+        coerceRowValues(patch as never, currencySchema)
+        expect(patch.cost).toBe('ask sales')
+        expect(validateRowAgainstSchema(patch as never, currencySchema).valid).toBe(false)
       })
     })
   })

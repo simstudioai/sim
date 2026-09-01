@@ -1,10 +1,13 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { linearConnectorMeta } from '@/connectors/linear/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 
 const logger = createLogger('LinearConnector')
 
@@ -31,8 +34,45 @@ function markdownToPlainText(md: string): string {
   return text
 }
 
+interface LinearGraphQLBody {
+  data?: Record<string, unknown> | null
+  errors?: unknown[]
+}
+
+/** Header carrying the UTC epoch-millisecond timestamp at which the request budget refills. */
+const RATE_LIMIT_RESET_HEADER = 'X-RateLimit-Requests-Reset'
+
+/**
+ * Largest reset wait honored. Linear's request budget refills on a one-hour
+ * leaky-bucket period, so the advertised reset instant is usually far too
+ * distant to wait for inside a sync. `backoffWithJitter` clamps the header
+ * value to this ceiling rather than sleeping until the real reset; if the
+ * budget has not recovered within the retry allowance the sync fails and the
+ * next scheduled run picks it up.
+ */
+const MAX_RATE_LIMIT_WAIT_MS = 30_000
+
+/**
+ * Detects Linear's `RATELIMITED` extension code anywhere in a GraphQL error array.
+ */
+function isRateLimitedErrors(errors: unknown[] | undefined): boolean {
+  if (!Array.isArray(errors)) return false
+  return errors.some((entry) => {
+    if (typeof entry !== 'object' || entry === null) return false
+    const extensions = (entry as { extensions?: unknown }).extensions
+    if (typeof extensions !== 'object' || extensions === null) return false
+    return (extensions as { code?: unknown }).code === 'RATELIMITED'
+  })
+}
+
 /**
  * Executes a GraphQL query against the Linear API.
+ *
+ * Linear signals rate limiting with an HTTP **400** carrying a `RATELIMITED`
+ * extension code rather than a 429, so `fetchWithRetry`'s status-based retry
+ * never fires for it. This wrapper detects the code on any status and paces its
+ * own retries off `X-RateLimit-Requests-Reset` (UTC epoch milliseconds), falling
+ * back to jittered exponential backoff when the header is absent.
  */
 async function linearGraphQL(
   accessToken: string,
@@ -40,32 +80,64 @@ async function linearGraphQL(
   variables?: Record<string, unknown>,
   retryOptions?: RetryOptions
 ): Promise<Record<string, unknown>> {
-  const response = await fetchWithRetry(
-    LINEAR_API,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
+  const maxRateLimitRetries = retryOptions?.maxRetries ?? 3
+
+  for (let attempt = 1; ; attempt++) {
+    const response = await fetchWithRetry(
+      LINEAR_API,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: linearAuthorizationHeader(accessToken),
+        },
+        body: JSON.stringify({ query, variables }),
       },
-      body: JSON.stringify({ query, variables }),
-    },
-    retryOptions
-  )
+      retryOptions
+    )
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    logger.error('Linear GraphQL request failed', { status: response.status, error: errorText })
-    throw new Error(`Linear API error: ${response.status}`)
+    const bodyText = await response.text()
+    let json: LinearGraphQLBody | undefined
+    try {
+      json = JSON.parse(bodyText) as LinearGraphQLBody
+    } catch {
+      json = undefined
+    }
+
+    if (isRateLimitedErrors(json?.errors) && attempt <= maxRateLimitRetries) {
+      const resetHeader = response.headers.get(RATE_LIMIT_RESET_HEADER)
+      const resetIn = resetHeader ? Number(resetHeader) - Date.now() : Number.NaN
+      const delayMs = backoffWithJitter(attempt, resetIn > 0 ? resetIn : null, {
+        maxMs: MAX_RATE_LIMIT_WAIT_MS,
+      })
+      logger.warn('Linear rate limited; backing off', { attempt, delayMs })
+      await sleep(delayMs)
+      continue
+    }
+
+    if (!response.ok) {
+      logger.error('Linear GraphQL request failed', { status: response.status, error: bodyText })
+      throw new Error(`Linear API error: ${response.status}`)
+    }
+
+    /**
+     * Linear reports validation, authorization, complexity, and rate-limit failures
+     * as HTTP 200 with a populated `errors` array and `data: null` (or a partially
+     * null `data`). Throwing here is deliberate: returning the partial payload would
+     * let `listDocuments` surface an empty node list, which the sync engine would
+     * read as "the source has no issues" and hard-delete every stored document.
+     */
+    if (Array.isArray(json?.errors) && json.errors.length > 0) {
+      logger.error('Linear GraphQL errors', { errors: json.errors })
+      throw new Error(`Linear GraphQL error: ${JSON.stringify(json.errors)}`)
+    }
+
+    if (!json?.data || typeof json.data !== 'object') {
+      throw new Error('Linear API returned no data')
+    }
+
+    return json.data
   }
-
-  const json = (await response.json()) as { data?: Record<string, unknown>; errors?: unknown[] }
-  if (json.errors) {
-    logger.error('Linear GraphQL errors', { errors: json.errors })
-    throw new Error(`Linear GraphQL error: ${JSON.stringify(json.errors)}`)
-  }
-
-  return json.data as Record<string, unknown>
 }
 
 /**
@@ -119,10 +191,33 @@ const ISSUE_FIELDS = `
   project { name }
 `
 
+/**
+ * Linear's `issue` query takes `id: String!`, not `ID!` — a mismatched variable
+ * definition fails GraphQL validation and returns HTTP 200 with `errors[]`.
+ */
 const ISSUE_BY_ID_QUERY = `
-  query GetIssue($id: ID!) {
+  query GetIssue($id: String!) {
     issue(id: $id) {
       ${ISSUE_FIELDS}
+    }
+  }
+`
+
+/**
+ * Filters are passed as a single `IssueFilter` variable rather than interpolated
+ * into the query text, so a static document covers every filter combination and
+ * no user-controlled value ever reaches the query string.
+ */
+const LIST_ISSUES_QUERY = `
+  query ListIssues($filter: IssueFilter, $first: Int!, $after: String) {
+    issues(filter: $filter, first: $first, after: $after) {
+      nodes {
+        ${ISSUE_FIELDS}
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
   }
 `
@@ -132,72 +227,71 @@ const TEAMS_QUERY = `
 `
 
 /**
- * Dynamically builds a GraphQL issues query with only the filter clauses
- * that have values, preventing null comparators from being sent to Linear.
+ * Linear documents 50 as the connection default and publishes no maximum for
+ * `first`, so the default is used as-is. Each issue node also expands a nested
+ * `labels` connection (itself defaulting to 50), and Linear rejects any single
+ * query costing more than 10,000 complexity points — raising this would push
+ * toward that ceiling for no pagination benefit.
  */
-function buildIssuesQuery(
+const MAX_PAGE_SIZE = 50
+
+/**
+ * Builds the `IssueFilter` argument, omitting comparators that have no value so
+ * Linear never receives a null comparator. Returns undefined when unfiltered.
+ */
+function buildIssuesFilter(
   sourceConfig: Record<string, unknown>,
   teamIds: string[],
-  projectIds: string[]
-): {
-  query: string
-  variables: Record<string, unknown>
-} {
-  const stateFilter = (sourceConfig.stateFilter as string) || ''
+  projectIds: string[],
+  lastSyncAt?: Date
+): Record<string, unknown> | undefined {
+  const filter: Record<string, unknown> = {}
 
-  const varDefs: string[] = ['$first: Int!', '$after: String']
-  const filterClauses: string[] = []
-  const variables: Record<string, unknown> = {}
+  if (teamIds.length === 1) filter.team = { id: { eq: teamIds[0] } }
+  else if (teamIds.length > 1) filter.team = { id: { in: teamIds } }
 
-  if (teamIds.length === 1) {
-    varDefs.push('$teamId: ID!')
-    filterClauses.push('team: { id: { eq: $teamId } }')
-    variables.teamId = teamIds[0]
-  } else if (teamIds.length > 1) {
-    varDefs.push('$teamIds: [ID!]!')
-    filterClauses.push('team: { id: { in: $teamIds } }')
-    variables.teamIds = teamIds
+  if (projectIds.length === 1) filter.project = { id: { eq: projectIds[0] } }
+  else if (projectIds.length > 1) filter.project = { id: { in: projectIds } }
+
+  const states = parseMultiValue(sourceConfig.stateFilter)
+  if (states.length > 0) filter.state = { name: { in: states } }
+
+  if (lastSyncAt) filter.updatedAt = { gte: lastSyncAt.toISOString() }
+
+  return Object.keys(filter).length > 0 ? filter : undefined
+}
+
+/**
+ * Projects a Linear issue node into an ExternalDocument. Shared by
+ * `listDocuments` and `getDocument` so `contentHash` and `metadata` are
+ * byte-identical regardless of which path produced the document.
+ */
+function issueToDocument(issue: Record<string, unknown>): ExternalDocument {
+  const labelNodes = ((issue.labels as Record<string, unknown>)?.nodes || []) as Record<
+    string,
+    unknown
+  >[]
+  const identifier = (issue.identifier as string) || ''
+  const title = (issue.title as string) || 'Untitled'
+
+  return {
+    externalId: issue.id as string,
+    title: identifier ? `${identifier}: ${title}` : title,
+    content: buildIssueContent(issue),
+    mimeType: 'text/plain' as const,
+    sourceUrl: (issue.url as string) || undefined,
+    contentHash: `linear:${issue.id}:${issue.updatedAt}`,
+    metadata: {
+      identifier: issue.identifier,
+      state: (issue.state as Record<string, unknown>)?.name,
+      priority: issue.priorityLabel,
+      assignee: (issue.assignee as Record<string, unknown>)?.name,
+      labels: labelNodes.map((l) => l.name as string),
+      team: (issue.team as Record<string, unknown>)?.name,
+      project: (issue.project as Record<string, unknown>)?.name,
+      lastModified: issue.updatedAt,
+    },
   }
-
-  if (projectIds.length === 1) {
-    varDefs.push('$projectId: ID!')
-    filterClauses.push('project: { id: { eq: $projectId } }')
-    variables.projectId = projectIds[0]
-  } else if (projectIds.length > 1) {
-    varDefs.push('$projectIds: [ID!]!')
-    filterClauses.push('project: { id: { in: $projectIds } }')
-    variables.projectIds = projectIds
-  }
-
-  if (stateFilter) {
-    const states = stateFilter
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-    if (states.length > 0) {
-      varDefs.push('$stateFilter: [String!]!')
-      filterClauses.push('state: { name: { in: $stateFilter } }')
-      variables.stateFilter = states
-    }
-  }
-
-  const filterArg = filterClauses.length > 0 ? `, filter: { ${filterClauses.join(', ')} }` : ''
-
-  const query = `
-    query ListIssues(${varDefs.join(', ')}) {
-      issues(first: $first, after: $after${filterArg}) {
-        nodes {
-          ${ISSUE_FIELDS}
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
-      }
-    }
-  `
-
-  return { query, variables }
 }
 
 export const linearConnector: ConnectorConfig = {
@@ -207,64 +301,67 @@ export const linearConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
-    syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>,
+    lastSyncAt?: Date
   ): Promise<ExternalDocumentList> => {
-    const maxIssues = sourceConfig.maxIssues ? Number(sourceConfig.maxIssues) : 0
-    const pageSize = maxIssues > 0 ? Math.min(maxIssues, 50) : 50
+    const parsedMax = Number(sourceConfig.maxIssues)
+    const maxIssues = Number.isFinite(parsedMax) && parsedMax > 0 ? Math.floor(parsedMax) : 0
+
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    const remaining =
+      maxIssues > 0 ? Math.max(0, maxIssues - previouslyFetched) : Number.POSITIVE_INFINITY
+    const pageSize = Math.max(1, Math.min(MAX_PAGE_SIZE, remaining))
 
     const teamIds = parseMultiValue(sourceConfig.teamId)
     const projectIds = parseMultiValue(sourceConfig.projectId)
-
-    const { query, variables } = buildIssuesQuery(sourceConfig, teamIds, projectIds)
-    const allVars = { ...variables, first: pageSize, after: cursor || undefined }
+    const filter = buildIssuesFilter(sourceConfig, teamIds, projectIds, lastSyncAt)
 
     logger.info('Listing Linear issues', {
       cursor,
       pageSize,
       teamFilterCount: teamIds.length,
       projectFilterCount: projectIds.length,
+      incremental: Boolean(lastSyncAt),
     })
 
-    const data = await linearGraphQL(accessToken, query, allVars)
-    const issuesConn = data.issues as Record<string, unknown>
+    const data = await linearGraphQL(accessToken, LIST_ISSUES_QUERY, {
+      filter,
+      first: pageSize,
+      after: cursor || undefined,
+    })
+    /**
+     * `issues` is declared `IssueConnection!`, so a missing connection means a
+     * malformed response, not an empty source. Defaulting it to `{}` would
+     * present an empty listing, which the sync engine reads as "every stored
+     * issue was deleted" — so this throws instead.
+     */
+    const issuesConn = data.issues as Record<string, unknown> | undefined
+    if (!issuesConn || typeof issuesConn !== 'object') {
+      throw new Error('Linear API returned no issues connection')
+    }
     const nodes = (issuesConn.nodes || []) as Record<string, unknown>[]
-    const pageInfo = issuesConn.pageInfo as Record<string, unknown>
+    const pageInfo = (issuesConn.pageInfo || {}) as Record<string, unknown>
 
-    const documents: ExternalDocument[] = nodes.map((issue) => {
-      const content = buildIssueContent(issue)
-      const contentHash = `linear:${issue.id}:${issue.updatedAt}`
-
-      const labelNodes = ((issue.labels as Record<string, unknown>)?.nodes || []) as Record<
-        string,
-        unknown
-      >[]
-
-      return {
-        externalId: issue.id as string,
-        title: `${(issue.identifier as string) || ''}: ${(issue.title as string) || 'Untitled'}`,
-        content,
-        mimeType: 'text/plain' as const,
-        sourceUrl: (issue.url as string) || undefined,
-        contentHash,
-        metadata: {
-          identifier: issue.identifier,
-          state: (issue.state as Record<string, unknown>)?.name,
-          priority: issue.priorityLabel,
-          assignee: (issue.assignee as Record<string, unknown>)?.name,
-          labels: labelNodes.map((l) => l.name as string),
-          team: (issue.team as Record<string, unknown>)?.name,
-          project: (issue.project as Record<string, unknown>)?.name,
-          lastModified: issue.updatedAt,
-        },
-      }
-    })
+    const documents = nodes.map(issueToDocument)
 
     const hasNextPage = Boolean(pageInfo.hasNextPage)
     const endCursor = (pageInfo.endCursor as string) || undefined
 
-    const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+    const totalFetched = previouslyFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxIssues > 0 && totalFetched >= maxIssues
+
+    /**
+     * The `maxIssues` cap hides issues that still exist in Linear. The sync
+     * engine hard-deletes every stored document absent from a full listing, so
+     * a capped listing must be flagged. `first` is already clamped to the
+     * remaining budget, so the cap only hides issues when Linear reports a
+     * further page; genuine exhaustion is left unflagged so real deletions still
+     * reconcile. The team/project/state filters are intentional scope, not a cap.
+     */
+    if (hitLimit && hasNextPage && syncContext) {
+      syncContext.listingCapped = true
+    }
 
     return {
       documents,
@@ -278,45 +375,19 @@ export const linearConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    try {
-      const data = await linearGraphQL(accessToken, ISSUE_BY_ID_QUERY, { id: externalId })
-      const issue = data.issue as Record<string, unknown> | null
+    const data = await linearGraphQL(accessToken, ISSUE_BY_ID_QUERY, { id: externalId })
+    const issue = data.issue as Record<string, unknown> | null
 
-      if (!issue) return null
+    /**
+     * `issue` is declared `Issue!`, so Linear reports a missing issue as a
+     * GraphQL error rather than a null node — this guard is defence against a
+     * malformed body only. Transport, auth, and GraphQL failures propagate out
+     * of `linearGraphQL` so the sync engine records a visible failed document
+     * rather than silently dropping the issue.
+     */
+    if (!issue) return null
 
-      const content = buildIssueContent(issue)
-      const contentHash = `linear:${issue.id}:${issue.updatedAt}`
-
-      const labelNodes = ((issue.labels as Record<string, unknown>)?.nodes || []) as Record<
-        string,
-        unknown
-      >[]
-
-      return {
-        externalId: issue.id as string,
-        title: `${(issue.identifier as string) || ''}: ${(issue.title as string) || 'Untitled'}`,
-        content,
-        mimeType: 'text/plain' as const,
-        sourceUrl: (issue.url as string) || undefined,
-        contentHash,
-        metadata: {
-          identifier: issue.identifier,
-          state: (issue.state as Record<string, unknown>)?.name,
-          priority: issue.priorityLabel,
-          assignee: (issue.assignee as Record<string, unknown>)?.name,
-          labels: labelNodes.map((l) => l.name as string),
-          team: (issue.team as Record<string, unknown>)?.name,
-          project: (issue.project as Record<string, unknown>)?.name,
-          lastModified: issue.updatedAt,
-        },
-      }
-    } catch (error) {
-      logger.error('Failed to get Linear issue', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
-    }
+    return issueToDocument(issue)
   },
 
   validateConfig: async (

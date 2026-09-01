@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
+import { restoreFolder } from '@/lib/folders/orchestration'
 import {
   getRestorableKnowledgeBase,
   performRestoreKnowledgeBase,
@@ -11,7 +12,7 @@ import {
 import { performRestoreTable } from '@/lib/table/orchestration'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { performRestoreFolder, performRestoreWorkflow } from '@/lib/workflows/orchestration'
+import { performRestoreWorkflow } from '@/lib/workflows/orchestration'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import {
   performRestoreWorkspaceFile,
@@ -46,9 +47,10 @@ type RestorableFolderType = 'folder' | 'knowledge_folder' | 'table_folder'
 
 /**
  * Deliberately a total `Record` over the folder types, not a `Partial` one: adding a tree to
- * `RestorableFolderType` without a mapping here has to fail the build. With a partial map the
- * lookup would yield `undefined`, `performRestoreFolder` would fall back to its `'workflow'`
- * default, and the restore would silently target the wrong tree.
+ * `RestorableFolderType` without a mapping has to fail the build *here*, at the mapping. A
+ * `Partial` still compiles with the tree missing — the lookup widens to
+ * `FolderResourceType | undefined`, so the error moves to the `restoreFolder` call site, and
+ * suppressing it there leaves the cascade resolving an undefined folder config.
  */
 const FOLDER_RESOURCE_TYPE_BY_RESTORABLE: Record<RestorableFolderType, FolderResourceType> = {
   folder: 'workflow',
@@ -148,10 +150,11 @@ export async function performRestoreResource(
         const result = await performRestoreKnowledgeBase({
           knowledgeBaseId: id,
           userId,
+          source: 'agent',
           requestId,
         })
-        if (!result.success || !result.knowledgeBase) {
-          return { success: false, error: result.error || 'Failed to restore knowledge base' }
+        if (!result.success) {
+          return { success: false, error: result.error }
         }
 
         logger.info('Knowledge base restored via restore_resource', { knowledgeBaseId: id })
@@ -167,7 +170,7 @@ export async function performRestoreResource(
           return { success: false, error: 'Folder not found' }
         }
 
-        const result = await performRestoreFolder({
+        const result = await restoreFolder({
           folderId: id,
           workspaceId,
           userId,

@@ -1,0 +1,273 @@
+---
+title: Networking
+description: Reverse proxies, TLS, websockets, timeouts, and request size limits
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+Sim has three traffic patterns that trip up default proxy configurations: **long-lived websockets**, **server-sent event streams**, and **large uploads**. Most "it works locally but not in production" reports come from one of the three.
+
+## Topology
+
+Two services need to be reachable. You can put them on one hostname or two.
+
+<Tabs items={['Single hostname', 'Two hostnames']}>
+  <Tab value="Single hostname">
+
+Simplest. Route `/socket.io` to realtime and everything else to the app.
+
+```
+sim.yourdomain.com/           → app:3000
+sim.yourdomain.com/socket.io  → realtime:3002
+```
+
+`NEXT_PUBLIC_SOCKET_URL` can be left unset — the client defaults to the page origin.
+
+  </Tab>
+  <Tab value="Two hostnames">
+
+Required by ingress controllers that cannot cleanly split paths across backends, and preferred on GKE's built-in load balancer.
+
+```
+sim.yourdomain.com     → app:3000
+sim-ws.yourdomain.com  → realtime:3002
+```
+
+Then tell the client where realtime lives, and tell realtime which origins to accept:
+
+```yaml
+app:
+  env:
+    NEXT_PUBLIC_APP_URL: "https://sim.yourdomain.com"
+    BETTER_AUTH_URL: "https://sim.yourdomain.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.yourdomain.com"
+
+realtime:
+  env:
+    ALLOWED_ORIGINS: "https://sim.yourdomain.com"
+```
+
+`ALLOWED_ORIGINS` is the CORS allowlist realtime enforces on socket connections; it must contain the app's origin. The URL keys only need to be set once under `app.env` — the chart writes them into a Secret both Deployments consume.
+
+Both hostnames need DNS records and TLS certificates.
+
+  </Tab>
+</Tabs>
+
+## Reverse proxy configuration
+
+<Tabs items={['Caddy', 'Nginx', 'Traefik']}>
+  <Tab value="Caddy">
+
+Caddy handles certificates, websockets, and streaming correctly by default.
+
+```
+sim.yourdomain.com {
+    request_body {
+        max_size 250MB
+    }
+
+    handle /socket.io/* {
+        reverse_proxy localhost:3002
+    }
+
+    reverse_proxy localhost:3000 {
+        flush_interval -1
+    }
+}
+```
+
+`flush_interval -1` disables response buffering, which keeps streamed agent output flowing token by token instead of arriving in one block at the end.
+
+  </Tab>
+  <Tab value="Nginx">
+
+Nginx buffers responses and times out idle connections by default. Both need overriding.
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name sim.yourdomain.com;
+
+    # Large file uploads (chat attachments can reach ~220 MB)
+    client_max_body_size 250M;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Streamed responses must not be buffered
+        proxy_buffering off;
+        proxy_cache off;
+
+        # Long-running workflow executions
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+```
+
+For ingress-nginx, the equivalents are annotations:
+
+```yaml
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "250m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+```
+
+  </Tab>
+  <Tab value="Traefik">
+
+```yaml
+ingress:
+  className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+```
+
+Set the read/idle timeouts on the entrypoint, since they are static configuration rather than per-ingress:
+
+```yaml
+entryPoints:
+  websecure:
+    address: ":443"
+    transport:
+      respondingTimeouts:
+        readTimeout: 3600s
+        idleTimeout: 3600s
+```
+
+Traefik streams responses by default and needs no buffering override.
+
+  </Tab>
+</Tabs>
+
+## Cloud load balancers
+
+### GKE (GCE ingress)
+
+<Callout type="warn">
+  The GCE load balancer defaults to a **30-second backend timeout**, which closes every websocket every 30 seconds. Clients reconnect, so this degrades rather than breaks — but collaboration feels unreliable and reconnect storms add load. Fix it with a `BackendConfig` on the realtime Service.
+</Callout>
+
+```yaml
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: sim-realtime-backendconfig
+  namespace: simstudio
+spec:
+  timeoutSec: 3600
+  connectionDraining:
+    drainingTimeoutSec: 60
+```
+
+Then annotate the realtime Service so the load balancer picks it up:
+
+```yaml
+realtime:
+  service:
+    annotations:
+      cloud.google.com/backend-config: '{"default": "sim-realtime-backendconfig"}'
+```
+
+Confirm your chart version renders `realtime.service.annotations` onto the Service (`helm template ./helm/sim --values my-values.yaml | grep -A5 'kind: Service'`). If it does not, annotate the Service directly with `kubectl annotate`.
+
+TLS on GKE typically uses a **ManagedCertificate**, which the chart references by annotation but **does not create** — create it yourself before the first deploy:
+
+```yaml
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: sim-ssl-cert
+  namespace: simstudio
+spec:
+  domains:
+    - sim.yourdomain.com
+    - sim-ws.yourdomain.com
+```
+
+```yaml
+ingress:
+  className: gce
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: "sim-ip"
+    networking.gke.io/managed-certificates: "sim-ssl-cert"
+    kubernetes.io/ingress.allow-http: "false"
+  # TLS comes from the ManagedCertificate — leaving the chart's secret-based
+  # TLS on makes the ingress reference a Secret that does not exist.
+  tls:
+    enabled: false
+```
+
+The certificate provisions once DNS resolves, typically 15–30 minutes after the first deploy.
+
+### AWS (ALB ingress)
+
+```yaml
+ingress:
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:..."
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600
+```
+
+The ALB's default 60-second idle timeout also closes websockets. Raise it as shown.
+
+### Azure (Application Gateway / NGINX)
+
+Application Gateway's default request timeout is 30 seconds; raise it in the backend HTTP setting. Many AKS deployments use ingress-nginx instead — see the Nginx tab above.
+
+## Request size limits
+
+Sim enforces its own limits in addition to whatever your proxy allows. The proxy limit must be **at least** as large as the app limit, or the proxy rejects the request before Sim ever sees it.
+
+| Variable | Default | Applies to |
+|---|---|---|
+| `API_MAX_JSON_BODY_BYTES` | 50 MB | Contract-validated API routes |
+| `CHAT_MAX_REQUEST_BYTES` | 220 MB | The public deployed-chat endpoint (covers ~15 base64 file attachments) |
+| `WEBHOOK_MAX_REQUEST_BYTES` | 10 MB | Public webhook receiver endpoints |
+
+A proxy body limit of 250 MB accommodates all three defaults. If you lower the app limits, you can lower the proxy limit to match.
+
+<Callout type="info">
+  **With object storage configured**, regular file uploads do not flow through the proxy — the browser `PUT`s them directly to the bucket using a presigned URL, so the proxy limits matter only for chat attachments, API payloads, and webhook bodies. On the default local-disk storage there is no presigned path and every upload goes through the proxy, so its body limit applies to all of them.
+</Callout>
+
+## Outbound connectivity
+
+The app makes outbound calls to model providers, integration APIs, your email provider, and object storage. There is no global forward-proxy setting. Sim does not read `HTTP_PROXY` / `HTTPS_PROXY`, so model-provider calls, integration calls, and email delivery cannot be routed through a forward proxy. (The HTTP Request block accepts a per-request `proxyUrl`, but that covers only that one block, not the platform's own outbound traffic.) Environments with a mandatory egress proxy need a transparent proxy or NAT-based egress instead.
+
+<FAQ items={[
+  { question: "Do I need two hostnames?", answer: "No. A single hostname works if your proxy can route /socket.io to the realtime service and everything else to the app. Two hostnames are useful when path-based splitting is awkward, which is common on GKE's built-in load balancer."},
+  { question: "Websockets disconnect every 30 seconds on GKE. How do I fix it?", answer: "The GCE load balancer defaults to a 30-second backend timeout. Create a BackendConfig with timeoutSec: 3600 and attach it to the realtime Service with the cloud.google.com/backend-config annotation. On AWS, raise the ALB idle_timeout instead."},
+  { question: "Does Sim support an outbound HTTP proxy?", answer: "Not globally. Sim does not read HTTP_PROXY or HTTPS_PROXY, so platform traffic cannot be routed through a forward proxy. The HTTP Request block accepts a per-request proxyUrl for its own calls only. Use a transparent proxy or NAT-based egress if your network requires one."},
+]} />

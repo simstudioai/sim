@@ -1,9 +1,9 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
-import { Button } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
+import { TriangleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { TriangleAlert } from 'lucide-react'
 
 /** Props shape required by Next.js error boundary files (`error.tsx`). */
 export interface ErrorBoundaryProps {
@@ -30,7 +30,7 @@ interface ErrorShellProps {
 
 /**
  * Centered layout shared by the workspace error boundary and not-found page.
- * Renders a framed glyph, serif headline, supporting paragraph, and a row of
+ * Renders a framed glyph, brand headline, supporting paragraph, and a row of
  * action buttons.
  */
 export function ErrorShell({ title, description, icon, children }: ErrorShellProps) {
@@ -39,11 +39,11 @@ export function ErrorShell({ title, description, icon, children }: ErrorShellPro
       <div className='flex w-full max-w-[420px] flex-col items-center gap-5 text-center'>
         <div className='size-[52px] shrink-0 rounded-2xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-sm dark:bg-[var(--surface-5)]'>
           <div className='flex size-full items-center justify-center rounded-[11px] border border-[var(--border-1)] bg-[var(--bg)] text-[var(--text-icon)]'>
-            {icon ?? <TriangleAlert className='size-[22px]' strokeWidth={1.55} />}
+            {icon ?? <TriangleAlert className='size-[22px]' />}
           </div>
         </div>
         <div className='flex flex-col items-center gap-2'>
-          <h2 className='text-balance font-[430] font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
+          <h2 className='text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
             {title}
           </h2>
           <p className='max-w-[340px] text-[14px] text-[var(--text-tertiary)] leading-[1.55]'>
@@ -80,9 +80,9 @@ export function ErrorState({
   return (
     <ErrorShell title={title} description={description} icon={icon}>
       {children}
-      <Button variant='primary' size='md' onClick={reset}>
-        Refresh
-      </Button>
+      <Chip variant='primary' onClick={reset}>
+        Try again
+      </Chip>
     </ErrorShell>
   )
 }

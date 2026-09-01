@@ -1,15 +1,14 @@
 'use client'
 
 import { type ComponentType, type CSSProperties, useMemo, useState } from 'react'
-import { ArrowRight, ChevronDown, chipVariants, cn, Expandable, ExpandableContent } from '@sim/emcn'
-import { Shuffle, Table } from '@sim/emcn/icons'
+import { ArrowRight, ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
+import { Table } from '@sim/emcn/icons'
 import { randomFloat } from '@sim/utils/random'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { GmailIcon, SlackIcon } from '@/components/icons'
 import {
-  getAllBlockMeta,
   INTEGRATIONS,
   type OAuthServiceMatch,
   resolveOAuthServiceForIntegration,
@@ -17,7 +16,8 @@ import {
 } from '@/lib/integrations'
 import { captureEvent } from '@/lib/posthog/client'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { getBareIconStyle } from '@/blocks/icon-color'
+import { BrandIcon } from '@/blocks/brand-icon'
+import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
@@ -149,7 +149,7 @@ function scoreCandidate(c: Candidate, signals: Signals): number {
 
 /**
  * Weighted sampling without replacement. Each pick's probability is
- * proportional to its weight, so shuffles stay fresh while staying relevant.
+ * proportional to its weight, so the set stays varied while staying relevant.
  */
 function weightedSample<T>(pool: readonly T[], n: number, weightOf: (item: T) => number): T[] {
   const remaining = pool.map((item) => ({ item, weight: Math.max(weightOf(item), 0) }))
@@ -277,8 +277,6 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
    * above it.
    */
   const [animationsEnabled, setAnimationsEnabled] = useState(false)
-  /** Incremented by the shuffle control to re-roll the weighted sample. */
-  const [shuffleNonce, setShuffleNonce] = useState(0)
   /**
    * OAuth connect modal target. Setting this opens the modal; setting it back
    * to `null` (via `onOpenChange(false)`) closes it. Mirrors the local-state
@@ -307,16 +305,16 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   )
 
   /**
-   * Personalized suggestions, re-sampled whenever signals resolve or the user
-   * shuffles. Falls back to {@link INITIAL_ACTIONS} until the credential and
-   * service queries have loaded (and stays there for users with no
-   * connections, unless they shuffle), so first paint never flashes.
+   * Personalized suggestions, re-sampled whenever signals resolve. Falls back to
+   * {@link INITIAL_ACTIONS} until the credential and service queries have loaded
+   * — and stays there for users with no connections — so first paint never
+   * flashes.
    */
   const actions = useMemo(() => {
     const personalized = services.length > 0 && connectedProviders.size > 0
-    if (!personalized && shuffleNonce === 0) return INITIAL_ACTIONS
+    if (!personalized) return INITIAL_ACTIONS
     return computeActions(services, signals)
-  }, [connectedProviders, services, signals, shuffleNonce])
+  }, [connectedProviders, services, signals])
 
   const handleSelect = (action: Action, position: number) => {
     captureEvent(posthog, 'suggested_action_clicked', {
@@ -335,14 +333,6 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
     if (match) setOAuthTarget(match)
   }
 
-  const handleShuffle = () => {
-    captureEvent(posthog, 'suggested_actions_shuffled', {
-      workspace_id: workspaceId,
-      connected_provider_count: connectedProviders.size,
-    })
-    setShuffleNonce((n) => n + 1)
-  }
-
   const handleToggleExpanded = () => {
     captureEvent(posthog, 'suggested_actions_toggled', {
       workspace_id: workspaceId,
@@ -353,41 +343,40 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   }
 
   return (
-    <div className='mx-auto mt-7 w-full max-w-[48rem]'>
-      <div className='flex items-center justify-between'>
-        <button
-          type='button'
-          onClick={handleToggleExpanded}
-          aria-expanded={expanded}
-          className='flex items-center gap-2'
-        >
-          <span className='text-[var(--text-muted)] text-small'>Suggested actions</span>
-          <ChevronDown
-            className={cn(
-              'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
-              !expanded && '-rotate-90'
-            )}
-          />
-        </button>
-        <button
-          type='button'
-          onClick={handleShuffle}
-          aria-label='Shuffle suggested actions'
-          aria-hidden={!expanded}
-          tabIndex={expanded ? undefined : -1}
+    <div className='group/suggested mx-auto mt-7 w-full max-w-chat'>
+      {/* Full width so the whole line toggles, not just the label and chevron. */}
+      <button
+        type='button'
+        onClick={handleToggleExpanded}
+        aria-expanded={expanded}
+        className='group/toggle flex w-full cursor-pointer items-center gap-2'
+      >
+        <span className='text-[var(--text-muted)] text-caption'>Suggested actions</span>
+        {/*
+         * Revealed by hovering anywhere in the section — the group sits on the
+         * section wrapper rather than this row, so the action rows below arm it just
+         * as the header does. Focus is keyed off the toggle instead, the only element
+         * here that can hold it, and matters because globals clear focus outlines.
+         * One transition covers the fade and the rotation so the two cannot drift
+         * apart. Mirrors the sidebar's section headers.
+         */}
+        <ChevronDown
           className={cn(
-            chipVariants({ flush: true }),
-            '-mr-2 gap-1.5 transition-opacity duration-150 ease-out motion-reduce:transition-none',
-            expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+            'size-[14px] flex-shrink-0 text-[var(--text-icon)] opacity-0 transition-[opacity,transform] duration-150',
+            'group-hover/suggested:opacity-100 group-focus-visible/toggle:opacity-100',
+            !expanded && '-rotate-90'
           )}
-        >
-          <span className='-mt-px text-[var(--text-muted)] text-small'>Shuffle</span>
-          <Shuffle className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        </button>
-      </div>
+        />
+      </button>
       <Expandable expanded={expanded}>
-        <ExpandableContent className={cn('mt-2', !animationsEnabled && '!animate-none')}>
-          <div className='flex flex-col'>
+        <ExpandableContent className={cn(!animationsEnabled && '!animate-none')}>
+          {/* 6px, matching a sidebar section header to its first item — both headers
+              are an 18px box around 12px text, so equal padding reads as equal
+              distance. Padding an inner wrapper rather than the animated element:
+              `collapsible-up`/`-down` interpolate height alone, so a margin here
+              would hold its full value through the close and then vanish on unmount,
+              snapping the content below up. */}
+          <div className='flex flex-col pt-1.5'>
             {actions.map((action, i) => {
               const Icon = action.icon
               return (
@@ -396,14 +385,11 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
                   type='button'
                   onClick={() => handleSelect(action, i)}
                   className={cn(
-                    'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
+                    'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
                     i > 0 && 'border-t'
                   )}
                 >
-                  <Icon
-                    className='size-[16px] flex-shrink-0 text-[var(--text-icon)]'
-                    style={getBareIconStyle(Icon)}
-                  />
+                  <BrandIcon icon={Icon} className='size-[16px] flex-shrink-0' />
                   <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
                     {action.label}
                   </span>

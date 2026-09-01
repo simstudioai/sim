@@ -1,0 +1,117 @@
+---
+title: Custom Tools
+description: Manage custom tools — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+`sim custom-tools` is also spelled `sim custom-tool`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## Create custom tool
+
+```bash
+sim custom-tools create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--title <value>` | Yes | Display title, unique within the workspace. |
+| `--schema <json\|@file>` | Yes | OpenAI function schema: &#123;"type":"function","function":&#123;"name":"...","parameters":&#123;"type":"object","properties":&#123;&#125;&#125;&#125;&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--code <value>` | Yes | Tool implementation executed in the sandboxed function runtime. |
+
+</CommandTable>
+
+## Delete custom tool
+
+```bash
+sim custom-tools delete <customToolId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `customToolId` | Yes | Unique custom tool identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Get custom tool
+
+```bash
+sim custom-tools get <customToolId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `customToolId` | Yes | Unique custom tool identifier. |
+
+</CommandTable>
+
+## List custom tools
+
+```bash
+sim custom-tools list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the tool title. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `title`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Update custom tool
+
+```bash
+sim custom-tools update <customToolId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `customToolId` | Yes | Unique custom tool identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--title <value>` | No | New display title for the tool. |
+| `--schema <json\|@file>` | No | OpenAI function schema: &#123;"type":"function","function":&#123;"name":"...","parameters":&#123;"type":"object","properties":&#123;&#125;&#125;&#125;&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--code <value>` | No | Replacement tool implementation. |
+
+</CommandTable>

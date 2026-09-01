@@ -33,6 +33,7 @@ export {
   createMockGetTool,
   mockBlockConfigs,
   mockToolConfigs,
+  toolsMetadataMock,
   toolsUtilsMock,
 } from './blocks.mock'
 // Copilot HTTP mocks (for @/lib/copilot/request/http)
@@ -95,8 +96,10 @@ export {
   mockNextFetchResponse,
   setupGlobalFetchMock,
 } from './fetch.mock'
-// Generic folder engine mocks (for @/lib/folders/lifecycle)
-export { foldersLifecycleMock, foldersLifecycleMockFns } from './folders-lifecycle.mock'
+export {
+  foldersOrchestrationMock,
+  foldersOrchestrationMockFns,
+} from './folders-orchestration.mock'
 // Hybrid auth mocks
 export { hybridAuthMock, hybridAuthMockFns } from './hybrid-auth.mock'
 // Input validation mocks
@@ -169,6 +172,14 @@ export {
 } from './terminal-console.mock'
 // URL mocks
 export { LOCALHOST_HOSTNAMES_MOCK, resetUrlsMock, urlsMock, urlsMockFns } from './urls.mock'
+export {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from './v2-route.mock'
 // Workflow authz package mocks (for @sim/platform-authz/workflow)
 export { workflowAuthzMock, workflowAuthzMockFns } from './workflow-authz.mock'
 // Workflows API utils mocks (for @/app/api/workflows/utils)

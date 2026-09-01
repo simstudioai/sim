@@ -1,0 +1,203 @@
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockDownloadServableFileFromStorage, mockReadWorkspaceFileByKey, mockVerifyFileAccess } =
+  vi.hoisted(() => ({
+    mockDownloadServableFileFromStorage: vi.fn(),
+    mockReadWorkspaceFileByKey: vi.fn(),
+    mockVerifyFileAccess: vi.fn(),
+  }))
+
+vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
+  downloadServableFileFromStorage: mockDownloadServableFileFromStorage,
+}))
+
+vi.mock('@/app/api/files/authorization', () => ({
+  verifyFileAccess: mockVerifyFileAccess,
+}))
+
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', () => ({
+  readWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileByKey },
+}))
+
+import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
+import type { UserFile } from '@/executor/types'
+
+const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas')
+const PDF_BYTES = Buffer.from('%PDF-1.4 rendered bytes')
+
+const generatedPdf: UserFile = {
+  id: 'file-1',
+  name: 'report.pdf',
+  url: '',
+  size: PDF_SOURCE.length,
+  type: 'text/x-python-pdf',
+  key: 'workspace/2f1d8c3e-5b6a-4c7d-8e9f-0a1b2c3d4e5f/1700000000000-abc1234-report.pdf',
+}
+
+describe('readUserFileContent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    generatedPdf.size = PDF_SOURCE.length
+    mockVerifyFileAccess.mockResolvedValue(true)
+    mockReadWorkspaceFileByKey.mockResolvedValue({ file: { id: 'file-1' } })
+    mockDownloadServableFileFromStorage.mockResolvedValue({
+      buffer: PDF_BYTES,
+      contentType: 'application/pdf',
+    })
+  })
+
+  it('returns the compiled artifact instead of the stored generation source', async () => {
+    const content = await readUserFileContent(generatedPdf, {
+      userId: 'user-1',
+      encoding: 'base64',
+    })
+
+    expect(mockDownloadServableFileFromStorage).toHaveBeenCalledOnce()
+    expect(content).toBe(PDF_BYTES.toString('base64'))
+    expect(content).not.toBe(PDF_SOURCE.toString('base64'))
+    expect(generatedPdf.size).toBe(PDF_BYTES.length)
+  })
+
+  it('authorizes execution-scoped files without inventing a human subject', async () => {
+    const executionFile: UserFile = {
+      id: 'file-2',
+      name: 'result.txt',
+      url: '',
+      size: 6,
+      type: 'text/plain',
+      key: 'execution/workspace-1/workflow-1/execution-1/result.txt',
+      context: 'execution',
+    }
+    mockDownloadServableFileFromStorage.mockResolvedValueOnce({ buffer: Buffer.from('result') })
+
+    await expect(
+      readUserFileContent(executionFile, {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        encoding: 'text',
+      })
+    ).resolves.toBe('result')
+
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+  })
+
+  it.each(['profile-pictures', 'og-images', 'workspace-logos'] as const)(
+    'authorizes actorless reads from the trusted public %s context',
+    async (context) => {
+      const publicFile: UserFile = {
+        id: 'public-file',
+        name: 'public.png',
+        url: '',
+        size: 6,
+        type: 'image/png',
+        key: `${context}/public.png`,
+        context,
+      }
+      mockDownloadServableFileFromStorage.mockResolvedValueOnce({ buffer: Buffer.from('public') })
+
+      await expect(readUserFileContent(publicFile, { encoding: 'text' })).resolves.toBe('public')
+
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+      expect(mockReadWorkspaceFileByKey).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not let an actorless caller relabel a private key as public', async () => {
+    const relabeledFile: UserFile = {
+      id: 'private-file',
+      name: 'private.txt',
+      url: '',
+      size: 7,
+      type: 'text/plain',
+      key: 'workspace/workspace-1/private.txt',
+      context: 'og-images',
+    }
+
+    await expect(readUserFileContent(relabeledFile, { encoding: 'text' })).rejects.toThrow(
+      'File context does not match its storage key.'
+    )
+
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+  })
+
+  it('authorizes workspace files with the preserved actorless deployment principal', async () => {
+    const principal = {
+      kind: 'delegated' as const,
+      serviceId: 'executor' as const,
+      workspaceId: 'workspace-1',
+      delegationId: 'function-1',
+      audience: 'sim:function-executions',
+      issuedAt: new Date(Date.now() - 1_000),
+      expiresAt: new Date(Date.now() + 60_000),
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        principal: {
+          kind: 'system' as const,
+          serviceId: 'schedule' as const,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment' as const,
+          deploymentVersionId: 'deployment-1',
+        },
+      },
+    }
+
+    await readUserFileContent(generatedPdf, {
+      principal,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      encoding: 'base64',
+    })
+
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: {
+          key: generatedPdf.key,
+          assertedWorkspaceId: 'workspace-1',
+        },
+        principal: expect.objectContaining({
+          audience: 'sim:workspace-files',
+          delegationContext: principal.delegationContext,
+        }),
+      })
+    )
+  })
+
+  it('authorizes an exact workspace storage key with the workspace-key principal', async () => {
+    const principal = {
+      kind: 'workspace_api_key' as const,
+      workspaceId: 'workspace-1',
+      keyId: 'key-1',
+    }
+
+    await readUserFileContent(generatedPdf, {
+      principal,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      encoding: 'base64',
+    })
+
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith({
+      principal,
+      input: {
+        key: generatedPdf.key,
+        assertedWorkspaceId: 'workspace-1',
+      },
+    })
+  })
+})

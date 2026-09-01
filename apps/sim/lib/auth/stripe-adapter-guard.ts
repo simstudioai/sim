@@ -17,11 +17,13 @@ type SubscriptionWriteSurface = Pick<
 /**
  * The Better Auth Stripe plugin persists webhook state through the raw
  * database adapter BEFORE invoking our subscription callbacks — including the
- * `plan` column resolved from the Stripe price. That makes the adapter the
- * only in-process seam that can enforce the billing invariant that
- * organization-referenced subscriptions hold Team/Enterprise plans: by the
- * time `syncSubscriptionPlan` runs in a callback, the plugin's write has
- * already landed.
+ * Stripe subscription ID and `plan` column resolved from the Stripe price.
+ * That makes the adapter the only in-process seam that can enforce two billing
+ * invariants before the write lands:
+ *
+ * - an existing subscription cannot be rebound to a different Stripe
+ *   subscription merely because both subscriptions share a customer;
+ * - organization-referenced subscriptions hold Team/Enterprise plans.
  *
  * Checkout admission blocks user-driven violations; this guard blocks the
  * remaining vector — an operator swapping an org subscription onto a personal
@@ -77,11 +79,31 @@ function guardWriteSurface<TAdapter extends SubscriptionWriteSurface>(
       return adapter.create(data)
     },
     update: async (data) => {
-      if (data.model === 'subscription' && hasNonOrgPlanWrite(data.update)) {
+      if (data.model === 'subscription' && needsSubscriptionRowInspection(data.update)) {
         const row = await adapter.findOne<SubscriptionRowSlice>({
           model: 'subscription',
           where: data.where,
         })
+
+        if (row && attemptsStripeSubscriptionRebind(row, data.update)) {
+          const rejectedStripeSubscriptionId = (data.update as { stripeSubscriptionId: string })
+            .stripeSubscriptionId
+          logger.error(
+            'Blocked rebinding an existing subscription to a different Stripe subscription',
+            {
+              subscriptionId: row.id,
+              referenceId: row.referenceId,
+              currentStripeSubscriptionId: row.stripeSubscriptionId,
+              rejectedStripeSubscriptionId,
+            }
+          )
+          throw new Error(
+            `Subscription ${row.id} is already bound to Stripe subscription ${row.stripeSubscriptionId}; refusing to bind ${rejectedStripeSubscriptionId}`
+          )
+        }
+
+        if (!hasNonOrgPlanWrite(data.update)) return adapter.update(data)
+
         const sanitized = await stripPlanWhenOrgReferenced(
           row ? [row] : [],
           data.update as Record<string, unknown>
@@ -110,6 +132,27 @@ interface SubscriptionRowSlice {
   id: string
   referenceId: string
   plan: string
+  stripeSubscriptionId: string | null
+}
+
+function needsSubscriptionRowInspection(update: unknown): boolean {
+  return hasStripeSubscriptionIdWrite(update) || hasNonOrgPlanWrite(update)
+}
+
+function hasStripeSubscriptionIdWrite(
+  update: unknown
+): update is { stripeSubscriptionId: unknown } {
+  return Boolean(update && typeof update === 'object' && 'stripeSubscriptionId' in update)
+}
+
+function attemptsStripeSubscriptionRebind(row: SubscriptionRowSlice, update: unknown): boolean {
+  if (!hasStripeSubscriptionIdWrite(update)) return false
+  const incomingStripeSubscriptionId = update.stripeSubscriptionId
+  return (
+    typeof row.stripeSubscriptionId === 'string' &&
+    typeof incomingStripeSubscriptionId === 'string' &&
+    incomingStripeSubscriptionId !== row.stripeSubscriptionId
+  )
 }
 
 function hasNonOrgPlanWrite(update: unknown): boolean {

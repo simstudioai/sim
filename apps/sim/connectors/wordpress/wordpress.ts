@@ -1,8 +1,14 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  htmlToPlainText,
+  joinTagArray,
+  parseTagDate,
+  stubOrSkipBySize,
+} from '@/connectors/utils'
 import { DEFAULT_MAX_POSTS, wordpressConnectorMeta } from '@/connectors/wordpress/meta'
 
 const logger = createLogger('WordPressConnector')
@@ -10,14 +16,33 @@ const logger = createLogger('WordPressConnector')
 const WP_API_BASE = 'https://public-api.wordpress.com/rest/v1.1/sites'
 
 /**
- * Strips protocol prefix and trailing slashes from a site URL so the
- * WordPress.com API receives a bare domain (e.g. "mysite.wordpress.com").
+ * Reduces a user-supplied site URL to the bare `$site` value the WordPress.com
+ * REST API expects (a domain such as "mysite.wordpress.com", or a numeric site
+ * ID). Drops the protocol, any userinfo, and any path/query/fragment — the API
+ * takes the site as a single path segment, so "https://mysite.com/blog/" must
+ * become "mysite.com".
  */
 function normalizeSiteUrl(raw: string): string {
-  return raw.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+  return raw
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^[^/@]*@/, '')
+    .replace(/[/?#].*$/, '')
 }
 
-const POSTS_PER_PAGE = 20
+/** WordPress.com caps `number` at 100 per request. */
+const POSTS_PER_PAGE = 100
+
+/**
+ * Post fields the connector actually reads, plus `date`.
+ *
+ * `date` is requested even though nothing reads it: the API builds `meta.next_page`
+ * as `value=<sort column>&id=<ID>`, so it omits the handle entirely unless the
+ * column it orders by is inside the projection. Ordering defaults to `date`, so
+ * dropping it silently degrades every sync to offset paging — which re-numbers
+ * mid-run whenever a post is published, skipping posts.
+ */
+const POST_FIELDS = 'ID,title,content,URL,modified,type,author,categories,tags,date'
 
 interface WordPressPost {
   ID: number
@@ -36,10 +61,14 @@ interface WordPressPost {
 interface WordPressPostsResponse {
   found: number
   posts: WordPressPost[]
+  meta?: {
+    next_page?: string
+  }
 }
 
 interface ListCursor {
   offset: number
+  pageHandle?: string
 }
 
 /**
@@ -60,15 +89,21 @@ function extractTagNames(tags: Record<string, { name: string }>): string[] {
  * Converts a WordPress post to an ExternalDocument.
  */
 function postToDocument(post: WordPressPost): ExternalDocument {
-  const plainText = htmlToPlainText(post.content)
-  const fullContent = `# ${post.title}\n\n${plainText}`
+  /**
+   * WordPress.com returns `title` and `content` as rendered HTML, so both go
+   * through `htmlToPlainText` — a title carrying entities (`&#8217;`) or inline
+   * markup would otherwise be indexed and displayed raw.
+   */
+  const title = htmlToPlainText(post.title ?? '')
+  const plainText = htmlToPlainText(post.content ?? '')
+  const fullContent = `# ${title}\n\n${plainText}`
   const contentHash = `wordpress:${post.ID}:${post.modified || ''}`
-  const categories = extractCategoryNames(post.categories)
-  const tags = extractTagNames(post.tags)
+  const categories = extractCategoryNames(post.categories ?? {})
+  const tags = extractTagNames(post.tags ?? {})
 
-  return {
+  const document: ExternalDocument = {
     externalId: String(post.ID),
-    title: post.title || 'Untitled',
+    title: title || 'Untitled',
     content: fullContent,
     mimeType: 'text/plain',
     sourceUrl: post.URL,
@@ -81,6 +116,12 @@ function postToDocument(post: WordPressPost): ExternalDocument {
       tags,
     },
   }
+
+  return stubOrSkipBySize(
+    document,
+    Buffer.byteLength(fullContent, 'utf8'),
+    CONNECTOR_MAX_FILE_BYTES
+  )
 }
 
 /**
@@ -112,19 +153,27 @@ export const wordpressConnector: ConnectorConfig = {
     }
     const siteUrl = normalizeSiteUrl(rawSiteUrl)
 
-    const maxPosts = sourceConfig.maxPosts ? Number(sourceConfig.maxPosts) : DEFAULT_MAX_POSTS
+    const parsedMax = Number(sourceConfig.maxPosts)
+    const maxPosts = Number.isFinite(parsedMax) && parsedMax > 0 ? parsedMax : DEFAULT_MAX_POSTS
     const type = resolvePostType(sourceConfig.postType as string | undefined)
 
     const parsed: ListCursor = cursor ? JSON.parse(cursor) : { offset: 0 }
     const totalDocsFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
-    const remaining = maxPosts > 0 ? maxPosts - totalDocsFetched : POSTS_PER_PAGE
+    const remaining = maxPosts - totalDocsFetched
     if (remaining <= 0) {
       return { documents: [], hasMore: false }
     }
 
     const pageSize = Math.min(POSTS_PER_PAGE, remaining)
-    const url = `${WP_API_BASE}/${encodeURIComponent(siteUrl)}/posts?number=${pageSize}&offset=${parsed.offset}&type=${type}`
+    /**
+     * `page_handle` is the API's documented (and cheapest) cursor; `offset` is the
+     * fallback for the first page and for any response that omits `meta.next_page`.
+     */
+    const pageParam = parsed.pageHandle
+      ? `page_handle=${encodeURIComponent(parsed.pageHandle)}`
+      : `offset=${parsed.offset}`
+    const url = `${WP_API_BASE}/${encodeURIComponent(siteUrl)}/posts?number=${pageSize}&${pageParam}&type=${type}&fields=${POST_FIELDS}`
 
     logger.info('Fetching WordPress posts', { siteUrl, offset: parsed.offset, type, pageSize })
 
@@ -148,15 +197,42 @@ export const wordpressConnector: ConnectorConfig = {
 
     const totalFetched = totalDocsFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxPosts > 0 && totalFetched >= maxPosts
+    const hitLimit = totalFetched >= maxPosts
 
     const newOffset = parsed.offset + posts.length
-    const hasMore = !hitLimit && newOffset < data.found
+    const moreAvailable = posts.length > 0 && newOffset < data.found
+    const hasMore = !hitLimit && moreAvailable
+
+    /**
+     * An empty page while the site still reports unread posts is a truncated
+     * listing, not an exhausted one, so paging stops without having seen every
+     * post.
+     */
+    const stalledMidListing = posts.length === 0 && parsed.offset < data.found
+
+    /**
+     * A truncated listing must suppress deletion reconciliation — the sync engine
+     * hard-deletes every stored document absent from a full listing, and the
+     * unlisted posts still exist on the site. Set only when posts genuinely
+     * remain: a cap that lands exactly on exhaustion is a complete listing, and
+     * flagging it would block deletion reconciliation forever.
+     */
+    if (syncContext && (stalledMidListing || (hitLimit && moreAvailable))) {
+      syncContext.listingCapped = true
+      logger.info('WordPress post listing truncated', {
+        siteUrl,
+        maxPosts,
+        found: data.found,
+        stalledMidListing,
+      })
+    }
+
+    const nextCursor: ListCursor = { offset: newOffset, pageHandle: data.meta?.next_page }
 
     return {
       documents,
       hasMore,
-      nextCursor: hasMore ? JSON.stringify({ offset: newOffset }) : undefined,
+      nextCursor: hasMore ? JSON.stringify(nextCursor) : undefined,
     }
   },
 
@@ -171,31 +247,28 @@ export const wordpressConnector: ConnectorConfig = {
     }
     const siteUrl = normalizeSiteUrl(rawSiteUrl)
 
-    const url = `${WP_API_BASE}/${encodeURIComponent(siteUrl)}/posts/${externalId}`
+    const url = `${WP_API_BASE}/${encodeURIComponent(siteUrl)}/posts/${encodeURIComponent(externalId)}?fields=${POST_FIELDS}`
 
-    try {
-      const response = await fetchWithRetry(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-        },
-      })
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
 
-      if (!response.ok) {
-        if (response.status === 404) return null
-        throw new Error(`WordPress API error: ${response.status}`)
-      }
-
-      const post = (await response.json()) as WordPressPost
-      return postToDocument(post)
-    } catch (error) {
-      logger.warn('Failed to get WordPress document', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
+    /**
+     * Only a deleted post (404) resolves to `null`. Every other failure throws so
+     * the sync engine records a visible failed document instead of dropping the
+     * post from the run with no counter and no error log.
+     */
+    if (!response.ok) {
+      if (response.status === 404) return null
+      throw new Error(`WordPress API error: ${response.status}`)
     }
+
+    const post = (await response.json()) as WordPressPost
+    return postToDocument(post)
   },
 
   validateConfig: async (
@@ -209,8 +282,11 @@ export const wordpressConnector: ConnectorConfig = {
       return { valid: false, error: 'Site URL is required' }
     }
     const siteUrl = normalizeSiteUrl(rawSiteUrl)
+    if (!siteUrl) {
+      return { valid: false, error: 'Site URL is required' }
+    }
 
-    if (maxPosts && (Number.isNaN(Number(maxPosts)) || Number(maxPosts) <= 0)) {
+    if (maxPosts && (!Number.isFinite(Number(maxPosts)) || Number(maxPosts) <= 0)) {
       return { valid: false, error: 'Max posts must be a positive number' }
     }
 
@@ -231,6 +307,12 @@ export const wordpressConnector: ConnectorConfig = {
       if (!response.ok) {
         if (response.status === 404) {
           return { valid: false, error: `Site not found: ${siteUrl}` }
+        }
+        if (response.status === 401 || response.status === 403) {
+          return {
+            valid: false,
+            error: `WordPress authorization failed (${response.status}) — reconnect the account, or check that it can access ${siteUrl}`,
+          }
         }
         return { valid: false, error: `WordPress API error: ${response.status}` }
       }

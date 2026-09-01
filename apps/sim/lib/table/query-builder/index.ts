@@ -4,4 +4,5 @@
 
 export * from '@/lib/table/query-builder/constants'
 export * from '@/lib/table/query-builder/converters'
+export * from '@/lib/table/query-builder/predicate'
 export * from '@/lib/table/query-builder/use-query-builder'

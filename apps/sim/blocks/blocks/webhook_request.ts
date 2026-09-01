@@ -12,6 +12,15 @@ export const WebhookRequestBlock: BlockConfig<RequestResponse> = {
   category: 'blocks',
   bgColor: '#10B981',
   icon: WebhookIcon,
+  canvasPresentation: {
+    defaultTitle: 'Webhook',
+    sentences: {
+      default: [
+        { text: 'Post', field: 'body', core: true },
+        { text: 'to', field: 'url', core: true },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'url',

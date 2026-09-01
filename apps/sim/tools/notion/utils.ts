@@ -52,16 +52,10 @@ export function extractTitle(properties: Record<string, any>): string {
 
 export function extractTitleFromItem(item: any): string {
   if (item.object === 'page') {
-    // For pages, check properties first
-    if (item.properties?.title?.title && Array.isArray(item.properties.title.title)) {
-      const title = item.properties.title.title.map((t: any) => t.plain_text || '').join('')
-      if (title) return title
-    }
-    // Fallback to page title
-    return item.title || 'Untitled Page'
+    const title = item.properties ? extractTitle(item.properties) : ''
+    return title || item.title || 'Untitled Page'
   }
   if (item.object === 'database') {
-    // For databases, get title from title array
     if (item.title && Array.isArray(item.title)) {
       return item.title.map((t: any) => t.plain_text || '').join('') || 'Untitled Database'
     }

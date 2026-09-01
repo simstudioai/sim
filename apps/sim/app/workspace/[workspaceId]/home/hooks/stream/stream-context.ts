@@ -68,6 +68,7 @@ export interface StreamLoopState {
   streamRequestId: string | undefined
   sawStreamError: boolean
   sawCompleteEvent: boolean
+  browserAgentRunIds: Set<string>
   scheduledTextFlushFrame: number | null
   /** Trailing timer for the min-interval text-flush gate (see flushText). */
   scheduledTextFlushTimer: ReturnType<typeof setTimeout> | null
@@ -89,6 +90,8 @@ export interface StreamLoopDeps {
   setError: Dispatch<SetStateAction<string | null>>
   setPendingMessages: Dispatch<SetStateAction<ChatMessage[]>>
   setResolvedChatId: Dispatch<SetStateAction<string | undefined>>
+  /** Adopts a server-created chat before any event handler mutates chatIdRef. */
+  adoptResolvedChatId: (chatId: string) => void
   setResources: Dispatch<SetStateAction<MothershipResource[]>>
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
 
@@ -108,6 +111,9 @@ export interface StreamLoopDeps {
     args: Record<string, unknown>,
     ts?: string
   ) => void
+  startBrowserAgentRun: (runId: string) => void
+  endBrowserAgentRun: (runId: string) => void
+  clearBrowserAgentRuns: () => void
   upsertMothershipChatHistory: (
     chatId: string,
     updater: (current: MothershipChatHistory) => MothershipChatHistory
@@ -157,7 +163,7 @@ export interface StreamLoopDeps {
   onToolResultRef: MutableRefObject<
     ((toolName: string, success: boolean, result: unknown) => void) | undefined
   >
-  onResourceEventRef: MutableRefObject<(() => void) | undefined>
+  onResourceEventRef: MutableRefObject<((resourceId: string) => void) | undefined>
   previewSessionRef: MutableRefObject<FilePreviewSession | null>
   previewSessionsRef: MutableRefObject<Record<string, FilePreviewSession>>
   latestPreviewTargetToolCallIdRef: MutableRefObject<string | null>
@@ -203,6 +209,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     streamRequestId: undefined,
     sawStreamError: false,
     sawCompleteEvent: false,
+    browserAgentRunIds: new Set(),
     scheduledTextFlushFrame: null,
     scheduledTextFlushTimer: null,
   }

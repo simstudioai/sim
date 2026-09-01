@@ -1,8 +1,16 @@
+import {
+  applyProjectedModelVisibleFileNames,
+  selectModelVisibleFileNames,
+} from '@/lib/uploads/utils/model-input'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import {
+  applyFirecrawlFormatModelInput,
+  selectFirecrawlFormatModelInput,
+} from '@/tools/firecrawl/model-input'
 import type { ParseParams, ParseResponse } from '@/tools/firecrawl/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
+export const parseTool: InternalToolConfig<ParseParams, ParseResponse> = {
   id: 'firecrawl_parse',
   name: 'Firecrawl Document Parser',
   description:
@@ -86,14 +94,29 @@ export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
 
   hosting: firecrawlHosting(),
 
-  request: {
-    method: 'POST',
-    url: '/api/tools/firecrawl/parse',
-    headers: () => ({
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    }),
-    body: (params) => {
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => {
+        const file = selectModelVisibleFileNames(params.file)
+        return {
+          formats: selectFirecrawlFormatModelInput(params.formats),
+          ...(file === undefined ? {} : { file }),
+        }
+      },
+      applyProjected: (selectedParams, projectedSelection) => ({
+        formats: applyFirecrawlFormatModelInput(selectedParams.formats, projectedSelection.formats),
+        ...(Object.hasOwn(projectedSelection, 'file')
+          ? {
+              file: applyProjectedModelVisibleFileNames(
+                selectedParams.file,
+                projectedSelection.file
+              ),
+            }
+          : {}),
+      }),
+    },
+    input: (params) => {
       if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
         throw new Error('Missing or invalid API key: A valid Firecrawl API key is required')
       }

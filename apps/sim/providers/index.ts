@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { StreamingExecution } from '@/executor/types'
 import {
   applyModelCostPolicy,
@@ -15,7 +16,17 @@ import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
+import { isKnownModelId } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
+import {
+  type ProviderRuntimeContext,
+  runWithProviderRuntimeContext,
+} from '@/providers/runtime-context'
+import {
+  assignProviderToolIdentities,
+  projectProviderResponseToolIdentities,
+  projectStreamingExecutionToolIdentities,
+} from '@/providers/tool-identity'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   generateStructuredOutputInstructions,
@@ -29,29 +40,92 @@ import {
 
 const logger = createLogger('Providers')
 
+async function omitUnsafeProviderFileAttachments(
+  request: ProviderRequest
+): Promise<ProviderRequest> {
+  const attachments = (request.messages ?? []).flatMap((message) => message.files ?? [])
+  if (attachments.length === 0) return request
+
+  let safeAttachments: typeof attachments
+  try {
+    safeAttachments = await filterModelSafeWorkspaceFileAttachments(attachments, {
+      workspaceId: request.workspaceId,
+      ...(request.userId ? { actorUserId: request.userId } : {}),
+    })
+  } catch (error) {
+    logger.error('Workspace file secret provenance could not be verified', {
+      attachmentCount: attachments.length,
+      error: toError(error).message,
+    })
+    throw new Error('File attachments could not be verified for model use')
+  }
+
+  if (safeAttachments.length === attachments.length) return request
+  const safe = new Set(safeAttachments)
+  logger.warn('Omitting model attachments with unsafe secret provenance', {
+    attachmentCount: attachments.length,
+    omittedCount: attachments.length - safeAttachments.length,
+  })
+  return {
+    ...request,
+    messages: request.messages?.map((message) => {
+      if (!message.files) return message
+      const files = message.files.filter((file) => safe.has(file))
+      return { ...message, ...(files.length > 0 ? { files } : { files: undefined }) }
+    }),
+  }
+}
+
 /**
  * Maximum number of iterations for tool call loops to prevent infinite loops.
  * Used across all providers that support tool/function calling.
  */
 export const MAX_TOOL_ITERATIONS = 20
 
+/**
+ * Normalizes a model-tuning level that may have arrived from a variable or block reference
+ * rather than a picker. Every level a model declares is lower-case, so trimming and
+ * lower-casing lets a reference resolve to `"High"` or `" high "` and still apply. A level
+ * that resolves to nothing becomes `undefined` so the field reads as untouched instead of
+ * sending an empty string the provider rejects.
+ */
+function normalizeModelLevel(value: string | undefined): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  return normalized || undefined
+}
+
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   const sanitizedRequest = { ...request }
   const model = sanitizedRequest.model
+
+  sanitizedRequest.reasoningEffort = normalizeModelLevel(sanitizedRequest.reasoningEffort)
+  sanitizedRequest.verbosity = normalizeModelLevel(sanitizedRequest.verbosity)
+  sanitizedRequest.thinkingLevel = normalizeModelLevel(sanitizedRequest.thinkingLevel)
 
   if (model && !supportsTemperature(model)) {
     sanitizedRequest.temperature = undefined
   }
 
-  if (model && !supportsReasoningEffort(model)) {
+  /**
+   * A model absent from the catalogue is unknown, not known-incapable. The model field is an
+   * editable combobox, so a model newer than `models.ts` reaches this point routed by pattern
+   * and executing normally — discarding its levels on the strength of a list that has not
+   * caught up loses a setting the provider would have honoured. Those levels are forwarded and
+   * the provider decides. Models the catalogue does know, and every dynamic-provider id, keep
+   * the protective drop.
+   */
+  const isCatalogued = Boolean(model) && isKnownModelId(model)
+
+  if (model && isCatalogued && !supportsReasoningEffort(model)) {
     sanitizedRequest.reasoningEffort = undefined
   }
 
-  if (model && !supportsVerbosity(model)) {
+  if (model && isCatalogued && !supportsVerbosity(model)) {
     sanitizedRequest.verbosity = undefined
   }
 
-  if (model && !supportsThinking(model)) {
+  if (model && isCatalogued && !supportsThinking(model)) {
     sanitizedRequest.thinkingLevel = undefined
   }
 
@@ -78,14 +152,18 @@ function isReadableStream(response: any): response is ReadableStream {
  * stream drain — long after this function returns — so the policy is installed
  * on the live output object rather than applied to a value.
  */
-function applyStreamingCostPolicy(response: StreamingExecution, policy: ModelCostPolicy): void {
+function applyStreamingCostPolicy(
+  response: StreamingExecution,
+  policy: ModelCostPolicy,
+  additionalToolCost?: () => number
+): void {
   const output = response.execution?.output
   if (!output || typeof output !== 'object') {
     logger.warn('Streaming output unavailable at intercept time; cost policy not applied')
     return
   }
 
-  installStreamingCostPolicy(output, policy)
+  installStreamingCostPolicy(output, policy, additionalToolCost)
 
   const segments = output.providerTiming?.timeSegments
   if (Array.isArray(segments)) {
@@ -95,7 +173,8 @@ function applyStreamingCostPolicy(response: StreamingExecution, policy: ModelCos
 
 export async function executeProviderRequest(
   providerId: string,
-  request: ProviderRequest
+  request: ProviderRequest,
+  runtimeContext?: ProviderRuntimeContext
 ): Promise<ProviderResponse | ReadableStream | StreamingExecution> {
   const provider = await getProviderExecutor(providerId as ProviderId)
   if (!provider) {
@@ -138,36 +217,56 @@ export async function executeProviderRequest(
   resolvedRequest.isBYOK = isBYOK
   const sanitizedRequest = resolvedRequest
 
-  if (sanitizedRequest.responseFormat) {
-    if (
-      typeof sanitizedRequest.responseFormat === 'string' &&
-      sanitizedRequest.responseFormat === ''
-    ) {
-      logger.info('Empty response format provided, ignoring it')
-      sanitizedRequest.responseFormat = undefined
-    } else {
-      const structuredOutputInstructions = generateStructuredOutputInstructions(
-        sanitizedRequest.responseFormat
-      )
+  if (
+    typeof sanitizedRequest.responseFormat === 'string' &&
+    sanitizedRequest.responseFormat === ''
+  ) {
+    logger.info('Empty response format provided, ignoring it')
+    sanitizedRequest.responseFormat = undefined
+  }
 
-      if (structuredOutputInstructions.trim()) {
-        const originalPrompt = sanitizedRequest.systemPrompt || ''
-        sanitizedRequest.systemPrompt =
-          `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
+  const provenanceSafeRequest = await omitUnsafeProviderFileAttachments(sanitizedRequest)
+  const modelSafeRequest = provenanceSafeRequest
+  const toolIdentities = assignProviderToolIdentities(modelSafeRequest.tools)
+  const failedFunctionToolCost = { total: 0 }
+  const requestRuntimeContext: ProviderRuntimeContext = {
+    ...runtimeContext,
+    failedFunctionToolCost,
+    ...(toolIdentities.toolIdByWireId.size > 0
+      ? {
+          toolIdByWireId: new Map([
+            ...(runtimeContext?.toolIdByWireId ?? []),
+            ...toolIdentities.toolIdByWireId,
+          ]),
+        }
+      : {}),
+  }
 
-        logger.info('Added structured output instructions to system prompt')
-      }
+  if (modelSafeRequest.responseFormat) {
+    const structuredOutputInstructions = generateStructuredOutputInstructions(
+      modelSafeRequest.responseFormat
+    )
+    if (structuredOutputInstructions.trim()) {
+      const originalPrompt = modelSafeRequest.systemPrompt || ''
+      modelSafeRequest.systemPrompt = `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
+      logger.info('Added structured output instructions to system prompt')
     }
   }
 
-  await attachLargeFileRemoteUrls(sanitizedRequest, providerId)
-  await uploadLargeFilesToProvider(sanitizedRequest, providerId)
-
-  const response = await provider.executeRequest(sanitizedRequest)
+  const response = await runWithProviderRuntimeContext(requestRuntimeContext, async () => {
+    await attachLargeFileRemoteUrls(modelSafeRequest, providerId)
+    await uploadLargeFilesToProvider(modelSafeRequest, providerId)
+    return provider.executeRequest(modelSafeRequest)
+  })
 
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution', { isBYOK })
-    applyStreamingCostPolicy(response, resolveModelCostPolicy(sanitizedRequest.model, isBYOK))
+    applyStreamingCostPolicy(
+      response,
+      resolveModelCostPolicy(sanitizedRequest.model, isBYOK),
+      () => failedFunctionToolCost.total
+    )
+    projectStreamingExecutionToolIdentities(response, toolIdentities)
     return response
   }
 
@@ -177,6 +276,7 @@ export async function executeProviderRequest(
   }
 
   const costPolicy = resolveModelCostPolicy(response.model, isBYOK)
+  projectProviderResponseToolIdentities(response, toolIdentities)
 
   if (response.tokens) {
     const { input: promptTokens = 0, output: completionTokens = 0 } = response.tokens
@@ -211,7 +311,7 @@ export async function executeProviderRequest(
     applySegmentCostPolicy(response.timing.timeSegments, costPolicy)
   }
 
-  const toolCost = sumToolCosts(response.toolResults)
+  const toolCost = sumToolCosts(response.toolResults) + failedFunctionToolCost.total
   if (toolCost > 0 && response.cost) {
     // Replaced rather than mutated: a provider-supplied cost can be the same
     // object it also handed to a time segment, and tool cost belongs only to

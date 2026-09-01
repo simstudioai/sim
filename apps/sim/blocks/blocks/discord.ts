@@ -4,6 +4,13 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DiscordResponse } from '@/tools/discord/types'
 
+/**
+ * Canonical basic/advanced pair, shared by the card sentences below. Listing
+ * both members is what keeps a sentence working for an advanced-mode user, who
+ * has only the file-reference field filled.
+ */
+const ATTACHMENTS_FIELD = ['attachmentFiles', 'files'] as const
+
 export const DiscordBlock: BlockConfig<DiscordResponse> = {
   type: 'discord',
   name: 'Discord',
@@ -17,6 +24,148 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
   iconColor: '#5865F2',
   icon: DiscordIcon,
   docsLink: 'https://docs.sim.ai/integrations/discord',
+  canvasPresentation: {
+    defaultTitle: 'Discord',
+    sentences: {
+      byOperation: {
+        discord_send_message: [
+          { text: 'Post', field: 'content', core: true },
+          { text: 'to channel', field: 'channelId', core: true },
+          { text: ', attaching', field: ATTACHMENTS_FIELD },
+        ],
+        discord_get_messages: [
+          {
+            text: 'Read the last',
+            field: 'limit',
+            after: 'messages from channel',
+            core: true,
+          },
+          { field: 'channelId', core: true },
+        ],
+        discord_get_server: [{ text: 'Read details of server', field: 'serverId', core: true }],
+        discord_get_user: [{ text: 'Read profile of user', field: 'userId', core: true }],
+        discord_edit_message: [
+          { text: 'Edit message', field: 'messageId', core: true },
+          { text: 'in channel', field: 'channelId' },
+          { text: 'to say', field: 'content' },
+        ],
+        discord_delete_message: [
+          { text: 'Delete message', field: 'messageId', core: true },
+          { text: 'from channel', field: 'channelId' },
+        ],
+        discord_bulk_delete_messages: [
+          { text: 'Bulk delete messages', field: 'messageIds', core: true },
+          { text: 'from channel', field: 'channelId' },
+        ],
+        discord_add_reaction: [
+          { text: 'React with', field: 'emoji', core: true },
+          { text: 'to message', field: 'messageId' },
+          { text: 'in channel', field: 'channelId' },
+        ],
+        discord_remove_reaction: [
+          { text: 'Remove reaction', field: 'emoji', core: true },
+          { text: 'by user', field: 'userId' },
+          { text: 'from message', field: 'messageId' },
+          { text: 'in channel', field: 'channelId' },
+        ],
+        discord_pin_message: [
+          { text: 'Pin message', field: 'messageId', core: true },
+          { text: 'in channel', field: 'channelId' },
+        ],
+        discord_unpin_message: [
+          { text: 'Unpin message', field: 'messageId', core: true },
+          { text: 'in channel', field: 'channelId' },
+        ],
+        discord_get_pinned_messages: [
+          { text: 'List pinned messages in channel', field: 'channelId', core: true },
+          { text: ', up to', field: 'limit', after: 'per page' },
+          { text: ', before', field: 'before' },
+        ],
+        discord_create_thread: [
+          { text: 'Create thread', field: 'name', core: true },
+          { text: 'in channel', field: 'channelId' },
+          { text: ', from message', field: 'messageId' },
+        ],
+        discord_join_thread: [{ text: 'Join thread', field: 'threadId', core: true }],
+        discord_leave_thread: [{ text: 'Leave thread', field: 'threadId', core: true }],
+        /* `archived`'s options are labelled "Archive"/"Unarchive", so the chip
+           cannot carry the verb — the sentence states the change instead. */
+        discord_archive_thread: [
+          { text: 'Set thread', field: 'threadId', core: true, after: 'to' },
+          { field: 'archived', core: true },
+        ],
+        discord_create_channel: [
+          { text: 'Create channel', field: 'name', core: true },
+          { text: 'of type', field: 'channelType' },
+          { text: ', with topic', field: 'topic' },
+        ],
+        discord_update_channel: [
+          { text: 'Update channel', field: 'channelId', core: true },
+          { text: ', renaming it to', field: 'name' },
+          { text: ', with topic', field: 'topic' },
+        ],
+        discord_delete_channel: [{ text: 'Delete channel', field: 'channelId', core: true }],
+        discord_get_channel: [{ text: 'Read details of channel', field: 'channelId', core: true }],
+        discord_list_channels: [{ text: 'List channels in server', field: 'serverId', core: true }],
+        discord_create_role: [
+          { text: 'Create role', field: 'name', core: true },
+          { text: ', with color', field: 'color' },
+        ],
+        discord_update_role: [
+          { text: 'Update role', field: 'roleId', core: true },
+          { text: ', renaming it to', field: 'name' },
+          { text: ', with color', field: 'color' },
+        ],
+        discord_delete_role: [{ text: 'Delete role', field: 'roleId', core: true }],
+        discord_assign_role: [
+          { text: 'Grant role', field: 'roleId', core: true },
+          { text: 'to user', field: 'userId' },
+        ],
+        discord_remove_role: [
+          { text: 'Revoke role', field: 'roleId', core: true },
+          { text: 'from user', field: 'userId' },
+        ],
+        discord_list_roles: [{ text: 'List roles in server', field: 'serverId', core: true }],
+        discord_kick_member: [
+          { text: 'Kick user', field: 'userId', core: true },
+          { text: 'for', field: 'reason' },
+        ],
+        discord_ban_member: [
+          { text: 'Ban user', field: 'userId', core: true },
+          { text: 'for', field: 'reason' },
+        ],
+        discord_unban_member: [
+          { text: 'Unban user', field: 'userId', core: true },
+          { text: 'for', field: 'reason' },
+        ],
+        discord_get_member: [
+          { text: 'Read member', field: 'userId', core: true },
+          { text: 'in server', field: 'serverId' },
+        ],
+        discord_update_member: [
+          { text: 'Update member', field: 'userId', core: true },
+          { text: ', setting nickname to', field: 'nick' },
+        ],
+        discord_create_invite: [
+          { text: 'Create invite to channel', field: 'channelId', core: true },
+          { text: ', capped at', field: 'maxUses', after: 'uses' },
+        ],
+        discord_get_invite: [{ text: 'Read details of invite', field: 'inviteCode', core: true }],
+        discord_delete_invite: [{ text: 'Delete invite', field: 'inviteCode', core: true }],
+        discord_create_webhook: [
+          { text: 'Create webhook', field: 'name', core: true },
+          { text: 'in channel', field: 'channelId' },
+        ],
+        discord_execute_webhook: [
+          { text: 'Post', field: 'content', core: true },
+          { text: 'through webhook', field: 'webhookId', core: true },
+          { text: 'as', field: 'username' },
+        ],
+        discord_get_webhook: [{ text: 'Read details of webhook', field: 'webhookId', core: true }],
+        discord_delete_webhook: [{ text: 'Delete webhook', field: 'webhookId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -297,6 +446,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'webhookToken',
       title: 'Webhook Token',
       type: 'short-input',
+      password: true,
       placeholder: 'Enter webhook token',
       required: true,
       condition: {
@@ -320,6 +470,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     {
       id: 'archived',
       title: 'Archived',
+      canvasNoun: 'archived or active',
       type: 'dropdown',
       options: [
         { label: 'Archive', id: 'true' },

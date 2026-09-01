@@ -11,33 +11,30 @@ export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
   if (typeof window === 'undefined') return
 
   const oldValue = localStorage.getItem('sim-theme')
-  localStorage.setItem('sim-theme', theme)
+  if (oldValue !== theme) {
+    localStorage.setItem('sim-theme', theme)
 
-  window.dispatchEvent(
-    new StorageEvent('storage', {
-      key: 'sim-theme',
-      newValue: theme,
-      oldValue: oldValue,
-      storageArea: localStorage,
-      url: window.location.href,
-    })
-  )
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'sim-theme',
+        newValue: theme,
+        oldValue,
+        storageArea: localStorage,
+        url: window.location.href,
+      })
+    )
+  }
 
   const root = document.documentElement
+  const appliedTheme =
+    theme === 'system'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light'
+      : theme
+  const oppositeTheme = appliedTheme === 'dark' ? 'light' : 'dark'
+  if (root.classList.contains(appliedTheme) && !root.classList.contains(oppositeTheme)) return
+
   root.classList.remove('light', 'dark')
-
-  if (theme === 'system') {
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    root.classList.add(systemTheme)
-  } else {
-    root.classList.add(theme)
-  }
-}
-
-/**
- * Gets the current theme from next-themes localStorage
- */
-export function getThemeFromNextThemes(): 'system' | 'light' | 'dark' {
-  if (typeof window === 'undefined') return 'system'
-  return (localStorage.getItem('sim-theme') as 'system' | 'light' | 'dark') || 'system'
+  root.classList.add(appliedTheme)
 }

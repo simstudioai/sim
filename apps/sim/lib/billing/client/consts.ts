@@ -1,9 +1,4 @@
 /**
- * Number of pills to display in usage indicators.
- */
-export const USAGE_PILL_COUNT = 8
-
-/**
  * Usage percentage thresholds for visual states.
  */
 export const USAGE_THRESHOLDS = {

@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -20,7 +26,8 @@ describe('listForkResourceCandidates', () => {
   it('populates file candidates keyed by storage key and leaves knowledge-document empty', async () => {
     // The grouped queries resolve in Promise.all array order, each ending in `.limit()`:
     // credentials, workspace env, tables, knowledge bases, MCP servers, custom tools, skills,
-    // files. Queue the eight results in that exact order.
+    // files, custom blocks. Queue the first eight in that exact order; the custom-block query
+    // resolves its workspace's organization first, finds nothing queued, and returns [].
     dbChainMockFns.limit
       .mockResolvedValueOnce([
         { id: 'cred-1', displayName: 'Cred One', providerId: 'google-email' },
@@ -47,6 +54,40 @@ describe('listForkResourceCandidates', () => {
     // Documents are not a standalone mappable kind - they ride their KB via the reconfigure flow.
     expect(result['knowledge-document']).toEqual([])
     expect(result['env-var']).toEqual([{ id: 'API_KEY', label: 'API_KEY' }])
+  })
+})
+
+describe('custom-block mapping candidates', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('keys candidates by BLOCK TYPE and labels them with the source workspace', async () => {
+    // A placed block references `custom_block_<slug>`, not `custom_block.id`, so the mapping
+    // must key by type — the same rule `file` follows with storage keys. Both environments'
+    // blocks usually share a name, so the workspace suffix is what makes the pick legible.
+    queueTableRows(schemaMock.workspace, [{ organizationId: 'org-1' }])
+    queueTableRows(schemaMock.customBlock, [
+      { id: 'custom_block_prod01', name: 'Invoice Parser', sourceWorkspaceName: 'Impl (prod)' },
+      { id: 'custom_block_uat001', name: 'Invoice Parser', sourceWorkspaceName: 'Impl (uat)' },
+    ])
+
+    const result = await listForkResourceCandidates(executor, 'ws-1')
+
+    expect(result['custom-block']).toEqual([
+      { id: 'custom_block_prod01', label: 'Invoice Parser (Impl (prod))' },
+      { id: 'custom_block_uat001', label: 'Invoice Parser (Impl (uat))' },
+    ])
+  })
+
+  it('returns no candidates for a workspace with no organization', async () => {
+    // Custom blocks are org-scoped; a personal workspace can never place one, so offering
+    // candidates there would let a mapping be saved that can never resolve at execution.
+    queueTableRows(schemaMock.workspace, [{ organizationId: null }])
+
+    const result = await listForkResourceCandidates(executor, 'ws-personal')
+
+    expect(result['custom-block']).toEqual([])
   })
 })
 

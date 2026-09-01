@@ -21,7 +21,8 @@ export const obsidianConnectorMeta: ConnectorMeta = {
       type: 'short-input',
       placeholder: 'https://127.0.0.1:27124',
       required: true,
-      description: 'Base URL of your Obsidian Local REST API (default port: 27124 for HTTPS)',
+      description:
+        'Base URL of your Obsidian Local REST API (default port: 27124 for HTTPS). The plugin ships a self-signed certificate, so the URL must be reachable over a trusted certificate — expose it through a reverse proxy with a valid certificate, or use the plugin HTTP port (27123) on a self-hosted Sim.',
     },
     {
       id: 'folderPath',

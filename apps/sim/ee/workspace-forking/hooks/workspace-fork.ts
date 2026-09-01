@@ -80,7 +80,12 @@ export function useForkWorkspace() {
       const newWorkspace = data.workspace
       queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
         if (!previous) {
-          return { workspaces: [newWorkspace], lastActiveWorkspaceId: null, creationPolicy: null }
+          return {
+            workspaces: [newWorkspace],
+            lastActiveWorkspaceId: null,
+            pinnedWorkspaceIds: [],
+            creationPolicy: null,
+          }
         }
         if (previous.workspaces.some((w) => w.id === newWorkspace.id)) {
           return previous

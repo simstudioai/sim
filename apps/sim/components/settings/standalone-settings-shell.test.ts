@@ -5,9 +5,8 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCOUNT_SETTINGS_ITEMS,
   ACCOUNT_SETTINGS_PATH_ALIASES,
-  ORGANIZATION_SETTINGS_ITEMS,
-  ORGANIZATION_SETTINGS_PATH_ALIASES,
   parseSettingsPathSection,
+  SELFHOST_SETTINGS_ITEMS,
 } from '@/components/settings/navigation'
 
 describe('standalone settings section resolution', () => {
@@ -22,14 +21,13 @@ describe('standalone settings section resolution', () => {
     ).toBe('billing')
   })
 
-  it('resolves the organization section from its pathname', () => {
+  it('keeps Subscription active for the self-host billing route', () => {
     expect(
       parseSettingsPathSection({
-        path: '/organization/org-1/settings/audit-logs',
-        items: ORGANIZATION_SETTINGS_ITEMS,
-        defaultSection: 'members',
-        aliases: ORGANIZATION_SETTINGS_PATH_ALIASES,
+        path: '/selfhost/settings/billing',
+        items: SELFHOST_SETTINGS_ITEMS,
+        defaultSection: 'general',
       })
-    ).toBe('audit-logs')
+    ).toBe('billing')
   })
 })

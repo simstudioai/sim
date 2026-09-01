@@ -1,4 +1,4 @@
-import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
+import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 
 /**
  * Folder mutations can fail for one reason the shared orchestration vocabulary has no word
@@ -21,5 +21,8 @@ export function folderMutationStatus(errorCode: FolderMutationErrorCode | undefi
   if (errorCode === 'not_found') return 404
   if (errorCode === 'conflict') return 409
   if (errorCode === 'locked') return 423
+  // A folder collection too large to materialize reaches these routes as a classified
+  // failure too; without this arm it rendered as an unexplained 500.
+  if (errorCode === 'payload_too_large') return 413
   return 500
 }

@@ -1,16 +1,100 @@
+import {
+  IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR,
+  IMMUTABLE_E2B_TEMPLATE_REF_ERROR,
+  isImmutableDaytonaSnapshotRef,
+  isImmutableE2BTemplateRef,
+  isValidSandboxReleaseGeneration,
+  SANDBOX_PROVIDER_IDS,
+  SANDBOX_RELEASE_GENERATION_ERROR,
+} from '@sim/utils/sandbox-references'
 import { createEnv } from '@t3-oss/env-nextjs'
 import { z } from 'zod'
 
 /**
+ * Attribute on the `<html>` element carrying the same `NEXT_PUBLIC_*` snapshot
+ * `<PublicEnvScript>` assigns to `window.__ENV`.
+ *
+ * That script is rendered from the component tree, so it lands at the end of
+ * `<head>` — measured at ~13 KB after the `<script async>` bootstrap tags React
+ * emits in the preamble. An `async` script runs the moment its fetch resolves,
+ * and Next's `appBootstrap` calls `hydrate()` **synchronously** when
+ * `self.__next_s` is empty, which it always is here: `disableNextScript` emits a
+ * plain inline tag rather than a `beforeInteractive` one, and that queue was the
+ * only thing that used to order the assignment ahead of hydration. So on a warm
+ * cache both module bodies and the first commit can run before the parser has
+ * reached the assignment.
+ *
+ * An attribute has no such ordering problem. `<html>` is the first tag in the
+ * document — ~490 bytes ahead of the first bootstrap script — so
+ * `document.documentElement` already carries this value by the time *any*
+ * script, framework or application, is able to execute. This is the race-free
+ * transport; `window.__ENV` stays the public global and the preferred read.
+ */
+export const PUBLIC_ENV_ATTRIBUTE = 'data-public-env'
+
+let cachedEnvAttribute: string | null = null
+let cachedEnvAttributeValues: Record<string, string> | null = null
+
+/**
+ * `NEXT_PUBLIC_*` values read off {@link PUBLIC_ENV_ATTRIBUTE}. Only consulted
+ * when `window.__ENV` has not been assigned yet, which is a window of
+ * milliseconds — but one that module bodies and the first commit both land in.
+ *
+ * The parse is memoized against the raw attribute, not against having run once,
+ * so the cache can never serve a value the document no longer carries. Each call
+ * costs one `getAttribute` and a string compare, and only until `window.__ENV`
+ * exists — after that {@link getEnv} short-circuits before reaching here.
+ */
+function readDocumentPublicEnv(): Record<string, string> | null {
+  if (typeof document === 'undefined') return null
+
+  const serialized = document.documentElement?.getAttribute(PUBLIC_ENV_ATTRIBUTE)
+  if (!serialized) return null
+  if (serialized === cachedEnvAttribute) return cachedEnvAttributeValues
+
+  cachedEnvAttribute = serialized
+  cachedEnvAttributeValues = null
+
+  try {
+    const parsed: unknown = JSON.parse(serialized)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      cachedEnvAttributeValues = parsed as Record<string, string>
+    }
+  } catch {
+    /* A malformed attribute must not take the page down; fall through to the other sources. */
+  }
+
+  return cachedEnvAttributeValues
+}
+
+/**
  * Reads NEXT_PUBLIC_* env vars in both client and server contexts.
- * Client reads `window.__ENV` (populated by `<PublicEnvScript>`); server reads `process.env`.
+ * Server reads `process.env`. The client prefers `window.__ENV` (assigned by
+ * `<PublicEnvScript>`), falling back to {@link PUBLIC_ENV_ATTRIBUTE} for reads
+ * that happen before the parser reaches that script — see the attribute's own
+ * docs for why that window exists.
+ *
  * We do not use next-runtime-env's `env()` helper because it calls `unstable_noStore()`,
  * which Next 16.2+ rejects outside a request scope.
  */
 const getEnv = (variable: string): string | undefined => {
   if (typeof window === 'undefined') return process.env[variable]
-  return window.__ENV?.[variable] ?? process.env[variable]
+  return window.__ENV?.[variable] ?? readDocumentPublicEnv()?.[variable] ?? process.env[variable]
 }
+
+/**
+ * Whether `window.__ENV` was still unset when this module first evaluated in the
+ * browser. Always `false` on the server.
+ *
+ * This is the rate at which the ordering race described on
+ * {@link PUBLIC_ENV_ATTRIBUTE} is lost. It is no longer a correctness signal —
+ * {@link getEnv} resolves the same values off the `<html>` attribute in that
+ * window — but it stays reported so the race remains measurable rather than
+ * assumed, and so a regression that removes the attribute is visible as reads
+ * starting to fail again rather than as silence.
+ */
+export const publicEnvMissingAtModuleInit =
+  typeof window !== 'undefined' && window.__ENV === undefined
 
 // biome-ignore format: keep alignment for readability
 export const env = createEnv({
@@ -35,7 +119,9 @@ export const env = createEnv({
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
     EMAIL_PASSWORD_SIGNUP_ENABLED:         z.boolean().optional().default(true),   // Enable email/password authentication (server-side enforcement)
     DISABLE_AUTH:                          z.boolean().optional(),                 // Bypass authentication entirely (self-hosted only, creates anonymous session)
-    ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Opt-in (self-hosted only): let database/connector tools reach private/reserved/loopback hosts (e.g. Docker/K8s service names). Loosens the SSRF boundary; ignored on the hosted platform.
+    ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Deprecated alias for the egress allowlist, kept so existing self-hosted deployments keep working. Equivalent to allowing every private, reserved, and loopback destination. Prefer EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES, which name specific destinations.
+    EGRESS_ALLOWED_HOSTS:                  z.string().optional(),                  // Comma-separated hostnames outbound requests may reach on a private network, leading wildcard allowed (e.g. "host.docker.internal,*.svc.cluster.local"). Self-hosted only; ignored on the hosted platform. Replaces ALLOW_PRIVATE_DATABASE_HOSTS.
+    EGRESS_ALLOWED_IP_RANGES:              z.string().optional(),                  // Comma-separated CIDRs or IPs outbound requests may reach on a private network (e.g. "10.0.0.0/8,192.168.65.254/32"). Self-hosted only; never lifts the cloud-metadata block.
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     BLOCKED_SIGNUP_DOMAINS:                z.string().optional(),                  // Comma-separated list of email domains blocked from signing up (e.g., "gmail.com,yahoo.com")
@@ -51,13 +137,10 @@ export const env = createEnv({
 
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
-    /** Enables attributed-v1 only after compatible Copilot instances are deployed. */
-    COPILOT_BILLING_ATTRIBUTION_V1_ENABLED: z.boolean().optional(),
-    /** Rejects markerless old-Go billing traffic only when explicitly enabled. */
-    COPILOT_BILLING_PROTOCOL_REQUIRED:     z.boolean().optional(),
     /** Gates risky copilot tools behind an Allow / Skip prompt. Off by default. */
     COPILOT_TOOL_PERMISSIONS_ENABLED:      z.boolean().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
+    MSHIP_SYSPROMPT_OVERRIDE:              z.string().min(1).optional(),           // Enterprise-only highest-priority Mothership system prompt override forwarded by Sim
     COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
     COPILOT_DEV_URL:                       z.string().url().optional(),            // Sim agent API URL for the dev mothership environment
     COPILOT_STAGING_URL:                   z.string().url().optional(),            // Sim agent API URL for the staging mothership environment
@@ -70,6 +153,10 @@ export const env = createEnv({
     // Database & Storage
     REDIS_URL:                             z.string().url().optional(),            // Redis connection string for caching/sessions
     REDIS_TLS_SERVERNAME:                  z.string().min(1).optional(),           // TLS SNI override; required when REDIS_URL targets an IP over rediss:// (e.g. trigger.dev PrivateLink VPCE IP) so cert hostname verification matches the ElastiCache cert's CN
+    /** Explicit file-storage backend; unset preserves Azure → S3 → GCS → local precedence. */
+    STORAGE_PROVIDER:                      z.enum(['local', 's3', 'azure', 'gcs']).optional(),
+    /** Explicit PDF OCR backend; legacy installs infer it from configured credentials. */
+    OCR_PROVIDER:                          z.enum(['local', 'mistral', 'azure-mistral']).optional(),
 
     // Payment & Billing
     STRIPE_SECRET_KEY:                     z.string().min(1).optional(),           // Stripe secret key for payment processing
@@ -91,10 +178,8 @@ export const env = createEnv({
     BILLING_CONCURRENCY_LIMIT_TEAM:         z.string().optional(),                  // In-flight executions per Max-tier billing account (Max and Max for Teams)
     BILLING_CONCURRENCY_LIMIT_ENTERPRISE:   z.string().optional(),                  // In-flight executions per Enterprise billing account (metadata-overridable)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
-    TABLE_SNAPSHOT_CACHE:                  z.boolean().optional(),                 // Mount tables into sandboxes by reference via a version-keyed CSV snapshot in object storage instead of draining the whole table into web-process heap
-    PII_REDACTION:                         z.boolean().optional(),                 // Redact PII from workflow logs via configurable Data Retention rules (Presidio at the logger persist choke point) and expose the Data Retention config UI
-    PII_GRANULAR_REDACTION:                z.boolean().optional(),                 // Expose the execution-altering PII redaction stages (redact workflow input + block outputs in-flight) in the Data Retention config; layered on top of PII_REDACTION
     TRIGGER_EU_REGION:                     z.boolean().optional(),                 // Route Trigger.dev runs to eu-central-1 instead of the default us-east-1 (fallback for the trigger-eu-region flag when AppConfig is not the source of truth)
+    DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES: z.string().optional(),            // Durable surfaces where unrecorded secret provenance fails the run instead of logging a warning: "all", or a comma-separated subset of memory,table-row,knowledge,workspace-file (default: none enforced)
 
     // Table feature limits (per plan). Apply when billing is disabled (free tier defaults) or for billed plans.
     FREE_TABLES_LIMIT:                     z.number().optional(),                  // Max user tables per workspace on free tier (default: 5)
@@ -106,7 +191,7 @@ export const env = createEnv({
     ENTERPRISE_TABLES_LIMIT:               z.number().optional(),                  // Max user tables per workspace on enterprise tier (default: 10000)
     ENTERPRISE_TABLE_ROWS_LIMIT:           z.number().optional(),                  // Max rows per table on enterprise tier (default: 1000000)
     TABLE_MAX_ROW_SIZE_BYTES:              z.number().optional(),                  // Max serialized size in bytes of a single user-table row (default: 409600)
-    TABLE_MAX_PAGE_BYTES:                  z.number().optional(),                  // Byte budget per row-page read; pages cut early past it (unset = disabled)
+    TABLE_MAX_PAGE_BYTES:                  z.number().optional(),                  // Byte budget per row-page read; pages cut early past it (default: 5242880)
     TABLE_DISPATCH_CONCURRENCY_FREE:       z.number().optional(),                  // Rows one table run executes in parallel on free tier (default: 20)
     TABLE_DISPATCH_CONCURRENCY_PAID:       z.number().optional(),                  // Rows one table run executes in parallel on paid tiers (default: 50)
 
@@ -138,6 +223,7 @@ export const env = createEnv({
     SMTP_USER:                             z.string().min(1).optional(),           // SMTP username
     SMTP_PASS:                             z.string().min(1).optional(),           // SMTP password
     SMTP_SECURE:                           z.boolean().optional(),                 // Force TLS on connect (defaults to true on port 465); read via envBoolean to handle string values from process.env
+    SMTP_EHLO_NAME:                        z.string().min(1).optional(),           // Hostname sent in the SMTP EHLO greeting (defaults to the app's own domain); set when the relay expects a different identity
     GMAIL_CREDENTIALS_JSON:                z.string().optional(),                  // Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider
     GMAIL_SENDER:                          z.string().min(1).optional(),           // Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)
 
@@ -151,6 +237,7 @@ export const env = createEnv({
     OPENAI_API_KEY_1:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
     OPENAI_API_KEY_2:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
     OPENAI_API_KEY_3:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
+    OPENROUTER_API_KEY:                    z.string().min(1).optional(),           // OpenRouter API key; self-hosted fallback for OpenAI knowledge-base embeddings
     MISTRAL_API_KEY:                       z.string().min(1).optional(),           // Mistral AI API key
     ANTHROPIC_API_KEY_1:                   z.string().min(1).optional(),           // Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2:                   z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
@@ -173,14 +260,17 @@ export const env = createEnv({
     VLLM_API_KEY:                          z.string().optional(),                  // Optional bearer token for vLLM
     LITELLM_BASE_URL:                      z.string().url().optional(),            // LiteLLM proxy base URL (OpenAI-compatible)
     LITELLM_API_KEY:                       z.string().optional(),                  // Optional bearer token for LiteLLM
-    FIREWORKS_API_KEY:                     z.string().optional(),                  // Optional Fireworks AI API key for model listing
+    FIREWORKS_API_KEY:                     z.string().optional(),                  // Platform Fireworks AI key backing the hosted sim-auto pool (and self-hosted model listing/inference)
+    FIREWORKS_API_KEY_1:                   z.string().min(1).optional(),           // Primary Fireworks API key for load balancing
+    FIREWORKS_API_KEY_2:                   z.string().min(1).optional(),           // Additional Fireworks API key for load balancing
+    FIREWORKS_API_KEY_3:                   z.string().min(1).optional(),           // Additional Fireworks API key for load balancing
     TOGETHER_API_KEY:                      z.string().optional(),                  // Optional Together AI API key for model listing and inference
     BASETEN_API_KEY:                       z.string().optional(),                  // Optional Baseten API key for model listing and inference
     COHERE_API_KEY:                        z.string().min(1).optional(),           // Cohere API key for reranker (rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5)
     COHERE_API_KEY_1:                      z.string().min(1).optional(),           // Primary Cohere API key for rotation
     COHERE_API_KEY_2:                      z.string().min(1).optional(),           // Additional Cohere API key for load balancing
     COHERE_API_KEY_3:                      z.string().min(1).optional(),           // Additional Cohere API key for load balancing
-    ELEVENLABS_API_KEY:                    z.string().min(1).optional(),           // ElevenLabs API key for text-to-speech in deployed chat
+    ELEVENLABS_API_KEY:                    z.string().min(1).optional(),           // ElevenLabs API key for workspace speech-to-text
     SERPER_API_KEY:                        z.string().min(1).optional(),           // Serper API key for online search
     EXA_API_KEY:                           z.string().min(1).optional(),           // Exa AI API key for enhanced online search
     BLACKLISTED_PROVIDERS:                 z.string().optional(),                  // Comma-separated provider IDs to hide (e.g., "openai,anthropic")
@@ -211,8 +301,6 @@ export const env = createEnv({
     TELEMETRY_ENDPOINT:                    z.string().url().optional(),            // Custom telemetry/analytics endpoint
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
-    PROFOUND_API_KEY:                      z.string().min(1).optional(),           // Profound analytics API key
-    PROFOUND_ENDPOINT:                     z.string().url().optional(),            // Profound analytics endpoint
     GRAFANA_OTLP_ENDPOINT:                 z.string().url().optional(),            // Grafana Cloud OTLP HTTP gateway base URL (e.g., https://otlp-gateway-prod-us-east-0.grafana.net/otlp). Trigger.dev exporters append /v1/traces, /v1/logs, /v1/metrics.
     GRAFANA_OTLP_HEADERS:                  z.string().min(1).optional(),           // Comma-separated key=value headers for OTLP requests (e.g., "Authorization=Basic <base64(instanceId:token)>"). Same format as the OTEL_EXPORTER_OTLP_HEADERS spec.
     GRAFANA_DEPLOYMENT_ENVIRONMENT:        z.string().min(1).optional(),           // Deployment tier label (e.g., "production", "staging", "development"). Emitted as the stable `deployment.environment.name` resource attribute on Trigger.dev telemetry to match the rest of the Sim OTEL stack.
@@ -250,6 +338,9 @@ export const env = createEnv({
     SCHEDULE_INFRA_RETRY_BASE_MS:          z.string().optional().default('60000'),
     SCHEDULE_INFRA_RETRY_MAX_MS:           z.string().optional().default('300000'),
     SCHEDULE_INFRA_RETRY_MAX_ATTEMPTS:     z.string().optional().default('10'),
+    WEBHOOK_INFRA_RETRY_BASE_MS:           z.string().optional().default('30000'),
+    WEBHOOK_INFRA_RETRY_MAX_MS:            z.string().optional().default('300000'),
+    WEBHOOK_INFRA_RETRY_MAX_ATTEMPTS:      z.string().optional().default('5'),
 
     // Cloud Storage - AWS S3
     AWS_REGION:                            z.string().optional(),                  // AWS region for S3 buckets
@@ -341,6 +432,7 @@ export const env = createEnv({
     IVM_MAX_OWNER_WEIGHT:                  z.string().optional().default('5'),      // Max accepted weight for weighted owner scheduling
     IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER:z.string().optional().default('2200'),   // Max owner in-flight leases across replicas
     IVM_DISTRIBUTED_LEASE_MIN_TTL_MS:      z.string().optional().default('120000'), // Min TTL for distributed in-flight leases (ms)
+    IVM_LEASE_REDIS_DEADLINE_MS:           z.string().optional().default('1000'),   // Deadline for one distributed lease round trip (ms)
     IVM_QUEUE_TIMEOUT_MS:                  z.string().optional().default('300000'), // Max queue wait before rejection (ms)
     IVM_MAX_EXECUTIONS_PER_WORKER:         z.string().optional().default('200'),    // Max lifetime executions before worker is recycled
     IVM_MAX_BROKER_ARGS_JSON_CHARS:        z.string().optional().default('262144'),  // Max JSON payload size for sandbox task broker args (isolate→host)
@@ -353,8 +445,11 @@ export const env = createEnv({
     KB_CONFIG_RETRY_FACTOR:                z.number().optional().default(2),       // Retry backoff factor
     KB_CONFIG_MIN_TIMEOUT:                 z.number().optional().default(1000),    // Min timeout in ms
     KB_CONFIG_MAX_TIMEOUT:                 z.number().optional().default(10000),   // Max timeout in ms
-    KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(50),      // Concurrent embedding API calls
+    KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Concurrent document-processing task runs (Trigger.dev queue depth)
+    KB_CONFIG_EMBEDDING_CONCURRENCY:       z.number().optional().default(8),       // Concurrent embedding API requests within one embed call
+    KB_CONFIG_DOCUMENT_CONCURRENCY:        z.number().optional().default(4),       // Concurrent documents in the in-process (non-Trigger) path
     KB_CONFIG_BATCH_SIZE:                  z.number().optional().default(2000),    // Chunks to process per embedding batch
+    KB_CONFIG_DOCUMENT_BATCH_SIZE:         z.number().optional().default(10),      // Documents per batch in the in-process (non-Trigger) path
     KB_CONFIG_DELAY_BETWEEN_BATCHES:       z.number().optional().default(0),       // Delay between batches in ms (0 for max speed)
     KB_CONFIG_DELAY_BETWEEN_DOCUMENTS:     z.number().optional().default(50),      // Delay between documents in ms
     KB_CONFIG_CHUNK_CONCURRENCY:           z.number().optional().default(10),      // Concurrent PDF chunk OCR processing
@@ -391,6 +486,8 @@ export const env = createEnv({
     ASANA_CLIENT_SECRET:                   z.string().optional(),                  // Asana OAuth client secret
     AIRTABLE_CLIENT_ID:                    z.string().optional(),                  // Airtable OAuth client ID
     AIRTABLE_CLIENT_SECRET:                z.string().optional(),                  // Airtable OAuth client secret
+    BITBUCKET_CLIENT_ID:                   z.string().optional(),                  // Bitbucket OAuth consumer key
+    BITBUCKET_CLIENT_SECRET:               z.string().optional(),                  // Bitbucket OAuth consumer secret
     APOLLO_API_KEY:                        z.string().optional(),                  // Apollo API key (optional system-wide config)
     SUPABASE_CLIENT_ID:                    z.string().optional(),                  // Supabase OAuth client ID
     SUPABASE_CLIENT_SECRET:                z.string().optional(),                  // Supabase OAuth client secret
@@ -402,12 +499,15 @@ export const env = createEnv({
     DISCORD_CLIENT_SECRET:                 z.string().optional(),                  // Discord OAuth client secret
     DOCUSIGN_CLIENT_ID:                    z.string().optional(),                  // DocuSign OAuth client ID
     DOCUSIGN_CLIENT_SECRET:                z.string().optional(),                  // DocuSign OAuth client secret
+    DOCUSIGN_AUTH_HOST:                    z.string().optional(),                  // DocuSign auth host: account-d.docusign.com (demo, default) or account.docusign.com (production)
     MICROSOFT_CLIENT_ID:                   z.string().optional(),                  // Microsoft OAuth client ID for Office 365/Teams
     MICROSOFT_CLIENT_SECRET:               z.string().optional(),                  // Microsoft OAuth client secret
     HUBSPOT_CLIENT_ID:                     z.string().optional(),                  // HubSpot OAuth client ID
     HUBSPOT_CLIENT_SECRET:                 z.string().optional(),                  // HubSpot OAuth client secret
     SALESFORCE_CLIENT_ID:                  z.string().optional(),                  // Salesforce OAuth client ID
     SALESFORCE_CLIENT_SECRET:              z.string().optional(),                  // Salesforce OAuth client secret
+    ZOHO_CLIENT_ID:                        z.string().optional(),                  // Zoho OAuth client ID (Zoho Desk)
+    ZOHO_CLIENT_SECRET:                    z.string().optional(),                  // Zoho OAuth client secret (Zoho Desk)
     WEALTHBOX_CLIENT_ID:                   z.string().optional(),                  // WealthBox OAuth client ID
     WEALTHBOX_CLIENT_SECRET:               z.string().optional(),                  // WealthBox OAuth client secret
     PIPEDRIVE_CLIENT_ID:                   z.string().optional(),                  // Pipedrive OAuth client ID
@@ -449,21 +549,26 @@ export const env = createEnv({
     AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
+    SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)
 
     // E2B Remote Code Execution
     E2B_ENABLED:                           z.string().optional(),                  // Enable E2B remote code execution
     E2B_API_KEY:                           z.string().optional(),                  // E2B API key for sandbox creation
-    MOTHERSHIP_E2B_TEMPLATE_ID:             z.string().optional(),                  // Custom E2B template with pre-installed CLI tools for shell execution
+    E2B_FUNCTION_TEMPLATE_ID:               z.string().refine(isImmutableE2BTemplateRef, { message: `E2B_FUNCTION_TEMPLATE_ID ${IMMUTABLE_E2B_TEMPLATE_REF_ERROR}` }).optional(), // Immutable dedicated E2B build for Function JavaScript/Python/Shell and workspace sandbox layers; no Mothership fallback
+    E2B_FUNCTION_TEMPLATE_GENERATION:       z.string().refine(isValidSandboxReleaseGeneration, { message: `E2B_FUNCTION_TEMPLATE_GENERATION ${SANDBOX_RELEASE_GENERATION_ERROR}` }).optional(), // Monotonic release epoch printed by the Function E2B builder
+    MOTHERSHIP_E2B_TEMPLATE_ID:             z.string().optional(),                  // Mothership code-tool template; never a Function-base fallback
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID:         z.string().optional(),                  // Dedicated E2B template with python-pptx/docx/openpyxl/reportlab for document generation; when set (and E2B enabled), docs compile via Python instead of the JS isolated-vm path
     E2B_PI_TEMPLATE_ID:                     z.string().optional(),                  // E2B template ID/alias with the Pi CLI + git baked in (Create PR, its Babysit continuation, and Review Code)
     PI_SANDBOX_LIFETIME_MS:                 z.string().optional(),                  // Lower the Pi sandbox lifetime (ms) below the default; E2B caps a sandbox at 1h on Hobby accounts and 24h on Pro
+    E2B_DOMAIN:                            z.string().optional(),                  // E2B control-plane domain (defaults to e2b.app, matching the SDK); only the template-delete endpoint the SDK omits reads this
 
     // Remote Code Execution provider selection
-    SANDBOX_PROVIDER:                      z.string().optional(),                  // Which sandbox provider serves remote executions: 'e2b' (default) or 'daytona'
+    SANDBOX_PROVIDER:                      z.enum(SANDBOX_PROVIDER_IDS).optional(), // Which sandbox provider serves remote executions: 'e2b' (default) or 'daytona'
 
     // Daytona Remote Code Execution (used when SANDBOX_PROVIDER=daytona)
     DAYTONA_API_KEY:                       z.string().optional(),                  // Daytona API key; needs write:snapshots to build images, write:sandboxes to run them
-    DAYTONA_SHELL_SNAPSHOT_ID:             z.string().optional(),                  // Daytona snapshot mirroring mothership-shell (must carry an explicit tag; latest is rejected)
+    DAYTONA_FUNCTION_SNAPSHOT_ID:          z.string().refine(isImmutableDaytonaSnapshotRef, { message: `DAYTONA_FUNCTION_SNAPSHOT_ID ${IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR}` }).optional(), // Immutable dedicated Daytona Function snapshot ID; no Mothership fallback
+    DAYTONA_SHELL_SNAPSHOT_ID:             z.string().optional(),                  // Mothership code-tool snapshot; never a Function-base fallback
     DAYTONA_DOC_SNAPSHOT_ID:               z.string().optional(),                  // Daytona snapshot mirroring mothership-docs
     DAYTONA_PI_SNAPSHOT_ID:                z.string().optional(),                  // Daytona snapshot mirroring the Pi template (Create PR, its Babysit continuation, and Review Code)
 
@@ -476,14 +581,14 @@ export const env = createEnv({
     // Enterprise Feature Overrides - for self-hosted deployments
     WHITELABELING_ENABLED:                 z.boolean().optional(),                 // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     AUDIT_LOGS_ENABLED:                    z.boolean().optional(),                 // Enable audit logs on self-hosted (bypasses hosted requirements)
+    CUSTOM_BLOCKS_ENABLED:                 z.boolean().optional(),                 // Enable custom blocks on self-hosted (bypasses hosted requirements)
     DATA_RETENTION_ENABLED:               z.boolean().optional(),                 // Enable data retention settings and retention deletion on self-hosted (bypasses hosted requirements)
     DATA_DRAINS_ENABLED:                  z.boolean().optional(),                 // Enable data drains on self-hosted (bypasses hosted requirements)
     SESSION_POLICIES_ENABLED:             z.boolean().optional(),                 // Enable org session policies on self-hosted (bypasses hosted requirements)
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
-    DEPLOY_AS_BLOCK:                      z.boolean().optional(),                 // Enable deploy-as-block (publish a workflow as a reusable org-wide custom block)
     TABLES_V2_API:                        z.boolean().optional(),                 // Enable the v2 tables HTTP API (public /api/v2/tables + internal /api/table/[tableId]/query predicate-grammar route)
-    TABLE_LOCKS:                          z.boolean().optional(),                 // Enable per-table mutation locks (schema/insert/update/delete toggles)
-    TABLE_VIEWS:                          z.boolean().optional(),                 // Enable saved table views (named filter/sort/column-visibility presets) and the column show/hide menu
+    TABLE_ROW_TTL:                        z.boolean().optional(),
+    CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable enterprise Credential Groups globally
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)
@@ -502,10 +607,12 @@ export const env = createEnv({
     REACT_SCAN_ENABLED:                    z.boolean().optional(),                 // Enable React Scan for performance debugging (dev only)
 
     // Network / proxy trust
-    AUTH_TRUSTED_PROXIES:                  z.string().optional(),                  // Comma-separated reverse-proxy IPs or CIDR ranges. When set, Better Auth walks the forwarded-IP chain right to left, skips these trusted hops, and uses the first untrusted address as the client IP. Leave unset to trust only single-value IP headers.
+    /** Comma-separated proxy IPs/CIDRs skipped while resolving the forwarded client chain. */
+    AUTH_TRUSTED_PROXIES:                  z.string().optional(),
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
+    USAGE_MONITORING_ENABLED:              z.boolean().optional(),                 // Enable organization usage monitoring on self-hosted (bypasses hosted requirements)
     SSO_PROVIDER_TYPE:                     z.enum(['oidc', 'saml']).optional(),    // [REQUIRED] SSO provider type
     SSO_PROVIDER_ID:                       z.string().optional(),                  // [REQUIRED] SSO provider ID
     SSO_ISSUER:                            z.string().optional(),                  // [REQUIRED] SSO issuer URL
@@ -566,10 +673,10 @@ export const env = createEnv({
     NEXT_PUBLIC_SUPPORT_EMAIL:             z.string().email().optional(),          // Custom support email
 
     NEXT_PUBLIC_E2B_ENABLED:               z.string().optional(),
+    NEXT_PUBLIC_SANDBOXES_ENABLED:         z.string().optional(),              // Client twin of isRemoteSandboxEnabled — true under either sandbox provider
     NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: z.string().optional(),              // Hide Bedrock credential fields when deployment uses AWS default credential chain (IAM roles, instance profiles, ECS task roles, IRSA)
     NEXT_PUBLIC_AZURE_CONFIGURED:          z.string().optional(),              // Hide Azure credential fields when endpoint/key/version are pre-configured server-side
     NEXT_PUBLIC_COHERE_CONFIGURED:         z.string().optional(),              // Hide Cohere API key field on Knowledge block when COHERE_API_KEY is pre-configured server-side
-    NEXT_PUBLIC_COPILOT_TRAINING_ENABLED:  z.string().optional(),
     NEXT_PUBLIC_ENABLE_PLAYGROUND:         z.string().optional(),                  // Enable component playground at /playground
     NEXT_PUBLIC_DOCUMENTATION_URL:         z.string().url().optional(),            // Custom documentation URL
     NEXT_PUBLIC_TERMS_URL:                 z.string().url().optional(),            // Custom terms of service URL
@@ -587,9 +694,10 @@ export const env = createEnv({
     NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                   // Enable SSO login UI components
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                   // Enable access control (permission groups) on self-hosted
     NEXT_PUBLIC_SLACK_EXTENDED_SCOPES:     z.boolean().optional(),                   // Client twin of SLACK_EXTENDED_SCOPES — set both together
-    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED:     z.boolean().optional(),                   // Enable custom blocks (deploy-as-block) settings on self-hosted
     NEXT_PUBLIC_WHITELABELING_ENABLED:     z.boolean().optional(),                   // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED:     z.boolean().optional(),                   // Enable custom blocks on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_USAGE_MONITORING_ENABLED:  z.boolean().optional(),                   // Enable organization usage monitoring on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_RETENTION_ENABLED:   z.boolean().optional(),                   // Enable data retention settings on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_DRAINS_ENABLED:      z.boolean().optional(),                   // Enable data drains on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_SESSION_POLICIES_ENABLED: z.boolean().optional(),                   // Enable org session policies on self-hosted (bypasses hosted requirements)
@@ -599,6 +707,8 @@ export const env = createEnv({
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
     NEXT_PUBLIC_INBOX_ENABLED:             z.boolean().optional(),                   // Enable inbox (Sim Mailer) on self-hosted
+    NEXT_PUBLIC_CHAT_DISABLED:             z.boolean().optional(),                   // Hide the Chat module (Chat is shown when unset)
+    NEXT_PUBLIC_STATUS_NOTICE_PREVIEW:     z.boolean().optional(),                   // Force the sidebar service-status notice into its critical preview state
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: z.boolean().optional().default(true), // Control visibility of email/password login forms
     NEXT_PUBLIC_TURNSTILE_SITE_KEY:        z.string().min(1).optional(),           // Cloudflare Turnstile site key for captcha widget
   },
@@ -629,9 +739,10 @@ export const env = createEnv({
     NEXT_PUBLIC_SSO_ENABLED: process.env.NEXT_PUBLIC_SSO_ENABLED,
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: process.env.NEXT_PUBLIC_ACCESS_CONTROL_ENABLED,
     NEXT_PUBLIC_SLACK_EXTENDED_SCOPES: process.env.NEXT_PUBLIC_SLACK_EXTENDED_SCOPES,
-    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: process.env.NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED,
     NEXT_PUBLIC_WHITELABELING_ENABLED: process.env.NEXT_PUBLIC_WHITELABELING_ENABLED,
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
+    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: process.env.NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED,
+    NEXT_PUBLIC_USAGE_MONITORING_ENABLED: process.env.NEXT_PUBLIC_USAGE_MONITORING_ENABLED,
     NEXT_PUBLIC_DATA_RETENTION_ENABLED: process.env.NEXT_PUBLIC_DATA_RETENTION_ENABLED,
     NEXT_PUBLIC_DATA_DRAINS_ENABLED: process.env.NEXT_PUBLIC_DATA_DRAINS_ENABLED,
     NEXT_PUBLIC_SESSION_POLICIES_ENABLED: process.env.NEXT_PUBLIC_SESSION_POLICIES_ENABLED,
@@ -642,13 +753,15 @@ export const env = createEnv({
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,
     NEXT_PUBLIC_INBOX_ENABLED: process.env.NEXT_PUBLIC_INBOX_ENABLED,
+    NEXT_PUBLIC_CHAT_DISABLED: process.env.NEXT_PUBLIC_CHAT_DISABLED,
+    NEXT_PUBLIC_STATUS_NOTICE_PREVIEW: process.env.NEXT_PUBLIC_STATUS_NOTICE_PREVIEW,
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
+    NEXT_PUBLIC_SANDBOXES_ENABLED: process.env.NEXT_PUBLIC_SANDBOXES_ENABLED,
     NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: process.env.NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS,
     NEXT_PUBLIC_AZURE_CONFIGURED: process.env.NEXT_PUBLIC_AZURE_CONFIGURED,
     NEXT_PUBLIC_COHERE_CONFIGURED: process.env.NEXT_PUBLIC_COHERE_CONFIGURED,
-    NEXT_PUBLIC_COPILOT_TRAINING_ENABLED: process.env.NEXT_PUBLIC_COPILOT_TRAINING_ENABLED,
     NEXT_PUBLIC_ENABLE_PLAYGROUND: process.env.NEXT_PUBLIC_ENABLE_PLAYGROUND,
     NEXT_PUBLIC_POSTHOG_ENABLED: process.env.NEXT_PUBLIC_POSTHOG_ENABLED,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
@@ -678,6 +791,13 @@ export { getEnv }
  * `z.number()` arrive as raw strings when sourced from `process.env` or Helm.
  * Use this helper anywhere a numeric env override is consumed to normalize the
  * type at the boundary instead of relying on JS implicit coercion.
+ *
+ * Skipping validation also means the schema never runs, so a `.default(...)` in
+ * the declaration above never executes: **the fallback passed here is the real
+ * default**, and the declared one is documentation. Keep the two in agreement —
+ * a variable read in more than one place with a different fallback each time has
+ * no single default at all, which is how one knob came to set both the
+ * document-processing queue depth and the embedding request fan-out.
  */
 export function envNumber(
   value: number | string | undefined | null,

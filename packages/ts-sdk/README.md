@@ -2,6 +2,20 @@
 
 The official TypeScript/JavaScript SDK for [Sim](https://sim.ai), allowing you to execute workflows programmatically from your applications.
 
+## Server compatibility
+
+`0.2.x` talks to the v2 API and has no fallback to the older endpoints, so it requires a Sim deployment that serves `POST /api/v2/workflows/{id}/execute`. That surface is newer than the endpoints `0.1.x` used. If it is unavailable, `executeWorkflow` fails with `HTTP 404: Not Found` — upgrade the server or stay on `simstudio-ts-sdk@0.1.x`, which keeps using `/api/workflows/{id}/execute` and `/api/jobs/{id}`.
+
+## Upgrading from 0.1.x to 0.2.0
+
+`0.2.0` is a breaking release. It is a minor bump rather than a patch precisely so that `^0.1.2` does not pick it up — you upgrade when you choose to.
+
+- **Requests move to `/api/v2`.** `executeWorkflow` posts to `/api/v2/workflows/{id}/execute`, sends the workflow input nested under `input`, and carries `async` / `executionTimeoutSeconds` in the body instead of the `X-Execution-Mode` and `X-Execution-Timeout-Seconds` headers.
+- **`AsyncExecutionResult.jobId` is now `runId`,** and `executionId` has been removed from that interface. Replace `result.jobId` with `result.runId`.
+- **`getJobStatus(taskId)` is legacy.** It still calls `/api/jobs/{taskId}` and only resolves IDs from a `0.1.x` async execution. For runs started by `0.2.x`, use `getWorkflowRun(workflowId, runId)`, which reads `/api/v2/workflows/{id}/runs/{runId}` and returns a typed `WorkflowRunStatus`.
+- **A failed synchronous run now throws.** Previously it resolved with `{ success: false }`; it now rejects with a `SimStudioError` carrying the server's `error.code` and `error.message`. Any `if (!result.success)` branch that handled failures must move into a `catch`.
+- **`success` is derived from the run status.** It is `true` for `completed` and `paused` runs only, so a run cancelled while it was in flight resolves with `success: false` rather than throwing. Combined with the point above: a rejection means the run failed, and a resolved `success: false` means it was cancelled.
+
 ## Installation
 
 ```bash
@@ -52,30 +66,35 @@ new SimStudioClient(config: SimStudioConfig)
 Execute a workflow with optional input data.
 
 ```typescript
-// With object input (spread at root level of request body)
+// With object input (sent as the v2 input object)
 const result = await client.executeWorkflow('workflow-id', {
   message: 'Hello, world!'
 });
 
-// With primitive input (wrapped as { input: value })
+// With primitive input (sent as { input: { input: value } })
 const result = await client.executeWorkflow('workflow-id', 'NVDA');
 
 // With options
 const result = await client.executeWorkflow('workflow-id', { message: 'Hello' }, {
-  timeout: 60000
+  timeout: 60000,
+  async: true,
+  executionTimeoutSeconds: 3600
 });
 ```
 
 **Parameters:**
 - `workflowId` (string): The ID of the workflow to execute
-- `input` (any, optional): Input data to pass to the workflow. Objects are spread at the root level, primitives/arrays are wrapped in `{ input: value }`. File objects are automatically converted to base64.
+- `input` (any, optional): Input data to pass to the workflow. Objects become the v2 `input` object; primitives and arrays become `{ input: value }` inside it. File objects are automatically converted to base64.
 - `options` (ExecutionOptions, optional):
   - `timeout` (number): Timeout in milliseconds (default: 30000)
   - `stream` (boolean): Enable streaming responses
   - `selectedOutputs` (string[]): Block outputs to stream (e.g., `["agent1.content"]`)
-  - `async` (boolean): Execute asynchronously and return execution ID
+  - `async` (boolean): Execute asynchronously and return a run ID
+  - `executionTimeoutSeconds` (number): Server-side async execution cap from 1 to 604800 seconds. Requires `async: true` and cannot extend the account policy.
 
 **Returns:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
+
+Synchronous executions that finish with `status: 'failed'` reject with `SimStudioError`.
 
 ##### getWorkflowStatus(workflowId)
 
@@ -125,19 +144,35 @@ const result = await client.executeWorkflowSync('workflow-id', { data: 'some inp
 
 **Returns:** `Promise<WorkflowExecutionResult>`
 
-##### getJobStatus(jobId)
+##### getWorkflowRun(workflowId, runId, options?)
 
-Get the status of an async job.
+Get the status and optional outputs of a workflow run. Use the `runId` returned by async execution.
 
 ```typescript
-const status = await client.getJobStatus('job-id-from-async-execution');
-console.log('Job status:', status);
+const status = await client.getWorkflowRun('workflow-id', 'run-id', {
+  includeOutput: true,
+  selectedOutputs: ['agent.content']
+});
+console.log('Run status:', status.status);
 ```
 
 **Parameters:**
-- `jobId` (string): The job ID returned from async execution
+- `workflowId` (string): The workflow ID
+- `runId` (string): The run ID returned from async execution
+- `options.includeOutput` (boolean, optional): Include the final output for completed executions
+- `options.selectedOutputs` (string[], optional): Block output selectors to include
 
-**Returns:** `Promise<any>`
+**Returns:** `Promise<WorkflowRunStatus>`
+
+##### getJobStatus(jobId)
+
+Get the status of a job created through the legacy async execution endpoint. New integrations should use `getWorkflowRun()` with a run ID.
+
+```typescript
+const status = await client.getJobStatus('legacy-job-id');
+```
+
+**Returns:** `Promise<JobStatusResult>`
 
 ##### executeWithRetry(workflowId, input?, options?, retryOptions?)
 
@@ -213,12 +248,16 @@ client.setBaseUrl('https://my-custom-domain.com');
 ```typescript
 interface WorkflowExecutionResult {
   success: boolean;
+  executionId?: string;
   output?: any;
   error?: string;
   logs?: any[];
   metadata?: {
     duration?: number;
     executionId?: string;
+    runId?: string;
+    startTime?: string;
+    endTime?: string;
     [key: string]: any;
   };
   traceSpans?: any[];
@@ -228,7 +267,7 @@ interface WorkflowExecutionResult {
 
 ### LargeValueRef
 
-Oversized execution values may be returned as a versioned reference inside `output`, `logs`, streaming events, or async job status responses.
+Oversized execution values may be returned as a versioned reference inside `output`, `logs`, streaming events, or execution status responses.
 The `key` field is an opaque execution-scoped server storage pointer, not a client-readable download URL.
 
 ```typescript
@@ -268,9 +307,8 @@ class SimStudioError extends Error {
 ```typescript
 interface AsyncExecutionResult {
   success: boolean;
-  jobId: string;
+  runId: string;
   statusUrl: string;
-  executionId?: string;
   message: string;
   async: true;
 }
@@ -323,6 +361,7 @@ interface ExecutionOptions {
   stream?: boolean;
   selectedOutputs?: string[];
   async?: boolean;
+  executionTimeoutSeconds?: number;
 }
 ```
 
@@ -533,4 +572,4 @@ bun run dev
 
 ## License
 
-Apache-2.0 
+Apache-2.0

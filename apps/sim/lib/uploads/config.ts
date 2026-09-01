@@ -1,20 +1,14 @@
 import { env, envBoolean } from '@/lib/core/config/env'
+import { getConfiguredStorageProviderId } from '@/lib/core/config/env-capabilities.server'
 import type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
 
 export type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
 
-export const UPLOAD_DIR = '/uploads'
+const storageProvider = getConfiguredStorageProviderId()
 
-const hasS3Config = !!(env.S3_BUCKET_NAME && env.AWS_REGION)
-export const hasBlobConfig = !!(
-  env.AZURE_STORAGE_CONTAINER_NAME &&
-  ((env.AZURE_ACCOUNT_NAME && env.AZURE_ACCOUNT_KEY) || env.AZURE_CONNECTION_STRING)
-)
-const hasGcsConfig = !!env.GCS_BUCKET_NAME
-
-export const USE_BLOB_STORAGE = hasBlobConfig
-export const USE_S3_STORAGE = hasS3Config && !USE_BLOB_STORAGE
-export const USE_GCS_STORAGE = hasGcsConfig && !USE_BLOB_STORAGE && !USE_S3_STORAGE
+export const USE_BLOB_STORAGE = storageProvider === 'azure'
+export const USE_S3_STORAGE = storageProvider === 's3'
+export const USE_GCS_STORAGE = storageProvider === 'gcs'
 
 export const S3_CONFIG = {
   bucket: env.S3_BUCKET_NAME || '',
@@ -226,6 +220,7 @@ function getS3Config(context: StorageContext): StorageConfig {
       }
     case 'mothership':
     case 'workspace':
+    case 'table-import':
       return {
         bucket: S3_CONFIG.bucket,
         region: S3_CONFIG.region,
@@ -288,6 +283,7 @@ function getBlobConfig(context: StorageContext): StorageConfig {
       }
     case 'mothership':
     case 'workspace':
+    case 'table-import':
       return {
         accountName: BLOB_CONFIG.accountName,
         accountKey: BLOB_CONFIG.accountKey,
@@ -347,6 +343,7 @@ function getGcsConfig(context: StorageContext): StorageConfig {
       return { bucket: GCS_EXECUTION_FILES_CONFIG.bucket || GCS_CONFIG.bucket }
     case 'mothership':
     case 'workspace':
+    case 'table-import':
       return { bucket: GCS_CONFIG.bucket }
     case 'profile-pictures':
       return { bucket: GCS_PROFILE_PICTURES_CONFIG.bucket || GCS_CONFIG.bucket }
@@ -357,29 +354,4 @@ function getGcsConfig(context: StorageContext): StorageConfig {
     default:
       return { bucket: GCS_CONFIG.bucket }
   }
-}
-
-/**
- * Check if a specific storage context is configured
- * Returns false if the context would fall back to general config but general isn't configured
- */
-export function isStorageContextConfigured(context: StorageContext): boolean {
-  const config = getStorageConfig(context)
-
-  if (USE_BLOB_STORAGE) {
-    return !!(
-      config.containerName &&
-      (config.connectionString || (config.accountName && config.accountKey))
-    )
-  }
-
-  if (USE_S3_STORAGE) {
-    return !!(config.bucket && config.region)
-  }
-
-  if (USE_GCS_STORAGE) {
-    return !!config.bucket
-  }
-
-  return true
 }

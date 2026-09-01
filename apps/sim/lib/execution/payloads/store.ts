@@ -16,7 +16,7 @@ import {
   isValidLargeValueKey,
   readLargeValueRefFromStorage,
 } from '@/lib/execution/payloads/materialization.server'
-import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
+import { generateLargeValuePayloadKey } from '@/lib/uploads/contexts/execution/utils'
 
 const logger = createLogger('LargeExecutionPayloadStore')
 
@@ -75,10 +75,7 @@ async function persistValue(
     return undefined
   }
 
-  const key = generateExecutionFileKey(
-    { workspaceId, workflowId, executionId },
-    `large-value-${id}.json`
-  )
+  const key = generateLargeValuePayloadKey({ workspaceId, workflowId, executionId }, id)
 
   try {
     const { StorageService } = await import('@/lib/uploads')

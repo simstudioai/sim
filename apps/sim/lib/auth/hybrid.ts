@@ -1,8 +1,9 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
-import { verifyInternalToken } from '@/lib/auth/internal'
+import { type InternalSandboxProfile, verifyInternalToken } from '@/lib/auth/internal'
 
 const logger = createLogger('HybridAuth')
 
@@ -36,6 +37,8 @@ export interface AuthResult {
   userEmail?: string | null
   authType?: AuthTypeValue
   apiKeyType?: 'personal' | 'workspace'
+  sandboxProfile?: InternalSandboxProfile
+  principal?: WorkflowExecutionPrincipal
   error?: string
 }
 
@@ -44,18 +47,27 @@ export interface AuthResult {
  * Only trusts the userId embedded in the JWT payload — never from user-controlled sources.
  */
 function resolveUserFromJwt(
-  verificationUserId: string | null,
+  verification: { userId?: string; sandboxProfile?: InternalSandboxProfile },
   options: { requireWorkflowId?: boolean }
 ): AuthResult {
-  if (verificationUserId) {
-    return { success: true, userId: verificationUserId, authType: AuthType.INTERNAL_JWT }
+  if (verification.userId) {
+    return {
+      success: true,
+      userId: verification.userId,
+      authType: AuthType.INTERNAL_JWT,
+      ...(verification.sandboxProfile ? { sandboxProfile: verification.sandboxProfile } : {}),
+    }
   }
 
   if (options.requireWorkflowId !== false) {
     return { success: false, error: 'userId required but not present in JWT' }
   }
 
-  return { success: true, authType: AuthType.INTERNAL_JWT }
+  return {
+    success: true,
+    authType: AuthType.INTERNAL_JWT,
+    ...(verification.sandboxProfile ? { sandboxProfile: verification.sandboxProfile } : {}),
+  }
 }
 
 /**
@@ -96,7 +108,7 @@ export async function checkInternalAuth(
       return { success: false, error: 'Invalid internal token' }
     }
 
-    return resolveUserFromJwt(verification.userId || null, options)
+    return resolveUserFromJwt(verification, options)
   } catch (error) {
     logger.error('Error in internal authentication:', error)
     return {
@@ -136,19 +148,25 @@ export async function checkSessionOrInternalAuth(
       const verification = await verifyInternalToken(token)
 
       if (verification.valid) {
-        return resolveUserFromJwt(verification.userId || null, options)
+        return resolveUserFromJwt(verification, options)
       }
     }
 
     // 3. Try session auth (for web UI)
     const session = await getSession()
     if (session?.user?.id) {
+      if (!session.session?.id) throw new Error('Authenticated session is missing its session ID')
       return {
         success: true,
         userId: session.user.id,
         userName: session.user.name,
         userEmail: session.user.email,
         authType: AuthType.SESSION,
+        principal: {
+          kind: 'session',
+          userId: session.user.id,
+          sessionId: session.session.id,
+        },
       }
     }
 
@@ -184,7 +202,7 @@ export async function checkHybridAuth(
       const verification = await verifyInternalToken(token)
 
       if (verification.valid) {
-        return resolveUserFromJwt(verification.userId || null, options)
+        return resolveUserFromJwt(verification, options)
       }
     }
 
@@ -192,13 +210,30 @@ export async function checkHybridAuth(
       const apiKeyHeader = request.headers.get(API_KEY_HEADER) ?? ''
       const result = await authenticateApiKeyFromHeader(apiKeyHeader)
       if (result.success) {
-        await updateApiKeyLastUsed(result.keyId!)
+        if (!result.keyId || !result.keyType || !result.userId) {
+          throw new Error('API key authentication returned incomplete identity')
+        }
+        let principal: WorkflowExecutionPrincipal
+        if (result.keyType === 'personal') {
+          principal = { kind: 'personal_api_key', userId: result.userId, keyId: result.keyId }
+        } else {
+          if (!result.workspaceId) {
+            throw new Error('Workspace API key authentication returned no workspace scope')
+          }
+          principal = {
+            kind: 'workspace_api_key',
+            workspaceId: result.workspaceId,
+            keyId: result.keyId,
+          }
+        }
+        await updateApiKeyLastUsed(result.keyId)
         return {
           success: true,
-          userId: result.userId!,
+          userId: result.userId,
           workspaceId: result.workspaceId,
           authType: AuthType.API_KEY,
           apiKeyType: result.keyType,
+          principal,
         }
       }
 
@@ -210,12 +245,18 @@ export async function checkHybridAuth(
 
     const session = await getSession()
     if (session?.user?.id) {
+      if (!session.session?.id) throw new Error('Authenticated session is missing its session ID')
       return {
         success: true,
         userId: session.user.id,
         userName: session.user.name,
         userEmail: session.user.email,
         authType: AuthType.SESSION,
+        principal: {
+          kind: 'session',
+          userId: session.user.id,
+          sessionId: session.session.id,
+        },
       }
     }
 

@@ -1,0 +1,206 @@
+---
+title: Integrations & OAuth
+description: Register OAuth apps so your users can connect Slack, Google, Jira, and every other integration
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { FAQ } from '@/components/ui/faq'
+
+<Callout type="warn">
+  **On a self-hosted deployment, integrations do not work until you register your own OAuth application with each service.** Sim's hosted platform ships credentials for every integration; a self-hosted instance ships none. Users will see the connector in the UI, click "Connect", and get an error from the provider until the corresponding `*_CLIENT_ID` and `*_CLIENT_SECRET` are set.
+</Callout>
+
+You only need to register the services your team actually uses. One OAuth app covers every Sim connector that shares its credential — a single Google app serves Gmail, Drive, Sheets, Calendar, Docs, Forms, BigQuery, and more.
+
+## How it works
+
+Each connector has a **provider ID**. When a user connects an account, Sim redirects them to the provider, and the provider redirects back to:
+
+```
+https://<your-sim-domain>/api/auth/oauth2/callback/<provider-id>
+```
+
+That URL is derived from `NEXT_PUBLIC_APP_URL`, so set it correctly before registering anything — the redirect URI you register with the provider must match byte for byte, including scheme and the absence of a trailing slash.
+
+<Callout type="info">
+  Most providers let you register several redirect URIs on one app. Register your production URL and any staging URL together so one OAuth app serves both environments.
+</Callout>
+
+## Setup
+
+<Steps>
+
+<Step>
+
+### Confirm your public URL
+
+```bash
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+BETTER_AUTH_URL=https://sim.yourdomain.com
+```
+
+Both must be your real public origin. If these are wrong, every OAuth round-trip fails with a redirect-URI mismatch.
+
+</Step>
+
+<Step>
+
+### Register an app with the provider
+
+In the provider's developer console, create an OAuth 2.0 application. Register the redirect URI(s) for every Sim connector you want from that provider — one line per provider ID from the tables below.
+
+For a Google app covering Gmail and Drive, for example, you register both:
+
+```
+https://sim.yourdomain.com/api/auth/oauth2/callback/google-email
+https://sim.yourdomain.com/api/auth/oauth2/callback/google-drive
+```
+
+Scopes are requested by Sim at authorization time; you generally do not need to pre-declare them, but Google and Microsoft require you to enable the corresponding APIs on the project/app first (for example Gmail API, Drive API, Calendar API).
+
+</Step>
+
+<Step>
+
+### Set the credentials
+
+Add the client ID and secret to the app's environment. In Kubernetes they go under `app.env` — the chart writes every key there into a chart-managed Secret — but supply the values through External Secrets or a pre-created Secret rather than committing them to a values file:
+
+```yaml
+app:
+  env:
+    GOOGLE_CLIENT_ID: "..."
+    GOOGLE_CLIENT_SECRET: "..."
+    SLACK_CLIENT_ID: "..."
+    SLACK_CLIENT_SECRET: "..."
+```
+
+Restart the app. Credentials are read at startup — a running pod will not pick up new ones.
+
+</Step>
+
+<Step>
+
+### Verify
+
+Open a workflow, add the integration's block, and connect an account. A successful round-trip returns you to Sim with the account listed. A redirect-URI mismatch is the failure you will hit most; compare the registered URI against `NEXT_PUBLIC_APP_URL` character by character.
+
+</Step>
+
+</Steps>
+
+## Provider reference
+
+Every provider ID below maps to the redirect URI `https://<your-domain>/api/auth/oauth2/callback/<provider-id>`.
+
+### Google
+
+One OAuth client in [Google Cloud Console](https://console.cloud.google.com/apis/credentials) covers all of these. Enable the matching API for each connector you use.
+
+| Environment variables | Provider IDs |
+|---|---|
+| `GOOGLE_CLIENT_ID`<br />`GOOGLE_CLIENT_SECRET` | `google-email`, `google-drive`, `google-sheets`, `google-docs`, `google-calendar`, `google-contacts`, `google-forms`, `google-tasks`, `google-meet`, `google-groups`, `google-chat`, `google-ads`, `google-bigquery`, `google-vault`, `vertex-ai` |
+
+The same variables also power "Sign in with Google". See [Authentication](/platform/self-hosting/authentication).
+
+### Microsoft
+
+One app registration in [Entra ID](https://entra.microsoft.com) covers all of these.
+
+| Environment variables | Provider IDs |
+|---|---|
+| `MICROSOFT_CLIENT_ID`<br />`MICROSOFT_CLIENT_SECRET` | `outlook`, `onedrive`, `sharepoint`, `microsoft-teams`, `microsoft-excel`, `microsoft-planner`, `microsoft-dataverse`, `microsoft-ad` |
+
+The same variables also power "Sign in with Microsoft".
+
+### Everything else
+
+| Service | Environment variables | Provider ID |
+|---|---|---|
+| Slack | `SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET` | `slack` |
+| Notion | `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` | `notion` |
+| Jira | `JIRA_CLIENT_ID` / `JIRA_CLIENT_SECRET` | `jira` |
+| Confluence | `CONFLUENCE_CLIENT_ID` / `CONFLUENCE_CLIENT_SECRET` | `confluence` |
+| Linear | `LINEAR_CLIENT_ID` / `LINEAR_CLIENT_SECRET` | `linear` |
+| Asana | `ASANA_CLIENT_ID` / `ASANA_CLIENT_SECRET` | `asana` |
+| ClickUp | `CLICKUP_CLIENT_ID` / `CLICKUP_CLIENT_SECRET` | `clickup` |
+| Monday | `MONDAY_CLIENT_ID` / `MONDAY_CLIENT_SECRET` | `monday` |
+| Airtable | `AIRTABLE_CLIENT_ID` / `AIRTABLE_CLIENT_SECRET` | `airtable` |
+| Bitbucket | `BITBUCKET_CLIENT_ID` / `BITBUCKET_CLIENT_SECRET` | `bitbucket` |
+| HubSpot | `HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET` | `hubspot` |
+| Salesforce | `SALESFORCE_CLIENT_ID` / `SALESFORCE_CLIENT_SECRET` | `salesforce` |
+| Pipedrive | `PIPEDRIVE_CLIENT_ID` / `PIPEDRIVE_CLIENT_SECRET` | `pipedrive` |
+| Attio | `ATTIO_CLIENT_ID` / `ATTIO_CLIENT_SECRET` | `attio` |
+| Zoho Desk | `ZOHO_CLIENT_ID` / `ZOHO_CLIENT_SECRET` | `zoho-desk` |
+| Wealthbox | `WEALTHBOX_CLIENT_ID` / `WEALTHBOX_CLIENT_SECRET` | `wealthbox` |
+| Box | `BOX_CLIENT_ID` / `BOX_CLIENT_SECRET` | `box` |
+| Dropbox | `DROPBOX_CLIENT_ID` / `DROPBOX_CLIENT_SECRET` | `dropbox` |
+| DocuSign | `DOCUSIGN_CLIENT_ID` / `DOCUSIGN_CLIENT_SECRET` | `docusign` |
+| Zoom | `ZOOM_CLIENT_ID` / `ZOOM_CLIENT_SECRET` | `zoom` |
+| Cal.com | `CALCOM_CLIENT_ID` only — PKCE public client, no secret | `calcom` |
+| Webflow | `WEBFLOW_CLIENT_ID` / `WEBFLOW_CLIENT_SECRET` | `webflow` |
+| WordPress | `WORDPRESS_CLIENT_ID` / `WORDPRESS_CLIENT_SECRET` | `wordpress` |
+| LinkedIn | `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | `linkedin` |
+| X | `X_CLIENT_ID` / `X_CLIENT_SECRET` | `x` |
+| Reddit | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | `reddit` |
+| Spotify | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | `spotify` |
+| TikTok | `TIKTOK_CLIENT_ID` / `TIKTOK_CLIENT_SECRET` | `tiktok` |
+
+For Bitbucket, create an OAuth consumer and register
+`https://<your-domain>/api/auth/oauth2/callback/bitbucket` as its callback URL. Bitbucket fixes
+permissions on the consumer instead of narrowing them per authorization request. Enable exactly
+Account read, Repositories read/write, Pull requests read/write, Pipelines read/write, and Webhooks
+read/write (`account`, `repository`, `repository:write`, `pullrequest`, `pullrequest:write`,
+`pipeline`, `pipeline:write`, and `webhook`). The webhook permission is required for automatic
+trigger subscription management.
+
+### Services with a different flow
+
+| Service | Configuration | Notes |
+|---|---|---|
+| **Instagram** | `INSTAGRAM_CLIENT_ID` / `INSTAGRAM_CLIENT_SECRET` | Instagram App ID/Secret from the Meta App Dashboard (Instagram → API setup with Instagram login). Redirect URI: `/api/auth/oauth2/callback/instagram`. **Publishing requires cloud object storage** — Meta fetches a public HTTPS URL, so local-disk storage will not work. |
+| **Shopify** | `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` | Redirect URI: `/api/auth/oauth2/callback/shopify`. Per-shop install flow. |
+| **Trello** | `TRELLO_API_KEY` | API-key based, not OAuth 2.0. Callback: `/api/auth/trello/callback`. |
+
+## Non-OAuth integration credentials
+
+Many blocks authenticate with an API key the user pastes into the block, and need nothing from you.
+
+<Callout type="warn">
+  Sim also has a "hosted key" mechanism, configured with the `{PREFIX}_API_KEY_COUNT` + `{PREFIX}_API_KEY_1..N` variables below, that lets the platform supply a key so users do not have to. **The injection path is gated on the deployment being Sim's hosted platform** (`isHosted`, derived from the app hostname), so on a self-hosted instance these variables do not remove the need for users to bring their own key. Set them only if you are running a fork that has adapted that gate.
+</Callout>
+
+The variables, for reference:
+
+| Variable | Service |
+|---|---|
+| `EXA_API_KEY` (or `EXA_API_KEY_COUNT` + `EXA_API_KEY_1..N`) | Exa search |
+| `SERPER_API_KEY` | Serper search |
+| `BROWSERBASE_API_KEY` / `BROWSERBASE_PROJECT_ID` | Browserbase |
+| `HUNTER_API_KEY_COUNT` + `HUNTER_API_KEY_1..N` | Hunter.io |
+| `PEOPLEDATALABS_API_KEY_COUNT` + `PEOPLEDATALABS_API_KEY_1..N` | People Data Labs |
+| `CONTEXT_DEV_API_KEY_COUNT` + `CONTEXT_DEV_API_KEY_1..N` | Context.dev |
+| `FALAI_API_KEY` | fal.ai |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_PHONE_NUMBER` | Twilio |
+| `AGENTMAIL_API_KEY` / `AGENTMAIL_DOMAIN` | AgentMail |
+
+Providers that take a `_COUNT` plus numbered keys distribute requests round-robin across them.
+
+## Triggers that need extra configuration
+
+Webhook triggers receive callbacks from the provider and must be able to verify them:
+
+| Variable | Needed for |
+|---|---|
+| `SLACK_SIGNING_SECRET` | Verifying Slack event and slash-command signatures |
+| `SLACK_EXTENDED_SCOPES` / `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES` | Enabling the native Sim-app trigger and its broader Slack scope set; set both to the same value |
+
+Your deployment must also be reachable from the provider's servers for webhook triggers to fire — a Sim instance on a private network can use polling triggers but not webhook triggers. Polling triggers additionally require the scheduler; see [Background Jobs](/platform/self-hosting/background-jobs).
+
+<FAQ items={[
+  { question: "Do I have to register an OAuth app for every integration?", answer: "Only for the integrations your team uses. Nothing breaks if a provider's credentials are unset — that connector simply cannot be connected. One Google app covers 14 connectors and one Microsoft app covers 8, so most deployments need only a handful of registrations."},
+  { question: "Users get a redirect_uri_mismatch error. What is wrong?", answer: "Almost always NEXT_PUBLIC_APP_URL does not match the URI registered with the provider. Check for http vs https, a trailing slash, an apex-vs-www difference, or a port. The URI Sim sends is built from NEXT_PUBLIC_APP_URL at request time."},
+  { question: "Can I use the same OAuth app for staging and production?", answer: "Yes, if the provider allows multiple redirect URIs on one app — register both hosts. Providers that allow only one URI need a separate app per environment."},
+  { question: "Why does the Instagram integration need cloud storage?", answer: "Meta fetches media from a public HTTPS URL rather than accepting an upload, so published files must live in S3, Azure Blob, or GCS. Local-disk storage cannot serve them. Gmail attachments and other integrations do not have this constraint." },
+]} />

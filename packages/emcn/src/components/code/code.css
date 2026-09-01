@@ -8,6 +8,14 @@
  * to override PrismJS defaults without !important.
  */
 
+.code-editor-theme.code-editor-theme {
+  --code-reference: #1d4ed8;
+}
+
+.dark .code-editor-theme.code-editor-theme {
+  --code-reference: #35b6ff;
+}
+
 /**
  * Light mode token colors - Cursor style with Sim vibrancy
  */
@@ -73,9 +81,10 @@
   color: #dc2626;
 }
 
-/* Blue accents for <var> and {{ENV}} placeholders - light mode */
-.code-editor-theme.code-editor-theme .text-blue-500 {
-  color: #1d4ed8;
+/* Platform accent for <workflow.reference> and {{ENV}} placeholders */
+.code-editor-theme.code-editor-theme [data-code-reference],
+.code-editor-theme.code-editor-theme .token [data-code-reference] {
+  color: var(--code-reference);
 }
 
 /**
@@ -141,11 +150,6 @@
 
 .dark .code-editor-theme.code-editor-theme .token.deleted {
   color: #f87171;
-}
-
-/* Blue accents for <var> and {{ENV}} placeholders - dark mode */
-.dark .code-editor-theme.code-editor-theme .text-blue-500 {
-  color: #35b6ff;
 }
 
 /* Ensure transparent backgrounds */

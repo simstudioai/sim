@@ -592,6 +592,31 @@ export const stackaiProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'Partial: at the package layer only. The newer Code Node exposes a Dependencies field, documented as "a list of package names that get installed into the sandbox before your code runs," so builders declare third-party Python/TypeScript packages per node. The deprecated Python Code node it replaces is a fixed image restricted to a vendor-curated set of pre-imported libraries.',
+        detail:
+          'Code Node runs in an isolated sandbox with /home/user as the working directory; StackAI\'s docs contrast it with the Python Code node as "Allows importing custom libraries" versus "Restricted to pre-imported libraries." That older node\'s fixed set covers pandas, numpy, requests, BeautifulSoup, matplotlib, plotly, pypdf, sklearn, tiktoken, and weaviate among others, with no way to add to it. Dependency declaration is package-level only — StackAI does not document declaring OS-level system packages or preinstalled CLI binaries, and dependencies add sandbox startup time. Sandbox isolation is provided by E2B, which runs each execution as an isolated VM.',
+        shortValue: 'Packages only: per-node dependencies on the Code Node',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/code-node',
+            label: 'Code Node (Dependencies field) - StackAI Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/python-code',
+            label: 'Python Code node pre-imported libraries - StackAI Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://www.e2b.dev/blog/stackai',
+            label: 'How StackAI Runs Enterprise AI Agents - E2B blog',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value: 'Yes: workflows publishable as a REST API with generated client snippets',
         detail:
@@ -816,6 +841,31 @@ export const stackaiProfile: CompetitorProfile = {
             url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/ai-governance',
             label: 'AI Governance - StackAI Docs',
             asOf: '2026-07-08',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          "Not publicly documented: no admin-configurable session lifetime or idle timeout appears in StackAI's public documentation. Its Authentication and MFA page covers password login, org-wide MFA enforcement, and SSO, and the Feature Access page enumerating org-level admin settings (MFA, LLM access, app/tool availability, knowledge bases, advanced features) lists no session control.",
+        detail:
+          "Where SSO is used, StackAI states MFA enforcement happens at the identity provider, so an organization's effective re-authentication cadence is inherited from its upstream IdP rather than set in StackAI. No fixed session length is published either, and the Trust Center lists access-control and termination policies without any session-timeout control.",
+        shortValue: 'Not publicly documented',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/authentication-and-mfa',
+            label: 'Authentication and MFA - StackAI Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/feature-access',
+            label: 'Feature Access (org-level admin settings) - StackAI Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://trust.stackai.com/',
+            label: 'StackAI Trust Center',
+            asOf: '2026-08-10',
           },
         ],
       },

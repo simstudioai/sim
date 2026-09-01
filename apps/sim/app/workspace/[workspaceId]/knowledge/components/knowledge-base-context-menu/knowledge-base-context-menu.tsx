@@ -22,6 +22,7 @@ import {
 } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
+import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface KnowledgeBaseContextMenuProps {
   isOpen: boolean
@@ -44,6 +45,7 @@ interface KnowledgeBaseContextMenuProps {
   showDelete?: boolean
   disableEdit?: boolean
   disableDelete?: boolean
+  selectedCount: number
 }
 
 /**
@@ -69,12 +71,16 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   showDelete = true,
   disableEdit = false,
   disableDelete = false,
+  selectedCount,
 }: KnowledgeBaseContextMenuProps) {
-  const hasNavigationSection = showOpenInNewTab && !!onOpenInNewTab
-  const hasInfoSection = (showViewTags && !!onViewTags) || !!onCopyId || !!onTogglePin
+  const isMultiSelect = selectedCount > 1
+  const hasNavigationSection = !isMultiSelect && showOpenInNewTab && !!onOpenInNewTab
+  const hasInfoSection =
+    !isMultiSelect && ((showViewTags && !!onViewTags) || !!onCopyId || !!onTogglePin)
   const hasMoveSection = !disableEdit && !!onMove && !!moveOptions && moveOptions.length > 0
-  const hasEditSection = (showEdit && !!onEdit) || hasMoveSection
+  const hasEditSection = (!isMultiSelect && showEdit && !!onEdit) || hasMoveSection
   const hasDestructiveSection = showDelete && !!onDelete
+  const hasActionsAboveDestructive = hasNavigationSection || hasInfoSection || hasEditSection
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -104,31 +110,25 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
             Open in new tab
           </DropdownMenuItem>
         )}
-        {hasNavigationSection && (hasInfoSection || hasEditSection || hasDestructiveSection) && (
-          <DropdownMenuSeparator />
-        )}
-
-        {showViewTags && onViewTags && (
+        {!isMultiSelect && showViewTags && onViewTags && (
           <DropdownMenuItem onSelect={onViewTags}>
             <TagIcon />
             View tags
           </DropdownMenuItem>
         )}
-        {onCopyId && (
+        {!isMultiSelect && onCopyId && (
           <DropdownMenuItem onSelect={onCopyId}>
             <Duplicate />
             Copy ID
           </DropdownMenuItem>
         )}
-        {onTogglePin && (
+        {!isMultiSelect && onTogglePin && (
           <DropdownMenuItem onSelect={onTogglePin}>
             <Pin />
             {pinned ? 'Unpin' : 'Pin'}
           </DropdownMenuItem>
         )}
-        {hasInfoSection && (hasEditSection || hasDestructiveSection) && <DropdownMenuSeparator />}
-
-        {showEdit && onEdit && (
+        {!isMultiSelect && showEdit && onEdit && (
           <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
             <Pencil />
             Edit
@@ -139,7 +139,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <FolderInput />
-              Move to
+              {selectionActionLabel('Move', selectedCount, 'Move to')}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {renderMoveOptions(moveOptions!, onMove!)}
@@ -147,11 +147,11 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
           </DropdownMenuSub>
         )}
 
-        {hasEditSection && hasDestructiveSection && <DropdownMenuSeparator />}
+        {hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
         {showDelete && onDelete && (
           <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
             <Trash />
-            Delete
+            {selectionActionLabel('Delete', selectedCount)}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

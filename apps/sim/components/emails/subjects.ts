@@ -10,17 +10,18 @@ export type EmailSubjectType =
   | 'reset-password'
   | 'existing-account'
   | 'invitation'
+  | 'enterprise-owner-invitation'
   | 'batch-invitation'
   | 'workspace-added'
-  | 'help-confirmation'
   | 'enterprise-subscription'
   | 'usage-threshold'
   | 'free-tier-upgrade'
-  | 'plan-welcome-pro'
-  | 'plan-welcome-team'
+  | 'payment-failed'
   | 'credit-purchase'
   | 'abandoned-checkout'
   | 'free-tier-exhausted'
+  | 'schedule-disabled'
+  | 'subprocessor-change'
   | 'onboarding-followup'
   | 'welcome'
 
@@ -47,28 +48,30 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `Sign-up attempt with your ${brandName} email`
     case 'invitation':
       return `You've been invited to join a team on ${brandName}`
+    case 'enterprise-owner-invitation':
+      return `Activate your Enterprise organization on ${brandName}`
     case 'batch-invitation':
       return `You've been invited to join a team and workspaces on ${brandName}`
     case 'workspace-added':
       return `You've been added to a workspace on ${brandName}`
-    case 'help-confirmation':
-      return 'Your request has been received'
     case 'enterprise-subscription':
       return `Your Enterprise Plan is now active on ${brandName}`
     case 'usage-threshold':
       return `You're nearing your monthly budget on ${brandName}`
     case 'free-tier-upgrade':
       return `You're at 80% of your free credits on ${brandName}`
-    case 'plan-welcome-pro':
-      return `Your Pro plan is now active on ${brandName}`
-    case 'plan-welcome-team':
-      return `Your Team plan is now active on ${brandName}`
+    case 'payment-failed':
+      return `Payment failed on ${brandName} — action required`
     case 'credit-purchase':
       return `Credits added to your ${brandName} account`
     case 'abandoned-checkout':
       return `Quick question`
     case 'free-tier-exhausted':
       return `You've run out of free credits on ${brandName}`
+    case 'schedule-disabled':
+      return `A schedule was turned off on ${brandName}`
+    case 'subprocessor-change':
+      return `Upcoming change to ${brandName} sub-processors`
     case 'onboarding-followup':
       return `Quick question about ${brandName}`
     case 'welcome':
@@ -88,4 +91,35 @@ export function getLimitEmailSubject(reason: UpgradeReason, kind: 'warning' | 'r
   const copy = UPGRADE_REASON_COPY[reason]
   const subject = kind === 'reached' ? copy.reachedSubject : copy.warningSubject
   return `${subject} on ${brandName}`
+}
+
+/** The plan's display name is resolved at send time; it carries tier qualifiers. */
+export function getPlanWelcomeSubject(planDisplayName: string): string {
+  return `Your ${planDisplayName} plan is now active on ${getBrandConfig().name}`
+}
+
+/** Echoes the sender's own subject line so the reply threads correctly. */
+export function getRequestConfirmationSubject(userSubject: string, requestType?: string): string {
+  return requestType
+    ? `Your ${requestType} request has been received: ${userSubject}`
+    : `We've received your message: ${userSubject}`
+}
+
+/** Names the resource being unlocked rather than the brand — that is what the recipient opened. */
+export function getOtpSubject(resourceLabel: string): string {
+  return `Verification code for ${resourceLabel}`
+}
+
+/**
+ * Names the workspace so an external recipient can identify the request, and the
+ * inviter when there is one — a workflow-issued invitation has no person to name.
+ */
+export function getCredentialGroupInvitationSubject(
+  inviterName: string | undefined,
+  workspaceName: string
+): string {
+  const brandName = getBrandConfig().name
+  return inviterName
+    ? `${inviterName} invited you to connect accounts for ${workspaceName} on ${brandName}`
+    : `You have been invited to connect accounts for ${workspaceName} on ${brandName}`
 }

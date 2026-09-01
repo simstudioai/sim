@@ -1,7 +1,7 @@
 import type { SSHListDirectoryParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listDirectoryTool: ToolConfig<SSHListDirectoryParams, SSHResponse> = {
+export const listDirectoryTool: InternalToolConfig<SSHListDirectoryParams, SSHResponse> = {
   id: 'ssh_list_directory',
   name: 'SSH List Directory',
   description: 'List files and directories in a remote directory',
@@ -64,13 +64,8 @@ export const listDirectoryTool: ToolConfig<SSHListDirectoryParams, SSHResponse> 
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/list-directory',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

@@ -1,8 +1,9 @@
 'use client'
 
 import { Chip } from '@sim/emcn'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 
@@ -29,17 +30,19 @@ export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
   return (
     <div className='relative'>
       <IntegrationsShowcase />
-      <Chip
-        active
-        rightIcon={ArrowRight}
-        onClick={() => {
-          storeCuratedPrompt(prompt)
-          router.push(`/workspace/${workspaceId}/home`)
-        }}
-        className='absolute right-0 bottom-0 mx-0'
-      >
-        Explore in chat
-      </Chip>
+      {isChatEnabled && (
+        <Chip
+          active
+          rightIcon={ArrowRight}
+          onClick={() => {
+            storeCuratedPrompt(prompt)
+            router.push(`/workspace/${workspaceId}/home`)
+          }}
+          className='absolute right-0 bottom-0'
+        >
+          Explore in chat
+        </Chip>
+      )}
     </div>
   )
 }

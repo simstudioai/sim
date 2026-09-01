@@ -300,7 +300,6 @@ export function DemoForm({ onComplete }: DemoFormProps) {
         <DemoField label='Company size' required>
           <ChipDropdown
             fullWidth
-            flush
             className={FIELD_HEIGHT}
             value={form.companySize || undefined}
             onChange={setField('companySize')}
@@ -312,7 +311,6 @@ export function DemoForm({ onComplete }: DemoFormProps) {
         <DemoField label='What can we help you with?'>
           <ChipDropdown
             fullWidth
-            flush
             className={FIELD_HEIGHT}
             value={form.topic}
             onChange={setField('topic')}
@@ -337,7 +335,6 @@ export function DemoForm({ onComplete }: DemoFormProps) {
         <Chip
           type='submit'
           variant='primary'
-          flush
           fullWidth
           disabled={!canSubmit}
           className='mt-1 justify-center [&>span]:flex-none'

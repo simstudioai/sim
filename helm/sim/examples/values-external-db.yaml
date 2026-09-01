@@ -71,11 +71,9 @@ app:
 # Realtime service
 realtime:
   enabled: true
-  # Keep realtime at 1 replica unless REDIS_URL is set (in app.env — realtime
-  # shares the app secret): Socket.IO only bridges events across pods through
-  # its Redis adapter, so multi-replica realtime without Redis silently drops
-  # cross-pod collaboration updates. autoscaling.realtime.enabled is false
-  # below for the same reason — flip both once REDIS_URL is set.
+  # Safe to scale past 1: Socket.IO bridges cross-pod events through its Redis
+  # adapter, and the chart bundles Redis by default. Only keep this at 1 if you
+  # set redis.enabled=false without supplying app.env.REDIS_URL..
   replicaCount: 1
   
   resources:
@@ -155,9 +153,9 @@ ingress:
 # Production-ready features (autoscaling, monitoring, etc.)
 autoscaling:
   enabled: true
-  # Keep realtime out of the HPA until REDIS_URL is set (Socket.IO Redis
-  # adapter) — multi-replica realtime without Redis silently drops cross-pod
-  # collaboration events.
+  # Realtime scales with the app because Redis is available by default. Set this
+  # to false only if you run without Redis (redis.enabled=false and no
+  # app.env.REDIS_URL) — multi-replica realtime would drop cross-pod events.
   realtime:
     enabled: false
   minReplicas: 2

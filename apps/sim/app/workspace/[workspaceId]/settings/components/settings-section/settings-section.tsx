@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 interface SettingsSectionProps {
-  label: string
+  label: ReactNode
   /** Optional node rendered immediately to the right of the label (e.g. an info tooltip). */
   headerAccessory?: ReactNode
   /** Optional control pinned to the far right of the header row (e.g. a Select All chip). */

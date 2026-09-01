@@ -11,10 +11,15 @@
  * parsers share {@link csvParseOptions} so their behavior can't drift.
  */
 
-import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
+import type { Options as CsvParseOptions } from 'csv-parse'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
+import type { ColumnType } from '@/lib/table/column-types'
+import { coerceColumnTypeImportValue } from '@/lib/table/column-types/import-coercion'
+import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
  * Field separators we sniff for, in tie-break priority order. Semicolon files are
@@ -31,6 +36,67 @@ export type CsvDelimiter = (typeof CSV_DELIMITER_CANDIDATES)[number]
  */
 export const CSV_DELIMITER_SNIFF_BYTES = 64 * 1024
 
+/** Maximum characters buffered for one CSV record before parsing fails. */
+export const CSV_MAX_RECORD_SIZE_BYTES = 1024 * 1024
+
+/**
+ * One parser failure that made the CSV reader drop source data.
+ *
+ * `skip_records_with_error` discards these silently, which is what makes a
+ * malformed file import as a smaller table with no error. Reporting them is how
+ * a caller tells a partial import from a clean one. One entry can stand for more
+ * than one lost record (see {@link csvParseOptions}), so a count of these is a
+ * lower bound on the loss, never an exact tally.
+ */
+export interface CsvSkippedRecord {
+  /** `csv-parse` error code, e.g. `CSV_QUOTE_NOT_CLOSED`. */
+  code: string
+  /** 1-based source line the parser had reached when it gave up, or `null`. */
+  line: number | null
+  message: string
+}
+
+/**
+ * How many dropped records are kept as a sample alongside a rejection count.
+ * Bounded because a systematically malformed million-row file would otherwise
+ * accumulate one entry per lost record in memory and then carry them all into
+ * whatever the caller writes the summary to.
+ */
+export const MAX_REJECTED_SAMPLES = 5
+
+/**
+ * What a caller reports about the records a parse had to drop.
+ *
+ * `rowsRejected` is a FLOOR, never an exact tally: only hard failures reach
+ * `on_skip` at all, and a single one — `CSV_QUOTE_NOT_CLOSED` swallows the
+ * remainder of the file — can discard many records while being reported once.
+ */
+export interface CsvRejectionSummary {
+  rowsRejected: number
+  rejectedSamples: CsvSkippedRecord[]
+}
+
+/**
+ * Accumulates {@link csvParseOptions}'s `onSkip` calls into a
+ * {@link CsvRejectionSummary}, applying {@link MAX_REJECTED_SAMPLES} once so
+ * every import path caps its sample list the same way.
+ */
+export function createCsvRejectionCollector(): {
+  onSkip: (skipped: CsvSkippedRecord) => void
+  summary: CsvRejectionSummary
+} {
+  const summary: CsvRejectionSummary = { rowsRejected: 0, rejectedSamples: [] }
+  return {
+    onSkip(skipped) {
+      summary.rowsRejected++
+      if (summary.rejectedSamples.length < MAX_REJECTED_SAMPLES) {
+        summary.rejectedSamples.push(skipped)
+      }
+    },
+    summary,
+  }
+}
+
 /**
  * Single source of truth for the `csv-parse` options used by both the buffered
  * sync parser and the streaming parser.
@@ -42,8 +108,17 @@ export const CSV_DELIMITER_SNIFF_BYTES = 64 * 1024
  */
 export function csvParseOptions(
   delimiter = ',',
-  onHeaders?: (headers: string[]) => void
+  onHeaders?: (headers: string[]) => void,
+  onSkip?: (skipped: CsvSkippedRecord) => void
 ): CsvParseOptions {
+  // csv-parse can report several errors while giving up on one malformed record, and they
+  // all carry the same `lines` position. Collapsing consecutive reports by line keeps the
+  // callback's meaning "one call per parser failure" rather than "one call per error raised".
+  // That is a LOWER BOUND on records lost, not an exact count: `relax_column_count` and
+  // `relax_quotes` mean only hard failures reach `on_skip` at all, and one failure can
+  // discard many records — `CSV_QUOTE_NOT_CLOSED` swallows the remainder of the file and is
+  // reported once. Callers must publish the derived count as a floor.
+  let lastSkippedLine: number | null = null
   return {
     columns: (header: string[]) => {
       // Deliver headers deduped to match the record keys: csv-parse collapses duplicate
@@ -59,22 +134,19 @@ export function csvParseOptions(
     relax_column_count: true,
     relax_quotes: true,
     skip_records_with_error: true,
+    on_skip(error) {
+      if (error?.code === 'CSV_MAX_RECORD_SIZE') throw error
+      if (!onSkip || !error) return
+      const line = typeof error.lines === 'number' ? error.lines : null
+      if (line !== null && line === lastSkippedLine) return
+      lastSkippedLine = line
+      onSkip({ code: error.code, line, message: error.message })
+    },
     cast: false,
     bom: true,
     delimiter,
+    max_record_size: CSV_MAX_RECORD_SIZE_BYTES,
   }
-}
-
-/**
- * Returns a streaming `csv-parse` parser (a `Transform`/async-iterable). Pipe a
- * file stream into it and iterate records with `for await`; backpressure flows
- * back to the source while each record is processed. Use this for HTTP uploads
- * so the file is never fully buffered in memory.
- *
- * `onHeaders` fires once, before the first record, with the full header row.
- */
-export function createCsvParser(delimiter = ',', onHeaders?: (headers: string[]) => void): Parser {
-  return parseCsvStream(csvParseOptions(delimiter, onHeaders))
 }
 
 /**
@@ -193,8 +265,18 @@ export async function detectCsvDelimiter(
   return best?.delimiter ?? fallback
 }
 
-/** Narrower type than `COLUMN_TYPES` used internally for coercion. */
-export type CsvColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
+/**
+ * Column types the CSV path coerces. Derived from the registry rather than
+ * restated, so a new type is covered automatically.
+ */
+export type CsvColumnType = ColumnType
+
+/**
+ * The subset {@link inferColumnType} can return. Every other type either needs
+ * configuration inference cannot supply (`select`'s options, `currency`'s
+ * code) or would swallow ordinary text (`json`).
+ */
+type InferredCsvColumnType = Extract<ColumnType, 'string' | 'number' | 'boolean' | 'date'>
 
 /** Number of CSV rows sampled when inferring column types for a new table. */
 export const CSV_SCHEMA_SAMPLE_SIZE = 100
@@ -207,8 +289,18 @@ export const CSV_SCHEMA_SAMPLE_SIZE = 100
  */
 export const CSV_MAX_BATCH_SIZE = 5000
 
-/** Maximum CSV/TSV file size accepted by import routes (25 MB). */
-export const CSV_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+/** Maximum serialized CSV row data retained before an import batch is flushed. */
+export const CSV_MAX_BATCH_SIZE_BYTES = 5 * 1024 * 1024
+
+/** Maximum CSV/TSV size accepted by legacy multipart routes that buffer request bodies. */
+export const CSV_SYNC_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+
+export const CSV_SYNC_MAX_FILE_SIZE_MESSAGE = `File exceeds maximum allowed size of ${CSV_SYNC_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`
+
+/** Maximum CSV/TSV size accepted by the bounded streaming import worker. */
+export const CSV_DURABLE_MAX_FILE_SIZE_BYTES = MAX_WORKSPACE_FILE_SIZE
+
+export const CSV_DURABLE_MAX_FILE_SIZE_MESSAGE = 'File exceeds maximum allowed size of 5 GB'
 
 /**
  * Error thrown when the user-supplied mapping or CSV does not line up with the
@@ -244,40 +336,56 @@ export class CsvImportValidationError extends Error {
  * is stripped by csv-parse (`bom: true` in {@link csvParseOptions}).
  *
  * For HTTP uploads prefer {@link createCsvParser} so the file isn't buffered.
+ *
+ * `rejections` reports the records the parser had to drop. `skip_records_with_error`
+ * discards them silently, so without this a malformed file imports as a smaller
+ * table and reads exactly like a clean one; see {@link CsvRejectionSummary} for why
+ * the count is a floor.
  */
 export async function parseCsvBuffer(
   input: Buffer | Uint8Array | string,
   delimiter = ','
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
+): Promise<{
+  headers: string[]
+  rows: Record<string, unknown>[]
+  rejections: CsvRejectionSummary
+}> {
   const { parse } = await import('csv-parse/sync')
 
   const text = decodeCsvText(input)
 
   let headers: string[] = []
-  const options = csvParseOptions(delimiter, (h) => {
-    headers = h
-  })
+  const rejections = createCsvRejectionCollector()
+  const options = csvParseOptions(
+    delimiter,
+    (h) => {
+      headers = h
+    },
+    rejections.onSkip
+  )
   // double-cast-allowed: shared csvParseOptions() loses the `columns` literal that drives
   // csv-parse's record-vs-string[][] overload, but `columns` is always set so records are objects
   const parsed = parse(text, options) as unknown as Record<string, unknown>[]
 
   if (parsed.length === 0) {
-    throw new Error('CSV file has no data rows')
+    throw new OrchestrationError('validation', 'CSV file has no data rows')
   }
 
   if (headers.length === 0) {
-    throw new Error('CSV file has no headers')
+    throw new OrchestrationError('validation', 'CSV file has no headers')
   }
 
-  return { headers, rows: parsed }
+  return { headers, rows: parsed, rejections: rejections.summary }
 }
 
 /**
  * Infers a column type from a sample of non-empty values. Order matters: we
  * prefer narrower types (number > boolean > ISO date) and fall back to string.
- * JSON is never inferred automatically.
+ * JSON and currency are never inferred automatically — currency because the
+ * column would also have to guess an ISO code from a symbol, and guessing wrong
+ * mislabels every amount in the column.
  */
-export function inferColumnType(values: unknown[]): Exclude<CsvColumnType, 'json'> {
+export function inferColumnType(values: unknown[]): InferredCsvColumnType {
   const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
   if (nonEmpty.length === 0) return 'string'
 
@@ -360,18 +468,33 @@ export function inferSchemaFromCsv(
  * empty inputs or values that cannot be parsed (numbers/booleans). Dates fall
  * back to the original string when unparseable so that schema validation can
  * reject it with context rather than silently inserting `null`.
+ *
+ * Deliberately not routed through the column-type registry: its contract is
+ * "coerced or rejected", while an import needs invalid raw text to survive so
+ * row-level validation can name it. Type-specific import behavior uses a
+ * lightweight capability map so CSV clients do not load the full registry.
  */
 export function coerceValue(
   value: unknown,
   colType: CsvColumnType,
-  options?: NormalizeDateCellOptions
+  options?: NormalizeDateCellOptions & { currencyCode?: string }
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
+
+  const typeSpecificValue = coerceColumnTypeImportValue(colType, value, options)
+  if (typeSpecificValue !== undefined) return typeSpecificValue
+
   switch (colType) {
     case 'number': {
       const n = Number(value)
       return Number.isNaN(n) ? null : n
     }
+    // Importing into an existing currency column: the file carries the
+    // formatted amount (`$1,234.56`) but the cell stores a bare number. The
+    // column's currency is forwarded because it decides how a lone separator
+    // reads — a three-decimal currency's `0,500` is a half, not five hundred.
+    case 'currency':
+      return parseCurrencyInput(value, options?.currencyCode)
     case 'boolean': {
       const s = String(value).toLowerCase()
       if (s === 'true') return true
@@ -548,12 +671,18 @@ export function buildAutoMapping(csvHeaders: string[], tableSchema: TableSchema)
  * `tableSchema`. Headers not present in `headerToColumn` are dropped. Missing
  * table columns remain unset (schema validation decides whether that's
  * acceptable). Pass the schema returned by `createTable` so ids are resolved.
+ *
+ * `onValueRejected` fires for every non-empty source value that the target
+ * column's type could not represent, which {@link coerceValue} stores as `null`.
+ * The row survives with a blank cell, so without this hook the loss is invisible
+ * — the import runner counts these onto the import record.
  */
 export function coerceRowsForTable(
   rows: Record<string, unknown>[],
   tableSchema: TableSchema,
   headerToColumn: Map<string, string>,
-  options?: NormalizeDateCellOptions
+  options?: NormalizeDateCellOptions,
+  onValueRejected?: (columnName: string) => void
 ): RowData[] {
   const colByName = new Map(tableSchema.columns.map((c) => [c.name, c]))
 
@@ -565,7 +694,14 @@ export function coerceRowsForTable(
       const col = colByName.get(colName)
       if (!col) continue
       const colType = (col.type as CsvColumnType) ?? 'string'
-      coerced[getColumnId(col)] = coerceValue(value, colType, options) as RowData[string]
+      const next = coerceValue(value, colType, {
+        ...options,
+        ...(col.currencyCode !== undefined ? { currencyCode: col.currencyCode } : {}),
+      })
+      if (next === null && onValueRejected && value !== null && value !== undefined) {
+        if (typeof value !== 'string' || value.trim() !== '') onValueRejected(col.name)
+      }
+      coerced[getColumnId(col)] = next as RowData[string]
     }
     return coerced
   })
@@ -618,15 +754,18 @@ export function parseJsonRows(buffer: Buffer | string): {
   const text = typeof buffer === 'string' ? buffer : buffer.toString('utf-8')
   const parsed = JSON.parse(text)
   if (!Array.isArray(parsed)) {
-    throw new Error('JSON file must contain an array of objects')
+    throw new OrchestrationError('validation', 'JSON file must contain an array of objects')
   }
   if (parsed.length === 0) {
-    throw new Error('JSON file contains an empty array')
+    throw new OrchestrationError('validation', 'JSON file contains an empty array')
   }
   const headerSet = new Set<string>()
   for (const row of parsed) {
     if (typeof row !== 'object' || row === null || Array.isArray(row)) {
-      throw new Error('Each element in the JSON array must be a plain object')
+      throw new OrchestrationError(
+        'validation',
+        'Each element in the JSON array must be a plain object'
+      )
     }
     for (const key of Object.keys(row)) headerSet.add(key)
   }
@@ -635,17 +774,25 @@ export function parseJsonRows(buffer: Buffer | string): {
 
 /**
  * Parses a tabular upload (CSV, TSV, or JSON array-of-objects) into a uniform
- * `{ headers, rows }` shape, dispatching on file extension and falling back to
- * the MIME content type. Throws on unsupported formats so callers fail fast.
+ * `{ headers, rows, rejections }` shape, dispatching on file extension and falling
+ * back to the MIME content type. Throws on unsupported formats so callers fail fast.
+ *
+ * `rejections` is what a caller publishes so a partially imported file is not
+ * reported as a clean import. The JSON path never drops records — a malformed
+ * element throws — so it always reports none.
  */
 export async function parseFileRows(
   buffer: Buffer,
   fileName: string,
   contentType?: string
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
+): Promise<{
+  headers: string[]
+  rows: Record<string, unknown>[]
+  rejections: CsvRejectionSummary
+}> {
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext === 'json' || contentType === 'application/json') {
-    return parseJsonRows(buffer)
+    return { ...parseJsonRows(buffer), rejections: { rowsRejected: 0, rejectedSamples: [] } }
   }
   if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
     const delimiter = await detectCsvDelimiter(
@@ -655,5 +802,8 @@ export async function parseFileRows(
     )
     return parseCsvBuffer(buffer, delimiter)
   }
-  throw new Error(`Unsupported file format: "${ext ?? fileName}". Supported: csv, tsv, json`)
+  throw new OrchestrationError(
+    'validation',
+    `Unsupported file format: "${ext ?? fileName}". Supported: csv, tsv, json`
+  )
 }

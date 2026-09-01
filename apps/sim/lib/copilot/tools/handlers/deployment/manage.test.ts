@@ -4,18 +4,25 @@
 
 import {
   auditMock,
-  queueTableRows,
   resetDbChainMock,
-  schemaMock,
   workflowsOrchestrationMock,
   workflowsOrchestrationMockFns,
 } from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 
-const { ensureWorkflowAccessMock, checkNeedsRedeploymentMock } = vi.hoisted(() => ({
-  ensureWorkflowAccessMock: vi.fn(),
-  checkNeedsRedeploymentMock: vi.fn(),
+const { ensureWorkflowAccessMock, checkNeedsRedeploymentMock, mockExecuteCopilotWorkflowUseCase } =
+  vi.hoisted(() => ({
+    ensureWorkflowAccessMock: vi.fn(),
+    checkNeedsRedeploymentMock: vi.fn(),
+    mockExecuteCopilotWorkflowUseCase: vi.fn(),
+  }))
+
+vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
+  executeCopilotWorkflowUseCase: mockExecuteCopilotWorkflowUseCase,
+  messageForCopilotWorkflowError: (error: unknown, fallback: string) =>
+    getErrorMessage(error, fallback),
 }))
 
 const performRevertToVersionMock = workflowsOrchestrationMockFns.mockPerformRevertToVersion
@@ -58,6 +65,7 @@ vi.mock('../access', () => ({
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 vi.mock('./state-refs', () => ({
+  parseWorkflowRef: (value: number | string) => (value === 'live' ? 'active' : value),
   resolveWorkflowStateRef: resolveWorkflowStateRefMock,
 }))
 
@@ -65,7 +73,7 @@ vi.mock('@/lib/workflows/comparison', () => ({
   generateWorkflowDiffSummary: generateWorkflowDiffSummaryMock,
 }))
 
-vi.mock('@/app/api/workflows/utils', () => ({
+vi.mock('@/lib/workflows/deployment-status', () => ({
   checkNeedsRedeployment: checkNeedsRedeploymentMock,
 }))
 
@@ -95,20 +103,20 @@ describe('executeLoadDeployment', () => {
   })
 
   it('loads a version into the draft via performRevertToVersion', async () => {
-    performRevertToVersionMock.mockResolvedValue({ success: true, lastSaved: 12345 })
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({ lastSaved: 12345 })
 
     const result = await executeLoadDeployment({ workflowId: 'wf-1', version: 7 }, {
       userId: 'user-1',
       workflowId: 'wf-1',
     } as ExecutionContext)
 
-    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'admin')
-    expect(performRevertToVersionMock).toHaveBeenCalledWith({
-      workflowId: 'wf-1',
-      version: 7,
-      userId: 'user-1',
-      workflow: { id: 'wf-1', workspaceId: 'ws-1', name: 'Test Workflow' },
-    })
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.versions.revert' }),
+      }),
+      expect.objectContaining({ workflowId: 'wf-1', version: 7 })
+    )
     expect(result).toEqual({
       success: true,
       output: {
@@ -120,14 +128,16 @@ describe('executeLoadDeployment', () => {
   })
 
   it('maps "live" to the active version', async () => {
-    performRevertToVersionMock.mockResolvedValue({ success: true, lastSaved: 1 })
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({ lastSaved: 1 })
 
     await executeLoadDeployment({ workflowId: 'wf-1', version: 'live' }, {
       userId: 'user-1',
       workflowId: 'wf-1',
     } as ExecutionContext)
 
-    expect(performRevertToVersionMock).toHaveBeenCalledWith(
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Object),
       expect.objectContaining({ version: 'active' })
     )
   })
@@ -143,10 +153,7 @@ describe('executeLoadDeployment', () => {
   })
 
   it('returns shared helper failures directly', async () => {
-    performRevertToVersionMock.mockResolvedValue({
-      success: false,
-      error: 'Deployment version not found',
-    })
+    mockExecuteCopilotWorkflowUseCase.mockRejectedValue(new Error('Deployment version not found'))
 
     const result = await executeLoadDeployment({ workflowId: 'wf-1', version: 7 }, {
       userId: 'user-1',
@@ -166,15 +173,21 @@ describe('executePromoteToLive', () => {
   })
 
   it('promotes a version via performActivateVersion', async () => {
-    performActivateVersionMock.mockResolvedValue({
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
       success: true,
       deployedAt: new Date('2026-05-30T00:00:00.000Z'),
+      activeDeployment: {
+        deploymentVersionId: 'dv-3',
+        version: 3,
+        deployedAt: '2026-05-30T00:00:00.000Z',
+      },
       latestDeploymentAttempt: {
         id: 'op-1',
         deploymentVersionId: 'dv-3',
         version: 3,
         action: 'activate',
         status: 'active',
+        isCurrent: true,
         readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'ready' },
         requestedAt: '2026-05-30T00:00:00.000Z',
         activatedAt: '2026-05-30T00:00:00.000Z',
@@ -185,14 +198,21 @@ describe('executePromoteToLive', () => {
     const result = await executePromoteToLive({ workflowId: 'wf-1', version: 3 }, {
       userId: 'user-1',
       workflowId: 'wf-1',
+      executionId: 'execution-1',
+      toolCallId: 'call-1',
     } as ExecutionContext)
 
-    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'admin')
-    expect(performActivateVersionMock).toHaveBeenCalledWith({
-      workflowId: 'wf-1',
-      version: 3,
-      userId: 'user-1',
-    })
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.versions.activate' }),
+      }),
+      expect.objectContaining({
+        workflowId: 'wf-1',
+        version: 3,
+        idempotencyKey: 'copilot:execution-1:operation:promote_to_live',
+      })
+    )
     expect(result.success).toBe(true)
     expect(result.output).toMatchObject({
       workflowId: 'wf-1',
@@ -200,6 +220,37 @@ describe('executePromoteToLive', () => {
       message: 'Promoted version 3 to live',
       lifecycleStatus: 'active',
       error: null,
+    })
+  })
+
+  it('does not report a historical active operation as a successful promotion', async () => {
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
+      success: true,
+      activeDeployment: null,
+      latestDeploymentAttempt: {
+        id: 'op-old',
+        deploymentVersionId: 'dv-3',
+        version: 3,
+        action: 'activate',
+        status: 'active',
+        isCurrent: false,
+        readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'ready' },
+        requestedAt: '2026-05-30T00:00:00.000Z',
+        activatedAt: '2026-05-30T00:00:00.000Z',
+        error: null,
+      },
+    })
+
+    const result = await executePromoteToLive({ workflowId: 'wf-1', version: 3 }, {
+      userId: 'user-1',
+      workflowId: 'wf-1',
+      executionId: 'execution-1',
+      toolCallId: 'call-1',
+    } as ExecutionContext)
+
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('historical'),
     })
   })
 
@@ -223,7 +274,7 @@ describe('executeGetDeploymentLog', () => {
   })
 
   it('returns versions from the shared listWorkflowVersions helper', async () => {
-    listWorkflowVersionsMock.mockResolvedValue({
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
       versions: [
         {
           id: 'v2',
@@ -253,7 +304,13 @@ describe('executeGetDeploymentLog', () => {
       workflowId: 'wf-1',
     } as ExecutionContext)
 
-    expect(listWorkflowVersionsMock).toHaveBeenCalledWith('wf-1')
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.versions.list' }),
+      }),
+      expect.objectContaining({ workflowId: 'wf-1' })
+    )
     expect(result.success).toBe(true)
     expect(result.output).toMatchObject({
       workflowId: 'wf-1',
@@ -272,9 +329,12 @@ describe('executeDiffWorkflows', () => {
   })
 
   it('diffs ref2 against ref1 and returns the structured summary', async () => {
-    resolveWorkflowStateRefMock
-      .mockResolvedValueOnce({ state: { base: true }, ref: '1', version: 1, isActive: false })
-      .mockResolvedValueOnce({ state: { target: true }, ref: 'live', version: 2, isActive: true })
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
+      references: [
+        { state: { base: true }, ref: '1', version: 1, isActive: false },
+        { state: { target: true }, ref: 'live', version: 2, isActive: true },
+      ],
+    })
 
     const summary = {
       addedBlocks: [],
@@ -300,8 +360,13 @@ describe('executeDiffWorkflows', () => {
       workflowId: 'wf-1',
     } as ExecutionContext)
 
-    expect(resolveWorkflowStateRefMock).toHaveBeenCalledWith('wf-1', 1, 'user-1')
-    expect(resolveWorkflowStateRefMock).toHaveBeenCalledWith('wf-1', 'live', 'user-1')
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.versions.compare_references' }),
+      }),
+      expect.objectContaining({ workflowId: 'wf-1', references: [1, 'active'] })
+    )
     // ref1 = base/previous, ref2 = target/current.
     expect(generateWorkflowDiffSummaryMock).toHaveBeenCalledWith({ target: true }, { base: true })
     expect(result.success).toBe(true)
@@ -326,11 +391,18 @@ describe('executeCheckDeploymentStatus', () => {
       activeDeployment: null,
       latestDeploymentAttempt: null,
       warnings: [],
+      chatDeployment: null,
+      mcpTools: [],
+      mcpToolsTruncated: false,
     })
   })
 
   it('uses the shared redeployment freshness helper for deployed APIs', async () => {
-    getWorkflowDeploymentSummaryMock.mockResolvedValue({
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
+      workflow: { id: 'wf-1', workspaceId: 'ws-1', deployedAt: new Date('2026-05-28') },
+      workspaceId: 'ws-1',
+      isDeployed: true,
+      needsRedeployment: true,
       activeDeployment: {
         deploymentVersionId: 'dv-1',
         version: 1,
@@ -338,16 +410,22 @@ describe('executeCheckDeploymentStatus', () => {
       },
       latestDeploymentAttempt: null,
       warnings: [],
+      chatDeployment: null,
+      mcpTools: [],
+      mcpToolsTruncated: false,
     })
-    queueTableRows(schemaMock.workflow, [{ deployedAt: new Date('2026-05-28') }])
-    checkNeedsRedeploymentMock.mockResolvedValueOnce(true)
-
     const result = await executeCheckDeploymentStatus({ workflowId: 'wf-1' }, {
       userId: 'user-1',
       workflowId: 'wf-1',
     } as ExecutionContext)
 
-    expect(checkNeedsRedeploymentMock).toHaveBeenCalledWith('wf-1')
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.deployment_overview.read' }),
+      }),
+      expect.objectContaining({ workflowId: 'wf-1' })
+    )
     expect(result.success).toBe(true)
     expect(result.output).toMatchObject({
       isDeployed: true,
@@ -359,7 +437,18 @@ describe('executeCheckDeploymentStatus', () => {
   })
 
   it('does not check redeployment freshness for undeployed APIs', async () => {
-    queueTableRows(schemaMock.workflow, [{ deployedAt: null }])
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
+      workflow: { id: 'wf-1', workspaceId: 'ws-1', deployedAt: null },
+      workspaceId: 'ws-1',
+      isDeployed: false,
+      needsRedeployment: false,
+      activeDeployment: null,
+      latestDeploymentAttempt: null,
+      warnings: [],
+      chatDeployment: null,
+      mcpTools: [],
+      mcpToolsTruncated: false,
+    })
 
     const result = await executeCheckDeploymentStatus({ workflowId: 'wf-1' }, {
       userId: 'user-1',
@@ -373,6 +462,51 @@ describe('executeCheckDeploymentStatus', () => {
       api: {
         isDeployed: false,
         needsRedeployment: false,
+      },
+    })
+  })
+
+  it('separates a historical active attempt from the current undeployed state', async () => {
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
+      workflow: { id: 'wf-1', workspaceId: 'ws-1', deployedAt: null },
+      workspaceId: 'ws-1',
+      isDeployed: false,
+      needsRedeployment: false,
+      activeDeployment: null,
+      latestDeploymentAttempt: {
+        id: 'op-historical',
+        deploymentVersionId: 'dv-old',
+        version: 1,
+        action: 'deploy',
+        status: 'active',
+        isCurrent: false,
+        readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'ready' },
+        requestedAt: '2026-05-28T00:00:00.000Z',
+        activatedAt: '2026-05-28T00:00:00.000Z',
+        error: null,
+      },
+      warnings: ['The latest successful deployment attempt is historical.'],
+      chatDeployment: null,
+      mcpTools: [],
+      mcpToolsTruncated: false,
+    })
+    const result = await executeCheckDeploymentStatus({ workflowId: 'wf-1' }, {
+      userId: 'user-1',
+      workflowId: 'wf-1',
+    } as ExecutionContext)
+
+    expect(result.success).toBe(true)
+    expect(result.output).toMatchObject({
+      isDeployed: false,
+      api: {
+        isDeployed: false,
+        activeDeployment: null,
+        latestDeploymentAttempt: {
+          status: 'active',
+          isCurrent: false,
+        },
+        currentDeploymentAttempt: null,
+        warnings: [expect.stringContaining('historical')],
       },
     })
   })

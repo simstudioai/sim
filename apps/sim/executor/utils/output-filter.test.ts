@@ -39,4 +39,18 @@ describe('output filtering', () => {
     expect(filtered.nested.__proto__).toEqual({ safe: true })
     expect(Object.getPrototypeOf(filtered.nested)).toBe(Object.prototype)
   })
+
+  it('drops a globally hidden key at the TOP level, not just nested', () => {
+    // `getBlock` is mocked to undefined here, which is exactly a custom block's situation:
+    // its publisher-curated outputs never declare `childTraceSpans` as hiddenFromDisplay,
+    // so without a global rule the child workspace's spans persist onto the block log and
+    // from there onto the trace span's output — past every per-viewer access check.
+    const output = filterOutputForLog('custom_block_abc', {
+      answer: 42,
+      childTraceSpans: [{ id: 's1', name: 'Publisher Agent', type: 'agent' }],
+    } as never)
+
+    expect(output).not.toHaveProperty('childTraceSpans')
+    expect(output.answer).toBe(42)
+  })
 })

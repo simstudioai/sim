@@ -1,17 +1,26 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { trackGoogleEvent } from '@/lib/analytics/google'
 import { client, useSession } from '@/lib/auth/auth-client'
+import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
-import { buildAuthCrossLink, POST_AUTH_REDIRECT_STORAGE_KEY } from '@/app/(auth)/auth-redirect'
+import {
+  buildAuthCrossLink,
+  DEFAULT_POST_AUTH_ROUTE,
+  POST_AUTH_REDIRECT_STORAGE_KEY,
+  resolveAuthRedirect,
+  resolvePostSignupDestination,
+  VERIFY_FROM_SIGNUP_ROUTE,
+} from '@/app/(auth)/auth-redirect'
 import {
   AuthDivider,
   AuthField,
@@ -84,21 +93,23 @@ interface SignupFormProps {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
-  isProduction: boolean
   emailSignupEnabled: boolean
+  /** Server-derived: verification is enabled AND a mail provider is configured. */
+  emailVerificationEnabled: boolean
 }
 
 function SignupFormContent({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
-  isProduction,
   emailSignupEnabled,
+  emailVerificationEnabled,
 }: SignupFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
   const posthog = usePostHog()
+  const { measurement } = useTrackingConsent()
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
@@ -114,7 +125,11 @@ function SignupFormContent({
   const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
   const [turnstileSiteKey] = useState(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
-  const rawRedirectUrl = searchParams.get('redirect') || searchParams.get('callbackUrl') || ''
+  const { rawCallbackUrl: rawRedirectUrl, isInviteFlow } = resolveAuthRedirect({
+    redirect: searchParams.get('redirect'),
+    callbackUrl: searchParams.get('callbackUrl'),
+    inviteFlow: searchParams.get('invite_flow'),
+  })
   const isValidRedirectUrl = rawRedirectUrl ? validateCallbackUrl(rawRedirectUrl) : false
   const invalidCallbackRef = useRef(false)
   if (rawRedirectUrl && !isValidRedirectUrl && !invalidCallbackRef.current) {
@@ -122,10 +137,6 @@ function SignupFormContent({
     logger.warn('Invalid callback URL detected and blocked:', { url: rawRedirectUrl })
   }
   const redirectUrl = isValidRedirectUrl ? rawRedirectUrl : ''
-  const isInviteFlow = useMemo(
-    () => searchParams.get('invite_flow') === 'true' || redirectUrl.startsWith('/invite/'),
-    [searchParams, redirectUrl]
-  )
 
   const [name, setName] = useState('')
   const [nameErrors, setNameErrors] = useState<string[]>([])
@@ -336,6 +347,8 @@ function SignupFormContent({
         return
       }
 
+      if (measurement) trackGoogleEvent('sign_up', { method: 'email' })
+
       try {
         await refetchSession()
         logger.info('Session refreshed after successful signup')
@@ -343,18 +356,29 @@ function SignupFormContent({
         logger.error('Failed to refresh session after signup:', sessionError)
       }
 
+      const destination = resolvePostSignupDestination({ emailVerificationEnabled, redirectUrl })
+
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem('verificationEmail', emailValue)
-        if (redirectUrl) {
-          sessionStorage.setItem(POST_AUTH_REDIRECT_STORAGE_KEY, redirectUrl)
-        } else {
-          // Clear any leftover from an earlier signup in this tab — otherwise a
-          // signup with no callbackUrl inherits the previous CLI/invite destination.
-          sessionStorage.removeItem(POST_AUTH_REDIRECT_STORAGE_KEY)
+        // Clear any leftover from an earlier signup in this tab — otherwise a
+        // signup with no callbackUrl inherits the previous CLI/invite destination.
+        sessionStorage.removeItem('verificationEmail')
+        sessionStorage.removeItem(POST_AUTH_REDIRECT_STORAGE_KEY)
+
+        if (destination.kind === 'verify') {
+          sessionStorage.setItem('verificationEmail', emailValue)
+          if (redirectUrl) sessionStorage.setItem(POST_AUTH_REDIRECT_STORAGE_KEY, redirectUrl)
         }
       }
 
-      router.push('/verify?fromSignup=true')
+      if (destination.kind === 'verify') {
+        router.push(VERIFY_FROM_SIGNUP_ROUTE)
+      } else if (destination.kind === 'redirect') {
+        // Full navigation, matching the verify hop: the destination (invite, CLI
+        // handoff) is server-rendered and must see the fresh session cookie.
+        window.location.href = destination.url
+      } else {
+        router.push(DEFAULT_POST_AUTH_ROUTE)
+      }
     } catch (error) {
       logger.error('Signup error:', error)
       setIsLoading(false)
@@ -463,7 +487,6 @@ function SignupFormContent({
           googleAvailable={googleAvailable}
           microsoftAvailable={microsoftAvailable}
           callbackURL={redirectUrl || '/workspace'}
-          isProduction={isProduction}
         >
           {ssoEnabled && !hasOnlySSO && (
             <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
@@ -486,17 +509,19 @@ export default function SignupPage({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
-  isProduction,
   emailSignupEnabled,
+  emailVerificationEnabled,
 }: SignupFormProps) {
   return (
-    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
+    <Suspense
+      fallback={<div className='flex min-h-[320px] items-center justify-center'>Loading…</div>}
+    >
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}
         microsoftAvailable={microsoftAvailable}
-        isProduction={isProduction}
         emailSignupEnabled={emailSignupEnabled}
+        emailVerificationEnabled={emailVerificationEnabled}
       />
     </Suspense>
   )

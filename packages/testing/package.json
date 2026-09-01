@@ -8,7 +8,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.2.13",
+    "bun": ">=1.3.14",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -39,6 +39,10 @@
     "./setup": {
       "types": "./src/setup/vitest.setup.ts",
       "default": "./src/setup/vitest.setup.ts"
+    },
+    "./environment": {
+      "types": "./src/environment/index.ts",
+      "default": "./src/environment/index.ts"
     }
   },
   "scripts": {

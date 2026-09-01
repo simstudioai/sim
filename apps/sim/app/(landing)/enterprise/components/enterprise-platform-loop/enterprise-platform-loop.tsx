@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { HeroWorkflowStage } from '@/app/(landing)/components/hero/components/hero-platform-loop/hero-workflow-stage'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
+import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { EnterpriseHomeStage } from '@/app/(landing)/enterprise/components/enterprise-platform-loop/enterprise-home-stage'
 import {
   BUILD_STEP_MS,
@@ -12,7 +13,6 @@ import {
   type EnterpriseLoopContent,
   type EnterpriseLoopPhase,
 } from '@/app/(landing)/enterprise/components/enterprise-platform-loop/stage-data'
-import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 interface EnterprisePlatformLoopProps {
@@ -27,8 +27,8 @@ interface EnterprisePlatformLoopProps {
 
 /**
  * The enterprise hero's platform loop - a sibling of the homepage
- * `HeroPlatformLoop` that shares its architecture (fixed design-space layer
- * scaled to the window via ResizeObserver + `transform: scale`, a parent-owned
+ * `HeroPlatformLoop` that shares its architecture (fixed HTML design surface
+ * fitted to the window via the shared responsive stage, a parent-owned
  * timeline clock driving presentational stages, reduced-motion showing a
  * static finished frame) but diverges in content: where the homepage overlays
  * a live chat over a baked screenshot, this variant renders the WHOLE interior
@@ -78,7 +78,7 @@ export function EnterprisePlatformLoop({
               setTimeout(() => setBuiltCount(i + 1), timeline.buildStart + i * BUILD_STEP_MS)
             ),
             setTimeout(() => setPhase('reply'), timeline.reply),
-            setTimeout(() => setFading(true), timeline.total - RESET_FADE_MS),
+            setTimeout(() => setFading(true), timeline.total - PLATFORM_LOOP_RESET_FADE_MS),
           ],
           totalMs: timeline.total,
         }
@@ -96,6 +96,7 @@ export function EnterprisePlatformLoop({
   return (
     <HeroLoopShell
       workspaceName={content.workspaceName}
+      profileName={content.profileName}
       chats={content.sidebarChats}
       workflows={content.sidebarWorkflows}
     >
@@ -113,7 +114,7 @@ export function EnterprisePlatformLoop({
         </div>
         <div
           className={cn(
-            'h-full shrink-0 overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]',
+            'h-full shrink-0 overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
             stageOpen ? 'w-1/2 border-l' : 'w-0 min-w-0 border-l-0'
           )}
         >

@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  nonEmptyIdSchema,
+  organizationRoleSchema,
+  requiredFieldSchema,
+} from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 
 export const workspaceScopeSchema = z.enum(['active', 'archived', 'all'])
@@ -19,6 +23,12 @@ export const workspaceSchema = z.object({
   role: z.string().optional(),
   membershipId: z.string().optional(),
   permissions: workspacePermissionSchema.nullable().optional(),
+  /**
+   * The viewer holds admin here through their organization role rather than a
+   * permission row, so they cannot leave. Optional because not every workspace
+   * response builder resolves organization standing.
+   */
+  isOrgAdmin: z.boolean().optional(),
   billedAccountUserId: z.string().nullable().optional(),
   allowPersonalApiKeys: z.boolean().optional(),
   inviteMembersEnabled: z.boolean().optional(),
@@ -94,6 +104,8 @@ export const workspaceUserSchema = z.object({
   isExternal: z.boolean(),
   joinedAt: z.string(),
   roleSource: z.enum(['owner', 'explicit', 'org-admin']),
+  isOrgAdmin: z.boolean(),
+  isBilledAccount: z.boolean(),
 })
 
 export type WorkspaceUser = z.output<typeof workspaceUserSchema>
@@ -114,13 +126,42 @@ export const workspacePermissionsResponseSchema = z.object({
 
 export type WorkspacePermissions = z.output<typeof workspacePermissionsResponseSchema>
 
+/**
+ * Role changes for users who are **already** workspace members. The route
+ * rejects any `userId` without an existing workspace permission row — adding a
+ * collaborator goes through the invitation flow, which owns the plan, seat, and
+ * consent gates this endpoint has no way to apply.
+ */
 export const updateWorkspacePermissionsBodySchema = z.object({
-  updates: z.array(
-    z.object({
-      userId: z.string(),
-      permissions: workspacePermissionSchema,
-    })
-  ),
+  updates: z
+    .array(
+      z.object({
+        userId: requiredFieldSchema('User ID is required').max(128, 'User ID is too long'),
+        permissions: workspacePermissionSchema,
+      })
+    )
+    .min(1, 'updates must contain at least one permission change')
+    .max(100, 'Cannot update more than 100 permissions at once')
+    /**
+     * One entry per user. Repeating a userId made the batch self-contradictory:
+     * the route's guards inspect the first matching entry while the write loop
+     * applied every entry in order, so a second entry could carry a role the
+     * guards had already vetted the first one against.
+     */
+    .superRefine((updates, ctx) => {
+      const seen = new Set<string>()
+      for (const [index, update] of updates.entries()) {
+        if (seen.has(update.userId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [index, 'userId'],
+            message: 'Each user may appear only once in updates',
+          })
+          return
+        }
+        seen.add(update.userId)
+      }
+    }),
 })
 
 export const workspaceMemberSchema = z.object({
@@ -130,14 +171,6 @@ export const workspaceMemberSchema = z.object({
 })
 
 export type WorkspaceMember = z.output<typeof workspaceMemberSchema>
-
-export const workspacePreviewBodySchema = z
-  .object({
-    code: z
-      .string({ error: 'code is required' })
-      .refine((code) => code.trim().length > 0, { message: 'code is required' }),
-  })
-  .passthrough()
 
 export const workspaceMetricsExecutionsQuerySchema = z.object({
   startTime: z.string().optional(),
@@ -162,6 +195,13 @@ export const listWorkspacesContract = defineRouteContract({
     schema: z.object({
       workspaces: z.array(workspaceSchema),
       lastActiveWorkspaceId: z.string().nullable(),
+      /**
+       * Workspace ids the viewer pinned in the switcher, from `pinned_item`. May
+       * name workspaces absent from `workspaces` (archived, or access since
+       * removed); clients look pins up per rendered workspace, so unmatched ids
+       * are inert and the pin survives if access is restored.
+       */
+      pinnedWorkspaceIds: z.array(z.string()).default([]),
       creationPolicy: workspaceCreationPolicySchema.nullable(),
     }),
   },
@@ -219,6 +259,8 @@ export const workspaceHostContextSchema = z.object({
     name: z.string().min(1),
     workspaceMode: workspaceModeSchema,
     billedAccountUserId: nonEmptyIdSchema,
+    /** Optional for rolling compatibility with app versions that predate API-key policy projection. */
+    allowPersonalApiKeys: z.boolean().optional(),
   }),
   hostOrganizationId: nonEmptyIdSchema.nullable(),
   ownerBilling: workspaceOwnerBillingSchema,
@@ -226,7 +268,14 @@ export const workspaceHostContextSchema = z.object({
     permission: workspacePermissionSchema,
     isHostOrganizationMember: z.boolean(),
     isHostOrganizationAdmin: z.boolean(),
+    /** Optional for rolling compatibility with app versions that predate organization-role projection. */
+    organizationRole: organizationRoleSchema.nullable().optional(),
   }),
+  features: z
+    .object({
+      credentialGroups: z.boolean(),
+    })
+    .optional(),
 })
 
 export type WorkspaceHostContext = z.output<typeof workspaceHostContextSchema>
@@ -317,11 +366,15 @@ export const updateWorkspacePermissionsContract = defineRouteContract({
   path: '/api/workspaces/[id]/permissions',
   params: workspaceParamsSchema,
   body: updateWorkspacePermissionsBodySchema,
+  /**
+   * Acknowledgement only. The roster this used to echo was discarded by every
+   * caller — the members list is owned by the GET above and refetched on
+   * settle — so building it cost three queries per role change and made a
+   * post-commit read failure able to report an applied change as a 500.
+   */
   response: {
     mode: 'json',
-    schema: workspacePermissionsResponseSchema.extend({
-      message: z.string(),
-    }),
+    schema: z.object({ message: z.string() }),
   },
 })
 

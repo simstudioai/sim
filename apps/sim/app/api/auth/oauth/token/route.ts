@@ -1,31 +1,37 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import {
+  resolvePrincipalSubject,
+  type WorkflowExecutionDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  MANAGED_OAUTH_DELEGATION_HEADER,
   oauthTokenGetContract,
   oauthTokenPostContract,
 } from '@/lib/api/contracts/oauth-connections'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
-import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  getCredential,
-  getOAuthToken,
-  refreshTokenIfNeeded,
-  resolveOAuthAccountId,
-  resolveServiceAccountToken,
-} from '@/app/api/auth/oauth/utils'
+  authenticateManagedOAuthDelegation,
+  InvalidManagedOAuthDelegationError,
+} from '@/lib/credentials/application/managed-oauth-delegation'
+import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
+import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
+import { getCredential, getOAuthToken, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
+import { completeOAuthCredentialToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
+import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { getToolMetadata } from '@/tools/metadata'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OAuthTokenAPI')
-
-const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
 
 /**
  * Get an access token for a specific credential
@@ -58,6 +64,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       credentialId,
       credentialAccountUserId,
       providerId,
+      toolId,
       workflowId,
       scopes,
       impersonateEmail,
@@ -123,185 +130,152 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    if (!credentialId) {
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
-
-    const resolved = await resolveOAuthAccountId(credentialId)
-    if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
-      const authz = await authorizeCredentialUse(request, {
-        credentialId,
-        workflowId: workflowId ?? undefined,
-        requireWorkflowIdForInternal: false,
-        callerUserId,
-      })
-      if (!authz.ok) {
-        return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
+    const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
+    if (resolved?.credentialType === 'managed_oauth' && resolved.credentialId) {
+      const managedOAuthDelegation = parsed.data.headers?.[MANAGED_OAUTH_DELEGATION_HEADER]
+      if (!managedOAuthDelegation) {
+        return NextResponse.json(
+          {
+            code: 'MANAGED_CREDENTIAL_DELEGATION_REQUIRED',
+            error: 'Managed credentials can only be used by an authenticated workflow execution',
+          },
+          { status: 403 }
+        )
       }
 
-      const saActorId = authz.requesterUserId
-      const saWorkspaceId = resolved.workspaceId ?? authz.workspaceId ?? null
-      const emitServiceAccountAccess = () => {
-        if (!saActorId) return
-        recordAudit({
-          workspaceId: saWorkspaceId,
-          actorId: saActorId,
-          action: AuditAction.CREDENTIAL_ACCESSED,
-          resourceType: AuditResourceType.CREDENTIAL,
-          resourceId: resolved.credentialId ?? credentialId,
-          description: `Accessed service account credential for provider ${resolved.providerId ?? 'unknown'}`,
-          metadata: {
-            provider: resolved.providerId,
-            credentialType: 'service_account',
-          },
-          request,
-        })
-        captureServerEvent(
-          saActorId,
-          'credential_used',
+      let managedOAuthPrincipal: WorkflowExecutionDelegatedPrincipal
+      try {
+        managedOAuthPrincipal = await authenticateManagedOAuthDelegation(
+          managedOAuthDelegation,
+          resolved.credentialId
+        )
+      } catch (error) {
+        if (!(error instanceof InvalidManagedOAuthDelegationError)) throw error
+        return NextResponse.json(
           {
-            credential_type: 'service_account',
-            provider_id: resolved.providerId ?? 'unknown',
-            ...(saWorkspaceId ? { workspace_id: saWorkspaceId } : {}),
+            code: 'MANAGED_CREDENTIAL_DELEGATION_INVALID',
+            error: error.message,
           },
-          saWorkspaceId ? { groups: { workspace: saWorkspaceId } } : undefined
+          { status: 401 }
+        )
+      }
+      if (!toolId) {
+        return NextResponse.json(
+          {
+            code: 'MANAGED_CREDENTIAL_TOOL_REQUIRED',
+            error: 'A tool ID is required to use a managed credential',
+          },
+          { status: 400 }
+        )
+      }
+
+      const toolMetadata = getToolMetadata(toolId)
+      if (!toolMetadata?.oauth?.required) {
+        logger.error(`[${requestId}] Tool is not configured for managed OAuth`, { toolId })
+        return NextResponse.json(
+          {
+            code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
+            error: 'This tool is not configured to use managed credentials',
+          },
+          { status: 500 }
+        )
+      }
+      const requiredScopes =
+        toolMetadata.oauth.requiredScopes ??
+        getCanonicalScopesForProvider(toolMetadata.oauth.provider)
+      if (requiredScopes.length === 0) {
+        logger.error(`[${requestId}] Tool has no trusted OAuth scope policy`, {
+          toolId,
+          providerId: toolMetadata.oauth.provider,
+        })
+        return NextResponse.json(
+          {
+            code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
+            error: 'This tool is not configured to use managed credentials',
+          },
+          { status: 500 }
         )
       }
 
       try {
-        const result = await resolveServiceAccountToken(
-          resolved.credentialId,
-          resolved.providerId,
-          scopes ?? [],
-          impersonateEmail
-        )
-        emitServiceAccountAccess()
+        const result = await resolveManagedOAuthCredentialToken.execute({
+          principal: managedOAuthPrincipal,
+          input: {
+            credentialId: resolved.credentialId,
+            expectedProviderId: toolMetadata.oauth.provider,
+            requiredScopes,
+            toolId,
+          },
+          request,
+        })
+
+        const managedOAuthSubject = resolvePrincipalSubject(managedOAuthPrincipal)
+        if (managedOAuthSubject?.kind === 'sim_user') {
+          captureServerEvent(
+            managedOAuthSubject.userId,
+            'credential_used',
+            {
+              credential_type: 'managed_oauth',
+              provider_id: toolMetadata.oauth.provider,
+              workspace_id: managedOAuthPrincipal.workspaceId,
+            },
+            { groups: { workspace: managedOAuthPrincipal.workspaceId } }
+          )
+        }
+
         return NextResponse.json(
           {
             accessToken: result.accessToken,
-            cloudId: result.cloudId,
-            domain: result.domain,
-            instanceUrl: result.instanceUrl,
-            authStyle: result.authStyle,
+            ...(result.idToken ? { idToken: result.idToken } : {}),
           },
           { status: 200 }
         )
       } catch (error) {
-        logger.error(`[${requestId}] Service account token error:`, error)
-        if (error instanceof TokenServiceAccountValidationError) {
-          // Classified provider outages are infra failures, not bad credentials.
-          if (error.code === 'provider_unavailable') {
-            return NextResponse.json(
-              { error: 'Credential provider is temporarily unavailable' },
-              { status: 502 }
-            )
-          }
-          // A stored host that no longer resolves is a configuration failure —
-          // surface the code so runtime consumers can say "check the host"
-          // instead of a generic auth error.
-          if (error.code === 'site_not_found') {
-            return NextResponse.json(
-              {
-                code: error.code,
-                error: 'Credential host not found — reconnect the credential with a valid host',
-              },
-              { status: 400 }
-            )
-          }
-          // A revoked/rotated-away or misconfigured stored secret — surface the
-          // code so runtime consumers can prompt to reconnect the credential
-          // rather than showing a generic auth failure.
-          if (error.code === 'invalid_credentials') {
-            return NextResponse.json(
-              {
-                code: error.code,
-                error: 'Credential rejected by the provider — reconnect the credential',
-              },
-              { status: 401 }
-            )
-          }
+        if (error instanceof ManagedOAuthCredentialError) {
+          logger.warn(`[${requestId}] Managed OAuth credential rejected`, {
+            credentialId: resolved.credentialId,
+            code: error.code,
+          })
+          return NextResponse.json(
+            { code: error.code, error: error.message },
+            { status: error.statusCode }
+          )
         }
-        return NextResponse.json({ error: 'Failed to get service account token' }, { status: 401 })
+
+        const orchestrationError = asOrchestrationError(error)
+        if (orchestrationError) {
+          return NextResponse.json(
+            {
+              code: 'MANAGED_CREDENTIAL_UNAUTHORIZED',
+              error: orchestrationError.message,
+            },
+            { status: statusForOrchestrationError(orchestrationError.code) }
+          )
+        }
+        throw error
       }
     }
 
-    const authz = await authorizeCredentialUse(request, {
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    const result = await resolveCredentialToken(auth, {
+      requestId,
       credentialId,
       workflowId: workflowId ?? undefined,
-      requireWorkflowIdForInternal: false,
+      scopes,
+      impersonateEmail,
       callerUserId,
+      auditRequest: request,
+      resolvedCredential: resolved,
     })
-    if (!authz.ok || !authz.credentialOwnerUserId) {
-      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
-    }
 
-    const resolvedCredentialId = authz.resolvedCredentialId || credentialId
-    const credential = await getCredential(
-      requestId,
-      resolvedCredentialId,
-      authz.credentialOwnerUserId
-    )
-
-    if (!credential) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-
-    const oauthActorId = authz.requesterUserId
-    const oauthWorkspaceId = authz.workspaceId ?? null
-
-    try {
-      const { accessToken } = await refreshTokenIfNeeded(
-        requestId,
-        credential,
-        resolvedCredentialId
-      )
-
-      if (oauthActorId) {
-        recordAudit({
-          workspaceId: oauthWorkspaceId,
-          actorId: oauthActorId,
-          action: AuditAction.CREDENTIAL_ACCESSED,
-          resourceType: AuditResourceType.CREDENTIAL,
-          resourceId: resolvedCredentialId,
-          description: `Accessed OAuth credential for provider ${credential.providerId}`,
-          metadata: {
-            provider: credential.providerId,
-            credentialType: 'oauth',
-          },
-          request,
-        })
-        captureServerEvent(
-          oauthActorId,
-          'credential_used',
-          {
-            credential_type: 'oauth',
-            provider_id: credential.providerId,
-            ...(oauthWorkspaceId ? { workspace_id: oauthWorkspaceId } : {}),
-          },
-          oauthWorkspaceId ? { groups: { workspace: oauthWorkspaceId } } : undefined
-        )
-      }
-
-      let instanceUrl: string | undefined
-      if (credential.providerId === 'salesforce' && credential.scope) {
-        const instanceMatch = credential.scope.match(SALESFORCE_INSTANCE_URL_REGEX)
-        if (instanceMatch) {
-          instanceUrl = instanceMatch[1]
-        }
-      }
-
+    if (!result.ok) {
       return NextResponse.json(
-        {
-          accessToken,
-          idToken: credential.idToken || undefined,
-          ...(instanceUrl && { instanceUrl }),
-        },
-        { status: 200 }
+        { ...(result.code ? { code: result.code } : {}), error: result.error },
+        { status: result.status }
       )
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to refresh access token:`, error)
-      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
+
+    return NextResponse.json(result.token, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error getting access token`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -357,63 +331,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'No access token available' }, { status: 400 })
     }
 
-    const actorId = authz.requesterUserId
-    const workspaceId = authz.workspaceId ?? null
+    const result = await completeOAuthCredentialToken({
+      requestId,
+      credential,
+      resolvedCredentialId,
+      actorId: authz.requesterUserId,
+      workspaceId: authz.workspaceId ?? null,
+      auditRequest: request,
+    })
 
-    try {
-      const { accessToken } = await refreshTokenIfNeeded(
-        requestId,
-        credential,
-        resolvedCredentialId
-      )
-
-      if (actorId) {
-        recordAudit({
-          workspaceId,
-          actorId,
-          action: AuditAction.CREDENTIAL_ACCESSED,
-          resourceType: AuditResourceType.CREDENTIAL,
-          resourceId: resolvedCredentialId,
-          description: `Accessed OAuth credential for provider ${credential.providerId}`,
-          metadata: {
-            provider: credential.providerId,
-            credentialType: 'oauth',
-          },
-          request,
-        })
-        captureServerEvent(
-          actorId,
-          'credential_used',
-          {
-            credential_type: 'oauth',
-            provider_id: credential.providerId,
-            ...(workspaceId ? { workspace_id: workspaceId } : {}),
-          },
-          workspaceId ? { groups: { workspace: workspaceId } } : undefined
-        )
-      }
-
-      // For Salesforce, extract instanceUrl from the scope field
-      let instanceUrl: string | undefined
-      if (credential.providerId === 'salesforce' && credential.scope) {
-        const instanceMatch = credential.scope.match(SALESFORCE_INSTANCE_URL_REGEX)
-        if (instanceMatch) {
-          instanceUrl = instanceMatch[1]
-        }
-      }
-
-      return NextResponse.json(
-        {
-          accessToken,
-          idToken: credential.idToken || undefined,
-          ...(instanceUrl && { instanceUrl }),
-        },
-        { status: 200 }
-      )
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to refresh access token:`, error)
-      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
     }
+
+    return NextResponse.json(result.token, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching access token`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

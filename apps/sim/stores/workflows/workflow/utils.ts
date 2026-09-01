@@ -1,10 +1,7 @@
 import {
-  filterAcyclicEdges as filterAcyclicWorkflowEdges,
   isWorkflowBlockAncestorLocked,
   isWorkflowBlockProtected,
-  wouldCreateCycle as wouldCreateWorkflowEdgeCycle,
 } from '@sim/workflow-types/workflow'
-import type { Edge } from 'reactflow'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 const DEFAULT_LOOP_ITERATIONS = 5
@@ -17,24 +14,6 @@ export function clampParallelBatchSize(batchSize: unknown): number {
     return DEFAULT_PARALLEL_BATCH_SIZE
   }
   return Math.max(1, Math.min(MAX_PARALLEL_BATCH_SIZE, parsed))
-}
-
-/**
- * Check if adding an edge would create a cycle in the graph.
- * Delegates to the shared implementation in `@sim/workflow-types` so the
- * client store, the collaborative queueing layer, and the realtime
- * persistence layer all agree on the same cyclic edges.
- */
-export function wouldCreateCycle(edges: Edge[], sourceId: string, targetId: string): boolean {
-  return wouldCreateWorkflowEdgeCycle(edges, sourceId, targetId)
-}
-
-/**
- * Filters a batch of candidate edges down to the ones that do not create a
- * cycle against `currentEdges`, evaluated incrementally within the batch.
- */
-export function filterAcyclicEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
-  return filterAcyclicWorkflowEdges(edgesToAdd, currentEdges)
 }
 
 /**

@@ -1,6 +1,7 @@
-import { Link, Text } from '@react-email/components'
+import { Fragment } from 'react'
+import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface WorkspaceInvitation {
@@ -58,47 +59,44 @@ export function BatchInvitationEmail({
       preview={`You've been invited to join ${organizationName}${hasWorkspaces ? ` and ${workspaceInvitations.length} workspace(s)` : ''}`}
       showUnsubscribe={false}
     >
-      <Text style={baseStyles.paragraph}>Hello,</Text>
+      <Text style={baseStyles.greeting}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
-        <strong>{inviterName}</strong> has invited you to join <strong>{organizationName}</strong>{' '}
-        on {brand.name}.
+        <EmailStrong>{inviterName}</EmailStrong> has invited you to join{' '}
+        <EmailStrong>{organizationName}</EmailStrong> on {brand.name}.
       </Text>
 
-      {/* Team Role Information */}
-      <Text style={baseStyles.paragraph}>
-        <strong>Team Role:</strong> {getRoleLabel(organizationRole)}
-      </Text>
-      <Text style={baseStyles.paragraph}>
-        {organizationRole === 'admin'
-          ? "As a Team Admin, you'll be able to manage team members, billing, and workspace access."
-          : "As a Team Member, you'll have access to shared team billing and can be invited to workspaces."}
-      </Text>
+      <Section style={baseStyles.infoBox}>
+        <Text style={baseStyles.infoBoxTitle}>Team role</Text>
+        <Text style={baseStyles.infoBoxList}>
+          {getRoleLabel(organizationRole)} —{' '}
+          {organizationRole === 'admin'
+            ? 'you can manage team members, billing, and workspace access.'
+            : 'you have access to shared team billing and can be invited to workspaces.'}
+        </Text>
+      </Section>
 
-      {/* Workspace Invitations */}
       {hasWorkspaces && (
-        <>
-          <Text style={baseStyles.paragraph}>
-            <strong>
-              Workspace Access ({workspaceInvitations.length} workspace
-              {workspaceInvitations.length !== 1 ? 's' : ''}):
-            </strong>
+        <Section style={baseStyles.infoBox}>
+          <Text style={baseStyles.infoBoxTitle}>
+            Workspace access ({workspaceInvitations.length} workspace
+            {workspaceInvitations.length !== 1 ? 's' : ''})
           </Text>
-          {workspaceInvitations.map((ws) => (
-            <Text key={ws.workspaceId} style={{ ...baseStyles.paragraph, marginLeft: '20px' }}>
-              • <strong>{ws.workspaceName}</strong> - {getPermissionLabel(ws.permission)}
-            </Text>
-          ))}
-        </>
+          <Text style={baseStyles.infoBoxList}>
+            {workspaceInvitations.map((ws, index) => (
+              <Fragment key={ws.workspaceId}>
+                {index > 0 && <br />}
+                {ws.workspaceName} — {getPermissionLabel(ws.permission)}
+              </Fragment>
+            ))}
+          </Text>
+        </Section>
       )}
 
-      <Link href={acceptUrl} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Accept Invitation</Text>
-      </Link>
+      <EmailButton href={acceptUrl}>Accept Invitation</EmailButton>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         Invitation expires in 7 days. If unexpected, you can ignore this email.
       </Text>
     </EmailLayout>

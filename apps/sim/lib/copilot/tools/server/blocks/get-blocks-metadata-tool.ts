@@ -2,78 +2,57 @@ import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import { z } from 'zod'
+import {
+  type CatalogBlockDetail,
+  type CatalogInputDefinition,
+  projectBlockDetail,
+  splitFieldsByOperation,
+} from '@/lib/catalog/projection/block-detail'
+import type { CatalogSubBlock } from '@/lib/catalog/projection/subblock'
+import type { CatalogToolSummary } from '@/lib/catalog/projection/tool'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
-import { isCustomBlockType } from '@/blocks/custom/build-config'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import {
+  collectDeniedOperationIds,
+  createToolAccessGate,
+  type IsToolAllowed,
+  OPERATION_SUBBLOCK_ID,
+  type OperationGateBlock,
+} from '@/lib/permission-groups/operation-access'
 import { getBlock } from '@/blocks/registry'
-import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type SubBlockConfig } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
-import { tools as toolsRegistry } from '@/tools/registry'
-import { getTrigger, isTriggerValid } from '@/triggers'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
-interface CopilotSubblockMetadata {
-  id: string
-  type: string
-  title?: string
-  required?: boolean
-  description?: string
-  placeholder?: string
-  layout?: string
-  mode?: string
-  hidden?: boolean
-  condition?: any
-  // Dropdown/combobox options
-  options?: { id: string; label?: string; hasIcon?: boolean }[]
-  // Numeric constraints
-  min?: number
-  max?: number
-  step?: number
-  integer?: boolean
-  // Text input properties
-  rows?: number
-  password?: boolean
-  multiSelect?: boolean
-  // Code/generation properties
-  language?: string
-  generationType?: string
-  // OAuth/credential properties
-  serviceId?: string
-  requiredScopes?: string[]
-  // File properties
-  mimeType?: string
-  acceptedTypes?: string
-  multiple?: boolean
-  maxSize?: number
-  // Other properties
-  connectionDroppable?: boolean
-  columns?: string[]
-  wandConfig?: any
-  availableTriggers?: string[]
-  triggerProvider?: string
-  dependsOn?: string[]
-  canonicalParamId?: string
-  defaultValue?: any
-  value?: string // 'function' if it's a function, undefined otherwise
-}
+/**
+ * The block shape this tool reports, projected by the shared catalog projection
+ * (`@/lib/catalog/projection`) and then reshaped for the agent below.
+ *
+ * The projection reads tool params and outputs from `@/tools/metadata` and
+ * `@/tools/metadata-outputs` rather than the executable registry, which is what
+ * keeps this module's graph off the ~4,700 modules `@/tools/registry` costs.
+ */
+type CopilotSubblockMetadata = CatalogSubBlock
 
 interface CopilotToolMetadata {
   id: string
   name: string
   description?: string
-  inputs?: any
-  outputs?: any
+  inputs?: Record<string, unknown>
+  outputs?: Record<string, unknown>
 }
 
 interface CopilotTriggerMetadata {
   id: string
-  outputs?: any
-  configFields?: any
+  outputs?: Record<string, unknown>
+  configFields?: Record<string, unknown>
 }
 
 interface CopilotBlockMetadata {
@@ -106,6 +85,98 @@ interface CopilotBlockMetadata {
 const GetBlocksMetadataInputSchema = z.object({ blockIds: z.array(z.string()).min(1) })
 const GetBlocksMetadataResultSchema = z.object({ metadata: z.record(z.string(), z.any()) })
 
+/**
+ * Prompt-shaped tool description: the raw text plus the hosted-key note the
+ * agent needs. The public catalog publishes the raw description and a structured
+ * `hostedApiKey` instead, which is why this stays a Copilot concern rather than
+ * moving into the shared projection.
+ */
+function describeToolForAgent(tool: CatalogToolSummary): string {
+  return getCopilotToolDescription(tool, {
+    isHosted,
+    hostedApiKey: tool.hostedApiKey,
+    fallbackName: tool.id,
+  })
+}
+
+/** Reshapes the shared block projection into the agent-facing metadata above. */
+function toCopilotBlockMetadata(detail: CatalogBlockDetail): CopilotBlockMetadata {
+  return removeNullish({
+    id: detail.id,
+    name: detail.name,
+    description: detail.longDescription || detail.description || '',
+    bestPractices: detail.bestPractices,
+    inputSchema: detail.inputSchema,
+    inputDefinitions: detail.inputDefinitions,
+    triggerAllowed: detail.triggerAllowed,
+    authType: resolveAuthType(detail.authMode as AuthMode | undefined),
+    tools: detail.tools.map((tool) => ({
+      id: tool.id,
+      name: tool.name,
+      description: tool.description,
+      inputs: tool.params,
+      outputs: tool.outputs,
+    })),
+    triggers: detail.triggers,
+    operationInputSchema: detail.operationInputSchema,
+    operations: detail.operations,
+    outputs: detail.outputs,
+  }) as CopilotBlockMetadata
+}
+
+/**
+ * Strips everything a denied tool id reaches in one block's metadata: the tool
+ * entry, every operation that runs it, that operation's input schema, and the
+ * selector option that would choose it.
+ *
+ * Returns the projection untouched when the group denies nothing this block
+ * owns, so an unrestricted viewer pays one pass over `operations` and nothing
+ * else. `null` means the block has no usable operation left and should be
+ * withheld entirely, matching the VFS projection.
+ */
+function withDeniedToolsRemoved(
+  metadata: CopilotBlockMetadata,
+  block: OperationGateBlock,
+  isToolAllowed: IsToolAllowed
+): CopilotBlockMetadata | null {
+  const operations = metadata.operations ?? {}
+  /* Resolved through the shared operation gate rather than `operation.toolId`:
+     the catalog projection fills that field only from `tools.config.tool`, so a
+     block whose operation ids ARE its tool ids leaves it undefined and every one
+     of its operations would read as permitted. */
+  const deniedOperations = collectDeniedOperationIds(block, Object.keys(operations), isToolAllowed)
+  const tools = metadata.tools.filter((tool) => isToolAllowed(tool.id))
+  if (deniedOperations.size === 0 && tools.length === metadata.tools.length) return metadata
+
+  const allToolsDenied = metadata.tools.length > 0 && tools.length === 0
+  const allOperationsDenied =
+    Object.keys(operations).length > 0 && deniedOperations.size === Object.keys(operations).length
+  if (allToolsDenied || allOperationsDenied) return null
+
+  return {
+    ...metadata,
+    tools,
+    /* `removeNullish` drops an empty projection, so neither schema is
+       guaranteed present. */
+    ...(metadata.inputSchema
+      ? {
+          inputSchema: metadata.inputSchema.map((field) =>
+            field.id === OPERATION_SUBBLOCK_ID && Array.isArray(field.options)
+              ? {
+                  ...field,
+                  options: field.options.filter((option) => !deniedOperations.has(option.id)),
+                }
+              : field
+          ),
+        }
+      : {}),
+    operations: omit(operations, [...deniedOperations]),
+    ...(metadata.operationInputSchema
+      ? { operationInputSchema: omit(metadata.operationInputSchema, [...deniedOperations]) }
+      : {}),
+  }
+}
+
 export const getBlocksMetadataServerTool: BaseServerTool<
   z.infer<typeof GetBlocksMetadataInputSchema>,
   z.infer<typeof GetBlocksMetadataResultSchema>
@@ -124,36 +195,49 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       context?.userId && context?.workspaceId
         ? await getUserPermissionConfig(context.userId, context.workspaceId)
         : null
-    const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
+    const allowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      getAllowedIntegrationsFromEnv()
+    )
+    const isToolAllowed = createToolAccessGate(permissionConfig?.deniedTools)
+    const visibility = overlayVisibility()
 
     const result: Record<string, CopilotBlockMetadata> = {}
     for (const blockId of blockIds || []) {
-      if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
+      const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
+      if (!isIntegrationDeploymentAvailableForVisibility(blockId, visibility)) {
+        logger.debug('Block unavailable for this deployment', { blockId })
+        continue
+      }
+      if (
+        allowedIntegrations != null &&
+        !specialBlock &&
+        !isBlockTypeAccessControlExempt(blockId) &&
+        !allowedIntegrations.includes(blockId.toLowerCase())
+      ) {
         logger.debug('Block not allowed by permission group', { blockId })
         continue
       }
 
-      let metadata: any
+      let metadata: CopilotBlockMetadata
 
-      if (SPECIAL_BLOCKS_METADATA[blockId]) {
-        const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
-        const { commonParameters, operationParameters } = splitParametersByOperation(
-          specialBlock.subBlocks || [],
-          specialBlock.inputs || {}
+      if (specialBlock) {
+        const inputDefinitions: Record<string, CatalogInputDefinition> = specialBlock.inputs || {}
+        const { commonFields, operationFields } = splitFieldsByOperation(
+          (specialBlock.subBlocks || []) as SubBlockConfig[],
+          inputDefinitions
         )
         metadata = {
           id: specialBlock.id,
           name: specialBlock.name,
           description: specialBlock.description || '',
-          inputSchema: commonParameters,
-          inputDefinitions: specialBlock.inputs || {},
+          inputSchema: commonFields,
+          inputDefinitions,
           tools: [],
           triggers: [],
-          operationInputSchema: operationParameters,
+          operationInputSchema: operationFields,
           outputs: specialBlock.outputs,
         }
-        ;(metadata as any).subBlocks = undefined
       } else {
         const blockConfig: BlockConfig | undefined = getBlock(blockId)
         if (!blockConfig) {
@@ -170,171 +254,40 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         // explicitly: unrevealed preview blocks and kill-switched types stay
         // out of the agent's metadata (the router wraps this tool in
         // withBlockVisibility).
-        if (isHiddenUnder(overlayVisibility(), blockConfig)) {
+        if (isHiddenUnder(visibility, blockConfig)) {
           logger.debug('Skipping block gated by visibility', { blockId })
           continue
         }
 
-        if (isCustomBlockType(blockId)) {
-          // Custom (deploy-as-block) blocks run a bound workflow via an internal
-          // `workflow_executor`; the agent never configures a workflowId/inputMapping.
-          // Present it as self-contained: its visible input fields + curated outputs,
-          // no tools/operations.
-          const visibleSubBlocks = (blockConfig.subBlocks || []).filter((sb) => !sb.hidden)
-          const outputs = blockConfig.outputs
-            ? Object.fromEntries(
-                Object.entries(blockConfig.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
-              )
-            : undefined
-          metadata = {
-            id: blockId,
-            name: blockConfig.name || blockId,
-            description: blockConfig.longDescription || blockConfig.description || '',
-            bestPractices: blockConfig.bestPractices,
-            inputSchema: visibleSubBlocks.map(processSubBlock),
-            inputDefinitions: {},
-            tools: [],
-            triggers: [],
-            operationInputSchema: {},
-            outputs,
-          }
-          result[blockId] = removeNullish(metadata) as CopilotBlockMetadata
+        /**
+         * One block's projection must not fail the whole call. A sub-block
+         * `condition` declared as a function is invoked during projection, and a
+         * throwing one propagates — the `catalog-sweep` test proves no
+         * registered block has one, but a runtime-built custom (deploy-as-block)
+         * config is not swept, so this keeps the blast radius to the block that
+         * carries the defect rather than every block the agent asked for.
+         */
+        try {
+          metadata = toCopilotBlockMetadata(
+            projectBlockDetail(blockConfig, {
+              deployment: { hostedKeys: isHosted },
+              describeTool: describeToolForAgent,
+            })
+          )
+        } catch (error) {
+          logger.error('Failed to project block metadata', {
+            blockId,
+            error: toError(error).message,
+          })
           continue
         }
 
-        const tools: CopilotToolMetadata[] = Array.isArray(blockConfig.tools?.access)
-          ? blockConfig.tools!.access.map((toolId) => {
-              const tool = toolsRegistry[toolId]
-              if (!tool) return { id: toolId, name: toolId }
-              return {
-                id: toolId,
-                name: tool.name || toolId,
-                description: getCopilotToolDescription(tool, {
-                  isHosted,
-                  fallbackName: toolId,
-                }),
-                inputs: tool.params || {},
-                outputs: tool.outputs || {},
-              }
-            })
-          : []
-
-        const triggers: CopilotTriggerMetadata[] = []
-        const availableTriggerIds = blockConfig.triggers?.available || []
-        for (const tid of availableTriggerIds) {
-          if (!isTriggerValid(tid)) {
-            logger.debug('Invalid trigger ID found in block config', { blockId, triggerId: tid })
-            continue
-          }
-
-          const trig = getTrigger(tid)
-
-          const configFields: Record<string, any> = {}
-          for (const subBlock of trig.subBlocks) {
-            if (
-              (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
-              !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
-            ) {
-              const fieldDef: any = {
-                type: subBlock.type,
-                required: subBlock.required || false,
-              }
-
-              if (subBlock.title) fieldDef.title = subBlock.title
-              if (subBlock.description) fieldDef.description = subBlock.description
-              if (subBlock.placeholder) fieldDef.placeholder = subBlock.placeholder
-              if (subBlock.defaultValue !== undefined) fieldDef.default = subBlock.defaultValue
-
-              if (subBlock.options && Array.isArray(subBlock.options)) {
-                fieldDef.options = subBlock.options.map((opt: any) => ({
-                  id: opt.id,
-                  label: opt.label || opt.id,
-                }))
-              }
-
-              if (subBlock.condition) {
-                const cond =
-                  typeof subBlock.condition === 'function'
-                    ? subBlock.condition()
-                    : subBlock.condition
-                if (cond) {
-                  fieldDef.condition = cond
-                }
-              }
-
-              configFields[subBlock.id] = fieldDef
-            }
-          }
-
-          triggers.push({
-            id: tid,
-            outputs: trig.outputs || {},
-            configFields,
-          })
+        const permitted = withDeniedToolsRemoved(metadata, blockConfig, isToolAllowed)
+        if (!permitted) {
+          logger.debug('Block has no operation this permission group allows', { blockId })
+          continue
         }
-
-        const blockInputs = computeBlockLevelInputs(blockConfig)
-        const { commonParameters, operationParameters } = splitParametersByOperation(
-          Array.isArray(blockConfig.subBlocks)
-            ? blockConfig.subBlocks.filter(
-                (sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced'
-              )
-            : [],
-          blockInputs
-        )
-
-        const operationInputs = computeOperationLevelInputs(blockConfig)
-        const operationIds = resolveOperationIds(blockConfig, operationParameters)
-        const operations: Record<string, any> = {}
-        for (const opId of operationIds) {
-          const resolvedToolId = resolveToolIdForOperation(blockConfig, opId)
-          const toolCfg = resolvedToolId ? toolsRegistry[resolvedToolId] : undefined
-          const toolParams: Record<string, any> = toolCfg?.params || {}
-          const toolOutputs: Record<string, any> = toolCfg?.outputs
-            ? Object.fromEntries(
-                Object.entries(toolCfg.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
-              )
-            : {}
-          const filteredToolParams: Record<string, any> = {}
-          for (const [k, v] of Object.entries(toolParams)) {
-            if (!(k in blockInputs)) filteredToolParams[k] = v
-          }
-          operations[opId] = {
-            toolId: resolvedToolId,
-            toolName: toolCfg?.name || resolvedToolId,
-            description: toolCfg
-              ? getCopilotToolDescription(toolCfg, {
-                  isHosted,
-                  fallbackName: resolvedToolId,
-                })
-              : undefined,
-            inputs: { ...filteredToolParams, ...(operationInputs[opId] || {}) },
-            outputs: toolOutputs,
-            inputSchema: operationParameters[opId] || [],
-          }
-        }
-
-        const filteredOutputs = blockConfig.outputs
-          ? Object.fromEntries(
-              Object.entries(blockConfig.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
-            )
-          : undefined
-
-        metadata = {
-          id: blockId,
-          name: blockConfig.name || blockId,
-          description: blockConfig.longDescription || blockConfig.description || '',
-          bestPractices: blockConfig.bestPractices,
-          inputSchema: commonParameters,
-          inputDefinitions: blockInputs,
-          triggerAllowed: !!blockConfig.triggerAllowed,
-          authType: resolveAuthType(blockConfig.authMode),
-          tools,
-          triggers,
-          operationInputSchema: operationParameters,
-          operations,
-          outputs: filteredOutputs,
-        }
+        metadata = permitted
       }
 
       try {
@@ -360,9 +313,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         })
       }
 
-      if (metadata) {
-        result[blockId] = removeNullish(metadata) as CopilotBlockMetadata
-      }
+      result[blockId] = metadata
     }
 
     const transformedResult: Record<string, any> = {}
@@ -670,85 +621,6 @@ function generateInputExample(schema: CopilotSubblockMetadata, inputDef?: any): 
       return undefined
   }
 }
-
-function processSubBlock(sb: any): CopilotSubblockMetadata {
-  const processed: CopilotSubblockMetadata = {
-    id: sb.id,
-    type: sb.type,
-  }
-
-  const optionalFields = {
-    title: sb.title,
-    required: sb.required,
-    description: sb.description,
-    placeholder: sb.placeholder,
-    layout: sb.layout,
-    mode: sb.mode,
-    hidden: sb.hidden,
-    canonicalParamId: sb.canonicalParamId,
-    defaultValue: sb.defaultValue,
-
-    // Numeric constraints
-    min: sb.min,
-    max: sb.max,
-    step: sb.step,
-    integer: sb.integer,
-
-    // Text input properties
-    rows: sb.rows,
-    password: sb.password,
-    multiSelect: sb.multiSelect,
-
-    // Code/generation properties
-    language: sb.language,
-    generationType: sb.generationType,
-
-    // OAuth/credential properties
-    serviceId: sb.serviceId,
-    requiredScopes: sb.requiredScopes,
-
-    // File properties
-    mimeType: sb.mimeType,
-    acceptedTypes: sb.acceptedTypes,
-    multiple: sb.multiple,
-    maxSize: sb.maxSize,
-
-    // Other properties
-    connectionDroppable: sb.connectionDroppable,
-    columns: sb.columns,
-    wandConfig: sb.wandConfig,
-    availableTriggers: sb.availableTriggers,
-    triggerProvider: sb.triggerProvider,
-    dependsOn: sb.dependsOn,
-  }
-
-  // Add non-null optional fields
-  for (const [key, value] of Object.entries(optionalFields)) {
-    if (value !== undefined && value !== null) {
-      ;(processed as any)[key] = value
-    }
-  }
-
-  // Handle condition normalization
-  const condition = normalizeCondition(sb.condition)
-  if (condition !== undefined) {
-    processed.condition = condition
-  }
-
-  // Handle value field (check if it's a function)
-  if (typeof sb.value === 'function') {
-    processed.value = 'function'
-  }
-
-  // Process options with icon detection
-  const options = resolveSubblockOptions(sb)
-  if (options) {
-    processed.options = options
-  }
-
-  return processed
-}
-
 function resolveAuthType(
   authMode: AuthMode | undefined
 ): 'OAuth' | 'API Key' | 'Bot Token' | undefined {
@@ -758,150 +630,6 @@ function resolveAuthType(
   if (authMode === AuthMode.BotToken) return 'Bot Token'
   return undefined
 }
-
-/**
- * Gets all available models from PROVIDER_DEFINITIONS as static options.
- * This provides fallback data when store state is not available server-side.
- * Excludes dynamic providers (ollama, ollama-cloud, vllm, openrouter, fireworks) which require runtime fetching.
- */
-function getStaticModelOptions(): { id: string; label?: string }[] {
-  const models: { id: string; label?: string }[] = []
-
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    // Skip providers with dynamic/fetched models
-    if (
-      provider.id === 'ollama' ||
-      provider.id === 'ollama-cloud' ||
-      provider.id === 'vllm' ||
-      provider.id === 'openrouter' ||
-      provider.id === 'fireworks' ||
-      provider.id === 'together' ||
-      provider.id === 'baseten'
-    ) {
-      continue
-    }
-    if (provider?.models) {
-      for (const model of provider.models) {
-        // Exclude retired models — the agent must not receive a model whose API
-        // calls fail (mirrors the user picker + VFS menu).
-        if (model.sunset?.status === 'deprecated') continue
-        models.push({ id: model.id, label: model.id })
-      }
-    }
-  }
-
-  return models
-}
-
-/**
- * Attempts to call a dynamic options function with fallback data injected.
- * When the function accesses store state that's unavailable server-side,
- * this provides static fallback data from known sources.
- *
- * @param optionsFn - The options function to call
- * @returns Options array or undefined if options cannot be resolved
- */
-function callOptionsWithFallback(
-  optionsFn: () => any[]
-): { id: string; label?: string; hasIcon?: boolean }[] | undefined {
-  // Get static model data to use as fallback
-  const staticModels = getStaticModelOptions()
-
-  // Create a mock providers state with static data
-  const mockProvidersState = {
-    providers: {
-      base: { models: staticModels.map((m) => m.id) },
-      ollama: { models: [] },
-      'ollama-cloud': { models: [] },
-      vllm: { models: [] },
-      litellm: { models: [] },
-      openrouter: { models: [] },
-      fireworks: { models: [] },
-      together: { models: [] },
-      baseten: { models: [] },
-    },
-  }
-
-  // Store original getState if it exists
-  let originalGetState: (() => any) | undefined
-  let store: any
-
-  try {
-    // Try to get the providers store module
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    store = require('@/stores/providers')
-    if (store?.useProvidersStore?.getState) {
-      originalGetState = store.useProvidersStore.getState
-      // Temporarily replace getState with our mock
-      store.useProvidersStore.getState = () => mockProvidersState
-    }
-  } catch {
-    // Store module not available, continue with mock
-  }
-
-  try {
-    const result = optionsFn()
-    return result
-  } finally {
-    // Restore original getState
-    if (store?.useProvidersStore && originalGetState) {
-      store.useProvidersStore.getState = originalGetState
-    }
-  }
-}
-
-function resolveSubblockOptions(
-  sb: any
-): { id: string; label?: string; hasIcon?: boolean }[] | undefined {
-  // Skip if subblock uses fetchOptions (async network calls)
-  if (sb.fetchOptions) {
-    return undefined
-  }
-
-  let rawOptions: any[] | undefined
-
-  try {
-    if (typeof sb.options === 'function') {
-      // Try calling with fallback data injection for store-dependent options
-      rawOptions = callOptionsWithFallback(sb.options)
-    } else {
-      rawOptions = sb.options
-    }
-  } catch {
-    // Options function failed even with fallback, skip
-    return undefined
-  }
-
-  if (!Array.isArray(rawOptions) || rawOptions.length === 0) {
-    return undefined
-  }
-
-  const normalized = rawOptions
-    .map((opt: any) => {
-      if (!opt) return undefined
-
-      const id = typeof opt === 'object' ? opt.id : opt
-      if (id === undefined || id === null) return undefined
-
-      const result: { id: string; label?: string; hasIcon?: boolean } = {
-        id: String(id),
-      }
-
-      if (typeof opt === 'object' && typeof opt.label === 'string') {
-        result.label = opt.label
-      }
-
-      if (typeof opt === 'object' && opt.icon) {
-        result.hasIcon = true
-      }
-
-      return result
-    })
-    .filter((o): o is { id: string; label?: string; hasIcon?: boolean } => o !== undefined)
-
-  return normalized.length > 0 ? normalized : undefined
-}
-
 function removeNullish(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj
 
@@ -915,150 +643,6 @@ function removeNullish(obj: any): any {
 
   return cleaned
 }
-
-function normalizeCondition(condition: any): any | undefined {
-  try {
-    if (!condition) return undefined
-    if (typeof condition === 'function') {
-      return condition()
-    }
-    return condition
-  } catch {
-    return undefined
-  }
-}
-
-function splitParametersByOperation(
-  subBlocks: any[],
-  blockInputsForDescriptions?: Record<string, any>
-): {
-  commonParameters: CopilotSubblockMetadata[]
-  operationParameters: Record<string, CopilotSubblockMetadata[]>
-} {
-  const commonParameters: CopilotSubblockMetadata[] = []
-  const operationParameters: Record<string, CopilotSubblockMetadata[]> = {}
-
-  for (const sb of subBlocks || []) {
-    const cond = normalizeCondition(sb.condition)
-    const processed = processSubBlock(sb)
-
-    if (cond && cond.field === 'operation' && !cond.not && cond.value !== undefined) {
-      const values: any[] = Array.isArray(cond.value) ? cond.value : [cond.value]
-      for (const v of values) {
-        const key = String(v)
-        if (!operationParameters[key]) operationParameters[key] = []
-        operationParameters[key].push(processed)
-      }
-    } else {
-      // Override description from inputDefinitions if available (by id or canonicalParamId)
-      if (blockInputsForDescriptions) {
-        const candidates = [sb.id, sb.canonicalParamId].filter(Boolean)
-        for (const key of candidates) {
-          const bi = (blockInputsForDescriptions as any)[key as string]
-          if (bi && typeof bi.description === 'string') {
-            processed.description = bi.description
-            break
-          }
-        }
-      }
-      commonParameters.push(processed)
-    }
-  }
-
-  return { commonParameters, operationParameters }
-}
-
-function computeBlockLevelInputs(blockConfig: BlockConfig): Record<string, any> {
-  const inputs = blockConfig.inputs || {}
-  const subBlocks: any[] = Array.isArray(blockConfig.subBlocks)
-    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
-    : []
-
-  const byParamKey: Record<string, any[]> = {}
-  for (const sb of subBlocks) {
-    if (sb.id) {
-      byParamKey[sb.id] = byParamKey[sb.id] || []
-      byParamKey[sb.id].push(sb)
-    }
-    if (sb.canonicalParamId) {
-      byParamKey[sb.canonicalParamId] = byParamKey[sb.canonicalParamId] || []
-      byParamKey[sb.canonicalParamId].push(sb)
-    }
-  }
-
-  const blockInputs: Record<string, any> = {}
-  for (const key of Object.keys(inputs)) {
-    const sbs = byParamKey[key] || []
-    const isOperationGated = sbs.some((sb) => {
-      const cond = normalizeCondition(sb.condition)
-      return cond && cond.field === 'operation' && !cond.not && cond.value !== undefined
-    })
-    if (!isOperationGated) {
-      blockInputs[key] = inputs[key]
-    }
-  }
-
-  return blockInputs
-}
-
-function computeOperationLevelInputs(
-  blockConfig: BlockConfig
-): Record<string, Record<string, any>> {
-  const inputs = blockConfig.inputs || {}
-  const subBlocks = Array.isArray(blockConfig.subBlocks)
-    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
-    : []
-
-  const opInputs: Record<string, Record<string, any>> = {}
-
-  for (const sb of subBlocks) {
-    const cond = normalizeCondition(sb.condition)
-    if (!cond || cond.field !== 'operation' || cond.not) continue
-    const keys: string[] = []
-    if (sb.canonicalParamId) keys.push(sb.canonicalParamId)
-    if (sb.id) keys.push(sb.id)
-    const values = Array.isArray(cond.value) ? cond.value : [cond.value]
-    for (const key of keys) {
-      if (!(key in inputs)) continue
-      for (const v of values) {
-        const op = String(v)
-        if (!opInputs[op]) opInputs[op] = {}
-        opInputs[op][key] = inputs[key]
-      }
-    }
-  }
-
-  return opInputs
-}
-
-function resolveOperationIds(
-  blockConfig: BlockConfig,
-  operationParameters: Record<string, CopilotSubblockMetadata[]>
-): string[] {
-  const opBlock = (blockConfig.subBlocks || []).find((sb) => sb.id === 'operation')
-  if (opBlock && Array.isArray(opBlock.options)) {
-    const ids = opBlock.options.map((o) => o.id).filter(Boolean)
-    if (ids.length > 0) return ids
-  }
-  return Object.keys(operationParameters)
-}
-
-function resolveToolIdForOperation(blockConfig: BlockConfig, opId: string): string | undefined {
-  try {
-    const toolSelector = blockConfig.tools?.config?.tool
-    if (typeof toolSelector === 'function') {
-      const maybeToolId = toolSelector({ operation: opId })
-      if (typeof maybeToolId === 'string') return maybeToolId
-    }
-  } catch (error) {
-    const toolLogger = createLogger('GetBlocksMetadataServerTool')
-    toolLogger.warn('Failed to resolve tool ID for operation', {
-      error: toError(error).message,
-    })
-  }
-  return undefined
-}
-
 const DOCS_FILE_MAPPING: Record<string, string> = {}
 
 const SPECIAL_BLOCKS_METADATA: Record<string, any> = {

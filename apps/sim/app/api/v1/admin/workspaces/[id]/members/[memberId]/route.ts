@@ -44,6 +44,7 @@ import {
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
+  conflictResponse,
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
@@ -170,10 +171,20 @@ export const PATCH = withRouteHandler(
 
       const now = new Date()
 
-      await db
+      /**
+       * Conditional on the row read above still existing: a concurrent removal
+       * between that read and this write would otherwise match nothing and be
+       * reported to the caller as a successful update.
+       */
+      const updated = await db
         .update(permissions)
         .set({ permissionType: permissionLevel, updatedAt: now })
         .where(eq(permissions.id, memberId))
+        .returning({ id: permissions.id })
+
+      if (updated.length === 0) {
+        return conflictResponse('Workspace member changed during the update. Retry.')
+      }
 
       const [userData] = await db
         .select({ name: user.name, email: user.email, image: user.image })

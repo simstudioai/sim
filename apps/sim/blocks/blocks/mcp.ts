@@ -19,10 +19,17 @@ export const McpBlock: BlockConfig<McpResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#181C1E',
   icon: McpIcon,
+  canvasPresentation: {
+    defaultTitle: 'MCP Tool',
+    sentences: {
+      default: ['Run the', { field: 'tool' }, { text: 'tool on', field: 'server', core: true }],
+    },
+  },
   subBlocks: [
     {
       id: 'server',
       title: 'MCP Server',
+      canvasNoun: 'an MCP server',
       type: 'mcp-server-selector',
       required: true,
       placeholder: 'Select an MCP server',

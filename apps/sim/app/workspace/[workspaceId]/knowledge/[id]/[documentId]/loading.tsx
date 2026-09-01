@@ -1,14 +1,15 @@
 'use client'
 
-import { Plus } from '@sim/emcn'
-import { Database } from '@sim/emcn/icons'
+import { Database, FileText, Plus } from '@sim/emcn/icons'
 import { noop } from '@sim/utils/helpers'
-import { FileText } from 'lucide-react'
 import {
   type BreadcrumbItem,
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
+import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
+
+const KNOWLEDGE_HEADER = FOLDERED_RESOURCE_HEADERS.knowledge_base
 
 const COLUMNS = [
   { id: 'content', header: 'Content' },
@@ -20,7 +21,7 @@ const COLUMNS = [
 const ACTIONS: ChromeActionSpec[] = [{ text: 'New chunk', icon: Plus, variant: 'primary' }]
 
 const BREADCRUMBS: BreadcrumbItem[] = [
-  { label: 'Knowledge Base', icon: Database, onClick: noop },
+  { label: KNOWLEDGE_HEADER.rootLabel, icon: Database, onClick: noop },
   { label: '…', icon: Database },
   { label: '…', terminal: true },
 ]

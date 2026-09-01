@@ -4,12 +4,11 @@ import { memo, useMemo, useState } from 'react'
 import {
   Chip,
   cn,
-  POPOVER_ANIMATION_CLASSES,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverSection,
-  PopoverTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuItemLabel,
+  DropdownMenuTrigger,
 } from '@sim/emcn'
 import { Columns3, Eye, EyeOff } from '@sim/emcn/icons'
 import type { ColumnDefinition, WorkflowGroup } from '@/lib/table'
@@ -78,30 +77,18 @@ export const ColumnsMenu = memo(function ColumnsMenu({
   const hiddenCount = hiddenColumns.length
 
   return (
-    <Popover size='md' open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
         {/* `active` alone signals that something is hidden — the label stays fixed
             so the bar doesn't reflow as columns are toggled. */}
         <Chip active={hiddenCount > 0} leftIcon={Columns3}>
           Columns
         </Chip>
-      </PopoverTrigger>
-      <PopoverContent
-        side='bottom'
-        align='start'
-        sideOffset={6}
-        minWidth={240}
-        maxWidth={320}
-        maxHeight={420}
-        border
-        className={cn(
-          POPOVER_ANIMATION_CLASSES,
-          'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
-        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='end'
+        className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
       >
-        <PopoverSection className='px-1.5 py-0.5 text-[var(--text-muted)] text-xs'>
-          Columns
-        </PopoverSection>
         <div className='flex flex-col gap-0.5'>
           {plain.map((col) => {
             const id = getColumnId(col)
@@ -144,8 +131,8 @@ export const ColumnsMenu = memo(function ColumnsMenu({
             )
           })}
         </div>
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 })
 
@@ -164,24 +151,26 @@ function ColumnToggleRow({ label, visible, partial, indented, onToggle }: Column
   const showing = visible || partial
   const Icon = showing ? Eye : EyeOff
   return (
-    <PopoverItem
-      onClick={() => onToggle(!visible)}
-      className={cn('h-7 items-center gap-1.5 px-1.5 py-0 text-xs', indented && 'pl-5')}
+    <DropdownMenuItem
+      onSelect={(event) => {
+        event.preventDefault()
+        onToggle(!visible)
+      }}
+      className={cn(indented && 'pl-7')}
     >
       <span className='flex size-[14px] shrink-0 items-center justify-center'>
         <Icon
           className={cn(
-            'size-3',
+            'size-[14px]',
             showing ? 'text-[var(--text-icon)]' : 'text-[var(--text-muted)]',
             partial && 'opacity-60'
           )}
         />
       </span>
-      <span
-        className={cn('min-w-0 flex-1 truncate text-left', !showing && 'text-[var(--text-muted)]')}
-      >
-        {label}
-      </span>
-    </PopoverItem>
+      <DropdownMenuItemLabel
+        label={label}
+        className={cn('text-left', !showing && 'text-[var(--text-muted)]')}
+      />
+    </DropdownMenuItem>
   )
 }

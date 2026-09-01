@@ -1,5 +1,9 @@
 import { z } from 'zod'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
+import {
+  mountedSecretNamesSchema,
+  secretMountScopeSchema,
+} from '@/lib/api/contracts/secret-mount-policy'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
@@ -112,13 +116,15 @@ export const mothershipExecuteBodySchema = z.object({
   fileAttachments: z.array(mothershipExecuteFileAttachmentSchema).optional(),
   /**
    * `@`-mentioned resources / `/`-invoked skills to resolve into the agent run,
-   * mirroring the interactive chat path. Used by scheduled tasks, whose
-   * captured contexts must reach the run without a live client.
+   * mirroring the interactive chat path. Headless executions use this to pass
+   * captured contexts into the run without a live client.
    */
   contexts: z.array(scheduleContextSchema).optional(),
   mcpTools: z.array(mothershipExecuteMcpToolSchema).optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
+  secretScope: secretMountScopeSchema.optional(),
+  mountedSecrets: mountedSecretNamesSchema.optional(),
   userMetadata: z
     .object({
       name: z.string().optional(),

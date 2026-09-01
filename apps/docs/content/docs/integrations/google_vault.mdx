@@ -1,0 +1,459 @@
+---
+title: Google Vault
+description: Search, export, and manage matters, holds, exports, and saved queries in Vault
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_vault"
+  color="#E8F0FE"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Vault](https://workspace.google.com/products/vault/) is a core information governance and eDiscovery tool for organizations using Google Workspace. With Google Vault, you can retain, search, and export users' Google Workspace data (such as Gmail, Drive, Groups, and Meet) to support litigation, regulatory compliance, and internal investigations.
+
+Vault provides administrators and legal teams with powerful controls to manage the lifecycle of business communications. You can place data on legal hold, create matters to group eDiscovery activities, search message and file content across your organization, and export relevant data for review.
+
+Key features of Google Vault include:
+
+- **Search & Export**: Search across Gmail, Drive, Groups, and Meet for relevant data and export the results for analysis.
+- **Matters & Holds**: Create matters (cases) and apply legal holds to retain user data beyond standard retention policies.
+- **Retention Rules**: Define retention rules to keep or delete data after a set period to meet business and compliance needs.
+- **Audit & Review**: Monitor Vault activity and enforce compliance with organization-wide policies.
+
+In Sim, the Google Vault integration lets your AI agents programmatically manage Vault matters, exports, and holds. This enables automated workflows for legal discovery, compliance archiving, and data retention management in your organization. Agents can initiate new exports, list available holds, manage legal matters, and retrieve exported files directly through your automated processes, ensuring your compliance and information governance needs are met efficiently and securely.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect Google Vault to manage the full matter lifecycle, create and manage holds and exports, and save reusable search queries for eDiscovery and compliance.
+
+
+
+## Actions
+
+### Vault Create Export
+
+Create an export in a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `exportName` | string | Yes | Name for the export \(avoid special characters\) |
+| `corpus` | string | Yes | Data corpus to export \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | string | No | Comma-separated list of user emails to scope export \(e.g., "user1@example.com, user2@example.com"\) |
+| `orgUnitId` | string | No | Organization unit ID to scope export \(e.g., "id:03ph8a2z1enx5q0", alternative to emails\) |
+| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z"\) |
+| `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z"\) |
+| `terms` | string | No | Search query terms to filter exported content \(e.g., "from:sender@example.com subject:invoice"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `export` | json | Created export object |
+
+### Vault List Exports
+
+List exports for a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `pageSize` | number | No | Number of exports to return per page |
+| `pageToken` | string | No | Token for pagination |
+| `exportId` | string | No | Optional export ID to fetch a specific export \(e.g., "exportId123456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exports` | json | Array of export objects |
+| `export` | json | Single export object \(when exportId is provided\) |
+| `nextPageToken` | string | Token for fetching next page of results |
+
+### Vault Delete Export
+
+Delete an export from a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `exportId` | string | Yes | The export ID to delete \(e.g., "exportId123456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the export was deleted |
+
+### Vault Download Export File
+
+Download a single file from a Google Vault export (GCS object)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `bucketName` | string | Yes | GCS bucket name from cloudStorageSink.files.bucketName |
+| `objectName` | string | Yes | GCS object name from cloudStorageSink.files.objectName |
+| `fileName` | string | No | Optional filename override for the downloaded file |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded Vault export file stored in execution files |
+
+### Vault Create Hold
+
+Create a hold in a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `holdName` | string | Yes | Name for the hold |
+| `corpus` | string | Yes | Data corpus to hold \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | string | No | Comma-separated list of user emails to put on hold \(e.g., "user1@example.com, user2@example.com"\) |
+| `orgUnitId` | string | No | Organization unit ID to put on hold \(e.g., "id:03ph8a2z1enx5q0", alternative to accounts\) |
+| `terms` | string | No | Search terms to filter held content \(e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus\) |
+| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus\) |
+| `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus\) |
+| `includeSharedDrives` | boolean | No | Include files in shared drives \(for DRIVE corpus\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hold` | json | Created hold object |
+
+### Vault List Holds
+
+List holds for a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `pageSize` | number | No | Number of holds to return per page |
+| `pageToken` | string | No | Token for pagination |
+| `holdId` | string | No | Optional hold ID to fetch a specific hold \(e.g., "holdId123456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `holds` | json | Array of hold objects |
+| `hold` | json | Single hold object \(when holdId is provided\) |
+| `nextPageToken` | string | Token for fetching next page of results |
+
+### Vault Update Hold
+
+Replace the name, query, and scope of an existing hold. This is a full-resource update: fetch the current hold first (Vault List Holds) and resupply every field you want to keep — any field left blank is cleared, not left unchanged.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `holdId` | string | Yes | The hold ID to update \(e.g., "holdId123456"\) |
+| `holdName` | string | Yes | Name for the hold |
+| `corpus` | string | Yes | Data corpus of the hold \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | string | No | Comma-separated list of user emails covered by the hold \(e.g., "user1@example.com, user2@example.com"\) |
+| `orgUnitId` | string | No | Organization unit ID covered by the hold \(e.g., "id:03ph8a2z1enx5q0", alternative to accounts\) |
+| `terms` | string | No | Search terms to filter held content \(e.g., "from:sender@example.com subject:invoice", for MAIL and GROUPS corpus\). Resupply the hold's current terms to keep them — this replaces the hold, so leaving it blank clears any existing filter. |
+| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z", for MAIL and GROUPS corpus\). Resupply the hold's current value to keep it — leaving it blank clears any existing date filter. |
+| `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z", for MAIL and GROUPS corpus\). Resupply the hold's current value to keep it — leaving it blank clears any existing date filter. |
+| `includeSharedDrives` | boolean | No | Include files in shared drives \(for DRIVE corpus\). Resupply true if the hold currently includes shared drives — leaving it false/blank clears that setting. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hold` | json | Updated hold object |
+
+### Vault Delete Hold
+
+Delete a hold and release its covered accounts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `holdId` | string | Yes | The hold ID to delete \(e.g., "holdId123456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the hold was deleted |
+
+### Vault Add Held Accounts
+
+Add accounts to an existing hold
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `holdId` | string | Yes | The hold ID to add accounts to \(e.g., "holdId123456"\) |
+| `accountEmails` | string | Yes | Comma-separated list of user emails to add to the hold \(e.g., "user1@example.com, user2@example.com"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `responses` | array | Per-account results of the add operation |
+|   ↳ `account` | json | Held account \(accountId, email\) |
+|   ↳ `status` | json | Status \(code, message\) if the add failed |
+
+### Vault Remove Held Accounts
+
+Remove accounts from an existing hold
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `holdId` | string | Yes | The hold ID to remove accounts from \(e.g., "holdId123456"\) |
+| `accountIds` | string | Yes | Comma-separated list of Admin SDK account IDs to remove from the hold \(e.g., "accountId1, accountId2"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statuses` | array | Per-account removal status, in request order |
+
+### Vault Create Matter
+
+Create a new matter in Google Vault
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name for the new matter |
+| `description` | string | No | Optional description for the matter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matter` | json | Created matter object |
+
+### Vault List Matters
+
+List matters, or get a specific matter if matterId is provided
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Number of matters to return per page |
+| `pageToken` | string | No | Token for pagination |
+| `matterId` | string | No | Optional matter ID to fetch a specific matter \(e.g., "12345678901234567890"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matters` | json | Array of matter objects |
+| `matter` | json | Single matter object \(when matterId is provided\) |
+| `nextPageToken` | string | Token for fetching next page of results |
+
+### Vault Update Matter
+
+Update the name and/or description of a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID to update \(e.g., "12345678901234567890"\) |
+| `name` | string | Yes | New name for the matter |
+| `description` | string | No | New description for the matter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matter` | json | Updated matter object |
+
+### Vault Close Matter
+
+Close a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID to close \(e.g., "12345678901234567890"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matter` | json | Closed matter object |
+
+### Vault Reopen Matter
+
+Reopen a closed matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID to reopen \(e.g., "12345678901234567890"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matter` | json | Reopened matter object |
+
+### Vault Delete Matter
+
+Permanently delete a matter (must be closed first)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID to delete \(e.g., "12345678901234567890"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matter` | json | Deleted matter object |
+
+### Vault Undelete Matter
+
+Restore a deleted matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID to restore \(e.g., "12345678901234567890"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matter` | json | Restored matter object |
+
+### Vault Add Matter Collaborator
+
+Add a collaborator (or transfer ownership) to a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `accountId` | string | Yes | Admin SDK account ID of the user to add as a collaborator/owner |
+| `role` | string | Yes | Permission level to grant: COLLABORATOR or OWNER |
+| `sendEmails` | boolean | No | Send a notification email to the added account |
+| `ccMe` | boolean | No | CC the requestor on the notification email \(only relevant if sendEmails is true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `permission` | json | Created matter permission \(accountId, role\) |
+
+### Vault Remove Matter Collaborator
+
+Remove a collaborator from a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `accountId` | string | Yes | Admin SDK account ID of the collaborator to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the collaborator was removed |
+
+### Vault Create Saved Query
+
+Save a reusable search query in a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `displayName` | string | Yes | Name for the saved query |
+| `corpus` | string | Yes | Data corpus to search \(MAIL, DRIVE, GROUPS, HANGOUTS_CHAT, VOICE\) |
+| `accountEmails` | string | No | Comma-separated list of user emails to scope the query \(e.g., "user1@example.com, user2@example.com"\) |
+| `orgUnitId` | string | No | Organization unit ID to scope the query \(e.g., "id:03ph8a2z1enx5q0", alternative to emails\) |
+| `startTime` | string | No | Start time for date filtering \(ISO 8601 format, e.g., "2024-01-01T00:00:00Z"\) |
+| `endTime` | string | No | End time for date filtering \(ISO 8601 format, e.g., "2024-12-31T23:59:59Z"\) |
+| `terms` | string | No | Search query terms \(e.g., "from:sender@example.com subject:invoice"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `savedQuery` | json | Created saved query object |
+
+### Vault List Saved Queries
+
+List saved queries in a matter, or get a specific one if savedQueryId is provided
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `pageSize` | number | No | Number of saved queries to return per page |
+| `pageToken` | string | No | Token for pagination |
+| `savedQueryId` | string | No | Optional saved query ID to fetch a specific saved query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `savedQueries` | json | Array of saved query objects |
+| `savedQuery` | json | Single saved query object \(when savedQueryId is provided\) |
+| `nextPageToken` | string | Token for fetching next page of results |
+
+### Vault Delete Saved Query
+
+Delete a saved query from a matter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `matterId` | string | Yes | The matter ID \(e.g., "12345678901234567890"\) |
+| `savedQueryId` | string | Yes | The saved query ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the saved query was deleted |
+
+

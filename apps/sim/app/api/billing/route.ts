@@ -3,94 +3,26 @@ import {
   member,
   organization as organizationTable,
   subscription as subscriptionTable,
-  userStats,
-  workspace as workspaceTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, asc, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getBillingContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getOrganizationSubscription, getPersonalBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
+import {
+  getOrganizationBillingBlockState,
+  getUpgradeWorkspaceId,
+} from '@/lib/billing/core/payer-context'
 import { resolveBillingInterval } from '@/lib/billing/core/subscription'
 import { getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnifiedBillingAPI')
-
-interface BillingBlockState {
-  billingBlocked: boolean
-  billingBlockedReason: 'payment_failed' | 'dispute' | null
-  blockedByOrgOwner: boolean
-}
-
-/**
- * Finds an active workspace whose host billing identity is the requested payer.
- */
-async function getUpgradeWorkspaceId(
-  target: { type: 'user'; id: string } | { type: 'organization'; id: string }
-): Promise<string | null> {
-  const targetPredicate =
-    target.type === 'organization'
-      ? eq(workspaceTable.organizationId, target.id)
-      : and(
-          eq(workspaceTable.ownerId, target.id),
-          eq(workspaceTable.billedAccountUserId, target.id),
-          isNull(workspaceTable.organizationId)
-        )
-
-  const [workspace] = await dbReplica
-    .select({ id: workspaceTable.id })
-    .from(workspaceTable)
-    .where(and(targetPredicate, isNull(workspaceTable.archivedAt)))
-    .orderBy(asc(workspaceTable.createdAt), asc(workspaceTable.id))
-    .limit(1)
-
-  return workspace?.id ?? null
-}
-
-/**
- * Reads the exact organization's payer block from its owner, without allowing
- * the viewer's personal status or another organization membership to leak in.
- */
-async function getOrganizationBillingBlockState(
-  organizationId: string,
-  viewerUserId: string
-): Promise<BillingBlockState> {
-  const [owner] = await dbReplica
-    .select({ userId: member.userId })
-    .from(member)
-    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
-    .limit(1)
-
-  if (!owner) {
-    return {
-      billingBlocked: false,
-      billingBlockedReason: null,
-      blockedByOrgOwner: false,
-    }
-  }
-
-  const [stats] = await dbReplica
-    .select({
-      billingBlocked: userStats.billingBlocked,
-      billingBlockedReason: userStats.billingBlockedReason,
-    })
-    .from(userStats)
-    .where(eq(userStats.userId, owner.userId))
-    .limit(1)
-
-  const billingBlocked = Boolean(stats?.billingBlocked)
-  return {
-    billingBlocked,
-    billingBlockedReason: billingBlocked ? (stats?.billingBlockedReason ?? null) : null,
-    blockedByOrgOwner: billingBlocked && owner.userId !== viewerUserId,
-  }
-}
 
 /**
  * Unified Billing Endpoint
@@ -117,7 +49,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { context, id: contextId, includeOrg } = parsed.data.query
+    const { context, id: contextId, includeOrg, memberLimit, memberOffset } = parsed.data.query
     if (context === 'organization' && !contextId) {
       return NextResponse.json(
         { error: 'Organization ID is required when context=organization' },
@@ -190,7 +122,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       billingStatus,
       upgradeWorkspaceId,
     ] = await Promise.all([
-      getOrganizationBillingData(organizationId, dbReplica),
+      getOrganizationBillingData(organizationId, dbReplica, {
+        limit: memberLimit,
+        offset: memberOffset,
+      }),
       getOrganizationSubscription(organizationId, { executor: dbReplica, onError: 'throw' }),
       dbReplica
         .select({ id: organizationTable.id, name: organizationTable.name })
@@ -254,6 +189,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         rawBillingData?.billingPeriodEnd?.toISOString() ??
         displayedSubscription?.periodEnd?.toISOString() ??
         null,
+      membersTotal: rawBillingData?.membersTotal ?? 0,
+      memberPagination: rawBillingData?.memberPagination ?? {
+        total: 0,
+        limit: memberLimit,
+        offset: memberOffset,
+        hasMore: false,
+      },
       members:
         rawBillingData?.members.map((organizationMember) => ({
           ...organizationMember,

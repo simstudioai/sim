@@ -13,6 +13,20 @@ export const MemoryBlock: BlockConfig = {
   - Used in conjunction with agent blocks to inject artificial memory into the conversation. For natural conversations, use the agent block memories modes directly instead.
   `,
   icon: BrainIcon,
+  canvasPresentation: {
+    defaultTitle: 'Memory',
+    sentences: {
+      byOperation: {
+        add: [
+          { text: 'Add a message from', field: 'role', core: true },
+          { text: 'to conversation', field: 'id', core: true },
+        ],
+        getAll: ['Read every stored memory'],
+        get: [{ text: 'Read the memories in conversation', field: 'id', core: true }],
+        delete: [{ text: 'Delete the memories in conversation', field: 'id', core: true }],
+      },
+    },
+  },
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/integrations/memory',
   subBlocks: [

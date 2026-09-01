@@ -57,6 +57,20 @@ export const openRouterUpstreamResponseSchema = z.object({
     .default([]),
 })
 
+export const openRouterEmbeddingModelsUpstreamResponseSchema = z.object({
+  data: z.array(
+    z
+      .object({
+        id: z.string().min(1, 'OpenRouter embedding model id cannot be empty'),
+        context_length: z
+          .number()
+          .int('OpenRouter embedding context length must be an integer')
+          .positive('OpenRouter embedding context length must be positive'),
+      })
+      .passthrough()
+  ),
+})
+
 export const vllmUpstreamResponseSchema = z.object({
   data: z
     .array(
@@ -129,92 +143,6 @@ export const ollamaUpstreamResponseSchema = z.object({
     .default([]),
 })
 
-const providerToolSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string(),
-    params: z.record(z.string(), z.unknown()),
-    parameters: z
-      .object({
-        type: z.string(),
-        properties: z.record(z.string(), z.unknown()),
-        required: z.array(z.string()),
-      })
-      .passthrough(),
-    usageControl: z.enum(['auto', 'force', 'none']).optional(),
-  })
-  .passthrough()
-
-const providerMessageSchema = z
-  .object({
-    role: z.enum(['system', 'user', 'assistant', 'function', 'tool']),
-    content: z.string().nullable(),
-    name: z.string().optional(),
-    function_call: z
-      .object({
-        name: z.string(),
-        arguments: z.string(),
-      })
-      .optional(),
-    tool_calls: z
-      .array(
-        z.object({
-          id: z.string(),
-          type: z.literal('function'),
-          function: z.object({
-            name: z.string(),
-            arguments: z.string(),
-          }),
-        })
-      )
-      .optional(),
-    tool_call_id: z.string().optional(),
-  })
-  .passthrough()
-
-const providerResponseFormatSchema = z
-  .object({
-    name: z.string(),
-    // untyped-response: caller-supplied JSON Schema (request body field, not a route response)
-    schema: z.unknown(),
-    strict: z.boolean().optional(),
-  })
-  .passthrough()
-
-export const providerApiRequestBodySchema = z
-  .object({
-    provider: z.string().min(1),
-    model: z.string().min(1),
-    systemPrompt: z.string().optional(),
-    context: z.string().optional(),
-    tools: z.array(providerToolSchema).optional(),
-    temperature: z.number().optional(),
-    maxTokens: z.number().optional(),
-    apiKey: z.string().optional(),
-    azureEndpoint: z.string().optional(),
-    azureApiVersion: z.string().optional(),
-    vertexProject: z.string().optional(),
-    vertexLocation: z.string().optional(),
-    vertexCredential: z.string().optional(),
-    bedrockAccessKeyId: z.string().optional(),
-    bedrockSecretKey: z.string().optional(),
-    bedrockRegion: z.string().optional(),
-    responseFormat: providerResponseFormatSchema.optional(),
-    workflowId: z.string().optional(),
-    workspaceId: z.string().optional(),
-    stream: z.boolean().optional(),
-    messages: z.array(providerMessageSchema).optional(),
-    environmentVariables: z.record(z.string(), z.string()).optional(),
-    workflowVariables: z.record(z.string(), z.unknown()).optional(),
-    blockData: z.record(z.string(), z.unknown()).optional(),
-    blockNameMapping: z.record(z.string(), z.string()).optional(),
-    reasoningEffort: z.string().optional(),
-    verbosity: z.string().optional(),
-  })
-  .passthrough()
-export type ProviderApiRequestBody = z.input<typeof providerApiRequestBodySchema>
-
 export const getBaseProviderModelsContract = defineRouteContract({
   method: 'GET',
   path: '/api/providers/base/models',
@@ -245,6 +173,15 @@ export const getVllmProviderModelsContract = defineRouteContract({
 export const getOpenRouterProviderModelsContract = defineRouteContract({
   method: 'GET',
   path: '/api/providers/openrouter/models',
+  response: {
+    mode: 'json',
+    schema: providerModelsResponseSchema,
+  },
+})
+
+export const getOpenRouterEmbeddingModelsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/providers/openrouter/embeddings/models',
   response: {
     mode: 'json',
     schema: providerModelsResponseSchema,
@@ -297,44 +234,5 @@ export const getBasetenProviderModelsContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: providerModelsResponseSchema,
-  },
-})
-
-/**
- * `POST /api/providers` returns either a streamed response (handled at the
- * runtime level — this contract models only the JSON case) or a JSON provider
- * payload. The JSON case mirrors the canonical `ProviderResponse` shape from
- * `@/providers/types`, but provider-specific fields are tolerated via
- * passthrough so raw provider output flows through without contract drift.
- */
-const executeProviderResponseSchema = z
-  .object({
-    content: z.string(),
-    model: z.string(),
-    tokens: z
-      .object({
-        input: z.number().optional(),
-        output: z.number().optional(),
-        total: z.number().optional(),
-        /** Prompt-cache buckets, reported separately from base input tokens. */
-        cacheRead: z.number().optional(),
-        cacheWrite: z.number().optional(),
-      })
-      .optional(),
-    toolCalls: z.array(z.record(z.string(), z.unknown())).optional(),
-    toolResults: z.array(z.record(z.string(), z.unknown())).optional(),
-    timing: z.record(z.string(), z.unknown()).optional(),
-    cost: z.record(z.string(), z.unknown()).optional(),
-    interactionId: z.string().optional(),
-  })
-  .passthrough()
-
-export const executeProviderContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/providers',
-  body: providerApiRequestBodySchema,
-  response: {
-    mode: 'json',
-    schema: executeProviderResponseSchema,
   },
 })

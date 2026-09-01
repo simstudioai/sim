@@ -13,10 +13,6 @@ import {
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
-  COPILOT_BILLING_PROTOCOL,
-  COPILOT_BILLING_PROTOCOL_HEADER,
-} from '@/lib/copilot/generated/billing-protocol-v1'
-import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
 } from '@/lib/copilot/generated/mothership-stream-v1'
@@ -52,7 +48,7 @@ import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
-import { isCopilotBillingAttributionV1Enabled, isHosted } from '@/lib/core/config/env-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 
 export { SSE_RESPONSE_HEADERS }
 
@@ -121,6 +117,17 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   registerActiveStream(streamId, abortController)
 
   const publisher = new StreamWriter({ streamId, chatId, requestId })
+
+  // Declared at function scope (same rationale as `cancelReason` below) so the
+  // leak backstop in the orchestration's outer finally can always reach them:
+  // the stream registration above, the abort poller, and the keepalive are
+  // process-held resources, and a throw that bypasses the inner finally's
+  // ordered teardown (e.g. `resetBuffer` failing on a Redis blip before the
+  // lifecycle starts) previously orphaned them — the poller and keepalive
+  // intervals then ran, and the activeStreams entry sat, for the life of the
+  // process.
+  let abortPoller: ReturnType<typeof startAbortPoller> | undefined
+  let processResourcesReleased = false
 
   // Classify cancel: signal.reason (explicit-stop set) wins, then
   // clientDisconnected, else Unknown (latent contract bug — log it).
@@ -220,7 +227,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             })
           }
 
-          const abortPoller = startAbortPoller(streamId, abortController, {
+          abortPoller = startAbortPoller(streamId, abortController, {
             requestId,
             chatId,
           })
@@ -347,6 +354,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             if (chatId) {
               await releasePendingChatStream(chatId, streamId)
             }
+            processResourcesReleased = true
             await scheduleBufferCleanup(streamId)
             await scheduleFilePreviewSessionCleanup(streamId)
             await cleanupAbortMarker(streamId)
@@ -371,6 +379,24 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           rootError = error
           throw error
         } finally {
+          // Leak backstop for throws that bypassed the inner finally's
+          // ordered teardown (a session reset failing before the lifecycle
+          // started, or the teardown itself throwing before its release
+          // lines). Every step is idempotent — clearInterval and
+          // stopKeepalive no-op when already stopped, unregister is a keyed
+          // delete, and the chat-stream release is ownership-guarded against
+          // a successor stream — and none of them throw, so the otel finish
+          // below always still runs. On the normal path the flag set by the
+          // ordered teardown skips this entirely.
+          if (!processResourcesReleased) {
+            processResourcesReleased = true
+            clearInterval(abortPoller)
+            publisher.stopKeepalive()
+            unregisterActiveStream(streamId)
+            if (chatId) {
+              await releasePendingChatStream(chatId, streamId)
+            }
+          }
           // `finish` is idempotent, so it's safe whether the POST
           // handler started the root (and may also call finish on an
           // error path before the stream ran) or we did. The cancel
@@ -420,9 +446,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   })
 }
 
-// ---------------------------------------------------------------------------
 // Title generation (fire-and-forget side effect)
-// ---------------------------------------------------------------------------
 
 function fireTitleGeneration(params: {
   chatId?: string
@@ -483,9 +507,7 @@ function fireTitleGeneration(params: {
     })
 }
 
-// ---------------------------------------------------------------------------
 // Chat title helper
-// ---------------------------------------------------------------------------
 
 export async function requestChatTitle(params: {
   message: string
@@ -508,9 +530,7 @@ export async function requestChatTitle(params: {
   Object.assign(headers, getMothershipSourceEnvHeaders())
 
   try {
-    if (isHosted && !isCopilotBillingAttributionV1Enabled) {
-      headers[COPILOT_BILLING_PROTOCOL_HEADER] = COPILOT_BILLING_PROTOCOL.legacy
-    } else if (isHosted) {
+    if (isHosted) {
       if (!userId || !workspaceId) {
         throw new Error('Title generation requires a billing actor and workspace')
       }

@@ -1,13 +1,12 @@
-import type { SapConcurProxyResponse, SearchUsersParams } from '@/tools/sap_concur/types'
+import type { SapConcurResponse, SearchUsersParams } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
+  baseSapConcurInput,
   scimListResponseOutputProperties,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const searchUsersTool: ToolConfig<SearchUsersParams, SapConcurProxyResponse> = {
+export const searchUsersTool: InternalToolConfig<SearchUsersParams, SapConcurResponse> = {
   id: 'sap_concur_search_users',
   name: 'SAP Concur Search Users',
   description:
@@ -61,21 +60,18 @@ export const searchUsersTool: ToolConfig<SearchUsersParams, SapConcurProxyRespon
       required: true,
       visibility: 'user-or-llm',
       description:
-        'SCIM search request payload ({ schemas, attributes, filter, count, startIndex })',
+        'SCIM search payload. Required: schemas: ["urn:ietf:params:scim:api:messages:concur:2.0:SearchRequest"] (Concur-specific URN, not the standard SearchRequest URN). Optional: filter, count (1-1000), attributes, excludedAttributes, cursor (the nextCursor value from a prior response). The startIndex request parameter is not supported (responses still return a startIndex value).',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: `/profile/identity/v4.1/Users/.search`,
       method: 'POST',
       body: params.body,
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

@@ -1,16 +1,20 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import type { PrincipalActor } from '@sim/auth/principal'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
+import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { validateTriggerWebhookConfigForDeploy } from '@/lib/webhooks/deploy'
+import { normalizedStringify } from '@/lib/workflows/comparison/normalize'
 import {
   DEPLOYMENT_ERROR_CODES,
   type DeploymentComponentStatus,
@@ -26,7 +30,6 @@ import {
   notifySocketDeploymentChanged,
   processWorkflowDeploymentOutboxEvent,
 } from '@/lib/workflows/deployment-outbox'
-import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 import {
   getWorkflowDeploymentStatus,
   prepareWorkflowDeployment,
@@ -38,6 +41,7 @@ import {
   loadWorkflowDeploymentSnapshot,
   saveWorkflowToNormalizedTables,
   undeployWorkflow,
+  updateDeploymentVersionMetadata,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowSchedules } from '@/lib/workflows/schedules'
 import { emitWorkflowUndeployedEvent } from '@/lib/workspace-events/emitter'
@@ -59,6 +63,8 @@ export interface DeploymentAttemptResult {
   version: number
   action: 'deploy' | 'activate'
   status: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded'
+  /** Whether this attempt still describes the workflow's current deployment lifecycle. */
+  isCurrent: boolean
   readiness: {
     webhooks: DeploymentReadinessSummaryStatus
     schedules: DeploymentReadinessSummaryStatus
@@ -88,12 +94,32 @@ export interface PerformFullDeployParams {
    * endpoint, so it stays optional here.
    */
   versionName?: string
+  /** Stable identity for one logical deployment operation. */
+  idempotencyKey?: string
+  /** Correlation ID for logging and outbox tracing. */
   requestId?: string
   /**
    * Override the actor ID used in audit logs and the `deployedBy` field.
    * Defaults to `userId`. Use `'admin-api'` for admin-initiated actions.
    */
   actorId?: string
+  actor?: PrincipalActor
+  captureAnalytics?: false
+}
+
+/**
+ * Resolves a mutation-lock denial to a message instead of throwing, so the entry
+ * points below return their `{ success: false }` result shape rather than
+ * surfacing a 500 to callers that expect one — matching `performRevertToVersion`.
+ */
+async function workflowLockDenial(workflowId: string): Promise<string | null> {
+  try {
+    await assertWorkflowMutable(workflowId)
+    return null
+  } catch (error) {
+    if (error instanceof WorkflowLockedError) return error.message
+    throw error
+  }
 }
 
 export interface PerformFullDeployResult {
@@ -110,7 +136,9 @@ export interface PerformFullDeployResult {
 
 /**
  * Admits a deployment through the v2 prepare/activate protocol. The candidate
- * version remains inactive until every required side effect is ready.
+ * version remains inactive until every required side effect is ready. Callers
+ * that can replay a logical operation must provide a stable `idempotencyKey`;
+ * `requestId` is correlation metadata only.
  */
 export async function performFullDeploy(
   params: PerformFullDeployParams
@@ -118,6 +146,12 @@ export async function performFullDeploy(
   const { workflowId, userId } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
+  const idempotencyKey = params.idempotencyKey ?? generateId()
+
+  // Backstop for every caller — routes may assert first to render their own 423,
+  // but the copilot deploy tools call this directly.
+  const lockDenial = await workflowLockDenial(workflowId)
+  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'locked' }
 
   const [workflowRecord] = await db
     .select()
@@ -134,6 +168,7 @@ export async function performFullDeploy(
       params,
       actorId,
       requestId,
+      idempotencyKey,
     })
   } catch (error) {
     logger.error(`[${requestId}] Deployment preparation failed`, { workflowId, error })
@@ -149,6 +184,7 @@ async function performStableFullDeploy(params: {
   params: PerformFullDeployParams
   actorId: string
   requestId: string
+  idempotencyKey: string
 }): Promise<PerformFullDeployResult> {
   const workflowState = await loadWorkflowDeploymentSnapshot(params.params.workflowId)
   if (!workflowState) {
@@ -162,19 +198,18 @@ async function performStableFullDeploy(params: {
   const validation = await validateDeploymentState(workflowState.blocks)
   if (!validation.success) return validation
 
+  const requestHash = createDeploymentRequestHash({
+    action: 'deploy',
+    workflowId: params.params.workflowId,
+    userId: params.params.userId,
+    workflowState: canonicalizeDeploymentWorkflowState(workflowState),
+  })
   let outboxEventId: string | undefined
   const prepared = await prepareWorkflowDeployment({
     workflowId: params.params.workflowId,
     actorId: params.actorId,
-    requestHash: createDeploymentRequestHash({
-      action: 'deploy',
-      workflowId: params.params.workflowId,
-      userId: params.params.userId,
-      workflowState,
-      versionName: params.params.versionName ?? null,
-      versionDescription: params.params.versionDescription ?? null,
-    }),
-    idempotencyKey: params.requestId,
+    requestHash,
+    idempotencyKey: bindIdempotencyKeyToRequest(params.idempotencyKey, requestHash),
     workflowState,
     name: params.params.versionName,
     description: params.params.versionDescription,
@@ -191,6 +226,8 @@ async function performStableFullDeploy(params: {
         deploymentVersionId: operation.deploymentVersionId,
         version: operation.version,
         userId: params.params.userId,
+        actor: params.params.actor,
+        captureAnalytics: params.params.captureAnalytics,
         requestId: params.requestId,
         checkpoints: {},
       })
@@ -271,8 +308,26 @@ async function validateDeploymentState(
   return { success: true }
 }
 
+function canonicalizeDeploymentWorkflowState(
+  workflowState: WorkflowState
+): Record<string, unknown> {
+  const { lastSaved: _lastSaved, edges, ...stableState } = workflowState
+  const sortedEdges = [...edges].sort((left, right) => {
+    if (left.id !== right.id) return left.id < right.id ? -1 : 1
+    const normalizedLeft = normalizedStringify(left)
+    const normalizedRight = normalizedStringify(right)
+    if (normalizedLeft === normalizedRight) return 0
+    return normalizedLeft < normalizedRight ? -1 : 1
+  })
+  return { ...stableState, edges: sortedEdges }
+}
+
 function createDeploymentRequestHash(value: Record<string, unknown>): string {
-  return sha256Hex(JSON.stringify(value))
+  return sha256Hex(normalizedStringify(value))
+}
+
+function bindIdempotencyKeyToRequest(idempotencyKey: string, requestHash: string): string {
+  return `${idempotencyKey}:request:${requestHash}`
 }
 
 function mapPrepareFailureCode(
@@ -317,7 +372,10 @@ function buildStableDeploymentResult(
         deployedAt: status.activeDeployment.deployedAt.toISOString(),
       }
     : null
-  const latestDeploymentAttempt = summarizeDeploymentOperation(status.latestOperation)
+  const latestDeploymentAttempt = summarizeDeploymentOperation(
+    status.latestOperation,
+    status.activeDeployment?.deploymentVersionId ?? null
+  )
   const warning = getStableDeploymentWarning(
     latestDeploymentAttempt,
     processResult,
@@ -355,7 +413,8 @@ export async function getWorkflowDeploymentSummary(workflowId: string): Promise<
 }
 
 function summarizeDeploymentOperation(
-  operation: WorkflowDeploymentOperation | null
+  operation: WorkflowDeploymentOperation | null,
+  activeDeploymentVersionId: string | null
 ): DeploymentAttemptResult | null {
   if (!operation) return null
   if (
@@ -375,6 +434,10 @@ function summarizeDeploymentOperation(
     version: operation.version,
     action: operation.action,
     status: operation.status,
+    isCurrent:
+      operation.status === 'active'
+        ? operation.deploymentVersionId === activeDeploymentVersionId
+        : operation.status !== 'superseded',
     readiness: {
       webhooks: componentStatus('webhooks'),
       schedules: componentStatus('schedules'),
@@ -400,6 +463,9 @@ function getStableDeploymentWarning(
   hasActiveDeployment: boolean
 ): string | undefined {
   if (!attempt) return undefined
+  if (attempt.status === 'active' && !attempt.isCurrent) {
+    return 'The latest successful deployment attempt is historical; no matching deployment version is currently active.'
+  }
   if (attempt.status === 'preparing' || attempt.status === 'activating') {
     if (processResult === 'processing_error') {
       return hasActiveDeployment
@@ -437,11 +503,13 @@ export interface PerformFullUndeployParams {
   requestId?: string
   /** Override the actor ID used in audit logs. Defaults to `userId`. */
   actorId?: string
+  projectLegacyAudit?: boolean
 }
 
 export interface PerformFullUndeployResult {
   success: boolean
   error?: string
+  errorCode?: OrchestrationErrorCode
   warnings?: string[]
 }
 
@@ -457,6 +525,9 @@ export async function performFullUndeploy(
   const { workflowId, userId } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
+
+  const lockDenial = await workflowLockDenial(workflowId)
+  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'locked' }
 
   const [workflowRecord] = await db
     .select()
@@ -495,15 +566,17 @@ export async function performFullUndeploy(
     // Telemetry is best-effort
   }
 
-  recordAudit({
-    workspaceId: (workflowData.workspaceId as string) || null,
-    actorId: actorId,
-    action: AuditAction.WORKFLOW_UNDEPLOYED,
-    resourceType: AuditResourceType.WORKFLOW,
-    resourceId: workflowId,
-    resourceName: (workflowData.name as string) || undefined,
-    description: `Undeployed workflow "${(workflowData.name as string) || workflowId}"`,
-  })
+  if (params.projectLegacyAudit !== false) {
+    recordAudit({
+      workspaceId: (workflowData.workspaceId as string) || null,
+      actorId: actorId,
+      action: AuditAction.WORKFLOW_UNDEPLOYED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: workflowId,
+      resourceName: (workflowData.name as string) || undefined,
+      description: `Undeployed workflow "${(workflowData.name as string) || workflowId}"`,
+    })
+  }
 
   await notifySocketDeploymentChanged(workflowId)
   const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
@@ -524,9 +597,18 @@ export interface PerformActivateVersionParams {
   workflowId: string
   version: number
   userId: string
+  /** Metadata committed atomically with activation admission. */
+  name?: string | null
+  /** Metadata committed atomically with activation admission. */
+  description?: string | null
+  /** Stable identity for one logical activation operation. */
+  idempotencyKey?: string
+  /** Correlation ID for logging and outbox tracing. */
   requestId?: string
   /** Override the actor ID used in audit logs. Defaults to `userId`. */
   actorId?: string
+  actor?: PrincipalActor
+  captureAnalytics?: false
 }
 
 export interface PerformActivateVersionResult {
@@ -537,6 +619,8 @@ export interface PerformActivateVersionResult {
   error?: string
   errorCode?: OrchestrationErrorCode
   warnings?: string[]
+  name?: string | null
+  description?: string | null
 }
 
 export interface PerformRevertToVersionParams {
@@ -549,6 +633,9 @@ export interface PerformRevertToVersionParams {
   actorId?: string
   actorName?: string
   actorEmail?: string
+  captureAnalytics?: false
+  projectLegacyAudit?: boolean
+  notifyRealtime?: boolean
 }
 
 export interface PerformRevertToVersionResult {
@@ -559,7 +646,12 @@ export interface PerformRevertToVersionResult {
 }
 
 /**
- * Admits an existing version through the v2 prepare/activate protocol.
+ * Admits an existing version through the v2 prepare/activate protocol. Callers
+ * that can replay a logical operation must provide a stable `idempotencyKey`.
+ * Optional metadata is committed in the same transaction as a new activation
+ * attempt. A metadata failure rolls back admission; a later preparation failure
+ * is returned as a failure even though the already-admitted attempt and its
+ * metadata remain durable and retryable through the deployment outbox.
  */
 export async function performActivateVersion(
   params: PerformActivateVersionParams
@@ -567,12 +659,18 @@ export async function performActivateVersion(
   const { workflowId, version, userId } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
+  const idempotencyKey = params.idempotencyKey ?? generateId()
+
+  const lockDenial = await workflowLockDenial(workflowId)
+  if (lockDenial) return { success: false, error: lockDenial, errorCode: 'locked' }
 
   const [versionRow] = await db
     .select({
       id: workflowDeploymentVersion.id,
       state: workflowDeploymentVersion.state,
       isActive: workflowDeploymentVersion.isActive,
+      name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
     })
     .from(workflowDeploymentVersion)
     .where(
@@ -588,6 +686,15 @@ export async function performActivateVersion(
   }
 
   if (versionRow.isActive) {
+    const metadata = await updateDeploymentVersionMetadata({
+      workflowId,
+      version,
+      name: params.name,
+      description: params.description,
+    })
+    if (!metadata) {
+      return { success: false, error: 'Deployment version not found', errorCode: 'not_found' }
+    }
     const [workflowDeployment] = await db
       .select({ deployedAt: workflowTable.deployedAt })
       .from(workflowTable)
@@ -602,6 +709,7 @@ export async function performActivateVersion(
       activeDeployment: stableResult.activeDeployment,
       latestDeploymentAttempt: stableResult.latestDeploymentAttempt,
       warnings: stableResult.warnings,
+      ...metadata,
     }
   }
 
@@ -638,7 +746,12 @@ export async function performActivateVersion(
       version,
       userId,
       actorId,
+      actor: params.actor,
+      captureAnalytics: params.captureAnalytics,
+      name: params.name,
+      description: params.description,
       requestId,
+      idempotencyKey,
     })
   } catch (error) {
     logger.error(`[${requestId}] Version activation preparation failed`, {
@@ -660,26 +773,44 @@ async function performStableVersionActivation(params: {
   version: number
   userId: string
   actorId: string
+  actor?: PrincipalActor
+  captureAnalytics?: false
+  name?: string | null
+  description?: string | null
   requestId: string
+  idempotencyKey: string
 }): Promise<PerformActivateVersionResult> {
+  const requestHash = createDeploymentRequestHash({
+    action: 'activate',
+    workflowId: params.workflowId,
+    deploymentVersionId: params.deploymentVersionId,
+    version: params.version,
+    userId: params.userId,
+    name: params.name,
+    description: params.description,
+  })
   let outboxEventId: string | undefined
+  let metadata: { name: string | null; description: string | null } | undefined
   const prepared = await prepareWorkflowVersionActivation({
     workflowId: params.workflowId,
     deploymentVersionId: params.deploymentVersionId,
     actorId: params.actorId,
-    requestHash: createDeploymentRequestHash({
-      action: 'activate',
-      workflowId: params.workflowId,
-      deploymentVersionId: params.deploymentVersionId,
-      version: params.version,
-      userId: params.userId,
-    }),
-    idempotencyKey: params.requestId,
+    requestHash,
+    idempotencyKey: bindIdempotencyKeyToRequest(params.idempotencyKey, requestHash),
     readinessComponents: DEPLOYMENT_READINESS_COMPONENTS,
     onPrepareTransaction: async (tx, operation) => {
       if (!operation.deploymentVersionId || operation.version === null) {
         throw new Error('Prepared activation operation is missing its target version')
       }
+      metadata =
+        (await updateDeploymentVersionMetadata({
+          workflowId: operation.workflowId,
+          version: operation.version,
+          name: params.name,
+          description: params.description,
+          tx,
+        })) ?? undefined
+      if (!metadata) throw new Error('Deployment version disappeared during activation admission')
       outboxEventId = await enqueueWorkflowDeploymentPreparation(tx, {
         protocolVersion: operation.protocolVersion,
         operationId: operation.id,
@@ -688,6 +819,8 @@ async function performStableVersionActivation(params: {
         deploymentVersionId: operation.deploymentVersionId,
         version: operation.version,
         userId: params.userId,
+        actor: params.actor,
+        captureAnalytics: params.captureAnalytics,
         requestId: params.requestId,
         checkpoints: {},
       })
@@ -702,10 +835,19 @@ async function performStableVersionActivation(params: {
     }
   }
 
+  metadata ??=
+    (await updateDeploymentVersionMetadata({
+      workflowId: params.workflowId,
+      version: params.version,
+    })) ?? undefined
+  if (!metadata) {
+    return { success: false, error: 'Deployment version not found', errorCode: 'not_found' }
+  }
+
   const processResult = await processStableDeploymentPreparationNow(outboxEventId, params.requestId)
   const status = await getWorkflowDeploymentStatus(params.workflowId)
   const inlineFailure = buildInlinePreparationFailure(prepared.operation.id, status)
-  if (inlineFailure) return inlineFailure
+  if (inlineFailure) return { ...inlineFailure, ...metadata }
   const result = buildStableDeploymentResult(status, processResult)
   return {
     success: result.success,
@@ -713,6 +855,7 @@ async function performStableVersionActivation(params: {
     activeDeployment: result.activeDeployment,
     latestDeploymentAttempt: result.latestDeploymentAttempt,
     warnings: result.warnings,
+    ...metadata,
   }
 }
 
@@ -857,46 +1000,52 @@ export async function performRevertToVersion(
     }
   }
 
-  try {
-    await fetch(`${getSocketServerUrl()}/api/workflow-reverted`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': env.INTERNAL_API_SECRET,
-      },
-      body: JSON.stringify({ workflowId, timestamp: lastSaved }),
-    })
-  } catch (error) {
-    logger.error('Error sending workflow reverted event to socket server', error)
+  if (params.notifyRealtime !== false) {
+    try {
+      await fetch(`${getSocketServerUrl()}/api/workflow-reverted`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': env.INTERNAL_API_SECRET,
+        },
+        body: JSON.stringify({ workflowId, timestamp: lastSaved }),
+      })
+    } catch (error) {
+      logger.error('Error sending workflow reverted event to socket server', error)
+    }
   }
 
   const workspaceId = (workflow.workspaceId as string) || ''
-  captureServerEvent(
-    userId,
-    'workflow_deployment_reverted',
-    {
-      workflow_id: workflowId,
-      workspace_id: workspaceId,
-      version: versionLabel,
-    },
-    workspaceId ? { groups: { workspace: workspaceId } } : undefined
-  )
+  if (params.captureAnalytics !== false) {
+    captureServerEvent(
+      userId,
+      'workflow_deployment_reverted',
+      {
+        workflow_id: workflowId,
+        workspace_id: workspaceId,
+        version: versionLabel,
+      },
+      workspaceId ? { groups: { workspace: workspaceId } } : undefined
+    )
+  }
 
-  recordAudit({
-    workspaceId: workspaceId || null,
-    actorId,
-    actorName: params.actorName,
-    actorEmail: params.actorEmail,
-    action: AuditAction.WORKFLOW_DEPLOYMENT_REVERTED,
-    resourceType: AuditResourceType.WORKFLOW,
-    resourceId: workflowId,
-    resourceName: (workflow.name as string) || undefined,
-    description: `Reverted workflow to deployment version ${versionLabel}`,
-    metadata: {
-      targetVersion: versionLabel,
-    },
-    request: params.request,
-  })
+  if (params.projectLegacyAudit !== false) {
+    recordAudit({
+      workspaceId: workspaceId || null,
+      actorId,
+      actorName: params.actorName,
+      actorEmail: params.actorEmail,
+      action: AuditAction.WORKFLOW_DEPLOYMENT_REVERTED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: workflowId,
+      resourceName: (workflow.name as string) || undefined,
+      description: `Reverted workflow to deployment version ${versionLabel}`,
+      metadata: {
+        targetVersion: versionLabel,
+      },
+      request: params.request,
+    })
+  }
 
   return {
     success: true,

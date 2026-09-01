@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { chunkArray } from '@sim/utils/helpers'
 import { and, inArray, isNotNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
@@ -24,12 +25,6 @@ export const DEFAULT_MAX_BATCHES_PER_TABLE = 50
 export const DEFAULT_WORKSPACE_CHUNK_SIZE = 50
 /** Bounds FK cascade trigger queue (per-statement in-memory) and bind-parameter count. */
 export const DEFAULT_DELETE_CHUNK_SIZE = 1000
-
-export function chunkArray<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
-  return out
-}
 
 export interface SelectByIdChunksOptions {
   /** Cap on rows returned across all chunks. Defaults to a full per-table cleanup budget. */

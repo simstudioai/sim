@@ -1,14 +1,10 @@
-import Image from 'next/image'
 import { CalloutFrame } from '@/app/(landing)/components/features/components/callout-frame'
+import { CapturedPlatformSurface } from '@/app/(landing)/components/features/components/captured-platform-surface'
 
 /**
- * The Context beat's callout - the REAL platform Knowledge base page as one
- * floating window: a full capture of the workspace UI (sidebar with Knowledge
- * base selected + the knowledge list) taken by
- * `exports/readme-banner/capture-knowledge-ui.mjs` at the hero shot's card
- * geometry (1280x735 @2x), framed by the shared {@link CalloutFrame} so it
- * wears the hero platform window's exact chrome (10px radius + layered
- * shadow).
+ * The Context beat's callout - the platform Knowledge bases page as one
+ * floating window. The detailed page capture is paired with the shared live
+ * landing sidebar so its navigation and footer stay aligned with the product.
  *
  * Same oversized treatment as the Integrate card: 125% of the media stage
  * with EQUAL top and left insets (96px), so the top-left corner floats free
@@ -22,12 +18,10 @@ export function KnowledgeCallout() {
         className='absolute top-[14.4%] left-[9.6%] w-[125%]'
         bodyClassName='aspect-[1280/735]'
       >
-        <Image
+        <CapturedPlatformSurface
           src='/landing/feature-context-ui.png'
-          alt=''
-          fill
           sizes='1050px'
-          className='object-cover'
+          activeItem='Knowledge bases'
         />
       </CalloutFrame>
     </div>

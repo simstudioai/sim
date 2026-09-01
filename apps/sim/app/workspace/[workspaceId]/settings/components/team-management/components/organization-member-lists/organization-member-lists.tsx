@@ -20,6 +20,10 @@ import type {
 } from '@/lib/api/contracts/organization'
 import type { Member } from '@/lib/workspaces/organization'
 import {
+  ManageCreditsModal,
+  type ManageCreditsTarget,
+} from '@/app/workspace/[workspaceId]/settings/components/manage-credits-modal'
+import {
   MemberRow,
   MemberSection,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
@@ -27,10 +31,6 @@ import {
   type RowAction,
   RowActionsMenu,
 } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import {
-  ManageCreditsModal,
-  type ManageCreditsTarget,
-} from '@/app/workspace/[workspaceId]/settings/components/team-management/components/manage-credits-modal'
 import {
   useRemoveWorkspaceMember,
   useUpdateWorkspacePermissions,
@@ -290,13 +290,20 @@ export function OrganizationMemberLists({
     workspaceId: string,
     access: RosterWorkspaceAccess
   ) => {
-    const rowUserIsOrgAdmin = isOrgAdminRole(member.role)
     const isSelf = member.userId === currentUserId
     const wouldDemoteSelf = isSelf && access.permission === 'admin'
+    /**
+     * Every reason here has a matching server guard, so a locked control is one
+     * the route would have refused. Derived from the roster payload rather than
+     * from the org role alone, which missed the workspace owner and the billing
+     * account.
+     */
+    const lockReason = workspaceRoleLockReason(access.roleSource, {
+      isBilledAccount: access.isBilledAccount,
+    })
     const disabled =
-      !canManage || rowUserIsOrgAdmin || wouldDemoteSelf || updatePermissions.isPending
-    const lockReason = rowUserIsOrgAdmin ? workspaceRoleLockReason('org-admin') : null
-    const canRemoveFromWorkspace = canManage && !rowUserIsOrgAdmin && !isSelf
+      !canManage || lockReason !== null || wouldDemoteSelf || updatePermissions.isPending
+    const canRemoveFromWorkspace = canManage && !isOrgAdminRole(member.role) && !isSelf
 
     return (
       <MemberRow

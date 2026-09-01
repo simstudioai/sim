@@ -5,6 +5,7 @@ import {
   userTableDefinitions,
   workflow,
   workspaceFiles,
+  workspace as workspaceTable,
 } from '@sim/db'
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
@@ -65,6 +66,17 @@ const PINNED_RESOURCES: Record<PinnedResourceType, PinnedResourceConfig> = {
     idColumn: folderTable.id,
     workspaceColumn: folderTable.workspaceId,
     deletedColumn: folderTable.deletedAt,
+  },
+  /**
+   * The workspace itself, so the row stores `workspaceId === resourceId` and the
+   * workspace filter below degenerates to the same equality as the id filter —
+   * which is exactly the check this kind needs.
+   */
+  workspace: {
+    table: workspaceTable,
+    idColumn: workspaceTable.id,
+    workspaceColumn: workspaceTable.id,
+    deletedColumn: workspaceTable.archivedAt,
   },
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ChipLink, cn } from '@sim/emcn'
-import { Menu, X } from 'lucide-react'
+import { Menu, X } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { GithubOutlineIcon } from '@/components/icons'
 import { NAV_MENUS } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
@@ -10,6 +10,7 @@ import {
   NAVBAR_GLASS_SURFACE,
   useNavbarFrost,
 } from '@/app/(landing)/components/navbar/components/navbar-shell'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 
 /**
@@ -92,7 +93,10 @@ export function MobileNav({ stars }: MobileNavProps) {
           aria-hidden='true'
           tabIndex={-1}
           onClick={() => setOpen(false)}
-          className='fixed inset-0 top-full z-40 cursor-default bg-[color-mix(in_srgb,var(--text-primary)_8%,transparent)]'
+          className={cn(
+            'fixed inset-0 top-full z-40 cursor-default',
+            colorMixFallbacks.mobileBackdrop
+          )}
         />
       ) : null}
 
@@ -161,7 +165,6 @@ export function MobileNav({ stars }: MobileNavProps) {
               variant='border'
               href='/login'
               fullWidth
-              flush
               prefetch={false}
               className='h-[40px] justify-center [&>span]:flex-none'
               onClick={() => setOpen(false)}
@@ -172,7 +175,6 @@ export function MobileNav({ stars }: MobileNavProps) {
               variant='primary'
               href={DEMO_HREF}
               fullWidth
-              flush
               className='h-[40px] justify-center [&>span]:flex-none'
               onClick={() => setOpen(false)}
             >

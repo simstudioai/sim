@@ -1,69 +1,39 @@
 /**
  * Per-table event buffer for live cell-state updates.
  *
- * The grid subscribes to a per-table SSE stream and patches its React Query
- * cache as events arrive. This buffer is the durable mid-tier between the
- * cell-write paths (`writeWorkflowGroupState`, `cancelWorkflowGroupRuns`) and
- * the SSE consumers — every status transition appends here with a monotonic
- * eventId; SSE clients resume on reconnect via `?from=<lastEventId>` and the
- * server replays from this buffer.
+ * The grid subscribes to a per-table SSE stream and patches its React Query cache
+ * as events arrive. This is a thin domain adapter over the generic durable event
+ * log (`@/lib/realtime/event-log`): it owns the Redis key prefix (`table:stream:`)
+ * and the entry wire shape (`{ eventId, tableId, event }`), and gets append/read/
+ * tail + replay + prune semantics from the core. Every status transition appends
+ * here with a monotonic eventId; SSE clients resume on reconnect via
+ * `?from=<lastEventId>` and the server replays from this buffer.
  *
- * Modeled after `apps/sim/lib/execution/event-buffer.ts` but stripped of
- * complexity tables don't need: no per-execution lifecycle, no id reservation
- * batching, no write-queue serialization. Tables are always-on; cell writes
- * are sparse and independent.
+ * The `table:stream:` prefix and the entry shape are a wire contract — renaming
+ * the prefix resets the seq counter and silently strands connected clients (their
+ * in-memory `lastEventId` no longer matches), so both are intentionally fixed here.
  */
 
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { env } from '@/lib/core/config/env'
-import { getRedisClient } from '@/lib/core/config/redis'
+import { fingerprintClientId } from '@/lib/api/client-id'
+import {
+  appendEvent,
+  type EventLogConfig,
+  type EventLogReadResult,
+  getLatestEventId,
+  readEventsSince,
+} from '@/lib/realtime/event-log'
 
-const logger = createLogger('TableEventBuffer')
-
-const REDIS_PREFIX = 'table:stream:'
 export const TABLE_EVENT_TTL_SECONDS = 60 * 60 // 1 hour
 export const TABLE_EVENT_CAP = 5000
 /** Max events returned by a single read; the SSE route drains in chunks. */
 export const TABLE_EVENT_READ_CHUNK = 500
 
-/**
- * Atomic append: INCR the seq counter to mint a new eventId, build the entry
- * JSON inline, ZADD it, refresh TTL on events + seq + meta, trim to cap, then
- * write the resulting earliestEventId to meta. Single round-trip per event.
- * Without atomicity a slow reader could observe the trim before the meta
- * update and miss the prune signal.
- *
- * KEYS: [events, seq, meta]
- * ARGV: [ttlSec, cap, updatedAtIso, entryPrefix, entrySuffix]
- *   The new eventId is spliced between prefix/suffix to form the entry JSON.
- *   Returns the new eventId.
- */
-const APPEND_EVENT_SCRIPT = `
-local eventId = redis.call('INCR', KEYS[2])
-local entry = ARGV[4] .. eventId .. ARGV[5]
-redis.call('ZADD', KEYS[1], eventId, entry)
-redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
-redis.call('EXPIRE', KEYS[2], tonumber(ARGV[1]))
-redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -tonumber(ARGV[2]) - 1)
-local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
-if oldest[2] then
-  redis.call('HSET', KEYS[3], 'earliestEventId', tostring(math.floor(tonumber(oldest[2]))), 'updatedAt', ARGV[3])
-  redis.call('EXPIRE', KEYS[3], tonumber(ARGV[1]))
-end
-return eventId
-`
-
-function getEventsKey(tableId: string) {
-  return `${REDIS_PREFIX}${tableId}:events`
-}
-
-function getSeqKey(tableId: string) {
-  return `${REDIS_PREFIX}${tableId}:seq`
-}
-
-function getMetaKey(tableId: string) {
-  return `${REDIS_PREFIX}${tableId}:meta`
+/** Wire contract — see the file header; the prefix must never change. */
+const TABLE_EVENT_LOG: EventLogConfig = {
+  prefix: 'table:stream:',
+  ttlSeconds: TABLE_EVENT_TTL_SECONDS,
+  cap: TABLE_EVENT_CAP,
+  readChunk: TABLE_EVENT_READ_CHUNK,
 }
 
 export type TableCellStatus = 'pending' | 'queued' | 'running' | 'completed' | 'cancelled' | 'error'
@@ -133,7 +103,7 @@ export type TableEvent =
   | {
       /** A dispatch was stopped because the billed account is over its usage
        *  limit. The client surfaces an upgrade prompt and redirects to billing.
-       *  The dispatch is halted via `markDispatchComplete` and the blocked
+       *  The dispatch is halted via `completeDispatchIfActive` and the blocked
        *  cells' pre-stamps are cleared so they revert to un-run. `dispatchId`
        *  is absent for cascade/auto-fire payloads with no owning dispatch. */
       kind: 'usageLimitReached'
@@ -142,13 +112,59 @@ export type TableEvent =
       message: string
     }
   | {
+      /** A user changed row data manually (a cell edit, or an added/deleted row) —
+       *  not an execution. Signals collaborators to refetch the rows so the change
+       *  shows live; last-write-wins is simply the DB's committed order. Carries no
+       *  value: peers refetch in their own wire format, avoiding auth-specific value
+       *  translation on the wire. */
+      kind: 'edit'
+      tableId: string
+      /**
+       * One-way digest naming the tab whose request caused this edit, when that tab is known to
+       * reconcile the change locally — so it can skip refetching what it already holds. Digested
+       * rather than raw because every subscriber sees this field; a raw id could be replayed by a
+       * collaborator to make someone else's tab suppress a refetch it needed. Absent means
+       * "unattributed" — every client refetches, which is the pre-existing behavior.
+       */
+      originatorId?: string
+    }
+  | {
+      /** A user changed the table's structure (added/updated/deleted a column, or
+       *  renamed the table). Signals collaborators to refetch the table definition
+       *  and rows, since a schema change reshapes how rows render. Value-less, same
+       *  refetch-in-own-format rationale as {@link kind} `edit`. */
+      kind: 'schema'
+      tableId: string
+    }
+  | {
+      /** A user changed the table's UI metadata (column width, pin, or order). Signals
+       *  collaborators to re-apply the new layout live. Lighter than {@link kind}
+       *  `schema`: only the definition carries metadata, so peers refetch the definition
+       *  alone — no rows/run-state refetch. Value-less, same refetch-in-own-format
+       *  rationale as {@link kind} `edit`. */
+      kind: 'metadata'
+      tableId: string
+    }
+  | {
       /** The table definition changed in a way that isn't row/cell data — a
-       *  lock toggle or a schema mutation. Carries no payload; the client just
-       *  invalidates the table-detail query so every open viewer re-reads the
-       *  fresh locks/schema (otherwise an idle grid stays stale and writes 423). */
+       *  lock toggle. Carries no payload; the client just invalidates the
+       *  table-detail query so every open viewer re-reads the fresh locks
+       *  (otherwise an idle grid stays stale and writes 423). Emitted only by
+       *  `updateTableLocks` in the service; schema and metadata changes use the
+       *  dedicated `schema`/`metadata` kinds above. */
       kind: 'definition'
       tableId: string
-      reason: 'locks' | 'schema'
+      reason: 'locks'
+    }
+  | {
+      /** A user created, renamed, deleted, or re-saved a shared saved view (a named
+       *  filter/sort/layout preset). Views are table-wide collaborative state — every
+       *  reader of the table sees every view — so peers refetch the views list to pick
+       *  up the change live. Value-less, same refetch-in-own-format rationale as
+       *  {@link kind} `edit`; no rows/definition refetch, since a view is presentation
+       *  state layered on top of the already-loaded table. */
+      kind: 'views'
+      tableId: string
     }
 
 export interface TableEventEntry {
@@ -157,220 +173,98 @@ export interface TableEventEntry {
   event: TableEvent
 }
 
-export type TableEventsReadResult =
-  | { status: 'ok'; events: TableEventEntry[] }
-  | { status: 'pruned'; earliestEventId: number | undefined }
-  | { status: 'unavailable'; error: string }
+export type TableEventsReadResult = EventLogReadResult<TableEventEntry>
 
-/** In-memory fallback for dev/tests when Redis isn't configured. */
-interface MemoryTableStream {
-  events: TableEventEntry[]
-  earliestEventId?: number
-  nextEventId: number
-  expiresAt: number
-}
-
-const memoryTableStreams = new Map<string, MemoryTableStream>()
-
-function canUseMemoryBuffer(): boolean {
-  return typeof window === 'undefined' && !env.REDIS_URL
-}
-
-function pruneExpiredMemoryStreams(now = Date.now()): void {
-  for (const [tableId, stream] of memoryTableStreams) {
-    if (stream.expiresAt <= now) {
-      memoryTableStreams.delete(tableId)
-    }
-  }
-}
-
-function getMemoryStream(tableId: string): MemoryTableStream {
-  pruneExpiredMemoryStreams()
-  let stream = memoryTableStreams.get(tableId)
-  if (!stream) {
-    stream = {
-      events: [],
-      nextEventId: 1,
-      expiresAt: Date.now() + TABLE_EVENT_TTL_SECONDS * 1000,
-    }
-    memoryTableStreams.set(tableId, stream)
-  }
-  return stream
-}
-
-function appendMemory(event: TableEvent): TableEventEntry {
-  const stream = getMemoryStream(event.tableId)
-  const entry: TableEventEntry = {
-    eventId: stream.nextEventId++,
-    tableId: event.tableId,
-    event,
-  }
-  stream.events.push(entry)
-  if (stream.events.length > TABLE_EVENT_CAP) {
-    stream.events = stream.events.slice(-TABLE_EVENT_CAP)
-    stream.earliestEventId = stream.events[0]?.eventId
-  }
-  stream.expiresAt = Date.now() + TABLE_EVENT_TTL_SECONDS * 1000
-  return entry
-}
-
-function readMemory(tableId: string, afterEventId: number): TableEventsReadResult {
-  pruneExpiredMemoryStreams()
-  const stream = memoryTableStreams.get(tableId)
-  if (!stream) {
-    // Mirror the Redis path: a non-zero afterEventId with no buffer at all
-    // means TTL expired or the stream never existed; either way the caller's
-    // cursor is stale.
-    if (afterEventId > 0) return { status: 'pruned', earliestEventId: undefined }
-    return { status: 'ok', events: [] }
-  }
-  if (stream.earliestEventId !== undefined && afterEventId + 1 < stream.earliestEventId) {
-    return { status: 'pruned', earliestEventId: stream.earliestEventId }
-  }
-  return {
-    status: 'ok',
-    events: stream.events
-      .filter((entry) => entry.eventId > afterEventId)
-      .slice(0, TABLE_EVENT_READ_CHUNK),
-  }
+/**
+ * Append an event to the table's buffer. Fire-and-forget — never throws, returns
+ * null on failure (a Redis blip must not fail a cell-write). The Redis (Lua splice)
+ * and in-memory paths are built to produce byte-identical entries.
+ */
+export async function appendTableEvent(event: TableEvent): Promise<TableEventEntry | null> {
+  return appendEvent<TableEventEntry>(TABLE_EVENT_LOG, event.tableId, {
+    entryPrefix: '{"eventId":',
+    entrySuffix: `,"tableId":${JSON.stringify(event.tableId)},"event":${JSON.stringify(event)}}`,
+    buildEntry: (eventId) => ({ eventId, tableId: event.tableId, event }),
+  })
 }
 
 /**
- * Append an event to the table's buffer. Fire-and-forget from the caller —
- * this never throws, returns null on failure. A Redis blip must not fail a
- * cell-write.
+ * Signal collaborators that a user changed row data so they refetch the rows live.
+ * Fire-and-forget — a Redis blip must never fail the write that triggered it.
+ *
+ * Unattributed, so every subscriber refetches — including the client that made the write. Correct
+ * for any write whose client hook does not already apply the server's answer locally: bulk and
+ * filter-scoped writes, imports, copilot edits, run dispatch.
  */
-export async function appendTableEvent(event: TableEvent): Promise<TableEventEntry | null> {
-  const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryBuffer()) {
-      try {
-        return appendMemory(event)
-      } catch (error) {
-        logger.warn('appendTableEvent: memory append failed', {
-          tableId: event.tableId,
-          error: toError(error).message,
-        })
-        return null
-      }
-    }
-    return null
+export function signalTableRowsChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'edit', tableId })
+}
+
+/**
+ * As {@link signalTableRowsChanged}, but names the tab that caused the write so that tab can skip
+ * its own refetch — which for it is pure duplication: on a scrolled table the broadcast re-fetches
+ * every loaded page, and on delete it races the refetch the hook already issued.
+ *
+ * Use ONLY where the client hook reconciles the change from the mutation's own response across
+ * every cached rows query — the single-row create, update, and delete paths. On a bulk or
+ * filter-scoped write the actor genuinely needs the refetch, and suppressing it would leave that
+ * client showing stale rows. The call sites are pinned by `events.attribution.test.ts`.
+ */
+export function signalTableRowsChangedByActor(tableId: string, clientId: string | undefined): void {
+  if (!clientId) {
+    void appendTableEvent({ kind: 'edit', tableId })
+    return
   }
-  try {
-    // Build the entry JSON in two halves so Lua can splice the new eventId
-    // between them without us needing a round-trip just to mint the id first.
-    const tail = `,"tableId":${JSON.stringify(event.tableId)},"event":${JSON.stringify(event)}}`
-    const head = `{"eventId":`
-    const result = await redis.eval(
-      APPEND_EVENT_SCRIPT,
-      3,
-      getEventsKey(event.tableId),
-      getSeqKey(event.tableId),
-      getMetaKey(event.tableId),
-      TABLE_EVENT_TTL_SECONDS,
-      TABLE_EVENT_CAP,
-      new Date().toISOString(),
-      head,
-      tail
-    )
-    const eventId = typeof result === 'number' ? result : Number(result)
-    if (!Number.isFinite(eventId)) return null
-    return { eventId, tableId: event.tableId, event }
-  } catch (error) {
-    logger.warn('appendTableEvent: Redis append failed', {
-      tableId: event.tableId,
-      error: toError(error).message,
-    })
-    return null
-  }
+  // Digested, never raw — every subscriber sees this event, and a raw id would be replayable.
+  void fingerprintClientId(clientId).then((originatorId) =>
+    appendTableEvent({ kind: 'edit', tableId, originatorId })
+  )
+}
+
+/**
+ * Signal collaborators that a user changed the table structure so they refetch the
+ * definition + rows live. Fire-and-forget for the same reason as
+ * {@link signalTableRowsChanged}.
+ */
+export function signalTableSchemaChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'schema', tableId })
+}
+
+/**
+ * Signal collaborators that a user changed the table's UI metadata (column width, pin,
+ * or order) so they re-apply the new layout live. Fire-and-forget for the same reason as
+ * {@link signalTableRowsChanged}.
+ */
+export function signalTableMetadataChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'metadata', tableId })
+}
+
+/**
+ * Signal collaborators that a user changed the table's shared saved views (created,
+ * renamed, deleted, or re-saved one) so they refetch the views list live. Fire-and-forget
+ * for the same reason as {@link signalTableRowsChanged}.
+ */
+export function signalTableViewsChanged(tableId: string): void {
+  void appendTableEvent({ kind: 'views', tableId })
 }
 
 /**
  * The latest eventId assigned for a table, or 0 when the buffer is empty or
  * expired. Used by the stream route to tail from "now" when a client connects
- * without a replay cursor (fresh mount — its caches were just fetched from
- * the DB, so replaying history would only rewind them).
- *
- * Redis errors propagate: silently falling back to 0 would replay the whole
- * buffer over fresh state — the exact churn tail-from-latest exists to avoid.
- * The stream route errors the stream instead and the client reconnects with
- * backoff.
+ * without a replay cursor.
  */
-export async function getLatestTableEventId(tableId: string): Promise<number> {
-  const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryBuffer()) {
-      // Pure read — getMemoryStream() would allocate a stream as a side effect.
-      const stream = memoryTableStreams.get(tableId)
-      return stream ? stream.nextEventId - 1 : 0
-    }
-    return 0
-  }
-  const raw = await redis.get(getSeqKey(tableId))
-  if (!raw) return 0
-  const parsed = Number.parseInt(raw, 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+export function getLatestTableEventId(tableId: string): Promise<number> {
+  return getLatestEventId(TABLE_EVENT_LOG, tableId)
 }
 
 /**
- * Read events for a table where eventId > afterEventId. Returns 'pruned' if
- * the caller has fallen off the back of the buffer (TTL expired or cap rolled
- * past their lastEventId). Caller should respond by full-refetching from DB
- * and resuming streaming from the new earliestEventId.
+ * Read events for a table where eventId > afterEventId. Returns 'pruned' if the
+ * caller has fallen off the back of the buffer (TTL expired or cap rolled past
+ * their lastEventId).
  */
-export async function readTableEventsSince(
+export function readTableEventsSince(
   tableId: string,
   afterEventId: number
 ): Promise<TableEventsReadResult> {
-  const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryBuffer()) {
-      return readMemory(tableId, afterEventId)
-    }
-    return { status: 'unavailable', error: 'Redis client unavailable' }
-  }
-  try {
-    const meta = await redis.hgetall(getMetaKey(tableId))
-    const earliestEventId =
-      meta?.earliestEventId !== undefined ? Number(meta.earliestEventId) : undefined
-    if (earliestEventId !== undefined && afterEventId + 1 < earliestEventId) {
-      return { status: 'pruned', earliestEventId }
-    }
-    // Read in capped chunks so a 5000-event backlog doesn't materialize as one
-    // multi-MB Redis reply + JSON parse + SSE flush. The route loop drains
-    // chunks across ticks.
-    const raw = await redis.zrangebyscore(
-      getEventsKey(tableId),
-      afterEventId + 1,
-      '+inf',
-      'LIMIT',
-      0,
-      TABLE_EVENT_READ_CHUNK
-    )
-    if (raw.length === 0 && afterEventId > 0) {
-      // Total TTL expiry: events + meta both gone. The seq counter has the
-      // same TTL — its absence means the buffer was wiped and the caller's
-      // `afterEventId` is stale. Signal pruned so the client refetches.
-      const seqExists = await redis.exists(getSeqKey(tableId))
-      if (seqExists === 0) {
-        return { status: 'pruned', earliestEventId: undefined }
-      }
-    }
-    return {
-      status: 'ok',
-      events: raw
-        .map((entry) => {
-          try {
-            return JSON.parse(entry) as TableEventEntry
-          } catch {
-            return null
-          }
-        })
-        .filter((entry): entry is TableEventEntry => Boolean(entry)),
-    }
-  } catch (error) {
-    const message = toError(error).message
-    logger.warn('readTableEventsSince failed', { tableId, error: message })
-    return { status: 'unavailable', error: message }
-  }
+  return readEventsSince<TableEventEntry>(TABLE_EVENT_LOG, tableId, afterEventId)
 }

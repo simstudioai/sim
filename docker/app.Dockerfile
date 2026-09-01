@@ -1,32 +1,58 @@
 # ========================================
-# Base Stage: Debian-based Bun with Node.js 22
+# Base Stage: runtime-only dependencies (inherited by the final image)
 # ========================================
-FROM oven/bun:1.3.13-slim AS base
+FROM oven/bun:1.3.14-slim AS base
 
-# Install Node.js 22 and common dependencies once in base stage
+# Install Node.js 24 (Active LTS) and the runtime dependencies once in base.
+# Node runs only the isolated-vm sandbox worker (the app itself runs under Bun);
+# the version is kept in lockstep with the `isolated-vm` pin in
+# apps/sim/package.json — Node 24 (ABI 137) requires isolated-vm 6.x.
+#
+# Only what the running container needs belongs here. ffmpeg backs the
+# `fluent-ffmpeg` serverExternalPackage; python3 is the node-gyp interpreter and
+# is kept because build-base inherits from this stage. The compiler toolchain
+# lives in build-base so the runner does not ship it.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip python3-venv make g++ curl ca-certificates bash ffmpeg \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    python3 curl ca-certificates bash ffmpeg \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs
+
+# ========================================
+# Build Base: adds the native toolchain the isolated-vm rebuild needs
+# ========================================
+FROM base AS build-base
+
+# The compiler toolchain, needed only to build isolated-vm against Node. The
+# runner copies the finished binary from deps, so shipping these would inflate
+# every ECS task pull for nothing: measured 1.21 GB for base against 1.6 GB for
+# build-base, so ~390 MB stays out of the final image.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    python3-pip python3-venv make g++
 
 # ========================================
 # Pruner Stage: Emit a minimal monorepo subset that sim depends on
 # ========================================
-FROM base AS pruner
+FROM build-base AS pruner
 WORKDIR /app
 
 RUN bun install -g turbo@2.9.6
 
 COPY . .
 
-RUN turbo prune sim --docker
+# Read the package name from the app manifest. The published CLI also owns the
+# `sim` package name, so a hard-coded historical name can silently prune the CLI
+# instead of the application after either package is renamed.
+RUN APP_PACKAGE_NAME="$(bun -e "console.log(require('./apps/sim/package.json').name)")" && \
+    turbo prune "$APP_PACKAGE_NAME" --docker
 
 # ========================================
 # Dependencies Stage: Install Dependencies
 # ========================================
-FROM base AS deps
+FROM build-base AS deps
 WORKDIR /app
 
 # Pruned manifests from the pruner stage. This layer only invalidates when
@@ -41,15 +67,22 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 # Install all dependencies (including devDependencies — tailwindcss/postcss are
 # devDeps but required at build time). Then rebuild isolated-vm against Node.js.
 # JOBS=4 caps node-gyp parallelism — higher values OOM isolated-vm (laverdet/isolated-vm#428).
+#
+# node-gyp comes from the lockfile, not `npx`. It is a devDependency of apps/sim
+# purely so `turbo prune` keeps it: the only other copy is transitive through
+# `@electron/rebuild`, which belongs to apps/desktop and is pruned away. `npx`
+# resolved it from the registry at build time, which pulled a different major
+# (13.x vs the pinned 12.4.0) and bypassed the `minimumReleaseAge` supply-chain
+# gate in bunfig.toml on every production image build.
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     --mount=type=cache,id=npm-cache,target=/root/.npm \
     HUSKY=0 bun install --ignore-scripts --linker=hoisted && \
-    cd node_modules/isolated-vm && JOBS=4 npx node-gyp rebuild --release
+    cd node_modules/isolated-vm && JOBS=4 /app/node_modules/.bin/node-gyp rebuild --release
 
 # ========================================
 # Builder Stage: Build the Application
 # ========================================
-FROM base AS builder
+FROM build-base AS builder
 ARG TARGETPLATFORM
 WORKDIR /app
 
@@ -95,7 +128,7 @@ RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
 FROM base AS runner
 WORKDIR /app
 
-# Node.js 22, Python, ffmpeg, etc. are already installed in base stage
+# Node.js 24, Python, ffmpeg, etc. are already installed in base stage
 ENV NODE_ENV=production
 
 # Create non-root user and group
@@ -116,6 +149,25 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/content ./apps/sim/conte
 
 # Copy isolated-vm native module (compiled for Node.js in deps stage)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modules/isolated-vm
+
+# The collab-doc seed/merge/persist routes run the converter (markdown <-> Yjs) server-side. `yjs` is a
+# serverExternalPackage, and the Next standalone tracer copies it only partially — it misses ESM subpath
+# files that `yjs/dist/yjs.mjs` imports through `lib0`'s exports map (e.g. `lib0/logging`), so the seed
+# 500s ("Cannot find module 'lib0/logging'") and every collaborative doc is stuck read-only. Overwrite
+# the partial trace with the complete packages from the full install (outputFileTracingIncludes can't:
+# its globs resolve against apps/sim, but these deps hoist to the monorepo-root node_modules).
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/lib0 ./node_modules/lib0
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/yjs ./node_modules/yjs
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/y-protocols ./node_modules/y-protocols
+
+# `@img/sharp-<platform>` loads libvips from `@img/sharp-libvips-<platform>` through the dynamic
+# linker, not a JS require, so the tracer copies the binding but not the library and sharp dies with
+# "ERR_DLOPEN_FAILED: libvips-cpp.so: cannot open shared object file". Same hoisting reason as the Yjs
+# stack above. Copying whole directories keeps these arch-agnostic (each build's deps stage holds only
+# its own platform's packages) and keeps sharp and its binding on the same install. Must stay below
+# the standalone COPY, which ships its own partial node_modules that would otherwise win.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/sharp ./node_modules/sharp
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@img ./node_modules/@img
 
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs

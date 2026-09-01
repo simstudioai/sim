@@ -91,16 +91,16 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
   return (
     <div className='flex flex-col gap-1 rounded-md bg-[var(--surface-1)] px-2 py-1.5'>
       <div className='flex min-w-0 items-center justify-between gap-2'>
-        <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-secondary)] text-caption'>
+        <span className='min-w-0 flex-1 truncate text-[var(--text-secondary)] text-caption'>
           {file.name}
         </span>
-        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+        <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
           {formatFileSize(file.size)}
         </span>
       </div>
 
       <div className='flex items-center justify-between'>
-        <span className='font-medium text-[var(--text-subtle)] text-xs'>{file.type}</span>
+        <span className='text-[var(--text-subtle)] text-xs'>{file.type}</span>
         <Button
           variant='ghost'
           className='!h-[20px] !px-1.5 !py-0 text-xs'
@@ -121,9 +121,7 @@ export function FileCards({ files, isExecutionFile = false, workspaceId }: FileC
 
   return (
     <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-        Files ({files.length})
-      </span>
+      <span className='text-[var(--text-tertiary)] text-caption'>Files ({files.length})</span>
       {files.map((file, index) => (
         <FileCard
           key={file.id || `file-${index}`}

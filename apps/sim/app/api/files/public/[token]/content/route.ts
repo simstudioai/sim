@@ -11,7 +11,15 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { createErrorResponse, createFileResponse, FileNotFoundError } from '@/app/api/files/utils'
+import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
+import {
+  createErrorResponse,
+  createFileResponse,
+  FileNotFoundError,
+  getContentType,
+} from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,8 +34,10 @@ const logger = createLogger('PublicFileContentAPI')
  *
  * Generated office docs are stored as source; {@link resolveServableDoc} swaps in
  * their prebuilt compiled binary (read-only, never compiles). Uploaded binaries
- * pass through untouched. A generated doc whose compiled artifact isn't built yet
- * returns 409 rather than serving raw source under a binary content type.
+ * pass through untouched, except under `preview=1`, where a format no browser
+ * decodes is substituted with a renderable derivative. A generated doc whose
+ * compiled artifact isn't built yet returns 409 rather than serving raw source
+ * under a binary content type.
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ token: string }> }) => {
@@ -40,6 +50,7 @@ export const GET = withRouteHandler(
       const parsed = await parseRequest(getPublicFileContentContract, request, context)
       if (!parsed.success) return parsed.response
       const { token } = parsed.data.params
+      const preview = parsed.data.query.preview === '1'
 
       const resolved = await resolveActiveShareByToken(token)
       if (!resolved) {
@@ -72,8 +83,38 @@ export const GET = withRouteHandler(
         )
       }
 
-      const buffer = servable.kind === 'artifact' ? servable.buffer : raw
-      const contentType = servable.kind === 'artifact' ? servable.contentType : file.contentType
+      // This response is `nosniff`, so a stored `application/octet-stream` refuses to render
+      // even though the bytes are fine. Resolving from the filename also keeps this route on
+      // the same inline allowlist as the workspace serve route.
+      let buffer = raw
+      let contentType = getContentType(file.originalName)
+      if (servable.kind === 'artifact') {
+        buffer = servable.buffer
+        contentType = servable.contentType
+      } else if (
+        // Sim pages store an extensionless name — the record type marks them;
+        // legacy pages still carry .html.
+        (file.contentType === SIM_PAGE_CONTENT_TYPE ||
+          file.originalName.toLowerCase().endsWith('.html')) &&
+        isSimPageSource(raw.toString('utf8'))
+      ) {
+        // The pdf model for pages: the stored .html is source; a share serves
+        // the fully styled compiled document, matching the preview and serve
+        // routes. sim: links resolve to workspace routes (a viewer without
+        // workspace access simply lands on the sign-in gate).
+        buffer = Buffer.from(
+          await renderSimPageDocumentWithAssets(raw.toString('utf8'), {
+            workspaceId: file.workspaceId ?? undefined,
+          }),
+          'utf8'
+        )
+        contentType = 'text/html'
+      } else if (preview) {
+        // Only for a render request: the Download button omits `preview`, so a saved
+        // file is always the bytes that were shared.
+        const image = await resolveServableImageBytes(raw, file.key)
+        if (image) ({ buffer, contentType } = image)
+      }
 
       logger.info('Public shared file served', { token, key: file.key, size: buffer.length })
 

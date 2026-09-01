@@ -109,14 +109,6 @@ export function getPlanByPriceId(priceId: string): BillingPlan | undefined {
   )
 }
 
-/**
- * Get plan limits for a given plan name
- */
-export function getPlanLimits(planName: string): number {
-  const plan = getPlanByName(planName)
-  return plan?.limits.cost ?? getFreeTierLimit()
-}
-
 export interface StripePlanResolution {
   priceId: string | undefined
   planFromStripe: string | null

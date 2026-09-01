@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 
 describe('invalidateWorkflowLists', () => {
-  it('invalidates scoped workflow lists and workflow selector caches', async () => {
+  it('invalidates scoped workflow lists and the privacy-safe selector prefix', async () => {
     const queryClient = {
       invalidateQueries: vi.fn().mockResolvedValue(undefined),
     }
@@ -19,7 +19,7 @@ describe('invalidateWorkflowLists', () => {
       queryKey: ['workflows', 'list', 'ws-1', 'archived'],
     })
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(3, {
-      queryKey: ['selectors', 'sim.workflows', 'ws-1'],
+      queryKey: ['selectors'],
     })
   })
 })

@@ -1,15 +1,14 @@
-import type { SapConcurProxyResponse, UpdateExpectedExpenseParams } from '@/tools/sap_concur/types'
+import type { SapConcurResponse, UpdateExpectedExpenseParams } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateExpectedExpenseTool: ToolConfig<
+export const updateExpectedExpenseTool: InternalToolConfig<
   UpdateExpectedExpenseParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_update_expected_expense',
   name: 'SAP Concur Update Expected Expense',
@@ -78,16 +77,13 @@ export const updateExpectedExpenseTool: ToolConfig<
       description: 'Fields to update on the expected expense',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const expenseUuid = trimRequired(params.expenseUuid, 'expenseUuid')
       const query: Record<string, string> = {}
       if (params.userId?.trim()) query.userId = params.userId.trim()
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/expenses/${encodeURIComponent(expenseUuid)}`,
         method: 'PUT',
         body: params.body,
@@ -95,7 +91,7 @@ export const updateExpectedExpenseTool: ToolConfig<
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
@@ -116,17 +112,17 @@ export const updateExpectedExpenseTool: ToolConfig<
         },
         transactionAmount: {
           type: 'json',
-          description: 'Transaction amount {value, currencyCode}',
+          description: 'Transaction amount {value, currency}',
           optional: true,
         },
         postedAmount: {
           type: 'json',
-          description: 'Posted amount {value, currencyCode}',
+          description: 'Posted amount {value, currency}',
           optional: true,
         },
         approvedAmount: {
           type: 'json',
-          description: 'Approved amount {value, currencyCode}',
+          description: 'Approved amount {value, currency}',
           optional: true,
         },
         remainingAmount: {

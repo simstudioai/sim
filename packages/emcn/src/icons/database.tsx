@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 /**
- * Database icon component - cylinder with horizontal dividers
+ * Database icon component - cylinder with a single tier divider
  * @param props - SVG properties including className, fill, etc.
  */
 export function Database(props: SVGProps<SVGSVGElement>) {
@@ -19,9 +19,9 @@ export function Database(props: SVGProps<SVGSVGElement>) {
       aria-hidden='true'
       {...props}
     >
-      <ellipse cx='10.25' cy='3.75' rx='8.5' ry='3' />
-      <path d='M1.75 3.75V9.75C1.75 11.41 5.55 12.75 10.25 12.75C14.95 12.75 18.75 11.41 18.75 9.75V3.75' />
-      <path d='M1.75 9.75V15.75C1.75 17.41 5.55 18.75 10.25 18.75C14.95 18.75 18.75 17.41 18.75 15.75V9.75' />
+      <ellipse cx='10.25' cy='4.25' rx='7.5' ry='3.25' />
+      <path d='M2.75 4.25V15.25C2.75 17.05 6.11 18.5 10.25 18.5C14.39 18.5 17.75 17.05 17.75 15.25V4.25' />
+      <path d='M2.75 9.75C2.75 11.55 6.11 13 10.25 13C14.39 13 17.75 11.55 17.75 9.75' />
     </svg>
   )
 }

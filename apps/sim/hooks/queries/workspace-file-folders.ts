@@ -11,6 +11,11 @@ import {
   updateWorkspaceFileFolderContract,
   type WorkspaceFileFolderApi,
 } from '@/lib/api/contracts/workspace-file-folders'
+import { extractWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
+import {
+  buildWorkspaceFileFolderDisplayPath,
+  parseWorkspaceFileFolderDisplayPath,
+} from '@/lib/workspace-files/folder-display-path'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
@@ -40,7 +45,7 @@ async function fetchWorkspaceFileFolders(
   return data.folders
 }
 
-function invalidateWorkspaceFileBrowsers(
+export function invalidateWorkspaceFileBrowsers(
   queryClient: ReturnType<typeof useQueryClient>,
   workspaceId: string
 ) {
@@ -83,6 +88,25 @@ export function useCreateWorkspaceFileFolder() {
   })
 }
 
+export function useExtractWorkspaceFile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: { workspaceId: string; fileId: string; fileName: string }) =>
+      requestJson(extractWorkspaceFileContract, {
+        params: { id: variables.workspaceId, fileId: variables.fileId },
+      }),
+    onSuccess: (data, variables) => {
+      toast.success(`Unzipped "${variables.fileName}" into "${data.folderName}"`)
+    },
+    onError: (error) => {
+      toast.error(toError(error).message)
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
+    },
+  })
+}
+
 export function useUpdateWorkspaceFileFolder() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -109,7 +133,10 @@ export function useUpdateWorkspaceFileFolder() {
         const oldPath = target?.path
         const newPath =
           updates.name !== undefined && oldPath !== undefined
-            ? [...oldPath.split('/').slice(0, -1), updates.name].filter(Boolean).join('/')
+            ? buildWorkspaceFileFolderDisplayPath([
+                ...parseWorkspaceFileFolderDisplayPath(oldPath).slice(0, -1),
+                updates.name,
+              ])
             : oldPath
 
         queryClient.setQueryData<WorkspaceFileFolderApi[]>(

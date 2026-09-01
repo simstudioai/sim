@@ -1,16 +1,16 @@
 'use client'
 
-import { Component, type ReactNode, useEffect } from 'react'
-import { Button } from '@sim/emcn'
+import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { RefreshCw } from 'lucide-react'
-import { ReactFlowProvider } from 'reactflow'
-import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
-import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import { readCollapsedCookie } from '@/stores/sidebar/store'
+import { truncate } from '@sim/utils/string'
+import { captureClientEvent, captureClientException } from '@/lib/posthog/client'
+import { ErrorShell } from '@/app/workspace/[workspaceId]/components'
 
 const logger = createLogger('ErrorBoundary')
+
+/** Keeps a runaway stack out of the event payload without losing the top frames. */
+const MAX_REPORTED_COMPONENT_STACK = 2000
 
 /**
  * Shared Error UI Component
@@ -19,53 +19,19 @@ interface ErrorUIProps {
   title?: string
   message?: string
   onReset?: () => void
-  fullScreen?: boolean
 }
 
 export function ErrorUI({
   title = 'Something went wrong',
   message = 'An unexpected error occurred. Please try again or refresh the page.',
   onReset,
-  fullScreen = false,
 }: ErrorUIProps) {
-  const preventZoomRef = usePreventZoom()
-
-  if (!fullScreen) {
-    return (
-      <div className='flex h-full flex-1 items-center justify-center'>
-        <div className='flex flex-col items-center gap-4 text-center'>
-          <div className='flex flex-col gap-2'>
-            <h2 className='font-semibold text-[var(--text-primary)] text-md'>{title}</h2>
-            <p className='max-w-[300px] text-[var(--text-tertiary)] text-small'>{message}</p>
-          </div>
-          <Button variant='default' size='sm' onClick={onReset ?? (() => window.location.reload())}>
-            <RefreshCw className='mr-1.5 size-[14px]' />
-            Try again
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div ref={preventZoomRef} className='flex h-screen w-full flex-col bg-[var(--surface-1)]'>
-      <Sidebar isCollapsed={readCollapsedCookie()} />
-
-      <div className='relative flex flex-1'>
-        <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
-          <div className='pointer-events-none flex flex-col items-center gap-4'>
-            <h3 className='font-semibold text-[var(--text-primary)] text-md'>{title}</h3>
-            <p className='max-w-sm text-center font-medium text-[var(--text-tertiary)] text-sm'>
-              {message}
-            </p>
-          </div>
-        </div>
-
-        <ReactFlowProvider>
-          <Panel />
-        </ReactFlowProvider>
-      </div>
-    </div>
+    <ErrorShell title={title} description={message}>
+      <Chip variant='primary' onClick={onReset ?? (() => window.location.reload())}>
+        Try again
+      </Chip>
+    </ErrorShell>
   )
 }
 
@@ -92,6 +58,47 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return { hasError: true, error }
   }
 
+  /**
+   * Reports what was caught. This boundary latches for the life of the document
+   * and its fallback names nothing, so without this the only trace of a canvas
+   * crash is React's own console output on whichever machine happened to hit it
+   * — leaving an intermittent failure with no evidence to diagnose from.
+   * `error.name` is carried separately from the message because it is what
+   * separates the failure classes from each other.
+   *
+   * Reported twice, to two different consumers. `captureException` is what
+   * reaches PostHog Error Tracking: it parses the stack into `$exception_list`,
+   * which is what groups these into an issue and links the session replay — a
+   * custom event carrying the message as a string property is invisible there.
+   * The named event stays because it answers a different question, "how often
+   * does the canvas fall over", against a stable name that survives the
+   * error tracker's own grouping and resolution.
+   */
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    const componentStack = errorInfo.componentStack ?? undefined
+    const reportedComponentStack = componentStack
+      ? truncate(componentStack, MAX_REPORTED_COMPONENT_STACK)
+      : undefined
+
+    logger.error('Workflow canvas crashed', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      componentStack,
+    })
+
+    captureClientException(error, {
+      error_boundary: 'workflow_canvas',
+      component_stack: reportedComponentStack,
+    })
+
+    captureClientEvent('workflow_canvas_crashed', {
+      error_name: error.name,
+      error_message: error.message,
+      component_stack: reportedComponentStack,
+    })
+  }
+
   public render() {
     if (this.state.hasError) {
       return this.props.fallback || <ErrorUI />
@@ -99,50 +106,4 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
     return this.props.children
   }
-}
-
-/**
- * Next.js Error Page Component
- * Renders when a workflow-specific error occurs
- */
-interface NextErrorProps {
-  error: Error & { digest?: string }
-  reset: () => void
-}
-
-export function NextError({ error, reset }: NextErrorProps) {
-  useEffect(() => {
-    logger.error('Workflow error:', { error })
-  }, [error])
-
-  return <ErrorUI onReset={reset} />
-}
-
-/**
- * Next.js Global Error Page Component
- * Renders for application-level errors
- */
-export function NextGlobalError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string }
-  reset: () => void
-}) {
-  useEffect(() => {
-    logger.error('Global workspace error:', { error })
-  }, [error])
-
-  return (
-    <html lang='en'>
-      <body>
-        <ErrorUI
-          title='Application Error'
-          message='Something went wrong with the application. Please try again later.'
-          onReset={reset}
-          fullScreen={true}
-        />
-      </body>
-    </html>
-  )
 }

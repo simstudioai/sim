@@ -19,12 +19,10 @@ vi.mock('@/lib/execution/payloads/serializer', () => ({
   compactExecutionPayload: mockCompact,
 }))
 vi.mock('@/lib/execution/payloads/materialization.server', () => {
-  const MAX_INLINE_MATERIALIZATION_BYTES = 16 * 1024 * 1024
+  const maxInlineMaterializationBytes = 16 * 1024 * 1024
   return {
-    MAX_INLINE_MATERIALIZATION_BYTES,
-    MAX_DURABLE_LARGE_VALUE_BYTES: 64 * 1024 * 1024,
     assertInlineMaterializationSize: (size: number, maxBytes?: number) => {
-      if (size > (maxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES)) {
+      if (size > (maxBytes ?? maxInlineMaterializationBytes)) {
         throw new Error('Execution memory limit exceeded. Reduce payload size and try again.')
       }
     },

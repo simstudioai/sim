@@ -90,19 +90,18 @@ interface FathomSummaryResponse {
 }
 
 /**
- * Header fields cached per recording during `listDocuments` so `getDocument`
- * can render an identical document header. Fathom exposes no single-meeting
+ * Everything about a meeting derivable from the listing response alone. Both the
+ * listing stub and the hydrated document are built from it, so their
+ * `contentHash` values are identical by construction.
+ *
+ * Cached per recording during `listDocuments`: Fathom exposes no single-meeting
  * GET and no `recording_ids` filter, so this metadata cannot be refetched once
  * listing has moved past the page that contained it — it is carried forward in
  * the shared `syncContext` instead.
  */
 interface FathomMeetingHeader {
+  externalId: string
   title: string
-  meetingDate?: string
-  durationSeconds?: number
-  recordedByEmail?: string
-  recordedByName?: string
-  team?: string
   sourceUrl?: string
   contentHash: string
   metadata: FathomMeetingMetadata
@@ -182,16 +181,14 @@ function buildMetadata(meeting: FathomMeeting): FathomMeetingMetadata {
 }
 
 /**
- * Extracts the lightweight header fields cached for `getDocument`.
+ * Extracts the lightweight header fields cached for `getDocument`. Returns null
+ * for a meeting with no `recording_id` — nothing about it is addressable.
  */
-function buildHeader(meeting: FathomMeeting): FathomMeetingHeader {
+function buildHeader(meeting: FathomMeeting): FathomMeetingHeader | null {
+  if (meeting.recording_id == null) return null
   return {
+    externalId: String(meeting.recording_id),
     title: resolveTitle(meeting),
-    meetingDate: meeting.recording_start_time ?? meeting.created_at ?? undefined,
-    durationSeconds: computeDurationSeconds(meeting),
-    recordedByEmail: meeting.recorded_by?.email,
-    recordedByName: meeting.recorded_by?.name,
-    team: meeting.recorded_by?.team ?? undefined,
     sourceUrl: buildSourceUrl(meeting),
     contentHash: buildContentHash(meeting),
     metadata: buildMetadata(meeting),
@@ -219,23 +216,30 @@ function readCachedHeader(
   syncContext: Record<string, unknown> | undefined,
   recordingId: string
 ): FathomMeetingHeader | undefined {
-  const cache = syncContext?.meetingHeaders as Record<string, FathomMeetingHeader> | undefined
-  return cache?.[recordingId]
+  const cache = syncContext?.meetingHeaders as Map<string, FathomMeetingHeader> | undefined
+  return cache?.get(recordingId)
 }
 
 /**
  * Stores the header for a recording in the shared sync context.
+ *
+ * Deliberately uncapped: Fathom exposes no single-meeting GET and no
+ * `recording_ids` list filter, so a header evicted here could never be
+ * recovered and its meeting would fail to hydrate. The cache holds one small
+ * object per listed meeting — the same order of magnitude as the stub list the
+ * sync engine already retains for the whole run.
  */
 function cacheHeader(
   syncContext: Record<string, unknown> | undefined,
-  recordingId: string,
   header: FathomMeetingHeader
 ): void {
   if (!syncContext) return
-  const cache =
-    (syncContext.meetingHeaders as Record<string, FathomMeetingHeader> | undefined) ?? {}
-  cache[recordingId] = header
-  syncContext.meetingHeaders = cache
+  let cache = syncContext.meetingHeaders as Map<string, FathomMeetingHeader> | undefined
+  if (!cache) {
+    cache = new Map()
+    syncContext.meetingHeaders = cache
+  }
+  cache.set(header.externalId, header)
 }
 
 /**
@@ -243,25 +247,24 @@ function cacheHeader(
  * plain-text document with one `Speaker: text` line per transcript entry.
  */
 function formatMeetingContent(
-  header: FathomMeetingHeader | undefined,
+  header: FathomMeetingHeader,
   transcript: FathomTranscriptEntry[],
   summary: FathomSummary | null
 ): string {
   const parts: string[] = []
+  const { meetingDate, durationSeconds, recordedByEmail, recordedByName, team } = header.metadata
 
-  parts.push(`Meeting: ${header?.title ?? 'Untitled Fathom Meeting'}`)
+  parts.push(`Meeting: ${header.title}`)
 
-  if (header?.meetingDate) parts.push(`Date: ${header.meetingDate}`)
+  if (meetingDate) parts.push(`Date: ${meetingDate}`)
 
-  if (header?.durationSeconds != null) {
-    parts.push(`Duration: ${Math.round(header.durationSeconds / 60)} minutes`)
+  if (durationSeconds != null) {
+    parts.push(`Duration: ${Math.round(durationSeconds / 60)} minutes`)
   }
 
-  if (header?.recordedByEmail) {
-    parts.push(`Recorded by: ${header.recordedByName ?? header.recordedByEmail}`)
-  }
+  if (recordedByEmail) parts.push(`Recorded by: ${recordedByName ?? recordedByEmail}`)
 
-  if (header?.team) parts.push(`Team: ${header.team}`)
+  if (team) parts.push(`Team: ${team}`)
 
   if (summary?.markdown_formatted?.trim()) {
     parts.push('')
@@ -283,20 +286,20 @@ function formatMeetingContent(
 }
 
 /**
- * Converts a listing meeting into a deferred stub. Content is fetched lazily
- * via `getDocument` only for new or changed meetings.
+ * Converts a cached header into a deferred stub. Content is fetched lazily via
+ * `getDocument` only for new or changed meetings, and both documents are built
+ * from the same header so their `contentHash` is identical by construction.
  */
-function meetingToStub(meeting: FathomMeeting): ExternalDocument {
-  const metadata = buildMetadata(meeting)
+function headerToStub(header: FathomMeetingHeader): ExternalDocument {
   return {
-    externalId: String(meeting.recording_id),
-    title: resolveTitle(meeting),
+    externalId: header.externalId,
+    title: header.title,
     content: '',
     contentDeferred: true,
     mimeType: 'text/plain',
-    sourceUrl: buildSourceUrl(meeting),
-    contentHash: buildContentHash(meeting),
-    metadata: { ...metadata },
+    sourceUrl: header.sourceUrl,
+    contentHash: header.contentHash,
+    metadata: { ...header.metadata },
   }
 }
 
@@ -358,25 +361,37 @@ export const fathomConnector: ConnectorConfig = {
 
     const allDocuments: ExternalDocument[] = []
     for (const meeting of meetings) {
-      if (meeting.recording_id == null) continue
-      const externalId = String(meeting.recording_id)
-      cacheHeader(syncContext, externalId, buildHeader(meeting))
-      allDocuments.push(meetingToStub(meeting))
+      const header = buildHeader(meeting)
+      if (!header) continue
+      cacheHeader(syncContext, header)
+      allDocuments.push(headerToStub(header))
     }
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     let documents = allDocuments
+    let capDroppedDocs = false
     if (maxMeetings > 0) {
       const remaining = Math.max(0, maxMeetings - prevFetched)
       if (allDocuments.length > remaining) {
         documents = allDocuments.slice(0, remaining)
+        capDroppedDocs = true
       }
     }
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxMeetings > 0 && totalFetched >= maxMeetings
-    if (hitLimit && syncContext) syncContext.listingCapped = true
+
+    /**
+     * The listing is only incomplete when the cap actually hid meetings — either
+     * by dropping some from this page or by stopping while another cursor
+     * remains. Reaching the cap exactly at source exhaustion (nothing dropped,
+     * no further cursor) yields a complete listing, so deletion reconciliation
+     * must still run for meetings removed in Fathom.
+     */
+    if (syncContext && (capDroppedDocs || (hitLimit && Boolean(nextCursor)))) {
+      syncContext.listingCapped = true
+    }
 
     const hasMore = !hitLimit && Boolean(nextCursor)
 
@@ -387,84 +402,83 @@ export const fathomConnector: ConnectorConfig = {
     }
   },
 
+  /**
+   * Hydrates a listing stub with its transcript and, when available, its summary.
+   *
+   * Returns `null` only when the meeting genuinely has nothing to index (recording
+   * gone, transcript and summary both still processing). Transport, rate-limit, and
+   * server errors propagate so the sync engine records them as failed documents
+   * instead of reporting a clean sync that silently dropped meetings.
+   */
   getDocument: async (
     accessToken: string,
     _sourceConfig: Record<string, unknown>,
     externalId: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    try {
-      if (!externalId) return null
+    if (!externalId) return null
 
-      const transcriptUrl = `${FATHOM_API_BASE}/recordings/${encodeURIComponent(externalId)}/transcript`
-      const transcriptResponse = await fetchWithRetry(transcriptUrl, {
+    /**
+     * Resolved before any network call: without the listing header this meeting
+     * cannot be rendered, and Fathom offers no way to refetch it.
+     */
+    const header = readCachedHeader(syncContext, externalId)
+    if (!header) {
+      throw new Error(`No cached Fathom listing header for recording ${externalId}`)
+    }
+
+    const transcriptUrl = `${FATHOM_API_BASE}/recordings/${encodeURIComponent(externalId)}/transcript`
+    const transcriptResponse = await fetchWithRetry(transcriptUrl, {
+      method: 'GET',
+      headers: buildHeaders(accessToken),
+    })
+
+    if (!transcriptResponse.ok) {
+      if (transcriptResponse.status === 404) return null
+      throw new Error(`Failed to fetch Fathom transcript: ${transcriptResponse.status}`)
+    }
+
+    const transcriptData = (await transcriptResponse.json()) as FathomTranscriptResponse
+    const transcript = transcriptData.transcript ?? []
+
+    /**
+     * The summary is optional enrichment, so a failure to read it degrades the
+     * document rather than failing the meeting.
+     */
+    let summary: FathomSummary | null = null
+    try {
+      const summaryUrl = `${FATHOM_API_BASE}/recordings/${encodeURIComponent(externalId)}/summary`
+      const summaryResponse = await fetchWithRetry(summaryUrl, {
         method: 'GET',
         headers: buildHeaders(accessToken),
       })
-
-      if (!transcriptResponse.ok) {
-        if (transcriptResponse.status === 404) return null
-        throw new Error(`Failed to fetch Fathom transcript: ${transcriptResponse.status}`)
+      if (summaryResponse.ok) {
+        const summaryData = (await summaryResponse.json()) as FathomSummaryResponse
+        summary = summaryData.summary ?? null
       }
-
-      const transcriptData = (await transcriptResponse.json()) as FathomTranscriptResponse
-      const transcript = transcriptData.transcript ?? []
-
-      let summary: FathomSummary | null = null
-      try {
-        const summaryUrl = `${FATHOM_API_BASE}/recordings/${encodeURIComponent(externalId)}/summary`
-        const summaryResponse = await fetchWithRetry(summaryUrl, {
-          method: 'GET',
-          headers: buildHeaders(accessToken),
-        })
-        if (summaryResponse.ok) {
-          const summaryData = (await summaryResponse.json()) as FathomSummaryResponse
-          summary = summaryData.summary ?? null
-        }
-      } catch (summaryError) {
-        logger.warn('Failed to fetch Fathom summary', {
-          externalId,
-          error: toError(summaryError).message,
-        })
-      }
-
-      const hasTranscript = transcript.some((entry) => entry.text?.trim())
-      const hasSummary = Boolean(summary?.markdown_formatted?.trim())
-      if (!hasTranscript && !hasSummary) {
-        logger.info('No transcript or summary yet for Fathom meeting', { externalId })
-        return null
-      }
-
-      const header = readCachedHeader(syncContext, externalId)
-      if (!header) {
-        logger.warn(
-          'No cached header for Fathom meeting; skipping to avoid an un-refreshable record',
-          {
-            externalId,
-          }
-        )
-        return null
-      }
-
-      const content = formatMeetingContent(header, transcript, summary).trim()
-      if (!content) return null
-
-      return {
+    } catch (summaryError) {
+      logger.warn('Failed to fetch Fathom summary', {
         externalId,
-        title: header.title,
-        content,
-        contentDeferred: false,
-        mimeType: 'text/plain',
-        sourceUrl: header.sourceUrl,
-        contentHash: header.contentHash,
-        metadata: { ...header.metadata },
-      }
-    } catch (error) {
-      logger.warn('Failed to get Fathom meeting', {
-        externalId,
-        error: toError(error).message,
+        error: toError(summaryError).message,
       })
+    }
+
+    const hasTranscript = transcript.some((entry) => entry.text?.trim())
+    const hasSummary = Boolean(summary?.markdown_formatted?.trim())
+    if (!hasTranscript && !hasSummary) {
+      logger.info('No transcript or summary yet for Fathom meeting', { externalId })
       return null
+    }
+
+    return {
+      externalId,
+      title: header.title,
+      content: formatMeetingContent(header, transcript, summary),
+      contentDeferred: false,
+      mimeType: 'text/plain',
+      sourceUrl: header.sourceUrl,
+      contentHash: header.contentHash,
+      metadata: { ...header.metadata },
     }
   },
 

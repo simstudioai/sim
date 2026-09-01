@@ -37,7 +37,13 @@ declare module '@/lib/table/constants?constants-test' {
   export * from '@/lib/table/constants'
 }
 
-import { getBillingDisabledTableLimits } from '@/lib/table/constants?constants-test'
+import {
+  getBillingDisabledTableLimits,
+  getDeleteSnapshotBatchSize,
+  getMaxPageBytes,
+  getMaxRowSizeBytes,
+  TABLE_LIMITS,
+} from '@/lib/table/constants?constants-test'
 
 describe('getBillingDisabledTableLimits', () => {
   beforeEach(() => {
@@ -64,5 +70,53 @@ describe('getBillingDisabledTableLimits', () => {
       maxTables: 7,
       maxRowsPerTable: 2500,
     })
+  })
+})
+
+describe('getMaxPageBytes', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(mockEnv)) delete mockEnv[key]
+  })
+
+  it('defaults bounded pages to the 5MB query-result budget', () => {
+    expect(getMaxPageBytes()).toBe(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES)
+  })
+
+  it('allows a positive integer environment override', () => {
+    mockEnv.TABLE_MAX_PAGE_BYTES = String(2 * 1024 * 1024)
+
+    expect(getMaxPageBytes()).toBe(2 * 1024 * 1024)
+  })
+})
+
+describe('getMaxRowSizeBytes', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(mockEnv)) delete mockEnv[key]
+  })
+
+  it('caps overrides at the delete snapshot byte budget', () => {
+    mockEnv.TABLE_MAX_ROW_SIZE_BYTES = String(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES * 2)
+
+    expect(getMaxRowSizeBytes()).toBe(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES)
+  })
+})
+
+describe('getDeleteSnapshotBatchSize', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(mockEnv)) delete mockEnv[key]
+  })
+
+  it('derives a worst-case row cap from the delete snapshot byte budget', () => {
+    expect(getDeleteSnapshotBatchSize()).toBe(
+      Math.floor(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES / TABLE_LIMITS.MAX_ROW_SIZE_BYTES)
+    )
+  })
+
+  it('always processes one row and never exceeds the delete row-count cap', () => {
+    mockEnv.TABLE_MAX_ROW_SIZE_BYTES = String(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES * 2)
+    expect(getDeleteSnapshotBatchSize()).toBe(1)
+
+    mockEnv.TABLE_MAX_ROW_SIZE_BYTES = '1'
+    expect(getDeleteSnapshotBatchSize()).toBe(TABLE_LIMITS.DELETE_BATCH_SIZE)
   })
 })

@@ -59,6 +59,9 @@ const identity = channelFlags.length === 1 ? CHANNEL_FLAGS[channelFlags[0]] : DE
 const APP_NAME = `${identity.name}.app`
 const INSTALL_PATH = `/Applications/${APP_NAME}`
 const RELEASE_DIRS = ['release/mac-universal', 'release/mac-arm64', 'release/mac']
+const LOCAL_BUILD_VERSION = Math.floor(Date.now() / 1000).toString()
+const LAUNCH_SERVICES_REGISTER =
+  '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
 /** Matches the app's userData path (app.setName(...) in src/main/index.ts). */
 const SETTINGS_PATH = join(homedir(), `Library/Application Support/${identity.name}/settings.json`)
 
@@ -121,6 +124,13 @@ function applyOrigin(origin: string): void {
   }
 }
 
+function refreshInstalledIcon(): void {
+  run('touch', [INSTALL_PATH])
+  if (existsSync(LAUNCH_SERVICES_REGISTER)) {
+    run(LAUNCH_SERVICES_REGISTER, ['-f', INSTALL_PATH])
+  }
+}
+
 console.log(`• Packaging ${identity.name} from the current checkout…`)
 run(
   'bun',
@@ -148,6 +158,7 @@ run('bunx', [
   '-c.mac.timestamp=none',
   `-c.productName=${identity.name}`,
   `-c.appId=${identity.appId}`,
+  `-c.buildVersion=${LOCAL_BUILD_VERSION}`,
 ])
 
 const builtApp = RELEASE_DIRS.map((dir) => join(dir, APP_NAME)).find(existsSync)
@@ -169,6 +180,7 @@ console.log(`• Installing ${builtApp} → ${INSTALL_PATH}`)
 rmSync(INSTALL_PATH, { recursive: true, force: true })
 // ditto preserves the code signature and extended attributes, unlike cp.
 run('ditto', [builtApp, INSTALL_PATH])
+refreshInstalledIcon()
 
 if (identity.origin) {
   applyOrigin(identity.origin)

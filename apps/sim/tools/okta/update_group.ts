@@ -1,20 +1,15 @@
-import { createLogger } from '@sim/logger'
-import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type {
-  OktaApiError,
-  OktaGroup,
+import type { OktaUpdateGroupParams, OktaUpdateGroupResponse } from '@/tools/okta/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
+
+export const oktaUpdateGroupTool: InternalToolConfig<
   OktaUpdateGroupParams,
-  OktaUpdateGroupResponse,
-} from '@/tools/okta/types'
-import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('OktaUpdateGroup')
-
-export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGroupResponse> = {
+  OktaUpdateGroupResponse
+> = {
   id: 'okta_update_group',
   name: 'Update Group in Okta',
   description:
-    'Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. All profile properties must be specified (full replacement).',
+    'Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. Fields left blank keep their stored value.',
   version: '1.0.0',
 
   params: {
@@ -38,9 +33,9 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
     },
     name: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Updated group name',
+      description: 'Updated group name. Leave blank to keep the stored name',
     },
     description: {
       type: 'string',
@@ -50,51 +45,18 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
     },
   },
 
-  request: {
-    url: (params) => {
-      const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
-    },
-    method: 'PUT',
-    headers: (params) => ({
-      Authorization: `SSWS ${params.apiKey}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
-      profile: {
-        name: params.name,
-        description: params.description ?? '',
-      },
-    }),
-  },
-
-  transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      let error: OktaApiError = {}
-      try {
-        error = await response.json()
-      } catch {
-        // non-JSON error body
-      }
-      logger.error('Okta API request failed', { data: error, status: response.status })
-      throw new Error(error.errorSummary || 'Failed to update group in Okta')
-    }
-
-    const group: OktaGroup = await response.json()
-    return {
-      success: true,
-      output: {
-        id: group.id,
-        name: group.profile?.name ?? '',
-        description: group.profile?.description ?? null,
-        type: group.type,
-        created: group.created,
-        lastUpdated: group.lastUpdated,
-        lastMembershipUpdated: group.lastMembershipUpdated ?? null,
-        success: true,
-      },
-    }
+  /**
+   * Authoritative path: read the stored profile, overlay the supplied fields,
+   * then replace.
+   *
+   * `PUT /api/v1/groups/{groupId}` is `replaceGroup` — it swaps the profile
+   * wholesale rather than merging, and the profile is extensible. Sending only
+   * the two fields this tool exposes therefore erased the stored description on
+   * every rename, along with any custom attribute the org had defined. Reading
+   * first is the only way an omitted field can mean "leave it alone".
+   */
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

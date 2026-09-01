@@ -20,6 +20,9 @@ const SEND_STYLE_OPTIONS = [
   { label: 'Slam', id: 'slam' },
 ] as const
 
+/** Group recipients, either an explicit number list or an existing group chat. */
+const GROUP_RECIPIENT_FIELD = ['numbers', 'group_id'] as const
+
 export const SendblueBlock: BlockConfig = {
   type: 'sendblue',
   name: 'Sendblue',
@@ -32,6 +35,32 @@ export const SendblueBlock: BlockConfig = {
   bgColor: '#008BFF',
   icon: SendblueIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Sendblue',
+    sentences: {
+      byOperation: {
+        sendblue_send_message: [
+          { text: 'Send', field: 'content', core: true },
+          { text: 'to', field: 'number', core: true },
+          { text: ', with', field: 'send_style', after: 'effect' },
+        ],
+        sendblue_send_group_message: [
+          { text: 'Send', field: 'content', core: true },
+          { text: 'to the group', field: GROUP_RECIPIENT_FIELD, core: true },
+        ],
+        sendblue_evaluate_service: [
+          { text: 'Check whether', field: 'number', after: 'supports iMessage', core: true },
+        ],
+        sendblue_send_typing_indicator: [
+          { text: 'Set the typing indicator for', field: 'number', core: true },
+          { text: 'to', field: 'typing_state' },
+        ],
+        sendblue_get_message: [
+          { text: 'Fetch the status of message', field: 'message_id', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

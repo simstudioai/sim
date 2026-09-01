@@ -36,48 +36,17 @@ export function parseResponseFormat(responseFormat?: string | object): any {
         return { name: 'response_schema', schema: parsed, strict: true }
       }
       return parsed
-    } catch (error: any) {
+    } catch (error) {
       logger.warn('Failed to parse response format as JSON', {
-        error: error.message,
-        preview: trimmed.slice(0, 100),
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        responseFormatType: 'string',
+        responseFormatLength: trimmed.length,
       })
       return undefined
     }
   }
 
   return undefined
-}
-
-/**
- * Validate and extract messages from a raw input value.
- *
- * Accepts a JSON string or an array. Each entry must have
- * `role` (string) and `content` (string).
- */
-export function resolveMessages(raw: unknown): Array<{ role: string; content: string }> {
-  if (!raw) {
-    throw new Error('Messages input is required')
-  }
-
-  let messages: unknown[]
-  if (typeof raw === 'string') {
-    try {
-      messages = JSON.parse(raw)
-    } catch {
-      throw new Error('Messages must be a valid JSON array')
-    }
-  } else if (Array.isArray(raw)) {
-    messages = raw
-  } else {
-    throw new Error('Messages must be an array of {role, content} objects')
-  }
-
-  return messages.map((msg: any, i: number) => {
-    if (!msg.role || typeof msg.content !== 'string') {
-      throw new Error(`Message at index ${i} must have "role" (string) and "content" (string)`)
-    }
-    return { role: String(msg.role), content: msg.content }
-  })
 }
 
 /**

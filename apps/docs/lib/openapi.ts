@@ -1,9 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { MethodInformation } from 'fumadocs-openapi'
+import type { InlineCodeUsageGenerator } from 'fumadocs-openapi/requests/generators'
 import { createOpenAPI } from 'fumadocs-openapi/server'
+import { buildAuthCodeSamples } from '@/lib/openapi-code-samples'
+import { OPENAPI_SPEC_FILES } from '@/lib/openapi-specs'
 
 export const openapi = createOpenAPI({
-  input: ['./openapi.json'],
+  input: OPENAPI_SPEC_FILES.map((file) => `./${file}`),
 })
 
 interface OpenAPIOperation {
@@ -24,20 +28,34 @@ function resolveRef(ref: string, spec: Record<string, unknown>): unknown {
   return current
 }
 
-function resolveRefs(obj: unknown, spec: Record<string, unknown>, depth = 0): unknown {
-  if (depth > 10) return obj
+function resolveRefs(
+  obj: unknown,
+  spec: Record<string, unknown>,
+  seen: Set<string> = new Set(),
+  depth = 0
+): unknown {
+  // Generous backstop against pathological fan-out; real schemas nest far shallower.
+  if (depth > 50) return obj
   if (Array.isArray(obj)) {
-    return obj.map((item) => resolveRefs(item, spec, depth + 1))
+    return obj.map((item) => resolveRefs(item, spec, seen, depth + 1))
   }
   if (obj && typeof obj === 'object') {
     const record = obj as Record<string, unknown>
-    if ('$ref' in record && typeof record.$ref === 'string') {
-      const resolved = resolveRef(record.$ref, spec)
-      return resolveRefs(resolved, spec, depth + 1)
+    if (typeof record.$ref === 'string') {
+      const ref = record.$ref
+      // Break reference cycles: if this $ref is already being expanded above us,
+      // leave it untouched instead of recursing forever.
+      if (seen.has(ref)) return record
+      const resolved = resolveRef(ref, spec)
+      if (resolved === undefined) return record
+      seen.add(ref)
+      const out = resolveRefs(resolved, spec, seen, depth + 1)
+      seen.delete(ref)
+      return out
     }
     const result: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(record)) {
-      result[key] = resolveRefs(value, spec, depth + 1)
+      result[key] = resolveRefs(value, spec, seen, depth + 1)
     }
     return result
   }
@@ -48,14 +66,137 @@ function formatSchema(schema: unknown): string {
   return JSON.stringify(schema, null, 2)
 }
 
-let cachedSpec: Record<string, unknown> | null = null
+let cachedSpecs: Record<string, unknown>[] | null = null
 
-function getSpec(): Record<string, unknown> {
-  if (!cachedSpec) {
-    const specPath = join(process.cwd(), 'openapi.json')
-    cachedSpec = JSON.parse(readFileSync(specPath, 'utf8')) as Record<string, unknown>
+function getSpecs(): Record<string, unknown>[] {
+  if (!cachedSpecs) {
+    cachedSpecs = OPENAPI_SPEC_FILES.map(
+      (file) =>
+        JSON.parse(readFileSync(join(process.cwd(), file), 'utf8')) as Record<string, unknown>
+    )
   }
-  return cachedSpec
+  return cachedSpecs
+}
+
+type SecurityRequirement = Record<string, string[]>
+
+interface SecurityScheme {
+  type?: string
+  in?: string
+  name?: string
+  scheme?: string
+}
+
+interface SharedSecurity {
+  security: SecurityRequirement[]
+  schemes: Record<string, SecurityScheme>
+}
+
+const AUTH_SAMPLE_VALUE = 'YOUR_API_KEY'
+
+let cachedSharedSecurity: SharedSecurity | null = null
+
+/**
+ * Document-level security shared by every rendered spec. Code samples are
+ * generated from an operation alone, with no handle on the document that owns
+ * it, so the specs must agree on their default security — a spec that diverges
+ * would silently get another document's auth in its samples.
+ */
+function getSharedSecurity(): SharedSecurity {
+  if (cachedSharedSecurity) return cachedSharedSecurity
+
+  let shared: SharedSecurity | undefined
+  let sharedFile: string | undefined
+
+  getSpecs().forEach((spec, index) => {
+    const file = OPENAPI_SPEC_FILES[index]
+    const current: SharedSecurity = {
+      security: (spec.security as SecurityRequirement[] | undefined) ?? [],
+      schemes:
+        ((spec.components as Record<string, unknown> | undefined)?.securitySchemes as
+          | Record<string, SecurityScheme>
+          | undefined) ?? {},
+    }
+
+    if (!shared) {
+      shared = current
+      sharedFile = file
+      return
+    }
+
+    if (JSON.stringify(current) !== JSON.stringify(shared)) {
+      throw new Error(
+        `[docs] ${file} declares different default security than ${sharedFile}. Every OpenAPI spec must share one security scheme so generated code samples stay correct.`
+      )
+    }
+  })
+
+  cachedSharedSecurity = shared ?? { security: [], schemes: {} }
+  return cachedSharedSecurity
+}
+
+/**
+ * Resolve a security requirement to the request headers a sample must send.
+ * The first non-empty alternative wins — an empty one means the operation also
+ * accepts anonymous callers, which is not what a reference example should show.
+ */
+function resolveAuthHeaders(
+  security: SecurityRequirement[],
+  schemes: Record<string, SecurityScheme>
+): Record<string, string> {
+  const requirement = security.find((item) => Object.keys(item).length > 0)
+  if (!requirement) return {}
+
+  const headers: Record<string, string> = {}
+  for (const name of Object.keys(requirement)) {
+    const scheme = schemes[name]
+    if (!scheme) {
+      throw new Error(`[docs] Operation references undefined security scheme "${name}"`)
+    }
+    if (scheme.type === 'apiKey' && scheme.in === 'header' && scheme.name) {
+      headers[scheme.name] = AUTH_SAMPLE_VALUE
+      continue
+    }
+    if (scheme.type === 'http' && scheme.scheme === 'bearer') {
+      headers.Authorization = `Bearer ${AUTH_SAMPLE_VALUE}`
+      continue
+    }
+    throw new Error(
+      `[docs] Security scheme "${name}" (type ${scheme.type}) cannot be rendered as a request header in code samples`
+    )
+  }
+  return headers
+}
+
+/**
+ * Code samples for an operation, with its authentication header included.
+ * Fumadocs derives sample requests from declared parameters only, so without
+ * this every endpoint documents an unauthenticated call that returns `401`.
+ */
+export function getAuthenticatedCodeSamples(method: MethodInformation): InlineCodeUsageGenerator[] {
+  const shared = getSharedSecurity()
+  const security = (method.security as SecurityRequirement[] | undefined) ?? shared.security
+  const headers = resolveAuthHeaders(security, shared.schemes)
+  if (Object.keys(headers).length === 0) return []
+  return buildAuthCodeSamples(headers)
+}
+
+/**
+ * Locate an operation by path + method across every rendered spec, returning the
+ * operation together with the spec that owns it so `$ref`s resolve within the
+ * correct document (each spec carries its own `components`).
+ */
+function findOperation(
+  path: string,
+  method: string
+): { operation: Record<string, unknown>; spec: Record<string, unknown> } | undefined {
+  const key = method.toLowerCase()
+  for (const spec of getSpecs()) {
+    const pathObj = (spec.paths as Record<string, Record<string, unknown>> | undefined)?.[path]
+    const operation = pathObj?.[key] as Record<string, unknown> | undefined
+    if (operation) return { operation, spec }
+  }
+  return undefined
 }
 
 export function getApiSpecContent(
@@ -63,22 +204,19 @@ export function getApiSpecContent(
   description: string | undefined,
   operations: OpenAPIOperation[]
 ): string {
-  const spec = getSpec()
-
   if (!operations || operations.length === 0) {
     return `# ${title}\n\n${description || ''}`
   }
 
   const op = operations[0]
   const method = op.method.toUpperCase()
-  const pathObj = (spec.paths as Record<string, Record<string, unknown>>)?.[op.path]
-  const operation = pathObj?.[op.method.toLowerCase()] as Record<string, unknown> | undefined
+  const found = findOperation(op.path, op.method)
 
-  if (!operation) {
+  if (!found) {
     return `# ${title}\n\n${description || ''}`
   }
 
-  const resolved = resolveRefs(operation, spec) as Record<string, unknown>
+  const resolved = resolveRefs(found.operation, found.spec) as Record<string, unknown>
   const lines: string[] = []
 
   lines.push(`# ${title}`)

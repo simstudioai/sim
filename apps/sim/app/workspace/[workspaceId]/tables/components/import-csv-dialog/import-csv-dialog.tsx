@@ -24,7 +24,6 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
-import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES } from '@/lib/table/constants'
 import {
   buildAutoMapping,
   CSV_DELIMITER_SNIFF_BYTES,
@@ -33,12 +32,7 @@ import {
   parseCsvBuffer,
 } from '@/lib/table/import'
 import type { TableDefinition } from '@/lib/table/types'
-import {
-  type CsvImportMode,
-  cancelTableJob,
-  useImportCsvIntoTable,
-  useImportCsvIntoTableAsync,
-} from '@/hooks/queries/tables'
+import { type CsvImportMode, useImportCsvIntoTable } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 const logger = createLogger('ImportCsvDialog')
@@ -53,7 +47,7 @@ const CSV_PREVIEW_BYTES = 512 * 1024
 /**
  * Sentinel value for the "Do not import" option in the mapping combobox. The
  * whitespace is intentional: valid column names must match `NAME_PATTERN`
- * (`/^[a-z_][a-z0-9_]*$/i`), so no real column can share this value.
+ * (`/^[A-Za-z_][A-Za-z0-9_]*$/`), so no real column can share this value.
  */
 const SKIP_VALUE = '__ skip __'
 /**
@@ -152,7 +146,6 @@ export function ImportCsvDialog({
   const [createHeaders, setCreateHeaders] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<CsvImportMode>('append')
   const importMutation = useImportCsvIntoTable()
-  const importAsyncMutation = useImportCsvIntoTableAsync()
 
   function resetState() {
     setParsed(null)
@@ -306,7 +299,6 @@ export function ImportCsvDialog({
   const canSubmit =
     parsed !== null &&
     !importMutation.isPending &&
-    !importAsyncMutation.isPending &&
     missingRequired.length === 0 &&
     duplicateTargets.length === 0 &&
     mappedCount + createCount > 0
@@ -320,76 +312,44 @@ export function ImportCsvDialog({
     const createColumns =
       canCreateColumns && createHeaders.size > 0 ? [...createHeaders] : undefined
 
-    // Large files can't be POSTed through the server (request-body cap) — upload them
-    // straight to storage and import in the background instead. Seed the header tray and
-    // close the dialog immediately so the indicator is visible during the upload, then run
-    // the upload + kickoff in the background (don't block the dialog on it).
-    if (parsed.file.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES) {
-      useImportTrayStore.getState().startUpload({
-        uploadId: table.id,
-        workspaceId,
-        title: parsed.file.name,
-      })
-      onOpenChange(false)
-      toast.success(`Importing "${parsed.file.name}" into "${table.name}" in the background`)
-      importAsyncMutation.mutate(
-        {
-          workspaceId,
-          tableId: table.id,
-          file: parsed.file,
-          mode: effectiveMode,
-          mapping,
-          createColumns,
-          onProgress: (percent) => {
-            useImportTrayStore.getState().setUploadPercent(table.id, percent)
-          },
-        },
-        {
-          onSuccess: (data) => {
-            useImportTrayStore.getState().endUpload(table.id)
-            // The server row drives the tray once the list refetches. If canceled mid-upload, flag
-            // the id so it's not shown and cancel the worker server-side.
-            if (useImportTrayStore.getState().consumeCanceled(table.id) && data?.importId) {
-              useImportTrayStore.getState().cancel(table.id)
-              void cancelTableJob(workspaceId, table.id, data.importId).catch(() => {})
-            }
-          },
-          onError: () => {
-            // The hook's onError surfaces the toast; just clear the tray indicator here.
-            useImportTrayStore.getState().endUpload(table.id)
-          },
-        }
-      )
-      return
-    }
-
-    try {
-      const result = await importMutation.mutateAsync({
+    let importId: string | null = null
+    onOpenChange(false)
+    toast.success(`Importing "${parsed.file.name}" into "${table.name}" in the background`)
+    importMutation.mutate(
+      {
         workspaceId,
         tableId: table.id,
         file: parsed.file,
         mode: effectiveMode,
         mapping,
         createColumns,
-      })
-      const data = result.data
-      if (effectiveMode === 'append') {
-        toast.success(`Imported ${data?.insertedCount ?? 0} rows into "${table.name}"`)
-      } else {
-        toast.success(
-          `Replaced rows in "${table.name}": deleted ${data?.deletedCount ?? 0}, inserted ${data?.insertedCount ?? 0}`
-        )
+        onCreated: (createdImportId) => {
+          importId = createdImportId
+          useImportTrayStore.getState().startUpload({
+            uploadId: createdImportId,
+            tableId: table.id,
+            workspaceId,
+            title: parsed.file.name,
+          })
+        },
+        onProgress: (percent) => {
+          if (importId) useImportTrayStore.getState().setUploadPercent(importId, percent)
+        },
+      },
+      {
+        onSuccess: () => {
+          if (importId) {
+            useImportTrayStore.getState().endUpload(importId)
+            useImportTrayStore.getState().consumeCanceled(importId)
+          }
+          onImported?.({})
+        },
+        onError: (error) => {
+          if (importId) useImportTrayStore.getState().endUpload(importId)
+          setSubmitError(summarizeImportError(error.message))
+        },
       }
-      onImported?.({
-        insertedCount: data?.insertedCount,
-        deletedCount: data?.deletedCount,
-      })
-      onOpenChange(false)
-    } catch (err) {
-      const message = getErrorMessage(err, 'Failed to import CSV')
-      setSubmitError(summarizeImportError(message))
-      logger.error('CSV import into existing table failed', err)
-    }
+    )
   }
 
   const hasWarning = missingRequired.length > 0 || duplicateTargets.length > 0
@@ -540,6 +500,7 @@ export function ImportCsvDialog({
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
         cancelDisabled={importMutation.isPending}
+        defaultAction={mode === 'replace' ? 'none' : 'primary'}
         primaryAction={{
           label: importMutation.isPending
             ? mode === 'replace'

@@ -15,6 +15,7 @@ import {
   getDisplayValue,
   resolveDropdownLabel,
   resolveFilterFieldLabel,
+  resolveSandboxLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
   resolveVariablesLabel,
@@ -33,6 +34,7 @@ const workflowMulti = {
 const variablesInput = { id: 'variables', type: 'variables-input' } as SubBlockConfig
 const toolInput = { id: 'tools', type: 'tool-input' } as SubBlockConfig
 const skillInput = { id: 'skills', type: 'skill-input' } as SubBlockConfig
+const sandboxPicker = { id: 'sandboxId', type: 'combobox' } as SubBlockConfig
 
 describe('summarizeNames', () => {
   it('formats 0, 1, 2, and 2+N name lists', () => {
@@ -184,6 +186,28 @@ describe('resolveSkillsLabel', () => {
   })
 })
 
+describe('resolveSandboxLabel', () => {
+  const sandboxes = [{ id: '443f4934-26ab-44ab-8000-000000000000', name: 'Test' }]
+
+  it('resolves the stored id to the name so the card never shows a uuid', () => {
+    expect(resolveSandboxLabel(sandboxPicker, sandboxes[0].id, sandboxes)).toBe('Test')
+  })
+
+  it('returns null for an id the workspace no longer has', () => {
+    expect(resolveSandboxLabel(sandboxPicker, 'sbx-deleted', sandboxes)).toBeNull()
+  })
+
+  it('returns null before the list loads, and for an empty selection', () => {
+    expect(resolveSandboxLabel(sandboxPicker, sandboxes[0].id, [])).toBeNull()
+    expect(resolveSandboxLabel(sandboxPicker, '', sandboxes)).toBeNull()
+  })
+
+  it('ignores other comboboxes so it cannot relabel an unrelated field', () => {
+    const other = { id: 'model', type: 'combobox' } as SubBlockConfig
+    expect(resolveSandboxLabel(other, sandboxes[0].id, sandboxes)).toBeNull()
+  })
+})
+
 describe('resolveDropdownLabel', () => {
   const dropdown = {
     id: 'mode',
@@ -195,6 +219,37 @@ describe('resolveDropdownLabel', () => {
     expect(resolveDropdownLabel(dropdown, 'opt-1')).toBe('Option One')
     expect(resolveDropdownLabel(dropdown, 'literal')).toBe('literal')
     expect(resolveDropdownLabel(dropdown, 'missing')).toBeNull()
+  })
+
+  it('summarizes a multi-select selection as labels, not stored ids', () => {
+    /* A `multiSelect` dropdown stores an array; rejecting it outright made the
+       card show raw ids ("chat, updates") where a single-select showed a label. */
+    const dropdown = {
+      id: 'labelIds',
+      type: 'dropdown',
+      multiSelect: true,
+      options: [
+        { id: 'chat', label: 'Chat' },
+        { id: 'updates', label: 'Updates' },
+        { id: 'social', label: 'Social' },
+      ],
+    } as unknown as SubBlockConfig
+
+    expect(resolveDropdownLabel(dropdown, ['chat'])).toBe('Chat')
+    expect(resolveDropdownLabel(dropdown, ['chat', 'updates'])).toBe('Chat, Updates')
+    expect(resolveDropdownLabel(dropdown, ['chat', 'updates', 'social'])).toBe('Chat, Updates +1')
+  })
+
+  it('falls through when any selection is unknown, rather than dropping it', () => {
+    /* Showing only the ids it recognised would hide the rest of the selection. */
+    const dropdown = {
+      id: 'labelIds',
+      type: 'dropdown',
+      options: [{ id: 'chat', label: 'Chat' }],
+    } as unknown as SubBlockConfig
+
+    expect(resolveDropdownLabel(dropdown, ['chat', 'gone'])).toBeNull()
+    expect(resolveDropdownLabel(dropdown, [])).toBeNull()
   })
 })
 
@@ -231,5 +286,14 @@ describe('getDisplayValue', () => {
       ])
     ).toBe('one, two +1')
     expect(getDisplayValue(['a', 'b'])).toBe('a, b')
+  })
+
+  it('keeps the full first message for renderer-owned clipping and tooltips', () => {
+    const content = `You are a research assistant. ${'Keep every instruction. '.repeat(4)}`.trim()
+    const messages = [{ role: 'system', content }]
+    const serializedMessages = JSON.stringify(messages)
+
+    expect(getDisplayValue(messages)).toBe(content)
+    expect(getDisplayValue(serializedMessages)).toBe(content)
   })
 })

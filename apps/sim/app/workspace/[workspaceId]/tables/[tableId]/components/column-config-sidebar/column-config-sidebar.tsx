@@ -7,17 +7,31 @@ import { toError } from '@sim/utils/errors'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
 import {
+  DEFAULT_CURRENCY_CODE,
+  getCurrencyOptions,
+  resolveCurrencyCode,
+} from '@/lib/table/currency'
+import {
   FieldError,
   RequiredLabel,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
 import { SelectOptionsEditor } from '../select-field'
-import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
+import { columnTypeOptionsForTable } from './column-types'
 
 /** Whether a column type carries an option set. */
 function isSelectType(type: ColumnDefinition['type']): boolean {
   return type === 'select'
 }
+
+/**
+ * Picker entries, built once at module load: the option list is derived from the
+ * runtime's currency data and never varies per column.
+ */
+const CURRENCY_COMBOBOX_OPTIONS = getCurrencyOptions().map((c) => ({
+  value: c.code,
+  label: `${c.code} · ${c.name}`,
+}))
 
 function optionsEqual(a: SelectOption[], b: SelectOption[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
@@ -38,6 +52,8 @@ interface ColumnConfigSidebarProps {
   onClose: () => void
   /** Existing column record for `mode: 'edit'`; ignored otherwise. */
   existingColumn: ColumnDefinition | null
+  allColumns: readonly ColumnDefinition[]
+  tableRowTtlEnabled: boolean
   workspaceId: string
   tableId: string
   /** Notify parent of a rename so it can rewrite local `columnOrder` /
@@ -88,6 +104,8 @@ function ColumnConfigBody({
   config,
   onClose,
   existingColumn,
+  allColumns,
+  tableRowTtlEnabled,
   workspaceId,
   tableId,
   onColumnRename,
@@ -110,6 +128,11 @@ function ColumnConfigBody({
   const [multipleInput, setMultipleInput] = useState<boolean>(() =>
     config.mode === 'edit' ? !!existingColumn?.multiple : false
   )
+  const [currencyInput, setCurrencyInput] = useState<string>(() =>
+    config.mode === 'edit'
+      ? resolveCurrencyCode(existingColumn?.currencyCode)
+      : DEFAULT_CURRENCY_CODE
+  )
   const [showValidation, setShowValidation] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -117,6 +140,7 @@ function ColumnConfigBody({
   const saveDisabled = updateColumn.isPending || addColumn.isPending
   const trimmedName = nameInput.trim()
   const wantsOptions = isSelectType(typeInput)
+  const wantsCurrency = typeInput === 'currency'
   const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
 
   /** Client-side option validation mirroring the server rules; returns an error message or null. */
@@ -150,6 +174,7 @@ function ColumnConfigBody({
           ...(!wantsOptions && uniqueInput ? { unique: true } : {}),
           ...(wantsOptions ? { options: trimmedOptions } : {}),
           ...(wantsOptions && multipleInput ? { multiple: true } : {}),
+          ...(wantsCurrency ? { currencyCode: currencyInput } : {}),
         })
         toast.success(`Added "${trimmedName}"`)
         onClose()
@@ -168,6 +193,8 @@ function ColumnConfigBody({
       const optionsChanged =
         wantsOptions && !optionsEqual(existingColumn?.options ?? [], trimmedOptions)
       const multipleChanged = wantsOptions && !!existingColumn?.multiple !== multipleInput
+      const currencyChanged =
+        wantsCurrency && resolveCurrencyCode(existingColumn?.currencyCode) !== currencyInput
 
       const updates: {
         name?: string
@@ -175,6 +202,7 @@ function ColumnConfigBody({
         unique?: boolean
         options?: SelectOption[]
         multiple?: boolean
+        currencyCode?: string
       } = {
         ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
@@ -182,6 +210,9 @@ function ColumnConfigBody({
         ...(uniqueCleared ? { unique: false } : {}),
         ...(wantsOptions && (typeChanged || optionsChanged) ? { options: trimmedOptions } : {}),
         ...(wantsOptions && (typeChanged || multipleChanged) ? { multiple: multipleInput } : {}),
+        ...(wantsCurrency && (typeChanged || currencyChanged)
+          ? { currencyCode: currencyInput }
+          : {}),
       }
       if (Object.keys(updates).length === 0) {
         onClose()
@@ -210,7 +241,7 @@ function ColumnConfigBody({
   return (
     <div className='flex h-full flex-col'>
       <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
-        <h2 className='font-medium text-[var(--text-primary)] text-small'>Configure column</h2>
+        <h2 className='text-[var(--text-primary)] text-small'>Configure column</h2>
         <Button
           variant='ghost'
           size='sm'
@@ -247,14 +278,37 @@ function ColumnConfigBody({
             <div className='flex flex-col gap-[9.5px]'>
               <RequiredLabel>Type</RequiredLabel>
               <ChipCombobox
-                options={PLAIN_COLUMN_TYPE_OPTIONS.map((o) => ({
-                  label: o.label,
-                  value: o.type,
-                  icon: o.icon,
-                }))}
+                options={columnTypeOptionsForTable(allColumns, existingColumn, {
+                  tableRowTtlEnabled,
+                })
+                  .filter((option) => option.type !== 'workflow')
+                  .map((option) => ({
+                    label: option.label,
+                    value: option.type,
+                    icon: option.icon,
+                    disabled: option.disabledReason !== undefined,
+                  }))}
                 value={typeInput}
                 onChange={(v) => setTypeInput(v as ColumnDefinition['type'])}
                 placeholder='Select type'
+                maxHeight={300}
+              />
+            </div>
+          </>
+        )}
+
+        {wantsCurrency && (
+          <>
+            <FieldDivider />
+            <div className='flex flex-col gap-[9.5px]'>
+              <RequiredLabel>Currency</RequiredLabel>
+              <ChipCombobox
+                options={CURRENCY_COMBOBOX_OPTIONS}
+                value={currencyInput}
+                onChange={setCurrencyInput}
+                placeholder='Select currency'
+                searchable
+                searchPlaceholder='Search currencies'
                 maxHeight={260}
               />
             </div>

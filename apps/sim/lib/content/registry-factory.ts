@@ -1,8 +1,9 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { cache } from 'react'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import matter from 'gray-matter'
-import { imageSize } from 'image-size'
 import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import rehypeSlug from 'rehype-slug'
@@ -11,6 +12,8 @@ import { mdxComponents } from '@/lib/content/mdx'
 import type { Author, ContentMeta, ContentPost, TagWithCount } from '@/lib/content/schema'
 import { AuthorSchema, ContentFrontmatterSchema } from '@/lib/content/schema'
 import { byDateDesc, ensureContentDirs, toIsoDate } from '@/lib/content/utils'
+
+const logger = createLogger('ContentRegistry')
 
 /** Loads a post's custom MDX component overrides, keyed by slug. */
 export type ContentComponentLoaders = Record<
@@ -95,6 +98,14 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
    * SEO builders can declare accurate `og:image` and JSON-LD sizes. Returns
    * null for remote URLs or unreadable files, in which case the builders fall
    * back to the 1200x630 OG default.
+   *
+   * Uses `sharp`, which only parses headers for `metadata()`. It replaced the
+   * `image-size` package, archived upstream with unpatched DoS advisories in
+   * its ICNS/JXL/HEIF parsers (GHSA-w3rx-r6r6-pgpr, GHSA-5p2g-fcmc-qvqq).
+   *
+   * Imported lazily, never at module scope: sharp resolves a native binary, and a
+   * top-level import that fails to load would take down every route reading this
+   * registry instead of dropping one optional dimension.
    */
   async function readOgImageDimensions(
     ogImage: string
@@ -102,9 +113,20 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     if (ogImage.startsWith('http')) return null
     try {
       const buffer = await fs.readFile(path.join(process.cwd(), 'public', ogImage))
-      const { width, height } = imageSize(buffer)
-      return width && height ? { width, height } : null
-    } catch {
+      const sharp = (await import('sharp')).default
+      const { width, height } = await sharp(buffer).metadata()
+      if (!width || !height) {
+        logger.warn('OG image has no readable dimensions; falling back to the OG default', {
+          ogImage,
+        })
+        return null
+      }
+      return { width, height }
+    } catch (error) {
+      logger.warn('Failed to read OG image dimensions; falling back to the OG default', {
+        ogImage,
+        error: getErrorMessage(error),
+      })
       return null
     }
   }

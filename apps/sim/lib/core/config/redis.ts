@@ -1,12 +1,12 @@
+import { isIP } from 'node:net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
 import Redis, { type RedisOptions } from 'ioredis'
 import { env } from '@/lib/core/config/env'
+import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 
 const logger = createLogger('Redis')
-
-const redisUrl = env.REDIS_URL
 
 /**
  * When REDIS_URL targets a bare IP over `rediss://` (e.g. trigger.dev's
@@ -60,6 +60,13 @@ interface RedisState {
   pingInterval: NodeJS.Timeout | null
   pingInFlight: boolean
   reconnectListeners: Array<() => void>
+  clientCreatedAt: number | null
+  lastReadyAt: number | null
+  lastPingOkAt: number | null
+  connects: number
+  reconnects: number
+  errors: number
+  lastErrorMessage: string | null
 }
 
 const g = globalThis as typeof globalThis & { _redisState?: RedisState }
@@ -70,12 +77,124 @@ if (!g._redisState) {
     pingInterval: null,
     pingInFlight: false,
     reconnectListeners: [],
+    clientCreatedAt: null,
+    lastReadyAt: null,
+    lastPingOkAt: null,
+    connects: 0,
+    reconnects: 0,
+    errors: 0,
+    lastErrorMessage: null,
   }
 }
 const state = g._redisState
 
+/**
+ * A command that never gets a reply fails identically whichever of three states
+ * the client was in — still establishing its connection, reconnecting with the
+ * command parked in the offline queue, or holding a socket that has silently
+ * died. ioredis reports all three the same way: an `Error: Command timed out`
+ * whose stack contains only its own timer frames, with no app frame naming the
+ * call and no lifecycle event to say which happened.
+ *
+ * `status` is what separates them: `connecting` and `reconnecting` mean the
+ * command was parked waiting on connection setup, while `ready` means it was
+ * written to a live socket that never answered — a socket dead in a way nothing
+ * reported.
+ */
+export interface RedisConnectionDiagnostics {
+  status: string
+  /** Age of the client object — distinguishes one created for this unit of work from an inherited one. */
+  clientAgeMs: number | null
+  /** Time since the connection last reached `ready`. */
+  readyAgeMs: number | null
+  /** Time since the last PING round-trip actually completed; the health check runs every 15s. */
+  msSinceLastPingOk: number | null
+  connects: number
+  reconnects: number
+  errors: number
+  lastErrorMessage: string | null
+  /** Whether REDIS_URL targets an IP literal or a DNS name. Names DNS resolution in or out. */
+  hostKind: 'ip' | 'dns' | 'unknown'
+  tls: boolean
+  /** Whether the TLS SNI override is in play (set when the host is a bare IP). */
+  sniOverride: boolean
+}
+
+/** Milliseconds since a recorded instant, or null when it was never recorded. */
+function elapsedSince(at: number | null): number | null {
+  return at === null ? null : Date.now() - at
+}
+
+function describeRedisUrl(
+  url: string | null
+): Pick<RedisConnectionDiagnostics, 'hostKind' | 'tls' | 'sniOverride'> {
+  if (!url) return { hostKind: 'unknown', tls: false, sniOverride: false }
+  try {
+    const parsed = new URL(url)
+    // WHATWG keeps IPv6 literals bracketed in `hostname`; `isIP` wants them bare.
+    const host = parsed.hostname.replace(/^\[|\]$/g, '')
+    const tls = parsed.protocol === 'rediss:'
+    // `sniOverride` deliberately mirrors `resolveRedisTlsOptions`, which tests for
+    // IPv4 only. So an IPv6 literal over TLS reports `hostKind: 'ip'` with
+    // `sniOverride: false` — not a contradiction but the useful reading, since that
+    // combination is a connection whose certificate cannot verify.
+    return {
+      hostKind: isIP(host) === 0 ? 'dns' : 'ip',
+      tls,
+      sniOverride: tls && isIP(host) === 4,
+    }
+  } catch {
+    return { hostKind: 'unknown', tls: false, sniOverride: false }
+  }
+}
+
+/**
+ * Connection state at a point in time, safe to attach to any log line.
+ *
+ * Derives only non-sensitive facts from REDIS_URL — never the URL itself, which
+ * carries the AUTH token.
+ */
+export function describeRedisConnection(): RedisConnectionDiagnostics {
+  let url: string | null = null
+  try {
+    url = getConfiguredRedisUrl()
+  } catch {
+    url = null
+  }
+
+  const client = state.client
+
+  // Ages describe the client currently held. A discarded client leaves its
+  // timestamps behind until the next `getRedisClient()` rebuilds them, and
+  // reporting those against `no-client` would date a connection that no longer
+  // exists. The counters below are deliberately cumulative for the process.
+  const ageOf = (at: number | null) => (client === null ? null : elapsedSince(at))
+
+  return {
+    status: client?.status ?? 'no-client',
+    clientAgeMs: ageOf(state.clientCreatedAt),
+    readyAgeMs: ageOf(state.lastReadyAt),
+    msSinceLastPingOk: ageOf(state.lastPingOkAt),
+    connects: state.connects,
+    reconnects: state.reconnects,
+    errors: state.errors,
+    lastErrorMessage: state.lastErrorMessage,
+    ...describeRedisUrl(url),
+  }
+}
+
 const PING_INTERVAL_MS = 15_000
 const MAX_PING_FAILURES = 2
+
+export function getConfiguredRedisUrl(): string | null {
+  if (getConfiguredCacheProvider() === 'database') return null
+
+  const redisUrl = env.REDIS_URL
+  if (!redisUrl) {
+    throw new Error('Cache capability selected Redis but REDIS_URL is missing')
+  }
+  return redisUrl
+}
 
 /**
  * Register a callback that fires when the PING health check forces a reconnect.
@@ -94,6 +213,7 @@ function startPingHealthCheck(redis: Redis): void {
     try {
       await redis.ping()
       state.pingFailures = 0
+      state.lastPingOkAt = Date.now()
     } catch (error) {
       state.pingFailures++
       logger.warn('Redis PING failed', {
@@ -140,6 +260,7 @@ function startPingHealthCheck(redis: Redis): void {
  */
 export function getRedisClient(): Redis | null {
   if (typeof window !== 'undefined') return null
+  const redisUrl = getConfiguredRedisUrl()
   if (!redisUrl) return null
   if (state.client) return state.client
 
@@ -162,6 +283,7 @@ export function getRedisClient(): Redis | null {
         const base = Math.min(1000 * 2 ** (times - 1), 10000)
         const jitter = randomFloat() * base * 0.3
         const delay = Math.round(base + jitter)
+        state.reconnects++
         logger.warn('Redis reconnecting', { attempt: times, nextRetryMs: delay })
         return delay
       },
@@ -172,9 +294,32 @@ export function getRedisClient(): Redis | null {
       },
     })
 
-    state.client.on('connect', () => logger.info('Redis connected'))
-    state.client.on('ready', () => logger.info('Redis ready'))
+    state.clientCreatedAt = Date.now()
+    state.lastReadyAt = null
+    state.lastPingOkAt = null
+
+    state.client.on('connect', () => {
+      state.connects++
+      // Elapsed since construction, because the wait before a connection becomes
+      // usable is the number this path has never been able to produce: it is
+      // spent inside a command's deadline, where it surfaces as a command
+      // timeout rather than as connection latency.
+      // `connectCount`, not `attempt` — the retryStrategy above already logs an
+      // `attempt`, meaning the retry number. This is how many times this client
+      // has successfully connected, which is what separates a first connect from
+      // a reconnect.
+      logger.info('Redis connected', {
+        elapsedMs: elapsedSince(state.clientCreatedAt),
+        connectCount: state.connects,
+      })
+    })
+    state.client.on('ready', () => {
+      state.lastReadyAt = Date.now()
+      logger.info('Redis ready', { elapsedMs: elapsedSince(state.clientCreatedAt) })
+    })
     state.client.on('error', (err: Error) => {
+      state.errors++
+      state.lastErrorMessage = err.message
       logger.error('Redis error', { error: err.message, code: (err as any).code })
     })
     state.client.on('close', () => logger.warn('Redis connection closed'))
@@ -225,18 +370,51 @@ end
  * single-replica deployments to function without Redis. In multi-replica
  * deployments without Redis, the idempotency layer prevents duplicate processing.
  */
+export interface AcquireLockOptions {
+  /**
+   * Release the lock this call may have taken when the SET itself rejects.
+   *
+   * A rejected SET does not mean the server declined it: `commandTimeout` gives
+   * up client-side while the command can still reach Redis and take the lock,
+   * leaving it held by a caller that never learned it won and so never releases
+   * it. Every contender then skips until the TTL expires.
+   *
+   * Only opt in when BOTH hold, because the reclaim is unsafe otherwise:
+   *
+   * 1. `value` is unique to this holder. A value two holders can share — the
+   *    copilot chat lock keys on a client-supplied `userMessageId` — makes the
+   *    compare-and-delete match a lock another holder is actively using.
+   * 2. A throw means the caller does no work. One that falls open and runs
+   *    anyway (`withLeaderLock`, the MCP OAuth refresh mutex) would keep running
+   *    while this frees its lock, admitting a second concurrent runner.
+   */
+  reclaimOnFailure?: boolean
+}
+
 export async function acquireLock(
   lockKey: string,
   value: string,
-  expirySeconds: number
+  expirySeconds: number,
+  options?: AcquireLockOptions
 ): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) {
     return true // No-op when Redis unavailable; idempotency layer handles duplicates
   }
 
-  const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
-  return result === 'OK'
+  try {
+    const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
+    return result === 'OK'
+  } catch (error) {
+    // Best effort, and the same compare-and-delete `releaseLock` runs on the
+    // success path: it deletes only while `value` still owns the key. If Redis
+    // is still unreachable the TTL stays the backstop, which is the behavior
+    // without this cleanup.
+    if (options?.reclaimOnFailure) {
+      await releaseLock(lockKey, value).catch(() => {})
+    }
+    throw error
+  }
 }
 
 /**
@@ -312,4 +490,11 @@ export function resetForTesting(): void {
   state.pingFailures = 0
   state.pingInFlight = false
   state.reconnectListeners.length = 0
+  state.clientCreatedAt = null
+  state.lastReadyAt = null
+  state.lastPingOkAt = null
+  state.connects = 0
+  state.reconnects = 0
+  state.errors = 0
+  state.lastErrorMessage = null
 }

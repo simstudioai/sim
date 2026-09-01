@@ -54,25 +54,21 @@ When the user runs `/ship`:
   ```
   Then `git status --short` to see what regenerated — those files must be staged in step 7 alongside your own changes.
 
-  **Do NOT blanket-run the domain generators here.** `mship:generate` (`generate-mship-contracts.ts`) is an **umbrella** that drives all nine mothership contract generators (`mship-contracts`, `billing-protocol-contract`, `mship-tools`, the four `trace-*`, `metrics-contract`, `vfs-snapshot-contract`) and biome-formats `apps/sim/lib/copilot/generated/` — never run it *and* its constituents (they write the same files and corrupt each other in parallel), and never run it on an ordinary ship: it reads an **external** copilot-contract source that isn't checked out in most worktrees, so it hard-fails with `ENOENT` and would abort ship for an unrelated reason. `generate:pi-model-catalog` (under `apps/sim`) likewise regenerates from the installed Pi package, not repo source. Only when **this PR's diff actually touches** a domain generator's input do you regenerate it deliberately and run its matching `:check` (`bun run mship:check` / the individual `*:check`) — with the external source present.
+  **Do NOT blanket-run the domain generators here.** `mship:generate` (`generate-mship-contracts.ts`) is an **umbrella** that drives all nine mothership contract generators (`mship-contracts`, `billing-protocol-contract`, `mship-tools`, the four `trace-*`, `metrics-contract`, `vfs-snapshot-contract`) and biome-formats `apps/sim/lib/copilot/generated/` — never run it *and* its constituents (they write the same files and corrupt each other in parallel), and never run it on an ordinary ship: it reads an **external** copilot-contract source that isn't checked out in most worktrees, so it hard-fails with `ENOENT` and would abort ship for an unrelated reason. `generate:pi-model-catalog` (under `apps/sim`) likewise regenerates from the installed Pi package, not repo source. `scripts/generate-docs.ts` rewrites the integration docs and client-safe catalog; run it when this PR changes their block/icon/landing-content inputs or when `integration-catalog:check` reports drift, then review its broad generated diff. Only when **this PR's diff actually touches** a domain generator's input do you regenerate it deliberately and run its matching `:check` (`bun run mship:check` / the individual `*:check`) — with the external source present.
 
-  **Phase B — run lint + every audit CI enforces, in parallel, and abort ship if any fails.** `bun run lint` first (it autofixes formatting and mutates files, so don't parallelize it with the read-only audits), then fan the rest out and collect exit codes. This is exactly the read-only audit set from CI's `Lint and Test` job (all in-repo, runnable in any worktree):
+  **Phase B — run lint + every audit CI enforces, in parallel, and abort ship if any fails.** Before running the commands, compare this list with `.github/workflows/test-build.yml`; when CI adds an audit, run it and update this skill instead of trusting a stale snapshot. The env-flag audit is currently an inline workflow block rather than a package script: when `apps/sim/lib/core/config/env-flags.ts` changed, run that current workflow block verbatim instead of copying a second version into this skill. Run `bun run lint` first (it autofixes formatting and mutates files, so don't parallelize it with the read-only audits), then run the base-sensitive block-registry check, then fan the independent audits out and collect exit codes:
   ```bash
   # autofix formatting first (mutating; not parallel-safe with the audits). Gate its exit too —
   # a non-zero lint (unfixable errors) must abort before the audits run, not be ignored.
   bun run lint || { echo "❌ lint failed — do not ship"; exit 1; }
-  rm -f /tmp/ship-audit-results
-  for s in check:boundaries check:api-validation:strict check:utils check:zustand-v5 \
-           check:react-query check:client-boundary check:bare-icons check:icon-paths \
-           check:realtime-prune skills:check agent-stream-docs:check; do
-    ( bun run "$s" >"/tmp/ship-audit-${s//:/-}.log" 2>&1; echo "$? $s" >>/tmp/ship-audit-results ) &
-  done
-  wait
-  # any non-zero line is a failing audit — read its /tmp/ship-audit-<name>.log and fix before shipping.
-  # `exit 1` on failure preserves the original sequential checks' semantics (their non-zero exit is
-  # what an agent gates on); never use `grep … && echo ❌ || echo ✅` here — it always exits 0.
-  if grep -vE '^0 ' /tmp/ship-audit-results; then echo "❌ audit(s) failed — do not ship"; exit 1; fi
-  echo "✅ all audits passed"
+  bun run apps/sim/scripts/check-block-registry.ts origin/staging || {
+    echo "❌ block registry audit failed — do not ship"
+    exit 1
+  }
+  # Runs every audit CI runs, concurrently, and replays the output of any that fail.
+  # Do not hand-list the audits here: the list is derived in scripts/run-audits.ts, and the
+  # copy that used to live in this file had already drifted five audits behind package.json.
+  bun run check:audits || { echo "❌ audit(s) failed — do not ship"; exit 1; }
   ```
   If Phase A regenerated a file, its matching `:check` in Phase B now passes trivially — that parity is the point. Do not ship with any generator or audit failing; fix the cause (never silence it) and re-run. `check:migrations` and `type-check` are covered by steps 5 and CI respectively and are not repeated here.
 7. **Stage and commit** the changes with the generated message — including any files Phase A regenerated in step 6
@@ -102,6 +98,23 @@ fix(scope): description for bug fixes
 feat(scope): description for new features
 improvement(scope): description for enhancements
 chore(scope): description for maintenance
+```
+
+## What to Omit
+
+The repo is public. **Everything you publish — title, description, commit messages, and every later comment — must stand on its own without the incident that produced it.** Never include:
+
+- Customer, company, or user names; workspace/user/org/KB/connector IDs; email addresses
+- Prod or staging operational data: log lines, DB rows, metrics, timestamps, incident details, canary/alert output
+- Infrastructure specifics: hostnames (incl. tenant subdomains), ARNs, internal URLs, env var values, secret names
+- Verbatim customer content: file names, document titles, sheet/column names, folder paths
+
+Describe the bug by its mechanism, not by how you found it. "Expired OAuth credentials fail to refresh in the worker" — not "the Sheets canary failed at 16:31Z for workspace abc-123". Aggregate counts are fine once detached from the tenant ("1,379 PDFs failed"); the same number attributed to a named customer is not. Replace real examples with placeholders (`<real sheet name>`) rather than cutting them — the illustration is usually the useful part.
+
+**Scrub before publishing, not after** — a leak is public the instant it posts, and editing later does not unsend the notification email. This applies to every PR you open, including ones created directly with `gh pr create` rather than through this skill. Grep the title, body, and `git log origin/staging..HEAD` before publishing:
+
+```bash
+grep -niE 'customer-or-company-name|@[a-z0-9.-]+\.(com|io|ai)|[0-9a-f]{8}-[0-9a-f]{4}-|\.sharepoint\.com|arn:aws|https?://[a-z0-9.-]*\.internal'
 ```
 
 ## PR Description Format
@@ -137,7 +150,7 @@ gh pr create --base staging --title "COMMIT_MESSAGE" --body "PR_BODY"
 
 ## Important Notes
 
-- Always confirm the commit message and PR description with the user before executing
+- Do not ask the user to confirm the commit message or PR description before executing
 - The PR should be created against `staging` branch
 - Keep descriptions concise and in active voice
 - Match the user's previous PR style: direct, no fluff, bullet points
@@ -150,4 +163,3 @@ gh pr create --base staging --title "COMMIT_MESSAGE" --body "PR_BODY"
 - "Tested manually" is acceptable for testing section; include lint, boundary validation, and (when migrations changed) `check:migrations` results when run
 - Checkboxes filled in appropriately
 - No screenshots section unless UI changes
-

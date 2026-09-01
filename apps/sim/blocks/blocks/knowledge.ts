@@ -1,7 +1,16 @@
+import { isPlainRecord } from '@sim/utils/object'
 import { PackageSearchIcon } from '@/components/icons'
 import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
 import type { BlockConfig } from '@/blocks/types'
 import { getCohereRerankerApiKeyCondition } from '@/blocks/utils'
+
+/*
+ * Canonical basic/advanced pairs, shared by the card sentences below. Listing
+ * both members is what keeps the sentence working for an advanced-mode user,
+ * who has only the manual field filled.
+ */
+const KNOWLEDGE_BASE_FIELD = ['knowledgeBaseSelector', 'manualKnowledgeBaseId'] as const
+const DOCUMENT_FIELD = ['documentSelector', 'documentId'] as const
 
 export const KnowledgeBlock: BlockConfig = {
   type: 'knowledge',
@@ -19,6 +28,68 @@ export const KnowledgeBlock: BlockConfig = {
   `,
   bgColor: '#00B0B0',
   icon: PackageSearchIcon,
+  canvasPresentation: {
+    defaultTitle: 'Knowledge',
+    sentences: {
+      byOperation: {
+        search: [
+          { text: 'Search', field: KNOWLEDGE_BASE_FIELD, core: true },
+          { text: 'for', field: 'query' },
+          { text: ', returning top', field: 'topK', after: 'matches' },
+        ],
+        list_documents: [
+          { text: 'List documents in', field: KNOWLEDGE_BASE_FIELD, core: true },
+          { text: ', matching', field: 'search' },
+          { text: ', up to', field: 'limit', after: 'documents' },
+        ],
+        get_document: [
+          { text: 'Read document', field: DOCUMENT_FIELD, core: true },
+          { text: 'from', field: KNOWLEDGE_BASE_FIELD },
+        ],
+        create_document: [
+          { text: 'Create document', field: 'name', core: true },
+          { text: 'in', field: KNOWLEDGE_BASE_FIELD, core: true },
+        ],
+        upsert_document: [
+          { text: 'Upsert document', field: 'name', core: true },
+          { text: 'into', field: KNOWLEDGE_BASE_FIELD, core: true },
+        ],
+        delete_document: [
+          { text: 'Delete document', field: DOCUMENT_FIELD, core: true },
+          { text: 'from', field: KNOWLEDGE_BASE_FIELD },
+        ],
+        list_chunks: [
+          { text: 'List chunks of document', field: DOCUMENT_FIELD, core: true },
+          { text: ', matching', field: 'chunkSearch' },
+          { text: ', up to', field: 'limit', after: 'chunks' },
+        ],
+        upload_chunk: [
+          { text: 'Add a chunk to document', field: DOCUMENT_FIELD, core: true },
+          { text: 'in', field: KNOWLEDGE_BASE_FIELD },
+        ],
+        update_chunk: [
+          { text: 'Rewrite chunk', field: 'chunkId', core: true },
+          { text: 'of document', field: DOCUMENT_FIELD },
+        ],
+        delete_chunk: [
+          { text: 'Delete chunk', field: 'chunkId', core: true },
+          { text: 'from document', field: DOCUMENT_FIELD },
+        ],
+        list_tags: [{ text: 'List tags defined on', field: KNOWLEDGE_BASE_FIELD, core: true }],
+        list_connectors: [
+          { text: 'List connectors syncing into', field: KNOWLEDGE_BASE_FIELD, core: true },
+        ],
+        get_connector: [
+          { text: 'Read connector', field: 'connectorId', core: true },
+          { text: 'on', field: KNOWLEDGE_BASE_FIELD },
+        ],
+        trigger_sync: [
+          { text: 'Start a sync on connector', field: 'connectorId', core: true },
+          { text: 'in', field: KNOWLEDGE_BASE_FIELD },
+        ],
+      },
+    },
+  },
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/integrations/knowledge',
   subBlocks: [
@@ -86,6 +157,18 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'knowledge-tag-filters',
       placeholder: 'Add tag filters',
       dependsOn: ['knowledgeBaseSelector'],
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'searchMode',
+      title: 'Retrieval Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Vector only', id: 'vector' },
+        { label: 'Hybrid (full-text + vector)', id: 'hybrid' },
+      ],
+      value: () => 'vector',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'search' },
     },
     {
@@ -365,6 +448,7 @@ export const KnowledgeBlock: BlockConfig = {
         }
       },
       params: (params) => {
+        params = { ...params }
         const knowledgeBaseId = params.knowledgeBaseId ? String(params.knowledgeBaseId).trim() : ''
         if (!knowledgeBaseId) {
           throw new Error('Knowledge base ID is required')
@@ -416,6 +500,19 @@ export const KnowledgeBlock: BlockConfig = {
           params.documentId = String(params.upsertDocumentId).trim()
         }
 
+        if (
+          (params.operation === 'create_document' || params.operation === 'upsert_document') &&
+          typeof params.documentTags === 'string' &&
+          params.documentTags.trim().length > 0
+        ) {
+          try {
+            const documentTags: unknown = JSON.parse(params.documentTags)
+            if (Array.isArray(documentTags) || isPlainRecord(documentTags)) {
+              params.documentTags = documentTags
+            }
+          } catch {}
+        }
+
         // Convert enabled dropdown string to boolean for update_chunk
         if (params.operation === 'update_chunk' && typeof params.enabled === 'string') {
           params.enabled = params.enabled === 'true'
@@ -440,6 +537,10 @@ export const KnowledgeBlock: BlockConfig = {
     limit: { type: 'number', description: 'Max items to return' },
     offset: { type: 'number', description: 'Pagination offset' },
     tagFilters: { type: 'string', description: 'Tag filter criteria' },
+    searchMode: {
+      type: 'string',
+      description: 'Retrieval mode: vector only (default) or hybrid (full-text + vector)',
+    },
     rerankerEnabled: { type: 'boolean', description: 'Apply Cohere reranking to search results' },
     rerankerModel: { type: 'string', description: 'Cohere rerank model identifier' },
     rerankerInputCount: {

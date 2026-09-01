@@ -1,8 +1,17 @@
-import { memo, useMemo } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import { type EdgeDiffStatus, WorkflowEdgeView } from '@sim/workflow-renderer'
-import type { EdgeProps } from 'reactflow'
+import { type EdgeProps, useStore } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
-import { useLastRunEdges } from '@/stores/execution'
+import {
+  isEdgeConnectedToEditor,
+  isEdgeHighlighted,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/edge-highlight'
+import {
+  useIsBlockActive,
+  useIsCurrentWorkflowExecuting,
+  useLastRunEdges,
+} from '@/stores/execution'
+import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 
 /** Extended edge props with optional handle identifiers */
@@ -28,6 +37,37 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
     }))
   )
   const lastRunEdges = useLastRunEdges()
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  const isTargetActive = useIsBlockActive(target)
+  const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
+  const activeTab = usePanelStore((state) => state.activeTab)
+
+  /**
+   * Match the block ring: darken edges when an endpoint is canvas-selected or
+   * open in the editor panel (same `--text-secondary` as the selection ring).
+   */
+  const isEndpointSelected = useStore(
+    useCallback(
+      (state) =>
+        Boolean(
+          state.nodeInternals.get(source)?.selected || state.nodeInternals.get(target)?.selected
+        ),
+      [source, target]
+    )
+  )
+  const isConnectedToSelection = Boolean(
+    isEndpointSelected ||
+      (data as { isConnectedToSelection?: boolean } | undefined)?.isConnectedToSelection
+  )
+  const isConnectedToEditor = isEdgeConnectedToEditor(
+    activeTab === 'editor' ? currentBlockId : null,
+    source,
+    target
+  )
+  const shouldHighlightEdge = isEdgeHighlighted({
+    isEndpointSelected: isConnectedToSelection,
+    isConnectedToEditor,
+  })
 
   const previewExecutionStatus = (
     data as { executionStatus?: 'success' | 'error' | 'not-executed' } | undefined
@@ -66,6 +106,9 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
       diffStatus={diffStatus}
       runStatus={runStatus}
       isPreviewRun={Boolean(previewExecutionStatus)}
+      isWorkflowRunning={isWorkflowRunning}
+      isTargetActive={isTargetActive}
+      isConnectedToSelection={shouldHighlightEdge}
     />
   )
 }

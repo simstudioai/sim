@@ -17,6 +17,30 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: GoogleContactsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Contacts',
+    sentences: {
+      byOperation: {
+        create: [
+          { text: 'Create contact', field: 'givenName', core: true },
+          { text: 'at', field: 'organization' },
+          { text: ', with email', field: 'email' },
+        ],
+        get: [{ text: 'Fetch contact', field: 'resourceName', core: true }],
+        list: ['List contacts', { text: ', up to', field: 'pageSize', after: 'per page' }],
+        search: [
+          { text: 'Search contacts for', field: 'query', core: true },
+          { text: ', up to', field: 'pageSize', after: 'results' },
+        ],
+        update: [
+          { text: 'Update contact', field: 'resourceName', core: true },
+          { text: ', renaming to', field: 'givenName' },
+          { text: ', with email', field: 'email' },
+        ],
+        delete: [{ text: 'Delete contact', field: 'resourceName', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

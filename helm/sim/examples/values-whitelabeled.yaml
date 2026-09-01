@@ -100,9 +100,9 @@ ingress:
 # Auto-scaling
 autoscaling:
   enabled: true
-  # Keep realtime out of the HPA until REDIS_URL is set (Socket.IO Redis
-  # adapter) — multi-replica realtime without Redis silently drops cross-pod
-  # collaboration events.
+  # Realtime scales with the app because Redis is available by default. Set this
+  # to false only if you run without Redis (redis.enabled=false and no
+  # app.env.REDIS_URL) — multi-replica realtime would drop cross-pod events.
   realtime:
     enabled: false
   minReplicas: 2

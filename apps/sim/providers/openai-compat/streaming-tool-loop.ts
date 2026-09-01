@@ -22,6 +22,7 @@ import {
   type OpenAICompatAssembledToolCall,
 } from '@/providers/openai-compat/stream-events'
 import type { OpenRouterReasoningDetail } from '@/providers/openrouter/reasoning'
+import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
   isAbortError,
@@ -38,7 +39,6 @@ import {
   sumToolCosts,
   trackForcedToolUsage,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 export type OpenAICompatCreateCompletion = (
   params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
@@ -426,22 +426,28 @@ export function createOpenAICompatStreamingToolLoopStream(
                 const { toolParams, executionParams } = prepareToolExecution(
                   tool,
                   toolArgs,
-                  request
+                  request,
+                  tc.id
                 )
-                const result = await executeTool(toolName, executionParams, {
-                  signal: loopAbortController.signal,
-                })
+                const { rawResponse, modelResponse } = await executeProviderTool(
+                  toolName,
+                  executionParams,
+                  {
+                    signal: loopAbortController.signal,
+                  }
+                )
                 const toolCallEndTime = Date.now()
                 const value = {
                   toolUseId,
                   toolName,
                   toolArgs,
                   toolParams,
-                  result,
+                  result: rawResponse,
+                  modelResult: modelResponse,
                   startTime: toolCallStartTime,
                   endTime: toolCallEndTime,
                   duration: toolCallEndTime - toolCallStartTime,
-                  status: (result.success ? 'success' : 'error') as ToolCallEndStatus,
+                  status: (rawResponse.success ? 'success' : 'error') as ToolCallEndStatus,
                 }
                 openToolStarts.delete(toolUseId)
                 controller.enqueue({
@@ -503,6 +509,8 @@ export function createOpenAICompatStreamingToolLoopStream(
           )
 
           for (const value of orderedResults) {
+            const modelResult =
+              'modelResult' in value ? (value.modelResult ?? value.result) : value.result
             timeSegments.push({
               type: 'tool',
               name: value.toolName,
@@ -525,6 +533,13 @@ export function createOpenAICompatStreamingToolLoopStream(
                 tool: value.toolName,
               }
             }
+            const modelResultContent = modelResult.success
+              ? (modelResult.output ?? null)
+              : {
+                  error: true,
+                  message: modelResult.error || 'Tool execution failed',
+                  tool: value.toolName,
+                }
 
             toolCalls.push({
               name: value.toolName,
@@ -539,7 +554,7 @@ export function createOpenAICompatStreamingToolLoopStream(
             currentMessages.push({
               role: 'tool',
               tool_call_id: value.toolUseId,
-              content: JSON.stringify(resultContent),
+              content: JSON.stringify(modelResultContent),
             })
           }
 

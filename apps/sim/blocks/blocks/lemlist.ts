@@ -15,6 +15,38 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
   integrationType: IntegrationType.Email,
   bgColor: '#316BFF',
   icon: LemlistIcon,
+  canvasPresentation: {
+    defaultTitle: 'Lemlist',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in campaign', field: 'campaignId' },
+      ],
+      byTrigger: {
+        lemlist_webhook: [
+          'Run on any campaign activity',
+          { text: 'in campaign', field: 'campaignId' },
+        ],
+      },
+    },
+    sentences: {
+      byOperation: {
+        get_activities: [
+          'List campaign activities',
+          { text: 'of type', field: 'type' },
+          { text: ', in campaign', field: 'campaignId' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_lead: [{ text: 'Fetch lead', field: ['email', 'leadIdLookup'], core: true }],
+        send_email: [
+          { text: 'Send', field: 'subject', core: true },
+          { text: 'to lead', field: 'leadId' },
+          { text: ', from', field: 'sendUserEmail' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

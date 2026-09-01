@@ -97,6 +97,20 @@ vi.mock('@/stores/execution/store', () => ({
   useLastRunEdges: vi.fn().mockReturnValue(new Map()),
 }))
 
+/**
+ * The tool registry is 4,351 entries pulling ~5,907 modules, and almost nothing
+ * under test needs the real thing — but every test file that transitively
+ * reaches it paid to import the whole graph. Measured on the full suite:
+ * import 1,347s -> 633s, transform 130s -> 53s.
+ *
+ * `@/blocks/registry` is mocked the same way directly below, for the same reason.
+ *
+ * Tests that genuinely assert registration or tool params opt out with
+ * `vi.unmock('@/tools/registry')` at the top of the file — see
+ * blocks/blocks/outlook.test.ts for the pattern.
+ */
+vi.mock('@/tools/registry', () => ({ tools: {} }))
+
 vi.mock('@/blocks/registry', () => ({
   getBlock: vi.fn(() => ({
     name: 'Mock Block',
@@ -107,6 +121,12 @@ vi.mock('@/blocks/registry', () => ({
   })),
   getAllBlocks: vi.fn(() => []),
   getLatestBlock: vi.fn(() => undefined),
+  /** Detail-read accessor: version-resolved and projected through the viewer's visibility. */
+  getLatestBlockForViewer: vi.fn(() => undefined),
+  /** Catalog projections read a block's presentation meta; the real one returns undefined for unknown types. */
+  getBlockMeta: vi.fn(() => undefined),
+  /** Mirrors the real module's accessor; without it consumers get "not a function". */
+  getBlockRegistry: vi.fn(() => ({})),
   getBlockByToolName: vi.fn((toolName: string) =>
     toolName.startsWith('gmail_')
       ? {
@@ -122,6 +142,7 @@ vi.mock('@/blocks/registry', () => ({
 
 vi.mock('@trigger.dev/sdk', () => ({
   task: vi.fn(() => ({ trigger: vi.fn() })),
+  timeout: { None: 'none' },
   tasks: {
     trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
     batchTrigger: vi.fn().mockResolvedValue([{ id: 'mock-task-id' }]),

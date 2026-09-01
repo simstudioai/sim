@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import {
-  Chip,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
@@ -12,12 +11,17 @@ import {
   ChipModalHeader,
   SecretReveal,
 } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
-import { Plus } from 'lucide-react'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   type CopilotKey,
@@ -132,30 +136,33 @@ export function Copilot() {
         {isLoading ? null : showEmptyState ? (
           <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
         ) : (
-          <div className='flex flex-col gap-2'>
+          <div className={RESOURCE_LIST_STACK}>
             {filteredKeys.map((key) => (
-              <div key={key.id} className='flex items-center justify-between gap-3'>
-                <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                  <div className='flex items-center gap-1.5'>
-                    <span className='max-w-[280px] truncate text-[var(--text-body)] text-sm'>
-                      {key.name || 'Unnamed Key'}
-                    </span>
-                    <span className='text-[var(--text-secondary)] text-sm'>
-                      (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
-                    </span>
-                  </div>
-                  <p className='truncate text-[var(--text-muted)] text-caption'>{key.displayKey}</p>
-                </div>
-                <Chip
-                  className='flex-shrink-0'
-                  onClick={() => {
-                    setDeleteKey(key)
-                    setShowDeleteDialog(true)
-                  }}
-                >
-                  Delete
-                </Chip>
-              </div>
+              <SettingsResourceRow
+                key={key.id}
+                title={key.name || 'Unnamed Key'}
+                description={key.displayKey}
+                badge={
+                  <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+                    {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                  </span>
+                }
+                trailing={
+                  <RowActionsMenu
+                    label={`Actions for ${key.name || 'Unnamed Key'}`}
+                    actions={[
+                      {
+                        label: 'Delete',
+                        destructive: true,
+                        onSelect: () => {
+                          setDeleteKey(key)
+                          setShowDeleteDialog(true)
+                        },
+                      },
+                    ]}
+                  />
+                }
+              />
             ))}
             {showNoResults && (
               <SettingsEmptyState variant='inline'>

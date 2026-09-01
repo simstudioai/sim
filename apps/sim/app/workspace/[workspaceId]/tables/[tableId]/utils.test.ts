@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { columnTypeOf } from '@/lib/table/column-types'
 import {
   cleanCellValue,
   dateValueToLocalParts,
@@ -157,6 +158,32 @@ describe('cleanCellValue', () => {
     expect(cleanCellValue('Bug, Bug', column)).toEqual(['opt_a'])
     expect(cleanCellValue('Nope', column)).toEqual([])
   })
+
+  /**
+   * The grid writes through a first-party route, which runs the `null` policy —
+   * a member the paste names that resolves to no option is dropped, and the ones
+   * that do resolve are kept. Erasing the cell instead would lose two live
+   * options over one deleted one. The registry pairing is asserted rather than
+   * described so a helper that stops consulting `salvage` fails here.
+   */
+  it('keeps the members of a partial multiselect paste that still resolve', () => {
+    const column = {
+      name: 'tags',
+      type: 'select',
+      multiple: true,
+      options: [
+        { id: 'opt_a', name: 'Bug' },
+        { id: 'opt_b', name: 'Docs' },
+      ],
+    } as const
+
+    expect(columnTypeOf(column).coerce('Bug, Nope', column)).toEqual({ ok: false })
+    expect(columnTypeOf(column).salvage?.('Bug, Nope', column)).toEqual({
+      ok: true,
+      value: ['opt_a'],
+    })
+    expect(cleanCellValue('Bug, Nope', column)).toEqual(['opt_a'])
+  })
 })
 
 describe('formatValueForInput', () => {
@@ -166,5 +193,32 @@ describe('formatValueForInput', () => {
       '2026-07-06T16:04:55-07:00'
     )
     expect(formatValueForInput('2026-07-06', 'date')).toBe('2026-07-06')
+  })
+
+  it('renders TTL instants in the editor timezone without changing the instant', () => {
+    expect(formatValueForInput(1_700_000_000, 'ttl', 'America/New_York')).toBe(
+      '2023-11-14T17:13:20-05:00'
+    )
+    expect(
+      cleanCellValue('2023-11-14 17:13:20', { name: 'expires_at', type: 'ttl' }, 'America/New_York')
+    ).toBe(1_700_000_000)
+    expect(
+      cleanCellValue('2023-11-14', { name: 'expires_at', type: 'ttl' }, 'America/New_York')
+    ).toBe(1_699_938_000)
+  })
+
+  it('uses the latest effective timezone for each TTL edit', () => {
+    const column = { name: 'expires_at', type: 'ttl' } as const
+    const input = '2026-06-15 09:00:30'
+
+    expect(cleanCellValue(input, column, 'America/New_York')).toBe(
+      Date.parse('2026-06-15T13:00:30Z') / 1000
+    )
+    expect(cleanCellValue(input, column, 'Asia/Kathmandu')).toBe(
+      Date.parse('2026-06-15T03:15:30Z') / 1000
+    )
+    expect(cleanCellValue(input, column, 'America/New_York')).toBe(
+      Date.parse('2026-06-15T13:00:30Z') / 1000
+    )
   })
 })

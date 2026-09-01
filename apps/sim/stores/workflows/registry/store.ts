@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateRandomHex } from '@sim/utils/random'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
@@ -206,10 +207,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
           logger.info(`Switched to workflow ${workflowId}`)
         } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : `Failed to load workflow ${workflowId}: Unknown error`
+          const message = getErrorMessage(
+            error,
+            `Failed to load workflow ${workflowId}: Unknown error`
+          )
           logger.error(message)
 
           const currentHydration = get().hydration

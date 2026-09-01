@@ -134,14 +134,6 @@ export function isVideoFileType(mimeType: string): boolean {
 }
 
 /**
- * Check if a MIME type is an audio or video type
- */
-export function isMediaFileType(mimeType: string): boolean {
-  const contentType = getContentType(mimeType)
-  return contentType === 'audio' || contentType === 'video'
-}
-
-/**
  * Convert a file buffer to base64
  */
 export function bufferToBase64(buffer: Buffer): string {
@@ -211,6 +203,19 @@ export function getFileExtension(filename: string): string {
 }
 
 /**
+ * Whether a file renders in the collaborative rich markdown editor. Server-safe counterpart to the
+ * client's `isMarkdownFile` (which uses `resolvePreviewType`): the editor treats a file as markdown by
+ * its `text/markdown` MIME *or* a `.md`/`.markdown` extension — MIME first, matching the client — so a
+ * `text/markdown` file with a non-`.md` name still counts. Used to gate server work (e.g. the live-doc
+ * merge) to exactly the files that can be open in that editor.
+ */
+export function isMarkdownFile(file: { type?: string | null; name: string }): boolean {
+  if (file.type === 'text/markdown') return true
+  const ext = getFileExtension(file.name)
+  return ext === 'md' || ext === 'markdown'
+}
+
+/**
  * Extensions whose stored bytes may be a generation source that renders to a larger
  * binary. Everything else stores exactly what it serves, so its declared size is
  * an accurate byte budget.
@@ -241,11 +246,37 @@ export function isGeneratedDocumentSourceType(contentType: string | undefined | 
  * orders of magnitude smaller than the document it produces, so the declared size is no
  * bound at all and the rendered bytes need a cap of their own.
  */
+/**
+ * Ceiling on the source bytes fed to a text-extraction parser.
+ *
+ * The parsers have a documented denial-of-service history, so a text read is
+ * bounded on its *input* before extraction rather than on its output after.
+ * The individual parsers keep their own guards; those must not be relaxed to
+ * make a larger ceiling usable.
+ */
+export const MAX_TEXT_EXTRACTION_BYTES = 25 * 1024 * 1024
+
 export const MAX_RENDERED_DOCUMENT_BYTES = 50 * 1024 * 1024
 
 /** True when `fileName` may be backed by a generation source rather than final bytes. */
 export function isRenderableDocumentName(fileName: string): boolean {
   return RENDERABLE_DOCUMENT_EXTENSIONS.has(getFileExtension(fileName))
+}
+
+/**
+ * True when a stored file must be resolved to its rendered artifact before being
+ * handed out. The recorded content type is the authoritative signal — a genuinely
+ * uploaded `.pdf` carries `application/pdf` and must NOT be routed through the
+ * generation-source path — so the extension is consulted only for records that
+ * carry no type at all.
+ */
+export function needsRenderedArtifact(
+  contentType: string | null | undefined,
+  fileName: string
+): boolean {
+  return contentType
+    ? isGeneratedDocumentSourceType(contentType)
+    : isRenderableDocumentName(fileName)
 }
 
 const ARCHIVE_EXTENSIONS = new Set<string>(SUPPORTED_ARCHIVE_EXTENSIONS)
@@ -265,7 +296,7 @@ export function isArchiveFileName(filename: string): boolean {
  * `files/`, so this points at the explicit one-time extract step.
  */
 export function buildArchiveExtractGuidance(name: string): string {
-  return `"${name}" is a .zip archive — its contents can't be read directly. Extract it once with materialize_file(fileNames: ["${name}"], operation: "extract"), then read the unpacked files under files/ (e.g. glob("files/<archive>/**") then read("files/<archive>/<path>/content")).`
+  return `"${name}" is a .zip archive — its contents can't be read directly. Extract it once with save_upload(fileNames: ["${name}"], operation: "extract"), then read the unpacked files under files/ (e.g. glob("files/<archive>/**") then read("files/<archive>/<path>/content")).`
 }
 
 const EXTENSION_TO_MIME: Record<string, string> = {
@@ -367,30 +398,106 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   mkv: 'video/x-matroska',
 }
 
+const GENERIC_MIME_TYPE = 'application/octet-stream'
+
+/**
+ * Containers that hold either audio or video, mapped to the kind this app presents them as.
+ * A filename cannot say which a `.webm` is, and the viewer already routes it to the video
+ * player, so everything user-facing has to agree — otherwise one file reads "Audio" in the
+ * Type column and opens in a `<video>`.
+ *
+ * Deliberately not folded into {@link EXTENSION_TO_MIME}: the speech-to-text and ElevenLabs
+ * routes read that table directly to label an upload, and a `video/*` label there sends a
+ * `.webm` down an ffmpeg extraction path it does not need. Callers that know which element
+ * they are rendering retag from here — see {@link resolveMediaMimeType}.
+ */
+const DUAL_CONTAINER_MIME: Record<string, string> = { webm: 'video/webm' }
+
+/** Every MIME type that identifies no format, including the legacy `binary/` spelling. */
+const GENERIC_MIME_TYPES = new Set([GENERIC_MIME_TYPE, 'binary/octet-stream'])
+
+/** Whether a declared MIME type names an actual format, rather than "some bytes". */
+function identifiesFormat(declared: string | undefined): declared is string {
+  return declared !== undefined && declared !== '' && !GENERIC_MIME_TYPES.has(declared)
+}
+
 /**
  * Get MIME type from file extension (fallback if not provided)
  */
 export function getMimeTypeFromExtension(extension: string): string {
-  return EXTENSION_TO_MIME[extension.toLowerCase()] || 'application/octet-stream'
+  return EXTENSION_TO_MIME[extension.toLowerCase()] || GENERIC_MIME_TYPE
+}
+
+/**
+ * The MIME type that best identifies `filename`, preferring `declaredType` — by a browser
+ * at upload time or by storage at read time — and falling back to the extension when what
+ * was declared identifies no format.
+ *
+ * A declared `application/octet-stream` is not an error: browsers report it for plenty of
+ * real formats, and the presigned PUT handshake requires persisting it verbatim (see
+ * {@link getFileContentType}). A stored type therefore has to be resolved here before it
+ * can drive rendering — a truthiness check (`file.type || fallback`) passes the generic
+ * type straight through, and a `Blob` or media element handed that renders nothing.
+ */
+export function resolveEffectiveMimeType(
+  declaredType: string | null | undefined,
+  filename: string
+): string {
+  const declared = declaredType?.trim()
+  if (identifiesFormat(declared)) return declared
+
+  const extension = getFileExtension(filename)
+  return DUAL_CONTAINER_MIME[extension] ?? getMimeTypeFromExtension(extension)
+}
+
+const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
+
+/**
+ * The MIME type to hand an `<audio>`/`<video>` element, given which of the two the caller
+ * is rendering.
+ *
+ * Beyond {@link resolveEffectiveMimeType} this settles an ambiguity a filename alone cannot:
+ * `.webm` and `.ogg` are both audio and video containers, so a resolved `audio/webm` would
+ * make a `<video>` element drop the picture. The caller has already chosen the element, so
+ * the container subtype is kept and retagged to that kind — the choice belongs here, where
+ * the kind is known, and not in the extension table, which several non-viewer callers share.
+ *
+ * A type naming no media format falls back to the kind's default: passed through, it would
+ * leave the element unable to determine the format, rendering nothing.
+ */
+export function resolveMediaMimeType(
+  declaredType: string | null | undefined,
+  filename: string,
+  kind: 'audio' | 'video'
+): string {
+  const resolved = resolveEffectiveMimeType(declaredType, filename)
+  const [type, subtype] = resolved.split('/')
+  if (type === kind) return resolved
+  if (type === 'audio' || type === 'video') return `${kind}/${subtype}`
+  return MEDIA_FALLBACK_MIME[kind]
 }
 
 /**
  * Resolve a reliable MIME type from a file, falling back to the extension map
- * when the browser reports an empty type. By default treats
- * `application/octet-stream` as "unknown" and falls back to the extension —
- * pass `{ preserveOctetStream: true }` for direct PUT uploads where the
+ * when the browser reports an empty or generic type. Pass
+ * `{ preserveOctetStream: true }` for direct PUT uploads where the
  * browser-supplied content-type must match the presigned handshake exactly.
+ *
+ * This is the type that gets *persisted*, so it resolves through
+ * {@link EXTENSION_TO_MIME} alone and deliberately skips {@link DUAL_CONTAINER_MIME}.
+ * Storing `video/webm` here would put a `video/*` type on the record that the
+ * speech-to-text route reads as `file.type`, sending the upload down the ffmpeg
+ * extraction path — the same failure keeping the dual-container default out of the
+ * extension table avoids. Presentation resolves separately, in
+ * {@link resolveEffectiveMimeType}.
  */
 export function resolveFileType(
   file: { type: string; name: string },
   options?: { preserveOctetStream?: boolean }
 ): string {
   const browserType = file.type?.trim()
-  if (browserType) {
-    if (options?.preserveOctetStream || browserType !== 'application/octet-stream') {
-      return browserType
-    }
-  }
+  if (browserType && options?.preserveOctetStream) return browserType
+  if (identifiesFormat(browserType)) return browserType
   return getMimeTypeFromExtension(getFileExtension(file.name))
 }
 
@@ -639,11 +746,41 @@ export function isInternalFileUrl(fileUrl: string): boolean {
  * prefixes: `kb/` (server-side uploads) or `knowledge-base/` (direct/presigned
  * uploads, whose default key is `${context}/...`). Both map to the same
  * `knowledge-base` context.
+ *
+ * What this answers is *where the bytes live* — which bucket and which tenant —
+ * and for that the prefix is authoritative. It does NOT answer which product
+ * module owns the object: `workspace/` covers both a Files-module workspace file
+ * and a mothership chat attachment, which share a bucket and a workspace scope
+ * and differ only by `workspace_files.context`. Module ownership is also mutable
+ * (`materialize_file` promotes an attachment to a workspace file), so it cannot
+ * live in an immutable key. A caller that needs the owning module must read the
+ * row — see `resolveStoredFileContext` — never this prefix.
  */
 export function inferContextFromKey(key: string): StorageContext {
-  if (!key) {
-    throw new Error('Cannot infer context from empty key')
+  const context = tryInferContextFromKey(key)
+  if (!context) {
+    throw new Error(
+      key
+        ? `File key must start with a context prefix (kb/, knowledge-base/, chat/, copilot/, execution/, workspace/, profile-pictures/, og-images/, workspace-logos/, or logs/). Got: ${key}`
+        : 'Cannot infer context from empty key'
+    )
   }
+  return context
+}
+
+/**
+ * {@link inferContextFromKey} for a key that came from a caller rather than from
+ * our own storage, answering `null` instead of throwing.
+ *
+ * The throwing form is right where an unclassifiable key means the platform
+ * built one wrong — that is a bug and should be loud. It is wrong where the key
+ * is request input being normalized, because there an unrecognized prefix just
+ * means "this is not a file we can use", and a throw turns a malformed request
+ * into a 500. Both share this one list so a new context cannot be added to only
+ * half of them.
+ */
+export function tryInferContextFromKey(key: string): StorageContext | null {
+  if (!key) return null
 
   if (key.startsWith('kb/') || key.startsWith('knowledge-base/')) return 'knowledge-base'
   if (key.startsWith('chat/')) return 'chat'
@@ -655,9 +792,7 @@ export function inferContextFromKey(key: string): StorageContext {
   if (key.startsWith('workspace-logos/')) return 'workspace-logos'
   if (key.startsWith('logs/')) return 'logs'
 
-  throw new Error(
-    `File key must start with a context prefix (kb/, knowledge-base/, chat/, copilot/, execution/, workspace/, profile-pictures/, og-images/, workspace-logos/, or logs/). Got: ${key}`
-  )
+  return null
 }
 
 /**
@@ -672,6 +807,11 @@ const PUBLIC_STORAGE_CONTEXTS = new Set<StorageContext>([
   'workspace-logos',
 ])
 
+/** Whether a trusted storage context is world-readable. */
+export function isPublicStorageContext(context: StorageContext): boolean {
+  return PUBLIC_STORAGE_CONTEXTS.has(context)
+}
+
 /**
  * Resolve the storage context for a stored file from its trusted key prefix.
  *
@@ -682,6 +822,11 @@ const PUBLIC_STORAGE_CONTEXTS = new Set<StorageContext>([
  * private `workspace/…` key from being relabeled with a world-readable context
  * to bypass authorization and read the shared bucket.
  *
+ * "Authoritative" is scoped to bucket and tenancy, which is all this defends.
+ * It is not a claim about which module owns the object; that is the row's job
+ * (`resolveStoredFileContext`), and reading it costs nothing here because the
+ * row is server-authored too — the value being refused above is the *caller's*.
+ *
  * Legacy keys predating context-prefixed keys cannot be inferred; for those the
  * persisted `context` is honored so existing files stay resolvable — except a
  * world-readable context, which would reopen the bypass on an un-inferrable key.
@@ -690,7 +835,7 @@ export function resolveTrustedFileContext(key: string, context?: string): Storag
   try {
     return inferContextFromKey(key)
   } catch (error) {
-    if (context && !PUBLIC_STORAGE_CONTEXTS.has(context as StorageContext)) {
+    if (context && !isPublicStorageContext(context as StorageContext)) {
       return context as StorageContext
     }
     throw error
@@ -1013,6 +1158,31 @@ export function extractWorkspaceIdFromExecutionKey(key: string): string | null {
   }
 
   return null
+}
+
+/**
+ * The workspace a storage key demonstrably belongs to, or `null` when the key's
+ * layout does not name one.
+ *
+ * Only two key layouts encode their tenant: `workspace/{workspaceId}/…` and
+ * `execution/{workspaceId}/{workflowId}/{executionId}/…`. Every other prefix
+ * (`kb/`, `chat/`, `copilot/`, the world-readable ones) carries no workspace
+ * segment, so no ownership can be proven from the key alone and this returns
+ * `null` rather than guessing.
+ *
+ * This is the only safe way to compare a key against an expected workspace when
+ * the key came from a caller: it reads the tenant out of the key's own layout
+ * instead of trusting an adjacent `context`, `workspaceId`, or URL field.
+ */
+export function extractWorkspaceIdFromStorageKey(key: string): string | null {
+  const segments = key.split('/')
+
+  if (segments[0] === 'workspace' && segments.length >= 3) {
+    const workspaceId = segments[1]
+    return workspaceId && isUuid(workspaceId) ? workspaceId : null
+  }
+
+  return extractWorkspaceIdFromExecutionKey(key)
 }
 
 /**

@@ -1,13 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
-import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
+import {
+  executeSelectorRequest,
+  loadAllSelectorOptions,
+} from '@/lib/selectors/client/execute-selector'
+import { buildSelectorRawContext, projectSelectorContext } from '@/lib/selectors/context'
+import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
+import type { SelectorContext, SelectorScope } from '@/lib/selectors/types'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { getBlock } from '@/blocks/registry'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { isUuid } from '@/executor/constants'
 import { fetchOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
-import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
-import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
-import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { formatParameterLabel } from '@/tools/params'
 
@@ -55,8 +59,8 @@ async function resolveCredential(credentialId: string, workflowId: string): Prom
     }
 
     return null
-  } catch (error) {
-    logger.warn('Failed to resolve credential', { credentialId, error })
+  } catch {
+    logger.warn('Failed to resolve credential display label')
     return null
   }
 }
@@ -65,18 +69,15 @@ async function resolveWorkflow(workflowId: string, workspaceId?: string): Promis
   if (!workspaceId) return null
 
   try {
-    const definition = getSelectorDefinition('sim.workflows')
-    if (definition.fetchById) {
-      const result = await definition.fetchById({
-        key: 'sim.workflows',
-        context: { workspaceId },
-        detailId: workflowId,
-      })
-      return result?.label ?? null
-    }
-    return null
-  } catch (error) {
-    logger.warn('Failed to resolve workflow', { workflowId, error })
+    const result = await executeSelectorRequest({
+      selectorKey: 'sim.workflows',
+      scope: { kind: 'workspace', workspaceId },
+      context: {},
+      request: { kind: 'detail', id: workflowId },
+    })
+    return result.kind === 'detail' ? (result.item?.label ?? null) : null
+  } catch {
+    logger.warn('Failed to resolve workflow display label')
     return null
   }
 }
@@ -84,30 +85,33 @@ async function resolveWorkflow(workflowId: string, workspaceId?: string): Promis
 async function resolveSelectorValue(
   value: string,
   selectorKey: SelectorKey,
-  selectorContext: SelectorContext
+  selectorContext: SelectorContext,
+  scope: SelectorScope
 ): Promise<string | null> {
   try {
-    const definition = getSelectorDefinition(selectorKey)
+    const manifest = getSelectorManifestEntry(selectorKey)
 
-    if (definition.fetchById) {
-      const result = await definition.fetchById({
-        key: selectorKey,
+    if (manifest.supportsDetail) {
+      const result = await executeSelectorRequest({
+        selectorKey,
+        scope,
         context: selectorContext,
-        detailId: value,
+        request: { kind: 'detail', id: value },
       })
-      if (result?.label) {
-        return result.label
+      if (result.kind === 'detail' && result.item?.label) {
+        return result.item.label
       }
     }
 
-    const options = await loadAllSelectorOptions(definition, {
-      key: selectorKey,
+    const options = await loadAllSelectorOptions({
+      selectorKey,
+      scope,
       context: selectorContext,
     })
     const match = options.find((opt) => opt.id === value)
     return match?.label ?? null
-  } catch (error) {
-    logger.warn('Failed to resolve selector value', { value, selectorKey, error })
+  } catch {
+    logger.warn('Failed to resolve selector display label', { selectorKey })
     return null
   }
 }
@@ -170,15 +174,19 @@ export function formatValueForDisplay(value: unknown): string {
 function extractSelectorContext(
   blockId: string,
   currentState: WorkflowState,
-  workflowId: string,
-  workspaceId?: string
+  selectorKey: SelectorKey,
+  subBlockConfig: SubBlockConfig
 ): SelectorContext {
   const block = currentState.blocks?.[blockId]
-  if (!block?.subBlocks) return { workflowId, workspaceId }
-  return buildSelectorContextFromBlock(block.type, block.subBlocks, {
-    workflowId,
-    workspaceId,
+  if (!block?.subBlocks) return {}
+  return buildSelectorRawContext({
+    selectorKey,
+    blockType: block.type,
+    subBlocks: block.subBlocks,
+    dependsOn: getDependsOnFields(subBlockConfig.dependsOn),
     canonicalModes: block.data?.canonicalModes,
+    triggerMode: block.triggerMode,
+    staticContext: { mimeType: subBlockConfig.mimeType },
   })
 }
 
@@ -209,15 +217,6 @@ export async function resolveValueForDisplay(
   }
   const semanticFallback = getSemanticFallback(subBlockConfig)
 
-  const selectorCtx = context.blockId
-    ? extractSelectorContext(
-        context.blockId,
-        context.currentState,
-        context.workflowId,
-        context.workspaceId
-      )
-    : { workflowId: context.workflowId, workspaceId: context.workspaceId }
-
   const isCredentialField =
     subBlockConfig.type === 'oauth-input' || context.subBlockId === 'credential'
 
@@ -230,7 +229,7 @@ export async function resolveValueForDisplay(
   }
 
   if (subBlockConfig.type === 'workflow-selector' && isUuid(value)) {
-    const label = await resolveWorkflow(value, selectorCtx.workspaceId)
+    const label = await resolveWorkflow(value, context.workspaceId)
     if (label) {
       return { original: value, displayLabel: label, resolved: true }
     }
@@ -248,20 +247,27 @@ export async function resolveValueForDisplay(
       if (label) {
         return { original: value, displayLabel: label, resolved: true }
       }
-    } catch (error) {
-      logger.warn('Failed to resolve dropdown label', {
-        value,
-        subBlockId: context.subBlockId,
-        error,
-      })
+    } catch {
+      logger.warn('Failed to resolve dropdown display label')
     }
   }
 
   if (SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlockConfig.type)) {
-    const resolution = resolveSelectorForSubBlock(subBlockConfig, selectorCtx)
-
-    if (resolution?.key) {
-      const label = await resolveSelectorValue(value, resolution.key, selectorCtx)
+    const selectorKey = subBlockConfig.selectorKey
+    const scope: SelectorScope | undefined = context.workflowId
+      ? {
+          kind: 'workflow',
+          workflowId: context.workflowId,
+          ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+        }
+      : context.workspaceId
+        ? { kind: 'workspace', workspaceId: context.workspaceId }
+        : undefined
+    if (selectorKey && scope) {
+      const selectorContext = context.blockId
+        ? extractSelectorContext(context.blockId, context.currentState, selectorKey, subBlockConfig)
+        : projectSelectorContext(selectorKey, { mimeType: subBlockConfig.mimeType })
+      const label = await resolveSelectorValue(value, selectorKey, selectorContext, scope)
       if (label) {
         return { original: value, displayLabel: label, resolved: true }
       }

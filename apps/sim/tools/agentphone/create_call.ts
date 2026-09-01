@@ -61,6 +61,13 @@ export const agentphoneCreateCallTool: ToolConfig<
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        initialGreeting: params.initialGreeting,
+        systemPrompt: params.systemPrompt,
+      }),
+    },
     url: 'https://api.agentphone.to/v1/calls',
     method: 'POST',
     headers: (params) => ({

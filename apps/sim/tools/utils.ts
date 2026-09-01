@@ -1,6 +1,4 @@
-import { createLogger } from '@sim/logger'
 import { stripVersionSuffix } from '@sim/utils/string'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   normalizeRecord,
   normalizeStringRecord,
@@ -11,9 +9,7 @@ import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { tools } from '@/tools/registry'
-import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('ToolsUtils')
+import type { ExecutableToolConfig, InternalToolConfig } from '@/tools/types'
 
 /**
  * Strips version suffix (_v2, _v3, etc.) from a tool ID or name.
@@ -24,6 +20,17 @@ const logger = createLogger('ToolsUtils')
  */
 export { stripVersionSuffix } from '@sim/utils/string'
 
+/** Materialized HTTP request accepted by the legacy executeRequest helper. */
+export interface RequestParams {
+  url: string
+  method: string
+  headers: Record<string, string>
+  body?: string
+  timeout?: number
+  proxyUrl?: string
+  stripAuthOnRedirect?: boolean
+}
+
 /**
  * Filters a tools map to return only the latest version of each tool.
  * If both `notion_search` and `notion_search_v2` exist, only `notion_search_v2` is returned.
@@ -31,9 +38,9 @@ export { stripVersionSuffix } from '@sim/utils/string'
  * @returns Filtered record containing only the latest version of each tool
  */
 export function getLatestVersionTools(
-  toolsMap: Record<string, ToolConfig>
-): Record<string, ToolConfig> {
-  const latestTools: Record<string, ToolConfig> = {}
+  toolsMap: Record<string, ExecutableToolConfig>
+): Record<string, ExecutableToolConfig> {
+  const latestTools: Record<string, ExecutableToolConfig> = {}
   const baseNameToVersions: Record<string, { toolId: string; version: number }[]> = {}
 
   for (const toolId of Object.keys(toolsMap)) {
@@ -58,6 +65,13 @@ export function getLatestVersionTools(
 /**
  * Resolves a tool name to its actual tool ID in the registry.
  * Handles both stripped names (e.g., 'notion_search') and versioned names (e.g., 'notion_search_v2').
+ *
+ * Server-side counterpart to `resolveToolId` in `@/tools/tool-ids`. Both exist
+ * deliberately: this one reads the live registry, so a tool added but not yet
+ * regenerated stays resolvable; that one resolves against the generated id list
+ * without pulling 4,300 tools into a client graph. Client code wants that one.
+ * `tool-metadata:check` asserts the two never diverge.
+ *
  * @param toolName The tool name to resolve (may or may not have version suffix)
  * @returns The actual tool ID in the registry, or the original name if not found
  */
@@ -74,85 +88,6 @@ export function resolveToolId(toolName: string): string {
   }
 
   return toolName
-}
-
-export interface RequestParams {
-  url: string
-  method: string
-  headers: Record<string, string>
-  body?: string
-  timeout?: number
-  proxyUrl?: string
-  stripAuthOnRedirect?: boolean
-}
-
-/**
- * Format request parameters based on tool configuration and provided params
- */
-export function formatRequestParams(tool: ToolConfig, params: Record<string, any>): RequestParams {
-  // Process URL
-  const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
-
-  // Process method
-  const method =
-    typeof tool.request.method === 'function'
-      ? tool.request.method(params)
-      : params.method || tool.request.method || 'GET'
-
-  // Process headers
-  const headers = tool.request.headers ? tool.request.headers(params) : {}
-
-  // Process body
-  const hasBody = method !== 'GET' && method !== 'HEAD' && !!tool.request.body
-  const bodyResult = tool.request.body ? tool.request.body(params) : undefined
-
-  // Special handling for NDJSON content type or 'application/x-www-form-urlencoded'
-  const isPreformattedContent =
-    headers['Content-Type'] === 'application/x-ndjson' ||
-    headers['Content-Type'] === 'application/x-www-form-urlencoded'
-
-  let body: string | undefined
-  if (hasBody) {
-    if (isPreformattedContent) {
-      // Check if bodyResult is a string
-      if (typeof bodyResult === 'string') {
-        body = bodyResult
-      }
-      // Check if bodyResult is an object with a 'body' property (Twilio pattern)
-      else if (bodyResult && typeof bodyResult === 'object' && 'body' in bodyResult) {
-        body = bodyResult.body
-      }
-      // Otherwise JSON stringify it
-      else {
-        body = JSON.stringify(bodyResult)
-      }
-    } else {
-      body = typeof bodyResult === 'string' ? bodyResult : JSON.stringify(bodyResult)
-    }
-  }
-
-  const MAX_TIMEOUT_MS = getMaxExecutionTimeout()
-  const rawTimeout = params.timeout
-  const timeout = rawTimeout != null ? Number(rawTimeout) : undefined
-  const validTimeout =
-    timeout != null && Number.isFinite(timeout) && timeout > 0
-      ? Math.min(timeout, MAX_TIMEOUT_MS)
-      : undefined
-
-  const proxyUrl =
-    typeof params.proxyUrl === 'string' && params.proxyUrl.trim()
-      ? params.proxyUrl.trim()
-      : undefined
-
-  return {
-    url,
-    method,
-    headers,
-    body,
-    timeout: validTimeout,
-    proxyUrl,
-    stripAuthOnRedirect: tool.request.stripAuthOnRedirect,
-  }
 }
 
 /**
@@ -175,7 +110,7 @@ function formatParameterNameForError(paramName: string): string {
  */
 export function validateRequiredParametersAfterMerge(
   toolId: string,
-  tool: ToolConfig | undefined,
+  tool: ExecutableToolConfig | undefined,
   params: Record<string, any>,
   parameterNameMap?: Record<string, string>
 ): void {
@@ -299,7 +234,7 @@ export function createCustomToolRequestBody(customTool: any, isClient = true, wo
 }
 
 // Get a tool by its ID
-export function getTool(toolId: string, _workspaceId?: string): ToolConfig | undefined {
+export function getTool(toolId: string, _workspaceId?: string): ExecutableToolConfig | undefined {
   // Check for built-in tools
   const builtInTool = tools[resolveToolId(toolId)]
   if (builtInTool) return builtInTool
@@ -312,7 +247,7 @@ export function getTool(toolId: string, _workspaceId?: string): ToolConfig | und
 export function createToolConfig(
   customTool: CustomToolDefinition,
   customToolId: string
-): ToolConfig {
+): InternalToolConfig {
   // Create a parameter schema from the custom tool schema
   const params = createParamSchema(customTool)
 
@@ -324,12 +259,8 @@ export function createToolConfig(
     version: '1.0.0',
     params,
 
-    // Request configuration - for custom tools we'll use the execute endpoint
-    request: {
-      url: '/api/function/execute',
-      method: 'POST',
-      headers: () => ({ 'Content-Type': 'application/json' }),
-      body: createCustomToolRequestBody(customTool, true),
+    operation: {
+      input: createCustomToolRequestBody(customTool, true),
     },
 
     // Standard response handling for custom tools

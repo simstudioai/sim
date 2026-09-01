@@ -1,0 +1,37 @@
+{
+  "name": "@sim/deployment-config",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    "./env-capabilities": {
+      "types": "./src/env-capabilities.ts",
+      "default": "./src/env-capabilities.ts"
+    },
+    "./integration-availability": {
+      "types": "./src/integration-availability.ts",
+      "default": "./src/integration-availability.ts"
+    },
+    "./integrations.json": "./src/integrations.json",
+    "./service-account-metadata": {
+      "types": "./src/service-account-metadata.ts",
+      "default": "./src/service-account-metadata.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
+  },
+  "dependencies": {
+    "@sim/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "typescript": "^7.0.2"
+  }
+}

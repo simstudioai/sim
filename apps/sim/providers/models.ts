@@ -33,6 +33,7 @@ import {
   xAIIcon,
   ZaiIcon,
 } from '@/components/icons'
+import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { ModelPricing, ProviderId } from '@/providers/types'
 
 /** How a model's thinking appears on the agent-events stream. */
@@ -131,13 +132,25 @@ export interface ProviderDefinition {
 export type ProviderFileAttachmentStrategy = 'inline' | 'files-api' | 'remote-url'
 
 export interface ProviderFileAttachment {
-  /** Maximum attachment size the provider accepts, in bytes. */
+  /** Maximum size of a single attachment the provider accepts, in bytes. */
   maxBytes: number
   strategy: ProviderFileAttachmentStrategy
 }
 
 /** Inline base64 attachment cap, also the fallback limit for providers without a large-file path. */
 export const INLINE_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+
+/**
+ * Size above which an attachment should prefer the provider's Files API over base64, when the
+ * deployment can reach one.
+ *
+ * Set by the execution payload store, not by any provider. Base64 inflates bytes by 4/3 and a
+ * single stored value may not exceed {@link LARGE_VALUE_THRESHOLD_BYTES}, so past three quarters
+ * of that ceiling the encoded copy no longer fits the cache. Inlining still succeeds above this
+ * point — the cache write is skipped, not fatal — but it carries a needlessly large encoded
+ * payload, so an upload is preferred wherever one is available.
+ */
+export const LARGE_FILE_PATH_THRESHOLD_BYTES = Math.floor(LARGE_VALUE_THRESHOLD_BYTES / 4) * 3
 
 const DEFAULT_FILE_ATTACHMENT: ProviderFileAttachment = {
   maxBytes: INLINE_ATTACHMENT_MAX_BYTES,
@@ -164,7 +177,47 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     contextInformationAvailable: false,
-    models: [],
+    /**
+     * Static Fireworks serverless entries: the sim-auto routing pool. These are
+     * hosted-billable (platform FIREWORKS_API_KEY) and priced at the Fireworks
+     * serverless rate, which differs from the vendors' native rates. Text-only:
+     * the Fireworks serving endpoints reject image inputs. User-configured
+     * `fireworks/<anything-else>` ids remain dynamic/BYO-key as before.
+     */
+    models: [
+      {
+        id: 'fireworks/glm-5.2',
+        pricing: {
+          input: 1.4,
+          cachedInput: 0.14,
+          output: 4.4,
+          updatedAt: '2026-07-29',
+        },
+        capabilities: {
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-06-13',
+        recommended: true,
+      },
+      {
+        id: 'fireworks/kimi-k3',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-07-29',
+        },
+        capabilities: {
+          toolUsageControl: true,
+          maxOutputTokens: 1048576,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-07-16',
+        recommended: true,
+      },
+    ],
   },
   together: {
     id: 'together',
@@ -261,7 +314,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   openai: {
     id: 'openai',
-    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'files-api' },
+    /** "each file must be under 50 MB" — decimal MB; OpenAI writes no MiB anywhere on that page. */
+    fileAttachment: { maxBytes: 50_000_000, strategy: 'files-api' },
     name: 'OpenAI',
     description: "OpenAI's models",
     defaultModel: 'gpt-4.1',
@@ -2081,7 +2135,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
     name: 'xAI',
     description: "xAI's Grok models",
-    defaultModel: 'grok-4.5',
+    defaultModel: 'grok-4.6',
     modelPatterns: [/^grok/],
     icon: xAIIcon,
     color: '#555555',
@@ -2090,18 +2144,39 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
-        id: 'grok-4.5',
+        id: 'grok-4.6',
         pricing: {
           input: 2.0,
+          cachedInput: 0.5,
           output: 6.0,
-          updatedAt: '2026-07-08',
+          updatedAt: '2026-08-12',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh'],
+          },
+        },
+        contextWindow: 500000,
+        releaseDate: '2026-08-12',
+        recommended: true,
+      },
+      {
+        id: 'grok-4.5',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.3,
+          output: 6.0,
+          updatedAt: '2026-08-12',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          reasoningEffort: {
+            values: ['low', 'medium', 'high', 'xhigh'],
+          },
         },
         contextWindow: 500000,
         releaseDate: '2026-07-08',
-        recommended: true,
       },
       {
         id: 'grok-4.3',
@@ -2113,6 +2188,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-30',
@@ -2260,6 +2338,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
         },
         contextWindow: 1000000,
         releaseDate: '2026-03-10',
@@ -2808,6 +2889,41 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'glm-5.3',
+        pricing: {
+          input: 1.4,
+          output: 4.4,
+          updatedAt: '2026-08-26',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+          reasoningEffort: {
+            values: ['low', 'high', 'max'],
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-08-14',
+        recommended: true,
+      },
+      {
+        id: 'glm-5.3-flash',
+        pricing: {
+          input: 0.15,
+          output: 0.5,
+          updatedAt: '2026-08-26',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-08-26',
+        speedOptimized: true,
+      },
+      {
         id: 'glm-5.2',
         pricing: {
           input: 1.4,
@@ -2824,7 +2940,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-06-13',
-        recommended: true,
       },
       {
         id: 'glm-5.1',
@@ -4037,6 +4152,19 @@ export function suggestModelIdsForUnknownModel(_modelId: string, limit = 5): str
     .slice(0, limit)
 }
 
+/**
+ * Pseudo-model id for the agent block's automatic model. Not a real catalog
+ * entry: at execution time the resolver (lib/model-router) classifies the task
+ * via mothership and swaps in a concrete model from the hosted Fireworks pool
+ * before any provider/pricing lookup runs. Hosted Sim only.
+ */
+export const SIM_AUTO_MODEL_ID = 'sim-auto'
+
+/** True when the configured model is the sim-auto pseudo-model. */
+export function isAutoModel(model: string): boolean {
+  return model.trim().toLowerCase() === SIM_AUTO_MODEL_ID
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
   return Object.entries(PROVIDER_DEFINITIONS)
     .filter(
@@ -4166,6 +4294,11 @@ export function getHostedModels(): string[] {
     ...getProviderModels('zai'),
     ...getProviderModels('xai'),
     ...getProviderModels('kimi'),
+    // The STATIC Fireworks catalog only (the sim-auto pool, platform key) —
+    // deliberately not the live provider list, which `updateFireworksModels`
+    // merges a workspace's own dynamic ids into. Those must never enter the
+    // hosted set: it gates both billing and the platform-key handout.
+    ...STATIC_FIREWORKS_MODELS.map((model) => model.id),
   ]
 }
 
@@ -4231,16 +4364,31 @@ export function updateLiteLLMModels(models: string[]): void {
   }))
 }
 
+/**
+ * The static Fireworks catalog (the hosted sim-auto pool), captured at module
+ * load before any dynamic sync runs. Hosted billing, pricing, and the agent
+ * block's API-key condition all key on these ids, so a workspace's own
+ * Fireworks models are merged on top of them rather than replacing them —
+ * unlike the other dynamic providers, whose static list is empty.
+ */
+const STATIC_FIREWORKS_MODELS = PROVIDER_DEFINITIONS.fireworks.models
+
 export function updateFireworksModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.fireworks.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  const staticIds = new Set(STATIC_FIREWORKS_MODELS.map((model) => model.id.toLowerCase()))
+  PROVIDER_DEFINITIONS.fireworks.models = [
+    ...STATIC_FIREWORKS_MODELS,
+    ...models
+      .filter((modelId) => !staticIds.has(modelId.toLowerCase()))
+      .map((modelId) => ({
+        id: modelId,
+        pricing: {
+          input: 0,
+          output: 0,
+          updatedAt: new Date().toISOString().split('T')[0],
+        },
+        capabilities: {},
+      })),
+  ]
 }
 
 export function updateTogetherModels(models: string[]): void {
@@ -4311,6 +4459,21 @@ export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {
     input: 0.15, // $0.15 per 1M tokens
     output: 0.0,
     updatedAt: '2026-04-29',
+  },
+  'embed-v4.0': {
+    input: 0.12, // $0.12 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-08-05',
+  },
+  'mistral-embed': {
+    input: 0.1, // $0.1 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-08-05',
+  },
+  'codestral-embed': {
+    input: 0.15, // $0.15 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-08-05',
   },
 }
 
@@ -4478,6 +4641,33 @@ export function getModelsWithThinking(): string[] {
 export function getThinkingLevelsForModel(modelId: string): string[] | null {
   const capability = getThinkingCapability(modelId)
   return capability?.levels ?? null
+}
+
+const ALL_MODEL_LEVEL_VALUES = new Set<string>()
+for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+  for (const model of provider.models) {
+    for (const value of model.capabilities.reasoningEffort?.values ?? []) {
+      ALL_MODEL_LEVEL_VALUES.add(value)
+    }
+    for (const value of model.capabilities.verbosity?.values ?? []) {
+      ALL_MODEL_LEVEL_VALUES.add(value)
+    }
+    for (const level of model.capabilities.thinking?.levels ?? []) {
+      ALL_MODEL_LEVEL_VALUES.add(level)
+    }
+  }
+}
+
+/**
+ * Whether a string is a tuning level some model in the catalogue declares, regardless of which.
+ *
+ * Callers that need to put a caller-supplied level into a log or an error gate on this first.
+ * These fields accept variable and environment references, so an unrecognized value is not
+ * necessarily a mistyped level — it can be whatever that reference resolved to, up to and
+ * including secret content that must never be echoed.
+ */
+export function isKnownModelLevelValue(value: string): boolean {
+  return ALL_MODEL_LEVEL_VALUES.has(value)
 }
 
 /**

@@ -57,6 +57,14 @@ export const getAllowedProvidersContract = defineRouteContract({
   },
 })
 
+export const integrationAvailabilitySchema = z.object({
+  type: z.string().min(1),
+  state: z.enum(['ready', 'limited', 'unavailable', 'misconfigured']),
+  oauthAvailable: z.boolean(),
+})
+
+export type IntegrationAvailabilityResponse = z.output<typeof integrationAvailabilitySchema>
+
 export const getAllowedIntegrationsContract = defineRouteContract({
   method: 'GET',
   path: '/api/settings/allowed-integrations',
@@ -66,9 +74,14 @@ export const getAllowedIntegrationsContract = defineRouteContract({
       // `null` means "no env-derived allowlist" (unrestricted); a non-null
       // array narrows the visible integrations.
       allowedIntegrations: z.array(z.string()).nullable(),
+      integrationAvailability: z.array(integrationAvailabilitySchema),
     }),
   },
 })
+
+export type GetAllowedIntegrationsResponse = z.output<
+  typeof getAllowedIntegrationsContract.response.schema
+>
 
 export const getVoiceSettingsContract = defineRouteContract({
   method: 'GET',
@@ -92,21 +105,7 @@ export const getStarsContract = defineRouteContract({
   },
 })
 
-export const getStatusContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/status',
-  response: {
-    mode: 'json',
-    schema: z.object({
-      status: z.enum(['operational', 'degraded', 'outage', 'maintenance', 'loading', 'error']),
-      message: z.string(),
-      url: z.string().url(),
-      lastUpdated: z.string(),
-    }),
-  },
-})
-
-const jobStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed'])
+const jobStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed', 'cancelled'])
 
 const jobStatusResponseSchema = z
   .object({

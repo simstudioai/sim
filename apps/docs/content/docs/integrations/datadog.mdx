@@ -1,0 +1,1278 @@
+---
+title: Datadog
+description: Monitor infrastructure, applications, and logs with Datadog
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="datadog"
+  color="#632CA6"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Datadog](https://datadoghq.com/) is a comprehensive monitoring and analytics platform for infrastructure, applications, logs, and more. It enables organizations to gain real-time visibility into the health and performance of systems, detect anomalies, and automate incident response.
+
+With Datadog, you can:
+
+- **Monitor metrics**: Collect, visualize, and analyze metrics from servers, cloud services, and custom applications.
+- **Query time series data**: Run advanced queries on performance metrics for trend analysis and reporting.
+- **Manage monitors and events**: Set up monitors to detect issues, trigger alerts, and create events for observability.
+- **Handle downtimes**: Schedule and programmatically manage planned downtimes to suppress alerts during maintenance.
+- **Analyze logs and traces** *(with additional setup in Datadog)*: Centralize and inspect logs or distributed traces for deeper troubleshooting.
+
+Sim’s Datadog integration lets your agents automate these operations and interact with your Datadog account programmatically. Use it to submit custom metrics, query timeseries data, manage monitors, create events, and streamline your monitoring workflows directly within Sim automations.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Datadog monitoring into workflows. Submit metrics, manage monitors, query logs, create events, handle downtimes, and more.
+
+
+
+## Actions
+
+### Datadog Submit Metrics
+
+Submit custom metrics to Datadog. Use for tracking application performance, business metrics, or custom monitoring data.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `series` | string | Yes | JSON array of metric series to submit. Each entry needs "metric" and "points" \(objects with "timestamp" in POSIX seconds and a numeric "value"\); timestamps cannot be more than 10 minutes in the future or 1 hour in the past. Optional per entry: "type" \("count", "rate", or "gauge"; omit to let Datadog infer\), "interval" in seconds \(required by Datadog for count and rate\), "tags", "unit", "sourceTypeName", and "resources". |
+| `apiKey` | string | Yes | Datadog API key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the metrics were submitted successfully |
+| `errors` | array | Any errors that occurred during submission |
+
+### Datadog Query Timeseries
+
+Query metric timeseries data from Datadog. Use for analyzing trends, creating reports, or retrieving metric values.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Datadog metrics query \(e.g., "avg:system.cpu.user\{*\}", "sum:nginx.requests\{env:prod\}.as_count\(\)"\) |
+| `from` | number | Yes | Start time as Unix timestamp in seconds \(e.g., 1705320000\) |
+| `to` | number | Yes | End time as Unix timestamp in seconds \(e.g., 1705323600\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | array | Array of timeseries data with metric name, tags, and data points |
+|   ↳ `metric` | string | Metric name |
+|   ↳ `tags` | array | Tags attached to the series |
+|   ↳ `points` | array | Data points |
+|     ↳ `timestamp` | number | Point timestamp \(Unix seconds\) |
+|     ↳ `value` | number | Point value |
+| `status` | string | Query status |
+
+### Datadog Create Event
+
+Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | Event title |
+| `text` | string | Yes | Event body/description. Supports markdown. |
+| `alertType` | string | No | Alert type: error, warning, info, success, user_update, recommendation, or snapshot |
+| `priority` | string | No | Event priority: normal or low |
+| `host` | string | No | Host name to associate with this event \(e.g., "web-server-01", "prod-api-1"\) |
+| `tags` | string | No | Comma-separated list of tags \(e.g., "env:production,service:api", "team:backend,priority:high"\) |
+| `aggregationKey` | string | No | Key to aggregate events together |
+| `sourceTypeName` | string | No | Source type name for the event |
+| `dateHappened` | number | No | Unix timestamp in seconds when the event occurred \(e.g., 1705320000, defaults to now\). Datadog limits this to events no older than 18 hours. |
+| `apiKey` | string | Yes | Datadog API key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | The created event details |
+|   ↳ `id` | number | Event ID |
+|   ↳ `title` | string | Event title |
+|   ↳ `text` | string | Event text |
+|   ↳ `date_happened` | number | Unix timestamp when event occurred |
+|   ↳ `priority` | string | Event priority |
+|   ↳ `alert_type` | string | Alert type |
+|   ↳ `host` | string | Associated host |
+|   ↳ `tags` | array | Event tags |
+|   ↳ `url` | string | URL to view the event in Datadog |
+
+### Datadog Create Monitor
+
+Create a new monitor/alert in Datadog. Monitors can track metrics, service checks, events, and more.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Monitor name |
+| `type` | string | Yes | Monitor type: metric alert, service check, event alert, process alert, log alert, query alert, composite, synthetics alert, slo alert |
+| `query` | string | Yes | Monitor query \(e.g., "avg\(last_5m\):avg:system.cpu.idle\{*\} &lt; 20", "logs\("status:error"\).index\("main"\).rollup\("count"\).last\("5m"\) &gt; 100"\) |
+| `message` | string | No | Message to include with notifications. Can include @-mentions and markdown. |
+| `tags` | string | No | Comma-separated list of tags |
+| `priority` | number | No | Monitor priority \(1-5, where 1 is highest\) |
+| `options` | string | No | JSON string of monitor options \(thresholds, notify_no_data, renotify_interval, etc.\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | object | The created monitor details |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `name` | string | Monitor name |
+|   ↳ `type` | string | Monitor type |
+|   ↳ `query` | string | Monitor query |
+|   ↳ `message` | string | Notification message |
+|   ↳ `tags` | array | Monitor tags |
+|   ↳ `priority` | number | Monitor priority |
+|   ↳ `overall_state` | string | Current monitor state |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `options` | json | Monitor options \(thresholds, notification settings\) |
+|   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
+
+### Datadog Get Monitor
+
+Retrieve details of a specific monitor by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | Yes | The ID of the monitor to retrieve \(e.g., "12345678"\) |
+| `groupStates` | string | No | Comma-separated group states to include. Valid values are "all", "alert", "warn", and "no data" \(e.g., "alert,warn"\). |
+| `withDowntimes` | boolean | No | Include downtime data with the monitor |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitor` | object | The monitor details |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `name` | string | Monitor name |
+|   ↳ `type` | string | Monitor type |
+|   ↳ `query` | string | Monitor query |
+|   ↳ `message` | string | Notification message |
+|   ↳ `tags` | array | Monitor tags |
+|   ↳ `priority` | number | Monitor priority |
+|   ↳ `overall_state` | string | Current monitor state |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `options` | json | Monitor options \(thresholds, notification settings\) |
+|   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
+
+### Datadog List Monitors
+
+List all monitors in Datadog with optional filtering by name, tags, or state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupStates` | string | No | Comma-separated group states to filter by. Valid values are "all", "alert", "warn", and "no data" \(e.g., "alert,warn"\). |
+| `name` | string | No | Filter monitors by name with partial match \(e.g., "CPU", "Production"\) |
+| `tags` | string | No | Comma-separated list of tags to filter by \(e.g., "env:prod,team:backend"\) |
+| `monitorTags` | string | No | Comma-separated list of monitor tags to filter by \(e.g., "service:api,priority:high"\) |
+| `withDowntimes` | boolean | No | Include downtime data with monitors |
+| `page` | number | No | Page to start paginating from \(0-indexed, e.g., 0, 1, 2\). Datadog returns every monitor in the org without pagination when this is not specified, so set it to bound the response. Setting Page Size alone implies page 0. |
+| `pageSize` | number | No | Number of monitors per page \(e.g., 50, max: 1000\). Datadog only applies this when a page is specified — otherwise it returns all monitors with no page size limit — so setting this alone sends page 0. With a page but no page size, Datadog defaults to 100. |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monitors` | array | List of monitors |
+|   ↳ `id` | number | Monitor ID |
+|   ↳ `name` | string | Monitor name |
+|   ↳ `type` | string | Monitor type |
+|   ↳ `query` | string | Monitor query |
+|   ↳ `message` | string | Notification message |
+|   ↳ `overall_state` | string | Current state |
+|   ↳ `tags` | array | Tags |
+|   ↳ `priority` | number | Monitor priority |
+|   ↳ `options` | json | Monitor options \(thresholds, notification settings\) |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
+
+### Datadog Mute Monitor
+
+Mute a monitor to temporarily suppress its notifications. Use Unmute Monitor to reverse it, or schedule a downtime instead when you want a planned, auditable maintenance window.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | Yes | The ID of the monitor to mute \(e.g., "12345678"\) |
+| `scope` | string | No | Scope to mute \(e.g., "host:myhost", "env:prod"\). If not specified, mutes all scopes. |
+| `end` | number | No | Unix timestamp in seconds when the mute should end \(e.g., 1705323600\). If not specified, the monitor stays muted until it is unmuted. |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the monitor was successfully muted |
+| `monitorId` | number | ID of the muted monitor |
+| `name` | string | Name of the muted monitor |
+| `overallState` | string | Monitor state after muting |
+
+### Datadog Unmute Monitor
+
+Unmute a monitor so it resumes sending notifications. Reverses Mute Monitor, either for one scope or for every scope at once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | Yes | The ID of the monitor to unmute \(e.g., "12345678"\) |
+| `scope` | string | No | Scope to unmute \(e.g., "host:myhost"\). Leave blank to unmute the monitor itself rather than a single scope. |
+| `allScopes` | boolean | No | Clear the mute settings for every scope on this monitor |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the monitor was successfully unmuted |
+| `monitorId` | number | ID of the unmuted monitor |
+| `name` | string | Name of the unmuted monitor |
+| `overallState` | string | Monitor state after unmuting |
+
+### Datadog Query Logs
+
+Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or monitoring.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Log search query using Datadog query syntax \(e.g., "service:web-app status:error", "host:prod-* @http.status_code:500"\) |
+| `from` | string | Yes | Start time in ISO-8601 format or relative time \(e.g., "now-1h", "now-15m", "2024-01-15T10:00:00Z"\) |
+| `to` | string | Yes | End time in ISO-8601 format or relative time \(e.g., "now", "now-5m", "2024-01-15T12:00:00Z"\) |
+| `limit` | number | No | Maximum number of logs to return \(e.g., 50, 100, max: 1000\) |
+| `cursor` | string | No | Pagination cursor from a previous call, taken from its nextLogId output. Omit for the first page. |
+| `sort` | string | No | Sort order: "timestamp" for oldest first, "-timestamp" for newest first |
+| `indexes` | string | No | Comma-separated list of log indexes to search |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `logs` | array | List of log entries |
+|   ↳ `id` | string | Log ID |
+|   ↳ `content` | object | Log content |
+|     ↳ `timestamp` | string | Log timestamp |
+|     ↳ `host` | string | Host name |
+|     ↳ `service` | string | Service name |
+|     ↳ `message` | string | Log message |
+|     ↳ `status` | string | Log status/level |
+|     ↳ `attributes` | json | Free-form log attributes |
+|     ↳ `tags` | array | Log tags |
+| `nextLogId` | string | Cursor for pagination |
+
+### Datadog Send Logs
+
+Send log entries to Datadog for centralized logging and analysis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `logs` | string | Yes | JSON array of log entries. Each entry should have message and optionally ddsource, ddtags, hostname, service. Sim fills in ddsource="custom" when an entry omits it — that is a Sim default, not a Datadog one; set ddsource yourself to have Datadog apply the matching integration log pipeline. |
+| `apiKey` | string | Yes | Datadog API key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the logs were sent successfully |
+
+### Datadog Create Downtime
+
+Schedule a downtime to suppress monitor notifications during maintenance windows.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `scope` | string | Yes | Scope to apply downtime to \(e.g., "host:myhost", "env:production", or "*" for all\) |
+| `message` | string | No | Message to display during downtime |
+| `start` | number | No | Unix timestamp for downtime start in seconds \(e.g., 1705320000, defaults to now\) |
+| `end` | number | No | Unix timestamp for downtime end in seconds \(e.g., 1705323600\) |
+| `timezone` | string | No | Timezone for the downtime \(e.g., "America/New_York", "UTC", "Europe/London"\) |
+| `monitorId` | string | No | Specific monitor ID to mute \(e.g., "12345678"\) |
+| `monitorTags` | string | No | Comma-separated monitor tags to match \(e.g., "team:backend,priority:high"\) |
+| `muteFirstRecoveryNotification` | boolean | No | Mute the first recovery notification |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `downtime` | object | The created downtime details |
+|   ↳ `id` | string | Downtime UUID |
+|   ↳ `scope` | array | Downtime scope |
+|   ↳ `message` | string | Downtime message |
+|   ↳ `start` | number | Start time \(Unix timestamp\) |
+|   ↳ `end` | number | End time \(Unix timestamp\) |
+|   ↳ `timezone` | string | Display timezone for the downtime |
+|   ↳ `active` | boolean | Whether downtime is currently active |
+|   ↳ `created` | number | Creation time \(Unix timestamp\) |
+|   ↳ `modified` | number | Last modification time \(Unix timestamp\) |
+
+### Datadog List Downtimes
+
+List all scheduled downtimes in Datadog.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `currentOnly` | boolean | No | Only return currently active downtimes |
+| `limit` | number | No | Number of downtimes to return per page. Datadog defaults to 30 and declares no maximum; keep this at 100 or below to stay within the bound Sim recommends. |
+| `offset` | number | No | Index of the first downtime to return \(e.g., 0, 30, 60\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalCount` | number | Total number of downtimes matching the filter, across all pages |
+| `downtimes` | array | List of downtimes |
+|   ↳ `id` | string | Downtime UUID |
+|   ↳ `scope` | array | Downtime scope |
+|   ↳ `message` | string | Downtime message |
+|   ↳ `start` | number | Start time \(Unix timestamp\) |
+|   ↳ `end` | number | End time \(Unix timestamp\) |
+|   ↳ `timezone` | string | Display timezone for the downtime |
+|   ↳ `active` | boolean | Whether downtime is currently active |
+|   ↳ `created` | number | Creation time \(Unix timestamp\) |
+|   ↳ `modified` | number | Last modification time \(Unix timestamp\) |
+
+### Datadog Cancel Downtime
+
+Cancel a scheduled downtime.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `downtimeId` | string | Yes | The ID of the downtime to cancel \(e.g., "abc123def456"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the downtime was successfully canceled |
+
+### Datadog List Incidents
+
+List incidents for the organization. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `include` | string | No | Comma-separated related resources to include: "users" and/or "attachments" |
+| `pageSize` | number | No | Number of incidents to return per page \(default: 10, max: 100\) |
+| `pageOffset` | number | No | Index of the first incident to return \(e.g., 0, 10, 20\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incidents` | array | List of incidents |
+|   ↳ `id` | string | Incident UUID |
+|   ↳ `type` | string | Resource type \(incidents\) |
+|   ↳ `attributes` | object | Incident attributes |
+|     ↳ `title` | string | Incident title |
+|     ↳ `state` | string | Incident state |
+|     ↳ `severity` | string | Incident severity |
+|     ↳ `public_id` | number | Incremental public incident ID |
+|     ↳ `customer_impacted` | boolean | Whether customers were impacted |
+|     ↳ `created` | string | Creation timestamp |
+|     ↳ `modified` | string | Last modification timestamp |
+|     ↳ `resolved` | string | Resolution timestamp |
+| `nextOffset` | number | Offset to use for the next page of results |
+
+### Datadog Get Incident
+
+Get the details of a single incident by ID. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `incidentId` | string | Yes | The UUID of the incident \(e.g., "00000000-0000-0000-1234-000000000000"\) |
+| `include` | string | No | Comma-separated related resources to include \(e.g., "users", "attachments"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The incident |
+|   ↳ `id` | string | Incident UUID |
+|   ↳ `type` | string | Resource type \(incidents\) |
+|   ↳ `attributes` | object | Incident attributes |
+|     ↳ `title` | string | Incident title |
+|     ↳ `state` | string | Incident state |
+|     ↳ `severity` | string | Incident severity |
+|     ↳ `public_id` | number | Incremental public incident ID |
+|     ↳ `customer_impacted` | boolean | Whether customers were impacted |
+|     ↳ `customer_impact_scope` | string | Summary of the customer impact |
+|     ↳ `created` | string | Creation timestamp |
+|     ↳ `modified` | string | Last modification timestamp |
+|     ↳ `resolved` | string | Resolution timestamp |
+|     ↳ `time_to_resolve` | number | Seconds from creation to resolution |
+
+### Datadog Create Incident
+
+Declare a new incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | Title of the incident summarizing what happened |
+| `customerImpacted` | boolean | Yes | Whether the incident caused customer impact |
+| `severity` | string | No | Incident severity: UNKNOWN, SEV-0, SEV-1, SEV-2, SEV-3, SEV-4, or SEV-5 |
+| `customerImpactScope` | string | No | Summary of the customer impact. Required when customerImpacted is true |
+| `incidentTypeUuid` | string | No | UUID of the incident type. The default incident type is used when omitted |
+| `isTest` | boolean | No | Whether this is a test incident |
+| `fields` | string | No | JSON object of user-defined incident fields, e.g. \{"severity": \{"type": "dropdown", "value": "SEV-2"\}\} |
+| `notificationHandles` | string | No | Comma-separated handles to notify on creation \(e.g., "@slack-incidents,@user@example.com"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The created incident |
+|   ↳ `id` | string | Incident UUID |
+|   ↳ `type` | string | Resource type \(incidents\) |
+|   ↳ `attributes` | object | Incident attributes |
+|     ↳ `title` | string | Incident title |
+|     ↳ `public_id` | number | Incremental public incident ID |
+|     ↳ `customer_impacted` | boolean | Whether customers were impacted |
+|     ↳ `created` | string | Creation timestamp |
+|     ↳ `modified` | string | Last modification timestamp |
+
+### Datadog Update Incident
+
+Partially update an existing incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `incidentId` | string | Yes | The UUID of the incident to update |
+| `title` | string | No | New title for the incident |
+| `severity` | string | No | Incident severity: UNKNOWN, SEV-0, SEV-1, SEV-2, SEV-3, SEV-4, or SEV-5 |
+| `customerImpacted` | boolean | No | Whether the incident caused customer impact |
+| `customerImpactScope` | string | No | Summary of the customer impact |
+| `customerImpactStart` | string | No | ISO-8601 timestamp when customers began being impacted |
+| `customerImpactEnd` | string | No | ISO-8601 timestamp when customers were no longer impacted |
+| `detected` | string | No | ISO-8601 timestamp when the incident was detected |
+| `fields` | string | No | JSON object of user-defined incident fields to update, e.g. \{"state": \{"type": "dropdown", "value": "resolved"\}\} |
+| `notificationHandles` | string | No | Comma-separated handles to notify about the update |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The updated incident |
+|   ↳ `id` | string | Incident UUID |
+|   ↳ `type` | string | Resource type \(incidents\) |
+|   ↳ `attributes` | object | Incident attributes |
+|     ↳ `title` | string | Incident title |
+|     ↳ `state` | string | Incident state |
+|     ↳ `severity` | string | Incident severity |
+|     ↳ `modified` | string | Last modification timestamp |
+|     ↳ `resolved` | string | Resolution timestamp |
+
+### Datadog Add Incident Todo
+
+Add a follow-up task (todo) to an incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `incidentId` | string | Yes | The UUID of the incident the todo belongs to |
+| `content` | string | Yes | The follow-up task content \(e.g., "Restore lost data"\) |
+| `assignees` | string | Yes | Comma-separated assignee handles \(e.g., "@jane@example.com,@on-call"\). Datadog requires at least one assignee |
+| `dueDate` | string | No | ISO-8601 timestamp for when the todo should be completed |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `todo` | object | The created incident todo |
+|   ↳ `id` | string | Todo UUID |
+|   ↳ `type` | string | Resource type \(incident_todos\) |
+|   ↳ `attributes` | object | Todo attributes |
+|     ↳ `content` | string | Task content |
+|     ↳ `assignees` | array | Assignee handles |
+|     ↳ `due_date` | string | Due date |
+|     ↳ `completed` | string | Completion timestamp |
+|     ↳ `incident_id` | string | UUID of the parent incident |
+
+### Datadog List SLOs
+
+List service level objectives, optionally filtered by IDs, name, tags, or underlying metrics query.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ids` | string | No | Comma-separated SLO IDs to fetch \(e.g., "id1,id2"\) |
+| `query` | string | No | Filter results by SLO name \(e.g., "checkout latency"\) |
+| `tagsQuery` | string | No | Filter results by a single SLO tag \(e.g., "env:prod"\) |
+| `metricsQuery` | string | No | Filter results by SLO numerator and denominator \(e.g., "aws.elb.request_count"\) |
+| `limit` | number | No | Number of SLOs to return \(default: 1000\) |
+| `offset` | number | No | Offset of the first SLO returned \(e.g., 0, 50\) |
+| `isDeleted` | boolean | No | Return only deleted SLOs |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `slos` | array | List of service level objectives |
+|   ↳ `id` | string | SLO ID |
+|   ↳ `name` | string | SLO name |
+|   ↳ `type` | string | SLO type: metric, monitor, or time_slice |
+|   ↳ `description` | string | SLO description |
+|   ↳ `tags` | array | SLO tags |
+|   ↳ `thresholds` | array | Timeframe targets and warnings |
+|   ↳ `target_threshold` | number | Primary target threshold |
+|   ↳ `warning_threshold` | number | Primary warning threshold |
+|   ↳ `timeframe` | string | Primary timeframe |
+|   ↳ `monitor_ids` | array | Monitor IDs for monitor-based SLOs |
+|   ↳ `created_at` | number | Creation timestamp \(Unix seconds\) |
+|   ↳ `modified_at` | number | Modification timestamp \(Unix seconds\) |
+
+### Datadog Get SLO
+
+Get the configuration of a single service level objective by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sloId` | string | Yes | The ID of the service level objective |
+| `withConfiguredAlertIds` | boolean | No | Include the IDs of SLO monitors that reference this SLO |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `slo` | object | The service level objective |
+|   ↳ `id` | string | SLO ID |
+|   ↳ `name` | string | SLO name |
+|   ↳ `type` | string | SLO type: metric, monitor, or time_slice |
+|   ↳ `description` | string | SLO description |
+|   ↳ `tags` | array | SLO tags |
+|   ↳ `thresholds` | array | Timeframe targets and warnings |
+|   ↳ `target_threshold` | number | Primary target threshold |
+|   ↳ `warning_threshold` | number | Primary warning threshold |
+|   ↳ `timeframe` | string | Primary timeframe |
+|   ↳ `monitor_ids` | array | Monitor IDs for monitor-based SLOs |
+|   ↳ `groups` | array | Monitor groups narrowing the SLO scope |
+|   ↳ `configured_alert_ids` | array | SLO monitor IDs referencing this SLO |
+|   ↳ `created_at` | number | Creation timestamp \(Unix seconds\) |
+|   ↳ `modified_at` | number | Modification timestamp \(Unix seconds\) |
+
+### Datadog Create SLO
+
+Create a service level objective from a metric query, monitors, or a time-slice condition.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name of the SLO \(e.g., "Checkout API availability"\) |
+| `type` | string | Yes | SLO type: "metric" \(supply query\) or "monitor" \(supply monitorIds\). Time-slice SLOs are not supported here because they need an SLI specification this tool does not send. |
+| `thresholds` | string | Yes | JSON array of thresholds, e.g. \[\{"timeframe": "30d", "target": 99.9, "warning": 99.95\}\] |
+| `description` | string | No | Description of the SLO |
+| `tags` | string | No | Comma-separated tags \(e.g., "env:prod,team:core"\) |
+| `query` | string | No | For metric SLOs, JSON with numerator and denominator, e.g. \{"numerator": "sum:requests\{status:ok\}.as_count\(\)", "denominator": "sum:requests\{*\}.as_count\(\)"\} |
+| `monitorIds` | string | No | For monitor SLOs, comma-separated monitor IDs \(e.g., "123,456"\) |
+| `groups` | string | No | For monitor SLOs with a single monitor, comma-separated monitor groups \(e.g., "env:prod,role:mysql"\) |
+| `targetThreshold` | number | No | Primary target threshold \(e.g., 99.9\) |
+| `warningThreshold` | number | No | Primary warning threshold, must be greater than the target \(e.g., 99.95\) |
+| `timeframe` | string | No | Primary timeframe: "7d", "30d", or "90d" |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `slo` | object | The created service level objective |
+|   ↳ `id` | string | SLO ID |
+|   ↳ `name` | string | SLO name |
+|   ↳ `type` | string | SLO type |
+|   ↳ `description` | string | SLO description |
+|   ↳ `tags` | array | SLO tags |
+|   ↳ `thresholds` | array | Timeframe targets and warnings |
+|   ↳ `created_at` | number | Creation timestamp \(Unix seconds\) |
+|   ↳ `modified_at` | number | Modification timestamp \(Unix seconds\) |
+
+### Datadog Update SLO
+
+Update a service level objective. Reads the current SLO first and applies only the fields you supply, so anything left blank keeps its stored value.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sloId` | string | Yes | The ID of the service level objective to update |
+| `name` | string | No | New name for the SLO. Leave blank to keep the current name. |
+| `type` | string | No | SLO type: "metric" or "monitor". Leave blank to keep the current type. Changing type requires supplying the matching query or monitorIds. |
+| `thresholds` | string | No | JSON array of thresholds replacing the stored ones, e.g. \[\{"timeframe": "30d", "target": 99.9, "warning": 99.95\}\]. Leave blank to keep the current thresholds. |
+| `description` | string | No | Description of the SLO |
+| `tags` | string | No | Comma-separated tags \(e.g., "env:prod,team:core"\) |
+| `query` | string | No | For metric SLOs, JSON with numerator and denominator, e.g. \{"numerator": "sum:requests\{status:ok\}.as_count\(\)", "denominator": "sum:requests\{*\}.as_count\(\)"\} |
+| `monitorIds` | string | No | For monitor SLOs, comma-separated monitor IDs \(e.g., "123,456"\) |
+| `groups` | string | No | Comma-separated monitor groups \(e.g., "env:prod,role:mysql"\) |
+| `targetThreshold` | number | No | Primary target threshold \(e.g., 99.9\) |
+| `warningThreshold` | number | No | Primary warning threshold, must be greater than the target \(e.g., 99.95\) |
+| `timeframe` | string | No | Primary timeframe: "7d", "30d", or "90d" |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `slo` | object | The updated service level objective |
+|   ↳ `id` | string | SLO ID |
+|   ↳ `name` | string | SLO name |
+|   ↳ `type` | string | SLO type |
+|   ↳ `description` | string | SLO description |
+|   ↳ `tags` | array | SLO tags |
+|   ↳ `thresholds` | array | Timeframe targets and warnings |
+|   ↳ `modified_at` | number | Modification timestamp \(Unix seconds\) |
+
+### Datadog Delete SLO
+
+Permanently delete a service level objective. Datadog returns a conflict when the SLO is still referenced by a dashboard.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sloId` | string | Yes | The ID of the service level objective to delete |
+| `force` | boolean | No | Delete even when the SLO is referenced by other resources |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the SLO was deleted |
+| `deletedIds` | array | IDs of the deleted service level objectives |
+
+### Datadog Get SLO History
+
+Get an SLO’s history over a time window, including the overall SLI value and remaining error budget.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sloId` | string | Yes | The ID of the service level objective |
+| `fromTs` | number | Yes | Start of the query window as a Unix timestamp in seconds |
+| `toTs` | number | Yes | End of the query window as a Unix timestamp in seconds |
+| `target` | number | No | SLO target between 0 and 100. When supplied, the response includes the remaining error budget for a custom timeframe |
+| `applyCorrection` | boolean | No | Whether to apply SLO corrections \(defaults to true\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `history` | object | SLO history for the requested window |
+|   ↳ `from_ts` | number | Window start \(Unix seconds\) |
+|   ↳ `to_ts` | number | Window end \(Unix seconds\) |
+|   ↳ `type` | string | SLO type |
+|   ↳ `overall` | object | Overall SLI data for the window |
+|     ↳ `sli_value` | number | SLI value over the window |
+|     ↳ `span_precision` | number | Decimal precision of the SLI value |
+|     ↳ `error_budget_remaining` | object | Remaining error budget keyed by timeframe |
+|   ↳ `groups` | array | Per-group SLI data for grouped SLOs |
+|   ↳ `monitors` | array | Per-monitor SLI data for multi-monitor SLOs |
+|   ↳ `thresholds` | object | Thresholds keyed by timeframe |
+| `sliValue` | number | Overall SLI value over the window |
+
+### Datadog List Dashboards
+
+List custom created or cloned dashboards. Datadog preset dashboards are not returned.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filterShared` | boolean | No | Return only shared dashboards |
+| `filterDeleted` | boolean | No | Return only deleted dashboards. Incompatible with filterShared |
+| `count` | number | No | Maximum number of dashboards to return \(default: 100\) |
+| `start` | number | No | Offset of the first dashboard returned \(e.g., 0, 100\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dashboards` | array | List of dashboard summaries |
+|   ↳ `id` | string | Dashboard ID |
+|   ↳ `title` | string | Dashboard title |
+|   ↳ `description` | string | Dashboard description |
+|   ↳ `layout_type` | string | Layout type: ordered or free |
+|   ↳ `url` | string | Dashboard URL path |
+|   ↳ `author_handle` | string | Handle of the dashboard author |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `modified_at` | string | Modification timestamp |
+|   ↳ `is_read_only` | boolean | Whether the dashboard is read-only |
+
+### Datadog Get Dashboard
+
+Get the full definition of a dashboard, including its widgets.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dashboardId` | string | Yes | The ID of the dashboard \(e.g., "abc-def-ghi"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dashboard` | object | The dashboard definition |
+|   ↳ `id` | string | Dashboard ID |
+|   ↳ `title` | string | Dashboard title |
+|   ↳ `description` | string | Dashboard description |
+|   ↳ `layout_type` | string | Layout type: ordered or free |
+|   ↳ `url` | string | Dashboard URL path |
+|   ↳ `author_handle` | string | Handle of the dashboard author |
+|   ↳ `author_name` | string | Name of the dashboard author |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `modified_at` | string | Modification timestamp |
+|   ↳ `tags` | array | Dashboard tags |
+|   ↳ `notify_list` | array | Handles notified on dashboard changes |
+|   ↳ `template_variables` | array | Template variable definitions |
+|   ↳ `widgets` | array | Widget definitions |
+
+### Datadog Create Dashboard
+
+Create a dashboard from a title, layout type, and widget definitions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | Title of the dashboard |
+| `layoutType` | string | Yes | Layout type: "ordered" or "free" |
+| `widgets` | string | Yes | JSON array of widget definitions, e.g. \[\{"definition": \{"type": "timeseries", "requests": \[\{"q": "avg:system.cpu.user\{*\}"\}\]\}\}\] |
+| `description` | string | No | Description of the dashboard |
+| `notifyList` | string | No | Comma-separated user handles to notify on dashboard changes |
+| `templateVariables` | string | No | JSON array of template variable definitions, e.g. \[\{"name": "env", "prefix": "env", "available_values": \["prod"\]\}\] |
+| `tags` | string | No | Comma-separated dashboard tags in the form "team:&lt;name&gt;" \(max 5\) |
+| `reflowType` | string | No | Reflow type for ordered layouts: "auto" or "fixed" |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dashboard` | object | The created dashboard |
+|   ↳ `id` | string | Dashboard ID |
+|   ↳ `title` | string | Dashboard title |
+|   ↳ `layout_type` | string | Layout type: ordered or free |
+|   ↳ `url` | string | Dashboard URL path |
+|   ↳ `author_handle` | string | Handle of the dashboard author |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `modified_at` | string | Modification timestamp |
+|   ↳ `widgets` | array | Widget definitions |
+
+### Datadog Delete Dashboard
+
+Delete a dashboard by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dashboardId` | string | Yes | The ID of the dashboard to delete |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the dashboard was deleted |
+| `deletedDashboardId` | string | ID of the deleted dashboard |
+
+### Datadog List Synthetic Tests
+
+List all Synthetic tests (API, browser, and mobile) with their current status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Number of tests returned per page \(default: 100\) |
+| `pageNumber` | number | No | Page to retrieve, starting at zero |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tests` | array | List of Synthetic tests |
+|   ↳ `public_id` | string | Public ID of the test |
+|   ↳ `name` | string | Test name |
+|   ↳ `status` | string | Pause status: live or paused |
+|   ↳ `type` | string | Test type: api, browser, mobile, or network |
+|   ↳ `subtype` | string | Test subtype, such as http or ssl |
+|   ↳ `message` | string | Notification message |
+|   ↳ `monitor_id` | number | Associated monitor ID |
+|   ↳ `tags` | array | Tags attached to the test |
+|   ↳ `locations` | array | Locations the test runs from |
+
+### Datadog Get Synthetic Test
+
+Get the configuration of a Synthetic test by public ID. Browser test steps are not included by this type-agnostic endpoint.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `publicId` | string | Yes | The public ID of the Synthetic test \(e.g., "abc-def-ghi"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `test` | object | The Synthetic test configuration |
+|   ↳ `public_id` | string | Public ID of the test |
+|   ↳ `name` | string | Test name |
+|   ↳ `status` | string | Pause status: live or paused |
+|   ↳ `type` | string | Test type: api, browser, mobile, or network |
+|   ↳ `subtype` | string | Test subtype, such as http or ssl |
+|   ↳ `message` | string | Notification message |
+|   ↳ `monitor_id` | number | Associated monitor ID |
+|   ↳ `tags` | array | Tags attached to the test |
+|   ↳ `locations` | array | Locations the test runs from |
+|   ↳ `config` | object | Test request, assertions, and variables |
+|   ↳ `options` | object | Scheduling, retry, and monitor options |
+|   ↳ `creator` | object | User who created the test |
+
+### Datadog Get Synthetic Test Results
+
+Get the latest result summaries (up to the last 150 runs) for a Synthetic API test.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `publicId` | string | Yes | The public ID of the Synthetic API test |
+| `fromTs` | number | No | Timestamp in milliseconds from which to start querying results |
+| `toTs` | number | No | Timestamp in milliseconds up to which to query results |
+| `probeDc` | string | No | Comma-separated locations to query results for \(e.g., "aws:eu-west-3"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Latest test result summaries |
+|   ↳ `result_id` | string | ID of the test result |
+|   ↳ `check_time` | number | Time the test ran |
+|   ↳ `probe_dc` | string | Location the test ran from |
+|   ↳ `status` | number | Monitor status: 0 not triggered, 1 triggered, 2 no data |
+|   ↳ `result` | object | Run outcome |
+|     ↳ `passed` | boolean | Whether the run passed |
+|     ↳ `timings` | object | Request timing breakdown |
+| `lastTimestampFetched` | number | Timestamp of the latest test run |
+
+### Datadog Get Browser Synthetic Test Results
+
+Get the latest result summaries (up to the last 150 runs) for a Synthetic browser test, including step counts and errors.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `publicId` | string | Yes | The public ID of the Synthetic browser test |
+| `fromTs` | number | No | Timestamp in milliseconds from which to start querying results |
+| `toTs` | number | No | Timestamp in milliseconds up to which to query results |
+| `probeDc` | string | No | Comma-separated locations to query results for \(e.g., "aws:eu-west-3"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Latest browser test result summaries |
+|   ↳ `result_id` | string | ID of the browser test result |
+|   ↳ `check_time` | number | Time the browser test ran |
+|   ↳ `probe_dc` | string | Location the browser test ran from |
+|   ↳ `status` | number | Monitor status: 0 not triggered, 1 triggered, 2 no data |
+|   ↳ `result` | object | Run outcome |
+|     ↳ `duration` | number | Length of the run in milliseconds |
+|     ↳ `errorCount` | number | Number of errors collected in the run |
+|     ↳ `stepCountCompleted` | number | Steps completed before failing |
+|     ↳ `stepCountTotal` | number | Total number of steps |
+|     ↳ `device` | object | Device the run was performed on |
+| `lastTimestampFetched` | number | Timestamp of the latest browser test run |
+
+### Datadog Trigger Synthetic Tests
+
+Trigger an immediate run of one or more Synthetic tests by public ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `publicIds` | string | Yes | Comma-separated public IDs of the Synthetic tests to trigger |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `batchId` | string | Public ID of the triggered batch |
+| `triggeredCheckIds` | array | Public IDs of the triggered Synthetic tests |
+| `results` | array | Information about each triggered test run |
+|   ↳ `public_id` | string | Public ID of the test |
+|   ↳ `result_id` | string | ID of the run result |
+|   ↳ `location` | number | Location ID of the run |
+|   ↳ `device` | string | Device ID used for browser tests |
+| `locations` | array | Locations the tests were triggered from |
+|   ↳ `id` | number | Location ID |
+|   ↳ `name` | string | Location name |
+
+### Datadog Pause Or Start Synthetic Test
+
+Pause or resume a Synthetic test by setting its status to "paused" or "live".
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `publicId` | string | Yes | The public ID of the Synthetic test to update |
+| `newStatus` | string | Yes | New status: "live" to start the test or "paused" to pause it |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether Datadog reported the status update as successful |
+| `status` | string | The status that was requested: live or paused |
+
+### Datadog List Security Signals
+
+Search Cloud SIEM security signals by query and time range. Requires the `security_monitoring_signals_read` permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Signal search query \(e.g., "security:attack status:high"\) |
+| `from` | string | No | Minimum timestamp as an ISO-8601 date-time \(e.g., "2026-01-02T09:42:36.320Z"\). Signal search does not accept relative expressions like "now-1h". |
+| `to` | string | No | Maximum timestamp as an ISO-8601 date-time \(e.g., "2026-01-03T09:42:36.320Z"\). Signal search does not accept relative expressions like "now". |
+| `sort` | string | No | Sort order: "timestamp" for oldest first, "-timestamp" for newest first |
+| `cursor` | string | No | Pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of signals to return \(default: 10, max: 1000\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `signals` | array | List of security signals |
+|   ↳ `id` | string | Signal ID |
+|   ↳ `type` | string | Resource type \(signal\) |
+|   ↳ `attributes` | object | Signal attributes |
+|     ↳ `message` | string | Message from the detection rule |
+|     ↳ `timestamp` | string | Signal timestamp |
+|     ↳ `tags` | array | Tags on the signal |
+|     ↳ `custom` | object | Signal-specific attributes |
+| `nextCursor` | string | Cursor for the next page of signals |
+
+### Datadog Get Security Signal
+
+Get the details of a single Cloud SIEM security signal. Requires the `security_monitoring_signals_read` permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signalId` | string | Yes | The ID of the security signal |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `signal` | object | The security signal |
+|   ↳ `id` | string | Signal ID |
+|   ↳ `type` | string | Resource type \(signal\) |
+|   ↳ `attributes` | object | Signal attributes |
+|     ↳ `message` | string | Message from the detection rule |
+|     ↳ `timestamp` | string | Signal timestamp |
+|     ↳ `tags` | array | Tags on the signal |
+|     ↳ `custom` | object | Signal-specific attributes |
+
+### Datadog Update Security Signal State
+
+Change the triage state of a Cloud SIEM security signal to open, under_review, or archived. Requires the `security_monitoring_signals_write` permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signalId` | string | Yes | The ID of the security signal |
+| `state` | string | Yes | New triage state: "open", "under_review", or "archived" |
+| `archiveReason` | string | No | Reason when archiving: none, false_positive, testing_or_maintenance, remediated, investigated_case_opened, true_positive_benign, true_positive_malicious, or other |
+| `archiveComment` | string | No | Comment explaining why the signal was archived |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `signal` | object | The updated signal triage data |
+|   ↳ `id` | string | Signal ID |
+|   ↳ `type` | string | Resource type of the signal |
+|   ↳ `state` | string | Current triage state |
+|   ↳ `assignee` | object | User the signal is assigned to |
+|   ↳ `incidentIds` | array | IDs of incidents linked to the signal |
+|   ↳ `archiveReason` | string | Archive reason, when archived |
+|   ↳ `archiveComment` | string | Archive comment, when archived |
+|   ↳ `stateUpdateTimestamp` | number | Timestamp of the last state update |
+
+### Datadog Assign Security Signal
+
+Assign a Cloud SIEM security signal to a Datadog user by UUID. Requires the `security_monitoring_signals_write` permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signalId` | string | Yes | The ID of the security signal |
+| `assigneeUuid` | string | Yes | UUID of the Datadog user to assign the signal to \(e.g., "773b045d-ccf8-4808-bd3b-955ef6a8c940"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `signal` | object | The updated signal triage data |
+|   ↳ `id` | string | Signal ID |
+|   ↳ `type` | string | Resource type of the signal |
+|   ↳ `state` | string | Current triage state |
+|   ↳ `assignee` | object | User the signal is assigned to |
+|   ↳ `incidentIds` | array | IDs of incidents linked to the signal |
+|   ↳ `archiveReason` | string | Archive reason, when archived |
+|   ↳ `archiveComment` | string | Archive comment, when archived |
+|   ↳ `stateUpdateTimestamp` | number | Timestamp of the last state update |
+
+### Datadog List Security Rules
+
+List Cloud SIEM detection rules. Requires the `security_monitoring_rules_read` permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Search query filtering rules by attributes such as type, source, or tags \(e.g., "type:log_detection source:cloudtrail"\) |
+| `sort` | string | No | Sort attribute, prefix with "-" for descending: name, creation_date, update_date, enabled, type, highest_severity, or source |
+| `pageSize` | number | No | Number of rules per page \(default: 10, max: 100\) |
+| `pageNumber` | number | No | Page to retrieve, starting at zero |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rules` | array | List of detection rules |
+|   ↳ `id` | string | Rule ID |
+|   ↳ `name` | string | Rule name |
+|   ↳ `type` | string | Rule type |
+|   ↳ `message` | string | Message attached to generated signals |
+|   ↳ `tags` | array | Rule tags |
+|   ↳ `isEnabled` | boolean | Whether the rule is enabled |
+|   ↳ `isDefault` | boolean | Whether the rule is a Datadog default rule |
+|   ↳ `createdAt` | number | Creation timestamp in milliseconds |
+|   ↳ `version` | number | Rule version |
+
+### Datadog Search Spans
+
+Search indexed APM spans using the span query syntax, with cursor pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Span search query \(e.g., "service:web* AND @http.status_code:\[500 TO 599\]"\). Defaults to "*" |
+| `from` | string | No | Minimum time, ISO-8601, date math, or milliseconds \(default: "now-15m"\) |
+| `to` | string | No | Maximum time, ISO-8601, date math, or milliseconds \(default: "now"\) |
+| `sort` | string | No | Sort order: "timestamp" for oldest first, "-timestamp" for newest first |
+| `cursor` | string | No | Pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of spans to return \(default: 10, max: 1000\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spans` | array | List of matching spans |
+|   ↳ `id` | string | Unique span event ID |
+|   ↳ `type` | string | Resource type \(spans\) |
+|   ↳ `attributes` | object | Span attributes |
+|     ↳ `service` | string | Service that emitted the span |
+|     ↳ `resource_name` | string | Resource name |
+|     ↳ `env` | string | Environment |
+|     ↳ `host` | string | Host that emitted the span |
+|     ↳ `type` | string | Span type, such as web or db |
+|     ↳ `trace_id` | string | Trace ID |
+|     ↳ `span_id` | string | Span ID |
+|     ↳ `parent_id` | string | Parent span ID |
+|     ↳ `start_timestamp` | string | Span start timestamp |
+|     ↳ `end_timestamp` | string | Span end timestamp |
+|     ↳ `tags` | array | Tags on the span |
+|     ↳ `custom` | object | Custom span data |
+| `nextCursor` | string | Cursor for the next page of spans |
+| `elapsed` | number | Query time in milliseconds |
+
+### Datadog List Services
+
+List service definitions from the Datadog Service Catalog. Requires the `apm_service_catalog_read` permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Number of service definitions per page \(default: 10, max: 100\) |
+| `pageNumber` | number | No | Page to retrieve, starting at zero |
+| `schemaVersion` | string | No | Schema version to return \(e.g., "v2", "v2.1", "v2.2"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `services` | array | List of service definitions |
+|   ↳ `id` | string | Service definition ID |
+|   ↳ `type` | string | Resource type \(service_definitions\) |
+|   ↳ `schema` | object | The service definition schema. Its shape depends on the requested schema version |
+|   ↳ `meta` | object | Ingestion metadata such as origin and last modified time |
+
+

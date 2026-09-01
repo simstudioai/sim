@@ -34,6 +34,9 @@ const DOCUMENT_ID_OPERATIONS = [
 
 const CONTROL_ID_OPERATIONS = ['get_control', 'list_control_tests', 'list_control_documents']
 
+/** Canonical `file` group: the basic upload picker and its advanced file reference. */
+const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
+
 /**
  * Maps a tri-state dropdown value ("any" | "true" | "false") to an optional
  * boolean tool param.
@@ -65,6 +68,105 @@ export const VantaBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/vanta',
   bgColor: '#F8F4F3',
   icon: VantaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Vanta',
+    sentences: {
+      byOperation: {
+        list_frameworks: ['List compliance frameworks'],
+        get_framework: [{ text: 'Read framework', field: 'frameworkId', core: true }],
+        list_framework_controls: [
+          { text: 'List controls in framework', field: 'frameworkId', core: true },
+        ],
+        list_controls: [
+          'List security controls',
+          { text: ', in frameworks', field: 'frameworkMatchesAny' },
+        ],
+        get_control: [{ text: 'Read control', field: 'controlId', core: true }],
+        list_control_tests: [{ text: 'List tests for control', field: 'controlId', core: true }],
+        list_control_documents: [
+          { text: 'List evidence documents for control', field: 'controlId', core: true },
+        ],
+        list_tests: [
+          'List automated tests',
+          { text: ', in framework', field: 'frameworkFilter' },
+          { text: ', for control', field: 'controlFilter' },
+          { text: ', from integration', field: 'integrationFilter' },
+        ],
+        get_test: [{ text: 'Read automated test', field: 'testId', core: true }],
+        list_test_entities: [
+          { text: 'List resources flagged by test', field: 'testId', core: true },
+        ],
+        list_documents: [
+          'List evidence documents',
+          { text: ', in frameworks', field: 'frameworkMatchesAny' },
+          { text: ', with status', field: 'documentStatusFilter' },
+        ],
+        get_document: [{ text: 'Read evidence document', field: 'documentId', core: true }],
+        list_document_uploads: [
+          { text: 'List files uploaded to document', field: 'documentId', core: true },
+        ],
+        upload_document_file: [
+          { text: 'Upload', field: UPLOAD_FILE_FIELD, core: true },
+          { text: 'to document', field: 'documentId', core: true },
+          { text: ', effective', field: 'effectiveAtDate' },
+        ],
+        download_document_file: [
+          { text: 'Download file', field: 'uploadedFileId', core: true },
+          { text: 'from document', field: 'documentId' },
+        ],
+        submit_document: [
+          { text: 'Submit document', field: 'documentId', after: 'for review', core: true },
+        ],
+        list_people: [
+          'List people',
+          { text: ', matching', field: 'emailAndNameFilter' },
+          { text: ', in groups', field: 'groupIdsMatchesAny' },
+          { text: ', with task status', field: 'taskStatusMatchesAny' },
+        ],
+        get_person: [{ text: 'Read person', field: 'personId', core: true }],
+        list_policies: ['List security policies'],
+        get_policy: [{ text: 'Read security policy', field: 'policyId', core: true }],
+        list_vendors: [
+          'List vendors',
+          { text: ', named', field: 'vendorName' },
+          { text: ', with status', field: 'vendorStatusFilter' },
+        ],
+        get_vendor: [{ text: 'Read vendor', field: 'vendorId', core: true }],
+        list_monitored_computers: [
+          'List monitored computers',
+          { text: ', with compliance issues', field: 'complianceStatusFilterMatchesAny' },
+        ],
+        list_vulnerabilities: [
+          'List vulnerabilities',
+          { text: ', matching', field: 'searchQuery' },
+          { text: ', in package', field: 'packageIdentifier' },
+          { text: ', on asset', field: 'vulnerableAssetId' },
+        ],
+        list_vulnerability_remediations: [
+          'List remediated vulnerabilities',
+          { text: ', from integration', field: 'integrationId' },
+          { text: ', fixed after', field: 'remediatedAfterDate' },
+          { text: ', fixed before', field: 'remediatedBeforeDate' },
+        ],
+        list_vulnerable_assets: [
+          'List vulnerable assets',
+          { text: ', matching', field: 'searchQuery' },
+          { text: ', from integration', field: 'integrationId' },
+          { text: ', in account', field: 'assetExternalAccountId' },
+        ],
+        get_vulnerable_asset: [
+          { text: 'Read vulnerable asset', field: 'vulnerableAssetId', core: true },
+        ],
+        list_risk_scenarios: [
+          'List risk scenarios',
+          { text: ', matching', field: 'searchString' },
+          { text: ', owned by', field: 'ownerMatchesAny' },
+          { text: ', in categories', field: 'categoryMatchesAny' },
+        ],
+        get_risk_scenario: [{ text: 'Read risk scenario', field: 'riskScenarioId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -181,14 +283,6 @@ export const VantaBlock: BlockConfig<ToolResponse> = {
       title: 'File Name',
       type: 'short-input',
       placeholder: 'Optional file name override',
-      condition: { field: 'operation', value: 'upload_document_file' },
-      mode: 'advanced',
-    },
-    {
-      id: 'uploadMimeType',
-      title: 'MIME Type',
-      type: 'short-input',
-      placeholder: 'e.g., application/pdf (used when the file has no type of its own)',
       condition: { field: 'operation', value: 'upload_document_file' },
       mode: 'advanced',
     },
@@ -828,7 +922,6 @@ export const VantaBlock: BlockConfig<ToolResponse> = {
             const normalizedFile = normalizeFileInput(rest.file, { single: true })
             if (normalizedFile) result.file = normalizedFile
             result.fileName = optionalString(rest.uploadFileName)
-            result.mimeType = optionalString(rest.uploadMimeType)
             result.description = optionalString(rest.uploadDescription)
             result.effectiveAtDate = optionalString(rest.effectiveAtDate)
             break
@@ -891,10 +984,6 @@ export const VantaBlock: BlockConfig<ToolResponse> = {
     uploadedFileId: { type: 'string', description: 'Uploaded file ID' },
     file: { type: 'json', description: 'Evidence file to upload' },
     uploadFileName: { type: 'string', description: 'Optional file name override' },
-    uploadMimeType: {
-      type: 'string',
-      description: 'MIME type override used when the uploaded content has no type of its own',
-    },
     uploadDescription: { type: 'string', description: 'Description of the uploaded evidence' },
     effectiveAtDate: { type: 'string', description: 'Effective date of the document (ISO 8601)' },
     frameworkMatchesAny: { type: 'string', description: 'Comma-separated framework ID filters' },

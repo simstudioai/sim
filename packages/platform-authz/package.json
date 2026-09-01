@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.2.13",
+    "bun": ">=1.3.14",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -21,6 +21,14 @@
     "./workflow": {
       "types": "./src/workflow.ts",
       "default": "./src/workflow.ts"
+    },
+    "./rooms": {
+      "types": "./src/rooms.ts",
+      "default": "./src/rooms.ts"
+    },
+    "./room-policy": {
+      "types": "./src/room-policy.ts",
+      "default": "./src/room-policy.ts"
     }
   },
   "scripts": {
@@ -32,6 +40,7 @@
   },
   "dependencies": {
     "@sim/db": "workspace:*",
+    "@sim/realtime-protocol": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {

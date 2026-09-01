@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getJobStatusContract } from '@/lib/api/contracts/common'
 import { parseRequest } from '@/lib/api/server'
+import { WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -54,7 +55,7 @@ export const GET = withRouteHandler(
           const { getWorkflowById } = await import('@/lib/workflows/utils')
           const workflow = await getWorkflowById(metadataToCheck.workflowId as string)
           if (!workflow?.workspaceId || workflow.workspaceId !== authResult.workspaceId) {
-            return createErrorResponse('API key is not authorized for this workspace', 403)
+            return createErrorResponse(WORKSPACE_KEY_SCOPE_DENIED, 403)
           }
         }
       } else if (metadataToCheck?.userId && metadataToCheck.userId !== authenticatedUserId) {

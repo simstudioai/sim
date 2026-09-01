@@ -38,11 +38,24 @@ export function trackPanelFocus(
   }
   const handlePointerDown = (event: PointerEvent) => updateFocusOwner(event.target)
   const handleFocusIn = (event: FocusEvent) => updateFocusOwner(event.target)
+  const handleWindowBlur = () => {
+    if (reported !== true) {
+      reported = false
+      return
+    }
+    reported = false
+    reportFocus(false)
+  }
+  const handleWindowFocus = () => updateFocusOwner(document.activeElement)
   document.addEventListener('pointerdown', handlePointerDown, true)
   document.addEventListener('focusin', handleFocusIn, true)
+  window.addEventListener('blur', handleWindowBlur)
+  window.addEventListener('focus', handleWindowFocus)
   return () => {
     document.removeEventListener('pointerdown', handlePointerDown, true)
     document.removeEventListener('focusin', handleFocusIn, true)
+    window.removeEventListener('blur', handleWindowBlur)
+    window.removeEventListener('focus', handleWindowFocus)
     // Unconditional: the panel is going away, so the shell must not be left
     // holding a claim for it even if nothing inside it was ever focused.
     reportFocus(false)

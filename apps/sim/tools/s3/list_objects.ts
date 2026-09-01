@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const s3ListObjectsTool: ToolConfig = {
+export const s3ListObjectsTool: InternalToolConfig = {
   id: 's3_list_objects',
   name: 'S3 List Objects',
   description: 'List objects in an AWS S3 bucket',
@@ -51,13 +51,8 @@ export const s3ListObjectsTool: ToolConfig = {
     },
   },
 
-  request: {
-    url: '/api/tools/s3/list-objects',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
       region: params.region,

@@ -1,0 +1,191 @@
+---
+title: LogRocket
+description: Summarize sessions, manage users, and tag releases in LogRocket
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="logrocket"
+  color="#764ABC"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LogRocket](https://logrocket.com/) is a session replay and product analytics platform for frontend applications. It records what users actually did — clicks, navigation, network requests, console output, and application state — so teams can see the exact path that led to a bug, a drop-off, or a support ticket instead of asking the customer to reproduce it.
+
+With LogRocket, you can:
+
+- **Summarize sessions with AI**: Galileo Highlights reads a user's sessions and answers a plain-English question about them, returning a markdown summary plus per-session breakdowns.
+- **Identify users**: Attach names, emails, and custom traits to a user so sessions can be segmented by plan, lifecycle stage, or account value.
+- **Export session data**: Pull download URLs for JSON Lines session exports and load them into a warehouse.
+- **Audit session access**: Page through the audit log to see who viewed which sessions and when.
+- **Tag releases**: Register a deployed version so uploaded source maps decode its stack traces.
+
+Sim's LogRocket integration lets your agents run these operations programmatically. Use it to enrich a support ticket with a session summary, turn a vague bug report into reproduction steps, keep user traits in sync with your CRM, or register a release as part of a deploy workflow.
+
+Highlights requests are asynchronous: **Request Highlights** returns an ID and **Get Highlights** reports `PENDING` until generation finishes (typically one to three minutes), then `READY` or `FAILED`. Poll it rather than expecting the summary immediately.
+
+LogRocket has no REST API for querying sessions, issues, or metrics directly — that data is available through their [MCP server](https://docs.logrocket.com/docs/mcp) at `https://mcp.logrocket.com/mcp`, which you can add to Sim as an MCP server connection alongside this block.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate LogRocket into your workflow to request AI session highlights for a user, poll for the result, list exported session files, read the audit log, create or update user profiles, and register releases so source maps decode their stack traces.
+
+
+
+## Actions
+
+### LogRocket Request Highlights
+
+Start a Galileo session highlights job for a user. Returns a request ID to poll with LogRocket's Get Highlights operation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LogRocket API key |
+| `orgId` | string | Yes | LogRocket organization ID |
+| `appId` | string | Yes | LogRocket project \(app\) ID |
+| `apiHost` | string | No | API host override for Private Cloud deployments |
+| `userEmail` | string | No | Email of the user to summarize. Required if no user ID is given. |
+| `userID` | string | No | ID of the user to summarize. Required if no email is given. |
+| `question` | string | No | Question to focus the highlights on |
+| `startMs` | string | No | Start of the session window, in milliseconds since epoch |
+| `endMs` | string | No | End of the session window, in milliseconds since epoch |
+| `webhookURL` | string | No | URL notified when the highlights job finishes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Request ID used to retrieve the highlights result |
+
+### LogRocket Get Highlights
+
+Retrieve the result of a Galileo session highlights request. Status is PENDING until generation finishes, then READY or FAILED.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LogRocket API key |
+| `orgId` | string | Yes | LogRocket organization ID |
+| `appId` | string | Yes | LogRocket project \(app\) ID |
+| `apiHost` | string | No | API host override for Private Cloud deployments |
+| `id` | string | Yes | Request ID returned by the Request Highlights operation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Job status: PENDING, READY, or FAILED |
+| `requestID` | string | ID of the highlights request |
+| `appID` | string | LogRocket project the request belongs to |
+| `highlights` | string | Markdown summary across the matched sessions. Present when status is READY. |
+| `sessions` | array | Per-session highlights |
+|   ↳ `recordingID` | string | LogRocket recording ID |
+|   ↳ `sessionID` | number | Session number within the recording |
+|   ↳ `highlights` | string | Highlights for this session |
+
+### LogRocket List Exported Sessions
+
+List exported session files from the LogRocket Data Export API. Returns download URLs for JSON Lines exports, oldest first, plus a cursor for the next page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LogRocket API key |
+| `orgId` | string | Yes | LogRocket organization ID |
+| `appId` | string | Yes | LogRocket project \(app\) ID |
+| `apiHost` | string | No | API host override for Private Cloud deployments |
+| `cursor` | string | No | Cursor from a previous page, used to fetch newer sessions |
+| `limit` | string | No | Results per page. Defaults to 10, maximum 100. |
+| `date` | string | No | Unix timestamp in milliseconds to start listing from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessions` | array | Exported session files |
+|   ↳ `url` | string | Download URL for the JSON Lines export file |
+| `cursor` | string | Opaque cursor for the next page of results |
+
+### LogRocket Get Audit Logs
+
+Export audit log entries from LogRocket, recording who viewed sessions and what actions were taken. Paginated with a cursor.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LogRocket API key |
+| `orgId` | string | Yes | LogRocket organization ID |
+| `appId` | string | Yes | LogRocket project \(app\) ID |
+| `apiHost` | string | No | API host override for Private Cloud deployments |
+| `limit` | string | No | Number of audit log records to return |
+| `cursor` | string | No | Cursor from a previous page, used to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `logs` | array | Audit log entries |
+|   ↳ `time` | string | Formatted timestamp of the action |
+|   ↳ `createdDate` | string | ISO 8601 timestamp of the action |
+|   ↳ `user` | string | Email or system ID of the actor |
+|   ↳ `action` | string | Action taken, e.g. Viewed session |
+|   ↳ `description` | string | Action details, e.g. the session ID |
+| `cursor` | string | Opaque cursor for the next page of results |
+| `hasNext` | boolean | Whether more audit logs exist beyond this page |
+
+### LogRocket Identify User
+
+Create or update a LogRocket user profile with demographic, financial, and engagement traits.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LogRocket API key |
+| `orgId` | string | Yes | LogRocket organization ID |
+| `appId` | string | Yes | LogRocket project \(app\) ID |
+| `apiHost` | string | No | API host override for Private Cloud deployments |
+| `userId` | string | Yes | ID of the user to create or update |
+| `name` | string | No | Display name of the user. Maximum 1024 characters. |
+| `email` | string | No | Email of the user. Maximum 1024 characters. |
+| `timestamp` | string | No | Unix timestamp in milliseconds describing when the submitted data was true |
+| `traits` | string | No | JSON object of custom traits. Each key and value is limited to 1024 characters and stored as a string. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userID` | string | ID of the created or updated user |
+| `name` | string | Display name stored on the profile |
+| `email` | string | Email stored on the profile |
+| `traits` | json | Custom traits stored on the profile, with every value coerced to a string |
+
+### LogRocket Create Release
+
+Register a release version in LogRocket so uploaded source maps can decode stack traces for it. Fails with a conflict if the version already exists.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LogRocket API key |
+| `orgId` | string | Yes | LogRocket organization ID |
+| `appId` | string | Yes | LogRocket project \(app\) ID |
+| `apiHost` | string | No | API host override for Private Cloud deployments |
+| `version` | string | Yes | Release version to register, e.g. 1.2.3 or a commit SHA |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `version` | string | Release version that was registered |
+
+

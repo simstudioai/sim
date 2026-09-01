@@ -113,6 +113,10 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ input: params.input }),
+    },
     url: 'https://api.parallel.ai/v1/tasks/runs',
     method: 'POST',
     headers: (params) => ({

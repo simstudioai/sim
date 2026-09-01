@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
-import { workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import {
   type FileReadResult,
+  isReadableFileType,
   MAX_TEXT_READ_BYTES,
   readFileRecord,
 } from '@/lib/copilot/vfs/file-reader'
@@ -22,6 +23,8 @@ import {
   fetchWorkspaceFileBuffer,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenanceEnvelope } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('UploadFileReader')
@@ -74,11 +77,11 @@ function canonicalUploadKey(name: string): string {
 }
 
 /** VFS-visible name. Coalesces to originalName for legacy rows that predate displayName. */
-function vfsName(row: typeof workspaceFiles.$inferSelect): string {
+function vfsName(row: WorkspaceFileRow): string {
   return row.displayName ?? row.originalName
 }
 
-function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): WorkspaceFileRecord {
+function toWorkspaceFileRecord(row: WorkspaceFileRow): WorkspaceFileRecord {
   const pathPrefix = getServePathPrefix()
   return {
     id: row.id,
@@ -86,7 +89,7 @@ function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): Workspa
     name: vfsName(row),
     key: row.key,
     path: `${pathPrefix}${encodeURIComponent(row.key)}?context=mothership`,
-    size: row.size,
+    size: getWorkspaceFileSize(row),
     type: row.contentType,
     uploadedBy: row.userId,
     deletedAt: row.deletedAt,
@@ -109,9 +112,9 @@ function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): Workspa
 export async function findMothershipUploadRowByChatAndName(
   chatId: string,
   fileName: string
-): Promise<typeof workspaceFiles.$inferSelect | null> {
+): Promise<WorkspaceFileRow | null> {
   const exactRows = await db
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(
@@ -132,7 +135,7 @@ export async function findMothershipUploadRowByChatAndName(
   }
 
   const allRows = await db
-    .select()
+    .select(workspaceFileColumns)
     .from(workspaceFiles)
     .where(
       and(
@@ -153,7 +156,7 @@ export async function findMothershipUploadRowByChatAndName(
 export async function listChatUploads(chatId: string): Promise<WorkspaceFileRecord[]> {
   try {
     const rows = await db
-      .select()
+      .select(workspaceFileColumns)
       .from(workspaceFiles)
       .where(
         and(
@@ -184,14 +187,29 @@ export async function readChatUpload(
   filename: string,
   chatId: string
 ): Promise<FileReadResult | null> {
+  return (await readChatUploadWithProvenance(filename, chatId))?.value ?? null
+}
+
+export async function readChatUploadWithProvenance(
+  filename: string,
+  chatId: string
+): Promise<WorkspaceFileSecretProvenanceEnvelope<FileReadResult> | null> {
   try {
     const row = await findMothershipUploadRowByChatAndName(chatId, filename)
     if (!row) return null
     const record = toWorkspaceFileRecord(row)
     if (await isActualArchiveUpload(record)) {
-      return { content: `[${buildArchiveExtractGuidance(record.name)}]`, totalLines: 1 }
+      return {
+        value: { content: `[${buildArchiveExtractGuidance(record.name)}]`, totalLines: 1 },
+      }
     }
-    return readFileRecord(record)
+    const result = await readFileRecord(record)
+    if (!result) return null
+    return {
+      value: result,
+      file: { fileId: record.id, key: record.key, context: 'mothership' },
+      view: isReadableFileType(record.type) ? 'complete' : 'derived',
+    }
   } catch (err) {
     logger.warn('Failed to read chat upload', {
       filename,
@@ -216,6 +234,15 @@ export async function grepChatUpload(
   pattern: string,
   options?: GrepOptions
 ): Promise<GrepMatch[] | string[] | GrepCountEntry[]> {
+  return (await grepChatUploadWithProvenance(filename, chatId, pattern, options)).value
+}
+
+export async function grepChatUploadWithProvenance(
+  filename: string,
+  chatId: string,
+  pattern: string,
+  options?: GrepOptions
+): Promise<WorkspaceFileSecretProvenanceEnvelope<GrepMatch[] | string[] | GrepCountEntry[]>> {
   const row = await findMothershipUploadRowByChatAndName(chatId, filename)
   if (!row) {
     throw new WorkspaceFileGrepError(
@@ -231,5 +258,8 @@ export async function grepChatUpload(
     throw new WorkspaceFileGrepError(`Upload content not found for "${filename}".`)
   }
   const uploadsPath = `uploads/${canonicalUploadKey(record.name)}`
-  return grepReadResult(uploadsPath, result, pattern, uploadsPath, options)
+  return {
+    value: grepReadResult(uploadsPath, result, pattern, uploadsPath, options),
+    file: { fileId: record.id, key: record.key, context: 'mothership' },
+  }
 }

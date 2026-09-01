@@ -1,3 +1,5 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import {
   type InfiniteData,
   keepPreviousData,
@@ -10,7 +12,6 @@ import {
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
-  cancelWorkflowExecutionContract,
   type DashboardStatsResponse,
   type ExecutionSnapshotData,
   getDashboardStatsContract,
@@ -22,6 +23,7 @@ import {
   type WorkflowLogSummary,
   type WorkflowStats,
 } from '@/lib/api/contracts/logs'
+import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import type { TimeRange } from '@/stores/logs/filters/types'
@@ -36,6 +38,8 @@ export const LOG_DETAIL_STALE_TIME = 30 * 1000
 export const LOG_BY_EXECUTION_STALE_TIME = 30 * 1000
 export const LOG_DASHBOARD_STATS_STALE_TIME = 30 * 1000
 export const EXECUTION_SNAPSHOT_STALE_TIME = 5 * 60 * 1000
+const CANCELLATION_POLL_INTERVAL_MS = 750
+const CANCELLATION_POLL_ATTEMPTS = 20
 
 export const logKeys = {
   all: ['logs'] as const,
@@ -206,6 +210,19 @@ export function useLogDetail(
   })
 }
 
+async function fetchLogByExecutionId(
+  workspaceId: string,
+  executionId: string,
+  signal?: AbortSignal
+): Promise<WorkflowLogDetail> {
+  const { data } = await requestJson(getLogByExecutionIdContract, {
+    params: { executionId },
+    query: { workspaceId },
+    signal,
+  })
+  return data
+}
+
 export function useLogByExecutionId(
   workspaceId: string | undefined,
   executionId: string | null | undefined
@@ -214,17 +231,53 @@ export function useLogByExecutionId(
   return useQuery({
     queryKey: logKeys.byExecution(workspaceId, executionId ?? undefined),
     queryFn: async ({ signal }) => {
-      const { data } = await requestJson(getLogByExecutionIdContract, {
-        params: { executionId: executionId as string },
-        query: { workspaceId: workspaceId as string },
-        signal,
-      })
+      const data = await fetchLogByExecutionId(workspaceId as string, executionId as string, signal)
       queryClient.setQueryData(logKeys.detail(workspaceId, data.id), data)
       return data
     },
     enabled: Boolean(workspaceId) && Boolean(executionId),
     staleTime: LOG_BY_EXECUTION_STALE_TIME,
   })
+}
+
+async function pollForTerminalExecution(params: {
+  queryClient: QueryClient
+  workspaceId: string
+  executionId: string
+}): Promise<void> {
+  const { queryClient, workspaceId, executionId } = params
+  let lastPollingError: unknown
+
+  for (let attempt = 0; attempt < CANCELLATION_POLL_ATTEMPTS; attempt++) {
+    let detail: WorkflowLogDetail | undefined
+    try {
+      detail = await fetchLogByExecutionId(workspaceId, executionId)
+      lastPollingError = undefined
+    } catch (error) {
+      lastPollingError = error
+    }
+
+    if (detail) {
+      queryClient.setQueryData(logKeys.byExecution(workspaceId, executionId), detail)
+      queryClient.setQueryData(logKeys.detail(workspaceId, detail.id), detail)
+    }
+
+    await queryClient.invalidateQueries({ queryKey: logKeys.lists(), refetchType: 'active' })
+    if (detail?.status === 'cancelled') return
+    if (detail?.status === 'completed' || detail?.status === 'failed') {
+      throw new Error(`Run finished as ${detail.status} before cancellation was confirmed`)
+    }
+    if (attempt < CANCELLATION_POLL_ATTEMPTS - 1) {
+      await sleep(CANCELLATION_POLL_INTERVAL_MS)
+    }
+  }
+
+  if (lastPollingError) {
+    throw new Error(
+      `Unable to confirm that the run stopped: ${getErrorMessage(lastPollingError, 'log lookup failed')}`
+    )
+  }
+  throw new Error('Run stop was requested, but cancellation was not confirmed in time')
 }
 
 export function prefetchLogDetail(queryClient: QueryClient, logId: string, workspaceId: string) {
@@ -311,7 +364,12 @@ export function useCancelExecution(workspaceId: string) {
       const data = await requestJson(cancelWorkflowExecutionContract, {
         params: { id: workflowId, executionId },
       })
-      if (!data.success) throw new Error('Failed to cancel run')
+      if (!data.success) {
+        throw new Error(
+          data.reason ? `Run stop was not confirmed: ${data.reason}` : 'Run stop was not confirmed'
+        )
+      }
+      await pollForTerminalExecution({ queryClient, workspaceId, executionId })
       return data
     },
     onMutate: async ({ executionId }) => {
@@ -375,12 +433,22 @@ export function useCancelExecution(workspaceId: string) {
 export function useRetryExecution() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ workflowId, input }: { workflowId: string; input?: unknown }) => {
+    mutationFn: async ({
+      workflowId,
+      executionId,
+    }: {
+      workflowId: string
+      executionId: string
+    }) => {
       // boundary-raw-fetch: stream response, body is a ReadableStream consumed one chunk at a time
       const res = await fetch(`/api/workflows/${workflowId}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input, triggerType: 'manual', stream: true }),
+        body: JSON.stringify({
+          inputFromExecutionId: executionId,
+          triggerType: 'manual',
+          stream: true,
+        }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))

@@ -242,7 +242,7 @@ describe('buildEffectiveChatTranscript', () => {
             payload: {
               phase: 'result',
               toolCallId: 'tool-1',
-              toolName: 'workspace_file',
+              toolName: 'prepare_file_edit',
               executor: 'go',
               mode: 'sync',
               success: false,
@@ -262,7 +262,7 @@ describe('buildEffectiveChatTranscript', () => {
         type: MothershipStreamV1EventType.tool,
         toolCall: expect.objectContaining({
           id: 'tool-1',
-          name: 'workspace_file',
+          name: 'prepare_file_edit',
           state: MothershipStreamV1CompletionStatus.cancelled,
         }),
       }),
@@ -471,5 +471,46 @@ describe('tool ownership is call-frame authoritative', () => {
     const own = ownership(result)
     expect(own.calledBy).toBe('superagent')
     expect(own.parentToolCallId).toBe('dispatch-1')
+  })
+})
+
+describe('user aborts are not rendered as errors', () => {
+  function transcriptWithErrorEvent(code: string) {
+    return buildEffectiveChatTranscript({
+      messages: [buildUserMessage('stream-1', 'Hello')],
+      activeStreamId: 'stream-1',
+      streamSnapshot: {
+        events: [
+          toBatchEvent(1, {
+            v: 1,
+            seq: 1,
+            ts: '2026-04-15T12:00:01.000Z',
+            type: MothershipStreamV1EventType.error,
+            stream: { streamId: 'stream-1' },
+            payload: { code, message: 'Request aborted by user' },
+          }),
+        ],
+        previewSessions: [],
+        status: 'active',
+      },
+    })
+  }
+
+  function renderedContent(messages: ReturnType<typeof buildEffectiveChatTranscript>) {
+    return messages
+      .filter((message) => message.role === 'assistant')
+      .map((message) => message.content ?? '')
+      .join('')
+  }
+
+  it.each(['async_resume_aborted', 'stream_cancelled', 'cancelled'])(
+    'suppresses the inline error tag for %s',
+    (code) => {
+      expect(renderedContent(transcriptWithErrorEvent(code))).not.toContain('mothership-error')
+    }
+  )
+
+  it('still renders a genuine failure', () => {
+    expect(renderedContent(transcriptWithErrorEvent('api_error'))).toContain('mothership-error')
   })
 })

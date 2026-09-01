@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Chip, chipVariants } from '../chip/chip'
 import { chipContentLabelClass } from '../chip/chip-chrome'
@@ -425,22 +425,14 @@ function SingleCalendarView({
       {showTime && (
         <div className='mt-1 flex items-center gap-2'>
           <span className='shrink-0 text-[var(--text-muted)] text-caption'>Time</span>
-          <ChipTimePicker
-            value={timeOfDay?.slice(0, 5)}
-            onChange={handleTimeChange}
-            fullWidth
-            flush
-          />
+          <ChipTimePicker value={timeOfDay?.slice(0, 5)} onChange={handleTimeChange} fullWidth />
         </div>
       )}
 
       <button
         type='button'
         onClick={goToToday}
-        className={cn(
-          chipVariants({ variant: 'filled', fullWidth: true, flush: true }),
-          'mt-1 justify-center'
-        )}
+        className={cn(chipVariants({ variant: 'filled', fullWidth: true }), 'mt-1 justify-center')}
       >
         <span className={chipContentLabelClass}>Today</span>
       </button>
@@ -547,9 +539,9 @@ function RangeCalendarView({
 
       {showTime && (
         <div className='mt-1 flex items-center gap-2'>
-          <ChipTimePicker value={startTime} onChange={setStartTime} fullWidth flush />
+          <ChipTimePicker value={startTime} onChange={setStartTime} fullWidth />
           <span className='shrink-0 text-[var(--text-muted)] text-caption'>to</span>
-          <ChipTimePicker value={endTime} onChange={setEndTime} fullWidth flush />
+          <ChipTimePicker value={endTime} onChange={setEndTime} fullWidth />
         </div>
       )}
 

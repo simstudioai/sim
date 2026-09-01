@@ -55,6 +55,11 @@ vi.mock('@/providers/litellm/utils', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
   sumToolCosts: vi.fn(() => 0),
   prepareToolExecution: vi.fn((_tool, toolArgs) => ({

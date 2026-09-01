@@ -9,13 +9,17 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.2.13",
+    "bun": ">=1.3.14",
     "node": ">=20.0.0"
   },
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./note-colors": {
+      "types": "./src/note/note-colors.ts",
+      "default": "./src/note/note-colors.ts"
     }
   },
   "scripts": {
@@ -23,27 +27,34 @@
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@sim/emcn": "workspace:*",
     "@sim/utils": "workspace:*",
-    "lucide-react": ">=0.479.0",
+    "@sim/workflow-types": "workspace:*",
     "react": "^19",
     "reactflow": "^11.11.4",
     "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
     "streamdown": ">=2.5.0"
   },
   "devDependencies": {
     "@sim/emcn": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@sim/utils": "workspace:*",
+    "@sim/workflow-types": "workspace:*",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@types/hast": "^3.0.4",
     "@types/react": "^19",
-    "lucide-react": "^0.511.0",
+    "jsdom": "^26.0.0",
     "react": "19.2.4",
     "reactflow": "^11.11.4",
     "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
     "streamdown": "2.5.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0"
   }
 }

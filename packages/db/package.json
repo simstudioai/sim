@@ -5,7 +5,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.2.13",
+    "bun": ">=1.3.14",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -16,11 +16,17 @@
     "./schema": {
       "types": "./schema.ts",
       "default": "./schema.ts"
+    },
+    "./timestamps": {
+      "types": "./timestamps.ts",
+      "default": "./timestamps.ts"
     }
   },
   "scripts": {
-    "db:push": "bunx drizzle-kit push --config=./drizzle.config.ts",
+    "db:push": "bunx drizzle-kit push --config=./drizzle.config.ts && bun --env-file=.env run ./scripts/reconcile-credential-group-resource-policies.ts",
     "db:migrate": "bun --env-file=.env run ./scripts/migrate.ts",
+    "db:apply-dev-workspace-file-size-cutover": "bun --env-file=.env run ./scripts/apply-dev-workspace-file-size-cutover.ts",
+    "db:reconcile-fork-kb-file-ownership": "bun --env-file=.env run ./scripts/reconcile-fork-kb-file-ownership.ts",
     "db:reconcile-workspace-storage": "bun --env-file=.env run ./scripts/reconcile-workspace-storage.ts",
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
     "test": "vitest run",

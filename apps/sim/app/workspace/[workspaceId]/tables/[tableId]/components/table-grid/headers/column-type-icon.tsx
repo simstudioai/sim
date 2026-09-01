@@ -2,25 +2,17 @@
 
 import type React from 'react'
 import { Tooltip } from '@sim/emcn'
-import {
-  Calendar as CalendarIcon,
-  PlayOutline,
-  TagIcon,
-  TypeBoolean,
-  TypeJson,
-  TypeNumber,
-  TypeText,
-  WorkflowX,
-} from '@sim/emcn/icons'
+import { PlayOutline, WorkflowX } from '@sim/emcn/icons'
+import { columnTypeById } from '@/lib/table/column-types'
 import type { BlockIconInfo } from '../types'
 
-export const COLUMN_TYPE_ICONS: Record<string, React.ElementType> = {
-  string: TypeText,
-  number: TypeNumber,
-  boolean: TypeBoolean,
-  date: CalendarIcon,
-  json: TypeJson,
-  select: TagIcon,
+/**
+ * Icon for a column type. Reads the column-type registry rather than restating
+ * it — this and the type picker's list used to be two hand-maintained copies
+ * that had to be edited together. Unknown types fall back to the text icon.
+ */
+export function columnTypeIcon(type: string): React.ComponentType<{ className?: string }> {
+  return columnTypeById(type).icon
 }
 
 interface ColumnTypeIconProps {
@@ -72,6 +64,6 @@ export function ColumnTypeIcon({
     const Icon = blockIconInfo?.icon ?? PlayOutline
     return <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
   }
-  const Icon = COLUMN_TYPE_ICONS[type] ?? TypeText
+  const Icon = columnTypeIcon(type)
   return <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
 }

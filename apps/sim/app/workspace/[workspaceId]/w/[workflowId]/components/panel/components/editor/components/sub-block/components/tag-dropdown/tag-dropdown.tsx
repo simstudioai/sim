@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import {
   cn,
+  OverflowText,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -11,10 +12,6 @@ import {
   PopoverSection,
   usePopoverContext,
 } from '@sim/emcn'
-import { isEqual } from 'es-toolkit'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
-import { useShallow } from 'zustand/react/shallow'
-import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,
@@ -29,18 +26,13 @@ import type {
   NestedTagChild,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/types'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { useWorkflowReferenceScope } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/workflow-reference-scope'
 import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { BlockTile } from '@/blocks/block-tile'
 import type { BlockConfig } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
-import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-
-const EMPTY_VARIABLES: Variable[] = []
 
 /**
  * Context for sharing nested navigation state between components.
@@ -90,7 +82,7 @@ interface TagDropdownProps {
   /** Custom styles for positioning */
   style?: React.CSSProperties
   /** Reference to the input element for caret positioning */
-  inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement>
+  inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>
 }
 
 interface TagComputationResult {
@@ -198,16 +190,13 @@ const ensureRootTag = (tags: string[], rootTag: string): string[] => {
 const getOutputTypeForPath = (
   block: BlockState,
   blockConfig: BlockConfig | null,
-  blockId: string,
   outputPath: string,
-  mergedSubBlocksOverride?: Record<string, any>
+  subBlocks: Record<string, any>
 ): string => {
   if (block?.type === 'variables') {
     return 'any'
   }
 
-  const subBlocks =
-    mergedSubBlocksOverride ?? useWorkflowStore.getState().blocks[blockId]?.subBlocks
   const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
   const triggerMode = Boolean(block?.triggerMode && isTriggerCapable)
 
@@ -382,32 +371,12 @@ const buildNestedTagTree = (tags: string[], blockName: string): NestedTag[] => {
   return convertToNestedTags(root, '', blockName)
 }
 
-const TagIcon: React.FC<{
-  icon: string | React.ComponentType<{ className?: string }>
-  color: string
-}> = ({ icon, color }) => (
-  <div
-    className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded [&_img]:size-full'
-    style={{ background: color }}
-  >
-    {typeof icon === 'string' ? (
-      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
-    ) : (
-      (() => {
-        const IconComponent = icon
-        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
-      })()
-    )}
-  </div>
-)
-
 /**
  * Props for the recursive NestedTagRenderer component
  */
 interface NestedTagRendererProps {
   nestedTag: NestedTag
   group: NestedBlockTagGroup
-  flatTagList: Array<{ tag: string; group?: BlockTagGroup }>
   /** Map from tag string to index for O(1) lookups */
   flatTagIndexMap: Map<string, number>
   selectedIndex: number
@@ -434,7 +403,6 @@ interface FolderContentsProps extends NestedTagRendererProps {
  */
 const FolderContentsInner: React.FC<FolderContentsProps> = ({
   group,
-  flatTagList,
   flatTagIndexMap,
   selectedIndex,
   setSelectedIndex,
@@ -475,7 +443,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }
           }}
         >
-          <span className='flex-1 truncate font-medium'>{currentNestedTag.display}</span>
+          <OverflowText label={currentNestedTag.display} className='flex-1' />
         </PopoverItem>
       )}
 
@@ -492,13 +460,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
           const blockConfig = getBlock(block.type)
           const mergedSubBlocks = getMergedSubBlocks(group.blockId)
 
-          childType = getOutputTypeForPath(
-            block,
-            blockConfig || null,
-            group.blockId,
-            outputPath,
-            mergedSubBlocks
-          )
+          childType = getOutputTypeForPath(block, blockConfig || null, outputPath, mergedSubBlocks)
         }
 
         return (
@@ -521,7 +483,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
               }
             }}
           >
-            <span className='flex-1 truncate'>{child.display}</span>
+            <OverflowText label={child.display} className='flex-1' />
             {childType && childType !== 'any' && (
               <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
                 {childType}
@@ -557,7 +519,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
               }
             }}
           >
-            <span className='flex-1 truncate'>{nestedChild.display}</span>
+            <OverflowText label={nestedChild.display} className='flex-1' />
             <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>{'>'}</span>
           </PopoverItem>
         )
@@ -602,7 +564,6 @@ const FolderContents: React.FC<Omit<NestedTagRendererProps, never>> = (props) =>
 const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
   nestedTag,
   group,
-  flatTagList,
   flatTagIndexMap,
   selectedIndex,
   setSelectedIndex,
@@ -649,7 +610,6 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
         <FolderContents
           nestedTag={nestedTag}
           group={group}
-          flatTagList={flatTagList}
           flatTagIndexMap={flatTagIndexMap}
           selectedIndex={selectedIndex}
           setSelectedIndex={setSelectedIndex}
@@ -687,13 +647,7 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
       const blockConfig = getBlock(block.type)
       const mergedSubBlocks = getMergedSubBlocks(group.blockId)
 
-      tagDescription = getOutputTypeForPath(
-        block,
-        blockConfig || null,
-        group.blockId,
-        outputPath,
-        mergedSubBlocks
-      )
+      tagDescription = getOutputTypeForPath(block, blockConfig || null, outputPath, mergedSubBlocks)
     }
   }
 
@@ -720,7 +674,7 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
         }
       }}
     >
-      <span className='flex-1 truncate'>{nestedTag.display}</span>
+      <OverflowText label={nestedTag.display} className='flex-1' />
       {tagDescription && tagDescription !== 'any' && (
         <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
           {tagDescription}
@@ -788,9 +742,12 @@ const VariableTagItem: React.FC<{
         }
       }}
     >
-      <span className='flex-1 truncate'>
-        {tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag}
-      </span>
+      <OverflowText
+        label={
+          tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag
+        }
+        className='flex-1'
+      />
       {variableInfo && (
         <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
           {variableInfo.type}
@@ -811,8 +768,7 @@ const BlockRootTagItem: React.FC<{
   handleTagSelect: (tag: string, group?: BlockTagGroup) => void
   itemRefs: React.RefObject<Map<string, HTMLElement>>
   group: BlockTagGroup
-  tagIcon: string | React.ComponentType<{ className?: string }>
-  blockColor: string
+  blockType: string
   blockName: string
 }> = ({
   rootTag,
@@ -822,8 +778,7 @@ const BlockRootTagItem: React.FC<{
   handleTagSelect,
   itemRefs,
   group,
-  tagIcon,
-  blockColor,
+  blockType,
   blockName,
 }) => {
   const handleMouseEnter = useKeyboardAwareMouseEnter(setSelectedIndex)
@@ -844,8 +799,12 @@ const BlockRootTagItem: React.FC<{
         }
       }}
     >
-      <TagIcon icon={tagIcon} color={blockColor} />
-      <span className='flex-1 truncate font-medium'>{blockName}</span>
+      <BlockTile
+        blockType={blockType}
+        fallbackLabel={blockName.charAt(0).toUpperCase()}
+        size='sm'
+      />
+      <OverflowText label={blockName} className='flex-1' />
     </PopoverItem>
   )
 }
@@ -968,26 +927,23 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   inputValueRef.current = inputValue
   cursorPositionRef.current = cursorPosition
 
-  const { blocks, edges, loops, parallels } = useWorkflowStore(
-    useShallow((state) => ({
-      blocks: state.blocks,
-      edges: state.edges,
-      loops: state.loops || {},
-      parallels: state.parallels || {},
-    }))
-  )
-
-  const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  // The workflow being referenced — the editor's own on the canvas, a supplied one on a
+  // surface configuring a block that lives in another workflow (see `WorkflowReferenceScope`).
+  const {
+    blocks,
+    edges,
+    loops,
+    parallels,
+    workflowId,
+    subBlockValues: workflowSubBlockValues,
+    variables: workflowVariables,
+  } = useWorkflowReferenceScope()
   const rawAccessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const combinedAccessiblePrefixes = useMemo(() => {
     if (!rawAccessiblePrefixes) return new Set<string>()
     return new Set<string>(rawAccessiblePrefixes)
   }, [rawAccessiblePrefixes])
-
-  const workflowSubBlockValues = useSubBlockStore(
-    (state) => (workflowId ? state.workflowValues[workflowId] : undefined) ?? EMPTY_SUBBLOCK_VALUES
-  )
 
   const getMergedSubBlocks = useCallback(
     (targetBlockId: string): Record<string, any> => {
@@ -1000,18 +956,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       return merged
     },
     [blocks, workflowSubBlockValues]
-  )
-
-  const workflowVariables = useStoreWithEqualityFn(
-    useVariablesStore,
-    useCallback(
-      (state) =>
-        workflowId
-          ? Object.values(state.variables).filter((variable) => variable.workflowId === workflowId)
-          : EMPTY_VARIABLES,
-      [workflowId]
-    ),
-    isEqual
   )
 
   const searchTerm = useMemo(
@@ -1497,17 +1441,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const parts = tag.split('.')
       if (parts.length >= 3 && blockGroup) {
         const arrayFieldName = parts[1]
-        const block = useWorkflowStore.getState().blocks[blockGroup.blockId]
+        const block = blocks[blockGroup.blockId]
         const blockConfig = block ? (getBlock(block.type) ?? null) : null
         const mergedSubBlocks = getMergedSubBlocks(blockGroup.blockId)
 
-        const fieldType = getOutputTypeForPath(
-          block,
-          blockConfig,
-          blockGroup.blockId,
-          arrayFieldName,
-          mergedSubBlocks
-        )
+        const fieldType = getOutputTypeForPath(block, blockConfig, arrayFieldName, mergedSubBlocks)
 
         if (fieldType === 'file' || fieldType === 'file[]' || fieldType === 'array') {
           const blockName = parts[0]
@@ -1695,9 +1633,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         </PopoverAnchor>
         <KeyboardNavigationHandler
           visible={visible}
+          flatTagList={flatTagList}
           selectedIndex={selectedIndex}
           setSelectedIndex={setSelectedIndex}
-          flatTagList={flatTagList}
           nestedBlockTagGroups={nestedBlockTagGroups}
           handleTagSelect={handleTagSelect}
           onFolderEnter={() => {
@@ -1727,7 +1665,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   <>
                     <PopoverSection rootOnly>
                       <div className='flex items-center gap-1.5'>
-                        <TagIcon icon='V' color={BLOCK_COLORS.VARIABLE} />
+                        <BlockTile bgColor={BLOCK_COLORS.VARIABLE} fallbackLabel='V' size='sm' />
                         Variables
                       </div>
                     </PopoverSection>
@@ -1753,25 +1691,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                 )}
 
                 {nestedBlockTagGroups.map((group: NestedBlockTagGroup, groupIndex: number) => {
-                  const blockConfig = getBlock(group.blockType)
-                  let blockColor = blockConfig?.bgColor || BLOCK_COLORS.DEFAULT
-
-                  if (group.blockType === 'loop') {
-                    blockColor = BLOCK_COLORS.LOOP
-                  } else if (group.blockType === 'parallel') {
-                    blockColor = BLOCK_COLORS.PARALLEL
-                  }
-
-                  let tagIcon: string | React.ComponentType<{ className?: string }> =
-                    group.blockName.charAt(0).toUpperCase()
-                  if (blockConfig?.icon) {
-                    tagIcon = blockConfig.icon
-                  } else if (group.blockType === 'loop') {
-                    tagIcon = RepeatIcon
-                  } else if (group.blockType === 'parallel') {
-                    tagIcon = SplitIcon
-                  }
-
                   const normalizedBlockName = normalizeName(group.blockName)
                   const rootTagFromTags = group.tags.find((tag) => tag === normalizedBlockName)
                   const rootTag = rootTagFromTags || normalizedBlockName
@@ -1788,8 +1707,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         handleTagSelect={handleTagSelect}
                         itemRefs={itemRefs}
                         group={group}
-                        tagIcon={tagIcon}
-                        blockColor={blockColor}
+                        blockType={group.blockType}
                         blockName={group.blockName}
                       />
                       {group.nestedTags.map((nestedTag) => {
@@ -1802,7 +1720,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                             key={`${group.blockId}-${nestedTag.key}`}
                             nestedTag={nestedTag}
                             group={group}
-                            flatTagList={flatTagList}
                             flatTagIndexMap={flatTagIndexMap}
                             selectedIndex={selectedIndex}
                             setSelectedIndex={setSelectedIndex}

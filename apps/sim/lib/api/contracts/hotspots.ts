@@ -1,50 +1,19 @@
 import { z } from 'zod'
-import { customPatternSchema, unknownRecordSchema } from '@/lib/api/contracts/primitives'
+import {
+  customPatternSchema,
+  privateSecretProvenanceBundleSchema,
+  stringRecordSchema,
+  unknownRecordSchema,
+  userFileSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
-export const guardrailsValidateContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/guardrails/validate',
-  body: z.object({
-    validationType: z.string().optional(),
-    input: z.unknown().optional(),
-    regex: z.string().optional(),
-    knowledgeBaseId: z.string().optional(),
-    threshold: z.string().optional(),
-    topK: z.string().optional(),
-    model: z.string().optional(),
-    apiKey: z.string().optional(),
-    azureEndpoint: z.string().optional(),
-    azureApiVersion: z.string().optional(),
-    vertexProject: z.string().optional(),
-    vertexLocation: z.string().optional(),
-    vertexCredential: z.string().optional(),
-    bedrockAccessKeyId: z.string().optional(),
-    bedrockSecretKey: z.string().optional(),
-    bedrockRegion: z.string().optional(),
-    workflowId: z.string().optional(),
-    piiEntityTypes: z.array(z.string()).optional(),
-    piiMode: z.string().optional(),
-    piiLanguage: z.string().optional(),
-    piiCustomPatterns: z.array(customPatternSchema).max(20).optional(),
-  }),
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.boolean(),
-      output: z.object({
-        passed: z.boolean(),
-        validationType: z.string(),
-        input: z.unknown().optional(),
-        error: z.string().optional(),
-        score: z.number().optional(),
-        reasoning: z.string().optional(),
-        detectedEntities: z.array(z.unknown()).optional(),
-        maskedText: z.string().optional(),
-      }),
-    }),
-  },
-})
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
+import { MAX_BLOCK_MOUNTED_FILES } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import {
+  MAX_PII_VALIDATION_DETECTED_ENTITIES,
+  MAX_PII_VALIDATION_TEXT_CHARACTERS,
+} from '@/lib/guardrails/pii-limits'
 
 const guardrailsMaskBatchBodySchema = z.object({
   texts: z.array(z.string()).max(100_000),
@@ -56,6 +25,38 @@ const guardrailsMaskBatchBodySchema = z.object({
 const guardrailsMaskBatchResponseSchema = z.object({
   masked: z.array(z.string()),
 })
+
+export const guardrailsPiiValidateBodySchema = z
+  .object({
+    text: z.string().max(MAX_PII_VALIDATION_TEXT_CHARACTERS, 'Text is too long'),
+    entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(200),
+    mode: z.enum(['block', 'mask']),
+    language: z.string().min(1, 'Language cannot be empty').max(20).optional(),
+    customPatterns: z.array(customPatternSchema).max(20).optional(),
+  })
+  .strict()
+
+export const detectedPiiEntitySchema = z
+  .object({
+    type: z.string().min(1, 'Entity type cannot be empty').max(100),
+    start: z.number().int().nonnegative(),
+    end: z.number().int().nonnegative(),
+    score: z.number().min(0).max(1),
+    text: z.string().max(MAX_PII_VALIDATION_TEXT_CHARACTERS, 'Detected text is too long'),
+  })
+  .strict()
+
+export const guardrailsPiiValidateResponseSchema = z
+  .object({
+    passed: z.boolean(),
+    error: z.string().max(1_000).optional(),
+    detectedEntities: z.array(detectedPiiEntitySchema).max(MAX_PII_VALIDATION_DETECTED_ENTITIES),
+    maskedText: z
+      .string()
+      .max(MAX_PII_VALIDATION_TEXT_CHARACTERS, 'Masked text is too long')
+      .optional(),
+  })
+  .strict()
 
 /**
  * Internal batch PII masking. Called server-to-server (internal JWT) from the
@@ -74,6 +75,23 @@ export const guardrailsMaskBatchContract = defineRouteContract({
 
 export type GuardrailsMaskBatchBody = z.input<typeof guardrailsMaskBatchBodySchema>
 export type GuardrailsMaskBatchResult = z.output<typeof guardrailsMaskBatchResponseSchema>
+
+/**
+ * Internal single-text PII validation. The workflow executor can run outside
+ * the app network, while only the app task can reach the Presidio service.
+ */
+export const guardrailsPiiValidateContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/guardrails/pii/validate',
+  body: guardrailsPiiValidateBodySchema,
+  response: {
+    mode: 'json',
+    schema: guardrailsPiiValidateResponseSchema,
+  },
+})
+
+export type GuardrailsPiiValidateBody = z.input<typeof guardrailsPiiValidateBodySchema>
+export type GuardrailsPiiValidateResult = z.output<typeof guardrailsPiiValidateResponseSchema>
 
 const chatMessageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']),
@@ -145,10 +163,8 @@ const functionOutputFileSchema = z
   })
   .strict()
 
-export const functionExecuteContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/function/execute',
-  body: z.object({
+export const functionExecuteBodySchema = z
+  .object({
     code: z.string().min(1, 'Code is required'),
     sourceCode: z.string().optional(),
     params: unknownRecordSchema.optional().default({}),
@@ -169,15 +185,28 @@ export const functionExecuteContract = defineRouteContract({
       })
       .strict()
       .optional(),
+    /**
+     * Platform file objects mounted into the sandbox before the code runs.
+     * Distinct from `inputs.files`, which names workspace VFS paths: these are
+     * the same objects tools exchange, so an upstream block's output can be
+     * mounted without first being written to the workspace.
+     */
+    files: z
+      .array(userFileSchema)
+      .max(
+        MAX_BLOCK_MOUNTED_FILES,
+        `At most ${MAX_BLOCK_MOUNTED_FILES} files can be mounted into the sandbox`
+      )
+      .optional(),
     outputs: z
       .object({
         files: z.array(functionOutputFileSchema).optional(),
       })
       .strict()
       .optional(),
-    envVars: z.record(z.string(), z.string()).optional().default({}),
+    envVars: stringRecordSchema.optional().default({}),
     blockData: unknownRecordSchema.optional().default({}),
-    blockNameMapping: z.record(z.string(), z.string()).optional().default({}),
+    blockNameMapping: stringRecordSchema.optional().default({}),
     blockOutputSchemas: z.record(z.string(), unknownRecordSchema).optional().default({}),
     workflowVariables: unknownRecordSchema.optional().default({}),
     contextVariables: unknownRecordSchema.optional().default({}),
@@ -190,6 +219,19 @@ export const functionExecuteContract = defineRouteContract({
     workspaceId: z.string().optional(),
     userId: z.string().optional(),
     isCustomTool: z.boolean().optional().default(false),
+    /** Workspace sandbox whose dependency set this execution runs against. */
+    sandboxId: z.string().optional(),
+    /** `all` (default) or `selected`; see mountedSecrets. */
+    secretScope: z.enum(['all', 'selected']).optional(),
+    /** Secret names this execution may read when secretScope is `selected`. */
+    mountedSecrets: z.array(z.string()).optional(),
+    /**
+     * Secret names the caller's registry certifies as redaction-exempt (collision-free).
+     * Exported files containing only these values are not provenance-locked. Trusted the
+     * same way envVars is: the internal caller already holds the plaintexts.
+     */
+    unredactedSecretNames: z.array(z.string()).optional(),
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
     _sandboxFiles: z
       .array(
         z.union([
@@ -208,9 +250,17 @@ export const functionExecuteContract = defineRouteContract({
         ])
       )
       .optional(),
-  }),
-  response: {
-    mode: 'json',
-    schema: unknownRecordSchema,
-  },
-})
+  })
+  .superRefine((body, context) => {
+    if (body.outputSandboxPath && !body.outputPath?.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['outputPath'],
+        message:
+          'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
+      })
+    }
+  })
+
+export type FunctionExecuteBody = z.input<typeof functionExecuteBodySchema>
+export type ParsedFunctionExecuteBody = z.output<typeof functionExecuteBodySchema>

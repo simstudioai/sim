@@ -4,6 +4,17 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { WizaResponse } from '@/tools/wiza/types'
 
+const PROSPECT_FILTER_FIELD = ['job_title', 'job_role', 'filters'] as const
+const PROSPECT_EMPLOYER_FIELD = ['job_company', 'company_industry'] as const
+const COMPANY_FIELD = [
+  'company_name',
+  'company_domain',
+  'company_linkedin_slug',
+  'company_linkedin_id',
+] as const
+const CONTACT_FIELD = ['profile_url', 'full_name', 'email'] as const
+const EMPLOYER_FIELD = ['company', 'domain'] as const
+
 export const WizaBlock: BlockConfig<WizaResponse> = {
   type: 'wiza',
   name: 'Wiza',
@@ -17,6 +28,25 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
   bgColor: '#9284BC',
   iconColor: '#9284BC',
   icon: WizaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Wiza',
+    sentences: {
+      byOperation: {
+        prospect_search: [
+          'Search prospects',
+          { text: 'matching', field: PROSPECT_FILTER_FIELD },
+          { text: 'at', field: PROSPECT_EMPLOYER_FIELD },
+          { text: ', sampling', field: 'size', after: 'profiles' },
+        ],
+        company_enrichment: [{ text: 'Enrich company', field: COMPANY_FIELD, core: true }],
+        individual_reveal: [
+          { text: 'Reveal contact details for', field: CONTACT_FIELD, core: true },
+          { text: 'at', field: EMPLOYER_FIELD },
+        ],
+        get_credits: ['Read remaining account credits'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

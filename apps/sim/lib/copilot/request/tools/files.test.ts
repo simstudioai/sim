@@ -3,12 +3,17 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockWriteWorkspaceFileByPath } = vi.hoisted(() => ({
+const { mockEncryptSecret, mockWriteWorkspaceFileByPath } = vi.hoisted(() => ({
+  mockEncryptSecret: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
 }))
 
+vi.mock('@/lib/core/security/encryption', () => ({
+  encryptSecret: mockEncryptSecret,
+}))
+
 vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
-  writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
+  writeCopilotWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
 vi.mock('@/lib/copilot/request/otel', () => ({
@@ -19,7 +24,7 @@ vi.mock('@/lib/copilot/request/otel', () => ({
   ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn(), addEvent: vi.fn() }),
 }))
 
-import { FunctionExecute } from '@/lib/copilot/generated/tool-catalog-v1'
+import { RunFunction } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   extractTabularData,
   maybeWriteOutputToFile,
@@ -28,9 +33,11 @@ import {
   unwrapFunctionExecuteOutput,
 } from '@/lib/copilot/request/tools/files'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('unwrapFunctionExecuteOutput', () => {
-  it('unwraps the function_execute envelope { result, stdout }', () => {
+  it('unwraps the run_function envelope { result, stdout }', () => {
     expect(unwrapFunctionExecuteOutput({ result: 'name,age\nAlice,30', stdout: '' })).toBe(
       'name,age\nAlice,30'
     )
@@ -49,7 +56,7 @@ describe('unwrapFunctionExecuteOutput', () => {
 })
 
 describe('serializeOutputForFile (csv)', () => {
-  it('returns raw CSV text when function_execute result is already a CSV string', () => {
+  it('returns raw CSV text when run_function result is already a CSV string', () => {
     const output = {
       result: 'name,age\nAlice,30\nBob,40',
       stdout: '(2 rows)',
@@ -66,6 +73,15 @@ describe('serializeOutputForFile (csv)', () => {
       stdout: '',
     }
     expect(serializeOutputForFile(output, 'csv')).toBe('name,age\nAlice,30\nBob,40')
+  })
+
+  it('neutralizes formula-leading values in generated CSV', () => {
+    const output = {
+      result: [{ value: '=1+1' }],
+      stdout: '',
+    }
+
+    expect(serializeOutputForFile(output, 'csv')).toBe("value\n'=1+1")
   })
 
   it('returns the raw string when the non-envelope output is already a CSV string', () => {
@@ -111,13 +127,17 @@ describe('maybeWriteOutputToFile', () => {
       userId: 'user-1',
       workflowId: 'wf-1',
       workspaceId: 'workspace-1',
+      toolCallId: 'tool-1',
+      copilotToolExecution: true,
       userPermission: 'write',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
       ...overrides,
     }
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-csv-representation', iv: 'iv' })
     mockWriteWorkspaceFileByPath.mockResolvedValue({
       id: 'file-1',
       name: 'report.csv',
@@ -128,7 +148,7 @@ describe('maybeWriteOutputToFile', () => {
 
   it('denies a read-only principal without writing the file', async () => {
     const result = await maybeWriteOutputToFile(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
       { success: true, output: { result: 'name,age\nAlice,30', stdout: '' } },
       buildContext({ userPermission: 'read' })
@@ -141,7 +161,7 @@ describe('maybeWriteOutputToFile', () => {
 
   it('does not deny a read-only principal when no workspace write occurs (sandbox export active)', async () => {
     const result = await maybeWriteOutputToFile(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
       { success: true, output: { result: { files: [{ path: 'report.csv' }] }, stdout: '' } },
       buildContext({ userPermission: 'read' })
@@ -153,7 +173,7 @@ describe('maybeWriteOutputToFile', () => {
 
   it('writes the output file for a write principal', async () => {
     const result = await maybeWriteOutputToFile(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
       { success: true, output: { result: 'name,age\nAlice,30', stdout: '' } },
       buildContext()
@@ -161,11 +181,442 @@ describe('maybeWriteOutputToFile', () => {
 
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ secretProvenance: { status: 'exact', entries: [] } })
+    )
+  })
+
+  it('classifies large structured output from its serialized bytes instead of its object count', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'encrypted-token' },
+        {
+          name: 'TOKEN_ALIAS',
+          plaintext: 'secret-value',
+          encryptedValue: 'encrypted-token-alias',
+        },
+      ],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('TOKEN', 'secret-value')
+    registry.recordResolved('TOKEN_ALIAS', 'secret-value')
+    const rows = Array.from({ length: 10_000 }, (_, index) => ({
+      id: index,
+      name: `row-${index}`,
+      status: 'ready',
+      enabled: true,
+      token: index === 9_999 ? 'secret-value' : 'public-value',
+    }))
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files: [{ path: 'files/report.json', mode: 'overwrite' }] } },
+      { success: true, output: { result: rows, stdout: '' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        secretProvenance: {
+          status: 'exact',
+          entries: [
+            {
+              name: 'TOKEN',
+              encryptedValue: 'encrypted-token',
+              sourceUserId: 'user-1',
+              sourceWorkspaceId: 'workspace-1',
+            },
+            {
+              name: 'TOKEN_ALIAS',
+              encryptedValue: 'encrypted-token-alias',
+              sourceUserId: 'user-1',
+              sourceWorkspaceId: 'workspace-1',
+            },
+          ],
+        },
+      })
+    )
+  })
+
+  it('writes raw output with unknown provenance when serialized output exceeds the scan budget', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'encrypted-token' },
+    ])
+    registry.recordResolved('TOKEN', 'secret-value')
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files: [{ path: 'files/report.txt', mode: 'overwrite' }] } },
+      {
+        success: true,
+        output: { result: 'x'.repeat(MAX_INLINE_MATERIALIZATION_BYTES + 1), stdout: '' },
+      },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+    )
+  })
+
+  it('persists raw bytes with exact provenance and leaves sibling literals unclassified', async () => {
+    const parentRegistry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'OUTPUT_SECRET',
+          plaintext: 'secret-value',
+          encryptedValue: 'encrypted-output-secret',
+        },
+        {
+          name: 'UNRELATED',
+          plaintext: 'true',
+          encryptedValue: 'encrypted-unrelated',
+        },
+      ],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    parentRegistry.recordResolved('UNRELATED', 'true')
+    const toolRegistry = parentRegistry.forkForInputPaths([])
+    toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value')
+    const runtimeOutput = {
+      result: { token: 'secret-value', publicLabel: 'true', enabled: true },
+      stdout: '',
+    }
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files: [{ path: 'files/report.json', mode: 'overwrite' }] } },
+      { success: true, output: runtimeOutput },
+      buildContext({ resolvedSecretTraceRegistry: toolRegistry })
+    )
+
+    expect(result.success).toBe(true)
+    const write = mockWriteWorkspaceFileByPath.mock.calls[0][1]
+    const persisted = write.buffer.toString('utf8')
+    expect(JSON.parse(persisted)).toEqual({
+      token: 'secret-value',
+      publicLabel: 'true',
+      enabled: true,
+    })
+    expect(write.secretProvenance).toEqual({
+      status: 'exact',
+      entries: [
+        {
+          name: 'OUTPUT_SECRET',
+          encryptedValue: 'encrypted-output-secret',
+          sourceUserId: 'user-1',
+          sourceWorkspaceId: 'workspace-1',
+        },
+      ],
+    })
+    expect(runtimeOutput.result.token).toBe('secret-value')
+  })
+
+  it('tracks both logical and quote-escaped CSV representations', async () => {
+    const secret = 'a"b\\c\nline'
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'CSV_SECRET', plaintext: secret, encryptedValue: 'encrypted-csv-secret' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('CSV_SECRET', secret)
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
+      { success: true, output: { result: [{ value: secret }], stdout: '' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    const write = mockWriteWorkspaceFileByPath.mock.calls[0][1]
+    expect(write.buffer.toString('utf8')).toBe('value\n"a""b\\c\nline"')
+    expect(write.secretProvenance).toEqual({
+      status: 'exact',
+      entries: [
+        {
+          name: 'CSV_SECRET',
+          encryptedValue: 'encrypted-csv-representation',
+          sourceUserId: 'user-1',
+          sourceWorkspaceId: 'workspace-1',
+        },
+        {
+          name: 'CSV_SECRET',
+          encryptedValue: 'encrypted-csv-secret',
+          sourceUserId: 'user-1',
+          sourceWorkspaceId: 'workspace-1',
+        },
+      ],
+    })
+    expect(mockEncryptSecret).toHaveBeenCalledWith('a""b\\c\nline')
+  })
+
+  it('deduplicates repeated CSV quote transformations across the table', async () => {
+    const secret = 'secret"value'
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'CSV_SECRET', plaintext: secret, encryptedValue: 'encrypted-csv-secret' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('CSV_SECRET', secret)
+    const rows = Array.from({ length: 10_000 }, () => ({ first: secret, second: secret }))
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
+      { success: true, output: { result: rows, stdout: '' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockEncryptSecret).toHaveBeenCalledTimes(1)
+    expect(mockEncryptSecret).toHaveBeenCalledWith('secret""value')
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
+  })
+
+  it('reuses serialized provenance for output files with the same format', async () => {
+    const secret = 'aaaa"bbbb'
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'CSV_SECRET', plaintext: secret, encryptedValue: 'encrypted-csv-secret' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('CSV_SECRET', secret)
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      {
+        outputs: {
+          files: [
+            { path: 'files/one.csv', mode: 'overwrite' },
+            { path: 'files/two.csv', mode: 'overwrite' },
+          ],
+        },
+      },
+      { success: true, output: { result: [{ value: secret }], stdout: '' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockEncryptSecret).toHaveBeenCalledTimes(1)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves existing multi-file outputs beyond twenty declarations', async () => {
+    const files = Array.from({ length: 21 }, (_, index) => ({
+      path: `files/report-${index}.txt`,
+      mode: 'overwrite' as const,
+    }))
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files } },
+      { success: true, output: { result: 'content', stdout: '' } },
+      buildContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(21)
+  })
+
+  it('tracks a persisted legacy runtime alias', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-api-key' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('API_KEY', 'secret-value')
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files: [{ path: 'files/report.txt', mode: 'overwrite' }] } },
+      { success: true, output: { result: '__var_API_KEY', stdout: '' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        buffer: Buffer.from('__var_API_KEY'),
+        secretProvenance: {
+          status: 'exact',
+          entries: [
+            {
+              name: 'API_KEY',
+              encryptedValue: 'encrypted-api-key',
+              sourceUserId: 'user-1',
+              sourceWorkspaceId: 'workspace-1',
+            },
+          ],
+        },
+      })
+    )
+  })
+
+  it('preserves anonymous provenance without inventing a secret name', async () => {
+    const registry = {
+      exportCommittedProvenanceForValue: vi.fn().mockReturnValue({
+        version: 1,
+        complete: true,
+        entries: [{ encryptedValue: 'encrypted-anonymous' }],
+        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+      }),
+    } as unknown as ResolvedSecretTraceRegistry
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files: [{ path: 'files/report.txt', mode: 'overwrite' }] } },
+      { success: true, output: { result: 'anonymous-secret', stdout: '' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        secretProvenance: {
+          status: 'exact',
+          entries: [
+            {
+              encryptedValue: 'encrypted-anonymous',
+              sourceUserId: 'user-1',
+              sourceWorkspaceId: 'workspace-1',
+            },
+          ],
+        },
+      })
+    )
+  })
+
+  it('preserves the secret source when a different actor writes within the same workspace', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'OUTPUT_SECRET',
+          plaintext: 'secret-value',
+          encryptedValue: 'encrypted-output-secret',
+        },
+      ],
+      { userId: 'workflow-owner', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('OUTPUT_SECRET', 'secret-value')
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files: [{ path: 'files/report.txt', mode: 'overwrite' }] } },
+      { success: true, output: { result: 'secret-value', stdout: '' } },
+      buildContext({ userId: 'billing-actor', resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'billing-actor' }),
+      expect.objectContaining({
+        secretProvenance: {
+          status: 'exact',
+          entries: [
+            {
+              name: 'OUTPUT_SECRET',
+              encryptedValue: 'encrypted-output-secret',
+              sourceUserId: 'workflow-owner',
+              sourceWorkspaceId: 'workspace-1',
+            },
+          ],
+        },
+      })
+    )
+  })
+
+  it('writes raw output with unknown provenance when the source scope differs', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'OUTPUT_SECRET',
+          plaintext: 'secret-value',
+          encryptedValue: 'encrypted-output-secret',
+        },
+      ],
+      { userId: 'workflow-owner', workspaceId: 'workspace-2' }
+    )
+    registry.recordResolved('OUTPUT_SECRET', 'secret-value')
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files: [{ path: 'files/report.txt', mode: 'overwrite' }] } },
+      { success: true, output: { result: 'secret-value', stdout: '' } },
+      buildContext({ userId: 'billing-actor', resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+    )
+  })
+
+  it('prepares every file provenance and marks unavailable lineage unknown', async () => {
+    const exportCommittedProvenanceForValue = vi
+      .fn()
+      .mockReturnValueOnce({ version: 1, complete: true, entries: [] })
+      .mockReturnValueOnce({ version: 1, complete: false, entries: [] })
+    const registry = {
+      exportCommittedProvenanceForValue,
+      /** Plaintext is in scope, so the incomplete export below is a taint, not an absence. */
+      getIncompletenessDiagnostics: vi.fn(() => ({
+        reasons: ['source-provenance-incomplete'],
+        origins: [],
+        incompleteInputPathCount: 0,
+        activeEntryCount: 1,
+      })),
+    } as unknown as ResolvedSecretTraceRegistry
+
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      {
+        outputs: {
+          files: [
+            { path: 'files/report.json', mode: 'overwrite' },
+            { path: 'files/report.txt', mode: 'overwrite' },
+          ],
+        },
+      },
+      { success: true, output: { result: { token: 'value' }, stdout: '' } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(exportCommittedProvenanceForValue).toHaveBeenCalledTimes(2)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(2)
+    expect(mockWriteWorkspaceFileByPath.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+    )
+  })
+
+  /**
+   * No registry means no recorder ran, so nothing was written down about these bytes — an absence,
+   * which the surface's policy may relax, and distinct from the taint a refused safety decision
+   * produces below.
+   */
+  it('preserves legacy writes without a registry and marks their provenance unrecorded', async () => {
+    const result = await maybeWriteOutputToFile(
+      RunFunction.id,
+      { outputs: { files: [{ path: 'files/report.json', mode: 'overwrite' }] } },
+      { success: true, output: { result: { token: 'unknown' }, stdout: '' } },
+      buildContext({ resolvedSecretTraceRegistry: undefined })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ secretProvenance: { status: 'unrecorded' } })
+    )
   })
 
   it('fails loudly instead of silently skipping declared outputs when workspace context is missing', async () => {
     const result = await maybeWriteOutputToFile(
-      FunctionExecute.id,
+      RunFunction.id,
       { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
       { success: true, output: { result: 'name,age\nAlice,30', stdout: '' } },
       buildContext({ workspaceId: undefined })
@@ -181,7 +632,7 @@ describe('maybeWriteOutputToFile', () => {
   it('still passes results through untouched when no outputs are declared, even without workspace context', async () => {
     const original = { success: true, output: { result: 42, stdout: '' } }
     const result = await maybeWriteOutputToFile(
-      FunctionExecute.id,
+      RunFunction.id,
       {},
       original,
       buildContext({ workspaceId: undefined })
@@ -197,7 +648,7 @@ describe('extractTabularData', () => {
     expect(extractTabularData([{ a: 1 }, { a: 2 }])).toEqual([{ a: 1 }, { a: 2 }])
   })
 
-  it('does NOT unwrap function_execute envelopes on its own (callers must pre-unwrap)', () => {
+  it('does NOT unwrap run_function envelopes on its own (callers must pre-unwrap)', () => {
     // Caller is responsible for unwrapping { result, stdout } envelopes first.
     // Keeping that concern out of this function prevents a double unwrap when
     // the user's payload itself happens to have matching keys.

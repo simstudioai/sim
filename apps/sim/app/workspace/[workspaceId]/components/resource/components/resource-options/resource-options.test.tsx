@@ -35,7 +35,7 @@ afterEach(() => {
 })
 
 describe('SortDropdown', () => {
-  it('renders long option labels in the truncatable span between both icons', () => {
+  it('renders long option labels in the overflow span between both icons', () => {
     act(() => {
       root.render(
         <SortDropdown
@@ -63,8 +63,65 @@ describe('SortDropdown', () => {
     const label = item?.querySelector('span')
     expect(label).not.toBeNull()
     expect(label).toHaveTextContent(LONG_COLUMN_LABEL)
-    expect(label).toHaveClass('min-w-0', 'block', 'truncate')
+    expect(label).toHaveClass('min-w-0', 'block', 'overflow-hidden', 'text-clip')
+    expect(label).not.toHaveClass('truncate')
     expect(item?.querySelector('[data-testid="column-icon"]')).not.toBeNull()
     expect(item?.querySelectorAll('svg')).toHaveLength(2)
+  })
+
+  it('keeps the popup open while changing or clearing the sort', () => {
+    const onOpenChange = vi.fn()
+    const onSort = vi.fn()
+    const onClear = vi.fn()
+    act(() => {
+      root.render(
+        <SortDropdown
+          open
+          onOpenChange={onOpenChange}
+          config={{
+            options: [{ id: 'name', label: 'Name', icon: ColumnIcon }],
+            active: { column: 'name', direction: 'asc' },
+            onSort,
+            onClear,
+            keepOpenOnSelect: true,
+          }}
+        />
+      )
+    })
+
+    const items = document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    expect(items).toHaveLength(2)
+
+    act(() => items[1]?.click())
+    expect(onSort).toHaveBeenCalledWith('name', 'desc')
+
+    act(() => items[0]?.click())
+    expect(onClear).toHaveBeenCalledOnce()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(document.body.querySelectorAll('[role="menuitem"]')).toHaveLength(2)
+  })
+
+  it('keeps the legacy close-on-select behavior by default', () => {
+    const onOpenChange = vi.fn()
+    const onSort = vi.fn()
+    act(() => {
+      root.render(
+        <SortDropdown
+          open
+          onOpenChange={onOpenChange}
+          config={{
+            options: [{ id: 'name', label: 'Name', icon: ColumnIcon }],
+            active: null,
+            onSort,
+          }}
+        />
+      )
+    })
+
+    const item = document.body.querySelector<HTMLElement>('[role="menuitem"]')
+    act(() => item?.click())
+
+    expect(onSort).toHaveBeenCalledWith('name', 'desc')
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })

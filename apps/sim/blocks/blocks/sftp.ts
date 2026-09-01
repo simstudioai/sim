@@ -1,12 +1,4 @@
-import {
-  ClipboardList,
-  Download,
-  File,
-  Search,
-  Server,
-  TrashOutline,
-  Upload,
-} from '@sim/emcn/icons'
+import { ClipboardList, Download, File, Search, Server, Trash, Upload } from '@sim/emcn/icons'
 import { SftpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -25,6 +17,25 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
   bgColor: '#2D3748',
   icon: SftpIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'SFTP',
+    sentences: {
+      byOperation: {
+        sftp_upload: [
+          { text: 'Upload', field: ['uploadFiles', 'files'], core: true },
+          { text: 'to', field: 'remotePath', core: true },
+        ],
+        sftp_create: [
+          { text: 'Create file', field: 'fileName', core: true },
+          { text: 'in', field: 'remotePath' },
+        ],
+        sftp_download: [{ text: 'Download', field: 'remotePath', core: true }],
+        sftp_list: [{ text: 'List the contents of', field: 'remotePath', core: true }],
+        sftp_delete: [{ text: 'Delete', field: 'remotePath', core: true }],
+        sftp_mkdir: [{ text: 'Create directory', field: 'remotePath', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -89,6 +100,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
       id: 'privateKey',
       title: 'Private Key',
       type: 'code',
+      password: true,
       placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----\n...',
       condition: { field: 'authMethod', value: 'privateKey' },
       dependsOn: ['authMethod'],
@@ -114,6 +126,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
     {
       id: 'uploadFiles',
       title: 'Files to Upload',
+      canvasNoun: 'files',
       type: 'file-upload',
       canonicalParamId: 'files',
       placeholder: 'Select files to upload',
@@ -352,7 +365,7 @@ export const SftpBlockMeta = {
       tags: ['files', 'sync', 'sftp'],
     },
     {
-      icon: TrashOutline,
+      icon: Trash,
       title: 'Archive and delete old SFTP files',
       prompt:
         'Build a workflow that runs nightly, lists an SFTP directory, downloads files older than a threshold to archive them, and then deletes the originals from the remote server.',

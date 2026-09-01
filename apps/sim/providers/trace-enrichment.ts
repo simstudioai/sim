@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { BlockTokens, IterationToolCall, ProviderTimingSegment } from '@/executor/types'
 import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
 import {
@@ -16,7 +17,9 @@ interface ChatCompletionLike {
   choices: Array<{
     message?: {
       content?: string | null
-      tool_calls?: Array<ChatCompletionToolCallLike> | null
+      /** Loose on purpose — the raw SDK response is passed here; only the separate
+       * `toolCallsInResponse` argument is required to be narrowed. */
+      tool_calls?: Array<{ id: string; function?: { name: string; arguments: string } }> | null
       reasoning_content?: string | null
       reasoning?: string | null
       reasoning_details?: OpenRouterReasoningDetail[] | null
@@ -34,6 +37,13 @@ interface ChatCompletionLike {
   } | null
 }
 
+/**
+ * `function` stays required on purpose. The SDK's `ChatCompletionMessageToolCall` union gained a
+ * `custom` variant with no `function` in v5, and callers narrow that away with
+ * `isFunctionToolCall` before enriching. Making this optional to accept the raw union would let
+ * the custom shape satisfy this interface structurally, and every enrich call site would then
+ * type-check whether or not it narrowed — silently turning the guard into unenforced convention.
+ */
 interface ChatCompletionToolCallLike {
   id: string
   function: { name: string; arguments: string }
@@ -111,9 +121,15 @@ export function enrichLastModelSegment(
  * returns the raw string if it is not valid JSON.
  */
 function parseToolCallArguments(rawArguments: string): Record<string, unknown> | string {
+  /**
+   * `isFunctionToolCall` only proves `function` is present, not that it is well formed — a
+   * gateway can send `function: {}`. Without this the JSON parse below receives `undefined` and
+   * this returns it, breaking the declared return type.
+   */
+  if (typeof rawArguments !== 'string') return ''
   try {
     const parsed = JSON.parse(rawArguments)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (isRecordLike(parsed)) {
       return parsed as Record<string, unknown>
     }
     return rawArguments
@@ -180,7 +196,7 @@ export function enrichLastModelSegmentFromChatCompletions(
 
   const toolCalls: IterationToolCall[] = (toolCallsInResponse ?? []).map((tc) => ({
     id: tc.id,
-    name: tc.function.name,
+    name: tc.function.name ?? '',
     arguments: parseToolCallArguments(tc.function.arguments),
   }))
 

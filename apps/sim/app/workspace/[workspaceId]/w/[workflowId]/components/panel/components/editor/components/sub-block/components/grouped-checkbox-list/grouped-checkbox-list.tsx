@@ -10,7 +10,7 @@ import {
   ChipModalHeader,
   cn,
 } from '@sim/emcn'
-import { Settings2 } from 'lucide-react'
+import { ManageWorkspace } from '@sim/emcn/icons'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -24,42 +24,30 @@ interface SelectedCountDisplayProps {
 
 function SelectedCountDisplay({ noneSelected, allSelected, count }: SelectedCountDisplayProps) {
   if (noneSelected) {
-    return (
-      <span className='truncate font-medium text-[var(--text-muted)] text-sm'>None selected</span>
-    )
+    return <span className='truncate text-[var(--text-muted)] text-sm'>None selected</span>
   }
   if (allSelected) {
-    return (
-      <span className='truncate font-medium text-[var(--text-primary)] text-sm'>All selected</span>
-    )
+    return <span className='truncate text-[var(--text-primary)] text-sm'>All selected</span>
   }
-  return (
-    <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
-      {count} selected
-    </span>
-  )
+  return <span className='truncate text-[var(--text-primary)] text-sm'>{count} selected</span>
 }
 
 interface GroupedCheckboxListProps {
   blockId: string
   subBlockId: string
-  title: string
   options: { label: string; id: string; group?: string }[]
   isPreview?: boolean
   subBlockValues: Record<string, any>
   disabled?: boolean
-  maxHeight?: number
 }
 
 export function GroupedCheckboxList({
   blockId,
   subBlockId,
-  title,
   options,
   isPreview = false,
   subBlockValues,
   disabled = false,
-  maxHeight = 400,
 }: GroupedCheckboxListProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const [open, setOpen] = useState(false)
@@ -130,12 +118,12 @@ export function GroupedCheckboxList({
         disabled={disabled}
         onClick={() => setOpen(true)}
         className={cn(
-          'flex w-full cursor-pointer items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
+          'flex w-full cursor-pointer items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
           'hover-hover:bg-[var(--surface-active)]'
         )}
       >
         <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
-          <Settings2 className='size-4 flex-shrink-0 opacity-50' />
+          <ManageWorkspace className='size-4 flex-shrink-0 opacity-50' />
           <span className='truncate'>Configure PII Types</span>
         </span>
         <SelectedCountDisplay
@@ -168,7 +156,7 @@ export function GroupedCheckboxList({
                 />
                 <label
                   htmlFor='select-all'
-                  className='cursor-pointer font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+                  className='cursor-pointer text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
                 >
                   Select all entities
                 </label>
@@ -183,7 +171,7 @@ export function GroupedCheckboxList({
             <div className='flex flex-col gap-6'>
               {Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
                 <div key={groupName}>
-                  <h3 className='mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider'>
+                  <h3 className='mb-3 text-muted-foreground text-xs uppercase tracking-wider'>
                     {groupName}
                   </h3>
                   <div className='flex flex-col gap-3'>

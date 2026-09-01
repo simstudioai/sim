@@ -2,9 +2,9 @@ import type {
   IdentityCenterListPermissionSetsParams,
   IdentityCenterListPermissionSetsResponse,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listPermissionSetsTool: ToolConfig<
+export const listPermissionSetsTool: InternalToolConfig<
   IdentityCenterListPermissionSetsParams,
   IdentityCenterListPermissionSetsResponse
 > = {
@@ -52,11 +52,8 @@ export const listPermissionSetsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/list-permission-sets',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

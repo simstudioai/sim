@@ -4,7 +4,7 @@ import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 
 export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendMessageResponse> = {
   id: 'devin_send_message',
-  name: 'send_message',
+  name: 'Devin Send Message',
   description:
     'Send a message to a Devin session. If the session is suspended, it will be automatically resumed. Returns the updated session state.',
   version: '1.0.0',
@@ -37,6 +37,10 @@ export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendM
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ message: params.message }),
+    },
     url: (params) =>
       `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}/messages`,
     method: 'POST',

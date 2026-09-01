@@ -1,8 +1,13 @@
-import { readFile } from 'node:fs/promises'
 import type { BrowserCredentialMetadata } from '@sim/desktop-bridge'
+import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { safeStorage } from 'electron'
-import { removeFileIfPresent, writeJsonFileAtomically } from '@/main/atomic-json-file'
+import {
+  FileResourceLimitError,
+  readFileWithinLimit,
+  removeFileIfPresent,
+  writeJsonFileAtomically,
+} from '@/main/atomic-json-file'
 import { normalizeOrigin, normalizeUsername } from '@/main/browser-credentials/origin'
 
 /**
@@ -20,6 +25,16 @@ import { normalizeOrigin, normalizeUsername } from '@/main/browser-credentials/o
  */
 
 const VAULT_VERSION = 1
+const MAX_VAULT_FILE_BYTES = 64 * 1024 * 1024
+const MAX_VAULT_PAYLOAD_BYTES = 45 * 1024 * 1024
+const MAX_CREDENTIAL_RECORDS = 50_000
+const MAX_CREDENTIAL_ID_LENGTH = 128
+const MAX_CREDENTIAL_ORIGIN_LENGTH = 2_048
+const MAX_LOGIN_NAME_LENGTH = 4_096
+const MAX_SECRET_VALUE_LENGTH = 65_536
+const MAX_CREDENTIAL_ICON_LENGTH = 2 * 1024 * 1024
+const MAX_CREDENTIAL_TIMESTAMP_LENGTH = 64
+const logger = createLogger('BrowserCredentialVault')
 
 export interface CredentialRecord {
   id: string
@@ -65,11 +80,25 @@ function isCredentialRecord(value: unknown): value is CredentialRecord {
   const record = value as Record<string, unknown>
   return (
     typeof record.id === 'string' &&
+    record.id.length > 0 &&
+    record.id.length <= MAX_CREDENTIAL_ID_LENGTH &&
     typeof record.origin === 'string' &&
+    record.origin.length > 0 &&
+    record.origin.length <= MAX_CREDENTIAL_ORIGIN_LENGTH &&
+    normalizeOrigin(record.origin) === record.origin &&
     typeof record.username === 'string' &&
+    record.username.length <= MAX_LOGIN_NAME_LENGTH &&
     typeof record.password === 'string' &&
+    record.password.length > 0 &&
+    record.password.length <= MAX_SECRET_VALUE_LENGTH &&
+    (record.icon === undefined ||
+      (typeof record.icon === 'string' && record.icon.length <= MAX_CREDENTIAL_ICON_LENGTH)) &&
     typeof record.createdAt === 'string' &&
+    record.createdAt.length <= MAX_CREDENTIAL_TIMESTAMP_LENGTH &&
+    Number.isFinite(Date.parse(record.createdAt)) &&
     typeof record.updatedAt === 'string' &&
+    record.updatedAt.length <= MAX_CREDENTIAL_TIMESTAMP_LENGTH &&
+    Number.isFinite(Date.parse(record.updatedAt)) &&
     (record.source === 'chrome' || record.source === 'manual')
   )
 }
@@ -87,11 +116,32 @@ function toMetadata(record: CredentialRecord): BrowserCredentialMetadata {
 }
 
 export class CredentialVault {
+  /**
+   * The tail of this instance's mutation queue.
+   *
+   * Vault updates are read-modify-write operations. Atomic file replacement
+   * prevents torn writes, but without serialization two overlapping mutations
+   * can both read the same snapshot and the later rename silently discards the
+   * earlier result. Keeping the tail resolved after failures also ensures one
+   * failed disk write does not permanently poison subsequent mutations.
+   */
+  private mutationTail: Promise<void> = Promise.resolve()
+  private persistenceState: 'unknown' | 'writable' | 'blocked' = 'unknown'
+
   constructor(
     private readonly filePath: string,
     private readonly encryption: EncryptionProvider = safeStorage,
     private readonly now: () => Date = () => new Date()
   ) {}
+
+  private serializeMutation<T>(mutation: () => Promise<T>): Promise<T> {
+    const result = this.mutationTail.then(mutation)
+    this.mutationTail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
 
   /**
    * Whether credentials can be stored at all. The UI must hide or disable
@@ -102,7 +152,7 @@ export class CredentialVault {
     // returning false, and an unguarded call propagated out of a password
     // import. The site directory has always defended against it; this did not.
     try {
-      return this.encryption.isEncryptionAvailable()
+      return this.persistenceState !== 'blocked' && this.encryption.isEncryptionAvailable()
     } catch {
       return false
     }
@@ -115,27 +165,59 @@ export class CredentialVault {
   private async read(): Promise<CredentialRecord[]> {
     if (!this.isAvailable()) return []
     try {
-      const raw = JSON.parse(await readFile(this.filePath, 'utf8')) as
-        | Partial<EncryptedVaultEnvelope>
-        | undefined
-      if (raw?.version !== VAULT_VERSION || typeof raw.ciphertext !== 'string') return []
-      const parsed = JSON.parse(
-        this.encryption.decryptString(Buffer.from(raw.ciphertext, 'base64'))
-      ) as unknown
-      return Array.isArray(parsed) ? parsed.filter(isCredentialRecord) : []
-    } catch {
-      // A missing, corrupt, or undecryptable vault reads as empty rather than
-      // throwing: the browser must stay usable, and a failed write is where
-      // the user is told something is wrong.
+      const raw = JSON.parse(
+        (await readFileWithinLimit(this.filePath, MAX_VAULT_FILE_BYTES)).toString('utf8')
+      ) as Partial<EncryptedVaultEnvelope> | undefined
+      if (raw?.version !== VAULT_VERSION || typeof raw.ciphertext !== 'string') {
+        this.blockPersistence('invalid-envelope')
+        return []
+      }
+      const decrypted = this.encryption.decryptString(Buffer.from(raw.ciphertext, 'base64'))
+      if (Buffer.byteLength(decrypted, 'utf8') > MAX_VAULT_PAYLOAD_BYTES) {
+        this.blockPersistence('resource-limit')
+        return []
+      }
+      const parsed = JSON.parse(decrypted) as unknown
+      if (
+        !Array.isArray(parsed) ||
+        parsed.length > MAX_CREDENTIAL_RECORDS ||
+        !parsed.every(isCredentialRecord)
+      ) {
+        this.blockPersistence('invalid-payload')
+        return []
+      }
+      this.persistenceState = 'writable'
+      return parsed
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        this.persistenceState = 'writable'
+        return []
+      }
+      if (error instanceof FileResourceLimitError) {
+        this.blockPersistence('resource-limit')
+        return []
+      }
+      this.blockPersistence('read-failed')
       return []
     }
   }
 
+  private blockPersistence(
+    reason: 'invalid-envelope' | 'invalid-payload' | 'read-failed' | 'resource-limit'
+  ): void {
+    if (this.persistenceState !== 'blocked') {
+      logger.warn('Credential vault persistence is unavailable', { reason })
+    }
+    this.persistenceState = 'blocked'
+  }
+
   private async write(records: CredentialRecord[]): Promise<boolean> {
     if (!this.isAvailable()) return false
+    const payload = JSON.stringify(records)
+    if (Buffer.byteLength(payload, 'utf8') > MAX_VAULT_PAYLOAD_BYTES) return false
     const envelope: EncryptedVaultEnvelope = {
       version: VAULT_VERSION,
-      ciphertext: this.encryption.encryptString(JSON.stringify(records)).toString('base64'),
+      ciphertext: this.encryption.encryptString(payload).toString('base64'),
     }
     await writeJsonFileAtomically(this.filePath, envelope)
     return true
@@ -197,10 +279,12 @@ export class CredentialVault {
   }
 
   async delete(id: string): Promise<boolean> {
-    const records = await this.read()
-    const remaining = records.filter((record) => record.id !== id)
-    if (remaining.length === records.length) return false
-    return this.write(remaining)
+    return this.serializeMutation(async () => {
+      const records = await this.read()
+      const remaining = records.filter((record) => record.id !== id)
+      if (remaining.length === records.length) return false
+      return this.write(remaining)
+    })
   }
 
   /**
@@ -215,65 +299,81 @@ export class CredentialVault {
     candidates: ImportCandidate[],
     policy: ConflictPolicy
   ): Promise<ImportOutcome> {
-    if (!this.isAvailable()) return { added: 0, updated: 0, skipped: candidates.length }
+    return this.serializeMutation(async () => {
+      if (!this.isAvailable()) return { added: 0, updated: 0, skipped: candidates.length }
 
-    const records = await this.read()
-    const byIdentity = new Map(
-      records.map((record) => [`${record.origin}\u0000${record.username}`, record])
-    )
-    const timestamp = this.now().toISOString()
-    const outcome: ImportOutcome = { added: 0, updated: 0, skipped: 0 }
-    let iconsAdded = false
+      const records = await this.read()
+      const byIdentity = new Map(
+        records.map((record) => [`${record.origin}\u0000${record.username}`, record])
+      )
+      const timestamp = this.now().toISOString()
+      const outcome: ImportOutcome = { added: 0, updated: 0, skipped: 0 }
+      let iconsAdded = false
 
-    for (const candidate of candidates) {
-      const origin = normalizeOrigin(candidate.origin)
-      const username = normalizeUsername(candidate.username)
-      if (origin === null || candidate.password.length === 0) {
-        outcome.skipped += 1
-        continue
-      }
-
-      const identity = `${origin}\u0000${username}`
-      const existing = byIdentity.get(identity)
-      if (existing) {
-        if (policy === 'keep-existing' || existing.password === candidate.password) {
-          // A re-import still refreshes a missing icon; that is not a
-          // credential change, so it does not count as an update.
-          if (candidate.icon && !existing.icon) {
-            existing.icon = candidate.icon
-            iconsAdded = true
-          }
+      for (const candidate of candidates) {
+        const origin = normalizeOrigin(candidate.origin)
+        const username = normalizeUsername(candidate.username)
+        const icon =
+          candidate.icon && candidate.icon.length <= MAX_CREDENTIAL_ICON_LENGTH
+            ? candidate.icon
+            : undefined
+        if (
+          origin === null ||
+          origin.length > MAX_CREDENTIAL_ORIGIN_LENGTH ||
+          username.length > MAX_LOGIN_NAME_LENGTH ||
+          candidate.password.length === 0 ||
+          candidate.password.length > MAX_SECRET_VALUE_LENGTH
+        ) {
           outcome.skipped += 1
           continue
         }
-        existing.password = candidate.password
-        existing.updatedAt = timestamp
-        existing.source = 'chrome'
-        if (candidate.icon) existing.icon = candidate.icon
-        outcome.updated += 1
-        continue
+
+        const identity = `${origin}\u0000${username}`
+        const existing = byIdentity.get(identity)
+        if (existing) {
+          if (policy === 'keep-existing' || existing.password === candidate.password) {
+            // A re-import still refreshes a missing icon; that is not a
+            // credential change, so it does not count as an update.
+            if (icon && !existing.icon) {
+              existing.icon = icon
+              iconsAdded = true
+            }
+            outcome.skipped += 1
+            continue
+          }
+          existing.password = candidate.password
+          existing.updatedAt = timestamp
+          existing.source = 'chrome'
+          if (icon) existing.icon = icon
+          outcome.updated += 1
+          continue
+        }
+
+        if (records.length >= MAX_CREDENTIAL_RECORDS) {
+          outcome.skipped += 1
+          continue
+        }
+        const record: CredentialRecord = {
+          id: generateId(),
+          origin,
+          username,
+          password: candidate.password,
+          ...(icon ? { icon } : {}),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          source: 'chrome',
+        }
+        byIdentity.set(identity, record)
+        records.push(record)
+        outcome.added += 1
       }
 
-      const record: CredentialRecord = {
-        id: generateId(),
-        origin,
-        username,
-        password: candidate.password,
-        ...(candidate.icon ? { icon: candidate.icon } : {}),
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        source: 'chrome',
+      if (outcome.added === 0 && outcome.updated === 0 && !iconsAdded) return outcome
+      if (!(await this.write(records))) {
+        return { added: 0, updated: 0, skipped: candidates.length }
       }
-      byIdentity.set(identity, record)
-      records.push(record)
-      outcome.added += 1
-    }
-
-    if (outcome.added === 0 && outcome.updated === 0 && !iconsAdded) return outcome
-    if (!(await this.write(records))) {
-      return { added: 0, updated: 0, skipped: candidates.length }
-    }
-    return outcome
+      return outcome
+    })
   }
 
   /**
@@ -281,6 +381,9 @@ export class CredentialVault {
    * machine cannot inherit the previous user's passwords.
    */
   async clear(): Promise<void> {
-    await removeFileIfPresent(this.filePath)
+    await this.serializeMutation(async () => {
+      await removeFileIfPresent(this.filePath)
+      this.persistenceState = 'writable'
+    })
   }
 }

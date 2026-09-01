@@ -210,7 +210,7 @@ export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
 
       {!done ? (
         <div>
-          <Chip type='button' flush onClick={loadMore} disabled={loading}>
+          <Chip type='button' onClick={loadMore} disabled={loading}>
             {loading ? 'Loading…' : 'Show more'}
           </Chip>
         </div>

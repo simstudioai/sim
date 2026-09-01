@@ -682,6 +682,26 @@ export const simProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'Yes: named sandboxes a workspace maintains and a Function block selects, each declaring a language, its pip or npm dependencies, optional Debian/APT system packages, and optional managed CLI tools from a catalog grouped by cloud, Kubernetes, infrastructure, deployment, data and storage, and security tools; on sim.ai they require an active Max or Enterprise plan',
+        detail:
+          'Only workspace admins can create or edit sandboxes, in Settings → Sandboxes. On sim.ai each specification is prebuilt into a reusable image so runs pay no install cost; a self-hosted deployment using Daytona installs the dependencies, system packages, and managed CLI tools inside the sandbox at the start of every run instead, and prebuilt images require E2B. Two sandboxes with the same language, dependency list, system packages, and managed CLI tools share one build. Every managed CLI entry uses a pinned, integrity-checked vendor artifact. Self-hosted deployments turn sandboxes on with SANDBOXES_ENABLED, and additionally need a remote execution provider and a dedicated Function base image configured. With no sandbox selected, remote code runs on the dedicated Function base; import-free JavaScript stays in the local isolated runtime and ignores the sandbox selection either way.',
+        shortValue: 'Named sandboxes: packages, system packages, managed CLIs',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.sim.ai/workflows/blocks/function#sandboxes',
+            label: 'Sim Docs: Function block - Sandboxes',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.sim.ai/platform/enterprise/self-hosted',
+            label: 'Sim Docs: Self-hosted enterprise',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes: a public REST API (mostly under /api/, with /api/v1 reserved for logs and audit-log endpoints) supporting API-triggered workflow execution and deployment rollback',
@@ -732,7 +752,7 @@ export const simProfile: CompetitorProfile = {
       },
       mcpPublishing: {
         value:
-          'Yes: any deployed workflow can be published as a tool on an MCP server (private, API-key protected, or public/no-auth), with ready-to-paste client config generated for Cursor, Claude Code, Claude Desktop, and VS Code',
+          'Yes: any deployed workflow can be published as a tool on an MCP server (private, API-key protected, or public/no-auth), with ready-to-paste client config generated for Codex, Cursor, Claude Code, Claude Desktop, and VS Code',
         shortValue: 'Deployed workflows publish as MCP server tools',
         confidence: 'verified',
         sources: [
@@ -772,19 +792,19 @@ export const simProfile: CompetitorProfile = {
       },
       freeTier: {
         value:
-          'Yes: Free plan with 1,000 monthly credits (worth $5, env-configurable), granted monthly with no daily refresh (daily refresh is a paid-plan feature)',
-        shortValue: 'Free plan, 1,000 credits/month',
+          'Yes: Free plan with 1,000 one-time credits (worth $5, env-configurable), granted once at signup and never refreshed — no monthly reset and no weekly refresh (weekly refresh is a paid-plan feature)',
+        shortValue: 'Free plan, 1,000 one-time credits',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.sim.ai/pricing',
             label: 'Sim Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-08-26',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/constants.ts',
             label: 'Sim codebase: DEFAULT_FREE_CREDITS',
-            asOf: '2026-07-08',
+            asOf: '2026-08-26',
           },
         ],
       },
@@ -999,6 +1019,21 @@ export const simProfile: CompetitorProfile = {
           },
         ],
       },
+      sessionPolicy: {
+        value:
+          'Yes: Enterprise organization owners and admins can set a max session lifetime (1 to 8,760 hours from sign-in, regardless of activity) and an idle timeout (48 to 8,760 hours without activity), applied to every member on every device',
+        detail:
+          'Both limits are optional; leaving them empty keeps the default of 30-day sessions that extend automatically while a member stays active. A separate "Sign out all members" action immediately revokes every member session in the organization except the admin\'s own, for use after a security incident or an offboarding wave. The 48-hour idle floor exists because session activity is recorded at most once per day, so a shorter window could sign out members who are actively working.',
+        shortValue: 'Max session lifetime and idle timeout, applied org-wide',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.sim.ai/platform/enterprise/session-policies',
+            label: 'Sim Docs: Session Policies',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       thirdPartyVetting: {
         value:
           "Yes: every one of Sim's 266 blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable tool code without going through Sim's own review",
@@ -1086,10 +1121,10 @@ export const simProfile: CompetitorProfile = {
       },
       asyncExecution: {
         value:
-          'Yes: a workflow can be triggered in fire-and-forget async mode, returning HTTP 202 with a job ID immediately, then polled via a dedicated jobs endpoint through queued/processing/completed/failed states',
+          'Yes: a workflow can be triggered in fire-and-forget async mode, returning HTTP 202 with an execution ID immediately, then polled through the canonical execution resource across queued/running/terminal states',
         detail:
-          'Async jobs are tracked via polling the job endpoint rather than a completion webhook/callback option.',
-        shortValue: 'Async mode: job ID returned immediately, poll for result',
+          'Async runs are tracked by execution ID through the same execution status endpoint used for durable logs rather than a separate queue-job resource.',
+        shortValue: 'Async mode: execution ID returned immediately, poll for result',
         confidence: 'verified',
         sources: [
           {
@@ -1098,29 +1133,29 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/jobs/[jobId]/route.ts',
-            label: 'Sim codebase: async job status endpoint',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/workflows/[id]/executions/[executionId]/route.ts',
+            label: 'Sim codebase: execution status endpoint',
             asOf: '2026-07-02',
           },
         ],
       },
       executionLimits: {
         value:
-          'Plan-gated: synchronous API calls time out at 5 minutes on the free plan and 50 minutes on paid plans, async calls at 90 minutes on every plan, with 10 to 1,000 concurrent executions per billing account depending on plan',
+          'Plan-gated: synchronous runs time out at 5 minutes on the free plan and 50 minutes on paid plans; async runs default to 90 minutes, while Enterprise policy can be configured up to 7 days; concurrency ranges from 10 to 1,000 executions per billing account depending on plan',
         detail:
-          'Concurrency limits are published in the platform cost docs, and Enterprise limits are customizable. Request bodies are separately capped at 10 MB.',
-        shortValue: '5-50 min sync timeout, 90 min async, 10-1,000 concurrent',
+          'A direct async API request can shorten the account policy for that request, but cannot extend it. Concurrency limits are published in the platform cost docs, where the Enterprise limit is 1,000 by default and customizable. A run that exceeds its time limit is terminated and marked failed with a timeout error.',
+        shortValue: '5-50 min sync; async defaults to 90 min, Enterprise up to 7 days',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/costs#concurrent-executions',
             label: 'Sim Docs: Concurrent Executions',
-            asOf: '2026-07-13',
+            asOf: '2026-08-10',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/core/execution-limits/types.ts',
-            label: 'Sim codebase: per-plan execution timeouts',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/costs#run-time-limits',
+            label: 'Sim Docs: Run Time Limits',
+            asOf: '2026-08-10',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/calculations/usage-reservation.ts',

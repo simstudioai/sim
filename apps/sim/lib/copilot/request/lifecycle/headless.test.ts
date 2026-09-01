@@ -98,6 +98,24 @@ describe('runHeadlessCopilotLifecycle', () => {
     expect(result.success).toBe(false)
   })
 
+  it('forces the server-owned headless classification', async () => {
+    runCopilotLifecycle.mockResolvedValueOnce(createLifecycleResult())
+
+    await runHeadlessCopilotLifecycle(
+      { message: 'hello', messageId: 'req-classification' },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        interactive: true,
+      }
+    )
+
+    expect(runCopilotLifecycle).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ interactive: false })
+    )
+  })
+
   it('prefers an explicit simRequestId over the payload messageId', async () => {
     runCopilotLifecycle.mockResolvedValueOnce(createLifecycleResult())
 

@@ -8,6 +8,7 @@ import {
   forkMappableResourceTypeSchema,
   getForkDiffContract,
   getWorkspaceBackgroundWorkQuerySchema,
+  promoteForkBodySchema,
   updateForkExcludedWorkflowsBodySchema,
   updateForkMappingBodySchema,
 } from '@/lib/api/contracts/workspace-fork'
@@ -31,6 +32,7 @@ describe('forkMappableResourceTypeSchema', () => {
       'file',
       'mcp_server',
       'custom_tool',
+      'custom_block',
       'skill',
     ]) {
       expect(forkMappableResourceTypeSchema.safeParse(type).success).toBe(true)
@@ -187,6 +189,54 @@ describe('getForkDiffContract response excluded-workflow lists', () => {
     const parsed = getForkDiffContract.response.schema.parse(baseDiffResponse)
     expect(parsed.excludedSourceWorkflows).toEqual([])
     expect(parsed.excludedTargetWorkflows).toEqual([])
+    expect(parsed.retiringTriggerUrls).toEqual([])
+    expect(parsed.triggerMappings).toEqual([])
+  })
+
+  it('carries every trigger, whether or not its URL is up for decision', () => {
+    const parsed = getForkDiffContract.response.schema.parse({
+      ...baseDiffResponse,
+      triggerMappings: [
+        // Already serving a URL: informational, no choice offered.
+        {
+          sourceBlockId: 'blk-stable',
+          blockName: 'Prod intake',
+          workflowName: 'ITSM intake',
+          ownPath: 'prod-live-path',
+          adoptablePaths: [],
+          defaultAdoptPath: null,
+        },
+        // Arriving without one, with a retiring URL it can take over.
+        {
+          sourceBlockId: 'blk-new',
+          blockName: 'Slack messages',
+          workflowName: 'ITSM intake',
+          ownPath: null,
+          adoptablePaths: ['live-slack-path'],
+          defaultAdoptPath: 'live-slack-path',
+        },
+      ],
+      retiringTriggerUrls: [{ workflowName: 'ITSM intake', path: 'dead-path' }],
+    })
+    expect(parsed.triggerMappings[0].ownPath).toBe('prod-live-path')
+    expect(parsed.triggerMappings[0].adoptablePaths).toEqual([])
+    expect(parsed.triggerMappings[1].defaultAdoptPath).toBe('live-slack-path')
+    expect(parsed.retiringTriggerUrls[0].path).toBe('dead-path')
+  })
+
+  it('accepts a trigger mapping choice on the promote body, including "new URL"', () => {
+    const parsed = promoteForkBodySchema.parse({
+      otherWorkspaceId: 'ws-other',
+      direction: 'push',
+      triggerMappings: [
+        { sourceBlockId: 'blk-a', adoptPath: 'keep-this-path' },
+        { sourceBlockId: 'blk-b', adoptPath: null },
+      ],
+    })
+    expect(parsed.triggerMappings).toEqual([
+      { sourceBlockId: 'blk-a', adoptPath: 'keep-this-path' },
+      { sourceBlockId: 'blk-b', adoptPath: null },
+    ])
   })
 
   it('carries the lists when present', () => {

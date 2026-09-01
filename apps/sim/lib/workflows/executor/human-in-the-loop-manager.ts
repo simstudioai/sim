@@ -8,20 +8,35 @@ import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import {
+  createTimeoutAbortController,
+  getAsyncExecutionTimeoutForBillingAttribution,
+  getExecutionDeadlineAt,
+  getTimeoutErrorMessage,
+  type TimeoutAbortController,
+} from '@/lib/core/execution-limits'
 import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
+  markExecutionStreamTerminal,
   resetExecutionStreamBuffer,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
+import {
+  registerManualExecutionAborter,
+  unregisterManualExecutionAborter,
+} from '@/lib/execution/manual-cancellation'
 import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import {
+  cancelledExecutionLogFields,
+  terminalExecutionLogFields,
+} from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -44,6 +59,7 @@ import {
 } from '@/lib/workflows/streaming/forward-agent-stream-events'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
+  BlockCompletionCallbackData,
   ChildWorkflowContext,
   ExecutionCallbacks,
   IterationContext,
@@ -59,6 +75,7 @@ import type {
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import type { SerializedConnection } from '@/serializer/types'
 
 /**
@@ -70,11 +87,42 @@ const execDb = dbFor('exec')
 
 const logger = createLogger('HumanInTheLoopManager')
 const RUN_BUFFER_UNAVAILABLE_ERROR = 'Run buffer temporarily unavailable'
-const TERMINAL_PUBLISH_ERROR = 'Run buffer terminal event publish failed'
 const RESUMABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const CANCELLABLE_PAUSED_STATUSES = ['paused', 'partially_resumed'] as const
 const AUTOMATIC_RESUME_INTERVENTION_PREFIX = 'Automatic resume requires manual intervention: '
+const PAUSED_CANCELLATION_QUEUE_FAILURE_REASON = 'Paused execution cancellation requested'
 
+async function releaseCancelledResumeReservations(
+  resumeEntryIds: readonly string[]
+): Promise<void> {
+  await Promise.all(
+    resumeEntryIds.map(async (resumeEntryId) => {
+      try {
+        await releaseExecutionSlot(resumeEntryId)
+      } catch (error) {
+        logger.warn('Failed to release cancelled resume reservation', {
+          resumeEntryId,
+          error: toError(error).message,
+        })
+      }
+    })
+  )
+}
+
+/**
+ * A resume attempt that was not admitted, carrying the status the caller should
+ * see. Every admission refusal must be raised through this rather than a bare
+ * `Error`: the resume surfaces classify a failure by its `statusCode`, so an
+ * untyped throw for an ordinary client mistake — a stale `contextId`, an
+ * already-resumed pause — reaches the caller as a `500`.
+ *
+ * `retryable` says whether an automatic resume should try the attempt again.
+ * Only a pause still finalizing its snapshot is; a pause that is absent, in the
+ * wrong state, or of the wrong kind will read the same on every retry.
+ *
+ * Messages must stay free of identifiers, snapshot contents, and ORM detail —
+ * they are forwarded verbatim to API callers.
+ */
 class ResumeAdmissionError extends Error {
   constructor(
     message: string,
@@ -84,6 +132,34 @@ class ResumeAdmissionError extends Error {
     super(message)
     this.name = 'ResumeAdmissionError'
   }
+}
+
+/** Matches the paused execution mode to the deployment recorded on its durable root log. */
+export function requireResumeDeploymentVersion(
+  useDraftState: unknown,
+  deploymentVersionId: string | null
+): string | undefined {
+  if (typeof useDraftState !== 'boolean') {
+    throw new ResumeAdmissionError('Execution mode is missing from the paused run', 409, false)
+  }
+  if (useDraftState) {
+    if (deploymentVersionId !== null) {
+      throw new ResumeAdmissionError(
+        'Paused draft execution cannot resume from a deployment version',
+        409,
+        false
+      )
+    }
+    return undefined
+  }
+  if (!deploymentVersionId) {
+    throw new ResumeAdmissionError(
+      'Paused deployed execution is missing its deployment version',
+      409,
+      false
+    )
+  }
+  return deploymentVersionId
 }
 
 function isPausedOutputForContext(output: unknown, contextId: string): boolean {
@@ -204,6 +280,32 @@ function clearAutomaticResumeWaitingMetadataSql(contextId: string): SQL {
   END`
 }
 
+/**
+ * The terminal columns a `workflow_execution_logs` row keeps when a partial
+ * resume moves it back to `pending`.
+ *
+ * The revival claim excludes only `cancelled`, so it also matches a row
+ * `markResumeFailed` already ended: one context's resume fails, a sibling
+ * context resumes successfully afterwards, and the run becomes live again
+ * carrying the end timestamp and duration of the attempt that failed. A live row
+ * must not carry a terminal stamp — and because `elapsedDurationMsSql` preserves
+ * a `pending` row's `total_duration_ms` as its pause checkpoint, leaving it
+ * there also hands the next terminal write a duration frozen at the failed
+ * resume rather than one it recomputes.
+ *
+ * A row revived from a non-terminal status is the opposite case: its columns are
+ * the checkpoint `completeWithPause` banked, which is precisely what that
+ * preservation rule exists to keep, so they survive untouched. The row's own
+ * status decides, read — like every expression in the same `SET` — against the
+ * pre-update row.
+ */
+const revivedExecutionLogStamp = {
+  endedAt: sql<Date | null>`CASE WHEN ${workflowExecutionLogs.status} IN ('failed', 'completed') THEN NULL ELSE ${workflowExecutionLogs.endedAt} END`,
+  totalDurationMs: sql<
+    number | null
+  >`CASE WHEN ${workflowExecutionLogs.status} IN ('failed', 'completed') THEN NULL ELSE ${workflowExecutionLogs.totalDurationMs} END`,
+}
+
 function withoutAutomaticResumeWaitingReason(
   point: Record<string, unknown>
 ): Record<string, unknown> {
@@ -320,6 +422,78 @@ interface StartResumeExecutionArgs {
   abortSignal?: AbortSignal
 }
 
+export interface ActiveResumeCancellationTarget {
+  resumeEntryId: string
+  pausedExecutionId: string
+  parentExecutionId: string
+  resumeExecutionId: string
+}
+
+export type PausedCancellationStage =
+  | { kind: 'not_paused' }
+  | { kind: 'idle' }
+  | { kind: 'active_resume'; target: ActiveResumeCancellationTarget }
+
+/**
+ * Starts a new active-attempt deadline from the immutable payer snapshot saved
+ * in bounded pause metadata. Legacy rows extract only the leading snapshot
+ * metadata object. The controller therefore exists before any resume log claim
+ * or full snapshot reconstruction, while an upstream deadline remains earlier.
+ */
+export function createResumeAttemptTimeoutController(
+  snapshotSeed: SerializedSnapshot,
+  parentSignal?: AbortSignal,
+  pausedExecutionMetadata?: unknown
+): TimeoutAbortController {
+  const persistedResumeMetadata = parsePausedExecutionResumeMetadata(pausedExecutionMetadata)
+  const billingAttribution = persistedResumeMetadata
+    ? persistedResumeMetadata.billingAttribution
+    : extractResumeBillingAttributionFromSnapshot(snapshotSeed)
+  return createTimeoutAbortController(
+    getAsyncExecutionTimeoutForBillingAttribution(billingAttribution),
+    parentSignal
+  )
+}
+
+/**
+ * Reads only the leading snapshot metadata object used by `ExecutionSnapshot.toJSON`.
+ * This admits the attempt before reconstructing the potentially large workflow state.
+ */
+export function extractResumeBillingAttributionFromSnapshot(
+  snapshotSeed: SerializedSnapshot
+): ReturnType<typeof assertBillingAttributionSnapshot> {
+  const prefix = /^\s*\{\s*"metadata"\s*:\s*/.exec(snapshotSeed.snapshot)
+  const metadataStart = prefix?.[0].length
+  if (metadataStart === undefined || snapshotSeed.snapshot[metadataStart] !== '{') {
+    throw new Error('Paused execution snapshot metadata is missing')
+  }
+
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let index = metadataStart; index < snapshotSeed.snapshot.length; index++) {
+    const character = snapshotSeed.snapshot[index]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (character === '\\') escaped = true
+      else if (character === '"') inString = false
+      continue
+    }
+    if (character === '"') {
+      inString = true
+      continue
+    }
+    if (character === '{') depth++
+    else if (character === '}') depth--
+    if (depth !== 0) continue
+
+    const metadata = JSON.parse(snapshotSeed.snapshot.slice(metadataStart, index + 1))
+    return createPausedExecutionResumeMetadata({ metadata }).billingAttribution
+  }
+
+  throw new Error('Paused execution snapshot metadata is malformed')
+}
+
 /**
  * Returns the earliest `resumeAt` across `pauseKind: 'time'` pause points whose
  * `resumeAt` is a valid date and (when `after` is provided) strictly later than it.
@@ -387,7 +561,22 @@ export class PauseResumeManager {
       ...resumeMetadata,
     }
 
+    let shouldProcessQueuedResumes = true
+
     await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
       const existing = await tx
         .select()
         .from(pausedExecutions)
@@ -395,6 +584,22 @@ export class PauseResumeManager {
         .for('update')
         .limit(1)
         .then((rows) => rows[0])
+
+      if (executionLog?.status === 'cancelled') {
+        shouldProcessQueuedResumes = false
+        if (existing && existing.status !== 'cancelled') {
+          await tx
+            .update(pausedExecutions)
+            .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+            .where(eq(pausedExecutions.id, existing.id))
+        }
+        return
+      }
+
+      if (existing?.status === 'cancelled') {
+        shouldProcessQueuedResumes = false
+        return
+      }
 
       if (!existing) {
         await tx.insert(pausedExecutions).values({
@@ -457,6 +662,7 @@ export class PauseResumeManager {
             : resumedCount > 0
               ? 'partially_resumed'
               : 'paused'
+      shouldProcessQueuedResumes = nextStatus !== 'cancelling'
 
       await tx
         .update(pausedExecutions)
@@ -497,7 +703,9 @@ export class PauseResumeManager {
     })
 
     await releaseExecutionSlot(reservationId)
-    await PauseResumeManager.processQueuedResumes(executionId, workflowId)
+    if (shouldProcessQueuedResumes) {
+      await PauseResumeManager.processQueuedResumes(executionId, workflowId)
+    }
   }
 
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
@@ -518,29 +726,35 @@ export class PauseResumeManager {
         .then((rows) => rows[0])
 
       if (!pausedExecution) {
-        throw new Error('Paused execution not found or already resumed')
+        throw new ResumeAdmissionError('Paused execution not found or already resumed', 404, false)
       }
 
       if (!isResumablePausedStatus(pausedExecution.status)) {
-        throw new Error('Paused execution is not resumable')
+        throw new ResumeAdmissionError('Paused execution is not resumable', 409, false)
       }
 
       const pausePoints = pausedExecution.pausePoints as Record<string, any>
       const pausePoint = pausePoints?.[contextId]
       if (!pausePoint) {
-        throw new Error('Pause point not found for execution')
+        throw new ResumeAdmissionError('Pause point not found for execution', 404, false)
       }
       if (pausePoint.resumeStatus !== 'paused') {
-        throw new Error('Pause point already resumed or in progress')
+        throw new ResumeAdmissionError('Pause point already resumed or in progress', 409, false)
       }
       if (!pausePoint.snapshotReady) {
-        throw new Error('Snapshot not ready; execution still finalizing pause')
+        throw new ResumeAdmissionError(
+          'Snapshot not ready; execution still finalizing pause',
+          409,
+          true
+        )
       }
 
       const pauseKind: PauseKind = pausePoint.pauseKind ?? 'human'
       if (allowedPauseKinds && !allowedPauseKinds.includes(pauseKind)) {
-        throw new Error(
-          `Pause kind '${pauseKind}' is not allowed for this resume endpoint (allowed: ${allowedPauseKinds.join(', ')})`
+        throw new ResumeAdmissionError(
+          `Pause kind '${pauseKind}' is not allowed for this resume endpoint (allowed: ${allowedPauseKinds.join(', ')})`,
+          400,
+          false
         )
       }
 
@@ -556,7 +770,7 @@ export class PauseResumeManager {
         .limit(1)
         .then((rows) => rows[0])
 
-      const resumeExecutionId = executionId
+      const resumeExecutionId = generateId()
       const now = new Date()
 
       if (activeResume) {
@@ -659,7 +873,14 @@ export class PauseResumeManager {
       pausePointForContext?.blockId ?? pausePointForContext?.contextId ?? contextId
     )
 
+    let attemptTimeoutController: TimeoutAbortController | undefined
     try {
+      attemptTimeoutController = createResumeAttemptTimeoutController(
+        pausedExecution.executionSnapshot as SerializedSnapshot,
+        abortSignal,
+        pausedExecution.metadata
+      )
+      registerManualExecutionAborter(resumeExecutionId, attemptTimeoutController.abort)
       const result = await PauseResumeManager.runResumeExecution({
         reservationId: resumeEntryId,
         resumeExecutionId,
@@ -670,7 +891,7 @@ export class PauseResumeManager {
         sendEvent,
         onStream,
         onBlockComplete,
-        abortSignal,
+        abortSignal: attemptTimeoutController.signal,
       })
 
       if (result.status === 'paused') {
@@ -697,10 +918,12 @@ export class PauseResumeManager {
               executorUserId: result.metadata?.userId,
             })
           } catch (pauseError) {
-            logger.error('Failed to persist pause result for resumed execution', {
-              resumeExecutionId,
-              error: toError(pauseError).message,
-            })
+            logger.error(
+              'Failed to persist pause result for resumed execution',
+              projectResolvedSecretDiagnosticError(pauseError, undefined, {
+                resumeExecutionId,
+              })
+            )
             await LoggingSession.markExecutionAsFailed(
               effectiveExecutionId,
               `Failed to persist pause state: ${toError(pauseError).message}`,
@@ -748,6 +971,8 @@ export class PauseResumeManager {
       if (result.status === 'paused') {
         await PauseResumeManager.markResumeCompleted({
           resumeEntryId,
+          pausedExecutionId: pausedExecution.id,
+          parentExecutionId: pausedExecution.executionId,
         })
       }
 
@@ -770,7 +995,7 @@ export class PauseResumeManager {
           preserveForRetry: true,
           retryable: error.retryable,
         })
-      } else if (message === RUN_BUFFER_UNAVAILABLE_ERROR || message === TERMINAL_PUBLISH_ERROR) {
+      } else if (message === RUN_BUFFER_UNAVAILABLE_ERROR) {
         await PauseResumeManager.markResumeAttemptFailed({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
@@ -787,12 +1012,14 @@ export class PauseResumeManager {
           failureReason: message,
         })
       }
-      logger.error('Resume execution failed', {
-        parentExecutionId: pausedExecution.executionId,
-        resumeExecutionId,
-        contextId,
-        error,
-      })
+      logger.error(
+        'Resume execution failed',
+        projectResolvedSecretDiagnosticError(error, undefined, {
+          parentExecutionId: pausedExecution.executionId,
+          resumeExecutionId,
+          contextId,
+        })
+      )
       if (!(error instanceof ResumeAdmissionError)) {
         await PauseResumeManager.processQueuedResumes(
           pausedExecution.executionId,
@@ -800,7 +1027,39 @@ export class PauseResumeManager {
         )
       }
       throw error
+    } finally {
+      if (attemptTimeoutController) {
+        unregisterManualExecutionAborter(resumeExecutionId, attemptTimeoutController.abort)
+      }
+      attemptTimeoutController?.cleanup()
     }
+  }
+
+  private static async claimResumeExecutionLog(args: {
+    parentExecutionId: string
+    workflowId: string
+    executionDeadlineAt?: Date
+  }): Promise<{ deploymentVersionId: string | null }> {
+    const { parentExecutionId, workflowId, executionDeadlineAt } = args
+    const [claimedExecution] = await execDb
+      .update(workflowExecutionLogs)
+      .set({ status: 'running', executionDeadlineAt: executionDeadlineAt ?? null })
+      .where(
+        and(
+          eq(workflowExecutionLogs.executionId, parentExecutionId),
+          eq(workflowExecutionLogs.workflowId, workflowId),
+          inArray(workflowExecutionLogs.status, ['pending', 'paused'])
+        )
+      )
+      .returning({
+        id: workflowExecutionLogs.id,
+        deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
+      })
+
+    if (!claimedExecution) {
+      throw new ResumeAdmissionError('Execution can no longer be resumed', 409, false)
+    }
+    return { deploymentVersionId: claimedExecution.deploymentVersionId }
   }
 
   private static async runResumeExecution(args: {
@@ -828,11 +1087,13 @@ export class PauseResumeManager {
       abortSignal: externalAbortSignal,
     } = args
     const parentExecutionId = pausedExecution.executionId
+    const executionDeadlineAt = getExecutionDeadlineAt(externalAbortSignal)
 
-    await execDb
-      .update(workflowExecutionLogs)
-      .set({ status: 'running' })
-      .where(eq(workflowExecutionLogs.executionId, parentExecutionId))
+    const claimedExecution = await PauseResumeManager.claimResumeExecutionLog({
+      parentExecutionId,
+      workflowId: pausedExecution.workflowId,
+      executionDeadlineAt,
+    })
 
     logger.info('Starting resume execution', {
       resumeExecutionId,
@@ -843,6 +1104,10 @@ export class PauseResumeManager {
 
     const serializedSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
     const baseSnapshot = ExecutionSnapshot.fromJSON(serializedSnapshot.snapshot)
+    const resumeDeploymentVersionId = requireResumeDeploymentVersion(
+      baseSnapshot.metadata.useDraftState,
+      claimedExecution.deploymentVersionId
+    )
     const billingAttribution = assertBillingAttributionSnapshot(
       baseSnapshot.metadata.billingAttribution
     )
@@ -960,12 +1225,7 @@ export class PauseResumeManager {
       })()
 
       const submissionPayload =
-        normalizedResumeInputRaw &&
-        typeof normalizedResumeInputRaw === 'object' &&
-        !Array.isArray(normalizedResumeInputRaw) &&
-        normalizedResumeInputRaw.submission &&
-        typeof normalizedResumeInputRaw.submission === 'object' &&
-        !Array.isArray(normalizedResumeInputRaw.submission)
+        isRecordLike(normalizedResumeInputRaw) && isRecordLike(normalizedResumeInputRaw.submission)
           ? (normalizedResumeInputRaw.submission as Record<string, any>)
           : (normalizedResumeInputRaw as Record<string, any>)
 
@@ -1222,6 +1482,8 @@ export class PauseResumeManager {
       workspaceId: baseSnapshot.metadata.workspaceId,
       loggingSession,
       billingAttribution,
+      executionType: 'async',
+      executionDeadlineAt: executionDeadlineAt?.getTime(),
     })
 
     if (!preprocessingResult.success) {
@@ -1279,6 +1541,41 @@ export class PauseResumeManager {
     }
 
     let terminalEventPublished = false
+    let terminalPublishDegraded = false
+
+    /**
+     * The run buffer is a replay convenience for stream readers; the durable
+     * execution record is authoritative. A failed terminal publish must not
+     * decide the outcome of work that already ran — the resume is not
+     * retryable at this point, so throwing here would strand the execution as
+     * paused and re-run its side effects on the next attempt. Degrade instead:
+     * record the terminal status on the stream meta so readers are not left
+     * polling an 'active' stream forever, and let the resume settle normally.
+     */
+    const degradeTerminalPublish = async (
+      terminalStatus: TerminalExecutionStreamStatus,
+      error: unknown
+    ) => {
+      terminalPublishDegraded = true
+      logger.warn(
+        'Failed to publish resume terminal event',
+        loggingSession.projectDiagnosticError(error, {
+          resumeExecutionId,
+          status: terminalStatus,
+        })
+      )
+      const metaPersisted = await markExecutionStreamTerminal(
+        resumeExecutionId,
+        terminalStatus
+      ).catch(() => false)
+      if (!metaPersisted) {
+        logger.warn('Failed to record degraded terminal status on resume stream meta', {
+          resumeExecutionId,
+          status: terminalStatus,
+        })
+      }
+    }
+
     const writeBufferedEvent = async (
       event: ExecutionEvent,
       terminalStatus?: TerminalExecutionStreamStatus
@@ -1286,16 +1583,28 @@ export class PauseResumeManager {
       const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
       if (isBuffered) {
         const entry = terminalStatus
-          ? await eventWriter.writeTerminal(event, terminalStatus).catch((error) => {
-              logger.warn('Failed to publish resume terminal event', {
-                resumeExecutionId,
-                status: terminalStatus,
-                error: toError(error).message,
-              })
-              throw new Error(TERMINAL_PUBLISH_ERROR)
+          ? await eventWriter.writeTerminal(event, terminalStatus).catch(async (error) => {
+              await degradeTerminalPublish(terminalStatus, error)
+              return { eventId: 0, executionId: resumeExecutionId, event }
             })
-          : await eventWriter.write(event)
-        event.eventId = entry.eventId
+          : await eventWriter.write(event).catch((error) => {
+              // The buffer only backs reconnect replay; the live stream is the
+              // primary delivery path. Awaiting this bare let a failed write
+              // propagate into the executor callback and fail work that had
+              // already run, so degrade the same way the execute route does.
+              logger.warn(
+                'Resume event buffer write failed; delivering live only',
+                loggingSession.projectDiagnosticError(error, {
+                  resumeExecutionId,
+                  eventType: event.type,
+                })
+              )
+              return null
+            })
+        // Leave `eventId` unset when the write failed, matching the execute
+        // route. Assigning 0 here would be persisted as a reconnect cursor and
+        // rewind the client to the start of the run.
+        if (entry) event.eventId = entry.eventId
         terminalEventPublished ||= Boolean(terminalStatus)
       }
       sendEvent?.(event)
@@ -1348,12 +1657,20 @@ export class PauseResumeManager {
         blockId: string,
         blockName: string,
         blockType: string,
-        callbackData: Record<string, unknown>,
+        callbackData: BlockCompletionCallbackData,
         iterationContext?: IterationContext,
         childWorkflowContext?: ChildWorkflowContext
       ) => {
         const output = callbackData.output as Record<string, unknown> | undefined
         const hasError = output?.error
+        const display = await loggingSession.projectDisplayContent(
+          {
+            input: callbackData.input,
+            output,
+            ...(typeof hasError === 'string' ? { error: hasError } : {}),
+          },
+          callbackData.displayResolvedSecretTraceProvenance
+        )
         const sharedData = {
           blockId,
           blockName,
@@ -1386,7 +1703,25 @@ export class PauseResumeManager {
           timestamp: new Date().toISOString(),
           executionId: resumeExecutionId,
           workflowId,
-          data: hasError ? { ...sharedData, error: output?.error } : { ...sharedData, output },
+          data: hasError
+            ? {
+                ...sharedData,
+                error: output?.error,
+                display: {
+                  ...(Object.hasOwn(display, 'input') ? { input: display.input } : {}),
+                  ...(display.error !== undefined ? { error: display.error } : {}),
+                  ...(display.clearLiveDisplay ? { clearLiveDisplay: true as const } : {}),
+                },
+              }
+            : {
+                ...sharedData,
+                output,
+                display: {
+                  ...(Object.hasOwn(display, 'input') ? { input: display.input } : {}),
+                  ...(Object.hasOwn(display, 'output') ? { output: display.output } : {}),
+                  ...(display.clearLiveDisplay ? { clearLiveDisplay: true as const } : {}),
+                },
+              },
         } as ExecutionEvent)
 
         if (externalOnBlockComplete) {
@@ -1436,6 +1771,12 @@ export class PauseResumeManager {
           workflowId,
           sendEvent: writeBufferedEvent,
           forwardAnswerText: answerTextFromSink,
+          projectDisplay: (field, value) =>
+            loggingSession.projectLiveDisplayText(
+              field,
+              value,
+              streamingExec.displayResolvedSecretTraceProvenance
+            ),
         })
 
         const reader = streamingExec.stream.getReader()
@@ -1446,12 +1787,17 @@ export class PauseResumeManager {
             if (done) break
             if (answerTextFromSink) continue
             const chunk = decoder.decode(value, { stream: true })
+            const display = await loggingSession.projectLiveDisplayText(
+              'chunk',
+              chunk,
+              streamingExec.displayResolvedSecretTraceProvenance
+            )
             await writeBufferedEvent({
               type: 'stream:chunk',
               timestamp: new Date().toISOString(),
               executionId: resumeExecutionId,
               workflowId,
-              data: { blockId, chunk },
+              data: { blockId, chunk, display },
             } as ExecutionEvent)
           }
           await writeBufferedEvent({
@@ -1462,11 +1808,13 @@ export class PauseResumeManager {
             data: { blockId },
           } as ExecutionEvent)
         } catch (streamError) {
-          logger.error('Error streaming block content during resume', {
-            resumeExecutionId,
-            blockId,
-            error: toError(streamError).message,
-          })
+          logger.error(
+            'Error streaming block content during resume',
+            loggingSession.projectDiagnosticError(streamError, {
+              resumeExecutionId,
+              blockId,
+            })
+          )
         } finally {
           unsubscribe()
           try {
@@ -1476,9 +1824,10 @@ export class PauseResumeManager {
       },
     }
 
-    const timeoutController = externalAbortSignal
-      ? null
-      : createTimeoutAbortController(preprocessingResult.executionTimeout?.async)
+    const timeoutController = createTimeoutAbortController(
+      preprocessingResult.executionTimeout.async,
+      externalAbortSignal
+    )
 
     let result: ExecutionResult | undefined
     let finalMetaStatus: TerminalExecutionStreamStatus = 'complete'
@@ -1491,7 +1840,8 @@ export class PauseResumeManager {
         skipLogCreation: true,
         includeFileBase64: true,
         base64MaxBytes: undefined,
-        abortSignal: externalAbortSignal ?? timeoutController?.signal,
+        abortSignal: timeoutController.signal,
+        ...(resumeDeploymentVersionId ? { resumeDeploymentVersionId } : {}),
       })
 
       if (resumeSnapshot.metadata.resumeTerminalNoop === true && result.status !== 'cancelled') {
@@ -1501,7 +1851,8 @@ export class PauseResumeManager {
         }
       }
 
-      const compactResultLogs = await compactBlockLogs(result.logs, {
+      const displayResultLogs = await loggingSession.projectBlockLogsForDisplay(result.logs ?? [])
+      const compactResultLogs = await compactBlockLogs(displayResultLogs, {
         workspaceId: baseSnapshot.metadata.workspaceId,
         workflowId,
         executionId: resumeExecutionId,
@@ -1520,15 +1871,18 @@ export class PauseResumeManager {
 
       if (
         result.status === 'cancelled' &&
-        timeoutController?.isTimedOut() &&
-        timeoutController?.timeoutMs
+        timeoutController.isTimedOut() &&
+        timeoutController.timeoutMs
       ) {
-        const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController!.timeoutMs)
+        const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
         logger.info('Resume execution timed out', {
           resumeExecutionId,
           timeoutMs: timeoutController.timeoutMs,
         })
         await loggingSession.markAsFailed(timeoutErrorMessage)
+        const timeoutDisplay = await loggingSession.projectDisplayContent({
+          error: timeoutErrorMessage,
+        })
 
         finalMetaStatus = 'error'
         await writeBufferedEvent(
@@ -1539,6 +1893,9 @@ export class PauseResumeManager {
             workflowId,
             data: {
               error: timeoutErrorMessage,
+              display: {
+                ...(timeoutDisplay.error !== undefined ? { error: timeoutDisplay.error } : {}),
+              },
               duration: result.metadata?.duration || 0,
               finalBlockLogs: compactResultLogs,
             },
@@ -1604,21 +1961,26 @@ export class PauseResumeManager {
       let compactErrorLogs: BlockLog[] | undefined
       try {
         compactErrorLogs = execErrorResult?.logs
-          ? await compactBlockLogs(execErrorResult.logs, {
-              workspaceId: baseSnapshot.metadata.workspaceId,
-              workflowId,
-              executionId: resumeExecutionId,
-              userId: metadata.userId,
-              requireDurable: true,
-            })
+          ? await compactBlockLogs(
+              await loggingSession.projectBlockLogsForDisplay(execErrorResult.logs),
+              {
+                workspaceId: baseSnapshot.metadata.workspaceId,
+                workflowId,
+                executionId: resumeExecutionId,
+                userId: metadata.userId,
+                requireDurable: true,
+              }
+            )
           : undefined
       } catch (compactionError) {
-        logger.warn('Failed to compact resume error logs, omitting oversized error details', {
-          resumeExecutionId,
-          error: toError(compactionError).message,
-        })
+        logger.warn(
+          'Failed to compact resume error logs, omitting oversized error details',
+          loggingSession.projectDiagnosticError(compactionError, { resumeExecutionId })
+        )
       }
       finalMetaStatus = 'error'
+      const terminalError = toError(execError).message
+      const terminalDisplay = await loggingSession.projectDisplayContent({ error: terminalError })
       await writeBufferedEvent(
         {
           type: 'execution:error',
@@ -1626,7 +1988,10 @@ export class PauseResumeManager {
           executionId: resumeExecutionId,
           workflowId,
           data: {
-            error: toError(execError).message,
+            error: terminalError,
+            display: {
+              ...(terminalDisplay.error !== undefined ? { error: terminalDisplay.error } : {}),
+            },
             duration: 0,
             finalBlockLogs: compactErrorLogs,
           },
@@ -1634,7 +1999,7 @@ export class PauseResumeManager {
         'error'
       )
     } finally {
-      timeoutController?.cleanup()
+      timeoutController.cleanup()
       if (!terminalEventPublished) {
         const replayBufferFlushed = await flushExecutionStreamReplayBuffer(
           resumeExecutionId,
@@ -1645,15 +2010,16 @@ export class PauseResumeManager {
           status: finalMetaStatus,
           replayBufferFlushed,
         })
-        if (!executionError) {
-          executionError = new Error(TERMINAL_PUBLISH_ERROR)
-        }
+        await degradeTerminalPublish(
+          finalMetaStatus,
+          new Error('Terminal event was never published')
+        )
       } else {
         await eventWriter.close().catch((error) => {
-          logger.warn('Failed to close resume event writer after terminal publish', {
-            resumeExecutionId,
-            error: toError(error).message,
-          })
+          logger.warn(
+            'Failed to close resume event writer after terminal publish',
+            loggingSession.projectDiagnosticError(error, { resumeExecutionId })
+          )
         })
       }
       void cleanupExecutionBase64Cache(resumeExecutionId)
@@ -1665,6 +2031,13 @@ export class PauseResumeManager {
      * claim the next one, so an older release cannot race a renewed reservation.
      */
     await loggingSession.waitForPostExecution()
+
+    if (terminalPublishDegraded) {
+      logger.warn('Resume settled with a degraded run buffer', {
+        resumeExecutionId,
+        status: finalMetaStatus,
+      })
+    }
 
     if (executionError || !result) {
       throw executionError ?? new Error('Resume execution did not produce a result')
@@ -1682,15 +2055,84 @@ export class PauseResumeManager {
     const { resumeEntryId, pausedExecutionId, parentExecutionId, contextId } = args
     const now = new Date()
 
+    let targetPausedExecutionId = pausedExecutionId
+    let targetParentExecutionId = parentExecutionId
+    if (!targetPausedExecutionId || !targetParentExecutionId) {
+      const resumeIdentity = await execDb
+        .select({
+          parentExecutionId: resumeQueue.parentExecutionId,
+          pausedExecutionId: resumeQueue.pausedExecutionId,
+        })
+        .from(resumeQueue)
+        .where(eq(resumeQueue.id, resumeEntryId))
+        .limit(1)
+        .then((rows) => rows[0])
+      if (!resumeIdentity) return
+      targetPausedExecutionId = resumeIdentity.pausedExecutionId
+      targetParentExecutionId = resumeIdentity.parentExecutionId
+    }
+
     await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, targetParentExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const pausedExecution = await tx
+        .select({ status: pausedExecutions.status })
+        .from(pausedExecutions)
+        .where(eq(pausedExecutions.id, targetPausedExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const resumeEntry = await tx
+        .select({ status: resumeQueue.status })
+        .from(resumeQueue)
+        .where(eq(resumeQueue.id, resumeEntryId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const cancellationWon =
+        executionLog?.status === 'cancelled' ||
+        pausedExecution?.status === 'cancelling' ||
+        pausedExecution?.status === 'cancelled'
+      if (cancellationWon) {
+        if (resumeEntry?.status === 'claimed') {
+          await tx
+            .update(resumeQueue)
+            .set({
+              status: 'failed',
+              completedAt: now,
+              failureReason: 'Paused execution cancelled',
+            })
+            .where(and(eq(resumeQueue.id, resumeEntryId), eq(resumeQueue.status, 'claimed')))
+        }
+        if (
+          executionLog?.status === 'cancelled' &&
+          pausedExecution &&
+          pausedExecution.status !== 'cancelled'
+        ) {
+          await tx
+            .update(pausedExecutions)
+            .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+            .where(eq(pausedExecutions.id, targetPausedExecutionId))
+        }
+        return
+      }
+
+      if (resumeEntry?.status !== 'claimed') return
+
       await tx
         .update(resumeQueue)
         .set({ status: 'completed', completedAt: now, failureReason: null })
-        .where(eq(resumeQueue.id, resumeEntryId))
+        .where(and(eq(resumeQueue.id, resumeEntryId), eq(resumeQueue.status, 'claimed')))
 
-      if (!pausedExecutionId || !parentExecutionId || !contextId) {
-        return
-      }
+      if (!pausedExecution || !contextId) return
 
       await tx
         .update(pausedExecutions)
@@ -1703,35 +2145,35 @@ export class PauseResumeManager {
           metadata: clearAutomaticResumeWaitingMetadataSql(contextId),
           resumedCount: sql`resumed_count + 1`,
           automaticResumeRetryCount: 0,
-          status: sql`CASE WHEN status = 'cancelling' THEN 'cancelling' WHEN resumed_count + 1 >= total_pause_count THEN 'fully_resumed' ELSE 'partially_resumed' END`,
+          status: sql`CASE WHEN status IN ('cancelling', 'cancelled') THEN status WHEN resumed_count + 1 >= total_pause_count THEN 'fully_resumed' ELSE 'partially_resumed' END`,
           updatedAt: now,
         })
-        .where(eq(pausedExecutions.id, pausedExecutionId))
+        .where(eq(pausedExecutions.id, targetPausedExecutionId))
 
       const [{ remaining }] = await tx
         .select({ remaining: sql<number>`total_pause_count - resumed_count` })
         .from(pausedExecutions)
-        .where(eq(pausedExecutions.executionId, parentExecutionId))
+        .where(eq(pausedExecutions.executionId, targetParentExecutionId))
 
       if (Number(remaining) <= 0) {
         await tx
           .update(pausedExecutions)
           .set({
-            status: sql`CASE WHEN status = 'cancelling' THEN 'cancelling' ELSE 'fully_resumed' END`,
+            status: sql`CASE WHEN status IN ('cancelling', 'cancelled') THEN status ELSE 'fully_resumed' END`,
             updatedAt: now,
           })
-          .where(eq(pausedExecutions.executionId, parentExecutionId))
+          .where(eq(pausedExecutions.executionId, targetParentExecutionId))
       } else {
         await tx
           .update(workflowExecutionLogs)
-          .set({ status: 'pending' })
+          .set({ status: 'pending', executionDeadlineAt: null, ...revivedExecutionLogStamp })
           .where(
             and(
-              eq(workflowExecutionLogs.executionId, parentExecutionId),
+              eq(workflowExecutionLogs.executionId, targetParentExecutionId),
               sql`${workflowExecutionLogs.status} != 'cancelled'`,
               sql`NOT EXISTS (
                 SELECT 1 FROM ${pausedExecutions}
-                WHERE ${pausedExecutions.executionId} = ${parentExecutionId}
+                WHERE ${pausedExecutions.executionId} = ${targetParentExecutionId}
                   AND ${pausedExecutions.status} = 'cancelling'
               )`
             )
@@ -1750,10 +2192,36 @@ export class PauseResumeManager {
     const now = new Date()
 
     await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, args.parentExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const pausedExecution = await tx
+        .select({ status: pausedExecutions.status })
+        .from(pausedExecutions)
+        .where(eq(pausedExecutions.id, args.pausedExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
       await tx
         .update(resumeQueue)
         .set({ status: 'failed', failureReason: args.failureReason, completedAt: now })
         .where(eq(resumeQueue.id, args.resumeEntryId))
+
+      if (executionLog?.status === 'cancelled' || pausedExecution?.status === 'cancelled') {
+        if (pausedExecution && pausedExecution.status !== 'cancelled') {
+          await tx
+            .update(pausedExecutions)
+            .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+            .where(eq(pausedExecutions.id, args.pausedExecutionId))
+        }
+        return
+      }
 
       await tx
         .update(pausedExecutions)
@@ -1763,10 +2231,17 @@ export class PauseResumeManager {
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
 
+      if (pausedExecution?.status === 'cancelling') return
+
       await tx
         .update(workflowExecutionLogs)
-        .set({ status: 'failed' })
-        .where(eq(workflowExecutionLogs.executionId, args.parentExecutionId))
+        .set(terminalExecutionLogFields('failed', now))
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, args.parentExecutionId),
+            sql`${workflowExecutionLogs.status} != 'cancelled'`
+          )
+        )
     })
   }
 
@@ -1782,25 +2257,36 @@ export class PauseResumeManager {
     const now = new Date()
 
     await execDb.transaction(async (tx) => {
-      const pausedExecution = args.preserveForRetry
-        ? await tx
-            .select({
-              automaticResumeRetryCount: pausedExecutions.automaticResumeRetryCount,
-              status: pausedExecutions.status,
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, args.parentExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const pausedExecution = await tx
+        .select({
+          automaticResumeRetryCount: pausedExecutions.automaticResumeRetryCount,
+          status: pausedExecutions.status,
+        })
+        .from(pausedExecutions)
+        .where(eq(pausedExecutions.id, args.pausedExecutionId))
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const admissionDecision =
+        args.preserveForRetry &&
+        pausedExecution &&
+        isResumablePausedStatus(pausedExecution.status) &&
+        executionLog?.status !== 'cancelled'
+          ? resolveAutomaticResumeAdmissionFailure({
+              currentRetryCount: pausedExecution.automaticResumeRetryCount,
+              retryable: args.retryable === true,
+              now,
             })
-            .from(pausedExecutions)
-            .where(eq(pausedExecutions.id, args.pausedExecutionId))
-            .for('update')
-            .limit(1)
-            .then((rows) => rows[0])
-        : undefined
-      const admissionDecision = pausedExecution
-        ? resolveAutomaticResumeAdmissionFailure({
-            currentRetryCount: pausedExecution.automaticResumeRetryCount,
-            retryable: args.retryable === true,
-            now,
-          })
-        : undefined
+          : undefined
       const canRetry = admissionDecision?.state === 'waiting'
       const automaticResumeWaitingReason = admissionDecision
         ? getAutomaticResumeAdmissionReason(args.failureReason, admissionDecision.state)
@@ -1819,6 +2305,16 @@ export class PauseResumeManager {
             : { status: 'failed', failureReason: args.failureReason, completedAt: now }
         )
         .where(eq(resumeQueue.id, args.resumeEntryId))
+
+      if (executionLog?.status === 'cancelled' || pausedExecution?.status === 'cancelled') {
+        if (pausedExecution && pausedExecution.status !== 'cancelled') {
+          await tx
+            .update(pausedExecutions)
+            .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+            .where(eq(pausedExecutions.id, args.pausedExecutionId))
+        }
+        return
+      }
 
       await tx
         .update(pausedExecutions)
@@ -1848,9 +2344,17 @@ export class PauseResumeManager {
         })
         .where(eq(pausedExecutions.id, args.pausedExecutionId))
 
+      if (pausedExecution?.status === 'cancelling') return
+
       await tx
         .update(workflowExecutionLogs)
-        .set({ status: sql`CASE WHEN status = 'cancelled' THEN 'cancelled' ELSE 'paused' END` })
+        .set({
+          status: sql`CASE
+            WHEN status IN ('cancelled', 'failed', 'completed') THEN status
+            ELSE 'paused'
+          END`,
+          executionDeadlineAt: null,
+        })
         .where(
           and(
             eq(workflowExecutionLogs.executionId, args.parentExecutionId),
@@ -2015,13 +2519,134 @@ export class PauseResumeManager {
     })
   }
 
+  /**
+   * Stages cancellation and identifies the exact claimed resume while holding
+   * the workflow log, pause, and resume queue locks in canonical order.
+   * Resume admission locks the same pause row and rejects `cancelling`, so a
+   * replacement cannot be claimed after this transaction commits.
+   */
+  static async stagePausedCancellation(
+    executionId: string,
+    workflowId: string
+  ): Promise<PausedCancellationStage> {
+    const now = new Date()
+
+    return await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (
+        !executionLog ||
+        (executionLog.status !== 'running' &&
+          executionLog.status !== 'pending' &&
+          executionLog.status !== 'cancelled')
+      ) {
+        return { kind: 'not_paused' }
+      }
+
+      const pausedExecution = await tx
+        .select({ id: pausedExecutions.id, status: pausedExecutions.status })
+        .from(pausedExecutions)
+        .where(
+          and(
+            eq(pausedExecutions.executionId, executionId),
+            eq(pausedExecutions.workflowId, workflowId),
+            inArray(pausedExecutions.status, [...CANCELLABLE_PAUSED_STATUSES, 'cancelling'])
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (!pausedExecution) {
+        return { kind: 'not_paused' }
+      }
+
+      const activeResume = await tx
+        .select({
+          resumeEntryId: resumeQueue.id,
+          pausedExecutionId: resumeQueue.pausedExecutionId,
+          parentExecutionId: resumeQueue.parentExecutionId,
+          resumeExecutionId: resumeQueue.newExecutionId,
+        })
+        .from(resumeQueue)
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            eq(resumeQueue.status, 'claimed')
+          )
+        )
+        .orderBy(desc(resumeQueue.claimedAt))
+        .limit(1)
+        .for('update')
+        .then((rows) => rows[0])
+
+      if (pausedExecution.status !== 'cancelling') {
+        await tx
+          .update(pausedExecutions)
+          .set({ status: 'cancelling', updatedAt: now })
+          .where(
+            and(
+              eq(pausedExecutions.id, pausedExecution.id),
+              inArray(pausedExecutions.status, CANCELLABLE_PAUSED_STATUSES)
+            )
+          )
+      }
+
+      await tx
+        .update(resumeQueue)
+        .set({
+          status: 'failed',
+          completedAt: now,
+          failureReason: PAUSED_CANCELLATION_QUEUE_FAILURE_REASON,
+        })
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            eq(resumeQueue.status, 'pending')
+          )
+        )
+
+      if (!activeResume) {
+        return { kind: 'idle' }
+      }
+
+      return { kind: 'active_resume', target: activeResume }
+    })
+  }
+
   static async completePausedCancellation(
     executionId: string,
     workflowId: string
   ): Promise<boolean> {
     const now = new Date()
 
-    return await execDb.transaction(async (tx) => {
+    const transition = await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
       const pausedExecution = await tx
         .select({ id: pausedExecutions.id, status: pausedExecutions.status })
         .from(pausedExecutions)
@@ -2035,25 +2660,76 @@ export class PauseResumeManager {
         .limit(1)
         .then((rows) => rows[0])
 
-      if (!pausedExecution || pausedExecution.status !== 'cancelling') {
-        if (pausedExecution?.status === 'cancelled') {
-          return true
-        }
-        return false
+      if (!executionLog || !pausedExecution) {
+        return { cancelled: false, claimedResumeEntryIds: [] as string[] }
       }
 
-      await tx
-        .update(pausedExecutions)
-        .set({ status: 'cancelled', updatedAt: now })
-        .where(eq(pausedExecutions.id, pausedExecution.id))
+      const cancellationAlreadyTerminal = executionLog.status === 'cancelled'
+      const cancellationWasStaged =
+        pausedExecution.status === 'cancelling' || pausedExecution.status === 'cancelled'
+      if (
+        !cancellationAlreadyTerminal &&
+        (!cancellationWasStaged ||
+          (executionLog.status !== 'running' && executionLog.status !== 'pending'))
+      ) {
+        return { cancelled: false, claimedResumeEntryIds: [] as string[] }
+      }
+
+      if (!cancellationAlreadyTerminal) {
+        const [cancelledExecution] = await tx
+          .update(workflowExecutionLogs)
+          .set(cancelledExecutionLogFields(now))
+          .where(
+            and(
+              eq(workflowExecutionLogs.executionId, executionId),
+              eq(workflowExecutionLogs.workflowId, workflowId),
+              inArray(workflowExecutionLogs.status, ['running', 'pending', 'cancelled'])
+            )
+          )
+          .returning({ status: workflowExecutionLogs.status })
+
+        if (cancelledExecution?.status !== 'cancelled') {
+          return { cancelled: false, claimedResumeEntryIds: [] as string[] }
+        }
+      }
+
+      if (pausedExecution.status !== 'cancelled') {
+        await tx
+          .update(pausedExecutions)
+          .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+          .where(eq(pausedExecutions.id, pausedExecution.id))
+      }
+
+      const claimedResumeEntries = await tx
+        .select({ id: resumeQueue.id })
+        .from(resumeQueue)
+        .where(
+          and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'claimed'))
+        )
+        .for('update')
 
       await tx
-        .update(workflowExecutionLogs)
-        .set({ status: 'cancelled', endedAt: now })
-        .where(eq(workflowExecutionLogs.executionId, executionId))
+        .update(resumeQueue)
+        .set({
+          status: 'failed',
+          completedAt: now,
+          failureReason: 'Paused execution cancelled',
+        })
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            inArray(resumeQueue.status, ['pending', 'claimed'])
+          )
+        )
 
-      return true
+      return {
+        cancelled: true,
+        claimedResumeEntryIds: claimedResumeEntries.map((entry) => entry.id),
+      }
     })
+
+    await releaseCancelledResumeReservations(transition.claimedResumeEntryIds)
+    return transition.cancelled
   }
 
   static async blockQueuedResumesForCancellation(
@@ -2091,14 +2767,198 @@ export class PauseResumeManager {
         .set({
           status: 'failed',
           completedAt: now,
-          failureReason: 'Paused execution cancellation requested',
+          failureReason: PAUSED_CANCELLATION_QUEUE_FAILURE_REASON,
         })
         .where(
           and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'pending'))
         )
 
-      return true
+      const activeResume = await tx
+        .select({ id: resumeQueue.id })
+        .from(resumeQueue)
+        .where(
+          and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'claimed'))
+        )
+        .limit(1)
+        .then((rows) => rows[0])
+
+      return !activeResume
     })
+  }
+
+  static async getActiveResumeCancellationTarget(
+    executionId: string,
+    workflowId: string
+  ): Promise<ActiveResumeCancellationTarget | null> {
+    const activeResume = await execDb
+      .select({
+        resumeEntryId: resumeQueue.id,
+        pausedExecutionId: resumeQueue.pausedExecutionId,
+        parentExecutionId: resumeQueue.parentExecutionId,
+        resumeExecutionId: resumeQueue.newExecutionId,
+      })
+      .from(resumeQueue)
+      .innerJoin(pausedExecutions, eq(resumeQueue.pausedExecutionId, pausedExecutions.id))
+      .where(
+        and(
+          eq(resumeQueue.parentExecutionId, executionId),
+          eq(resumeQueue.status, 'claimed'),
+          eq(pausedExecutions.executionId, executionId),
+          eq(pausedExecutions.workflowId, workflowId)
+        )
+      )
+      .orderBy(desc(resumeQueue.claimedAt))
+      .limit(1)
+      .then((rows) => rows[0])
+
+    return activeResume ?? null
+  }
+
+  static async rollbackActiveResumeCancellation(
+    executionId: string,
+    workflowId: string,
+    resumeEntryId: string
+  ): Promise<boolean> {
+    const now = new Date()
+
+    const rollback = await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const pausedExecution = await tx
+        .select({
+          id: pausedExecutions.id,
+          status: pausedExecutions.status,
+        })
+        .from(pausedExecutions)
+        .where(
+          and(
+            eq(pausedExecutions.executionId, executionId),
+            eq(pausedExecutions.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const exactResume = pausedExecution
+        ? await tx
+            .select({
+              contextId: resumeQueue.contextId,
+              id: resumeQueue.id,
+              parentExecutionId: resumeQueue.parentExecutionId,
+              pausedExecutionId: resumeQueue.pausedExecutionId,
+              status: resumeQueue.status,
+            })
+            .from(resumeQueue)
+            .where(eq(resumeQueue.id, resumeEntryId))
+            .for('update')
+            .limit(1)
+            .then((rows) => rows[0])
+        : undefined
+
+      const claimedResumes = pausedExecution
+        ? await tx
+            .select({ id: resumeQueue.id })
+            .from(resumeQueue)
+            .where(
+              and(
+                eq(resumeQueue.parentExecutionId, executionId),
+                eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+                eq(resumeQueue.status, 'claimed')
+              )
+            )
+            .for('update')
+        : []
+
+      const hasReplacementClaim = claimedResumes.some((entry) => entry.id !== resumeEntryId)
+
+      if (
+        !executionLog ||
+        (executionLog.status !== 'running' && executionLog.status !== 'pending') ||
+        pausedExecution?.status !== 'cancelling' ||
+        !exactResume ||
+        (exactResume.status !== 'claimed' &&
+          exactResume.status !== 'failed' &&
+          exactResume.status !== 'completed') ||
+        exactResume.parentExecutionId !== executionId ||
+        exactResume.pausedExecutionId !== pausedExecution.id ||
+        hasReplacementClaim
+      ) {
+        return { rolledBack: false, shouldProcessQueuedResumes: false }
+      }
+
+      await tx
+        .update(pausedExecutions)
+        .set(
+          exactResume.status === 'failed'
+            ? {
+                pausePoints: updatePausePointResumeStateSql(exactResume.contextId, 'paused'),
+                metadata: clearAutomaticResumeWaitingMetadataSql(exactResume.contextId),
+                automaticResumeRetryCount: 0,
+                nextResumeAt: null,
+                status: sql`CASE
+                  WHEN resumed_count >= total_pause_count THEN 'fully_resumed'
+                  WHEN resumed_count > 0 THEN 'partially_resumed'
+                  ELSE 'paused'
+                END`,
+                updatedAt: now,
+              }
+            : {
+                status: sql`CASE
+                  WHEN resumed_count >= total_pause_count THEN 'fully_resumed'
+                  WHEN resumed_count > 0 THEN 'partially_resumed'
+                  ELSE 'paused'
+                END`,
+                updatedAt: now,
+              }
+        )
+        .where(
+          and(
+            eq(pausedExecutions.id, pausedExecution.id),
+            eq(pausedExecutions.status, 'cancelling')
+          )
+        )
+
+      await tx
+        .update(resumeQueue)
+        .set({ status: 'pending', completedAt: null, failureReason: null })
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            eq(resumeQueue.status, 'failed'),
+            eq(resumeQueue.failureReason, PAUSED_CANCELLATION_QUEUE_FAILURE_REASON)
+          )
+        )
+
+      return {
+        rolledBack: true,
+        shouldProcessQueuedResumes: exactResume.status !== 'claimed',
+      }
+    })
+
+    if (rollback.shouldProcessQueuedResumes) {
+      await PauseResumeManager.processQueuedResumes(executionId, workflowId).catch((error) => {
+        logger.warn('Failed to dispatch restored resume queue after cancellation rollback', {
+          executionId,
+          resumeEntryId,
+          error: toError(error).message,
+        })
+      })
+    }
+
+    return rollback.rolledBack
   }
 
   static async clearPausedCancellationIntent(
@@ -2106,26 +2966,87 @@ export class PauseResumeManager {
     workflowId: string
   ): Promise<void> {
     const now = new Date()
-    await execDb
-      .update(pausedExecutions)
-      .set({
-        status: sql`CASE WHEN resumed_count > 0 THEN 'partially_resumed' ELSE 'paused' END`,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(pausedExecutions.executionId, executionId),
-          eq(pausedExecutions.workflowId, workflowId),
-          eq(pausedExecutions.status, 'cancelling')
+
+    const shouldProcessQueuedResumes = await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
         )
-      )
-    await PauseResumeManager.processQueuedResumes(executionId, workflowId)
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      const pausedExecution = await tx
+        .select({ id: pausedExecutions.id })
+        .from(pausedExecutions)
+        .where(
+          and(
+            eq(pausedExecutions.executionId, executionId),
+            eq(pausedExecutions.workflowId, workflowId),
+            eq(pausedExecutions.status, 'cancelling')
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (!pausedExecution) {
+        return false
+      }
+
+      const workflowIsActive =
+        executionLog?.status === 'running' || executionLog?.status === 'pending'
+
+      await tx
+        .update(pausedExecutions)
+        .set({
+          status: sql`CASE
+            WHEN resumed_count >= total_pause_count THEN 'fully_resumed'
+            WHEN resumed_count > 0 THEN 'partially_resumed'
+            ELSE 'paused'
+          END`,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(pausedExecutions.id, pausedExecution.id),
+            eq(pausedExecutions.status, 'cancelling')
+          )
+        )
+
+      if (!workflowIsActive) {
+        return false
+      }
+
+      await tx
+        .update(resumeQueue)
+        .set({ status: 'pending', completedAt: null, failureReason: null })
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            eq(resumeQueue.status, 'failed'),
+            eq(resumeQueue.failureReason, PAUSED_CANCELLATION_QUEUE_FAILURE_REASON)
+          )
+        )
+
+      return true
+    })
+
+    if (shouldProcessQueuedResumes) {
+      await PauseResumeManager.processQueuedResumes(executionId, workflowId)
+    }
   }
 
   static async getPausedCancellationStatus(
     executionId: string,
     workflowId: string
-  ): Promise<'cancelling' | 'cancelled' | null> {
+  ): Promise<'active_resume' | 'cancelling' | 'cancelled' | null> {
     const activeResume = await execDb
       .select({ id: resumeQueue.id })
       .from(resumeQueue)
@@ -2134,7 +3055,7 @@ export class PauseResumeManager {
       .then((rows) => rows[0])
 
     if (activeResume) {
-      return null
+      return 'active_resume'
     }
 
     const pausedExecution = await execDb
@@ -2525,11 +3446,13 @@ export class PauseResumeManager {
         resumeMetadata?.executorUserId ??
         (typeof pausedMetadata.executorUserId === 'string' ? pausedMetadata.executorUserId : ''),
     }).catch((error) => {
-      logger.error('Failed to start queued resume execution', {
-        parentExecutionId,
-        resumeEntryId: entry.id,
-        error,
-      })
+      logger.error(
+        'Failed to start queued resume execution',
+        projectResolvedSecretDiagnosticError(error, undefined, {
+          parentExecutionId,
+          resumeEntryId: entry.id,
+        })
+      )
     })
   }
 

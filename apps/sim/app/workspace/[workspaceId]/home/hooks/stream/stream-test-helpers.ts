@@ -34,6 +34,7 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
     setError: vi.fn(),
     setPendingMessages: vi.fn(),
     setResolvedChatId: vi.fn(),
+    adoptResolvedChatId: vi.fn(),
     setResources: vi.fn(),
     setActiveResourceId: vi.fn(),
     addResource: vi.fn(() => true),
@@ -42,6 +43,9 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
     startClientLocalFilesystemTool: vi.fn(),
     startClientBrowserTool: vi.fn(),
     startClientTerminalTool: vi.fn(),
+    startBrowserAgentRun: vi.fn(),
+    endBrowserAgentRun: vi.fn(),
+    clearBrowserAgentRuns: vi.fn(),
     upsertMothershipChatHistory: vi.fn(),
     ensureWorkflowInRegistry: vi.fn(() => false),
     onPreviewPhase: vi.fn(),
@@ -77,7 +81,7 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
     onToolResultRef: ref<
       ((toolName: string, success: boolean, result: unknown) => void) | undefined
     >(undefined),
-    onResourceEventRef: ref<(() => void) | undefined>(undefined),
+    onResourceEventRef: ref<((resourceId: string) => void) | undefined>(undefined),
     previewSessionRef: ref<FilePreviewSession | null>(null),
     previewSessionsRef: ref<Record<string, FilePreviewSession>>({}),
     latestPreviewTargetToolCallIdRef: ref<string | null>(null),

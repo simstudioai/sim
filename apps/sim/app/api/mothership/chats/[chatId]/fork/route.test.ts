@@ -307,6 +307,29 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(dbChainMockFns.values.mock.calls[0][0].title).toBe('Fork | Generate Logs')
   })
 
+  it('repairs legacy page-level browser resources while forking', async () => {
+    dbChainMockFns.limit.mockResolvedValue([
+      {
+        ...parentRow,
+        resources: [
+          {
+            type: 'browser',
+            id: 'browser-session:slack-tab',
+            title: 'mship-todo (Channel) - sim - Slack',
+          },
+          { type: 'browser', id: 'browser-session', title: 'Browser' },
+        ],
+      },
+    ])
+
+    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.values.mock.calls[0][0].resources).toEqual([
+      { type: 'browser', id: 'browser-session', title: 'Browser' },
+    ])
+  })
+
   it('still succeeds when the copilot-service clone fails (best-effort)', async () => {
     mockFetchGo.mockRejectedValue(new Error('mothership unreachable'))
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
@@ -329,7 +352,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     // they vanish from VFS listings and name resolution…
     expect(dbChainMockFns.where).toHaveBeenCalledWith({
       type: 'inArray',
-      column: 'id',
+      column: 'workspaceFiles.id',
       values: ['wf_dead1', 'wf_dead2'],
     })
     // …and their resource chips are dropped from the new chat.

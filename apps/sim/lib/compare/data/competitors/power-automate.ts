@@ -749,6 +749,42 @@ export const powerAutomateProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'No: the code surface Power Platform exposes runs on a fixed, Microsoft-curated runtime. Custom connector code is C# against .NET Standard 2.0, and Microsoft states the environment is closed — "Not all C# namespaces are supported. Currently, you can use functions from the following namespaces only" — with one script file per connector, capped at 1 MB, and no mechanism to declare third-party packages or system packages. Microsoft\'s developer guidance routes custom server-side logic out of the product instead, to custom connectors and Azure Functions ("Build Azure Functions: Craft Azure Functions to extend apps with custom server-side logic"), whose dependencies are managed in Azure; an Office Script invoked through the Excel Online (Business) "Run script" action likewise runs in the Office Scripts runtime. The scripting actions in Power Automate for desktop do accept externally supplied dependencies (the Run Python script action takes "Module folder paths", documented as "the paths of folders where external Python modules lie", and Run .NET script takes a "References to be loaded" root path for .dll files), but the Python version is limited to a choice of 2.7 or 3.4, dependencies must be pre-staged on disk rather than declared as a package manifest, and those actions run on a customer-managed Windows machine rather than in a managed cloud runtime.',
+        detail:
+          'Power Automate for desktop also supports environment-level custom actions: an organization uploads signed .dll files plus their dependency .dll files as a .cab package, capped at 30 MB per custom action group, and all dependencies used in custom actions must be the same version as those in Power Automate for desktop itself. That is assembly-level extension of a locally installed runtime rather than a declarative package/system-package manifest for a hosted sandbox. Microsoft states the constraint affirmatively for the in-product code surface rather than merely omitting the feature: the supported namespace list for custom connector code is enumerated and closed, and the supported .NET version is pinned to .NET Standard 2.0.',
+        shortValue: 'No configurable sandbox; desktop scripts run on customer machines',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/desktop-flows/actions-reference/scripting',
+            label: 'Scripting actions reference - Power Automate | Microsoft Learn',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/desktop-flows/custom-actions',
+            label: 'Custom actions - Power Automate | Microsoft Learn',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/office/dev/scripts/develop/power-automate-integration',
+            label: 'Run Office Scripts with Power Automate - Office Scripts | Microsoft Learn',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/connectors/custom-connectors/write-code',
+            label: 'Write code in a custom connector | Microsoft Learn',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/developer/dev-enterprise-intro',
+            label:
+              'Power Automate for enterprise developers, ISVs, and partners - Power Automate | Microsoft Learn',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Flows can be triggered via HTTP Request triggers (effectively exposing a flow as a callable webhook/API endpoint); Dataverse/Power Platform also expose Web API endpoints for programmatic access',
@@ -1059,6 +1095,28 @@ export const powerAutomateProfile: CompetitorProfile = {
             label:
               'What is automated app user provisioning in Microsoft Entra ID | Microsoft Learn',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Partial: an admin can turn on Session Expiration per environment from the Power Platform admin center (Settings > Product > Privacy + Security) and set a maximum session length between 60 and 1,440 minutes (24 hours) plus a timeout warning of at least 20 minutes, and separately turn on an Inactivity timeout from a minimum of 5 minutes up to less than the session length. Both apply to all users in the environment and override the default Microsoft Entra ID session policy, which itself is admin-configurable through Conditional Access sign-in frequency (default a rolling 90-day window, requiring an Entra ID P1 or P2 license). The qualifier is scope: Microsoft frames these settings as protecting "customer engagement apps, such as Dynamics 365 Sales, Dynamics 365 Customer Service" and Dataverse, and names first-party surfaces that do not enforce them; enforcement for the Power Automate maker portal itself is not documented on that page.',
+        detail:
+          'Microsoft documents these settings for Dataverse and the customer engagement apps, and lists surfaces that do not enforce them, including Power Apps canvas apps, Dynamics 365 for Outlook, and the Dynamics 365 phone and tablet apps. Changed values take effect the next time a user signs in; session timeout is enforced server-side while inactivity timeout is a client-side sign-out.',
+        shortValue: 'Per-environment timeouts, documented for Dataverse and Dynamics 365 apps',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/power-platform/admin/user-session-management',
+            label:
+              'Security enhancements for user sessions and access management - Power Platform | Microsoft Learn',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-session-lifetime',
+            label:
+              'Conditional Access adaptive session lifetime policies - Microsoft Entra ID | Microsoft Learn',
+            asOf: '2026-08-10',
           },
         ],
       },

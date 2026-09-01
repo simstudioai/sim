@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, cn } from '@sim/emcn'
 import { Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -6,6 +6,10 @@ import { generateId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import {
   getActiveWorkflowSearchHighlight,
@@ -22,6 +26,12 @@ interface TableProps {
   blockId: string
   subBlockId: string
   columns: string[]
+  /**
+   * Conceals the value columns except while a cell is focused. The first column is the
+   * key half of a key/value secrets table and stays legible — masking it would
+   * leave the user unable to tell the rows apart.
+   */
+  password?: boolean
   isPreview?: boolean
   previewValue?: WorkflowTableRow[] | null
   disabled?: boolean
@@ -38,6 +48,8 @@ interface TableCellProps {
   column: string
   cellIndex: number
   columnsCount: number
+  /** Whether this cell holds a secret and must be concealed while unfocused */
+  password: boolean
   isPreview: boolean
   disabled: boolean
   blockId: string
@@ -56,6 +68,7 @@ function TableCell({
   column,
   cellIndex,
   columnsCount,
+  password,
   isPreview,
   disabled,
   blockId,
@@ -68,6 +81,7 @@ function TableCell({
   subBlockId,
 }: TableCellProps) {
   const activeSearchTarget = useActiveSearchTarget()
+  const [isFocused, setIsFocused] = useState(false)
   // Defensive programming: ensure row.cells exists and has the expected structure
   const hasValidCells = row.cells && typeof row.cells === 'object'
   if (!hasValidCells) logger.warn('Table row has malformed cells data:', row)
@@ -82,6 +96,9 @@ function TableCell({
     subBlockId,
     valuePath: [rowIndex, 'cells', column],
   })
+
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
+  const displayValue = shouldMask ? maskSecretText(cellValue) : cellValue
 
   // Get field state and handlers for this cell
   const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
@@ -176,20 +193,24 @@ function TableCell({
             else inputRefs.current.delete(cellKey)
           }}
           type='text'
-          value={cellValue}
+          value={displayValue}
           placeholder={column}
           onChange={handlers.onChange}
           onKeyDown={handleKeyDown}
           onScroll={handleScroll}
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
-          onFocus={handlers.onFocus}
+          onFocus={(e) => {
+            setIsFocused(true)
+            handlers.onFocus(e)
+          }}
+          onBlur={() => setIsFocused(false)}
           disabled={isPreview || disabled}
           autoComplete='off'
           autoCorrect='off'
           autoCapitalize='off'
           spellCheck='false'
-          className='w-full bg-transparent px-2.5 py-2 font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
+          className='w-full bg-transparent px-2.5 py-2 text-sm text-transparent leading-[21px] caret-[var(--text-primary)] outline-none [letter-spacing:inherit] placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
         />
         <div
           ref={(el) => {
@@ -199,12 +220,14 @@ function TableCell({
           data-overlay={cellKey}
           className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'
         >
-          <div className='whitespace-pre py-2 font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
-            {formatDisplayText(cellValue, {
-              accessiblePrefixes,
-              highlightAll: !accessiblePrefixes,
-              workflowSearchHighlight,
-            })}
+          <div className='whitespace-pre py-2 text-[var(--text-primary)] text-sm leading-[21px]'>
+            {shouldMask
+              ? displayValue
+              : formatDisplayText(cellValue, {
+                  accessiblePrefixes,
+                  highlightAll: !accessiblePrefixes,
+                  workflowSearchHighlight,
+                })}
           </div>
         </div>
         {fieldState.showEnvVars && (
@@ -248,6 +271,7 @@ export function Table({
   blockId,
   subBlockId,
   columns,
+  password = false,
   isPreview = false,
   previewValue,
   disabled = false,
@@ -378,7 +402,7 @@ export function Table({
             <th
               key={column}
               className={cn(
-                'bg-transparent px-2.5 py-[5px] text-left font-medium text-[var(--text-tertiary)] text-sm',
+                'bg-transparent px-2.5 py-[5px] text-left text-[var(--text-tertiary)] text-sm',
                 index < columns.length - 1 && 'border-[var(--border-1)] border-r'
               )}
             >
@@ -424,6 +448,7 @@ export function Table({
                     column={column}
                     cellIndex={cellIndex}
                     columnsCount={columns.length}
+                    password={password && cellIndex > 0}
                     isPreview={isPreview}
                     disabled={disabled}
                     blockId={blockId}

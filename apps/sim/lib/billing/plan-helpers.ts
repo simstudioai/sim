@@ -14,8 +14,12 @@ import type { AnyColumn } from 'drizzle-orm'
 import { eq, like, or, type SQL } from 'drizzle-orm'
 import {
   CREDIT_TIERS,
+  CREDITS_PER_DOLLAR,
   DEFAULT_PRO_TIER_COST_LIMIT,
   DEFAULT_TEAM_TIER_COST_LIMIT,
+  MAX_CREDIT_TIER,
+  MAX_TIER_CREDITS,
+  PRO_CREDIT_TIER,
 } from '@/lib/billing/constants'
 
 export type PlanCategory = 'free' | 'pro' | 'team' | 'enterprise'
@@ -25,8 +29,19 @@ export function isPro(plan: string | null | undefined): boolean {
   return plan === 'pro' || plan.startsWith('pro_')
 }
 
-export function isMax(plan: string | null | undefined): boolean {
-  return isPro(plan) && getPlanTierCredits(plan) >= 25000
+/**
+ * Whether a plan is Max tier or above: any paid plan at or above the Max credit
+ * allocation (covering both `pro_25000` and `team_25000`), or any enterprise plan.
+ *
+ * Tier-only — subscription status and billing-blocked state are the caller's
+ * responsibility. This is the single definition of "Max" in the codebase: the
+ * server feature gates (inbox, live sync, sandboxes), the client
+ * `hasUsableMaxAccess` derivation, and the personal-workspace cap all route
+ * through it, so a Max-gated surface can never render unlocked against a server
+ * that will refuse it.
+ */
+export function isMaxTier(plan: string | null | undefined): boolean {
+  return getPlanTierCredits(plan) >= MAX_TIER_CREDITS || isEnterprise(plan)
 }
 
 export function isTeam(plan: string | null | undefined): boolean {
@@ -88,6 +103,24 @@ export function getPlanTierDollars(plan: string | null | undefined): number {
 }
 
 /**
+ * Weekly refresh allowance for a plan, in dollars per seat per week.
+ *
+ * Fixed per tier, not a rate: sub-Max paid plans — pro_6000, team_6000, and
+ * legacy 'pro'/'team' — take the Pro allowance ($10/week = 2,000 credits);
+ * Max-allocation plans (pro_25000, team_25000) take the Max allowance
+ * ($20/week = 4,000 credits). Free and enterprise get 0.
+ *
+ * Deliberately NOT `isMaxTier` — that predicate includes enterprise, which
+ * must resolve to 0 here (enterprise has no refresh, matching its
+ * `getPlanTierDollars('enterprise') === 0` behavior under the old rate).
+ */
+export function getPlanWeeklyRefreshDollars(plan: string | null | undefined): number {
+  if (!isPaid(plan) || isEnterprise(plan)) return 0
+  const tier = getPlanTierCredits(plan) >= MAX_TIER_CREDITS ? MAX_CREDIT_TIER : PRO_CREDIT_TIER
+  return tier.weeklyRefreshCredits / CREDITS_PER_DOLLAR
+}
+
+/**
  * Return the broad plan category regardless of tier suffix.
  */
 export function getPlanType(plan: string | null | undefined): PlanCategory {
@@ -107,7 +140,7 @@ export function getPlanType(plan: string | null | undefined): PlanCategory {
 export function getPlanTypeForLimits(plan: string | null | undefined): PlanCategory {
   if (plan === 'pro' || plan === 'team') return getPlanType(plan)
   if (isPro(plan) || isTeam(plan)) {
-    return getPlanTierCredits(plan) >= 25000 ? 'team' : 'pro'
+    return getPlanTierCredits(plan) >= MAX_TIER_CREDITS ? 'team' : 'pro'
   }
   return getPlanType(plan)
 }
@@ -121,13 +154,6 @@ export function buildPlanName(type: 'pro' | 'team', credits: number): string {
 }
 
 /**
- * Get the list of valid plan names for a given category.
- */
-export function getValidPlanNames(type: 'pro' | 'team'): string[] {
-  return CREDIT_TIERS.map((t) => buildPlanName(type, t.credits))
-}
-
-/**
  * Get the user-facing display name for a plan.
  * @example getDisplayPlanName('pro_25000') => 'Max'
  * @example getDisplayPlanName('team_6000') => 'Pro for Teams'
@@ -136,13 +162,17 @@ export function getValidPlanNames(type: 'pro' | 'team'): string[] {
 /**
  * SQL-level plan filters for Drizzle queries.
  * These are the SQL equivalents of the JS helpers above.
+ *
+ * The `_` in the plan-name separator is escaped because it is a single-character
+ * wildcard in SQL `LIKE`. Unescaped, `'pro_%'` would also match `proX…`, making
+ * these filters admit a wider set than their JS counterparts.
  */
 export function sqlIsPro(column: AnyColumn): SQL | undefined {
-  return or(eq(column, 'pro'), like(column, 'pro_%'))
+  return or(eq(column, 'pro'), like(column, 'pro\\_%'))
 }
 
 export function sqlIsTeam(column: AnyColumn): SQL | undefined {
-  return or(eq(column, 'team'), like(column, 'team_%'))
+  return or(eq(column, 'team'), like(column, 'team\\_%'))
 }
 
 export function sqlIsPaid(column: AnyColumn): SQL | undefined {

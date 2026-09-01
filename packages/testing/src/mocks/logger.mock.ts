@@ -39,6 +39,7 @@ export const loggerMock = {
   logger: createMockLogger(),
   runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
   getRequestContext: vi.fn(() => undefined),
+  setRequestTraceId: vi.fn(),
 }
 
 /**

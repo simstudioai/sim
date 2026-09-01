@@ -10,7 +10,7 @@ describe('shouldShowAssistantMessageActions', () => {
       shouldShowAssistantMessageActions({
         phase: 'settled',
         hasContent: true,
-        endsWithQuestion: true,
+        endsWithInteraction: true,
         questionDismissed: true,
       })
     ).toBe(true)
@@ -21,7 +21,7 @@ describe('shouldShowAssistantMessageActions', () => {
       shouldShowAssistantMessageActions({
         phase: 'settled',
         hasContent: true,
-        endsWithQuestion: true,
+        endsWithInteraction: true,
         questionDismissed: false,
       })
     ).toBe(false)
@@ -32,7 +32,7 @@ describe('shouldShowAssistantMessageActions', () => {
       shouldShowAssistantMessageActions({
         phase: 'streaming',
         hasContent: true,
-        endsWithQuestion: true,
+        endsWithInteraction: true,
         questionDismissed: true,
       })
     ).toBe(false)

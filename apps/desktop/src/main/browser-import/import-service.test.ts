@@ -29,7 +29,7 @@ const PROFILES: BrowserProfile[] = [
     label: 'Person 1',
     source: CHROME,
     cookiesPath: '/chrome/Default/Cookies',
-    loginDataPath: '/chrome/Default/Login Data',
+    loginDataPaths: ['/chrome/Default/Login Data'],
     faviconsPath: '/chrome/Default/Favicons',
     historyPath: '/chrome/Default/History',
   },
@@ -39,7 +39,7 @@ const PROFILES: BrowserProfile[] = [
     label: 'Work',
     source: ARC,
     cookiesPath: '/arc/Profile 2/Cookies',
-    loginDataPath: '/arc/Profile 2/Login Data',
+    loginDataPaths: ['/arc/Profile 2/Login Data'],
     faviconsPath: '/arc/Profile 2/Favicons',
     historyPath: '/arc/Profile 2/History',
   },
@@ -81,6 +81,7 @@ function createDeps(overrides: Partial<ImportServiceDeps> = {}): ImportServiceDe
     readFavicons: async () => new Map<string, string>(),
     readSites: async () => [],
     rememberSites: async () => {},
+    commit: (operation) => operation(),
     vault: {
       isAvailable: () => true,
       importCredentials: async (candidates) => ({
@@ -101,7 +102,7 @@ describe('toDisplayProfiles', () => {
       label,
       source,
       cookiesPath: '/cookies',
-      loginDataPath: null,
+      loginDataPaths: [],
       faviconsPath: null,
       historyPath: null,
     }
@@ -334,7 +335,7 @@ describe('importChromeCookies', () => {
           label: 'Person 1',
           source: CHROME,
           cookiesPath: null,
-          loginDataPath: '/chrome/Login Data',
+          loginDataPaths: ['/chrome/Login Data'],
           faviconsPath: null,
           historyPath: null,
         },
@@ -347,6 +348,31 @@ describe('importChromeCookies', () => {
 })
 
 describe('importChromePasswords', () => {
+  it('does not commit passwords when account teardown begins during the source read', async () => {
+    let releaseRead: ((result: ReadPasswordsResult) => void) | undefined
+    const readResult = new Promise<ReadPasswordsResult>((resolve) => {
+      releaseRead = resolve
+    })
+    let current = true
+    const importCredentials = vi.fn(async () => ({ added: 1, updated: 0, skipped: 0 }))
+    const deps = createDeps({
+      readPasswords: () => readResult,
+      commit: async (operation) => {
+        if (!current) throw new Error('account expired')
+        return operation()
+      },
+      vault: { isAvailable: () => true, importCredentials },
+    })
+
+    const pending = importChromePasswords(undefined, 'keep-existing', deps)
+    await vi.waitFor(() => expect(releaseRead).toBeTypeOf('function'))
+    current = false
+    releaseRead?.(readPasswords())
+
+    await expect(pending).resolves.toMatchObject({ error: 'unknown' })
+    expect(importCredentials).not.toHaveBeenCalled()
+  })
+
   it('stores decrypted passwords in the vault and reports counts', async () => {
     const importCredentials = vi.fn(async () => ({ added: 2, updated: 1, skipped: 0 }))
     const deps = createDeps({
@@ -440,6 +466,247 @@ describe('importChromePasswords', () => {
     expect(readPasswordsSpy).toHaveBeenCalledWith('/arc/Profile 2/Login Data', expect.any(Buffer))
   })
 
+  it('merges local and account-scoped password stores in source order', async () => {
+    const localPath = '/arc/Default/Login Data'
+    const accountPath = '/arc/Default/Login Data For Account'
+    const importCredentials = vi.fn(async (candidates) => ({
+      added: candidates.length,
+      updated: 0,
+      skipped: 0,
+    }))
+    const readPasswordsSpy = vi.fn(async (path: string) =>
+      path === localPath
+        ? readPasswords({
+            credentials: [{ origin: 'https://local.example', username: 'ada', password: 'local' }],
+            skipped: 1,
+            rowsSeen: 2,
+          })
+        : readPasswords({
+            credentials: [
+              { origin: 'https://account.example', username: 'grace', password: 'account' },
+            ],
+            skipped: 2,
+            rowsSeen: 3,
+          })
+    )
+    const deps = createDeps({
+      listProfiles: async () => [
+        { ...PROFILES[1], id: 'arc:Default', loginDataPaths: [localPath, accountPath] },
+      ],
+      readPasswords: readPasswordsSpy,
+      vault: { isAvailable: () => true, importCredentials },
+    })
+
+    await expect(importChromePasswords('arc:Default', 'replace', deps)).resolves.toEqual({
+      passwordsAdded: 2,
+      passwordsUpdated: 0,
+      passwordsSkipped: 3,
+    })
+    expect(readPasswordsSpy.mock.calls.map(([path]) => path)).toEqual([localPath, accountPath])
+    expect(importCredentials).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({ origin: 'https://local.example' }),
+        expect.objectContaining({ origin: 'https://account.example' }),
+      ],
+      'replace'
+    )
+  })
+
+  it('resolves cross-store identity collisions before applying the vault policy', async () => {
+    const localPath = '/arc/Default/Login Data'
+    const accountPath = '/arc/Default/Login Data For Account'
+    const importCredentials = vi.fn(async (candidates) => ({
+      added: candidates.length,
+      updated: 0,
+      skipped: 0,
+    }))
+    const deps = createDeps({
+      listProfiles: async () => [
+        { ...PROFILES[1], id: 'arc:Default', loginDataPaths: [localPath, accountPath] },
+      ],
+      readPasswords: async (path) =>
+        readPasswords({
+          credentials: [
+            {
+              origin:
+                path === accountPath
+                  ? 'https://accounts.example/login'
+                  : 'https://ACCOUNTS.example/old',
+              username: path === accountPath ? 'ada' : ' ada ',
+              password: path === accountPath ? 'account-copy' : 'local-copy',
+            },
+          ],
+        }),
+      vault: { isAvailable: () => true, importCredentials },
+    })
+
+    await expect(importChromePasswords('arc:Default', 'keep-existing', deps)).resolves.toEqual({
+      passwordsAdded: 1,
+      passwordsUpdated: 0,
+      passwordsSkipped: 1,
+    })
+    expect(importCredentials).toHaveBeenCalledWith(
+      [expect.objectContaining({ password: 'account-copy' })],
+      'keep-existing'
+    )
+  })
+
+  it('keeps a newer local password over an older account-store copy', async () => {
+    const localPath = '/arc/Default/Login Data'
+    const accountPath = '/arc/Default/Login Data For Account'
+    const importCredentials = vi.fn(async (candidates) => ({
+      added: candidates.length,
+      updated: 0,
+      skipped: 0,
+    }))
+    const deps = createDeps({
+      listProfiles: async () => [
+        { ...PROFILES[1], id: 'arc:Default', loginDataPaths: [localPath, accountPath] },
+      ],
+      readPasswords: async (path) =>
+        readPasswords({
+          credentials: [
+            {
+              origin: 'https://accounts.example',
+              username: 'ada',
+              password: path === localPath ? 'new-local' : 'stale-account',
+              sourceModifiedAt: path === localPath ? 20n : 10n,
+            },
+          ],
+        }),
+      vault: { isAvailable: () => true, importCredentials },
+    })
+
+    await expect(importChromePasswords('arc:Default', 'replace', deps)).resolves.toMatchObject({
+      passwordsAdded: 1,
+      passwordsSkipped: 1,
+    })
+    expect(importCredentials).toHaveBeenCalledWith(
+      [expect.objectContaining({ password: 'new-local' })],
+      'replace'
+    )
+  })
+
+  it('collapses exact duplicates shared by both password stores', async () => {
+    const importCredentials = vi.fn(async (candidates) => ({
+      added: candidates.length,
+      updated: 0,
+      skipped: 0,
+    }))
+    const deps = createDeps({
+      listProfiles: async () => [
+        {
+          ...PROFILES[1],
+          id: 'arc:Default',
+          loginDataPaths: ['/arc/Default/Login Data', '/arc/Default/Login Data For Account'],
+        },
+      ],
+      readPasswords: async () =>
+        readPasswords({
+          credentials: [{ origin: 'https://example.com', username: 'ada', password: 'same' }],
+        }),
+      vault: { isAvailable: () => true, importCredentials },
+    })
+
+    await expect(importChromePasswords('arc:Default', 'replace', deps)).resolves.toEqual({
+      passwordsAdded: 1,
+      passwordsUpdated: 0,
+      passwordsSkipped: 1,
+    })
+    expect(importCredentials).toHaveBeenCalledWith([expect.any(Object)], 'replace')
+  })
+
+  it('keeps credentials from one password store when the other is unreadable', async () => {
+    const localPath = '/arc/Default/Login Data'
+    const accountPath = '/arc/Default/Login Data For Account'
+    const deps = createDeps({
+      listProfiles: async () => [
+        { ...PROFILES[1], id: 'arc:Default', loginDataPaths: [localPath, accountPath] },
+      ],
+      readPasswords: async (path) => {
+        if (path === accountPath) {
+          throw new ImportFailure('unsupported-schema', 'unknown account-store schema')
+        }
+        return readPasswords()
+      },
+    })
+
+    await expect(importChromePasswords('arc:Default', 'replace', deps)).resolves.toMatchObject({
+      passwordsAdded: 1,
+      passwordsSkipped: 0,
+    })
+  })
+
+  it('surfaces a failed password store when the other store only has unreadable rows', async () => {
+    const localPath = '/arc/Default/Login Data'
+    const accountPath = '/arc/Default/Login Data For Account'
+    const deps = createDeps({
+      listProfiles: async () => [
+        { ...PROFILES[1], id: 'arc:Default', loginDataPaths: [localPath, accountPath] },
+      ],
+      readPasswords: async (path) => {
+        if (path === accountPath) {
+          throw new ImportFailure('unsupported-schema', 'unknown account-store schema')
+        }
+        return readPasswords({ credentials: [], skipped: 7, rowsSeen: 7 })
+      },
+    })
+
+    await expect(importChromePasswords('arc:Default', 'replace', deps)).resolves.toMatchObject({
+      passwordsAdded: 0,
+      error: 'unsupported-schema',
+    })
+  })
+
+  it('does not let a non-web credential hide another store failure', async () => {
+    const localPath = '/arc/Default/Login Data'
+    const accountPath = '/arc/Default/Login Data For Account'
+    const importCredentials = vi.fn()
+    const deps = createDeps({
+      listProfiles: async () => [
+        { ...PROFILES[1], id: 'arc:Default', loginDataPaths: [localPath, accountPath] },
+      ],
+      readPasswords: async (path) => {
+        if (path === accountPath) {
+          throw new ImportFailure('unsupported-schema', 'unknown account-store schema')
+        }
+        return readPasswords({
+          credentials: [
+            { origin: 'android://token@com.example/', username: 'ada', password: 'value' },
+          ],
+        })
+      },
+      vault: { isAvailable: () => true, importCredentials },
+    })
+
+    await expect(importChromePasswords('arc:Default', 'replace', deps)).resolves.toMatchObject({
+      passwordsAdded: 0,
+      error: 'unsupported-schema',
+    })
+    expect(importCredentials).not.toHaveBeenCalled()
+  })
+
+  it('reports the first reader failure when neither password store can be read', async () => {
+    const localPath = '/arc/Default/Login Data'
+    const accountPath = '/arc/Default/Login Data For Account'
+    const deps = createDeps({
+      listProfiles: async () => [
+        { ...PROFILES[1], id: 'arc:Default', loginDataPaths: [localPath, accountPath] },
+      ],
+      readPasswords: async (path) => {
+        throw new ImportFailure(
+          path === localPath ? 'profile-unreadable' : 'unsupported-schema',
+          'unreadable password store'
+        )
+      },
+    })
+
+    await expect(importChromePasswords('arc:Default', 'replace', deps)).resolves.toMatchObject({
+      passwordsAdded: 0,
+      error: 'profile-unreadable',
+    })
+  })
+
   it('uses the chosen browser\u2019s own Keychain item', async () => {
     // Reading Chrome's item to import Arc would prompt the user about the
     // wrong browser — and would derive a key that cannot decrypt anything.
@@ -500,6 +767,30 @@ describe('importChromePasswords', () => {
     )
 
     expect(observed?.every((byte) => byte === 0)).toBe(true)
+  })
+
+  it('uses one derived key for both stores and zeroes it after the full import', async () => {
+    const observed: Buffer[] = []
+    const localPath = '/arc/Default/Login Data'
+    const accountPath = '/arc/Default/Login Data For Account'
+    await importChromePasswords(
+      'arc:Default',
+      'keep-existing',
+      createDeps({
+        listProfiles: async () => [
+          { ...PROFILES[1], id: 'arc:Default', loginDataPaths: [localPath, accountPath] },
+        ],
+        readPasswords: async (_path, key) => {
+          observed.push(key)
+          expect(key.some((byte) => byte !== 0)).toBe(true)
+          return readPasswords()
+        },
+      })
+    )
+
+    expect(observed).toHaveLength(2)
+    expect(observed[0]).toBe(observed[1])
+    expect(observed[0].every((byte) => byte === 0)).toBe(true)
   })
 
   it('reports rows that all failed to decrypt as an import failure', async () => {

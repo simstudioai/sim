@@ -3,14 +3,16 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildAutoMapping,
   CSV_MAX_BATCH_SIZE,
+  CSV_MAX_BATCH_SIZE_BYTES,
   CSV_SCHEMA_SAMPLE_SIZE,
   type CsvHeaderMapping,
   coerceRowsForTable,
-  createCsvParser,
+  createCsvRejectionCollector,
   inferColumnType,
   inferSchemaFromCsv,
   sanitizeName,
@@ -27,13 +29,19 @@ import {
   deleteAllTableRows,
   setTableSchemaForImport,
 } from '@/lib/table/import-data'
-import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
+import { createCsvParser } from '@/lib/table/import-stream'
+import {
+  markJobFailedInWorkspace,
+  markJobReadyInWorkspace,
+  recordImportRejections,
+  updateJobProgressInWorkspace,
+} from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
+import { normalizeColumn } from '@/lib/table/wire'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
-import { normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportRunner')
 
@@ -77,6 +85,8 @@ export interface TableImportPayload {
    * worker never needs a settings lookup.
    */
   timezone?: string
+  /** Storage context for the source object. Legacy imports default to `workspace`. */
+  storageContext?: 'workspace' | 'table-import'
 }
 
 /**
@@ -89,14 +99,24 @@ export interface TableImportPayload {
  */
 export async function runTableImport(payload: TableImportPayload): Promise<void> {
   const { importId, tableId, workspaceId, userId, fileKey, fileName, delimiter, mode } = payload
+  const storageContext = payload.storageContext ?? 'workspace'
   const requestId = generateId().slice(0, 8)
   // Hoisted so `finally` can destroy it on any failure — otherwise the storage HTTP body leaks
   // open until it times out.
   let source: Readable | undefined
+  // Hoisted alongside `source` so the `finally` can persist the summary on every exit path —
+  // ready, failed, canceled or superseded.
+  const rejections = createCsvRejectionCollector()
+  let cellsRejected = 0
 
   try {
+    if (!(await updateJobProgressInWorkspace(tableId, workspaceId, 0, importId))) {
+      throw new ImportSupersededError()
+    }
     const loaded = await getTableById(tableId, { includeArchived: true })
-    if (!loaded) throw new Error(`Import target table ${tableId} not found`)
+    if (!loaded || loaded.workspaceId !== workspaceId) {
+      throw new Error(`Import target table ${tableId} not found in workspace ${workspaceId}`)
+    }
     const table = loaded
 
     // Every mode ends in row inserts, and `replace` deletes first. Assert both
@@ -113,28 +133,37 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // file through. Rows already committed stay — as with an explicit cancel.
     const revalidateInsert = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
-      if (fresh) assertRowInsert(fresh)
-      return fresh ?? undefined
+      if (!fresh || fresh.workspaceId !== workspaceId) {
+        throw new OrchestrationError('not_found', 'Table not found')
+      }
+      assertRowInsert(fresh)
+      return fresh
     }
     /** Same guard for the replace-mode wipe, which lands before the first batch. */
     const revalidateDelete = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
-      if (fresh) assertRowDelete(fresh)
-      return fresh ?? undefined
+      if (!fresh || fresh.workspaceId !== workspaceId) {
+        throw new OrchestrationError('not_found', 'Table not found')
+      }
+      assertRowDelete(fresh)
+      return fresh
     }
     /** Same guard for the inferred-schema write and `createColumns`. */
     const revalidateSchema = async (trx: DbTransaction) => {
       const fresh = await getTableById(tableId, { tx: trx, includeArchived: true })
-      if (fresh) assertSchemaMutable(fresh)
-      return fresh ?? undefined
+      if (!fresh || fresh.workspaceId !== workspaceId) {
+        throw new OrchestrationError('not_found', 'Table not found')
+      }
+      assertSchemaMutable(fresh)
+      return fresh
     }
 
     // Total byte size for the progress estimate — a cheap HEAD, no download. May be null on
     // the local dev provider, in which case the bar stays indeterminate (rows still show).
-    const totalBytes = (await headObject(fileKey, 'workspace'))?.size ?? 0
+    const totalBytes = (await headObject(fileKey, storageContext))?.size ?? 0
 
     // Stream the file rather than buffering it — a ~1M-row import must never be held in memory.
-    source = await downloadFileStream({ key: fileKey, context: 'workspace' })
+    source = await downloadFileStream({ key: fileKey, context: storageContext })
 
     // The kickoff route's extension-derived delimiter is only the fallback — the separator is
     // sniffed from the file's head so semicolon/pipe exports don't collapse into one column.
@@ -162,9 +191,16 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     })
 
     let csvHeaders: string[] = []
-    const parser = createCsvParser(sniffed.delimiter, (headers) => {
-      csvHeaders = headers
-    })
+    // Rejections are counted, never thrown: `skip_records_with_error` is what lets a file with
+    // one bad record still import the rest. Counting them is what stops that from reading as a
+    // clean import — the summary lands on the job payload in `finally`.
+    const parser = createCsvParser(
+      sniffed.delimiter,
+      (headers) => {
+        csvHeaders = headers
+      },
+      rejections.onSkip
+    )
     // `.pipe` doesn't forward source errors; forward so the iterator throws.
     csvStream.on('error', (err) => parser.destroy(err))
     byteCounter.on('error', (err) => parser.destroy(err))
@@ -174,8 +210,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     let headerToColumn: Map<string, string> | null = null
     let inserted = 0
     let lastReported = 0
-    const sample: Record<string, unknown>[] = []
+    let sample: Record<string, unknown>[] = []
+    let sampleBytes = 0
     let batch: Record<string, unknown>[] = []
+    let batchBytes = 0
 
     /**
      * Resolve the schema + header→column mapping from the buffered sample (runs once).
@@ -183,6 +221,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
      * map onto the existing schema, optionally auto-creating `createColumns` first.
      */
     const resolveSetup = async () => {
+      if (!(await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId))) {
+        throw new ImportSupersededError()
+      }
       const headers = csvHeaders
 
       if (mode === 'create') {
@@ -250,11 +291,21 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       // Ownership gate before every insert: once this run loses the table (cancel/supersede),
       // updateJobProgress returns false and we stop before writing into a table a newer import
       // may own. Runs per batch (not just at the emit cadence) so we stop within one batch.
-      const owns = await updateJobProgress(tableId, inserted, importId)
+      const owns = await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
-      const coerced = coerceRowsForTable(rows, schema, headerToColumn, {
-        timezone: payload.timezone,
-      })
+      // Held per batch and folded into the run total only once the rows commit: an
+      // assertRowCapacity rejection or a failed insert below discards this batch entirely,
+      // and counting its blanked cells would report loss for rows that never landed.
+      let batchCellsRejected = 0
+      const coerced = coerceRowsForTable(
+        rows,
+        schema,
+        headerToColumn,
+        { timezone: payload.timezone },
+        () => {
+          batchCellsRejected++
+        }
+      )
       const rowLimit = await assertRowCapacity({
         workspaceId,
         currentRowCount: existingRowCount + inserted,
@@ -281,11 +332,21 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       })
       inserted += result.inserted
       lastOrderKey = result.lastOrderKey
+      cellsRejected += batchCellsRejected
       // Emit after the first batch, then every interval, so the bar appears early without flooding.
       if (
         inserted - lastReported >= PROGRESS_INTERVAL_ROWS ||
         (lastReported === 0 && inserted > 0)
       ) {
+        // Persist the post-insert count. The ownership gate above necessarily writes the count
+        // as it stood *before* this batch, so without this an in-flight or canceled import
+        // reports a `rowsProcessed` a whole batch behind the rows actually committed —
+        // CSV_MAX_BATCH_SIZE rows, which reads as a ~50x under-count on the progress line. A
+        // no-op once a newer run owns the job, exactly like the gate. Gated on the emit
+        // cadence because the next batch's gate persists the count anyway: writing it every
+        // batch doubles an import's UPDATE volume purely to freshen a display counter, and
+        // the run's terminal write after the last flush pins the final number.
+        await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId)
         lastReported = inserted
         // Exact, monotonic completion from bytes consumed — no wobbly row estimate.
         const percent =
@@ -304,19 +365,43 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
 
     let ready = false
     for await (const record of parser as AsyncIterable<Record<string, unknown>>) {
+      const recordBytes = Buffer.byteLength(JSON.stringify(record), 'utf8')
+      if (recordBytes > CSV_MAX_BATCH_SIZE_BYTES) {
+        throw new Error(`CSV record exceeds ${CSV_MAX_BATCH_SIZE_BYTES} serialized bytes`)
+      }
+
       if (!ready) {
-        sample.push(record)
-        if (sample.length >= CSV_SCHEMA_SAMPLE_SIZE) {
+        if (sample.length > 0 && sampleBytes + recordBytes > CSV_MAX_BATCH_SIZE_BYTES) {
           await resolveSetup()
           await flush(sample)
+          sample = []
+          sampleBytes = 0
           ready = true
+        } else {
+          sample.push(record)
+          sampleBytes += recordBytes
+          if (sample.length >= CSV_SCHEMA_SAMPLE_SIZE || sampleBytes >= CSV_MAX_BATCH_SIZE_BYTES) {
+            await resolveSetup()
+            await flush(sample)
+            sample = []
+            sampleBytes = 0
+            ready = true
+          }
+          continue
         }
-        continue
       }
-      batch.push(record)
-      if (batch.length >= CSV_MAX_BATCH_SIZE) {
+
+      if (batch.length > 0 && batchBytes + recordBytes > CSV_MAX_BATCH_SIZE_BYTES) {
         await flush(batch)
         batch = []
+        batchBytes = 0
+      }
+      batch.push(record)
+      batchBytes += recordBytes
+      if (batch.length >= CSV_MAX_BATCH_SIZE || batchBytes >= CSV_MAX_BATCH_SIZE_BYTES) {
+        await flush(batch)
+        batch = []
+        batchBytes = 0
       }
     }
 
@@ -325,7 +410,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       if (sample.length === 0) {
         // No data rows — fail rather than report a successful empty import (matches the sync route).
         const message = 'CSV file has no data rows'
-        await markJobFailed(tableId, importId, message)
+        await markJobFailedInWorkspace(tableId, workspaceId, importId, message)
         void appendTableEvent({
           kind: 'job',
           type: 'import',
@@ -356,10 +441,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       await flush(batch)
     }
 
-    await updateJobProgress(tableId, inserted, importId)
+    await updateJobProgressInWorkspace(tableId, workspaceId, inserted, importId)
     // Only announce success if we actually won the transition — a cancel/supersede that landed
     // right at the end makes this a no-op, and we must not emit a false `ready`.
-    const becameReady = await markJobReady(tableId, importId)
+    const becameReady = await markJobReadyInWorkspace(tableId, workspaceId, importId)
     if (becameReady) {
       void appendTableEvent({
         kind: 'job',
@@ -403,7 +488,16 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       const message = getErrorMessage(err, 'Import failed')
       logger.error(`[${requestId}] Import failed for table ${tableId}:`, err)
       // Scoped to importId — a no-op if a newer import has taken over.
-      await markJobFailed(tableId, importId, message).catch(() => {})
+      try {
+        await markJobFailedInWorkspace(tableId, workspaceId, importId, message)
+      } catch (failureError) {
+        logger.error(`[${requestId}] Failed to mark import job failed`, {
+          tableId,
+          workspaceId,
+          importId,
+          error: getErrorMessage(failureError, 'Unknown job transition error'),
+        })
+      }
       void appendTableEvent({
         kind: 'job',
         type: 'import',
@@ -427,13 +521,32 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       )
     }
   } finally {
-    // Release the storage stream so its HTTP connection doesn't leak on failure.
+    // Release the storage stream first: it holds an open HTTP response body, and the
+    // rejection-summary write below is a database round trip that would otherwise keep that
+    // connection pinned for its duration on every import.
     source?.destroy()
+    // Written whatever the outcome (ready, failed, canceled, superseded) so a partial import
+    // is observable on the import record instead of only in this worker's memory.
+    if (rejections.summary.rowsRejected > 0 || cellsRejected > 0) {
+      try {
+        await recordImportRejections(tableId, workspaceId, importId, {
+          rowsRejected: rejections.summary.rowsRejected,
+          cellsRejected,
+          rejectedSamples: rejections.summary.rejectedSamples,
+        })
+      } catch (summaryError) {
+        logger.error(`[${requestId}] Failed to record import rejections`, {
+          tableId,
+          importId,
+          error: getErrorMessage(summaryError, 'Unknown rejection-summary error'),
+        })
+      }
+    }
     // The uploaded source file is single-use (a fresh upload per import) — delete it once the
     // import is terminal so the workspace bucket doesn't accumulate. Best-effort. Skipped for
     // persistent workspace files (deleteSourceFile: false).
     if (payload.deleteSourceFile !== false) {
-      await deleteFile({ key: fileKey, context: 'workspace' }).catch((err) => {
+      await deleteFile({ key: fileKey, context: storageContext }).catch((err) => {
         logger.warn(`[${requestId}] Failed to delete imported file`, { fileKey, err })
       })
     }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
+import { isUserSuppliedToolParam } from '@/lib/workflows/tool-input/param-visibility'
 import {
   buildToolSubBlockId,
   resolveToolParamSync,
@@ -38,6 +39,16 @@ interface ToolSubBlockRendererProps {
 const OBJECT_SUBBLOCK_TYPES = new Set(['file-upload', 'table', 'grouped-checkbox-list'])
 
 /**
+ * Whether this subblock's store value is a non-string. Covers the always-object
+ * types above plus any `multiSelect` control, whose value is an array — without
+ * this a multi-select's JSON string is rendered as a single literal chip and the
+ * next edit persists a nested-encoded value.
+ */
+function holdsObjectValue(subBlock: { type: string; multiSelect?: boolean }): boolean {
+  return OBJECT_SUBBLOCK_TYPES.has(subBlock.type) || Boolean(subBlock.multiSelect)
+}
+
+/**
  * Bridges the subblock store with StoredTool.params via a synthetic store key,
  * then delegates all rendering to SubBlock for full parity.
  */
@@ -55,7 +66,7 @@ export function ToolSubBlockRenderer({
 }: ToolSubBlockRendererProps) {
   const syntheticId = buildToolSubBlockId(subBlockId, toolIndex, effectiveParamId)
   const toolParamValue = toolParams?.[effectiveParamId] ?? ''
-  const isObjectType = OBJECT_SUBBLOCK_TYPES.has(subBlock.type)
+  const isObjectType = holdsObjectValue(subBlock)
 
   const syncedRef = useRef<string | null>(null)
   const onParamChangeRef = useRef(onParamChange)
@@ -112,8 +123,10 @@ export function ToolSubBlockRenderer({
     pushParamValueToStore(toolParamValue)
   }, [toolParamValue, pushParamValueToStore])
 
-  const visibility = subBlock.paramVisibility ?? 'user-or-llm'
-  const isOptionalForUser = visibility !== 'user-only'
+  // Shared with the fork-sync gate so "is this the user's to fill?" is answered the same way
+  // in the editor and when a sync decides whether a blank value blocks. `required` itself
+  // stays for the field below to resolve in its own value context.
+  const isOptionalForUser = !isUserSuppliedToolParam(subBlock)
 
   const config = {
     ...subBlock,

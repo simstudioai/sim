@@ -2,6 +2,13 @@ import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
 import { backfillWorkspaceStorageUsage } from './0003_backfill_workspace_storage_usage'
+import { backfillForkKnowledgeBaseFileOwnership } from './0004_backfill_fork_kb_file_ownership'
+import { repairUnknownTableRowProvenance } from './0005_repair_unknown_table_row_provenance'
+import { repairUnknownTableRowProvenanceSecondPass } from './0006_repair_unknown_table_row_provenance_second_pass'
+import { repairUnknownWorkspaceFileProvenance } from './0007_repair_unknown_workspace_file_provenance'
+import { backfillWorkspaceFileSizeBytesMigration } from './0008_backfill_workspace_file_size_bytes'
+import { backfillWelResidualCostTotalMigration } from './0009_backfill_wel_residual_cost_total'
+import { backfillCredentialGroupResourcePolicies } from './0010_backfill_credential_group_resource_policies'
 import type { ScriptMigration } from './types'
 
 export type { ScriptMigration } from './types'
@@ -15,6 +22,13 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   backfillTableOrderKeys,
   backfillPausedBillingAttribution,
   backfillWorkspaceStorageUsage,
+  backfillForkKnowledgeBaseFileOwnership,
+  repairUnknownTableRowProvenance,
+  repairUnknownTableRowProvenanceSecondPass,
+  repairUnknownWorkspaceFileProvenance,
+  backfillWorkspaceFileSizeBytesMigration,
+  backfillWelResidualCostTotalMigration,
+  backfillCredentialGroupResourcePolicies,
 ]
 
 /**

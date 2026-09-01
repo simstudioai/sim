@@ -13,7 +13,11 @@ import {
 } from '@/lib/copilot/request/http'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  trackChatUpload,
+  WorkspaceFileKeyOwnershipError,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('StageLocalFileUploadAPI')
@@ -49,7 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         displayName: workspaceFiles.displayName,
         originalName: workspaceFiles.originalName,
         contentType: workspaceFiles.contentType,
-        size: workspaceFiles.size,
+        sizeBytes: workspaceFiles.sizeBytes,
       })
       .from(workspaceFiles)
       .where(
@@ -84,7 +88,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               key,
               file.originalName,
               file.contentType,
-              file.size
+              getWorkspaceFileSize(file)
             )
           ).displayName
 
@@ -95,6 +99,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       uploadPath: `uploads/${encodeVfsSegment(displayName)}`,
     })
   } catch (error) {
+    if (error instanceof WorkspaceFileKeyOwnershipError) {
+      // The caller supplied a key they may not bind — a client error, not ours.
+      logger.warn('Rejected chat upload staging for an unowned storage key', {
+        error: error.message,
+      })
+      return NextResponse.json({ error: 'Storage key is not available' }, { status: 403 })
+    }
     logger.error('Failed to stage local file upload', error)
     return createInternalServerErrorResponse('Failed to stage local file upload')
   }

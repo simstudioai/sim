@@ -209,7 +209,7 @@ export function EnterpriseHomeStage({
                 {isTyping && <Caret />}
               </>
             ) : (
-              <span className='font-[380] text-[var(--text-muted)]'>{placeholder}</span>
+              <span className='text-[var(--text-muted)]'>{placeholder}</span>
             )}
           </Composer>
 
@@ -217,7 +217,7 @@ export function EnterpriseHomeStage({
             <div className='flex items-center justify-between'>
               <span className='flex items-center gap-2'>
                 <span className='text-[13px] text-[var(--text-muted)]'>Suggested actions</span>
-                <ChevronDown className='h-[7px] w-[9px] text-[var(--text-muted)]' />
+                <ChevronDown className='size-[14px] text-[var(--text-muted)]' />
               </span>
               <span className='flex items-center gap-1.5'>
                 <span className='text-[13px] text-[var(--text-muted)]'>Shuffle</span>
@@ -275,7 +275,7 @@ export function EnterpriseHomeStage({
         </div>
         <div className='mx-auto mb-5 w-[calc(100%-40px)] max-w-[600px] shrink-0'>
           <Composer active={false}>
-            <span className='font-[380] text-[var(--text-muted)]'>Send message to Sim</span>
+            <span className='text-[var(--text-muted)]'>Send message to Sim</span>
           </Composer>
         </div>
       </div>

@@ -11,12 +11,18 @@ vi.mock('@/blocks/integration-matcher', () => ({
   getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
 }))
 
+import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import {
   type UsePromptEditorProps,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
 import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
+import type { ChatContext } from '@/stores/panel'
+
+function selectionPayload(context: ChatContext, sourceWorkspaceId = 'ws-1'): string {
+  return JSON.stringify({ version: 1, sourceWorkspaceId, context })
+}
 
 /**
  * Mounts `usePromptEditor` in a real React 19 root under jsdom (no
@@ -232,6 +238,195 @@ describe('usePromptEditor toolbar slash trigger after a dismiss', () => {
 
     expect(skillsMenu.open).toHaveBeenCalledTimes(2)
 
+    unmount()
+  })
+})
+
+describe('usePromptEditor context insertion', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('appends a real mention token and context, then focuses the editor', () => {
+    const onContextAdd = vi.fn()
+    let focusFrame: FrameRequestCallback | undefined
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      focusFrame = callback
+      return 1
+    })
+    const context = {
+      kind: 'terminal_tab',
+      terminalId: 'terminal-1',
+      label: 'Terminal (L9-11)',
+      selection: { text: 'selected output', startLine: 9, endLine: 11 },
+    } satisfies ChatContext
+    const { result, textarea, unmount } = renderPromptEditor({
+      workspaceId: 'ws-1',
+      initialValue: 'Explain this',
+      onContextAdd,
+    })
+
+    act(() => {
+      result().insertContext(context)
+    })
+
+    expect(result().value).toBe('Explain this @Terminal (L9-11) ')
+    expect(result().contexts).toEqual([context])
+    expect(onContextAdd).toHaveBeenCalledWith(context)
+
+    textarea.value = result().value
+    act(() => focusFrame?.(0))
+    expect(document.activeElement).toBe(textarea)
+    expect(textarea.selectionStart).toBe(textarea.value.length)
+    expect(textarea.selectionEnd).toBe(textarea.value.length)
+
+    unmount()
+  })
+
+  it('pastes a large table selection as a compact context chip', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    const context = {
+      kind: 'table_selection',
+      tableId: 'table-1',
+      tableName: 'Large table',
+      rowIds: ['row-1'],
+      label: 'Large table (1 row)',
+    } satisfies ChatContext
+    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
+    const preventDefault = vi.fn()
+
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: {
+          getData: (type: string) => {
+            if (type === 'text/plain') return 'x'.repeat(1_000_001)
+            if (type === SIM_SELECTION_MIME) return selectionPayload(context)
+            return ''
+          },
+        },
+        preventDefault,
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(result().value).toBe('@Large table (1 row) ')
+    expect(result().contexts).toEqual([context])
+
+    unmount()
+  })
+
+  it('leaves a cross-workspace selection to the ordinary plain-text paste path', () => {
+    const context = {
+      kind: 'file_selection',
+      fileId: 'file-1',
+      fileName: 'notes.md',
+      label: 'notes.md:1',
+      text: 'ordinary text',
+    } satisfies ChatContext
+    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-2' })
+    const preventDefault = vi.fn()
+
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: {
+          getData: (type: string) => {
+            if (type === 'text/plain') return context.text
+            if (type === SIM_SELECTION_MIME) return selectionPayload(context)
+            return ''
+          },
+        },
+        preventDefault,
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(result().contexts).toEqual([])
+
+    unmount()
+  })
+
+  it('suffixes duplicate visible labels so two browser selections coexist', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    const first = {
+      kind: 'browser_tab',
+      tabId: 'tab-1',
+      label: 'Browser · Example page title',
+      selection: { text: 'first selection', url: 'https://example.com' },
+    } satisfies ChatContext
+    const second = {
+      kind: 'browser_tab',
+      tabId: 'tab-1',
+      label: 'Browser · Another page title',
+      selection: { text: 'second selection', url: 'https://example.com' },
+    } satisfies ChatContext
+    const { result, textarea, unmount } = renderPromptEditor({
+      workspaceId: 'ws-1',
+    })
+
+    act(() => {
+      result().insertContext(first)
+    })
+    act(() => {
+      result().insertContext(second)
+    })
+
+    expect(result().value).toBe('@Browser @Browser (1) ')
+    expect(result().contexts).toEqual([
+      { ...first, label: 'Browser' },
+      { ...second, label: 'Browser (1)' },
+    ])
+
+    let contextsAtSubmit: ChatContext[] = []
+    act(() => {
+      typeInto(textarea, '@Browser (1) ')
+      result().handleInputChange({
+        target: textarea,
+        currentTarget: textarea,
+      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
+      contextsAtSubmit = result().getActiveContexts()
+    })
+    expect(contextsAtSubmit).toEqual([{ ...second, label: 'Browser (1)' }])
+
+    unmount()
+  })
+
+  it('excludes a deleted chip from submission before the cleanup effect runs', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    const context = {
+      kind: 'browser_tab',
+      tabId: 'tab-1',
+      label: 'Browser',
+      selection: { text: 'selected text', url: 'https://example.com' },
+    } satisfies ChatContext
+    const { result, textarea, unmount } = renderPromptEditor({
+      workspaceId: 'ws-1',
+      initialValue: 'Explain this',
+    })
+
+    act(() => result().insertContext(context))
+
+    let contextsAtSubmit: ChatContext[] = []
+    act(() => {
+      typeInto(textarea, 'Explain this')
+      result().handleInputChange({
+        target: textarea,
+        currentTarget: textarea,
+      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
+      contextsAtSubmit = result().getActiveContexts()
+    })
+
+    expect(contextsAtSubmit).toEqual([])
     unmount()
   })
 })

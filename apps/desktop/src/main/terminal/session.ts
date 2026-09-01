@@ -315,6 +315,7 @@ export class TerminalSession {
   private shellIntegration = false
   private altScreen = false
   private foregroundCommand: string | null = null
+  private foregroundToolCallId: string | null = null
   private pendingCommand: PendingCommand | null = null
   /** Command line reported by the shell but not yet bracketed by output-start. */
   private announcedCommand: string | null = null
@@ -595,6 +596,7 @@ export class TerminalSession {
         resolve,
       }
       this.foregroundCommand = command
+      this.foregroundToolCallId = toolCallId
       this.emitState()
       this.callbacks.onCommand({ terminalId: this.terminalId, phase: 'start', command, toolCallId })
 
@@ -619,6 +621,26 @@ export class TerminalSession {
       this.flushTimer = null
     }
     return stripTerminalQueries(this.scrollback)
+  }
+
+  /**
+   * Forgets output retained for renderer repaints and agent reads.
+   *
+   * The renderer clears its own xterm at the same time. Dropping only that
+   * local buffer is insufficient: the next mount or overflow repaint would
+   * otherwise replay this retained copy and make the cleared output return.
+   */
+  clearScrollback(): void {
+    this.scrollback = ''
+    this.pendingOutput = ''
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer)
+      this.flushTimer = null
+    }
+    if (this.paused) {
+      this.paused = false
+      this.pty.resume()
+    }
   }
 
   /**
@@ -825,25 +847,22 @@ export class TerminalSession {
    * returned, since they are frames rather than output.
    */
   private resolveInteractiveCommand(): void {
-    this.detachStillRunning((pending) => ({
-      command: pending.command,
-      output:
-        'This opened a full-screen interactive program, which now holds the terminal until it exits. terminal_read renders its current screen, so you can watch it: if it is doing work the user is waiting on, keep polling with wait + terminal_read until it finishes, exactly as you would a long command. Type into it with terminal_input and stop it with terminal_kill. The user can also drive it in the panel. terminal_run reports BUSY until it exits.',
-      status: 'interactive',
-      exitCode: null,
-      durationMs: Date.now() - pending.startedAt,
-      cwd: this.cwd,
-      terminalId: this.terminalId,
-      truncated: false,
-    }))
+    this.detachStillRunning(
+      (pending) => ({
+        command: pending.command,
+        output:
+          'This opened a full-screen interactive program, which now holds the terminal until it exits. terminal_read renders its current screen, so you can watch it: if it is doing work the user is waiting on, keep polling with wait + terminal_read until it finishes, exactly as you would a long command. Type into it with terminal_input and stop it with terminal_kill. If it is a pager (less, git log, man — the screen ends with ":" or "(END)"), nothing more is coming: exit it by sending terminal_input text "q"; terminal_kill delivers Ctrl-C, which a pager ignores. The user can also drive it in the panel. terminal_run reports BUSY until it exits.',
+        status: 'interactive',
+        exitCode: null,
+        durationMs: Date.now() - pending.startedAt,
+        cwd: this.cwd,
+        terminalId: this.terminalId,
+        truncated: false,
+      }),
+      true
+    )
   }
 
-  /**
-   * Hands back a command that is still going when the wait window elapses,
-   * with whatever it has printed so far. Not a failure: the agent polls from
-   * here with wait + terminal_read, which keeps the user seeing progress and
-   * lets the agent notice a prompt or an error as it appears.
-   */
   /**
    * Hands a command back early when it has stopped mid-line and gone quiet —
    * the shape of something sitting on a prompt. Output that ends with a
@@ -876,7 +895,7 @@ export class TerminalSession {
         truncated,
         ...(awaitingInput ? { awaitingInput: true } : {}),
       }
-    })
+    }, false)
   }
 
   /**
@@ -885,13 +904,27 @@ export class TerminalSession {
    * slot would let the next terminal_run interleave with it instead of
    * correctly reporting BUSY.
    */
-  private detachStillRunning(build: (pending: PendingCommand) => TerminalRunResult): void {
+  private detachStillRunning(
+    build: (pending: PendingCommand) => TerminalRunResult,
+    endActivity: boolean
+  ): void {
     const pending = this.pendingCommand
     if (!pending) return
     clearTimeout(pending.timer)
     clearInterval(pending.promptWatchdog)
     this.pendingCommand = null
-    pending.resolve(build(pending))
+    const result = build(pending)
+    if (endActivity) {
+      this.callbacks.onCommand({
+        terminalId: this.terminalId,
+        phase: 'end',
+        command: pending.command,
+        toolCallId: pending.toolCallId,
+        durationMs: result.durationMs,
+      })
+      this.foregroundToolCallId = null
+    }
+    pending.resolve(result)
   }
 
   private capturedText(pending: PendingCommand): string {
@@ -936,11 +969,13 @@ export class TerminalSession {
         terminalId: this.terminalId,
         phase: 'end',
         command,
+        ...(this.foregroundToolCallId ? { toolCallId: this.foregroundToolCallId } : {}),
         ...(exitCode === null ? {} : { exitCode }),
       })
     }
 
     this.foregroundCommand = null
+    this.foregroundToolCallId = null
     this.announcedCommand = null
     this.altScreen = false
     this.emitState()

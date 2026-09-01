@@ -5,6 +5,9 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { WordPressResponse } from '@/tools/wordpress/types'
 
+/** The media file to upload, whichever mode the user is in. */
+const MEDIA_FILE_FIELD = ['fileUpload', 'file'] as const
+
 export const WordPressBlock: BlockConfig<WordPressResponse> = {
   type: 'wordpress',
   name: 'WordPress',
@@ -18,6 +21,123 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
   bgColor: '#21759B',
   iconColor: '#21759B',
   icon: WordpressIcon,
+  canvasPresentation: {
+    defaultTitle: 'WordPress',
+    sentences: {
+      byOperation: {
+        wordpress_create_post: [
+          { text: 'Create post', field: 'title', core: true },
+          { text: ', as', field: 'status' },
+          { text: ', in categories', field: 'categories' },
+        ],
+        wordpress_update_post: [
+          { text: 'Update post', field: 'postId', core: true },
+          { text: ', with title', field: 'title' },
+          { text: ', as', field: 'status' },
+        ],
+        wordpress_delete_post: [{ text: 'Delete post', field: 'postId', core: true }],
+        wordpress_get_post: [{ text: 'Fetch post', field: 'postId', core: true }],
+        wordpress_list_posts: [
+          'List posts',
+          { text: ', matching', field: 'search' },
+          { text: ', with status', field: 'listStatus' },
+          { text: ', in categories', field: 'categories' },
+        ],
+        wordpress_create_page: [
+          { text: 'Create page', field: 'title', core: true },
+          { text: ', as', field: 'status' },
+          { text: ', under page', field: 'parent' },
+        ],
+        wordpress_update_page: [
+          { text: 'Update page', field: 'pageId', core: true },
+          { text: ', with title', field: 'title' },
+          { text: ', as', field: 'status' },
+        ],
+        wordpress_delete_page: [{ text: 'Delete page', field: 'pageId', core: true }],
+        wordpress_get_page: [{ text: 'Fetch page', field: 'pageId', core: true }],
+        wordpress_list_pages: [
+          'List pages',
+          { text: ', matching', field: 'search' },
+          { text: ', with status', field: 'listStatus' },
+          { text: ', under page', field: 'parent' },
+        ],
+        wordpress_upload_media: [
+          {
+            text: 'Upload',
+            field: MEDIA_FILE_FIELD,
+            after: 'to the media library',
+            core: true,
+          },
+          { text: ', titled', field: 'mediaTitle' },
+        ],
+        wordpress_get_media: [{ text: 'Fetch media item', field: 'mediaId', core: true }],
+        wordpress_list_media: [
+          'List media',
+          { text: ', of type', field: 'mediaType' },
+          { text: ', matching', field: 'search' },
+          { text: ', up to', field: 'perPage', after: 'per page' },
+        ],
+        wordpress_delete_media: [{ text: 'Delete media item', field: 'mediaId', core: true }],
+        wordpress_create_comment: [
+          { text: 'Add comment', field: 'commentContent', core: true },
+          { text: 'to post', field: 'commentPostId', core: true },
+          { text: ', as', field: 'commentAuthorName' },
+        ],
+        wordpress_list_comments: [
+          'List comments',
+          { text: ', on post', field: 'commentPostId' },
+          { text: ', matching', field: 'search' },
+        ],
+        wordpress_update_comment: [
+          { text: 'Update comment', field: 'commentId', core: true },
+          { text: ', with', field: 'commentContent' },
+          { text: ', setting status to', field: 'commentStatus' },
+        ],
+        wordpress_delete_comment: [{ text: 'Delete comment', field: 'commentId', core: true }],
+        wordpress_create_category: [
+          { text: 'Create category', field: 'categoryName', core: true },
+          { text: ', under category', field: 'categoryParent' },
+        ],
+        wordpress_update_category: [
+          { text: 'Update category', field: 'categoryId', core: true },
+          { text: ', renaming it to', field: 'categoryName' },
+        ],
+        wordpress_delete_category: [{ text: 'Delete category', field: 'categoryId', core: true }],
+        wordpress_get_category: [{ text: 'Fetch category', field: 'categoryId', core: true }],
+        wordpress_list_categories: [
+          'List categories',
+          { text: ', matching', field: 'search' },
+          { text: ', up to', field: 'perPage', after: 'per page' },
+        ],
+        wordpress_create_tag: [
+          { text: 'Create tag', field: 'tagName', core: true },
+          { text: ', with slug', field: 'tagSlug' },
+        ],
+        wordpress_update_tag: [
+          { text: 'Update tag', field: 'tagId', core: true },
+          { text: ', renaming it to', field: 'tagName' },
+        ],
+        wordpress_delete_tag: [{ text: 'Delete tag', field: 'tagId', core: true }],
+        wordpress_get_tag: [{ text: 'Fetch tag', field: 'tagId', core: true }],
+        wordpress_list_tags: [
+          'List tags',
+          { text: ', matching', field: 'search' },
+          { text: ', up to', field: 'perPage', after: 'per page' },
+        ],
+        wordpress_get_current_user: ['Fetch the authenticated user'],
+        wordpress_list_users: [
+          'List users',
+          { text: ', with role', field: 'roles' },
+          { text: ', matching', field: 'search' },
+        ],
+        wordpress_get_user: [{ text: 'Fetch user', field: 'userId', core: true }],
+        wordpress_search_content: [
+          { text: 'Search content for', field: 'query', core: true },
+          { text: ', limited to', field: 'searchType' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     // Operation Selection
     {

@@ -14,9 +14,7 @@ const logger = createLogger('Intercom')
  * - https://developers.intercom.com/docs/references/rest-api/api.intercom.io/tickets/ticket
  */
 
-// ============================================================================
 // Location Output Properties
-// ============================================================================
 
 /**
  * Output definition for location object (nested in contact)
@@ -41,9 +39,7 @@ export const INTERCOM_LOCATION_OUTPUT: OutputProperty = {
   properties: INTERCOM_LOCATION_OUTPUT_PROPERTIES,
 }
 
-// ============================================================================
 // Social Profiles Output Properties
-// ============================================================================
 
 /**
  * Output definition for social profile object
@@ -76,9 +72,7 @@ export const INTERCOM_SOCIAL_PROFILES_OUTPUT: OutputProperty = {
   },
 }
 
-// ============================================================================
 // List Reference Output Properties (tags, notes, companies on contact)
-// ============================================================================
 
 /**
  * Output definition for list reference objects (used for tags, notes, companies on contacts)
@@ -91,18 +85,7 @@ export const INTERCOM_LIST_REFERENCE_OUTPUT_PROPERTIES = {
   total_count: { type: 'number', description: 'Total number of items' },
 } as const satisfies Record<string, OutputProperty>
 
-/**
- * Complete list reference output definition
- */
-export const INTERCOM_LIST_REFERENCE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'List reference with metadata',
-  properties: INTERCOM_LIST_REFERENCE_OUTPUT_PROPERTIES,
-}
-
-// ============================================================================
 // Tag Output Properties
-// ============================================================================
 
 /**
  * Output definition for tag objects
@@ -113,30 +96,7 @@ export const INTERCOM_TAG_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Name of the tag' },
 } as const satisfies Record<string, OutputProperty>
 
-/**
- * Complete tag output definition
- */
-export const INTERCOM_TAG_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Intercom tag object',
-  properties: INTERCOM_TAG_OUTPUT_PROPERTIES,
-}
-
-/**
- * Tags array output definition for list endpoints
- */
-export const INTERCOM_TAGS_ARRAY_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of tag objects',
-  items: {
-    type: 'object',
-    properties: INTERCOM_TAG_OUTPUT_PROPERTIES,
-  },
-}
-
-// ============================================================================
 // Admin Output Properties
-// ============================================================================
 
 /**
  * Output definition for admin avatar object
@@ -185,30 +145,7 @@ export const INTERCOM_ADMIN_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-/**
- * Complete admin output definition
- */
-export const INTERCOM_ADMIN_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Intercom admin object',
-  properties: INTERCOM_ADMIN_OUTPUT_PROPERTIES,
-}
-
-/**
- * Admins array output definition for list endpoints
- */
-export const INTERCOM_ADMINS_ARRAY_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of admin objects',
-  items: {
-    type: 'object',
-    properties: INTERCOM_ADMIN_OUTPUT_PROPERTIES,
-  },
-}
-
-// ============================================================================
 // Contact Output Properties
-// ============================================================================
 
 /**
  * Core contact properties (common fields)
@@ -329,30 +266,7 @@ export const INTERCOM_CONTACT_OUTPUT_PROPERTIES = {
   social_profiles: INTERCOM_SOCIAL_PROFILES_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
 
-/**
- * Complete contact output definition
- */
-export const INTERCOM_CONTACT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Intercom contact object',
-  properties: INTERCOM_CONTACT_OUTPUT_PROPERTIES,
-}
-
-/**
- * Contacts array output definition for list/search endpoints
- */
-export const INTERCOM_CONTACTS_ARRAY_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of contact objects',
-  items: {
-    type: 'object',
-    properties: INTERCOM_CONTACT_OUTPUT_PROPERTIES,
-  },
-}
-
-// ============================================================================
 // Company Output Properties
-// ============================================================================
 
 /**
  * Output definition for company plan object
@@ -474,30 +388,7 @@ export const INTERCOM_COMPANY_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-/**
- * Complete company output definition
- */
-export const INTERCOM_COMPANY_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Intercom company object',
-  properties: INTERCOM_COMPANY_OUTPUT_PROPERTIES,
-}
-
-/**
- * Companies array output definition for list endpoints
- */
-export const INTERCOM_COMPANIES_ARRAY_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of company objects',
-  items: {
-    type: 'object',
-    properties: INTERCOM_COMPANY_OUTPUT_PROPERTIES,
-  },
-}
-
-// ============================================================================
 // Conversation Output Properties
-// ============================================================================
 
 /**
  * Output definition for conversation source object
@@ -851,30 +742,7 @@ export const INTERCOM_CONVERSATION_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-/**
- * Complete conversation output definition
- */
-export const INTERCOM_CONVERSATION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Intercom conversation object',
-  properties: INTERCOM_CONVERSATION_OUTPUT_PROPERTIES,
-}
-
-/**
- * Conversations array output definition for list/search endpoints
- */
-export const INTERCOM_CONVERSATIONS_ARRAY_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of conversation objects',
-  items: {
-    type: 'object',
-    properties: INTERCOM_CONVERSATION_OUTPUT_PROPERTIES,
-  },
-}
-
-// ============================================================================
 // Ticket Output Properties
-// ============================================================================
 
 /**
  * Output definition for ticket type object
@@ -968,18 +836,7 @@ export const INTERCOM_TICKET_OUTPUT_PROPERTIES = {
   updated_at: { type: 'number', description: 'Unix timestamp when ticket was last updated' },
 } as const satisfies Record<string, OutputProperty>
 
-/**
- * Complete ticket output definition
- */
-export const INTERCOM_TICKET_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Intercom ticket object',
-  properties: INTERCOM_TICKET_OUTPUT_PROPERTIES,
-}
-
-// ============================================================================
 // Pagination Output Properties
-// ============================================================================
 
 /**
  * Output definition for pagination cursor
@@ -1004,16 +861,6 @@ export const INTERCOM_PAGES_OUTPUT_PROPERTIES = {
     properties: INTERCOM_PAGINATION_CURSOR_OUTPUT_PROPERTIES,
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete pages output definition
- */
-export const INTERCOM_PAGES_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pagination information',
-  optional: true,
-  properties: INTERCOM_PAGES_OUTPUT_PROPERTIES,
-}
 
 interface IntercomBaseParams {
   accessToken: string

@@ -645,6 +645,31 @@ export const dustProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'No: the Computer tool runs agent code inside a Dust-managed isolated environment whose runtime image and libraries Dust controls; admins configure the outbound domain allowlist and DST_*/DSEC_* environment variables, but no documented setting declares npm/PyPI packages, OS-level packages, or additional CLI binaries',
+        detail:
+          "Computer is documented as a 'controlled workbench' where an agent runs code, processes files (Excel/CSV, Word, PDF, PowerPoint), and generates artifacts, with no open internet access by default. The configurable surface is network allowlisting (exact domains such as api.openai.com, or wildcards such as *.example.com, approved permanently by a workspace admin or for one conversation by a user), non-sensitive configuration variables (DST_*), HTTPS secret placeholders substituted only on approved outbound requests (DSEC_*), and a built-in dsbx CLI. The admin setup page for Computer enumerates the admin surface as exactly two areas, network access and environment variables; no package manifest, dependency declaration, or custom-image option is documented on either page.",
+        shortValue: 'Dust-managed sandbox image; only network and env vars are configurable',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/user-documentation/admins/tools-management/computer-admin-setup.md',
+            label: 'Computer Admin Setup | Dust Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/computer',
+            label: 'Computer | Dust Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/tools',
+            label: 'Tools | Dust Docs',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes: a documented Conversation API lets external applications create conversations and post messages to Dust agents programmatically, and a Developer Platform covers broader API access',
@@ -898,6 +923,26 @@ export const dustProfile: CompetitorProfile = {
             url: 'https://dust.tt/home/enterprise',
             label: 'Dust for Enterprise',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Not publicly documented: Dust documents SAML SSO with workspace-wide enforcement and SCIM provisioning on the Enterprise plan, but no admin-configurable absolute session lifetime or idle timeout, and no fixed session length is published either',
+        detail:
+          "Dust's workspace governance docs describe the admin surface under Admin > People & Security as managing security settings, user access, identity verification, and provisioning; neither those pages nor the SSO/SAML pages describe a session-duration, idle-timeout, or forced re-authentication setting. Enforcing SSO restricts which login methods are accepted (users can no longer sign in with social accounts) rather than how long a signed-in session lasts, so session length in practice follows whatever the upstream identity provider enforces at re-authentication.",
+        shortValue: 'No documented session-lifetime or idle-timeout setting',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/user-documentation/admins/admin-governance/workspace-governance-roles-groups-and-permissions.md',
+            label: 'Workspace Governance (Roles, Groups & Permissions) | Dust Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/user-documentation/admins/admin-governance/single-sign-on-sso/saml-sso.md',
+            label: 'SAML SSO | Dust Docs',
+            asOf: '2026-08-10',
           },
         ],
       },

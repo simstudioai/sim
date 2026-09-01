@@ -1,0 +1,219 @@
+---
+title: Upgrades
+description: Pinning versions, running migrations safely, and rolling back
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { FAQ } from '@/components/ui/faq'
+
+## Pin your version
+
+<Callout type="warn">
+  Never run `:latest` in production. An unpinned tag means an unplanned restart can pull a new version with new migrations at an arbitrary time.
+</Callout>
+
+Sim publishes images to GHCR, tagged by release alongside `latest`:
+
+```
+ghcr.io/simstudioai/simstudio
+ghcr.io/simstudioai/realtime
+ghcr.io/simstudioai/migrations
+```
+
+<Callout type="error">
+  **Pin `app`, `realtime`, and `migrations` to the same tag.** They share a database schema. An app newer than its migrations runs against a schema missing columns it expects; an app older than its migrations runs against a schema it does not understand. Mismatched tags is the most common self-inflicted upgrade failure.
+</Callout>
+
+<Tabs items={['Kubernetes (Helm)', 'Docker Compose']}>
+  <Tab value="Kubernetes (Helm)">
+
+```yaml
+app:
+  image:
+    tag: "v1.2.3"  # a tag from the releases page
+realtime:
+  image:
+    tag: "v1.2.3"  # a tag from the releases page
+migrations:
+  image:
+    tag: "v1.2.3"  # a tag from the releases page
+```
+
+When `image.tag` is unset it defaults to the chart's `appVersion`, which moves when you upgrade the chart. Setting it explicitly decouples the two. For maximum determinism, pin `image.digest` instead:
+
+```yaml
+app:
+  image:
+    digest: "sha256:..."
+```
+
+  </Tab>
+  <Tab value="Docker Compose">
+
+Images track `latest` by default. To pin, set `SIM_VERSION` in `.env` to a tag from the [releases page](https://github.com/simstudioai/sim/releases):
+
+```bash
+# .env
+SIM_VERSION=v1.2.3
+```
+
+One variable drives all three schema-coupled images, so they cannot drift apart. The `cron` service is deliberately excluded — it only makes HTTP calls and shares no schema, so it tracks `latest` unless you pin `SIM_CRON_VERSION`.
+
+  </Tab>
+</Tabs>
+
+## How migrations run
+
+Migrations are Drizzle SQL files applied by a dedicated image.
+
+- **Kubernetes** — an **init container on the app Deployment**. Every app pod waits for migrations to complete before it starts, so a failed migration blocks the rollout instead of starting an app against a mismatched schema. The container is idempotent, so it is a no-op on pods that start after the first.
+- **Docker Compose** — a one-shot `migrations` service with `restart: no` that runs before the app.
+
+Migrations are **forward-only**. There are no down-migrations, which is why the pre-upgrade backup below is not optional.
+
+## Upgrade procedure
+
+<Steps>
+
+<Step>
+
+### Read the release notes
+
+Check the [releases page](https://github.com/simstudioai/sim/releases) for new required environment variables and breaking changes. When the chart's minor version moves, also read its `README.md` upgrade notes — chart upgrades occasionally rename or remove values keys.
+
+</Step>
+
+<Step>
+
+### Take a backup
+
+Snapshot the database immediately before upgrading. Because migrations are forward-only, this snapshot is your only rollback path for schema changes.
+
+```bash
+# Managed Postgres — take a manual snapshot
+aws rds create-db-snapshot --db-instance-identifier sim-db \
+  --db-snapshot-identifier "sim-pre-upgrade-$(date +%Y%m%d)"
+
+# Bundled Postgres — the Helm chart's database is named `sim` by default
+# (Docker Compose uses `simstudio`; the cloud example values files override to `simstudio`)
+kubectl exec -n simstudio statefulset/sim-postgresql -- \
+  pg_dump -U postgres -Fc sim > "pre-upgrade-$(date +%F).dump"
+```
+
+</Step>
+
+<Step>
+
+### Rehearse against real data
+
+Migration surprises are usually data-shaped rather than schema-shaped, so a staging run against a copy of production data catches far more than a run against an empty database.
+
+</Step>
+
+<Step>
+
+### Apply
+
+<Tabs items={['Kubernetes (Helm)', 'Docker Compose']}>
+  <Tab value="Kubernetes (Helm)">
+
+```bash
+helm upgrade sim ./helm/sim \
+  --namespace simstudio \
+  --values my-values.yaml
+```
+
+Preview first if the chart version changed:
+
+```bash
+helm diff upgrade sim ./helm/sim -n simstudio --values my-values.yaml
+```
+
+Then watch the rollout:
+
+```bash
+kubectl rollout status -n simstudio deploy/sim-app --timeout=10m
+kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
+```
+
+  </Tab>
+  <Tab value="Docker Compose">
+
+```bash
+npx sim-setup update
+docker compose -f docker-compose.prod.yml logs migrations
+```
+
+`npx sim-setup update` pulls the versions configured by `SIM_VERSION` (or `latest` when it is
+unset), recreates the changed services, and keeps data volumes. It is equivalent to running
+`docker compose pull` followed by `docker compose up -d`.
+
+There is a short window where the app is unavailable while containers restart. Compose has no rolling-update mechanism — plan a maintenance window, or run Kubernetes if you need zero-downtime upgrades.
+
+  </Tab>
+</Tabs>
+
+</Step>
+
+<Step>
+
+### Verify
+
+Run the [verification checklist](/platform/self-hosting/verify). At minimum: sign in, open a workflow, execute it, upload a file, and confirm the [background jobs](/platform/self-hosting/background-jobs) are still firing.
+
+</Step>
+
+</Steps>
+
+## When a migration fails
+
+The app pods will not become ready — this is by design.
+
+```bash
+kubectl logs -n simstudio deploy/sim-app -c migrations --tail=200
+```
+
+```bash
+docker compose -f docker-compose.prod.yml logs migrations
+```
+
+Common causes:
+
+| Symptom | Cause |
+|---|---|
+| `permission denied to create extension "vector"` | The database user lacks superuser rights. Create the pgvector extension manually as an admin, then re-run. |
+| Connection refused / timeout | `DATABASE_URL` wrong, or the database is not reachable from the pod. Check network policy and credentials. |
+| Lock timeout on a large table | A long-running query is blocking DDL. Drain traffic and retry during a quiet window. |
+| Constraint violation | Pre-existing data conflicts with a new constraint. Capture the error, restore the pre-upgrade backup, and open an issue with the exact message. |
+
+Do not manually edit the migrations table to skip a failed migration — the schema and Sim's expectations will diverge in ways that surface much later.
+
+## Rolling back
+
+**Application-only rollback** (no migrations ran, or the new migrations are additive):
+
+```bash
+helm rollback sim -n simstudio
+```
+
+```bash
+# Docker Compose — set the previous tag and restart
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**Rollback after a schema change** requires restoring the database to the pre-upgrade backup, because migrations are forward-only:
+
+1. Scale the app to zero.
+2. Restore the pre-upgrade database snapshot.
+3. Redeploy the previous image tag on all three images.
+4. Verify.
+
+This loses everything written since the snapshot. It is why the pre-upgrade backup and a staging rehearsal matter more here than in most systems.
+
+<FAQ items={[
+  { question: "Can I roll back an upgrade?", answer: "You can roll back the application with helm rollback. Schema changes cannot be rolled back — migrations are forward-only — so reverting a release that added migrations means restoring the pre-upgrade database backup and losing anything written since."},
+  { question: "Can I skip versions?", answer: "Migrations apply in sequence, so jumping several releases generally works mechanically. It is riskier — those combinations get less testing, and you take several releases' worth of behavior changes at once. Upgrade in smaller steps where you can."},
+  { question: "Is there downtime during an upgrade?", answer: "On Kubernetes with replicaCount > 1, the rolling update keeps the app available, though migrations run before the new pods start. On Docker Compose there is a restart window — Compose has no rolling-update mechanism." },
+]} />

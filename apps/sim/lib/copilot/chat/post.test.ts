@@ -14,11 +14,12 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
 const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
-const getEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
+const getEffectiveEnvironmentSnapshot = environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
 const {
   generateWorkspaceSnapshot,
@@ -33,7 +34,11 @@ const {
   resolveBillingAttribution,
   finalizeAssistantTurn,
   appendCopilotChatMessages,
+  persistChatResources,
   mockPublishStatusChanged,
+  atomicallyClaimChatSend,
+  storeChatSendResult,
+  releaseChatSendClaim,
 } = vi.hoisted(() => ({
   generateWorkspaceSnapshot: vi.fn(),
   processContextsServer: vi.fn(),
@@ -47,7 +52,11 @@ const {
   resolveBillingAttribution: vi.fn(),
   finalizeAssistantTurn: vi.fn(),
   appendCopilotChatMessages: vi.fn(),
+  persistChatResources: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
+  atomicallyClaimChatSend: vi.fn(),
+  storeChatSendResult: vi.fn(),
+  releaseChatSendClaim: vi.fn(),
 }))
 
 const getSession = authMockFns.mockGetSession
@@ -100,12 +109,24 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   resolveOrCreateChat,
 }))
 
+vi.mock('@/lib/core/idempotency', () => ({
+  chatSendIdempotency: {
+    atomicallyClaim: atomicallyClaimChatSend,
+    storeResult: storeChatSendResult,
+    release: releaseChatSendClaim,
+  },
+}))
+
 vi.mock('@/lib/copilot/chat/terminal-state', () => ({
   finalizeAssistantTurn,
 }))
 
 vi.mock('@/lib/copilot/chat/messages-store', () => ({
   appendCopilotChatMessages,
+}))
+
+vi.mock('@/lib/copilot/resources/persistence', () => ({
+  persistChatResources,
 }))
 
 vi.mock('@/lib/copilot/chat-status', () => ({
@@ -125,6 +146,14 @@ describe('handleUnifiedChatPost', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    atomicallyClaimChatSend.mockResolvedValue({
+      claimed: true,
+      normalizedKey: 'chat-send:user-message:msg-1:userId=user-1',
+      storageMethod: 'database',
+      claimToken: 'claim-1',
+    })
+    storeChatSendResult.mockResolvedValue(true)
+    releaseChatSendClaim.mockResolvedValue(undefined)
     getSession.mockResolvedValue({ user: { id: 'user-1' } })
     resolveWorkflowIdForUser.mockResolvedValue({
       status: 'resolved',
@@ -134,7 +163,14 @@ describe('handleUnifiedChatPost', () => {
     })
     getUserEntityPermissions.mockResolvedValue('write')
     resolveBillingAttribution.mockResolvedValue(billingAttribution)
-    getEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'secret' })
+    getEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: { API_KEY: 'encrypted-secret' },
+      workspaceEncrypted: {},
+      personalDecrypted: { API_KEY: 'secret' },
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: [],
+    })
     generateWorkspaceSnapshot.mockResolvedValue({
       markdown: 'workspace context',
       snapshot: { workflows: [{ id: 'wf-1', name: 'Alpha', path: 'workflows/Alpha' }] },
@@ -197,6 +233,7 @@ describe('handleUnifiedChatPost', () => {
             workspaceId: 'ws-1',
             billingAttribution,
             requestMode: 'agent',
+            resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
           }),
         }),
       })
@@ -238,10 +275,44 @@ describe('handleUnifiedChatPost', () => {
             workspaceId: 'ws-1',
             billingAttribution,
             requestMode: 'agent',
+            resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
           }),
         }),
       })
     )
+  })
+
+  it('persists browser page attachments as one canonical Browser panel', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Continue in this browser',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          resourceAttachments: [
+            {
+              type: 'browser',
+              id: 'browser-session:slack-tab',
+              title: 'mship-todo (Channel) - sim - Slack',
+              active: true,
+              url: 'https://app.slack.com/client/workspace/channel',
+            },
+            {
+              type: 'browser',
+              id: 'browser-session:docs-tab',
+              title: 'Docs',
+              url: 'https://docs.example.com',
+            },
+          ],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(persistChatResources).toHaveBeenCalledWith('chat-1', [
+      { type: 'browser', id: 'browser-session', title: 'Browser' },
+    ])
   })
 
   it('forwards the desktop local filesystem capability into payload construction', async () => {
@@ -260,6 +331,34 @@ describe('handleUnifiedChatPost', () => {
     expect(response.status).toBe(200)
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
       expect.objectContaining({ desktopLocalFilesystem: true }),
+      { selectedModel: '' }
+    )
+  })
+
+  it('accepts and forwards more than eight open terminal hints', async () => {
+    const terminals = Array.from({ length: 12 }, (_, index) => ({
+      id: String(index + 1),
+      cwd: `/tmp/project-${index}`,
+      active: index === 11,
+    }))
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Inspect every open shell',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          desktopCapabilities: { terminal: true, terminals },
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        terminalCapable: true,
+        terminals,
+      }),
       { selectedModel: '' }
     )
   })
@@ -285,8 +384,102 @@ describe('handleUnifiedChatPost', () => {
       'user-1',
       'Hello',
       'ws-1',
-      expect.anything()
+      expect.anything(),
+      expect.any(ResolvedSecretTraceRegistry)
     )
+  })
+
+  it('validates selection snapshots and omits unsafe browser source URLs', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Explain these selections',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [
+            {
+              kind: 'browser_tab',
+              tabId: 'tab-1',
+              label: 'Docs',
+              selection: {
+                text: 'Selected documentation',
+                url: 'file:///Users/example/private.html',
+                title: 'Documentation',
+              },
+            },
+            {
+              kind: 'terminal_tab',
+              terminalId: 'terminal-1',
+              label: 'Shell',
+              selection: {
+                text: 'build failed',
+                startLine: 12,
+                endLine: 14,
+              },
+            },
+          ],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(processContextsServer).toHaveBeenCalledWith(
+      [
+        {
+          kind: 'browser_tab',
+          tabId: 'tab-1',
+          label: 'Docs',
+          selection: {
+            text: 'Selected documentation',
+            title: 'Documentation',
+          },
+        },
+        {
+          kind: 'terminal_tab',
+          terminalId: 'terminal-1',
+          label: 'Shell',
+          selection: {
+            text: 'build failed',
+            startLine: 12,
+            endLine: 14,
+          },
+        },
+      ],
+      'user-1',
+      'Explain these selections',
+      'ws-1',
+      'chat-1',
+      expect.any(ResolvedSecretTraceRegistry)
+    )
+  })
+
+  it('rejects invalid terminal selection line ranges', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Explain this selection',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [
+            {
+              kind: 'terminal_tab',
+              terminalId: 'terminal-1',
+              label: 'Shell',
+              selection: {
+                text: 'build failed',
+                startLine: 14,
+                endLine: 12,
+              },
+            },
+          ],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(processContextsServer).not.toHaveBeenCalled()
   })
 
   it('forwards slash-selected MCP server ids to the request-local tool builder', async () => {
@@ -552,8 +745,158 @@ describe('handleUnifiedChatPost', () => {
     )
 
     expect(response.status).toBe(400)
+    // Returns without throwing, so only a `finally` can free the claim.
+    expect(releaseChatSendClaim).toHaveBeenCalled()
     await expect(response.json()).resolves.toMatchObject({
       error: 'workspaceId is required when workflowId is not provided',
+    })
+  })
+
+  describe('deduplicating a repeated send', () => {
+    /**
+     * The client cannot tell whether a request it aborted reached the server —
+     * the route never reads `request.signal`, so an accepted one runs to
+     * completion regardless. Recovering such a send therefore retries it under
+     * the original `userMessageId`, and this is what makes that safe.
+     */
+    it('answers an already-claimed send with the chat the first attempt opened', async () => {
+      atomicallyClaimChatSend.mockResolvedValue({
+        claimed: false,
+        normalizedKey: 'chat-send:user-message:msg-1:userId=user-1',
+        storageMethod: 'database',
+        existingResult: { success: true, status: 'completed', result: { chatId: 'chat-first' } },
+      })
+
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toMatchObject({
+        activeStreamId: 'msg-1',
+        chatId: 'chat-first',
+      })
+      // The whole point: no second chat, no second billed turn.
+      expect(resolveOrCreateChat).not.toHaveBeenCalled()
+      expect(createSSEStream).not.toHaveBeenCalled()
+    })
+
+    it('scopes the claim to the caller so one user cannot probe another', async () => {
+      await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(atomicallyClaimChatSend).toHaveBeenCalledWith('user-message', 'msg-1', {
+        userId: 'user-1',
+      })
+    })
+
+    it('records the chat against the send so a retry resolves to it', async () => {
+      await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(storeChatSendResult).toHaveBeenCalledWith(
+        'chat-send:user-message:msg-1:userId=user-1',
+        expect.objectContaining({ result: { chatId: 'chat-1' } }),
+        'database',
+        'claim-1'
+      )
+    })
+
+    /**
+     * Deduplication saves a duplicate chat; the send IS the user's message.
+     * An unreachable bookkeeping store must degrade chat, never take it down.
+     */
+    it('sends normally when the claim store is unavailable', async () => {
+      atomicallyClaimChatSend.mockRejectedValue(new Error('idempotency store down'))
+
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(createSSEStream).toHaveBeenCalled()
+      expect(storeChatSendResult).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The queued-send-handoff path deliberately retries under the original
+     * `userMessageId` after a stream collision. If the collided attempt left a
+     * permanent claim, that retry would deduplicate against a chat whose turn
+     * never started and reattach to a stream that does not exist.
+     */
+    it('releases the claim when a stream collision stops the turn from starting', async () => {
+      acquirePendingChatStream.mockResolvedValue(false)
+      getPendingChatStreamId.mockResolvedValue('other-stream')
+
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(409)
+      expect(releaseChatSendClaim).toHaveBeenCalledWith(
+        'chat-send:user-message:msg-1:userId=user-1',
+        'database',
+        'claim-1'
+      )
+    })
+
+    it('keeps the claim once a turn is actually streaming', async () => {
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(releaseChatSendClaim).not.toHaveBeenCalled()
     })
   })
 })

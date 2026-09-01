@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, ChevronRight } from 'lucide-react'
+import { ArrowRight, ChevronRight } from '@sim/emcn/icons'
 
 interface ContactButtonProps {
   href: string
@@ -32,7 +32,7 @@ export function ContactButton({ href, children }: ContactButtonProps) {
         paddingLeft: '9px',
         paddingRight: '9px',
         fontSize: '13.5px',
-        fontWeight: 430,
+        fontWeight: 400,
         color: '#000000',
         textDecoration: 'none',
         transition: 'background 200ms, border-color 200ms',

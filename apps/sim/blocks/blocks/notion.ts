@@ -7,6 +7,98 @@ import { createVersionedToolSelector } from '@/blocks/utils'
 import type { NotionResponse } from '@/tools/notion/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * Canonical basic/advanced pairs, shared by the card sentences below.
+ *
+ * Naming only the picker would drop the sentence for an advanced-mode user,
+ * who has just the raw-id input filled.
+ */
+const PAGE_FIELD = ['pageSelector', 'pageId'] as const
+const DATABASE_FIELD = ['databaseSelector', 'databaseId'] as const
+const PARENT_FIELD = ['parentSelector', 'parentId'] as const
+
+/**
+ * Card summaries, shared by the legacy block and its v2 replacement.
+ *
+ * Both expose the same operation dropdown and the same subblocks, so a single
+ * declaration keeps the two cards from drifting.
+ */
+const NOTION_SENTENCES = {
+  byOperation: {
+    notion_read: [{ text: 'Read content from', field: PAGE_FIELD, core: true }],
+    notion_read_database: [{ text: 'Read schema of', field: DATABASE_FIELD, core: true }],
+    notion_create_page: [
+      { text: 'Create page', field: 'title', core: true },
+      { text: 'under', field: PARENT_FIELD, core: true },
+      { text: ', with', field: 'content' },
+    ],
+    notion_update_page: [
+      { text: 'Update properties of', field: PAGE_FIELD, core: true },
+      { text: ', setting', field: 'properties' },
+    ],
+    notion_create_database: [
+      { text: 'Create database', field: 'title', core: true },
+      { text: 'under', field: PARENT_FIELD, core: true },
+      { text: ', with properties', field: 'properties' },
+    ],
+    notion_add_database_row: [
+      { text: 'Add a row to', field: DATABASE_FIELD, core: true },
+      { text: ', setting', field: 'properties' },
+    ],
+    notion_write: [
+      { text: 'Append', field: 'content', core: true },
+      { text: 'to', field: PAGE_FIELD, core: true },
+    ],
+    notion_append_blocks: [
+      { text: 'Append blocks to', field: 'blockId', core: true },
+      { text: ', after block', field: 'after' },
+    ],
+    notion_retrieve_block: [{ text: 'Retrieve block', field: 'blockId', core: true }],
+    notion_retrieve_block_children: [
+      { text: 'List child blocks of', field: 'blockId', core: true },
+      { text: ', up to', field: 'pageSize', after: 'results' },
+    ],
+    notion_update_block: [
+      { text: 'Update block', field: 'blockId', core: true },
+      { text: ', setting', field: 'block' },
+    ],
+    notion_delete_block: [{ text: 'Delete block', field: 'blockId', core: true }],
+    notion_create_comment: [
+      { text: 'Post comment', field: 'commentContent', core: true },
+      { text: 'on page', field: 'commentParentId' },
+    ],
+    notion_list_comments: [
+      { text: 'List comments on', field: 'blockId', core: true },
+      { text: ', up to', field: 'pageSize', after: 'results' },
+    ],
+    /**
+     * No anchor: everything this operation shows is an advanced pagination
+     * control, absent from a basic-mode card, so a `core` clause would drop and
+     * blank the card for the default configuration. Literal copy carries it.
+     */
+    notion_list_users: [
+      'List workspace users',
+      { text: ', up to', field: 'pageSize', after: 'at a time' },
+    ],
+    notion_retrieve_user: [{ text: 'Retrieve user', field: 'userId', core: true }],
+    notion_query_database: [
+      { text: 'Query rows from', field: DATABASE_FIELD, core: true },
+      { text: ', where', field: 'filter' },
+      { text: ', sorted by', field: 'sorts' },
+    ],
+    /**
+     * Also no anchor: an empty query is the documented way to list everything
+     * ("leave empty for all pages"), so anchoring on `query` would blank the
+     * card for a valid configuration. `returning`, not `limited to`, because
+     * the filter's own default option reads "All".
+     */
+    notion_search: [
+      { text: 'Search workspace for', field: 'query', core: true },
+      { text: ', returning', field: 'filterType' },
+    ],
+  },
+} as const
+
 // Legacy block - hidden from toolbar
 export const NotionBlock: BlockConfig<NotionResponse> = {
   type: 'notion',
@@ -22,6 +114,10 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: NotionIcon,
+  canvasPresentation: {
+    defaultTitle: 'Notion',
+    sentences: NOTION_SENTENCES,
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -862,6 +958,10 @@ export const NotionV2Block: BlockConfig<any> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: NotionIcon,
+  canvasPresentation: {
+    defaultTitle: 'Notion',
+    sentences: NOTION_SENTENCES,
+  },
   hideFromToolbar: false,
   subBlocks: [
     ...NotionBlock.subBlocks,

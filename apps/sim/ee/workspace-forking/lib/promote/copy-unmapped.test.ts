@@ -9,22 +9,19 @@ import {
 import type { DbOrTx } from '@/lib/db/types'
 
 const {
-  mockUpsertEdgeMappings,
-  mockDeleteEdgeMappingsByChildResources,
+  mockPersistCopiedResourceMappings,
   mockCopyForkResourceContainers,
   mockPlanForkMappedKbDocumentCopies,
   mockPlanForkFileCopies,
 } = vi.hoisted(() => ({
-  mockUpsertEdgeMappings: vi.fn(),
-  mockDeleteEdgeMappingsByChildResources: vi.fn(),
+  mockPersistCopiedResourceMappings: vi.fn(),
   mockCopyForkResourceContainers: vi.fn(),
   mockPlanForkMappedKbDocumentCopies: vi.fn(),
   mockPlanForkFileCopies: vi.fn(),
 }))
 
 vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  upsertEdgeMappings: mockUpsertEdgeMappings,
-  deleteEdgeMappingsByChildResources: mockDeleteEdgeMappingsByChildResources,
+  persistCopiedResourceMappings: mockPersistCopiedResourceMappings,
   resourceTypeToForkKind: vi.fn(),
 }))
 
@@ -40,14 +37,12 @@ vi.mock('@/ee/workspace-forking/lib/copy/copy-files', () => ({
 }))
 
 import type { ForkEdge } from '@/ee/workspace-forking/lib/lineage/lineage'
-import type { ForkMappingUpsert } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import {
   augmentForkResolver,
   buildPromoteCopySelection,
   copyPromoteUnmappedResources,
   FORK_COPYABLE_KIND_TO_SELECTION_KEY,
   hasPromoteCopySelection,
-  persistPromoteCopiedMappings,
 } from '@/ee/workspace-forking/lib/promote/copy-unmapped'
 import { isForkCopyableKind } from '@/ee/workspace-forking/lib/promote/promote-plan'
 import type { ForkRemapKind } from '@/ee/workspace-forking/lib/remap/remap-references'
@@ -237,51 +232,6 @@ describe('augmentForkResolver', () => {
   })
 })
 
-describe('persistPromoteCopiedMappings', () => {
-  const tx = {} as DbOrTx
-  const entry: ForkMappingUpsert = {
-    resourceType: 'knowledge_base',
-    parentResourceId: 'src-kb',
-    childResourceId: 'dst-kb',
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('pull keeps the source(parent)->target(child) orientation as-is', async () => {
-    await persistPromoteCopiedMappings(tx, 'edge-child', 'user-1', 'pull', [entry])
-    expect(mockUpsertEdgeMappings).toHaveBeenCalledWith(tx, 'edge-child', 'user-1', [entry])
-    expect(mockDeleteEdgeMappingsByChildResources).not.toHaveBeenCalled()
-  })
-
-  it('push swaps to target(parent)->source(child) and deletes the prior row keyed on the source child', async () => {
-    await persistPromoteCopiedMappings(tx, 'edge-child', 'user-1', 'push', [entry])
-    // Delete keys on the source child resource (the swapped child id = the original parent id).
-    expect(mockDeleteEdgeMappingsByChildResources).toHaveBeenCalledWith(tx, 'edge-child', [
-      { resourceType: 'knowledge_base', childResourceId: 'src-kb' },
-    ])
-    // The swap flips parent/child: the new copy (dst) becomes the parent side on push.
-    expect(mockUpsertEdgeMappings).toHaveBeenCalledWith(tx, 'edge-child', 'user-1', [
-      { resourceType: 'knowledge_base', parentResourceId: 'dst-kb', childResourceId: 'src-kb' },
-    ])
-  })
-
-  it('push skips an entry with a null child id (the narrowing guard, no bogus mapping)', async () => {
-    await persistPromoteCopiedMappings(tx, 'edge-child', 'user-1', 'push', [
-      { resourceType: 'knowledge_base', parentResourceId: 'src-kb', childResourceId: null },
-    ])
-    expect(mockDeleteEdgeMappingsByChildResources).not.toHaveBeenCalled()
-    expect(mockUpsertEdgeMappings).not.toHaveBeenCalled()
-  })
-
-  it('returns without writing when there are no entries', async () => {
-    await persistPromoteCopiedMappings(tx, 'edge-child', 'user-1', 'push', [])
-    expect(mockDeleteEdgeMappingsByChildResources).not.toHaveBeenCalled()
-    expect(mockUpsertEdgeMappings).not.toHaveBeenCalled()
-  })
-})
-
 describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
   const tx = {} as DbOrTx
   // Only edge.childWorkspaceId is read by the copy path.
@@ -294,6 +244,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     vi.clearAllMocks()
     mockCopyForkResourceContainers.mockResolvedValue({
       idMap: new Map(),
+      folderIdMap: new Map(),
       mappingEntries: [],
       contentPlan: {
         sourceWorkspaceId: 'src-ws',
@@ -320,9 +271,50 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     })
   })
 
+  it('threads push orientation through the shared container and mapping boundaries', async () => {
+    await copyPromoteUnmappedResources({
+      tx,
+      edge,
+      sourceWorkspaceId: 'child-source-ws',
+      targetWorkspaceId: 'parent-target-ws',
+      direction: 'push',
+      userId: 'user-1',
+      now: new Date(),
+      selection: {
+        customTools: [],
+        skills: [],
+        tables: [],
+        knowledgeBases: [],
+        files: [],
+        mcpServers: [],
+      },
+      workflowIdMap: new Map(),
+      folderIdMap: new Map(),
+      resolver: () => null,
+      resolveBlockId,
+      referencedDocumentIds: [],
+    })
+
+    expect(mockCopyForkResourceContainers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentMappingContext: {
+          edgeChildWorkspaceId: 'edge-child',
+          sourceIsParent: false,
+        },
+      })
+    )
+    expect(mockPersistCopiedResourceMappings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        edgeChildWorkspaceId: 'edge-child',
+        sourceIsParent: false,
+      })
+    )
+  })
+
   it('copies selected files (keyMap + blobTasks), persists the file mapping, and threads file + folder content-ref maps', async () => {
     mockPlanForkFileCopies.mockResolvedValue({
       keyMap: new Map([['workspace/SRC/a.png', 'workspace/DST/a.png']]),
+      folderIdMap: new Map(),
       idMap: new Map([['file-src', 'file-dst']]),
       blobTasks: [
         {
@@ -351,6 +343,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
         tables: [],
         knowledgeBases: [],
         files: ['workspace/SRC/a.png'],
+        mcpServers: [],
       },
       workflowIdMap: new Map(),
       folderIdMap: new Map([['fld-src', 'fld-dst']]),
@@ -371,13 +364,19 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     )
     // The file mapping is persisted (pull keeps source(parent)->target(child) orientation) so a
     // re-sync resolves the copy instead of re-copying it.
-    expect(mockUpsertEdgeMappings).toHaveBeenCalledWith(tx, 'edge-child', 'user-1', [
-      {
-        resourceType: 'file',
-        parentResourceId: 'workspace/SRC/a.png',
-        childResourceId: 'workspace/DST/a.png',
-      },
-    ])
+    expect(mockPersistCopiedResourceMappings).toHaveBeenCalledWith({
+      executor: tx,
+      edgeChildWorkspaceId: 'edge-child',
+      userId: 'user-1',
+      sourceIsParent: true,
+      entries: [
+        {
+          resourceType: 'file',
+          parentResourceId: 'workspace/SRC/a.png',
+          childResourceId: 'workspace/DST/a.png',
+        },
+      ],
+    })
     // The folder map AND the file key/id maps reach the in-content rewriter.
     expect(result.contentRefMaps.folders).toEqual({ 'fld-src': 'fld-dst' })
     expect(result.contentRefMaps.fileKeys).toEqual({ 'workspace/SRC/a.png': 'workspace/DST/a.png' })
@@ -389,6 +388,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     // mapping row is what makes the next sync resolve the copy instead of re-offering it.
     mockCopyForkResourceContainers.mockResolvedValue({
       idMap: new Map([['table', new Map([['tbl-unref', 'tbl-copy']])]]),
+      folderIdMap: new Map(),
       mappingEntries: [
         { resourceType: 'table', parentResourceId: 'tbl-unref', childResourceId: 'tbl-copy' },
       ],
@@ -412,6 +412,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     })
     mockPlanForkFileCopies.mockResolvedValue({
       keyMap: new Map<string, string>(),
+      folderIdMap: new Map(),
       idMap: new Map<string, string>(),
       blobTasks: [],
     })
@@ -430,6 +431,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
         tables: ['tbl-unref'],
         knowledgeBases: [],
         files: [],
+        mcpServers: [],
       },
       workflowIdMap: new Map(),
       folderIdMap: new Map(),
@@ -438,9 +440,15 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
       referencedDocumentIds: [],
     })
 
-    expect(mockUpsertEdgeMappings).toHaveBeenCalledWith(tx, 'edge-child', 'user-1', [
-      { resourceType: 'table', parentResourceId: 'tbl-unref', childResourceId: 'tbl-copy' },
-    ])
+    expect(mockPersistCopiedResourceMappings).toHaveBeenCalledWith({
+      executor: tx,
+      edgeChildWorkspaceId: 'edge-child',
+      userId: 'user-1',
+      sourceIsParent: true,
+      entries: [
+        { resourceType: 'table', parentResourceId: 'tbl-unref', childResourceId: 'tbl-copy' },
+      ],
+    })
   })
 
   it('threads the plan-provided referencedDocumentIds into both doc-copy paths (no in-tx re-scan)', async () => {
@@ -478,10 +486,17 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
         // The promote-built block-id resolver reaches the table remap unchanged, so copied
         // tables' workflow-group outputs use the persisted-pair ids, not the derive.
         resolveBlockId,
+        documentMappingContext: {
+          edgeChildWorkspaceId: 'edge-child',
+          sourceIsParent: true,
+        },
       })
     )
     expect(mockPlanForkMappedKbDocumentCopies).toHaveBeenCalledWith(
-      expect.objectContaining({ referencedDocumentIds: ['doc-1', 'doc-2'] })
+      expect.objectContaining({
+        referencedDocumentIds: ['doc-1', 'doc-2'],
+        now: expect.any(Date),
+      })
     )
   })
 })

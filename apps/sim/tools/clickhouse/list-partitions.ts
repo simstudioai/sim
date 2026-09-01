@@ -2,9 +2,9 @@ import type {
   ClickHouseListPartitionsParams,
   ClickHouseRowsResponse,
 } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listPartitionsTool: ToolConfig<
+export const listPartitionsTool: InternalToolConfig<
   ClickHouseListPartitionsParams,
   ClickHouseRowsResponse
 > = {
@@ -58,13 +58,8 @@ export const listPartitionsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/list-partitions',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

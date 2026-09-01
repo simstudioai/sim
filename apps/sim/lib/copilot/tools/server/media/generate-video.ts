@@ -1,17 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import {
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
 import { GenerateVideo } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/copilot/tools/server/model-input'
+import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { generateFalVideo } from '@/lib/media/falai-video'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
 const logger = createLogger('GenerateVideoTool')
 
@@ -62,11 +67,25 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       let imageDataUri: string | undefined
       const refPath = params.inputs?.files?.[0]?.path
       if (refPath) {
-        const fileRecord = await resolveWorkspaceFileReference(workspaceId, refPath)
-        if (!fileRecord) {
-          return { success: false, message: `Reference image not found: ${refPath}` }
-        }
-        const buffer = await fetchWorkspaceFileBuffer(fileRecord)
+        const fileRecord = await resolveCopilotWorkspaceFileReference(
+          context,
+          fileOperations.readContent,
+          {
+            workspaceId,
+            reference: refPath,
+          }
+        )
+        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
+        const { content: buffer } = await executeCopilotFileUseCase(
+          context,
+          readWorkspaceFileContent,
+          {
+            fileId: fileRecord.id,
+            assertedWorkspaceId: workspaceId,
+            maxBytes: MAX_MEDIA_BYTES,
+          },
+          { fileId: fileRecord.id }
+        )
         const mime = fileRecord.type || 'image/png'
         imageDataUri = `data:${mime};base64,${buffer.toString('base64')}`
       }
@@ -94,12 +113,21 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
-      const written = await writeWorkspaceFileByPath({
+      // The prompt is the only secret-bearing input; recording its provenance
+      // keeps the written file model-readable (see generate-image).
+      const promptProvenance = await createWorkspaceFileSecretProvenanceFromRegistry(
+        context.resolvedSecretTraceRegistry,
+        params.prompt,
+        { userId: context.userId, workspaceId }
+      )
+      const written = await writeCopilotWorkspaceFileByPath(context, {
         workspaceId,
-        userId: context.userId,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,
+        secretProvenance: promptProvenance.safe
+          ? promptProvenance.provenance
+          : { status: 'unknown' },
       })
 
       logger.info('Generated video saved', {

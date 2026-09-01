@@ -32,6 +32,17 @@ function removeEvent(type: 'workflow' | 'file', id: string): PersistedStreamEven
   } as PersistedStreamEventEnvelope
 }
 
+function browserUpsertEvent(id: string, title: string): PersistedStreamEventEnvelope {
+  return {
+    type: 'resource',
+    v: 1,
+    seq: 1,
+    ts: '',
+    stream: { streamId: 's', cursor: '1' },
+    payload: { op: 'upsert', resource: { type: 'browser', id, title } },
+  } as PersistedStreamEventEnvelope
+}
+
 describe('handleResourceEvent removal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -71,5 +82,26 @@ describe('handleResourceEvent removal', () => {
       'file',
       'file-1'
     )
+  })
+
+  it('normalizes a page-shaped browser event into the singleton Browser panel', () => {
+    const onResourceEvent = vi.fn()
+    const deps = makeStreamLoopDeps({
+      onResourceEventRef: { current: onResourceEvent },
+    })
+    const ctx = { deps } as StreamLoopContext
+
+    handleResourceEvent(
+      ctx,
+      browserUpsertEvent('browser-session:slack-tab', 'mship-todo (Channel) - sim - Slack')
+    )
+
+    expect(deps.addResource).toHaveBeenCalledWith({
+      type: 'browser',
+      id: 'browser-session',
+      title: 'Browser',
+    })
+    expect(deps.setActiveResourceId).not.toHaveBeenCalled()
+    expect(onResourceEvent).toHaveBeenCalledWith('browser-session')
   })
 })

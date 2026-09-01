@@ -1,21 +1,23 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
-  CreateFile,
-  DownloadToWorkspaceFile,
+  CreateEmptyFile,
+  DownloadFile,
   Ffmpeg,
   GenerateAudio,
   GenerateImage,
   GenerateVideo,
-  KnowledgeBase,
   ManageCredential,
   ManageCustomTool,
-  ManageMcpTool,
+  ManageKnowledgeBase,
+  ManageMcpConnection,
   ManageSkill,
+  PrepareFileEdit,
   UserTable,
-  WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import { copilotToolCanWrite } from '@/lib/copilot/tools/permissions'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -23,11 +25,12 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
-import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
+import { searchDocsServerTool } from '@/lib/copilot/tools/server/docs/search-docs'
 import { enrichmentRunServerTool } from '@/lib/copilot/tools/server/enrichment/enrichment-run'
 import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
 import { editContentServerTool } from '@/lib/copilot/tools/server/files/edit-content'
+import { extractDocAssetsServerTool } from '@/lib/copilot/tools/server/files/extract-doc-assets'
 import {
   createFileFolderServerTool,
   listFileFoldersServerTool,
@@ -40,7 +43,6 @@ import { shareFileServerTool } from '@/lib/copilot/tools/server/files/share-file
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
-import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { searchKnowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/search-knowledge-base'
 import { ffmpegServerTool } from '@/lib/copilot/tools/server/media/ffmpeg'
@@ -48,11 +50,18 @@ import { generateAudioServerTool } from '@/lib/copilot/tools/server/media/genera
 import { generateVideoServerTool } from '@/lib/copilot/tools/server/media/generate-video'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
 import { queryUserTableServerTool } from '@/lib/copilot/tools/server/table/query-user-table'
+import { tableAutomationsServerTool } from '@/lib/copilot/tools/server/table/table-automations'
+import { tableColumnsServerTool } from '@/lib/copilot/tools/server/table/table-columns'
+import { tableEnrichmentsServerTool } from '@/lib/copilot/tools/server/table/table-enrichments'
+import { tableManageServerTool } from '@/lib/copilot/tools/server/table/table-manage'
+import { tableRowsServerTool } from '@/lib/copilot/tools/server/table/table-rows'
+import { tableViewsServerTool } from '@/lib/copilot/tools/server/table/table-views'
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
@@ -73,17 +82,19 @@ const logger = createLogger('ServerToolRouter')
 const CUSTOM_BLOCK_OVERLAY_TOOLS = new Set(['edit_workflow', 'get_blocks_metadata'])
 
 /**
- * DISCOVERY tools that must run inside the viewer's block-visibility context so
- * gated (preview / kill-switched) blocks disappear from what the agent can
- * list. Deliberately a DIFFERENT set from {@link CUSTOM_BLOCK_OVERLAY_TOOLS}:
- * `edit_workflow` is excluded because its registry use is functional
- * (find-by-type over clones, never a discovery listing) and gating it would
- * only risk leaking display projections into persisted state.
+ * Discovery tools that consume the viewer's block-visibility context to hide
+ * gated blocks and credentials. `edit_workflow` establishes a narrower scope
+ * around operation validation after it resolves the workflow's actual
+ * workspace.
  */
-const VISIBILITY_GATED_TOOLS = new Set(['get_blocks_metadata', 'get_trigger_blocks'])
+const VISIBILITY_GATED_TOOLS = new Set([
+  'get_blocks_metadata',
+  'get_credentials',
+  'get_trigger_blocks',
+])
 
 const WRITE_ACTIONS: Record<string, string[]> = {
-  [KnowledgeBase.id]: [
+  [ManageKnowledgeBase.id]: [
     'create',
     'add_file',
     'update',
@@ -103,6 +114,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'create_from_file',
     'import_file',
     'delete',
+    'rename',
     'insert_row',
     'batch_insert_rows',
     'update_row',
@@ -115,32 +127,35 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'rename_column',
     'delete_column',
     'update_column',
+    'add_workflow_group',
+    'update_workflow_group',
+    'delete_workflow_group',
+    'add_workflow_group_output',
+    'delete_workflow_group_output',
+    'run_column',
+    'cancel_table_runs',
     'add_enrichment',
   ],
   [ManageCustomTool.id]: ['add', 'edit', 'delete'],
-  [ManageMcpTool.id]: ['add', 'edit', 'delete'],
+  [ManageMcpConnection.id]: ['add', 'edit', 'delete'],
   [ManageSkill.id]: ['add', 'edit', 'delete'],
   [ManageCredential.id]: ['rename', 'delete'],
-  [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
+  [PrepareFileEdit.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
   [editContentServerTool.name]: ['*'],
-  [CreateFile.id]: ['*'],
+  [CreateEmptyFile.id]: ['*'],
   rename_file: ['*'],
   [shareFileServerTool.name]: ['*'],
   move_file: ['*'],
   create_file_folder: ['*'],
   rename_file_folder: ['*'],
   move_file_folder: ['*'],
-  [DownloadToWorkspaceFile.id]: ['*'],
+  [DownloadFile.id]: ['*'],
   [GenerateImage.id]: ['generate'],
   [GenerateVideo.id]: ['generate'],
   [GenerateAudio.id]: ['generate'],
   [Ffmpeg.id]: ['*'],
   // Paid external-provider lookups (hosted-key cost), like the media tools.
   [enrichmentRunServerTool.name]: ['*'],
-}
-
-function isWritePermission(userPermission: string): boolean {
-  return userPermission === 'write' || userPermission === 'admin'
 }
 
 function isWriteAction(toolName: string, action: string | undefined): boolean {
@@ -157,8 +172,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
   [editWorkflowServerTool.name]: editWorkflowServerTool,
   [queryLogsServerTool.name]: queryLogsServerTool,
-  [getJobLogsServerTool.name]: getJobLogsServerTool,
-  [searchDocumentationServerTool.name]: searchDocumentationServerTool,
+  [searchDocsServerTool.name]: searchDocsServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,
   [getCredentialsServerTool.name]: getCredentialsServerTool,
@@ -167,6 +181,12 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [enrichmentRunServerTool.name]: enrichmentRunServerTool,
   [userTableServerTool.name]: userTableServerTool,
   [queryUserTableServerTool.name]: queryUserTableServerTool,
+  [tableManageServerTool.name]: tableManageServerTool,
+  [tableRowsServerTool.name]: tableRowsServerTool,
+  [tableColumnsServerTool.name]: tableColumnsServerTool,
+  [tableAutomationsServerTool.name]: tableAutomationsServerTool,
+  [tableEnrichmentsServerTool.name]: tableEnrichmentsServerTool,
+  [tableViewsServerTool.name]: tableViewsServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,
@@ -178,6 +198,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [renameFileFolderServerTool.name]: renameFileFolderServerTool,
   [moveFileFolderServerTool.name]: moveFileFolderServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
+  [extractDocAssetsServerTool.name]: extractDocAssetsServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
   [generateVideoServerTool.name]: generateVideoServerTool,
   [generateAudioServerTool.name]: generateAudioServerTool,
@@ -199,7 +220,7 @@ export async function routeExecution(
 ): Promise<unknown> {
   const tool = getServerToolRegistry()[toolName]
   if (!tool) {
-    throw new Error(`Unknown server tool: ${toolName}`)
+    throw new OrchestrationError('validation', `Unknown server tool: ${toolName}`)
   }
 
   logger.debug(
@@ -211,9 +232,12 @@ export async function routeExecution(
   if (WRITE_ACTIONS[toolName]) {
     const p = payload as Record<string, unknown>
     const action = (p?.operation ?? p?.action) as string | undefined
-    if (isWriteAction(toolName, action) && !isWritePermission(context?.userPermission ?? '')) {
+    if (isWriteAction(toolName, action) && !copilotToolCanWrite(context?.userPermission)) {
       const actionLabel = action ? `'${action}' on ` : ''
-      throw new Error(
+      // Classified so the projection surfaces it: a permission denial is
+      // caller-actionable (stop retrying, tell the user), not a system error.
+      throw new OrchestrationError(
+        'forbidden',
         `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context?.userPermission ?? 'none'}' permission.`
       )
     }
@@ -228,11 +252,7 @@ export async function routeExecution(
   // nested "args" object. Unwrap that before validation so the generated
   // JSON Schema sees the flat tool contract shape.
   let normalizedPayload = payload ?? {}
-  if (
-    normalizedPayload &&
-    typeof normalizedPayload === 'object' &&
-    !Array.isArray(normalizedPayload)
-  ) {
+  if (isRecordLike(normalizedPayload)) {
     const raw = normalizedPayload as Record<string, unknown>
     if (raw.args && typeof raw.args === 'object' && !raw.operation) {
       const nested = raw.args as Record<string, unknown>

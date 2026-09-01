@@ -1,19 +1,27 @@
+import { ToastProvider } from '@sim/emcn'
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { PublicEnvScript as RuntimePublicEnvScript } from 'next-runtime-env'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
+import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
-import { isHosted, isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/env-flags'
+import {
+  isChatEnabled,
+  isHosted,
+  isReactGrabEnabled,
+  isReactScanEnabled,
+} from '@/lib/core/config/env-flags'
+import { ConsentProvider } from '@/app/_shell/consent/consent-provider'
 import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
-import { PublicEnvScript } from '@/app/_shell/public-env-script'
+import { PublicEnvScript, publicEnvHtmlAttributes } from '@/app/_shell/public-env-script'
 import { season } from '@/app/_styles/fonts/season/season'
 
 export const viewport: Viewport = {
@@ -27,14 +35,27 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = generateBrandedMetadata()
 
-const GTM_ID = 'GTM-T7PHSRX5' as const
-const GA_ID = 'G-DR7YBE70VS' as const
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const themeCSS = generateThemeCSS()
+  const application = (
+    <ToastProvider>
+      <PasteAdmissionGuard />
+      <PostHogProvider consentRequired={isHosted}>
+        <ThemeProvider>
+          <QueryProvider>
+            <SessionProvider>
+              <TooltipProvider>
+                <BrandedLayout>{children}</BrandedLayout>
+              </TooltipProvider>
+            </SessionProvider>
+          </QueryProvider>
+        </ThemeProvider>
+      </PostHogProvider>
+    </ToastProvider>
+  )
 
   return (
-    <html lang='en' suppressHydrationWarning>
+    <html lang='en' suppressHydrationWarning {...publicEnvHtmlAttributes()}>
       <head>
         {isReactScanEnabled && (
           <Script
@@ -56,7 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             strategy='lazyOnload'
           />
         )}
-        {/* 
+        {/*
           Workspace layout dimensions: set CSS vars before hydration to avoid layout jump.
           
           IMPORTANT: These hardcoded values must stay in sync with stores/constants.ts
@@ -70,7 +91,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 // The macOS desktop shell overlays native traffic lights on the
                 // workspace. Mark it before first paint so the sidebar reserves
                 // its inset title-bar lane without a post-hydration layout shift.
-                var collapsedSidebarWidth = 51;
+                var collapsedSidebarWidth = 48;
                 try {
                   if (window.simDesktop && /Mac/i.test(navigator.userAgent)) {
                     document.documentElement.setAttribute('data-sim-desktop-title-bar', 'inset');
@@ -88,9 +109,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 }
 
                 // Sidebar width. Mirror clampSidebarWidth() in stores/sidebar/store.ts:
-                // the upper bound can never fall below the 248px minimum, so a narrow
+                // the upper bound can never fall below the 238px minimum, so a narrow
                 // window yields a width >= MIN instead of a sub-minimum sliver.
-                var defaultSidebarWidth = 248;
+                var defaultSidebarWidth = 238;
                 try {
                   // Collapse comes from the cookie (independent of localStorage
                   // parsing); the persisted width is read defensively below. Match the
@@ -116,10 +137,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   // collapsed, because the desktop hover-peek renders the sidebar at
                   // its restore width while --sidebar-width still reads collapsed.
                   var width = state && state.sidebarWidth;
-                  var maxSidebarWidth = Math.max(248, window.innerWidth * 0.3);
+                  var maxSidebarWidth = Math.max(238, window.innerWidth * 0.3);
                   var expandedWidth =
                     typeof width === 'number' && isFinite(width)
-                      ? Math.min(Math.max(width, 248), maxSidebarWidth)
+                      ? Math.min(Math.max(width, 238), maxSidebarWidth)
                       : defaultSidebarWidth;
                   document.documentElement.style.setProperty(
                     '--sidebar-expanded-width',
@@ -150,6 +171,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     }
 
                     var activeTab = panelState && panelState.activeTab;
+                    // A session that used the Chat tab before it was turned off still
+                    // has 'copilot' persisted; without this the CSS hides every tab
+                    // body and the panel paints empty.
+                    if (activeTab === 'copilot' && !${isChatEnabled}) {
+                      activeTab = 'toolbar';
+                    }
                     if (activeTab) {
                       document.documentElement.setAttribute('data-panel-active-tab', activeTab);
                     }
@@ -214,68 +241,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='format-detection' content='telephone=no' />
         <meta httpEquiv='x-ua-compatible' content='ie=edge' />
 
-        {/* Google Tag Manager — hosted only */}
-        {isHosted && (
-          <Script
-            id='gtm'
-            strategy='afterInteractive'
-            dangerouslySetInnerHTML={{
-              __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','${GTM_ID}');`,
-            }}
-          />
-        )}
-
-        {/* Google Analytics (gtag.js) — hosted only */}
-        {isHosted && (
-          <>
-            <Script
-              id='gtag-src'
-              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-              strategy='afterInteractive'
-            />
-            <Script
-              id='gtag-init'
-              strategy='afterInteractive'
-              dangerouslySetInnerHTML={{
-                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');`,
-              }}
-            />
-          </>
-        )}
-
-        {isHosted ? <PublicEnvScript /> : <RuntimePublicEnvScript />}
+        {isHosted ? <PublicEnvScript /> : <RuntimePublicEnvScript disableNextScript />}
       </head>
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
-        {/* Google Tag Manager (noscript) — hosted only */}
-        {isHosted && (
-          <noscript>
-            <iframe
-              src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
-              title='Google Tag Manager'
-              height='0'
-              width='0'
-              className='invisible hidden'
-            />
-          </noscript>
-        )}
         <HydrationErrorHandler />
         <DesktopUpdateGate />
         <NuqsAdapter>
-          <PostHogProvider>
-            <ThemeProvider>
-              <QueryProvider>
-                <SessionProvider>
-                  <TooltipProvider>
-                    <BrandedLayout>{children}</BrandedLayout>
-                  </TooltipProvider>
-                </SessionProvider>
-              </QueryProvider>
-            </ThemeProvider>
-          </PostHogProvider>
+          {isHosted ? <ConsentProvider>{application}</ConsentProvider> : application}
         </NuqsAdapter>
       </body>
     </html>

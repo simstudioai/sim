@@ -38,6 +38,7 @@ vi.mock('@/lib/messaging/email/validation', () => ({
 }))
 
 import {
+  countPendingSeatInvitations,
   getOrganizationSeatInfo,
   syncSeatsFromStripeQuantity,
   validateSeatAvailability,
@@ -115,6 +116,32 @@ describe('validateSeatAvailability', () => {
       maxSeats: 10,
       availableSeats: 7,
     })
+  })
+})
+
+describe('countPendingSeatInvitations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('excludes invitees who already belong to any organization by normalized email', async () => {
+    queueSelectResponses([[{ count: 1 }]])
+
+    await expect(countPendingSeatInvitations('org-1')).resolves.toBe(1)
+
+    const predicate = dbChainMockFns.where.mock.calls[0]?.[0] as {
+      conditions?: Array<{ toSQL?: () => { sql: string; params: unknown[] } }>
+    }
+    const existingMemberGuard = predicate.conditions?.find(
+      (condition) => typeof condition?.toSQL === 'function'
+    )
+    const rendered = existingMemberGuard?.toSQL?.()
+    expect(rendered?.sql.toLowerCase()).toContain('not exists')
+    expect(rendered?.sql.toLowerCase()).toContain('btrim')
+    // The member exclusion is deliberately cross-org, so its own SQL fragment
+    // must not carry the destination organization as a parameter.
+    expect(rendered?.params?.filter((param) => param === 'org-1')).toHaveLength(0)
   })
 })
 

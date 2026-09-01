@@ -11,6 +11,7 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const {
   runCopilotLifecycle,
@@ -24,7 +25,9 @@ const {
   appendEvent,
   cleanupAbortMarker,
   hasAbortMarker,
+  registerActiveStream,
   releasePendingChatStream,
+  unregisterActiveStream,
   fetchGo,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
@@ -38,7 +41,9 @@ const {
   appendEvent: vi.fn(),
   cleanupAbortMarker: vi.fn(),
   hasAbortMarker: vi.fn(),
+  registerActiveStream: vi.fn(),
   releasePendingChatStream: vi.fn(),
+  unregisterActiveStream: vi.fn(),
   fetchGo: vi.fn(),
 }))
 
@@ -76,8 +81,8 @@ vi.mock('@/lib/copilot/request/session', () => ({
   cleanupAbortMarker,
   hasAbortMarker,
   releasePendingChatStream,
-  registerActiveStream: vi.fn(),
-  unregisterActiveStream: vi.fn(),
+  registerActiveStream,
+  unregisterActiveStream,
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
   isExplicitStopReason: vi.fn().mockReturnValue(false),
   SSE_RESPONSE_HEADERS: {},
@@ -147,7 +152,6 @@ describe('createSSEStream terminal error handling', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isHosted: false })
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: false })
     fetchGo.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Test title' }), {
         status: 200,
@@ -323,6 +327,73 @@ describe('createSSEStream terminal error handling', () => {
 
     expect(lifecycleTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
   })
+
+  it('releases the stream registration and pollers when the session reset fails before the lifecycle starts', async () => {
+    resetBuffer.mockRejectedValue(new Error('redis down'))
+
+    const stream = createSSEStream({
+      requestPayload: { message: 'hello' },
+      userId: 'user-1',
+      streamId: 'stream-leak',
+      executionId: 'exec-leak',
+      runId: 'run-leak',
+      chatId: 'chat-leak',
+      currentChat: null,
+      isNewChat: false,
+      message: 'hello',
+      titleModel: 'gpt-5.4',
+      requestId: 'req-leak',
+      orchestrateOptions: {},
+    })
+
+    await expect(drainStream(stream)).rejects.toThrow('redis down')
+
+    expect(runCopilotLifecycle).not.toHaveBeenCalled()
+    expect(registerActiveStream).toHaveBeenCalledWith('stream-leak', expect.any(AbortController))
+    expect(unregisterActiveStream).toHaveBeenCalledWith('stream-leak')
+    expect(releasePendingChatStream).toHaveBeenCalledWith('chat-leak', 'stream-leak')
+  })
+
+  it('does not scan manually authored title input against unrelated active secrets', async () => {
+    runCopilotLifecycle.mockResolvedValue({
+      success: true,
+      content: 'OK',
+      contentBlocks: [],
+      toolCalls: [],
+    })
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'secret-value')
+
+    const stream = createSSEStream({
+      requestPayload: { message: 'hello secret-value' },
+      userId: 'user-1',
+      streamId: 'stream-title',
+      executionId: 'exec-title',
+      runId: 'run-title',
+      chatId: 'chat-title',
+      currentChat: null,
+      isNewChat: true,
+      message: 'hello secret-value',
+      titleModel: 'gpt-5.4',
+      requestId: 'req-title',
+      orchestrateOptions: {
+        executionContext: {
+          userId: 'user-1',
+          workflowId: 'workflow-1',
+          resolvedSecretTraceRegistry: registry,
+        },
+      },
+    })
+
+    await drainStream(stream)
+    await vi.waitFor(() => expect(fetchGo).toHaveBeenCalled())
+    const [, request] = fetchGo.mock.calls.at(-1) ?? []
+    expect(JSON.parse(request.body)).toEqual(
+      expect.objectContaining({ message: 'hello secret-value' })
+    )
+  })
 })
 
 describe('requestChatTitle billing protocol', () => {
@@ -334,7 +405,6 @@ describe('requestChatTitle billing protocol', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isHosted: true })
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
     fetchGo.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Billing Protocol' }), {
         status: 200,
@@ -367,18 +437,14 @@ describe('requestChatTitle billing protocol', () => {
     )
   })
 
-  it('sends explicit legacy-v0 during the Sim-first compatibility stage', async () => {
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: false })
-
-    await requestChatTitle({
-      message: 'explain billing',
-      model: 'claude-opus-4.8',
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
-
-    const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
-    expect(headers['x-sim-billing-protocol']).toBe('legacy-v0')
-    expect(headers['x-sim-billing-request-id']).toBeUndefined()
+  it('fails before hosted title egress without a billing workspace', async () => {
+    await expect(
+      requestChatTitle({
+        message: 'explain billing',
+        model: 'claude-opus-4.8',
+        userId: 'user-1',
+      })
+    ).resolves.toBeNull()
+    expect(fetchGo).not.toHaveBeenCalled()
   })
 })

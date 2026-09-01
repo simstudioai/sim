@@ -2,19 +2,40 @@ import { DropcontactIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { DropcontactResponse } from '@/tools/dropcontact/types'
 
+/** Whichever identifier the user supplied for the person being enriched. */
+const CONTACT_IDENTITY_FIELD = ['email', 'linkedin', 'full_name', 'first_name'] as const
+
+/** Whichever identifier the user supplied for the person's employer. */
+const CONTACT_COMPANY_FIELD = ['company', 'website'] as const
+
 export const DropcontactBlock: BlockConfig<DropcontactResponse> = {
   type: 'dropcontact',
   name: 'Dropcontact',
   description: 'Enrich B2B contacts with verified email, phone, and company data',
   longDescription:
     'Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.',
-  docsLink: 'https://docs.sim.ai/tools/dropcontact',
+  docsLink: 'https://docs.sim.ai/integrations/dropcontact',
   category: 'tools',
   bgColor: '#0ABA9F',
   iconColor: '#0ABA9F',
   icon: DropcontactIcon,
   authMode: AuthMode.ApiKey,
   integrationType: IntegrationType.Sales,
+  canvasPresentation: {
+    defaultTitle: 'Dropcontact',
+    sentences: {
+      byOperation: {
+        dropcontact_enrich_contact: [
+          {
+            text: 'Enrich contact',
+            field: CONTACT_IDENTITY_FIELD,
+            core: true,
+          },
+          { text: 'at', field: CONTACT_COMPANY_FIELD },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

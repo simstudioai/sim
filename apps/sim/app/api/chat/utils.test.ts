@@ -5,9 +5,11 @@
  */
 import {
   authMockFns,
+  createMockRequest,
   encryptionMock,
   encryptionMockFns,
   loggingSessionMock,
+  requestUtilsMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
 import type { NextResponse } from 'next/server'
@@ -98,12 +100,10 @@ describe('Chat API Utils', () => {
       } as any
 
       const result = await validateChatAuth('request-id', deployment, mockRequest)
-      expect(mockValidateAuthToken).toHaveBeenCalledWith(
-        'valid-token',
-        'chat-id',
-        'password',
-        'encrypted-password'
-      )
+      expect(mockValidateAuthToken).toHaveBeenCalledWith({
+        token: 'valid-token',
+        resource: deployment,
+      })
       expect(result.authorized).toBe(true)
     })
 
@@ -134,15 +134,19 @@ describe('Chat API Utils', () => {
         cookies: { set: vi.fn() },
       } as unknown as NextResponse
 
-      setChatAuthCookie(mockResponse, 'test-chat-id', 'password')
+      const deployment = {
+        id: 'test-chat-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+      setChatAuthCookie(mockResponse, deployment)
 
-      expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith(
-        mockResponse,
-        'chat',
-        'test-chat-id',
-        'password',
-        undefined
-      )
+      expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith({
+        response: mockResponse,
+        cookiePrefix: 'chat',
+        resource: deployment,
+        verifiedEmail: undefined,
+      })
     })
   })
 
@@ -208,6 +212,18 @@ describe('Chat API Utils', () => {
 
       const result = await validateChatAuth('request-id', deployment, mockRequest, parsedBody)
 
+      expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
+        1,
+        'chat-password:ip:chat-id:127.0.0.1',
+        expect.objectContaining({ maxTokens: 10 }),
+        { failClosed: true }
+      )
+      expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
+        2,
+        'chat-password:resource:chat-id',
+        expect.objectContaining({ maxTokens: 100 }),
+        { failClosed: true }
+      )
       expect(decryptSecret).toHaveBeenCalledWith('encrypted-password')
       expect(result.authorized).toBe(true)
     })
@@ -236,7 +252,7 @@ describe('Chat API Utils', () => {
       expect(result.error).toBe('Invalid password')
     })
 
-    it('should return 429 when the password attempt rate limit is exceeded', async () => {
+    it('should return 429 when the password IP rate limit is exceeded', async () => {
       mockCheckRateLimitDirect.mockResolvedValueOnce({ allowed: false, retryAfterMs: 60_000 })
 
       const deployment = {
@@ -260,6 +276,63 @@ describe('Chat API Utils', () => {
       expect(result.status).toBe(429)
       expect(result.retryAfterMs).toBe(60_000)
       expect(decryptSecret).not.toHaveBeenCalled()
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
+        'chat-password:ip:chat-id:127.0.0.1',
+        expect.objectContaining({ maxTokens: 10 }),
+        { failClosed: true }
+      )
+    })
+
+    it('should return 429 when the password resource rate limit is exceeded', async () => {
+      mockCheckRateLimitDirect
+        .mockResolvedValueOnce({ allowed: true })
+        .mockResolvedValueOnce({ allowed: false, retryAfterMs: 30_000 })
+
+      const deployment = {
+        id: 'chat-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+      const mockRequest = createMockRequest('POST')
+      const candidate = 'password-attempt-fixture'
+
+      const result = await validateChatAuth('request-id', deployment, mockRequest, {
+        password: candidate,
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({ authorized: false, status: 429, retryAfterMs: 30_000 })
+      )
+      expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
+        2,
+        'chat-password:resource:chat-id',
+        expect.objectContaining({ maxTokens: 100 }),
+        { failClosed: true }
+      )
+      expect(decryptSecret).not.toHaveBeenCalled()
+    })
+
+    it('should retain the password resource limit when the client IP cannot be resolved', async () => {
+      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
+      const deployment = {
+        id: 'chat-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+      const mockRequest = createMockRequest('POST')
+      const candidate = 'correct-password'
+
+      const result = await validateChatAuth('request-id', deployment, mockRequest, {
+        password: candidate,
+      })
+
+      expect(result.authorized).toBe(true)
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(1)
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
+        'chat-password:resource:chat-id',
+        expect.objectContaining({ maxTokens: 100 }),
+        { failClosed: true }
+      )
     })
 
     it('should request email auth for email-protected chats', async () => {

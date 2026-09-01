@@ -3,8 +3,8 @@
 import type React from 'react'
 import { memo } from 'react'
 import { Button } from '@sim/emcn'
+import { ChevronDown } from '@sim/emcn/icons'
 import clsx from 'clsx'
-import { ChevronDown } from 'lucide-react'
 
 export interface ToggleButtonProps {
   isExpanded: boolean
@@ -24,7 +24,7 @@ export const ToggleButton = memo(function ToggleButton({ isExpanded, onClick }: 
     >
       <ChevronDown
         className={clsx(
-          'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+          'size-[14px] flex-shrink-0 transition-transform duration-100',
           !isExpanded && 'rotate-180'
         )}
       />

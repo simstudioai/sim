@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/hostnames'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  keepPreviousData,
+  queryOptions,
   useMutation,
   useQueries,
   useQuery,
@@ -27,6 +27,10 @@ import {
   testMcpServerConnectionContract,
   updateMcpServerContract,
 } from '@/lib/api/contracts/mcp'
+import {
+  createRotatingEventSource,
+  type RotatingEventSourceConnection,
+} from '@/lib/events/rotating-event-source'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
 import type {
   McpAuthType,
@@ -40,17 +44,9 @@ import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 const logger = createLogger('McpQueries')
 
 export type { McpServerStatusConfig, McpTool, StoredMcpTool }
+export type { McpServer }
 
 export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
-/**
- * Tool discovery is kept fresh by the `list_changed` → SSE push (see `useMcpToolsEvents`),
- * so the query only needs a re-probe-on-visit fallback for servers without push. Matches the
- * server-side cache TTL (`MCP_CONSTANTS.CACHE_TIMEOUT`) — no reference MCP client re-probes
- * more often than its cache; real changes arrive via push regardless of this value.
- */
-export const MCP_SERVER_TOOLS_STALE_TIME = 5 * 60 * 1000
-export const MCP_STORED_TOOL_LIST_STALE_TIME = 60 * 1000
-export const MCP_ALLOWED_DOMAINS_STALE_TIME = 5 * 60 * 1000
 
 export const mcpKeys = {
   all: ['mcp'] as const,
@@ -66,7 +62,37 @@ export const mcpKeys = {
   allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,
 }
 
-export type { McpServer }
+async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
+  try {
+    const data = await requestJson(listMcpServersContract, {
+      query: { workspaceId },
+      signal,
+    })
+    return data.data.servers
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) return []
+    throw error
+  }
+}
+
+export function mcpServersQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: mcpKeys.serversList(workspaceId),
+    queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
+    retry: false,
+    retryOnMount: true,
+    staleTime: MCP_SERVER_LIST_STALE_TIME,
+  })
+}
+/**
+ * Tool discovery is kept fresh by the `list_changed` → SSE push (see `useMcpToolsEvents`),
+ * so the query only needs a re-probe-on-visit fallback for servers without push. Matches the
+ * server-side cache TTL (`MCP_CONSTANTS.CACHE_TIMEOUT`) — no reference MCP client re-probes
+ * more often than its cache; real changes arrive via push regardless of this value.
+ */
+export const MCP_SERVER_TOOLS_STALE_TIME = 5 * 60 * 1000
+export const MCP_STORED_TOOL_LIST_STALE_TIME = 60 * 1000
+export const MCP_ALLOWED_DOMAINS_STALE_TIME = 5 * 60 * 1000
 
 /** Wire shape for create/update; distinct from runtime McpServerConfig. */
 export interface McpServerInput {
@@ -81,29 +107,10 @@ export interface McpServerInput {
   authType?: McpAuthType
 }
 
-async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
-  try {
-    const data = await requestJson(listMcpServersContract, {
-      query: { workspaceId },
-      signal,
-    })
-    return data.data.servers
-  } catch (error) {
-    if (error instanceof ApiClientError && error.status === 404) {
-      return []
-    }
-    throw error
-  }
-}
-
 export function useMcpServers(workspaceId: string) {
   return useQuery({
-    queryKey: mcpKeys.serversList(workspaceId),
-    queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
+    ...mcpServersQueryOptions(workspaceId),
     enabled: !!workspaceId,
-    retry: false,
-    staleTime: MCP_SERVER_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -306,12 +313,21 @@ export function useCreateMcpServer() {
       return {
         ...safeServerData,
         id: serverId,
-        connectionStatus: authType === 'oauth' ? ('disconnected' as const) : ('connected' as const),
+        /** Mirrors what registration writes: no connection has been verified yet. */
+        connectionStatus: 'disconnected' as const,
         serverId,
         updated: wasUpdated,
         authType,
       }
     },
+    /**
+     * Both caches are dropped, so neither waits out its stale time — but the
+     * refetched row still reads `disconnected`, because the discovery that
+     * moves it runs on the tools query this same invalidation kicks off, after
+     * the list has already come back. The status catches up on the next list
+     * refetch; the tools do not wait for it, since
+     * {@link isServerEligibleForDiscovery} gates only OAuth rows on `connected`.
+     */
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
       queryClient.invalidateQueries({
@@ -516,11 +532,11 @@ async function fetchStoredMcpTools(
   return data.data.tools
 }
 
-export function useStoredMcpTools(workspaceId: string) {
+export function useStoredMcpTools(workspaceId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: mcpKeys.storedToolsList(workspaceId),
     queryFn: ({ signal }) => fetchStoredMcpTools(workspaceId, signal),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
     staleTime: MCP_STORED_TOOL_LIST_STALE_TIME,
   })
 }
@@ -532,7 +548,7 @@ export function useStoredMcpTools(workspaceId: string) {
  */
 const SSE_KEY = '__mcp_sse_connections' as const
 
-type SseEntry = { source: EventSource; refs: number }
+type SseEntry = { source: RotatingEventSourceConnection; refs: number }
 
 const sseConnections: Map<string, SseEntry> =
   ((globalThis as Record<string, unknown>)[SSE_KEY] as Map<string, SseEntry>) ??
@@ -567,38 +583,27 @@ export function useMcpToolsEvents(workspaceId: string) {
     let entry = sseConnections.get(workspaceId)
 
     if (!entry) {
-      const source = new EventSource(`/api/mcp/events?workspaceId=${workspaceId}`)
-
-      source.addEventListener('tools_changed', (e) => {
-        let serverId: string | undefined
-        try {
-          const parsed = JSON.parse((e as MessageEvent).data) as { serverId?: string }
-          serverId = parsed.serverId
-        } catch {
-          // Non-JSON payload → workspace-wide fallback.
-        }
-        invalidate(serverId)
-      })
-
-      // EventSource fires `onopen` on the initial connect and on every auto-reconnect. Re-sync
-      // the workspace whenever we could have missed a `tools_changed` event: on any reconnect,
-      // on the first open of a RE-subscription (leaving the tab tears the connection down), and
-      // on a first open that only succeeded after an earlier connection error (the initial tools
-      // query may have failed during that gap and won't retry itself). Skip only a clean first
-      // subscription — the queries fetch fresh on their own initial mount.
       const isResubscribe = sseEverSubscribed.has(workspaceId)
       sseEverSubscribed.add(workspaceId)
-      let opened = false
-      let erroredBeforeOpen = false
-      source.onopen = () => {
-        if (opened || isResubscribe || erroredBeforeOpen) invalidate()
-        opened = true
-      }
-
-      source.onerror = () => {
-        if (!opened) erroredBeforeOpen = true
-        logger.warn(`SSE connection error for workspace ${workspaceId}`)
-      }
+      const source = createRotatingEventSource({
+        url: `/api/mcp/events?workspaceId=${encodeURIComponent(workspaceId)}`,
+        events: {
+          tools_changed: (event) => {
+            let serverId: string | undefined
+            try {
+              const parsed = JSON.parse((event as MessageEvent).data) as { serverId?: string }
+              serverId = parsed.serverId
+            } catch {}
+            invalidate(serverId)
+          },
+        },
+        onOpen: (reason) => {
+          if (reason === 'reconnect' || (reason === 'initial' && isResubscribe)) invalidate()
+        },
+        onError: () => {
+          logger.warn(`SSE connection error for workspace ${workspaceId}`)
+        },
+      })
 
       entry = { source, refs: 0 }
       sseConnections.set(workspaceId, entry)
@@ -693,10 +698,11 @@ async function fetchAllowedMcpDomains(signal?: AbortSignal): Promise<string[] | 
   return data.allowedMcpDomains ?? null
 }
 
-export function useAllowedMcpDomains() {
-  return useQuery<string[] | null>({
+export function useAllowedMcpDomains(options?: { enabled?: boolean }) {
+  return useQuery({
     queryKey: mcpKeys.allowedDomains(),
     queryFn: ({ signal }) => fetchAllowedMcpDomains(signal),
+    enabled: options?.enabled ?? true,
     staleTime: MCP_ALLOWED_DOMAINS_STALE_TIME,
   })
 }

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import {
   type SecureFetchResponse,
   secureFetchWithPinnedIP,
@@ -153,13 +153,14 @@ export const emailBisonHandler: WebhookProviderHandler = {
     })
 
     const targetUrl = emailBisonUrl('/api/webhook-url', {}, apiBaseUrl)
-    const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl')
+    const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl', 'configuredEndpoint')
     if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`)
       throw new Error('Email Bison Instance URL could not be validated.')
     }
 
-    const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
+    const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP, {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
       body: JSON.stringify({
@@ -229,7 +230,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
         {},
         apiBaseUrl
       )
-      const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl')
+      const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl', 'configuredEndpoint')
       if (!urlValidation.isValid) {
         logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`, {
           webhookId: webhook.id,
@@ -239,7 +240,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
+      const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP, {
+        profile: 'configuredEndpoint',
         method: 'DELETE',
         headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
       })
@@ -323,10 +325,6 @@ function toNumberOrNull(value: unknown): number | null {
 
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
-}
-
-function toRecordOrNull(value: unknown): Record<string, unknown> | null {
-  return isRecordLike(value) ? value : null
 }
 
 function renameTypeField(value: unknown, targetKey: string): Record<string, unknown> | null {

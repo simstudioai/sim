@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceUploadAttachmentParams {
   accessToken: string
@@ -23,7 +23,7 @@ export interface ConfluenceUploadAttachmentResponse {
   }
 }
 
-export const confluenceUploadAttachmentTool: ToolConfig<
+export const confluenceUploadAttachmentTool: InternalToolConfig<
   ConfluenceUploadAttachmentParams,
   ConfluenceUploadAttachmentResponse
 > = {
@@ -77,23 +77,14 @@ export const confluenceUploadAttachmentTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    url: () => '/api/tools/confluence/upload-attachment',
-    method: 'POST',
-    headers: (params: ConfluenceUploadAttachmentParams) => {
-      return {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceUploadAttachmentParams) => {
+  operation: {
+    input: (params: ConfluenceUploadAttachmentParams) => {
       return {
         domain: params.domain,
         accessToken: params.accessToken,

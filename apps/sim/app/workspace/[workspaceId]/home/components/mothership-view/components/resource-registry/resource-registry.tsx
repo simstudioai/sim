@@ -1,14 +1,13 @@
 'use client'
 
 import type { ElementType, ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn'
 import {
-  Calendar,
   Connections,
-  Cursor,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
+  Globe,
   Library,
   Table as TableIcon,
   Task,
@@ -21,10 +20,10 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
+import { getDisplayStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
+import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
-import { scheduleKeys } from '@/hooks/queries/schedules'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
@@ -42,19 +41,26 @@ export interface ResourceTypeConfig {
   icon: ElementType
   renderTabIcon: (resource: MothershipResource, className: string) => ReactNode
   renderDropdownItem: (props: DropdownItemRenderProps) => ReactNode
+  /**
+   * How many of this family's candidates an unfiltered `@` list shows, overriding
+   * {@link MENTION_PREVIEW_DEFAULT_LIMIT}. Raise it only for a family whose rows a
+   * user browses; the unfiltered list is a preview, not a browser, and typing a
+   * query lifts the cap entirely — see `buildMentionPreview`.
+   */
+  mentionPreviewLimit?: number
 }
 
 function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate'>{item.name}</span>
+      <OverflowText label={item.name} />
     </>
   )
 }
 
 function DefaultDropdownItem({ item }: DropdownItemRenderProps) {
-  return <span className='truncate'>{item.name}</span>
+  return <OverflowText label={item.name} />
 }
 
 function FileDropdownItem({ item }: DropdownItemRenderProps) {
@@ -62,7 +68,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <DocIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate'>{item.name}</span>
+      <OverflowText label={item.name} />
     </>
   )
 }
@@ -71,7 +77,7 @@ function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon
   return (
     <>
       <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate'>{item.name}</span>
+      <OverflowText label={item.name} />
     </>
   )
 }
@@ -84,27 +90,46 @@ function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon
  */
 function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
   const Icon = item.iconComponent as StyleableIcon | undefined
-  if (!Icon) return <span className='truncate'>{item.name}</span>
+  if (!Icon) return <OverflowText label={item.name} />
   return (
     <>
-      <Icon
-        className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
-        style={getBareIconStyle(Icon)}
-      />
-      <span className='truncate'>{item.name}</span>
+      <BrandIcon icon={Icon} className='size-[14px] flex-shrink-0' />
+      <OverflowText label={item.name} />
     </>
   )
 }
 
+/**
+ * A run, not the workflow it ran — the Logs icon is what says so, and it is the
+ * same one the sidebar, the search palette, and the resulting chip already use.
+ *
+ * A run that did not simply succeed carries the same dot `Badge` draws at `sm`,
+ * so a status reads identically here and on the logs page. Marking every row
+ * would mark nothing, so a plain success gets none.
+ */
 function LogDropdownItem({ item }: DropdownItemRenderProps) {
   const workflowName = (item.workflowName as string) ?? item.name
   const time = (item.time as string) ?? ''
+  const status = getDisplayStatus(item.status as string | null | undefined)
+  const statusColor = status === 'info' ? null : STATUS_CONFIG[status].color
   return (
     <>
-      <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate'>{workflowName}</span>
+      <Library className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <OverflowText label={workflowName} />
+      {statusColor && (
+        <div
+          aria-hidden
+          className='ml-auto size-[5px] flex-shrink-0 rounded-xs'
+          style={{ backgroundColor: statusColor }}
+        />
+      )}
       {time && (
-        <span className='ml-auto flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
+        <span
+          className={cn(
+            'flex-shrink-0 text-[var(--text-tertiary)] text-caption',
+            !statusColor && 'ml-auto'
+          )}
+        >
           {time}
         </span>
       )}
@@ -186,15 +211,6 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
   },
-  scheduledtask: {
-    type: 'scheduledtask',
-    label: 'Scheduled Tasks',
-    icon: Calendar,
-    renderTabIcon: (_resource, className) => (
-      <Calendar className={cn(className, 'text-[var(--text-icon)]')} />
-    ),
-    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Calendar} />,
-  },
   log: {
     type: 'log',
     label: 'Logs',
@@ -216,11 +232,11 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   browser: {
     type: 'browser',
     label: 'Browser',
-    icon: Cursor,
+    icon: Globe,
     renderTabIcon: (_resource, className) => (
-      <Cursor className={cn(className, 'text-[var(--text-icon)]')} />
+      <Globe className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Cursor} />,
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Globe} />,
   },
   terminal: {
     type: 'terminal',
@@ -233,7 +249,43 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   },
 } as const
 
-export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
+/**
+ * Rows per family in the unfiltered `@` preview, unless the family overrides it
+ * with {@link ResourceTypeConfig.mentionPreviewLimit}. Enough to show what a family
+ * holds without any one of them crowding out the rest.
+ */
+export const MENTION_PREVIEW_DEFAULT_LIMIT = 5
+
+/**
+ * Top-down order for every menu that lists resource families, mirroring the
+ * workspace sidebar so a user reads the same sequence in both places. The two
+ * desktop-only panels trail the workspace resources, matching where they surface
+ * in the app. `folder`/`filefolder` never render as their own entry — they feed
+ * their family's folder tree — but are ordered beside it so a menu that ever does
+ * surface them lands in the right place.
+ */
+export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
+  'integration',
+  'task',
+  'table',
+  'file',
+  'filefolder',
+  'knowledgebase',
+  'workflow',
+  'log',
+  'folder',
+  'browser',
+  'terminal',
+  'generic',
+]
+
+/** Sorts anything keyed by resource type into {@link RESOURCE_MENU_ORDER}. */
+export function byResourceMenuOrder<T extends { type: MothershipResourceType }>(
+  a: T,
+  b: T
+): number {
+  return RESOURCE_MENU_ORDER.indexOf(a.type) - RESOURCE_MENU_ORDER.indexOf(b.type)
+}
 
 export function getResourceConfig(type: MothershipResourceType): ResourceTypeConfig {
   return RESOURCE_REGISTRY[type]
@@ -273,16 +325,13 @@ const RESOURCE_INVALIDATORS: Record<
   task: (qc, wId) => {
     qc.invalidateQueries({ queryKey: mothershipChatKeys.list(wId) })
   },
-  scheduledtask: (qc, wId) => {
-    qc.invalidateQueries({ queryKey: scheduleKeys.list(wId) })
-  },
   log: (qc, wId, id) => {
     qc.invalidateQueries({ queryKey: logKeys.details() })
     qc.invalidateQueries({ queryKey: logKeys.detail(wId, id) })
   },
   /**
    * Integrations are sourced from the static integration catalog
-   * (`listIntegrations()`), not a server-backed query, so there is nothing to
+   * (`listIntegrationsByPopularity()`), not a server-backed query, so there is nothing to
    * invalidate when one is added.
    */
   integration: () => {},

@@ -1,8 +1,14 @@
 import type { JiraWriteParams, JiraWriteResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
+interface JiraWriteOperationEnvelope {
+  success?: boolean
+  output?: Partial<JiraWriteResponse['output']>
+  error?: string
+}
+
+export const jiraWriteTool: InternalToolConfig<JiraWriteParams, JiraWriteResponse> = {
   id: 'jira_write',
   name: 'Jira Write',
   description: 'Create a new Jira issue',
@@ -126,13 +132,8 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/jira/write',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       return {
         domain: params.domain,
         accessToken: params.accessToken,
@@ -175,12 +176,12 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       }
     }
 
-    let data: any
+    let data: JiraWriteOperationEnvelope
     try {
-      data = JSON.parse(responseText)
+      data = JSON.parse(responseText) as JiraWriteOperationEnvelope
     } catch {
       throw new Error(
-        `Jira write failed (${response.status} ${response.statusText}): non-JSON response from /api/tools/jira/write`
+        `Jira write failed (${response.status} ${response.statusText}): non-JSON response from Jira operation`
       )
     }
 

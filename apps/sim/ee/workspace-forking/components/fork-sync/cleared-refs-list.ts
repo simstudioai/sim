@@ -58,29 +58,50 @@ export function splitForkClearedRefs(visibleRefs: ForkClearedRef[]): {
   return { blockers, informational }
 }
 
-/** Human label per blocker kind for the resolution copy (singular, lowercase mid-sentence). */
-const BLOCKER_KIND_LABEL: Record<string, string> = {
+/**
+ * Human label per remap kind for the resolution copy (singular, lowercase mid-sentence). Shared
+ * with the Mappings section's source-deleted note so both phrase the same resolution identically.
+ * `credential` is reachable only from a mapping entry - credentials gate through the required
+ * check, never through the cleared-ref blockers.
+ */
+export const FORK_RESOURCE_KIND_LABEL: Record<string, string> = {
   table: 'table',
   'knowledge-base': 'knowledge base',
   file: 'file',
   'custom-tool': 'custom tool',
+  'custom-block': 'custom block',
   skill: 'skill',
   'mcp-server': 'MCP server',
+  credential: 'credential',
 }
 
 /**
  * The actionable resolution line for a blocking entry, phrased for "{block} would lose {field}
  * in {workflow} - {resolution}". Null for non-blocking (dependent) entries.
+ *
+ * `targetWorkspaceName` is required rather than defaulted: the source-deleted line phrases the
+ * same resolution as the mapping row's own hint, and naming the workspace is the only way either
+ * says WHICH side the sync writes. A default would let "the target" quietly return.
  */
-export function forkBlockerResolution(ref: ForkClearedRef): string | null {
+export function forkBlockerResolution(
+  ref: ForkClearedRef,
+  targetWorkspaceName: string
+): string | null {
   const reason = forkSyncBlockerReasonFor(ref)
   if (!reason) return null
   switch (reason) {
+    // "a target" here is the target RESOURCE picked in the mapping row, not the workspace -
+    // it matches the picker's own "Select target" label, so it stays unnamed.
     case 'unmapped-copyable':
       return 'map it to a target or select it for copy'
     case 'source-deleted':
-      return `deleted in the source — map it to an existing ${BLOCKER_KIND_LABEL[ref.kind] ?? 'resource'} in the target`
+      return `deleted in the source — map it to an existing ${FORK_RESOURCE_KIND_LABEL[ref.kind] ?? 'resource'} in ${targetWorkspaceName}`
     case 'workflow-missing':
       return `deploy "${ref.sourceLabel}" in the source or remove the reference`
+    // Phrased as a consequence, not a loss: an unmapped custom block does not empty a field,
+    // it keeps invoking the SOURCE environment's block. The row renders this as the whole
+    // clause after the block name (no "would lose" lead-in), so it reads as a sentence.
+    case 'unmapped-custom-block':
+      return `still runs the source's block — map it to a custom block published in ${targetWorkspaceName}`
   }
 }

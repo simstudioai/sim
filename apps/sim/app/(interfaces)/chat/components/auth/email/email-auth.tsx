@@ -35,7 +35,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
   const [email, setEmail] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
   const [emailErrors, setEmailErrors] = useState<string[]>([])
-  const [showEmailValidationError, setShowEmailValidationError] = useState(false)
+  const hasEmailError = emailErrors.length > 0
 
   const [showOtpVerification, setShowOtpVerification] = useState(false)
   const [otpValue, setOtpValue] = useState('')
@@ -53,15 +53,12 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value
     setEmail(newEmail)
-    const errors = validateEmailField(newEmail)
-    setEmailErrors(errors)
-    setShowEmailValidationError(false)
+    setEmailErrors([])
   }
 
   const handleSendOtp = async () => {
     const emailValidationErrors = validateEmailField(email)
     setEmailErrors(emailValidationErrors)
-    setShowEmailValidationError(emailValidationErrors.length > 0)
 
     if (emailValidationErrors.length > 0) {
       return
@@ -75,7 +72,6 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
     } catch (error) {
       logger.error('Error sending OTP:', error)
       setEmailErrors([toError(error).message || 'Failed to send verification code'])
-      setShowEmailValidationError(true)
     }
   }
 
@@ -149,12 +145,10 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                     value={email}
                     onChange={handleEmailChange}
                     className={cn(
-                      showEmailValidationError &&
-                        emailErrors.length > 0 &&
-                        'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                      hasEmailError && 'border-[var(--text-error)] focus:border-[var(--text-error)]'
                     )}
                   />
-                  {showEmailValidationError && emailErrors.length > 0 && (
+                  {hasEmailError && (
                     <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
                       {emailErrors.map((error) => (
                         <p key={error}>{error}</p>
@@ -223,8 +217,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                     Didn't receive a code?{' '}
                     {countdown > 0 ? (
                       <span>
-                        Resend in{' '}
-                        <span className='font-medium text-[var(--text-primary)]'>{countdown}s</span>
+                        Resend in <span className='text-[var(--text-primary)]'>{countdown}s</span>
                       </span>
                     ) : (
                       <button

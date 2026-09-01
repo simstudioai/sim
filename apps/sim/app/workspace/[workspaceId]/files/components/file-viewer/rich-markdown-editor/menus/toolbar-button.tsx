@@ -1,8 +1,9 @@
+import type { ComponentType, SVGProps } from 'react'
 import { cn, Tooltip } from '@sim/emcn'
-import type { LucideIcon } from 'lucide-react'
 
 interface ToolbarButtonProps {
-  icon: LucideIcon
+  /** Any SVG icon component, e.g. from `@sim/emcn/icons`. */
+  icon: ComponentType<SVGProps<SVGSVGElement>>
   label: string
   shortcut?: string
   isActive?: boolean

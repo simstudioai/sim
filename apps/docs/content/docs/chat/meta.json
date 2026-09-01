@@ -1,0 +1,4 @@
+{
+  "title": "Chat",
+  "pages": ["index", "workflows", "research", "files", "tables", "tasks", "knowledge", "mailer"]
+}

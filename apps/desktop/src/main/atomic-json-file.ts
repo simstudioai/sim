@@ -1,9 +1,70 @@
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
-import { mkdir, rename, unlink, writeFile } from 'node:fs/promises'
+import {
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
+import { mkdir, open, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 /** Owner-only, matching every store that keeps user data in userData. */
 const FILE_MODE = 0o600
+
+export class FileResourceLimitError extends Error {
+  constructor() {
+    super('File exceeded the configured size limit')
+    this.name = 'FileResourceLimitError'
+  }
+}
+
+function validateReadableFile(isFile: boolean, size: number, maxBytes: number): void {
+  if (!isFile || !Number.isSafeInteger(size) || size < 0 || size > maxBytes) {
+    throw new FileResourceLimitError()
+  }
+}
+
+/** Reads at most the size observed on the opened file handle, plus one growth-detection byte. */
+export async function readFileWithinLimit(filePath: string, maxBytes: number): Promise<Buffer> {
+  const handle = await open(filePath, 'r')
+  try {
+    const metadata = await handle.stat()
+    validateReadableFile(metadata.isFile(), metadata.size, maxBytes)
+    const buffer = Buffer.allocUnsafe(metadata.size + 1)
+    let offset = 0
+    while (offset < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, offset)
+      if (bytesRead === 0) break
+      offset += bytesRead
+    }
+    if (offset > metadata.size) throw new FileResourceLimitError()
+    return buffer.subarray(0, offset)
+  } finally {
+    await handle.close()
+  }
+}
+
+/** Synchronous counterpart for Electron shutdown and startup paths that cannot await. */
+export function readFileWithinLimitSync(filePath: string, maxBytes: number): Buffer {
+  const descriptor = openSync(filePath, 'r')
+  try {
+    const metadata = fstatSync(descriptor)
+    validateReadableFile(metadata.isFile(), metadata.size, maxBytes)
+    const buffer = Buffer.allocUnsafe(metadata.size + 1)
+    let offset = 0
+    while (offset < buffer.length) {
+      const bytesRead = readSync(descriptor, buffer, offset, buffer.length - offset, offset)
+      if (bytesRead === 0) break
+      offset += bytesRead
+    }
+    if (offset > metadata.size) throw new FileResourceLimitError()
+    return buffer.subarray(0, offset)
+  } finally {
+    closeSync(descriptor)
+  }
+}
 
 /**
  * Distinct per call, not just per process.

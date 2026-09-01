@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { COVER_OG_SIZE, createCoverOgImage } from '@/lib/og/cover-image'
 import {
   ALL_CATALOG_MODELS,
   formatPrice,
@@ -6,13 +7,9 @@ import {
   getModelBySlug,
   getProviderBySlug,
 } from '@/app/(landing)/models/utils'
-import { createLandingOgImage } from '@/app/(landing)/og-utils'
 
 export const contentType = 'image/png'
-export const size = {
-  width: 1200,
-  height: 630,
-}
+export const size = COVER_OG_SIZE
 
 /**
  * The sibling page.tsx sets `dynamicParams = false`, a segment-level
@@ -41,16 +38,8 @@ export default async function Image({
     notFound()
   }
 
-  return createLandingOgImage({
-    eyebrow: `${provider.name} model`,
+  return createCoverOgImage({
     title: model.displayName,
-    subtitle: `${provider.name} pricing, context window, and feature support generated from Sim's model registry.`,
-    pills: [
-      `Input ${formatPrice(model.pricing.input)}/1M`,
-      `Output ${formatPrice(model.pricing.output)}/1M`,
-      model.contextWindow ? `${formatTokenCount(model.contextWindow)} context` : 'Unknown context',
-      model.capabilityTags[0] ?? 'Capabilities tracked',
-    ],
-    domainLabel: `sim.ai${model.href}`,
+    subtitle: `${provider.name} · ${formatPrice(model.pricing.input)}/1M in, ${formatPrice(model.pricing.output)}/1M out, ${formatTokenCount(model.contextWindow)} context — from Sim's model registry.`,
   })
 }

@@ -15,6 +15,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   MockMcpClient,
   mockCallTool,
+  mockListTools,
   mockConnect,
   mockDisconnect,
   mockAcquire,
@@ -24,12 +25,24 @@ const {
   poolClient,
 } = vi.hoisted(() => {
   const mockCallTool = vi.fn()
+  const mockListTools = vi.fn()
   const mockConnect = vi.fn()
   const mockDisconnect = vi.fn()
   const mockRelease = vi.fn(async () => {})
-  const poolClient = { callTool: mockCallTool, disconnect: vi.fn() }
+  const poolClient = {
+    callTool: mockCallTool,
+    listTools: mockListTools,
+    disconnect: vi.fn(),
+    getResolvedSecretTraceProvenance: vi.fn(() => ({
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+      scope: { userId: 'user-1', workspaceId: 'ws-1' },
+    })),
+  }
   return {
     mockCallTool,
+    mockListTools,
     mockConnect,
     mockDisconnect,
     mockRelease,
@@ -50,9 +63,10 @@ const {
             connect: mockConnect,
             disconnect: mockDisconnect,
             callTool: mockCallTool,
-            listTools: vi.fn(async () => []),
+            listTools: mockListTools,
             hasListChangedCapability: vi.fn(() => false),
             onClose: vi.fn(),
+            getResolvedSecretTraceProvenance: poolClient.getResolvedSecretTraceProvenance,
           })
         }
       }
@@ -87,6 +101,9 @@ const SERVER_ROW = {
 }
 
 vi.mock('@/lib/mcp/domain-check', () => ({
+  MCP_EGRESS_PROFILE: 'selfHostedService',
+  OAUTH_EGRESS_PROFILE: 'contentFetch',
+  McpSsrfError: class McpSsrfError extends Error {},
   isMcpDomainAllowed: () => true,
   validateMcpDomain: () => {},
   validateMcpServerSsrf: async () => '203.0.113.10',
@@ -117,6 +134,7 @@ describe('McpService connection reuse wiring', () => {
     mockResolveEnvVars.mockImplementation(async (config: unknown) => ({ config }))
     mockAcquire.mockResolvedValue({ client: poolClient, release: mockRelease })
     mockCallTool.mockResolvedValue({ content: [] })
+    mockListTools.mockResolvedValue([])
   })
 
   afterAll(() => {
@@ -135,6 +153,161 @@ describe('McpService connection reuse wiring', () => {
     expect(poolClient.disconnect).not.toHaveBeenCalled()
     // A pool hit must not re-resolve env vars (acquire never invoked `create`).
     expect(mockResolveEnvVars).not.toHaveBeenCalled()
+  })
+
+  it('emits the pooled connection provenance on every invocation', async () => {
+    const onProvenance = vi.fn()
+
+    await mcpService.executeTool(
+      USER_ID,
+      'server-1',
+      { name: 'first', arguments: {} },
+      WORKSPACE_ID,
+      undefined,
+      onProvenance
+    )
+    await mcpService.executeTool(
+      USER_ID,
+      'server-1',
+      { name: 'second', arguments: {} },
+      WORKSPACE_ID,
+      undefined,
+      onProvenance
+    )
+
+    expect(onProvenance).toHaveBeenCalledTimes(2)
+    expect(onProvenance).toHaveBeenNthCalledWith(1, {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+      scope: { userId: USER_ID, workspaceId: WORKSPACE_ID },
+    })
+    expect(onProvenance).toHaveBeenNthCalledWith(2, {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+      scope: { userId: USER_ID, workspaceId: WORKSPACE_ID },
+    })
+  })
+
+  it('emits cold-connection provenance once even though the connected client retains it', async () => {
+    const onProvenance = vi.fn()
+    const provenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+      scope: { userId: USER_ID, workspaceId: WORKSPACE_ID },
+    }
+    mockResolveEnvVars.mockImplementationOnce(
+      async (
+        config: unknown,
+        _userId: unknown,
+        _workspaceId: unknown,
+        options: {
+          onResolvedSecretTraceProvenance?: (value: typeof provenance) => void
+        }
+      ) => {
+        options.onResolvedSecretTraceProvenance?.(provenance)
+        return { config, resolvedSecretTraceProvenance: provenance }
+      }
+    )
+    mockAcquire.mockImplementationOnce(
+      async ({ create }: { create: () => Promise<typeof poolClient> }) => ({
+        client: await create(),
+        release: mockRelease,
+      })
+    )
+
+    await mcpService.executeTool(
+      USER_ID,
+      'server-1',
+      { name: 'do', arguments: {} },
+      WORKSPACE_ID,
+      undefined,
+      onProvenance
+    )
+
+    expect(mockResolveEnvVars).toHaveBeenCalledTimes(1)
+    expect(onProvenance).toHaveBeenCalledTimes(1)
+    expect(onProvenance).toHaveBeenCalledWith(provenance)
+  })
+
+  it('emits cold-connection provenance for tools/list', async () => {
+    const onProvenance = vi.fn()
+    const provenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+      scope: { userId: USER_ID, workspaceId: WORKSPACE_ID },
+    }
+    mockResolveEnvVars.mockImplementationOnce(
+      async (
+        config: unknown,
+        _userId: unknown,
+        _workspaceId: unknown,
+        options: {
+          onResolvedSecretTraceProvenance?: (value: typeof provenance) => void
+        }
+      ) => {
+        options.onResolvedSecretTraceProvenance?.(provenance)
+        return { config, resolvedSecretTraceProvenance: provenance }
+      }
+    )
+    mockAcquire.mockImplementationOnce(
+      async ({ create }: { create: () => Promise<typeof poolClient> }) => ({
+        client: await create(),
+        release: mockRelease,
+      })
+    )
+
+    await mcpService.discoverServerTools(USER_ID, 'server-1', WORKSPACE_ID, true, onProvenance)
+
+    expect(mockResolveEnvVars).toHaveBeenCalledTimes(1)
+    expect(mockListTools).toHaveBeenCalledTimes(1)
+    expect(onProvenance).toHaveBeenCalledTimes(1)
+    expect(onProvenance).toHaveBeenCalledWith(provenance)
+  })
+
+  it('emits retained provenance on every warm-pool tools/list invocation', async () => {
+    const onProvenance = vi.fn()
+
+    await mcpService.discoverServerTools(USER_ID, 'server-1', WORKSPACE_ID, true, onProvenance)
+    await mcpService.discoverServerTools(USER_ID, 'server-1', WORKSPACE_ID, true, onProvenance)
+
+    expect(mockResolveEnvVars).not.toHaveBeenCalled()
+    expect(mockListTools).toHaveBeenCalledTimes(2)
+    expect(onProvenance).toHaveBeenCalledTimes(2)
+    expect(onProvenance).toHaveBeenNthCalledWith(1, {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+      scope: { userId: USER_ID, workspaceId: WORKSPACE_ID },
+    })
+    expect(onProvenance).toHaveBeenNthCalledWith(2, {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token' }],
+      scope: { userId: USER_ID, workspaceId: WORKSPACE_ID },
+    })
+  })
+
+  it('reports incomplete provenance when a pooled tools/list client has no retained report', async () => {
+    const onProvenance = vi.fn()
+    const legacyClient = {
+      ...poolClient,
+      getResolvedSecretTraceProvenance: undefined,
+    }
+    mockAcquire.mockResolvedValueOnce({ client: legacyClient, release: mockRelease })
+
+    await mcpService.discoverServerTools(USER_ID, 'server-1', WORKSPACE_ID, true, onProvenance)
+
+    expect(mockListTools).toHaveBeenCalledTimes(1)
+    expect(onProvenance).toHaveBeenCalledWith({
+      version: 1,
+      complete: false,
+      entries: [],
+      scope: { userId: USER_ID, workspaceId: WORKSPACE_ID },
+    })
   })
 
   it('bypasses the pool for calls carrying per-request headers', async () => {
@@ -225,5 +398,49 @@ describe('McpService connection reuse wiring', () => {
     // First attempt poisoned the stale lease; the retry re-acquired a fresh one.
     expect(mockRelease).toHaveBeenCalledWith(true, false)
     expect(mockAcquire).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports both retained and rotated provenance when an auth retry rebuilds the client', async () => {
+    const staleProvenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token-v1' }],
+      scope: { userId: USER_ID, workspaceId: WORKSPACE_ID },
+    }
+    const rotatedProvenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'MCP_TOKEN', encryptedValue: 'encrypted-token-v2' }],
+      scope: { userId: USER_ID, workspaceId: WORKSPACE_ID },
+    }
+    const staleClient = {
+      ...poolClient,
+      getResolvedSecretTraceProvenance: vi.fn(() => staleProvenance),
+    }
+    const rotatedClient = {
+      ...poolClient,
+      getResolvedSecretTraceProvenance: vi.fn(() => rotatedProvenance),
+    }
+    mockAcquire
+      .mockResolvedValueOnce({ client: staleClient, release: mockRelease })
+      .mockResolvedValueOnce({ client: rotatedClient, release: mockRelease })
+    mockCallTool
+      .mockRejectedValueOnce(new UnauthorizedError('stale key'))
+      .mockResolvedValueOnce({ content: [] })
+    const onProvenance = vi.fn()
+
+    await mcpService.executeTool(
+      USER_ID,
+      'server-1',
+      { name: 'do', arguments: {} },
+      WORKSPACE_ID,
+      undefined,
+      onProvenance
+    )
+
+    expect(onProvenance.mock.calls.map(([provenance]) => provenance)).toEqual([
+      staleProvenance,
+      rotatedProvenance,
+    ])
   })
 })

@@ -2,8 +2,51 @@ import { describe, expect, it } from 'vitest'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
 
 describe('workflowExecutorTool', () => {
-  describe('request.body', () => {
-    const buildBody = workflowExecutorTool.request.body!
+  describe('operation.secretProvenance', () => {
+    const selectProvenance = workflowExecutorTool.operation.secretProvenance?.request
+
+    it('owns its fail-closed response provenance policy in the tool config', () => {
+      expect(workflowExecutorTool.operation.secretProvenance?.response).toEqual({
+        incomplete: 'reject',
+      })
+    })
+
+    it.each([
+      {
+        name: 'object input',
+        inputMapping: { token: 'secret-value' },
+        expected: { token: 'secret-value' },
+      },
+      {
+        name: 'JSON input',
+        inputMapping: '{"token":"secret-value"}',
+        expected: { token: 'secret-value' },
+      },
+      {
+        name: 'invalid JSON input',
+        inputMapping: 'not valid JSON',
+        expected: {},
+      },
+      {
+        name: 'missing input',
+        inputMapping: undefined,
+        expected: {},
+      },
+    ])(
+      'selects the inputMapping root and preserves $name body normalization',
+      ({ inputMapping, expected }) => {
+        const params = { workflowId: 'test-workflow-id', inputMapping }
+
+        expect(selectProvenance?.(params)).toEqual([
+          { key: 'input', inputPaths: [['inputMapping']] },
+        ])
+        expect(workflowExecutorTool.operation.input(params)).toMatchObject({ input: expected })
+      }
+    )
+  })
+
+  describe('operation.input', () => {
+    const buildBody = workflowExecutorTool.operation.input
 
     it.concurrent('should pass through object inputMapping unchanged (LLM-provided args)', () => {
       const params = {
@@ -266,15 +309,6 @@ describe('workflowExecutorTool', () => {
     })
   })
 
-  describe('request.url', () => {
-    it.concurrent('should build correct URL with workflowId', () => {
-      const url = workflowExecutorTool.request.url as (params: any) => string
-
-      expect(url({ workflowId: 'abc-123' })).toBe('/api/workflows/abc-123/execute')
-      expect(url({ workflowId: 'my-workflow' })).toBe('/api/workflows/my-workflow/execute')
-    })
-  })
-
   describe('transformResponse', () => {
     const transformResponse = workflowExecutorTool.transformResponse!
 
@@ -381,10 +415,6 @@ describe('workflowExecutorTool', () => {
 
     it.concurrent('should have optional inputMapping param', () => {
       expect(workflowExecutorTool.params.inputMapping.required).toBe(false)
-    })
-
-    it.concurrent('should use POST method', () => {
-      expect(workflowExecutorTool.request.method).toBe('POST')
     })
   })
 })

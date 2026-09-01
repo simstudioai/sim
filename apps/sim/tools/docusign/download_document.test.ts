@@ -5,26 +5,18 @@ import { describe, expect, it } from 'vitest'
 import { docusignDownloadDocumentTool } from '@/tools/docusign/download_document'
 
 describe('DocuSign download document tool', () => {
-  it('forwards execution context to the internal route', () => {
-    const body = docusignDownloadDocumentTool.request.body?.({
+  it('materializes only provider operation input', () => {
+    const input = docusignDownloadDocumentTool.operation.input({
       accessToken: 'token',
       envelopeId: 'envelope-1',
       documentId: 'combined',
-      _context: {
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      },
     })
 
-    expect(body).toMatchObject({
+    expect(docusignDownloadDocumentTool.request).toBeUndefined()
+    expect(input).toEqual({
       accessToken: 'token',
-      operation: 'download_document',
       envelopeId: 'envelope-1',
       documentId: 'combined',
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
     })
   })
 

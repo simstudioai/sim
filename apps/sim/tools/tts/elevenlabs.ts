@@ -1,7 +1,10 @@
 import type { ElevenLabsTtsUnifiedParams, TtsBlockResponse } from '@/tools/tts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const elevenLabsTtsUnifiedTool: ToolConfig<ElevenLabsTtsUnifiedParams, TtsBlockResponse> = {
+export const elevenLabsTtsUnifiedTool: InternalToolConfig<
+  ElevenLabsTtsUnifiedParams,
+  TtsBlockResponse
+> = {
   id: 'tts_elevenlabs',
   name: 'ElevenLabs TTS',
   description: 'Convert text to speech using ElevenLabs voices',
@@ -60,18 +63,12 @@ export const elevenLabsTtsUnifiedTool: ToolConfig<ElevenLabsTtsUnifiedParams, Tt
     },
   },
 
-  request: {
-    url: '/api/tools/tts/unified',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: ElevenLabsTtsUnifiedParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
-      provider: 'elevenlabs',
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ text: params.text }),
+    },
+    input: (params) => ({
       text: params.text,
       apiKey: params.apiKey,
       voiceId: params.voiceId,
@@ -80,9 +77,6 @@ export const elevenLabsTtsUnifiedTool: ToolConfig<ElevenLabsTtsUnifiedParams, Tt
       similarityBoost: params.similarityBoost ?? 0.8,
       style: params.style,
       useSpeakerBoost: params.useSpeakerBoost ?? true,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

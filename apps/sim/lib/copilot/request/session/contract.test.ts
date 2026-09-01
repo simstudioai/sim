@@ -126,6 +126,19 @@ describe('stream session contract parser', () => {
     expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
   })
 
+  it('rejects a resource event whose id names nothing', () => {
+    for (const id of ['', '   ']) {
+      const event = {
+        ...BASE_ENVELOPE,
+        type: 'resource' as const,
+        payload: { op: 'upsert' as const, resource: { id, type: 'file', title: 'test.md' } },
+      }
+
+      expect(isContractStreamEventEnvelope(event)).toBe(false)
+      expect(parsePersistedStreamEventEnvelope(event).ok).toBe(false)
+    }
+  })
+
   it('accepts contract run events', () => {
     const event = {
       ...BASE_ENVELOPE,
@@ -143,7 +156,7 @@ describe('stream session contract parser', () => {
       type: 'tool' as const,
       payload: {
         toolCallId: 'preview-1',
-        toolName: 'workspace_file' as const,
+        toolName: 'prepare_file_edit' as const,
         previewPhase: 'file_preview_content' as const,
         content: 'draft body',
         contentMode: 'snapshot' as const,

@@ -76,21 +76,24 @@ export function applyFrontmatter(frontmatter: string, body: string): string {
   return frontmatter + body
 }
 
-/** A leading `scheme://` URL (network protocol). */
-const SCHEME_URL = /^([a-z][a-z0-9+.-]*):\/\//i
 /** A leading `scheme:` token (per the URL grammar). */
 const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i
 /** A bare `host:port` (digits after the colon) — looks scheme-like but is really a domain. */
 const HOST_PORT = /^[a-z0-9.-]+:\d+(?:[/?#]|$)/i
 
 /**
+ * The only schemes a document link may target — an allowlist, because `scheme://` is well-formed for
+ * every scheme: rejecting just the ones known to be dangerous leaves the next one through, and
+ * `javascript://…` is a valid URL whose `//` run is merely a comment.
+ */
+const SAFE_SCHEME = /^(?:(?:https?|ftps?):\/\/|(?:mailto|tel):)/i
+
+/**
  * Normalize a user-entered link target: prefix a bare domain with `https://` so it doesn't resolve
  * as an in-app relative URL, while leaving already-qualified, relative (`./other.md`, `../doc.md`), and
- * protocol-relative URLs intact. Dangerous schemes are rejected outright rather than trusted or mangled:
- * any `scheme:` without `//` other than `mailto:`/`tel:` (so `javascript:`, `data:`, `vbscript:`,
- * `blob:`, …), and `file://` (local file access). Other network `scheme://` URLs (`http(s)`, `ftp`, …)
- * pass through. A bare `host:port` (digits after the colon) is a domain, not a scheme, so it still gets
- * the `https://` prefix.
+ * protocol-relative URLs intact. A scheme is kept only when {@link SAFE_SCHEME} matches; every other
+ * one is dropped to `''`, which callers render as inert text rather than a link. A bare `host:port`
+ * (digits after the colon) is a domain, not a scheme, so it still gets the `https://` prefix.
  */
 export function normalizeLinkHref(href: string): string {
   const trimmed = href.trim()
@@ -99,23 +102,89 @@ export function normalizeLinkHref(href: string): string {
   if (trimmed.startsWith('//')) return `https:${trimmed}`
   if (trimmed.startsWith('/')) return trimmed
   if (trimmed.startsWith('./') || trimmed.startsWith('../')) return trimmed
-  if (/^(?:mailto|tel):/i.test(trimmed)) return trimmed
-  const schemed = trimmed.match(SCHEME_URL)
-  if (schemed) return /^file$/i.test(schemed[1]) ? '' : trimmed
+  if (SAFE_SCHEME.test(trimmed)) return trimmed
   if (HAS_SCHEME.test(trimmed) && !HOST_PORT.test(trimmed)) return ''
   return `https://${trimmed}`
 }
 
+/** A line that is a bullet/ordered list marker with no content (`-`, `  - `, `1. `). Task items (`- [ ]`) don't match. */
+const EMPTY_LIST_ITEM_LINE = /^([ \t]*)(?:[-*+]|\d+[.)])[ \t]*$/
+/** A fenced code-block delimiter (``` or ~~~), used to leave code interiors untouched. */
+const FENCE_DELIMITER = /^[ \t]*(`{3,}|~{3,})/
+/** Leading indentation of a line, used to detect whether an empty list item has indented children. */
+const LEADING_INDENT = /^[ \t]*/
+
 /**
- * Cleans up serializer output: restores callout markers the serializer backslash-escapes
- * (`> \[!NOTE\]` → `> [!NOTE]`) and collapses trailing blank lines to a single newline. The
- * table serializer's spurious surrounding blank lines are trimmed at the source (PipeSafeTable),
- * so no global leading-newline strip is needed here — avoiding clobbering content that legitimately
- * begins with whitespace.
+ * Removes only the *nested* empty list-item marker lines that re-parse as a Setext heading underline:
+ * a nested empty bullet (`  - `) sitting DIRECTLY under a shallower parent line silently turns that
+ * parent's text into an `## heading` and drops the bullet on the next load (a data-corrupting
+ * round-trip). The strip is therefore scoped by three conditions, all required:
+ * - *indented* (`indent > 0`): a top-level empty bullet (`- ` / `1. `) round-trips faithfully as an
+ *   empty item, never a heading, so a placeholder/blank imported row is preserved.
+ * - the immediately-preceding line is *shallower* (the parent whose text the underline would consume):
+ *   an empty item after a *same-indent sibling* (`  - two` then `  - `) does NOT corrupt — the parser
+ *   keeps it as a real empty item — so it is preserved. A blank line above also breaks the hazard.
+ * - no more-indented children on the next non-blank line, so its children are never orphaned.
+ *
+ * Operates only on the editor's own serialized output, which uses fenced (never 4-space-indented) code
+ * blocks and `\n` newlines — so tracking fences is sufficient and a bare `-` inside an indented code
+ * block or a `-\r` line is not a case that can occur here.
+ */
+function stripEmptyListItemLines(markdown: string): string {
+  const lines = markdown.split('\n')
+  const kept: string[] = []
+  let fence: string | null = null
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const delimiter = line.match(FENCE_DELIMITER)?.[1]
+    if (fence) {
+      kept.push(line)
+      if (delimiter && delimiter[0] === fence[0] && delimiter.length >= fence.length) fence = null
+      continue
+    }
+    if (delimiter) {
+      fence = delimiter
+      kept.push(line)
+      continue
+    }
+    const empty = line.match(EMPTY_LIST_ITEM_LINE)
+    if (empty) {
+      const indent = empty[1].length
+      let next = i + 1
+      while (next < lines.length && lines[next].trim() === '') next++
+      const hasChildren =
+        next < lines.length && (lines[next].match(LEADING_INDENT)?.[0].length ?? 0) > indent
+      // The Setext-underline hazard exists only when the empty item follows a SHALLOWER parent line
+      // (whose text the underline would consume). An empty item after a same/deeper-indent sibling
+      // (`  - two` then `  - `) is a real empty item the parser keeps — a nested placeholder between
+      // siblings must not be lost. Uses the preceding non-blank line's indent; a lone empty item with
+      // nothing above it (`prevIndent = -1`) has no parent text to corrupt but stays stripped as before.
+      let prevIdx = i - 1
+      while (prevIdx >= 0 && lines[prevIdx].trim() === '') prevIdx--
+      const prevIndent = prevIdx >= 0 ? (lines[prevIdx].match(LEADING_INDENT)?.[0].length ?? 0) : -1
+      if (indent > 0 && !hasChildren && prevIndent < indent) continue
+    }
+    kept.push(line)
+  }
+  return kept.join('\n')
+}
+
+/**
+ * Cleans up serializer output: drops empty list-item marker lines that would otherwise corrupt on
+ * round-trip ({@link stripEmptyListItemLines}), restores callout markers the serializer
+ * backslash-escapes (`> \[!NOTE\]` → `> [!NOTE]`), and collapses trailing blank lines to a single
+ * newline. Interior blank runs are NOT collapsed here — blank lines inside a fenced code block (or a
+ * verbatim raw-markdown-snippet) are significant, and a global collapse would corrupt them. An interior
+ * run between top-level blocks is significant too: it is how an empty paragraph is written, and
+ * {@link parseMarkdownToDoc} reads exactly the count back out, so collapsing it here would delete the
+ * document's spacing. Only the TRAILING run is collapsed — it can carry no paragraph (see
+ * `clampEmptyParagraphs`) and would otherwise churn the file on every save. The table serializer's
+ * spurious surrounding blank lines are trimmed at the source (PipeSafeTable), so no global
+ * leading-newline strip is needed here — avoiding clobbering content that legitimately begins with
+ * whitespace.
  */
 export function postProcessSerializedMarkdown(markdown: string): string {
-  return collapseAutolinkedUrls(markdown.replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]')).replace(
-    /\n+$/,
-    '\n'
-  )
+  return collapseAutolinkedUrls(
+    stripEmptyListItemLines(markdown).replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]')
+  ).replace(/\n+$/, '\n')
 }

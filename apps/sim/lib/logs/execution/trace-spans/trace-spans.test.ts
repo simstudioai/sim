@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import {
+  buildTraceSpans,
+  hasUnhandledError,
+  traceSpansIndicateFailure,
+} from '@/lib/logs/execution/trace-spans/trace-spans'
+import type { TraceSpan } from '@/lib/logs/types'
 import { stripCustomToolPrefix } from '@/executor/constants'
 import type { ExecutionResult } from '@/executor/types'
 
@@ -2316,5 +2321,291 @@ describe('nested subflow grouping via parentIterations', () => {
       toolCost: 0.015,
       total: 0.018,
     })
+  })
+})
+
+describe('hasUnhandledError', () => {
+  const span = (overrides: Partial<TraceSpan>): TraceSpan =>
+    ({
+      id: 's',
+      name: 'n',
+      type: 'agent',
+      duration: 0,
+      startTime: '',
+      endTime: '',
+      ...overrides,
+    }) as TraceSpan
+
+  it('reports an unhandled error', () => {
+    expect(hasUnhandledError(span({ status: 'error' }))).toBe(true)
+  })
+
+  it('ignores an error an error-handler path already handled', () => {
+    expect(hasUnhandledError(span({ status: 'error', errorHandled: true }))).toBe(false)
+  })
+
+  it('stops at a successful mothership boundary that recovered from a failed child', () => {
+    const boundary = span({
+      type: 'mothership',
+      status: 'success',
+      children: [span({ status: 'error' })],
+    })
+
+    expect(hasUnhandledError(boundary)).toBe(false)
+  })
+
+  it('still descends through a successful workflow span', () => {
+    const parent = span({
+      type: 'workflow',
+      status: 'success',
+      children: [span({ status: 'error' })],
+    })
+
+    expect(hasUnhandledError(parent)).toBe(true)
+  })
+
+  it('only counts failed tool calls when explicitly asked', () => {
+    const withFailedTool = span({
+      status: 'success',
+      toolCalls: [{ name: 't', error: 'boom' }],
+    } as Partial<TraceSpan>)
+
+    expect(hasUnhandledError(withFailedTool)).toBe(false)
+    expect(hasUnhandledError(withFailedTool, { includeToolCalls: true })).toBe(true)
+  })
+})
+
+describe('traceSpansIndicateFailure', () => {
+  it('is false for no spans', () => {
+    expect(traceSpansIndicateFailure(undefined)).toBe(false)
+    expect(traceSpansIndicateFailure([])).toBe(false)
+  })
+})
+
+describe('custom-block boundary spans', () => {
+  const customBlockLog = {
+    blockId: 'cb-1',
+    blockName: 'Published Block',
+    blockType: 'custom_block_abc',
+    startedAt: '2024-01-01T10:00:00.000Z',
+    endedAt: '2024-01-01T10:00:01.000Z',
+    durationMs: 1000,
+    success: true,
+    executionOrder: 1,
+    input: {},
+    output: { answer: 42 },
+  }
+
+  it("never PERSISTS a custom block's child spans into the parent trace", () => {
+    // The child's spans are handed to a LIVE consumer for terminal reconciliation, and
+    // they ride the block log to get there — but they must not land in the parent's
+    // stored trace. The persisted row keeps only the opaque handle, which is what read
+    // time joins from.
+    const result: ExecutionResult = {
+      success: true,
+      output: {},
+      logs: [
+        {
+          ...customBlockLog,
+          childTraceSpans: [
+            { id: 'child-1', name: 'Publisher Agent', type: 'agent', blockId: 'src-1' },
+          ],
+        },
+      ],
+    } as unknown as ExecutionResult
+
+    const { traceSpans } = buildTraceSpans(result)
+    const boundary = traceSpans[0].children?.find((s) => s.blockId === 'cb-1') ?? traceSpans[0]
+
+    expect(boundary.children ?? []).toEqual([])
+  })
+
+  it('never leaves child spans on the persisted span OUTPUT either', () => {
+    // `children` is not the only channel. The spans ride the block output to reach the
+    // live stream, and a custom block's publisher-curated outputs never declare
+    // `childTraceSpans` as hiddenFromDisplay — so without a global hidden-key rule they
+    // land in `span.output`, readable by anyone with parent-workspace access and never
+    // re-checked by `hydrateChildTraces`.
+    const result: ExecutionResult = {
+      success: true,
+      output: {},
+      logs: [
+        {
+          ...customBlockLog,
+          output: {
+            answer: 42,
+            childTraceSpans: [
+              { id: 'child-1', name: 'Publisher Agent', type: 'agent', blockId: 'src-1' },
+            ],
+          },
+        },
+      ],
+    } as unknown as ExecutionResult
+
+    const { traceSpans } = buildTraceSpans(result)
+    const boundary = traceSpans[0].children?.find((s) => s.blockId === 'cb-1') ?? traceSpans[0]
+
+    expect(boundary.output).toBeDefined()
+    expect(boundary.output).not.toHaveProperty('childTraceSpans')
+    expect(boundary.output?.answer).toBe(42)
+  })
+
+  it('carries the opaque childExecutionId so read-time hydration can find the run', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: {},
+      logs: [{ ...customBlockLog, childExecution: { executionId: 'child-exec-1' } }],
+    } as unknown as ExecutionResult
+
+    const { traceSpans } = buildTraceSpans(result)
+    const boundary = traceSpans[0].children?.find((s) => s.blockId === 'cb-1') ?? traceSpans[0]
+
+    expect(boundary.childExecutionId).toBe('child-exec-1')
+  })
+
+  it('marks an untraced boundary so it cannot be mistaken for a leaf block', () => {
+    // A boundary span with no children and no marker renders exactly like a block
+    // that did nothing, which would make a deliberately partial trace read as complete.
+    const result: ExecutionResult = {
+      success: true,
+      output: {},
+      logs: [{ ...customBlockLog, childTraceDisabled: true }],
+    } as unknown as ExecutionResult
+
+    const { traceSpans } = buildTraceSpans(result)
+    const boundary = traceSpans[0].children?.find((s) => s.blockId === 'cb-1') ?? traceSpans[0]
+
+    expect(boundary.childTraceDisabled).toBe(true)
+    expect(boundary.childExecutionId).toBeUndefined()
+  })
+})
+
+describe('custom block invoked as an Agent tool', () => {
+  const agentLog = {
+    blockId: 'agent-1',
+    blockName: 'Agent 1',
+    blockType: 'agent',
+    startedAt: '2024-01-01T10:00:00.000Z',
+    endedAt: '2024-01-01T10:00:02.000Z',
+    durationMs: 2000,
+    success: true,
+    executionOrder: 1,
+    input: {},
+  }
+
+  function toolSpanFor(result: Record<string, unknown>, output?: Record<string, unknown>) {
+    const executionResult: ExecutionResult = {
+      success: true,
+      output: {},
+      logs: [
+        {
+          ...agentLog,
+          output: {
+            content: 'done',
+            ...output,
+            toolCalls: {
+              list: [
+                {
+                  name: 'Published Block',
+                  arguments: { topic: 'q3' },
+                  result,
+                  startTime: '2024-01-01T10:00:00.500Z',
+                  endTime: '2024-01-01T10:00:01.500Z',
+                  duration: 1000,
+                },
+              ],
+              count: 1,
+            },
+          },
+        },
+      ],
+    } as unknown as ExecutionResult
+
+    const { traceSpans } = buildTraceSpans(executionResult)
+    const agentSpan = traceSpans[0].children?.find((s) => s.blockId === 'agent-1') ?? traceSpans[0]
+    return agentSpan.children?.find((s) => s.type === 'tool')
+  }
+
+  it('lifts the child run handle onto the tool span so hydration can join it', () => {
+    // A custom block run as a tool produces a real child run, but the handle arrives
+    // inside the tool result. The tool span is where a reader can act on it —
+    // `hydrateChildTraces` walks nested children, so this is all the join needs.
+    const toolSpan = toolSpanFor({ answer: 42, _childExecutionId: 'child-exec-2' })
+
+    expect(toolSpan?.childExecutionId).toBe('child-exec-2')
+  })
+
+  it('strips the handle from what the tool span displays', () => {
+    // Plumbing, not data: an opaque execution id sitting in a tool result reads like
+    // something the tool returned.
+    const toolSpan = toolSpanFor({ answer: 42, _childExecutionId: 'child-exec-2' })
+
+    expect(toolSpan?.output).not.toHaveProperty('_childExecutionId')
+    expect(toolSpan?.output?.answer).toBe(42)
+  })
+
+  it('marks an untraced tool invocation instead of joining it', () => {
+    const toolSpan = toolSpanFor({ answer: 42, _childTraceDisabled: true })
+
+    expect(toolSpan?.childExecutionId).toBeUndefined()
+    expect(toolSpan?.childTraceDisabled).toBe(true)
+    expect(toolSpan?.output).not.toHaveProperty('_childTraceDisabled')
+  })
+
+  it('leaves an ordinary tool call untouched', () => {
+    const toolSpan = toolSpanFor({ items: ['a'] })
+
+    expect(toolSpan?.childExecutionId).toBeUndefined()
+    expect(toolSpan?.childTraceDisabled).toBeUndefined()
+    expect(toolSpan?.output).toEqual({ items: ['a'] })
+  })
+
+  it('lifts the handle on the provider-segment path too', () => {
+    // Providers that emit `timeSegments` build tool children from the segments rather
+    // than the raw tool-call list, so the lift has to happen on both paths or the join
+    // works for some models and silently not for others.
+    const executionResult: ExecutionResult = {
+      success: true,
+      output: {},
+      logs: [
+        {
+          ...agentLog,
+          output: {
+            content: 'done',
+            providerTiming: {
+              duration: 2000,
+              startTime: '2024-01-01T10:00:00.000Z',
+              endTime: '2024-01-01T10:00:02.000Z',
+              timeSegments: [
+                {
+                  type: 'tool',
+                  name: 'Published Block',
+                  startTime: new Date('2024-01-01T10:00:00.500Z').getTime(),
+                  endTime: new Date('2024-01-01T10:00:01.500Z').getTime(),
+                  duration: 1000,
+                },
+              ],
+            },
+            toolCalls: {
+              list: [
+                {
+                  name: 'Published Block',
+                  arguments: {},
+                  result: { answer: 42, _childExecutionId: 'child-exec-3' },
+                },
+              ],
+              count: 1,
+            },
+          },
+        },
+      ],
+    } as unknown as ExecutionResult
+
+    const { traceSpans } = buildTraceSpans(executionResult)
+    const agentSpan = traceSpans[0].children?.find((s) => s.blockId === 'agent-1') ?? traceSpans[0]
+    const toolSpan = agentSpan.children?.find((s) => s.type === 'tool')
+
+    expect(toolSpan?.childExecutionId).toBe('child-exec-3')
+    expect(toolSpan?.output).not.toHaveProperty('_childExecutionId')
   })
 })

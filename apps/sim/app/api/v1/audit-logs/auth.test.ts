@@ -99,13 +99,17 @@ describe('enterprise audit access', () => {
       expect(result.success).toBe(false)
     })
 
-    it('still requires organization membership', async () => {
+    it('names the requested organization when target membership is missing', async () => {
       setEnvFlags({ isAuditLogsEnabled: true })
       queueTableRows(schemaMock.member, [])
 
-      const result = await validateEnterpriseAuditAccess('viewer')
+      const result = await validateEnterpriseAuditAccess('viewer', 'organization-route')
 
-      expect(result.success).toBe(false)
+      if (result.success) throw new Error('Expected organization membership to be rejected')
+      expect(result.response.status).toBe(403)
+      await expect(result.response.json()).resolves.toEqual({
+        error: 'Not a member of the requested organization',
+      })
     })
   })
 })

@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
+import { normalizeEmail } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter/storage'
@@ -54,21 +56,85 @@ export async function enforceUserRateLimit(
   return buildRateLimitResponse(resetAt)
 }
 
-/**
- * Apply a per-IP token bucket to an unauthenticated route. The `unknown` IP
- * fallback shares one global bucket per route so it cannot be amplified by
- * `X-Forwarded-For: unknown` spoofing.
- */
+async function enforceIpRateLimitWithPolicy(
+  bucketName: string,
+  request: NextRequest,
+  config: TokenBucketConfig,
+  unresolvedClientPolicy: 'deny' | 'defer'
+): Promise<NextResponse | null> {
+  const ip = getClientIp(request)
+  if (!ip) {
+    logger.warn('Unable to resolve client IP for public rate limit', {
+      bucket: bucketName,
+      unresolvedClientPolicy,
+    })
+    return unresolvedClientPolicy === 'deny'
+      ? buildRateLimitResponse(new Date(Date.now() + config.refillIntervalMs))
+      : null
+  }
+  const key = `route:${bucketName}:ip:${ip}`
+  const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
+  if (allowed) return null
+  logger.warn('IP rate limit exceeded', { bucket: bucketName, ip })
+  return buildRateLimitResponse(resetAt)
+}
+
+/** Apply a per-IP token bucket and fail closed when the client cannot be resolved safely. */
 export async function enforceIpRateLimit(
   bucketName: string,
   request: NextRequest,
   config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT
 ): Promise<NextResponse | null> {
-  const ip = getClientIp(request)
-  const key = `route:${bucketName}:ip:${ip}`
+  return enforceIpRateLimitWithPolicy(bucketName, request, config, 'deny')
+}
+
+/**
+ * Apply a per-IP bucket when resolvable, deferring unresolved clients to an
+ * independent non-IP limit that the caller must enforce before any side effect.
+ */
+export async function enforceIpRateLimitWithIndependentBackstop(
+  bucketName: string,
+  request: NextRequest,
+  config: TokenBucketConfig = DEFAULT_PUBLIC_IP_ROUTE_LIMIT
+): Promise<NextResponse | null> {
+  return enforceIpRateLimitWithPolicy(bucketName, request, config, 'defer')
+}
+
+/**
+ * Apply a per-recipient token bucket to a route that mails an address the
+ * caller chooses. A per-IP bucket cannot stop a distributed attempt to bomb one
+ * mailbox, so the address needs a budget of its own.
+ *
+ * The address is normalized (case variants must not each buy a fresh budget)
+ * and hashed, so the store never holds an address and long inputs cannot
+ * inflate key cardinality.
+ */
+export async function enforceRecipientRateLimit(
+  bucketName: string,
+  email: string,
+  config: TokenBucketConfig
+): Promise<NextResponse | null> {
+  const key = `route:${bucketName}:recipient:${sha256Hex(normalizeEmail(email))}`
   const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
   if (allowed) return null
-  logger.warn('IP rate limit exceeded', { bucket: bucketName, ip })
+  logger.warn('Recipient rate limit exceeded', { bucket: bucketName })
+  return buildRateLimitResponse(resetAt)
+}
+
+/**
+ * Apply a per-workspace token bucket. Use for routes whose cost is borne by the
+ * workspace rather than the acting user — a shared budget any member spends
+ * against, so N admins cannot each get a full allowance.
+ */
+export async function enforceWorkspaceRateLimit(
+  bucketName: string,
+  workspaceId: string,
+  config: TokenBucketConfig = DEFAULT_USER_ROUTE_LIMIT
+): Promise<NextResponse | null> {
+  const key = `route:${bucketName}:workspace:${workspaceId}`
+  const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
+  if (allowed) return null
+  logger.warn('Workspace rate limit exceeded', { bucket: bucketName, workspaceId })
   return buildRateLimitResponse(resetAt)
 }
 

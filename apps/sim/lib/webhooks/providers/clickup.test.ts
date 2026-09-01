@@ -17,7 +17,7 @@ vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getCredentialOwner: mockGetCredentialOwner,
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   refreshAccessTokenIfNeeded: mockRefreshAccessTokenIfNeeded,
 }))
 

@@ -1,6 +1,6 @@
-import { Link, Text } from '@react-email/components'
+import { Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface WorkspaceAddedEmailProps {
@@ -22,21 +22,17 @@ export function WorkspaceAddedEmail({
 
   return (
     <EmailLayout preview={preview} showUnsubscribe={false}>
-      <Text style={baseStyles.paragraph}>Hello,</Text>
+      <Text style={baseStyles.greeting}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
-        <strong>{inviterName}</strong> added you to the <strong>{workspaceName}</strong> workspace
-        on {brand.name}.
+        <EmailStrong>{inviterName}</EmailStrong> added you to the{' '}
+        <EmailStrong>{workspaceName}</EmailStrong> workspace on {brand.name}.
       </Text>
 
-      <Link href={workspaceLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Open workspace</Text>
-      </Link>
+      <EmailButton href={workspaceLink}>Open workspace</EmailButton>
 
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-        If this was unexpected, contact a workspace admin.
-      </Text>
+      <Text style={baseStyles.footnote}>If this was unexpected, contact a workspace admin.</Text>
     </EmailLayout>
   )
 }

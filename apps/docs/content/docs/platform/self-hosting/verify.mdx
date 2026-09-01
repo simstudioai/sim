@@ -1,0 +1,94 @@
+---
+title: Verify Your Install
+description: A smoke test that exercises every subsystem in about ten minutes
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+Run this after a first install, after an upgrade, and after a restore. Each step exercises a different subsystem, so a failure tells you exactly where to look.
+
+## Checklist
+
+| # | Do this | Proves | If it fails |
+|---|---|---|---|
+| 1 | Open your Sim URL and create an account | App, database, TLS, migrations | `kubectl logs deploy/sim-app` — and check the `migrations` init container |
+| 2 | Sign out and sign back in | Session handling, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | URLs must match your real origin exactly |
+| 3 | Open a workflow and drag two blocks onto the canvas | Realtime websocket connection | Browser console for socket errors; see [Networking](/platform/self-hosting/networking) |
+| 4 | Open the same workflow in a second browser window and edit | Cross-replica collaboration | With >1 replica this needs [Redis](/platform/self-hosting/redis) |
+| 5 | Paste a model API key in settings and run a two-block workflow | Execution engine, credential encryption, outbound network | App logs; check `ENCRYPTION_KEY` is set and outbound egress is allowed |
+| 6 | Upload a small file in Files | File storage end to end | With object storage configured: presigned URL + bucket CORS. On local disk: the upload proxies through the app |
+| 7 | Upload a file larger than 50 MB | Multipart upload path (object storage only) | Check app logs for provider part-listing or completion errors |
+| 8 | Create a knowledge base and upload a PDF | Document parsing, embeddings, pgvector | Needs a hosted embedding provider — see below |
+| 9 | Invite a teammate from workspace settings | Email delivery | App logs for the mailer; see [Email](/platform/self-hosting/email) |
+| 10 | Connect an integration account | OAuth configuration | Redirect URI mismatch → see [Integrations & OAuth](/platform/self-hosting/integrations-oauth) |
+| 11 | Create a workflow with a Schedule trigger set to every minute, deploy it, wait 2 minutes | **Background jobs** | Check the scheduler's logs — see [Background Jobs](/platform/self-hosting/background-jobs) |
+| 12 | Trigger a workflow via the API with an API key | Public API and API-key auth | Check the key was created successfully in settings |
+
+<Callout type="warn">
+  Step 11 is the one most people skip and most often discover broken weeks later. Scheduled workflows and every polling trigger depend on the scheduler, and a wrong or missing `CRON_SECRET` makes it fail silently from the app's side.
+</Callout>
+
+## Infrastructure checks
+
+Before the UI walkthrough, confirm the deployment itself is healthy.
+
+```bash
+# Everything running?
+kubectl get pods -n simstudio
+
+# Migrations completed
+kubectl logs -n simstudio deploy/sim-app -c migrations --tail=50
+
+# Health endpoints
+curl -fsS https://sim.yourdomain.com/api/health
+
+# Background jobs scheduled
+kubectl get cronjobs -n simstudio
+
+# Redis configured (multi-replica deployments) — confirms the variable is set,
+# not that Redis answers. Steps 3 and 4 below are the real reachability test.
+kubectl exec -n simstudio deploy/sim-app -- printenv REDIS_URL
+```
+
+```bash
+# Docker Compose
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs migrations
+curl -fsS http://localhost:3000/api/health
+```
+
+All six should be present on Compose: `simstudio`, `realtime`, `db`, `redis`, `cron`, and a completed `migrations`.
+
+## Reading the failures
+
+**Step 1 fails — app will not load.** Almost always migrations or database connectivity. Check the migrations init container first; a failed migration deliberately blocks the rollout.
+
+**Step 2 fails — login loops or rejects.** `NEXT_PUBLIC_APP_URL` or `BETTER_AUTH_URL` does not match the origin you are browsing. Both must be the exact public URL, with scheme and no trailing slash.
+
+**Step 3 fails — no live updates.** The reverse proxy is not passing websocket upgrades, or `/socket.io` is not routed to the realtime service. If realtime is on a separate hostname, `NEXT_PUBLIC_SOCKET_URL` must point at it and realtime's `ALLOWED_ORIGINS` must include the app origin.
+
+**Step 4 fails — edits do not sync between windows.** With more than one replica, this is Redis. Confirm `REDIS_URL` is present on both pods.
+
+**Step 5 fails — execution errors.** Check outbound connectivity to the model provider, then the app logs. If the error is about decrypting a credential, `ENCRYPTION_KEY` differs from the one that encrypted it.
+
+**Step 6 or 7 fails.** With object storage configured, a CORS error in the browser console means the bucket policy does not allow your Sim origin or the signed upload headers. If step 7 fails only during completion, check the app logs and verify the server identity can list multipart parts (for S3, `s3:ListMultipartUploadParts`). On local-disk storage there is no CORS involved — uploads proxy through the app, so look at the app logs and the proxy body-size limit instead.
+
+**Step 8 fails — knowledge base upload errors.** Knowledge bases need a hosted embedding provider — OpenAI, Azure OpenAI, or Gemini. There is no local embedding backend. If a key is set, check pgvector is installed on the database.
+
+**Step 9 fails — no email arrives.** With no provider configured, emails are written to the app logs instead of sent — check there first to confirm the message was generated, then debug the provider.
+
+**Step 11 fails — schedule never fires.** Read the scheduler's logs (`docker compose logs cron`, or `kubectl get cronjobs -n simstudio`). A `401` there means the app and the scheduler disagree on `CRON_SECRET`.
+
+## After an upgrade
+
+Re-run steps 1, 3, 5, 6, and 11 at minimum. Those cover the app, realtime, execution, storage, and background jobs — the five things a bad upgrade breaks.
+
+## After a restore
+
+Run the whole list, and pay special attention to **step 5 with an OAuth-backed integration**. That is what proves `ENCRYPTION_KEY` matches the backup. An app that loads and logs in but cannot decrypt credentials looks healthy right up until someone runs a real workflow.
+
+<FAQ items={[
+  { question: "How long does this take?", answer: "About ten minutes, most of it waiting for step 11's scheduled run. Run the infrastructure checks first — they take seconds and catch the majority of failed installs before you open a browser."},
+  { question: "Do I need to run all of this after every upgrade?", answer: "No. Steps 1, 3, 5, 6, and 11 cover the app, realtime, execution, storage, and background jobs. Run the full list after a restore or a significant infrastructure change."},
+]} />

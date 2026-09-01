@@ -26,7 +26,7 @@ export function WorkflowBlock({
     <div className='relative w-[250px] rounded-[13px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm'>
       <div
         className={cn(
-          'transition-opacity duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+          'transition-opacity [transition-duration:360ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
           contentVisible ? 'opacity-100' : 'opacity-0'
         )}
       >

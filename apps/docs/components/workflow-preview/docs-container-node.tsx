@@ -8,6 +8,7 @@ interface DocsContainerData {
   name: string
   blockType: string
   size?: { width: number; height: number }
+  parentId?: string
 }
 
 /**
@@ -24,6 +25,7 @@ export const DocsContainerNode = memo(function DocsContainerNode({
     name: data.name,
     width: data.size?.width,
     height: data.size?.height,
+    parentId: data.parentId,
     isPreview: true,
   }
 

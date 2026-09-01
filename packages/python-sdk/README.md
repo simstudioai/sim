@@ -2,6 +2,22 @@
 
 The official Python SDK for [Sim](https://sim.ai), allowing you to execute workflows programmatically from your Python applications.
 
+## Server compatibility
+
+`0.2.x` talks to the v2 API and has no fallback to the older endpoints, so it requires a Sim deployment that serves `POST /api/v2/workflows/{id}/execute`. That surface is newer than the endpoints `0.1.x` used. If it is unavailable, `execute_workflow` raises `SimStudioError('HTTP 404: Not Found')` — upgrade the server or pin `simstudio-sdk<0.2`, which keeps using `/api/workflows/{id}/execute` and `/api/jobs/{id}`.
+
+## Upgrading from 0.1.x to 0.2.0
+
+`0.2.0` is a breaking release.
+
+- **Requests move to `/api/v2`.** `execute_workflow` posts to `/api/v2/workflows/{workflow_id}/execute`, sends the workflow input nested under `input`, and carries `async` / `executionTimeoutSeconds` in the body instead of the `X-Execution-Mode` and `X-Execution-Timeout-Seconds` headers.
+- **`AsyncExecutionResult.job_id` is now `run_id`,** and `execution_id` has been removed from that dataclass. Replace `result.job_id` with `result.run_id`.
+- **`get_job_status(job_id)` is legacy.** It still calls `/api/jobs/{job_id}` and only resolves IDs from a `0.1.x` async execution. For runs started by `0.2.x`, use `get_workflow_run(workflow_id, run_id)`, which reads `/api/v2/workflows/{workflow_id}/runs/{run_id}`.
+- **`WorkflowExecutionResult.success` is derived from the run status** rather than read from the response body, and is `True` only for `completed` and `paused` runs — so a run cancelled while it was in flight now reports `success=False`, as it did before the v2 migration. The new `WorkflowExecutionResult.status` field carries the server's terminal status (`'completed'`, `'failed'`, `'paused'` or `'cancelled'`), which is how you tell a cancelled run from a failed one.
+- **`metadata` is now built by the SDK,** with the keys `duration`, `runId`, `startTime` and `endTime`. The v2 response carries no execution logs or trace spans, so `logs` and `trace_spans` are always `None`; the pre-v2 `metadata['executionId']` is now `metadata['runId']`.
+
+Note one deliberate difference from the TypeScript SDK: a failed synchronous run *throws* there, but here it returns normally with `error` set and `status='failed'`.
+
 ## Installation
 
 ```bash
@@ -43,28 +59,35 @@ SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
 
 #### Methods
 
-##### execute_workflow(workflow_id, input=None, *, timeout=30.0, stream=None, selected_outputs=None, async_execution=None)
+##### execute_workflow(workflow_id, input=None, *, timeout=30.0, stream=None, selected_outputs=None, async_execution=None, execution_timeout_seconds=None)
 
 Execute a workflow with optional input data.
 
 ```python
-# With dict input (spread at root level of request body)
+# With dict input (sent as the v2 input object)
 result = client.execute_workflow("workflow-id", {"message": "Hello, world!"})
 
-# With primitive input (wrapped as { input: value })
+# With primitive input (sent as { input: { input: value } })
 result = client.execute_workflow("workflow-id", "NVDA")
 
 # With options (keyword-only arguments)
-result = client.execute_workflow("workflow-id", {"message": "Hello"}, timeout=60.0)
+result = client.execute_workflow(
+    "workflow-id",
+    {"message": "Hello"},
+    timeout=60.0,
+    async_execution=True,
+    execution_timeout_seconds=3600,
+)
 ```
 
 **Parameters:**
 - `workflow_id` (str): The ID of the workflow to execute
-- `input` (any, optional): Input data to pass to the workflow. Dicts are spread at the root level, primitives/lists are wrapped in `{ input: value }`. File objects are automatically converted to base64.
+- `input` (any, optional): Input data to pass to the workflow. Dicts become the v2 `input` object; primitives and lists become `{ input: value }` inside it. File objects are automatically converted to base64.
 - `timeout` (float, keyword-only): Timeout in seconds (default: 30.0)
 - `stream` (bool, keyword-only): Enable streaming responses
 - `selected_outputs` (list, keyword-only): Block outputs to stream (e.g., `["agent1.content"]`)
-- `async_execution` (bool, keyword-only): Execute asynchronously and return execution ID
+- `async_execution` (bool, keyword-only): Execute asynchronously and return a run ID
+- `execution_timeout_seconds` (int, keyword-only): Server-side async execution cap from 1 to 604800 seconds. Requires `async_execution=True` and cannot extend the account policy.
 
 **Returns:** `WorkflowExecutionResult` or `AsyncExecutionResult`
 
@@ -115,17 +138,35 @@ result = client.execute_workflow_sync("workflow-id", {"data": "some input"}, tim
 
 **Returns:** `WorkflowExecutionResult`
 
-##### get_job_status(job_id)
+##### get_workflow_run(workflow_id, run_id, *, include_output=None, selected_outputs=None)
 
-Get the status of an async job.
+Get the status and optional outputs of a workflow run. Use the run ID returned by async execution.
 
 ```python
-status = client.get_job_status("job-id-from-async-execution")
-print("Job status:", status)
+status = client.get_workflow_run(
+    "workflow-id",
+    "run-id",
+    include_output=True,
+    selected_outputs=["agent.content"]
+)
+print("Run status:", status["status"])
 ```
 
 **Parameters:**
-- `job_id` (str): The job ID returned from async execution
+- `workflow_id` (str): The workflow ID
+- `run_id` (str): The run ID returned from async execution
+- `include_output` (bool, keyword-only): Include the final output for completed executions
+- `selected_outputs` (list, keyword-only): Block output selectors to include
+
+**Returns:** `dict`
+
+##### get_job_status(job_id)
+
+Get the status of a job created through the legacy async execution endpoint. New integrations should use `get_workflow_run()` with a run ID.
+
+```python
+status = client.get_job_status("legacy-job-id")
+```
 
 **Returns:** `dict`
 
@@ -220,7 +261,10 @@ class WorkflowExecutionResult:
     metadata: Optional[Dict[str, Any]] = None
     trace_spans: Optional[list] = None
     total_duration: Optional[float] = None
+    status: Optional[str] = None
 ```
+
+`success` is `True` only for the `completed` and `paused` statuses. `status` carries the server's terminal status verbatim, so a cancelled run (`success=False`, `error=None`) is distinguishable from a failed one.
 
 ### WorkflowStatus
 
@@ -248,9 +292,8 @@ class SimStudioError(Exception):
 @dataclass
 class AsyncExecutionResult:
     success: bool
-    job_id: str
+    run_id: str
     status_url: str
-    execution_id: Optional[str] = None
     message: str = ""
     async_execution: bool = True
 ```
@@ -527,4 +570,4 @@ isort simstudio/
 
 ## License
 
-Apache-2.0 
+Apache-2.0

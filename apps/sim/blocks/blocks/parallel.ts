@@ -14,6 +14,25 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#1D1C1A',
   icon: ParallelIcon,
+  canvasPresentation: {
+    defaultTitle: 'Parallel AI',
+    sentences: {
+      byOperation: {
+        search: [
+          { text: 'Search the web for', field: 'objective', core: true },
+          { text: ', limited to', field: 'search_include_domains' },
+        ],
+        extract: [
+          { text: 'Extract', field: 'extract_objective', core: true },
+          { text: 'from', field: 'urls', core: true },
+        ],
+        deep_research: [
+          { text: 'Run deep research on', field: 'research_input', core: true },
+          { text: ', with the', field: 'processor', after: 'processor' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

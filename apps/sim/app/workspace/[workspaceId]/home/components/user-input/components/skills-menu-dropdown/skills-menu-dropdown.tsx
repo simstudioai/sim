@@ -1,7 +1,13 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { cn, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@sim/emcn'
+import {
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  dropdownMenuRowClass,
+} from '@sim/emcn'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import type { McpServer } from '@/hooks/queries/mcp'
 import type { SkillDefinition } from '@/hooks/queries/skills'
@@ -176,14 +182,8 @@ export const SkillsMenuDropdown = React.memo(
       <DropdownMenu open={open} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
           <div
-            style={{
-              position: 'fixed',
-              left: anchorPos?.left ?? 0,
-              top: anchorPos?.top ?? 0,
-              width: 0,
-              height: 0,
-              pointerEvents: 'none',
-            }}
+            className='pointer-events-none fixed size-0'
+            style={{ left: anchorPos?.left ?? 0, top: anchorPos?.top ?? 0 }}
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -210,8 +210,10 @@ export const SkillsMenuDropdown = React.memo(
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => handleSelect(target)}
                     className={cn(
-                      'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left font-medium text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
-                      isActive && 'bg-[var(--surface-active)]'
+                      dropdownMenuRowClass,
+                      'w-full text-left',
+                      /* `activeIndex` is the cursor, not a selection — hover surface. */
+                      isActive && 'bg-[var(--surface-hover)]'
                     )}
                   >
                     {target.kind === 'skill' ? <AgentSkillsIcon /> : <McpIcon />}
@@ -220,7 +222,7 @@ export const SkillsMenuDropdown = React.memo(
                 )
               })
             ) : (
-              <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
+              <div className='flex h-[28px] items-center justify-center px-2 text-[var(--text-muted)] text-caption'>
                 No skills or MCP servers
               </div>
             )}

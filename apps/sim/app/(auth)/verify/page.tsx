@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
-import { isEmailVerificationEnabled, isProd } from '@/lib/core/config/env-flags'
+import { isProd } from '@/lib/core/config/env-flags'
 import { hasEmailService } from '@/lib/messaging/email/mailer'
+import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { VerifyContent } from '@/app/(auth)/verify/verify-content'
 
 export const metadata: Metadata = {
@@ -16,7 +17,7 @@ export default function VerifyPage() {
     <VerifyContent
       hasEmailService={emailServiceConfigured}
       isProduction={isProd}
-      isEmailVerificationEnabled={isEmailVerificationEnabled}
+      isEmailVerificationEnabled={isEmailVerificationEffectivelyEnabled()}
     />
   )
 }

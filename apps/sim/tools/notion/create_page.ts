@@ -1,5 +1,6 @@
 import type { NotionCreatePageParams, NotionResponse } from '@/tools/notion/types'
 import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
+import { extractTitle } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResponse> = {
@@ -105,18 +106,7 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    let pageTitle = 'Untitled'
-
-    if (data.properties?.title) {
-      const titleProperty = data.properties.title
-      if (
-        titleProperty.title &&
-        Array.isArray(titleProperty.title) &&
-        titleProperty.title.length > 0
-      ) {
-        pageTitle = titleProperty.title.map((t: any) => t.plain_text || '').join('')
-      }
-    }
+    const pageTitle = extractTitle(data.properties ?? {}) || 'Untitled'
 
     return {
       success: true,
@@ -178,18 +168,7 @@ export const notionCreatePageV2Tool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    let pageTitle = 'Untitled'
-
-    if (data.properties?.title) {
-      const titleProperty = data.properties.title
-      if (
-        titleProperty.title &&
-        Array.isArray(titleProperty.title) &&
-        titleProperty.title.length > 0
-      ) {
-        pageTitle = titleProperty.title.map((t: any) => t.plain_text || '').join('')
-      }
-    }
+    const pageTitle = extractTitle(data.properties ?? {}) || 'Untitled'
 
     return {
       success: true,

@@ -6,7 +6,7 @@ import {
   chipGeometryClass,
   TRIGGER_BORDER_CLASS,
 } from '@sim/emcn'
-import { Search } from 'lucide-react'
+import { Search } from '@sim/emcn/icons'
 import { cn } from '@/lib/utils'
 
 export function SearchTrigger() {
@@ -34,8 +34,8 @@ export function SearchTrigger() {
       <Search className={chipContentIconClass} />
       <span>Search&hellip;</span>
       <kbd className='ml-auto flex items-center'>
-        <span className='text-[15px]'>⌘</span>
-        <span className='text-[12px]'>K</span>
+        <span className='text-base'>⌘</span>
+        <span className='text-caption'>K</span>
       </kbd>
     </button>
   )

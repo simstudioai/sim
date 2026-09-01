@@ -24,6 +24,6 @@ export interface MentionItem {
   label: string
   /** Category heading the item is shown under. */
   group: string
-  /** Optional per-item icon (Lucide category icon or a brand block icon). */
+  /** Optional per-item icon (emcn category icon or a brand block icon). */
   icon?: ComponentType<{ className?: string }>
 }

@@ -1,12 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  createMockRequest,
-  hybridAuthMockFns,
-  inputValidationMock,
-  inputValidationMockFns,
-} from '@sim/testing'
+import { createExecutionContext, inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockUploadCopilotFile, mockUploadExecutionFile } = vi.hoisted(() => ({
@@ -22,18 +17,38 @@ vi.mock('@/lib/uploads/contexts/execution', () => ({
   uploadExecutionFile: mockUploadExecutionFile,
 }))
 
-import { POST } from '@/app/api/tools/google_slides/export-presentation/route'
+import { executeGoogleSlidesTool } from '@/lib/internal/google-slides/execute-tool'
+import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import type { ExportPresentationParams } from '@/tools/google_slides/export_presentation'
 import { exportPresentationTool } from '@/tools/google_slides/export_presentation'
+
+function operationCall(
+  overrides: Partial<InternalToolOperationCall> = {}
+): InternalToolOperationCall {
+  return {
+    toolId: 'google_slides_export_presentation',
+    input: {
+      accessToken: 'token',
+      presentationId: 'presentation-1',
+      exportFormat: 'PDF',
+    },
+    headers: new Headers(),
+    context: {
+      ...createExecutionContext({
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      }),
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    },
+    requestId: 'request-1',
+    ...overrides,
+  }
+}
 
 describe('Google Slides export presentation tool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
-      success: true,
-      userId: 'user-1',
-      authType: 'internal_jwt',
-    })
     inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
       resolvedIP: '93.184.216.34',
@@ -60,42 +75,35 @@ describe('Google Slides export presentation tool', () => {
     })
   })
 
-  it('routes exports through the internal API with execution context', () => {
+  it('builds typed direct-operation input without transport metadata', () => {
     const params: ExportPresentationParams = {
       accessToken: 'token',
       presentationId: 'presentation-1',
       exportFormat: 'PDF',
-      _context: {
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      },
     }
 
-    expect(exportPresentationTool.request.url).toBe('/api/tools/google_slides/export-presentation')
-    expect(exportPresentationTool.request.method).toBe('POST')
-    expect(exportPresentationTool.request.body?.(params)).toEqual({
+    expect(exportPresentationTool).not.toHaveProperty('request')
+    expect(exportPresentationTool.operation.input(params)).toEqual({
       accessToken: 'token',
       presentationId: 'presentation-1',
       exportFormat: 'PDF',
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
     })
   })
 
   it('rejects presentation IDs that would break export URL structure', async () => {
-    const response = await POST(
-      createMockRequest('POST', {
-        accessToken: 'token',
-        presentationId: 'abc?mimeType=evil',
-        exportFormat: 'PDF',
+    const response = await executeGoogleSlidesTool(
+      operationCall({
+        input: {
+          accessToken: 'token',
+          presentationId: 'abc?mimeType=evil',
+          exportFormat: 'PDF',
+        },
       })
     )
     const result = (await response.json()) as { success: false; error: string }
 
     expect(response.status).toBe(400)
-    expect(result.error).toContain('invalid characters')
+    expect(result.error).toBe('Invalid request data')
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 
@@ -107,16 +115,7 @@ describe('Google Slides export presentation tool', () => {
       })
     )
 
-    const response = await POST(
-      createMockRequest('POST', {
-        accessToken: 'token',
-        presentationId: 'presentation-1',
-        exportFormat: 'PDF',
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      })
-    )
+    const response = await executeGoogleSlidesTool(operationCall())
     const result = (await response.json()) as {
       success: true
       output: {
@@ -158,11 +157,12 @@ describe('Google Slides export presentation tool', () => {
       })
     )
 
-    const response = await POST(
-      createMockRequest('POST', {
-        accessToken: 'token',
-        presentationId: 'presentation-1',
-        exportFormat: 'PDF',
+    const response = await executeGoogleSlidesTool(
+      operationCall({
+        context: {
+          workflowId: 'workflow-1',
+          userId: 'user-1',
+        },
       })
     )
     const result = (await response.json()) as {
@@ -190,7 +190,7 @@ describe('Google Slides export presentation tool', () => {
     expect(result.output.sizeBytes).toBe(bytes.byteLength)
   })
 
-  it('maps internal API responses into tool output', async () => {
+  it('maps direct-handler responses into tool output', async () => {
     const response = new Response(
       JSON.stringify({
         success: true,

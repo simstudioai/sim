@@ -26,15 +26,6 @@ export const WEBFLOW_ITEM_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete item output definition
- */
-export const WEBFLOW_ITEM_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Webflow CMS collection item',
-  properties: WEBFLOW_ITEM_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for list metadata.
  */
 export const WEBFLOW_LIST_METADATA_OUTPUT_PROPERTIES = {

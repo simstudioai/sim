@@ -3,6 +3,7 @@ import {
   activeDeploymentSummarySchema,
   deploymentOperationSummarySchema,
   deploymentVersionMetadataFieldsSchema,
+  deploymentVersionNumberSchema,
 } from '@/lib/api/contracts/deployments'
 import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -71,13 +72,6 @@ export const v1DeployWorkflowBodySchema = z.object({
 
 export type V1DeployWorkflowBody = z.input<typeof v1DeployWorkflowBodySchema>
 
-/** Bounded to the Postgres `integer` range of `workflow_deployment_version.version`. */
-const deploymentVersionNumberSchema = z
-  .number()
-  .int('version must be an integer')
-  .min(1, 'version must be a positive integer')
-  .max(2147483647, 'version is out of range')
-
 /**
  * Optional rollback target accepted by the v1 rollback endpoint. When
  * `version` is omitted the route rolls back to the deployment version that
@@ -102,7 +96,9 @@ const v1DeploymentStateSchema = z.object({
  * accepted, while `isDeployed` reflects whether a version is actually live.
  * `latestDeploymentAttempt` carries the lifecycle status
  * (preparing/activating/active/failed/superseded) so API consumers can poll
- * to a terminal state instead of guessing from `isDeployed` alone.
+ * to a terminal state instead of guessing from `isDeployed` alone. Its
+ * `isCurrent` field is false when the operation is historical and no longer
+ * describes the active deployment.
  */
 const v1DeploymentLifecycleSchema = v1DeploymentStateSchema.extend({
   activeDeployment: activeDeploymentSummarySchema.nullable(),

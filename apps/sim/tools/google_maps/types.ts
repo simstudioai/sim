@@ -94,7 +94,6 @@ interface Pollutant {
 }
 
 // Geocode
-// ============================================================================
 
 export interface GoogleMapsGeocodeParams {
   apiKey: string
@@ -115,9 +114,7 @@ export interface GoogleMapsGeocodeResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Reverse Geocode
-// ============================================================================
 
 export interface GoogleMapsReverseGeocodeParams {
   apiKey: string
@@ -135,9 +132,7 @@ export interface GoogleMapsReverseGeocodeResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Directions
-// ============================================================================
 
 interface DirectionsStep {
   instruction: string
@@ -196,9 +191,7 @@ export interface GoogleMapsDirectionsResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Distance Matrix
-// ============================================================================
 
 interface DistanceMatrixElement {
   distanceText: string
@@ -232,9 +225,7 @@ export interface GoogleMapsDistanceMatrixResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Places Search
-// ============================================================================
 
 interface PlaceResult {
   placeId: string
@@ -269,9 +260,7 @@ export interface GoogleMapsPlacesSearchResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Places Nearby Search
-// ============================================================================
 
 interface NearbyPlaceResult {
   placeId: string
@@ -305,9 +294,7 @@ export interface GoogleMapsPlacesNearbyResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Place Details
-// ============================================================================
 
 interface PlaceReview {
   authorName: string
@@ -358,9 +345,7 @@ export interface GoogleMapsPlaceDetailsResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Elevation
-// ============================================================================
 
 export interface GoogleMapsElevationParams {
   apiKey: string
@@ -377,9 +362,7 @@ export interface GoogleMapsElevationResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Timezone
-// ============================================================================
 
 export interface GoogleMapsTimezoneParams {
   apiKey: string
@@ -400,9 +383,7 @@ export interface GoogleMapsTimezoneResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Snap to Roads
-// ============================================================================
 
 export interface GoogleMapsSnapToRoadsParams {
   apiKey: string
@@ -417,9 +398,7 @@ export interface GoogleMapsSnapToRoadsResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Speed Limits
-// ============================================================================
 
 export interface GoogleMapsSpeedLimitsParams {
   apiKey: string
@@ -435,9 +414,7 @@ export interface GoogleMapsSpeedLimitsResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Validate Address
-// ============================================================================
 
 export interface GoogleMapsValidateAddressParams {
   apiKey: string
@@ -466,9 +443,7 @@ export interface GoogleMapsValidateAddressResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Geolocate
-// ============================================================================
 
 export interface GoogleMapsGeolocateParams {
   apiKey: string
@@ -489,9 +464,7 @@ export interface GoogleMapsGeolocateResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Air Quality
-// ============================================================================
 
 export interface GoogleMapsAirQualityParams {
   apiKey: string
@@ -518,9 +491,7 @@ export interface GoogleMapsAirQualityResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Pollen
-// ============================================================================
 
 /**
  * Calendar date returned by the Pollen and Solar APIs
@@ -600,9 +571,7 @@ export interface GoogleMapsPollenResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Solar
-// ============================================================================
 
 interface SolarPanelConfig {
   panelsCount: number

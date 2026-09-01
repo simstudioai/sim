@@ -1,4 +1,7 @@
+import { toast } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { extractValidationIssues } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
@@ -19,8 +22,8 @@ import {
 import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
-import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 export const invitationKeys = {
@@ -408,6 +411,24 @@ export function useUpdateWorkspacePermissions() {
       return requestJson(updateWorkspacePermissionsContract, {
         params: { id: workspaceId },
         body: { updates },
+      })
+    },
+    /**
+     * The route rejects a role change whose target is no longer a member, or
+     * whose standing changed mid-request. Surfaced here rather than per caller
+     * so the invalidation below cannot silently revert the control the user
+     * just moved with no explanation.
+     */
+    onError: (error) => {
+      /**
+       * `requestJson` validates the body against the contract before it fetches,
+       * so a contract failure arrives as a raw `ZodError` whose `message` is the
+       * serialized issue array. Read the issue instead, which is where the
+       * authored message lives on both that path and the server's `details`.
+       */
+      const issue = extractValidationIssues(error)[0]?.message
+      toast.error("Couldn't update role", {
+        description: issue ?? getErrorMessage(error, 'Please try again in a moment.'),
       })
     },
     onSettled: (_data, _error, variables) => {

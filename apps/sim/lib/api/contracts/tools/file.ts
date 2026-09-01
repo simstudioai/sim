@@ -1,26 +1,58 @@
 import { z } from 'zod'
+import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 export const fileManageQuerySchema = z.object({
   userId: z.string().min(1).nullable().optional(),
   workspaceId: z.string().min(1).nullable().optional(),
 })
 
-export const fileManageWriteBodySchema = z.object({
-  operation: z.literal('write'),
-  workspaceId: z.string().min(1).optional(),
-  fileName: z.string({ error: 'fileName is required for write operation' }).min(1),
-  content: z.string({ error: 'content is required for write operation' }),
-  contentType: z.string().optional(),
-})
+export const fileManageWriteBodySchema = z
+  .object({
+    operation: z.literal('write'),
+    workspaceId: z.string().min(1).optional(),
+    fileName: z.string().min(1).optional(),
+    content: z.string().optional(),
+    /**
+     * An existing file object to store as-is, for content that is not text —
+     * a rendered PDF, a transcoded video, an image from an earlier tool.
+     */
+    fileInput: z.unknown().optional(),
+    contentType: z.string().optional(),
+    overwrite: z.boolean().optional(),
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+  })
+  .superRefine((body, context) => {
+    const hasContent = body.content !== undefined
+    const hasFileInput = body.fileInput !== undefined && body.fileInput !== null
+    if (hasContent === hasFileInput) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['content'],
+        message:
+          'Provide exactly one of content (text to write) or fileInput (an existing file to store).',
+      })
+    }
+    // A file object carries its own name, so fileName is the optional override
+    // there but the only source of a name when writing text.
+    if (hasContent && !body.fileName?.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['fileName'],
+        message: 'fileName is required when writing text content.',
+      })
+    }
+  })
 
 export const fileManageAppendBodySchema = z.object({
   operation: z.literal('append'),
   workspaceId: z.string().min(1).optional(),
   fileName: z.string({ error: 'fileName is required for append operation' }).min(1),
   content: z.string({ error: 'content is required for append operation' }),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 export const fileManageGetBodySchema = z

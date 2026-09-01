@@ -1,10 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { assertOoxmlArchiveWithinLimits, isZipShaped } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('DocumentStyle')
-
-// ZIP magic bytes: PK\x03\x04
-const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04]
 
 interface ThemeColors {
   dk1: string
@@ -389,12 +387,15 @@ export async function extractDocumentStyle(
     return extractPdfStyle(buffer)
   }
 
-  if (buffer.length < 4) return null
-  for (let i = 0; i < 4; i++) {
-    if (buffer[i] !== ZIP_MAGIC[i]) return null
-  }
+  if (!isZipShaped(buffer)) return null
 
   try {
+    // Reading a handful of named parts still means handing an attacker-controlled
+    // archive to JSZip, which inflates whatever those entries hold. Bound it with
+    // the same guard the document parsers use rather than trusting the entry
+    // sizes JSZip reports, which come from the archive itself.
+    assertOoxmlArchiveWithinLimits(buffer)
+
     const JSZip = (await import('jszip')).default
     const zip = await JSZip.loadAsync(buffer)
 

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { blockRetryEquals } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
 import type { BlockWithDiff } from '@/lib/workflows/diff/types'
@@ -42,6 +43,8 @@ function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): b
   if (currentBlock.name !== proposedBlock.name) return true
   if (currentBlock.enabled !== proposedBlock.enabled) return true
   if (currentBlock.triggerMode !== proposedBlock.triggerMode) return true
+  if (currentBlock.errorEnabled !== proposedBlock.errorEnabled) return true
+  if (!blockRetryEquals(currentBlock.retry, proposedBlock.retry)) return true
   if ((currentBlock.data?.parentId ?? null) !== (proposedBlock.data?.parentId ?? null)) return true
 
   // Compare subBlocks
@@ -51,9 +54,9 @@ function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): b
   if (currentSubKeys.length !== proposedSubKeys.length) return true
 
   for (const key of currentSubKeys) {
-    if (!proposedSubKeys.includes(key)) return true
     const currentSub = currentBlock.subBlocks[key]
     const proposedSub = proposedBlock.subBlocks?.[key]
+    /* Also covers a key missing from `proposedBlock`, which reads back undefined. */
     if (!proposedSub) return true
     if (JSON.stringify(currentSub.value) !== JSON.stringify(proposedSub.value)) return true
   }
@@ -73,7 +76,15 @@ function computeFieldDiff(
   const unchangedFields: string[] = []
 
   // Check basic fields
-  const fieldsToCheck = ['type', 'name', 'enabled', 'triggerMode', 'horizontalHandles'] as const
+  const fieldsToCheck = [
+    'type',
+    'name',
+    'enabled',
+    'triggerMode',
+    'horizontalHandles',
+    'errorEnabled',
+    'retry',
+  ] as const
   for (const field of fieldsToCheck) {
     const currentValue = currentBlock[field]
     const proposedValue = proposedBlock[field]
@@ -479,6 +490,7 @@ export class WorkflowDiffEngine {
             shiftSourceBlockIds,
             horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
             verticalSpacing: DEFAULT_VERTICAL_SPACING,
+            previousBlocks: mergedBaseline.blocks,
           })
 
           Object.entries(layoutedBlocks).forEach(([id, layoutBlock]) => {

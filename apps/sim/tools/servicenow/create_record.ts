@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import type { ServiceNowCreateParams, ServiceNowCreateResponse } from '@/tools/servicenow/types'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import {
+  buildServiceNowHeaders,
+  normalizeInstanceUrl,
+  parseServiceNowResponse,
+  toRecordObject,
+} from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowCreateRecordTool')
@@ -47,23 +52,11 @@ export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCrea
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.trim().replace(/\/$/, '')
-      if (!baseUrl) {
-        throw new Error('ServiceNow instance URL is required')
-      }
+      const baseUrl = normalizeInstanceUrl(params.instanceUrl)
       return `${baseUrl}/api/now/table/${params.tableName.trim()}`
     },
     method: 'POST',
-    headers: (params) => {
-      if (!params.username || !params.password) {
-        throw new Error('ServiceNow username and password are required')
-      }
-      return {
-        Authorization: createBasicAuthHeader(params.username, params.password),
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      }
-    },
+    headers: (params) => buildServiceNowHeaders(params, { json: true }),
     body: (params) => {
       if (!params.fields || typeof params.fields !== 'object') {
         throw new Error('Fields must be a JSON object')
@@ -74,17 +67,18 @@ export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCrea
 
   transformResponse: async (response: Response) => {
     try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        const error = data.error || data
-        throw new Error(typeof error === 'string' ? error : error.message || JSON.stringify(error))
-      }
+      const data = await parseServiceNowResponse(response)
 
       return {
         success: true,
         output: {
-          record: data.result,
+          /**
+           * `record` is declared non-nullable, so passing `data.result` through
+           * let an envelope without a `result` hand the next block `undefined`
+           * under a contract that says it cannot be. `toRecordObject` narrows a
+           * missing or non-object result to `{}` instead.
+           */
+          record: toRecordObject(data.result),
           metadata: {
             recordCount: 1,
           },

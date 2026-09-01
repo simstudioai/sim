@@ -7,10 +7,10 @@ import {
   v1RollbackWorkflowContract,
 } from '@/lib/api/contracts/v1/workflows'
 import { parseOptionalJsonBody, parseRequest } from '@/lib/api/server'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
-import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { findPreviousDeploymentVersion } from '@/lib/workflows/persistence/utils'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {

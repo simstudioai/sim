@@ -631,6 +631,41 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [],
       },
+      codeSandboxRuntime: {
+        value:
+          'Yes: LangSmith Sandboxes let a team supply their own Docker image ("Bring your own image. Define dependencies, CPU, and memory in a Docker image, then reuse it across sandboxes"), including images pulled from a private registry. A snapshot is built by pointing at any Docker image, or captured from a running sandbox after packages have been installed in it, and sandboxes then boot from that snapshot.',
+        detail:
+          "Two distinct runtimes should not be conflated. LangGraph node code itself is not sandboxed at all: it executes in the developer's own Python/Node process, so the dependency set is whatever their own requirements.txt or package.json declares and there is no isolation boundary between agent code and the host. Sandboxes are a separate, opt-in execution surface (billed on the LangSmith pricing page at sandbox CPU/memory/storage rates) for code the agent generates or for risky filesystem work; they reached general availability in May 2026 after a waitlisted private preview, and the docs list them as generally available on the US, EU, and APAC GCP environments, on AWS US, and on self-hosted deployments. The docs describe a snapshot as 'a reusable filesystem bundle backed by a Docker image', built with a docker_image argument plus an fs_capacity_bytes size, and optionally a registry_id referencing stored private-registry credentials. The Deep Agents harness can back the same abstraction with third-party sandbox providers instead (Daytona, E2B, Modal, Runloop, Vercel, AWS AgentCore, NVIDIA OpenShell) or a custom backend the developer implements, in which case the image and dependency configuration follow that provider's model.",
+        shortValue: 'Yes, LangSmith Sandboxes take a bring-your-own Docker image',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.langchain.com/langsmith/sandboxes',
+            label: 'LangSmith Sandboxes | Secure Runtime for Agent Code',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/sandbox-snapshots',
+            label: 'Sandbox snapshots - Docs by LangChain',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/sandboxes',
+            label: 'LangSmith Sandboxes (environment availability) - Docs by LangChain',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://www.langchain.com/blog/langsmith-sandboxes-generally-available',
+            label: 'LangSmith Sandboxes are Generally Available (LangChain Blog)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.langchain.com/oss/python/deepagents/sandboxes',
+            label: 'Sandboxes - Docs by LangChain',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes: the LangGraph Agent Server exposes deployed graphs over a REST API, and additionally supports A2A as a callable interface for the same deployed agent',
@@ -895,6 +930,26 @@ export const langchainProfile: CompetitorProfile = {
             url: 'https://docs.langchain.com/langsmith/user-management',
             label: 'User management - Docs by LangChain',
             asOf: '2026-07-08',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Partial: self-hosted LangSmith only. An operator sets the maximum session length via the OAUTH_SESSION_MAX_SEC environment variable when using OAuth 2.0/SSO, or BASIC_AUTH_JWT_EXPIRATION_SECONDS when using basic authentication, both defaulting to 28800 seconds (8 hours). No equivalent admin-configurable session control is documented for LangSmith Cloud.',
+        detail:
+          'Both settings are an absolute cap on session lifetime from sign-in; no separate inactivity/idle timeout is documented. On the cloud product, LangChain support states that after a SAML assertion is validated the session token (a JWT) is issued by LangSmith\'s own auth layer rather than the IdP, and that this "is by design and is not configurable", so an upstream IdP session policy does not govern the resulting LangSmith session either.',
+        shortValue: 'Self-hosted env vars (8h default); not configurable on cloud',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://support.langchain.com/articles/9515017706-session-timeout-configuration-for-langsmith-self-hosted',
+            label: 'Session Timeout Configuration for LangSmith Self-Hosted',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://support.langchain.com/articles/8821869322-sso-authentication-and-token-issuance-in-langsmith',
+            label: 'SSO Authentication and Token Issuance in LangSmith',
+            asOf: '2026-08-10',
           },
         ],
       },

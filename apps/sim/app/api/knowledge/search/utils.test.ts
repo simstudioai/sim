@@ -4,10 +4,19 @@
  *
  * @vitest-environment node
  */
-import { mockNextFetchResponse, setupGlobalFetchMock } from '@sim/testing/mocks'
+import {
+  dbChainMockFns,
+  mockNextFetchResponse,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+  setupGlobalFetchMock,
+} from '@sim/testing/mocks'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
+import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /**
  * Spy on the real documents/utils namespace instead of vi.mock: the shared
@@ -39,11 +48,60 @@ afterEach(() => {
 })
 
 import {
+  executeKeywordSearch,
+  executeKnowledgeSearch,
+  fuseByReciprocalRank,
   generateSearchEmbedding,
+  getQueryStrategy,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
-} from '@/app/api/knowledge/search/utils'
+  RRF_K,
+  type SearchResult,
+} from '@/lib/knowledge/search/queries'
+
+/** Minimal SearchResult builder — only the fields fusion and ordering read. */
+function makeResult(id: string, distance = 0.1): SearchResult {
+  return {
+    id,
+    content: `content-${id}`,
+    documentId: `doc-${id}`,
+    chunkIndex: 0,
+    tag1: null,
+    tag2: null,
+    tag3: null,
+    tag4: null,
+    tag5: null,
+    tag6: null,
+    tag7: null,
+    number1: null,
+    number2: null,
+    number3: null,
+    number4: null,
+    number5: null,
+    date1: null,
+    date2: null,
+    boolean1: null,
+    boolean2: null,
+    boolean3: null,
+    distance,
+    knowledgeBaseId: 'kb-123',
+  }
+}
+
+const TEST_EMBEDDING = [0.1, 0.2, 0.3, ...Array.from({ length: 1533 }, () => 0)]
+
+function mockNextEmbeddingResponse(): void {
+  vi.mocked(fetch).mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        data: [{ embedding: TEST_EMBEDDING, index: 0 }],
+        usage: { prompt_tokens: 1, total_tokens: 1 },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+  )
+}
 
 describe('Knowledge Search Utils', () => {
   beforeEach(() => {
@@ -183,6 +241,320 @@ describe('Knowledge Search Utils', () => {
     })
   })
 
+  describe('fuseByReciprocalRank', () => {
+    it('ranks a row found by both legs above rows found by only one', () => {
+      const shared = makeResult('shared')
+      const vectorOnly = makeResult('vector-only')
+      const keywordOnly = makeResult('keyword-only')
+
+      const fused = fuseByReciprocalRank(
+        [
+          [vectorOnly, shared],
+          [keywordOnly, shared],
+        ],
+        10
+      )
+
+      expect(fused[0].id).toBe('shared')
+      // `shared` is credited to both legs, so the following tie is even and
+      // resolves to the earliest list.
+      expect(fused.map((r) => r.id)).toEqual(['shared', 'vector-only', 'keyword-only'])
+    })
+
+    it('dedupes by chunk id, keeping the first occurrence', () => {
+      const fromVector = makeResult('chunk-1', 0.2)
+      const fromKeyword = { ...makeResult('chunk-1', 0.9), content: 'stale copy' }
+
+      const fused = fuseByReciprocalRank([[fromVector], [fromKeyword]], 10)
+
+      expect(fused).toHaveLength(1)
+      expect(fused[0].content).toBe('content-chunk-1')
+      expect(fused[0].distance).toBe(0.2)
+    })
+
+    it('preserves leg ordering when only one leg returns rows', () => {
+      const rows = [makeResult('a'), makeResult('b'), makeResult('c')]
+
+      expect(fuseByReciprocalRank([rows, []], 10).map((r) => r.id)).toEqual(['a', 'b', 'c'])
+      expect(fuseByReciprocalRank([[], rows], 10).map((r) => r.id)).toEqual(['a', 'b', 'c'])
+    })
+
+    it('scores by reciprocal rank so a deep double hit beats a shallow single hit', () => {
+      const deepShared = makeResult('deep-shared')
+      const topSingle = makeResult('top-single')
+
+      /**
+       * `deep-shared` sits at rank 2 in both legs: 2 / (RRF_K + 2).
+       * `top-single` sits at rank 1 in one leg only: 1 / (RRF_K + 1).
+       * With RRF_K = 60 the double hit wins.
+       */
+      expect(2 / (RRF_K + 2)).toBeGreaterThan(1 / (RRF_K + 1))
+
+      const fused = fuseByReciprocalRank(
+        [
+          [topSingle, deepShared],
+          [makeResult('other'), deepShared],
+        ],
+        10
+      )
+
+      expect(fused[0].id).toBe('deep-shared')
+    })
+
+    it('does not let the first leg starve the second at small topK', () => {
+      const lexicalOnly = makeResult('lexical-only')
+      const vectorOnly = makeResult('vector-only')
+
+      /**
+       * Rank 1 in each leg scores identically. Ordering by score alone would
+       * always emit the first list's row, so a `topK: 1` hybrid search would
+       * return exactly what vector-only search already returned.
+       */
+      expect(fuseByReciprocalRank([[lexicalOnly], [vectorOnly]], 1).map((r) => r.id)).toEqual([
+        'lexical-only',
+      ])
+      expect(fuseByReciprocalRank([[lexicalOnly], [vectorOnly]], 2).map((r) => r.id)).toEqual([
+        'lexical-only',
+        'vector-only',
+      ])
+    })
+
+    it('interleaves tied ranks so neither leg monopolizes the head', () => {
+      const legA = [makeResult('a1'), makeResult('a2'), makeResult('a3')]
+      const legB = [makeResult('b1'), makeResult('b2'), makeResult('b3')]
+
+      expect(fuseByReciprocalRank([legA, legB], 6).map((r) => r.id)).toEqual([
+        'a1',
+        'b1',
+        'a2',
+        'b2',
+        'a3',
+        'b3',
+      ])
+    })
+
+    it('still floats a row found by both legs above every single-leg row', () => {
+      const shared = makeResult('shared')
+      const legA = [makeResult('a1'), shared]
+      const legB = [makeResult('b1'), shared]
+
+      // shared is rank 2 in both legs (2/62) and outscores either rank-1 row (1/61).
+      expect(fuseByReciprocalRank([legA, legB], 3).map((r) => r.id)).toEqual(['shared', 'a1', 'b1'])
+    })
+
+    it('does not let a shared top hit evict the lexical-only row at topK 2', () => {
+      const shared = makeResult('shared')
+      const lexicalOnly = makeResult('lexical-only')
+      const vectorOnly = makeResult('vector-only')
+
+      /**
+       * `shared` is rank 1 in both legs. Crediting it to only one leg would
+       * leave the round-robin owing the other leg the remaining slot, evicting
+       * the row that only the shared hit's leg could produce.
+       */
+      const fused = fuseByReciprocalRank(
+        [
+          [shared, lexicalOnly],
+          [shared, vectorOnly],
+        ],
+        2
+      )
+
+      expect(fused.map((r) => r.id)).toEqual(['shared', 'lexical-only'])
+    })
+
+    it('trims the fused list to topK', () => {
+      const rows = Array.from({ length: 8 }, (_, i) => makeResult(`chunk-${i}`))
+
+      expect(fuseByReciprocalRank([rows, []], 3)).toHaveLength(3)
+    })
+
+    it('returns an empty list when every leg is empty', () => {
+      expect(fuseByReciprocalRank([[], []], 10)).toEqual([])
+    })
+  })
+
+  describe('executeKeywordSearch', () => {
+    beforeEach(() => {
+      resetDbChainMock()
+    })
+
+    it('returns nothing for a whitespace-only query without touching the database', async () => {
+      const results = await executeKeywordSearch({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        query: '   ',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(results).toEqual([])
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    })
+
+    it('issues one query per knowledge base once the parallel threshold is crossed', async () => {
+      const knowledgeBaseIds = ['kb-1', 'kb-2', 'kb-3', 'kb-4', 'kb-5']
+      expect(getQueryStrategy(knowledgeBaseIds.length, 10).useParallel).toBe(true)
+
+      await executeKeywordSearch({
+        knowledgeBaseIds,
+        topK: 10,
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      /**
+       * A single global LIMIT would let the lexically strongest base consume
+       * every slot, so an exact-token hit in a smaller base never reaches
+       * fusion. The vector leg already fans out here; both legs must match.
+       */
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(knowledgeBaseIds.length)
+    })
+
+    it('ranks without selecting the embedding column, then hydrates the survivors', async () => {
+      queueTableRows(schemaMock.embedding, [{ id: 'kw-1', keywordRank: 0.9 }])
+      queueTableRows(schemaMock.embedding, [makeResult('kw-1')])
+
+      const results = await executeKeywordSearch({
+        knowledgeBaseIds: ['kb-1'],
+        topK: 10,
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(results.map((r) => r.id)).toEqual(['kw-1'])
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+
+      /**
+       * Projecting the distance in the ranking pass makes Postgres detoast the
+       * 1536-dimension vector for every full-text match before the LIMIT, so
+       * cost tracks how common the term is rather than topK. The ranking pass
+       * must select ids and relevance only.
+       */
+      const rankingSelect = dbChainMockFns.select.mock.calls[0][0]
+      expect(Object.keys(rankingSelect)).toEqual(['id', 'keywordRank'])
+      expect(Object.keys(dbChainMockFns.select.mock.calls[1][0])).toContain('distance')
+    })
+
+    it('uses a single query when the parallel threshold is not crossed', async () => {
+      const knowledgeBaseIds = ['kb-1', 'kb-2']
+      expect(getQueryStrategy(knowledgeBaseIds.length, 10).useParallel).toBe(false)
+
+      await executeKeywordSearch({
+        knowledgeBaseIds,
+        topK: 10,
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('executeKnowledgeSearch', () => {
+    beforeEach(() => {
+      resetDbChainMock()
+    })
+
+    it('throws when neither a query nor tag filters are provided', async () => {
+      await expect(
+        executeKnowledgeSearch({
+          knowledgeBaseIds: ['kb-123'],
+          topK: 10,
+          searchMode: 'hybrid',
+        })
+      ).rejects.toThrow('A search query or tag filters are required')
+    })
+
+    it('throws when a query is provided without a query vector', async () => {
+      await expect(
+        executeKnowledgeSearch({
+          knowledgeBaseIds: ['kb-123'],
+          topK: 10,
+          searchMode: 'hybrid',
+          query: 'PROJ-1234',
+        })
+      ).rejects.toThrow('Query vector is required')
+    })
+
+    it('runs a single retrieval leg in vector mode', async () => {
+      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
+
+      const results = await executeKnowledgeSearch({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        searchMode: 'vector',
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(results.map((r) => r.id)).toEqual(['vector-hit'])
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    })
+
+    it('runs both legs and fuses them in hybrid mode', async () => {
+      // Vector leg, then the keyword leg's ranking pass, then its hydration pass.
+      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
+      queueTableRows(schemaMock.embedding, [{ id: 'keyword-hit', keywordRank: 0.9 }])
+      queueTableRows(schemaMock.embedding, [makeResult('keyword-hit')])
+
+      const results = await executeKnowledgeSearch({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        searchMode: 'hybrid',
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(results.map((r) => r.id).sort()).toEqual(['keyword-hit', 'vector-hit'])
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
+    })
+
+    it('falls back to vector results when the keyword leg fails', async () => {
+      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
+
+      /**
+       * Both legs share one `orderBy` spy, so target the keyword leg by its
+       * ranking expression. Calling the untouched spy first captures the
+       * sentinel that tells the mock to build its normal chain, which the
+       * vector leg still needs.
+       */
+      const chainDefault = dbChainMockFns.orderBy()
+      dbChainMockFns.orderBy.mockImplementation((fragment: unknown) => {
+        const text = (fragment as { strings?: string[] })?.strings?.join('') ?? ''
+        if (text.includes('ts_rank_cd')) {
+          throw new Error('tsquery blew up')
+        }
+        return chainDefault
+      })
+
+      const results = await executeKnowledgeSearch({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        searchMode: 'hybrid',
+        query: 'PROJ-1234',
+        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+      })
+
+      expect(results.map((r) => r.id)).toEqual(['vector-hit'])
+    })
+
+    it('skips both query legs when only tag filters are provided', async () => {
+      queueTableRows(schemaMock.embedding, [makeResult('tag-hit')])
+
+      const results = await executeKnowledgeSearch({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        searchMode: 'hybrid',
+        structuredFilters: [
+          { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' } as never,
+        ],
+      })
+
+      expect(results.map((r) => r.id)).toEqual(['tag-hit'])
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('generateSearchEmbedding', () => {
     it('should use Azure OpenAI when KB-specific config is provided', async () => {
       const { env } = await import('@/lib/core/config/env')
@@ -195,12 +567,7 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       const result = await generateSearchEmbedding('test query')
 
@@ -212,7 +579,7 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-      expect(result.embedding).toEqual([0.1, 0.2, 0.3])
+      expect(result.embedding).toEqual(TEST_EMBEDDING)
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -225,12 +592,7 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       const result = await generateSearchEmbedding('test query')
 
@@ -242,7 +604,7 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-      expect(result.embedding).toEqual([0.1, 0.2, 0.3])
+      expect(result.embedding).toEqual(TEST_EMBEDDING)
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -258,12 +620,7 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       await generateSearchEmbedding('test query')
 
@@ -287,12 +644,7 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       await generateSearchEmbedding('test query', 'text-embedding-3-small')
 
@@ -308,23 +660,17 @@ describe('Knowledge Search Utils', () => {
     it('should throw error when no API configuration provided', async () => {
       const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
-      // The env object lazily reads process.env, so a developer's local .env
-      // keys survive the deletion above — stub the direct key empty and fail
-      // the hosted rotation fallback for hermeticity on any machine.
-      vi.stubEnv('OPENAI_API_KEY', '')
-      const apiKeysModule = await import('@/lib/core/config/api-keys')
-      const rotationSpy = vi.spyOn(apiKeysModule, 'getRotatingApiKey').mockImplementation(() => {
-        throw new Error('No rotation keys configured')
+      Object.assign(env, {
+        OPENAI_API_KEY: undefined,
+        OPENAI_API_KEY_1: undefined,
+        OPENAI_API_KEY_2: undefined,
+        OPENAI_API_KEY_3: undefined,
+        OPENROUTER_API_KEY: undefined,
       })
 
-      try {
-        await expect(generateSearchEmbedding('test query')).rejects.toThrow(
-          'OPENAI_API_KEY is not configured'
-        )
-      } finally {
-        rotationSpy.mockRestore()
-        vi.unstubAllEnvs()
-      }
+      await expect(generateSearchEmbedding('test query')).rejects.toThrow(
+        'OPENAI_API_KEY is not configured'
+      )
     })
 
     it('should handle Azure OpenAI API errors properly', async () => {
@@ -355,6 +701,7 @@ describe('Knowledge Search Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
       Object.assign(env, {
         OPENAI_API_KEY: 'test-openai-key',
+        OPENROUTER_API_KEY: undefined,
       })
 
       mockNextFetchResponse({
@@ -380,12 +727,7 @@ describe('Knowledge Search Utils', () => {
         KB_OPENAI_MODEL_NAME: 'text-embedding-ada-002',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       await generateSearchEmbedding('test query')
 
@@ -411,12 +753,7 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      mockNextFetchResponse({
-        json: {
-          data: [{ embedding: [0.1, 0.2, 0.3] }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        },
-      })
+      mockNextEmbeddingResponse()
 
       await generateSearchEmbedding('test query', 'text-embedding-3-small')
 
@@ -435,11 +772,38 @@ describe('Knowledge Search Utils', () => {
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
+
+    it('projects verified provenance only in the model-bound embedding payload', async () => {
+      Object.keys(env).forEach((key) => delete (env as any)[key])
+      Object.assign(env, { OPENAI_API_KEY: 'test-openai-key' })
+      mockNextEmbeddingResponse()
+
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'encrypted-token' },
+      ])
+      registry.recordResolved('TOKEN', 'secret-value')
+
+      await runWithKnowledgeModelInputProvenance(registry, () =>
+        generateSearchEmbedding('prefix secret-value suffix', 'text-embedding-3-small')
+      )
+
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        'https://api.openai.com/v1/embeddings',
+        expect.objectContaining({
+          body: JSON.stringify({
+            input: ['prefix {{TOKEN}} suffix'],
+            model: 'text-embedding-3-small',
+            encoding_format: 'float',
+            dimensions: 1536,
+          }),
+        })
+      )
+    })
   })
 
   describe('getDocumentMetadataByIds', () => {
     it('should handle empty input gracefully', async () => {
-      const { getDocumentMetadataByIds } = await import('./utils')
+      const { getDocumentMetadataByIds } = await import('@/lib/knowledge/search/queries')
 
       const result = await getDocumentMetadataByIds([])
 

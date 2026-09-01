@@ -22,6 +22,7 @@ import {
   createAnthropicUsageAccumulator,
 } from '@/providers/anthropic/usage'
 import { checkForForcedToolUsage } from '@/providers/anthropic/utils'
+import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import {
   isAbortError,
@@ -32,7 +33,6 @@ import {
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
 import { prepareToolExecution, sumToolCosts } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 export type AnthropicStreamingToolLoopPayload = Anthropic.Messages.MessageStreamParams
 
@@ -75,10 +75,7 @@ function enrichModelSegment(
   const toolCalls: IterationToolCall[] = toolUseBlocks.map((t) => ({
     id: t.id,
     name: t.name,
-    arguments:
-      t.input && typeof t.input === 'object' && !Array.isArray(t.input)
-        ? (t.input as Record<string, unknown>)
-        : {},
+    arguments: isRecordLike(t.input) ? (t.input as Record<string, unknown>) : {},
   }))
 
   const usage = createAnthropicUsageAccumulator()
@@ -370,22 +367,28 @@ export function createAnthropicStreamingToolLoopStream(
                   const { toolParams, executionParams } = prepareToolExecution(
                     tool,
                     toolArgs,
-                    request
+                    request,
+                    toolUse.id
                   )
-                  const result = await executeTool(toolName, executionParams, {
-                    signal: loopAbortController.signal,
-                  })
+                  const { rawResponse, modelResponse } = await executeProviderTool(
+                    toolName,
+                    executionParams,
+                    {
+                      signal: loopAbortController.signal,
+                    }
+                  )
                   const toolCallEndTime = Date.now()
                   const value = {
                     toolUse,
                     toolName,
                     toolArgs,
                     toolParams,
-                    result,
+                    result: rawResponse,
+                    modelResult: modelResponse,
                     startTime: toolCallStartTime,
                     endTime: toolCallEndTime,
                     duration: toolCallEndTime - toolCallStartTime,
-                    status: (result.success ? 'success' : 'error') as ToolCallEndStatus,
+                    status: (rawResponse.success ? 'success' : 'error') as ToolCallEndStatus,
                   }
                   openToolStarts.delete(toolUse.id)
                   controller.enqueue({
@@ -459,6 +462,7 @@ export function createAnthropicStreamingToolLoopStream(
                 endTime,
                 duration,
               } = value
+              const modelResult = 'modelResult' in value ? value.modelResult : result
 
               timeSegments.push({
                 type: 'tool',
@@ -482,6 +486,13 @@ export function createAnthropicStreamingToolLoopStream(
                   tool: toolName,
                 }
               }
+              const modelResultContent = modelResult.success
+                ? (modelResult.output ?? null)
+                : {
+                    error: true,
+                    message: modelResult.error || 'Tool execution failed',
+                    tool: toolName,
+                  }
 
               toolCalls.push({
                 name: toolName,
@@ -496,8 +507,8 @@ export function createAnthropicStreamingToolLoopStream(
               toolResultBlocks.push({
                 type: 'tool_result',
                 tool_use_id: toolUse.id,
-                content: JSON.stringify(resultContent),
-                is_error: !result.success,
+                content: JSON.stringify(modelResultContent),
+                is_error: !modelResult.success,
               })
             }
 

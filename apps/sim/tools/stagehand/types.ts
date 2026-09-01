@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -28,16 +27,6 @@ export const STAGEHAND_USAGE_OUTPUT_PROPERTIES = {
   },
   inference_time_ms: { type: 'number', description: 'Total inference time in milliseconds' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete usage statistics output definition
- */
-export const STAGEHAND_USAGE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Token usage and timing statistics from agent execution',
-  optional: true,
-  properties: STAGEHAND_USAGE_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for agent action objects
@@ -92,15 +81,6 @@ export const STAGEHAND_ACTION_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete agent action output definition
- */
-export const STAGEHAND_ACTION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Record of an action performed by the agent',
-  properties: STAGEHAND_ACTION_OUTPUT_PROPERTIES,
-}
-
-/**
  * Actions array output definition
  */
 export const STAGEHAND_ACTIONS_OUTPUT: OutputProperty = {
@@ -133,15 +113,6 @@ export const STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete agent result output definition
- */
-export const STAGEHAND_AGENT_RESULT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Complete result from the Stagehand agent execution',
-  properties: STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for act() method results
  * Based on Stagehand ActResult interface
  */
@@ -165,66 +136,6 @@ export const STAGEHAND_ACT_ACTION_OUTPUT_PROPERTIES = {
       type: 'string',
       description: 'Method argument value',
     },
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for act() result
- */
-export const STAGEHAND_ACT_RESULT_OUTPUT_PROPERTIES = {
-  success: {
-    type: 'boolean',
-    description: 'Whether the act operation completed successfully',
-  },
-  message: {
-    type: 'string',
-    description: 'Detailed message about the actions performed',
-  },
-  actionDescription: {
-    type: 'string',
-    description: 'High-level description of what was done',
-    optional: true,
-  },
-  actions: {
-    type: 'array',
-    description: 'List of individual actions performed',
-    items: {
-      type: 'object',
-      properties: STAGEHAND_ACT_ACTION_OUTPUT_PROPERTIES,
-    },
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for extract() method when called without schema
- * Returns pageText or extraction string
- */
-export const STAGEHAND_SIMPLE_EXTRACT_OUTPUT_PROPERTIES = {
-  pageText: {
-    type: 'string',
-    description: 'Raw text content of the page (when no instruction provided)',
-    optional: true,
-  },
-  extraction: {
-    type: 'string',
-    description: 'Extracted content based on instruction (when no schema provided)',
-    optional: true,
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for extract() method result with schema
- * The actual structure depends on the user-provided schema
- */
-export const STAGEHAND_EXTRACT_OUTPUT_PROPERTIES = {
-  data: {
-    type: 'object',
-    description: 'Extracted structured data matching the provided schema',
-  },
-  schema: {
-    type: 'object',
-    description: 'The schema that was used for extraction',
-    optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -290,63 +201,5 @@ export interface StagehandAgentResponse extends ToolResponse {
     structuredOutput?: Record<string, any>
     liveViewUrl?: string | null
     sessionId?: string | null
-  }
-}
-
-export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
-  if (!jsonSchema) {
-    throw new Error('Invalid schema: Schema is required')
-  }
-
-  // Handle different schema types
-  switch (jsonSchema.type) {
-    case 'object': {
-      if (!jsonSchema.properties) {
-        return z.object({})
-      }
-
-      const shape: Record<string, z.ZodTypeAny> = {}
-      const requiredFields = new Set(jsonSchema.required || [])
-
-      for (const [key, propSchema] of Object.entries(jsonSchema.properties)) {
-        // Create the base schema for this property
-        let fieldSchema = jsonSchemaToZod(propSchema as Record<string, any>)
-
-        // Make it optional if not in required fields
-        if (!requiredFields.has(key)) {
-          fieldSchema = fieldSchema.optional()
-        }
-
-        // Add description if available
-        if ((propSchema as Record<string, any>).description) {
-          fieldSchema = fieldSchema.describe((propSchema as Record<string, any>).description)
-        }
-
-        shape[key] = fieldSchema
-      }
-
-      return z.object(shape)
-    }
-
-    case 'array':
-      if (!jsonSchema.items) {
-        return z.array(z.any())
-      }
-      return z.array(jsonSchemaToZod(jsonSchema.items as Record<string, any>))
-
-    case 'string':
-      return z.string()
-
-    case 'number':
-      return z.number()
-
-    case 'boolean':
-      return z.boolean()
-
-    case 'null':
-      return z.null()
-
-    default:
-      return z.any()
   }
 }

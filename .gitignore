@@ -50,9 +50,7 @@ dump.rdb
 .env.production
 
 # editor swap files
-*.swp
-*.swo
-*.swn
+*.sw?
 
 # vercel
 .vercel
@@ -85,10 +83,6 @@ start-collector.sh
 
 # IntelliJ
 .idea
-
-## Helm Chart Tests
-helm/sim/test
-i18n.cache
 
 ## Claude Code
 .claude/launch.json

@@ -79,7 +79,7 @@ export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
       <Tooltip.Content>
         {preview ? (
           <span className='flex flex-col gap-0.5'>
-            {preview.title && <span className='font-medium'>{preview.title}</span>}
+            {preview.title && <span>{preview.title}</span>}
             {preview.description && (
               <span className='line-clamp-2 text-[var(--text-muted)]'>{preview.description}</span>
             )}

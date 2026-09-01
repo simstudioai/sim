@@ -1,15 +1,58 @@
-import { db, user } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { getWorkflowState } from '@/database/operations'
+import { resolveAvatarUrl } from '@/handlers/avatar'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { resolveCurrentWorkflowRole, verifyWorkflowAccess } from '@/middleware/permissions'
-import type { IRoomManager, UserPresence } from '@/rooms'
+import { type IRoomManager, type UserPresence, workflowRoom as wf } from '@/rooms'
+import { filterVisiblePresence } from '@/rooms/presence-visibility'
 
 const logger = createLogger('WorkflowHandlers')
 
 export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
-  socket.on('join-workflow', async ({ workflowId, tabSessionId }) => {
+  // Monotonic per-socket generation: each JOIN/LEAVE bumps it synchronously on arrival, and a
+  // queued or in-flight op that finds a newer generation aborts — a fast workflow switch A→B thus
+  // cancels A the instant B arrives.
+  let joinGeneration = 0
+  // Serialize this socket's room mutations (JOIN + LEAVE) so their multi-step async Redis commits
+  // can never interleave: two concurrent joins would otherwise race on the single-valued
+  // socket→room map (a late addUserToRoom clobbering a newer join's entry, leaving the socket a
+  // ghost in the old room and receiving its operation broadcasts). This matches the sibling
+  // handlers (tables, file-doc, workspace-files).
+  let opChain: Promise<void> = Promise.resolve()
+
+  socket.on('join-workflow', ({ workflowId, tabSessionId }) => {
+    // Validate the id BEFORE claiming a generation, so a malformed join can't advance joinGeneration
+    // and cancel a legitimate in-flight switch (matches tables/workspace-files).
+    if (typeof workflowId !== 'string' || workflowId.length === 0) {
+      socket.emit('join-workflow-error', {
+        workflowId: typeof workflowId === 'string' ? workflowId : '',
+        error: 'Invalid workflow id',
+        code: 'INVALID_PAYLOAD',
+        retryable: false,
+      })
+      return
+    }
+    const joinAttempt = (joinGeneration += 1)
+    opChain = opChain
+      .then(() => runJoin(workflowId, tabSessionId, joinAttempt))
+      .catch((error) => logger.error('Error joining workflow:', error))
+    // Returned so callers awaiting this op (e.g. tests) can await its completion; Socket.IO
+    // ignores a handler's return value.
+    return opChain
+  })
+
+  async function runJoin(
+    workflowId: string,
+    tabSessionId: string | undefined,
+    joinAttempt: number
+  ) {
+    // True once this JOIN has been superseded — a newer JOIN/LEAVE bumped joinGeneration, or the
+    // socket disconnected. Because ops are serialized, no other op mutates room state while this
+    // one runs, so only two checks are needed: skip a superseded queued op (here), and one final
+    // check right before the membership commit.
+    const superseded = () => joinGeneration !== joinAttempt || socket.disconnected
+    if (superseded()) return
     try {
       const userId = socket.userId
       const userName = socket.userName
@@ -64,18 +107,19 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         return
       }
 
-      // Leave current room if in one
-      const currentWorkflowId = await roomManager.getWorkflowIdForSocket(socket.id)
-      if (currentWorkflowId) {
-        socket.leave(currentWorkflowId)
-        await roomManager.removeUserFromRoom(socket.id, currentWorkflowId)
-        await roomManager.broadcastPresenceUpdate(currentWorkflowId)
+      // Leave a previously-joined workflow room if switching workflows. Guard on a DIFFERENT id so a
+      // re-join of the SAME workflow doesn't leave→re-add and flicker presence for peers.
+      const currentRoom = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKFLOW)
+      if (currentRoom && currentRoom.id !== workflowId) {
+        socket.leave(currentRoom.id)
+        await roomManager.removeUserFromRoom(currentRoom, socket.id)
+        await roomManager.broadcastPresenceUpdate(currentRoom)
       }
 
       // Keep this above Redis socket key TTL (1h) so a normal idle user is not evicted too aggressively.
       const STALE_THRESHOLD_MS = 75 * 60 * 1000
       const now = Date.now()
-      const existingUsers = await roomManager.getWorkflowUsers(workflowId)
+      const existingUsers = await roomManager.getRoomUsers(wf(workflowId))
       let liveSocketIds = new Set<string>()
       let canCheckLiveness = false
 
@@ -106,7 +150,7 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
             logger.info(
               `Cleaning up socket ${existingUser.socketId} for user ${existingUser.userId} (same tab)`
             )
-            await roomManager.removeUserFromRoom(existingUser.socketId, workflowId)
+            await roomManager.removeUserFromRoom(wf(workflowId), existingUser.socketId)
             await roomManager.io.in(existingUser.socketId).socketsLeave(workflowId)
             continue
           }
@@ -124,12 +168,21 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
           logger.info(
             `Cleaning up socket ${existingUser.socketId} for user ${existingUser.userId} (stale activity)`
           )
-          await roomManager.removeUserFromRoom(existingUser.socketId, workflowId)
+          await roomManager.removeUserFromRoom(wf(workflowId), existingUser.socketId)
           await roomManager.io.in(existingUser.socketId).socketsLeave(workflowId)
         } catch (error) {
           logger.warn(`Best-effort cleanup failed for socket ${existingUser.socketId}`, error)
         }
       }
+
+      // Resolve the avatar before the critical section below. It is the only
+      // await that used to sit between socket.join and addUserToRoom, and a sweep
+      // eviction in that gap would socketsLeave the socket while its presence
+      // mapping did not yet exist — cleanupEvictedSocket would find nothing to
+      // remove, then this join would write presence for a socket already out of
+      // the room (a ghost collaborator until the stale sweep). Hoisting it keeps
+      // the whole re-auth -> socket.join -> addUserToRoom section await-free.
+      const avatarUrl = await resolveAvatarUrl(socket, userId)
 
       // Re-authorize immediately before joining: the access-revalidation sweep
       // may have evicted this socket while the awaits above were in flight, and
@@ -137,8 +190,8 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       // revoked user resolves to null here. The resolver is single-flighted per
       // (user, workflow), so this read cannot race the sweep's and overwrite a
       // recorded revocation with a stale role; and no awaits sit between this
-      // check and socket.join, so a sweep eviction cannot interleave after it
-      // and be reversed by this join.
+      // check and addUserToRoom (avatar resolution is hoisted above), so a sweep
+      // eviction cannot interleave inside the join and be reversed by it.
       const currentRole = await resolveCurrentWorkflowRole(userId, workflowId, userRole)
       if (currentRole === null) {
         logger.warn(
@@ -154,29 +207,19 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       }
       userRole = currentRole
 
+      // Final re-check before the membership commit: a LEAVE or a newer JOIN enqueued during the
+      // awaits above bumped the generation, or the socket disconnected. Abort before registering.
+      // (This guards against a superseding op; the avatar hoist above guards against the off-chain
+      // access-revalidation sweep, which does not bump the generation.)
+      if (superseded()) return
+
       // Join the new room
       socket.join(workflowId)
-
-      // Get avatar URL
-      let avatarUrl = socket.userImage || null
-      if (!avatarUrl) {
-        try {
-          const [userRecord] = await db
-            .select({ image: user.image })
-            .from(user)
-            .where(eq(user.id, userId))
-            .limit(1)
-
-          avatarUrl = userRecord?.image ?? null
-        } catch (error) {
-          logger.warn('Failed to load user avatar for presence', { userId, error })
-        }
-      }
 
       // Create presence entry
       const userPresence: UserPresence = {
         userId,
-        workflowId,
+        room: wf(workflowId),
         userName,
         socketId: socket.id,
         tabSessionId,
@@ -186,11 +229,16 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         avatarUrl,
       }
 
-      // Add user to room
-      await roomManager.addUserToRoom(workflowId, socket.id, userPresence)
+      // Add user to room — the membership commit.
+      await roomManager.addUserToRoom(wf(workflowId), socket.id, userPresence)
 
-      // Get current presence list for the join acknowledgment
-      const presenceUsers = await roomManager.getWorkflowUsers(workflowId)
+      // Get current presence list for the join acknowledgment, filtered to live members so a new
+      // joiner never sees a ghost from an entry the stale sweep hasn't reclaimed yet.
+      const presenceUsers = await filterVisiblePresence(
+        roomManager.io,
+        wf(workflowId),
+        await roomManager.getRoomUsers(wf(workflowId))
+      )
 
       // Get workflow state
       const workflowState = await getWorkflowState(workflowId)
@@ -205,18 +253,34 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       // Send workflow state
       socket.emit('workflow-state', workflowState)
 
-      // Broadcast presence update to all users in the room
-      await roomManager.broadcastPresenceUpdate(workflowId)
-
-      const uniqueUserCount = await roomManager.getUniqueUserCount(workflowId)
-      logger.info(
-        `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${uniqueUserCount} unique users.`
-      )
+      // Post-success, purely decorative: notify peers and log the count. The user is already joined
+      // and acked, so a Redis blip here must not surface as a join failure — swallow it (the next
+      // healthy presence broadcast reconciles peers). It must stay OUT of the rollback catch below,
+      // which is only for pre-success failures.
+      try {
+        await roomManager.broadcastPresenceUpdate(wf(workflowId))
+        const uniqueUserCount = await roomManager.getUniqueUserCount(wf(workflowId))
+        logger.info(
+          `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${uniqueUserCount} unique users.`
+        )
+      } catch (error) {
+        logger.warn(`Post-join presence broadcast failed for workflow ${workflowId}`, error)
+      }
     } catch (error) {
       logger.error('Error joining workflow:', error)
-      // Undo socket.join and room manager entry if any operation failed
+      // Roll back a partial join: cleanup keys off the socket→room map, so a `socket.join` that
+      // landed without a matching `addUserToRoom` (a throw in between) would otherwise strand the
+      // socket in the Socket.IO room, unreclaimable by any later op. A failure between the commit
+      // and the success ack rolls back too and surfaces a retryable error — so the client retries
+      // rather than hanging (never left committed-but-unacked). Safe even when superseded —
+      // serialization means the newer op hasn't committed yet, so this touches only this join's own
+      // room state, never the newer op's.
       socket.leave(workflowId)
-      await roomManager.removeUserFromRoom(socket.id, workflowId)
+      await roomManager.removeUserFromRoom(wf(workflowId), socket.id)
+      // Suppress the client-facing error when this join was already superseded: the client has moved
+      // to a newer workflow, and a retryable error naming the abandoned one could make it re-join and
+      // supersede the newer join (an A/B flicker). The rollback above still runs.
+      if (superseded()) return
       const isReady = roomManager.isReady()
       socket.emit('join-workflow-error', {
         workflowId,
@@ -225,26 +289,33 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         retryable: true,
       })
     }
+  }
+
+  socket.on('leave-workflow', () => {
+    // A leave always cancels any in-flight/queued join for this socket (the client emits it with no
+    // payload — there is no partial-switch case as there is for tables). Bumped synchronously here,
+    // before the teardown is enqueued, so it cancels a running join at its next generation check.
+    joinGeneration += 1
+    opChain = opChain
+      .then(() => runLeave())
+      .catch((error) => logger.error('Error leaving workflow:', error))
+    return opChain
   })
 
-  socket.on('leave-workflow', async () => {
+  async function runLeave() {
     try {
-      if (!roomManager.isReady()) {
-        return
-      }
-
-      const workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
-      const session = await roomManager.getUserSession(socket.id)
-
-      if (workflowId && session) {
-        socket.leave(workflowId)
-        await roomManager.removeUserFromRoom(socket.id, workflowId)
-        await roomManager.broadcastPresenceUpdate(workflowId)
-
-        logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)
-      }
+      if (!roomManager.isReady()) return
+      const room = await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKFLOW)
+      // The room ref alone is sufficient to leave; no session lookup is gated in front of it, so an
+      // idle user whose 1h session key expired (while the 24h room mapping is still live) can still
+      // leave cleanly instead of being stranded as a ghost until disconnect.
+      if (!room) return
+      socket.leave(room.id)
+      await roomManager.removeUserFromRoom(room, socket.id)
+      await roomManager.broadcastPresenceUpdate(room)
+      logger.info(`User ${socket.userId} (${socket.userName}) left workflow ${room.id}`)
     } catch (error) {
       logger.error('Error leaving workflow:', error)
     }
-  })
+  }
 }

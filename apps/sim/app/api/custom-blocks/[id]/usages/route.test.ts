@@ -4,17 +4,13 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsFeatureEnabled, mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
-  mockIsFeatureEnabled: vi.fn(),
+const { mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
   mockHasWorkspaceAdminAccess: vi.fn(),
   mockOperations: {
     getCustomBlockManageContext: vi.fn(),
     getCustomBlockUsageCounts: vi.fn(),
+    isCustomBlocksDeploymentEnabled: vi.fn(),
   },
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -44,10 +40,10 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockIsFeatureEnabled.mockResolvedValue(true)
     mockHasWorkspaceAdminAccess.mockResolvedValue(true)
     mockOperations.getCustomBlockManageContext.mockResolvedValue(MANAGE_CONTEXT)
     mockOperations.getCustomBlockUsageCounts.mockResolvedValue(USAGE_COUNTS)
+    mockOperations.isCustomBlocksDeploymentEnabled.mockReturnValue(true)
   })
 
   it('returns 401 without a session', async () => {
@@ -62,15 +58,18 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
     expect(response.status).toBe(404)
   })
 
-  it('returns 403 when the feature flag is off', async () => {
-    mockIsFeatureEnabled.mockResolvedValue(false)
-    const response = await callRoute()
-    expect(response.status).toBe(403)
-  })
-
   it('returns 403 for a non-admin of the source workspace', async () => {
     mockHasWorkspaceAdminAccess.mockResolvedValue(false)
     const response = await callRoute()
+    expect(response.status).toBe(403)
+    expect(mockOperations.getCustomBlockUsageCounts).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when Custom Blocks is disabled for the deployment', async () => {
+    mockOperations.isCustomBlocksDeploymentEnabled.mockReturnValue(false)
+
+    const response = await callRoute()
+
     expect(response.status).toBe(403)
     expect(mockOperations.getCustomBlockUsageCounts).not.toHaveBeenCalled()
   })

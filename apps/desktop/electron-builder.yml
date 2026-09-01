@@ -10,14 +10,19 @@ files:
   - dist/**
   - static/**
   - package.json
+  - from: ../sim/public/brand/fonts
+    to: static
+    filter:
+      - SeasonSansUprightsVF.woff2
 
 asar: true
 
-# Native modules cannot be dlopen'd from inside an asar.
-# `scripts/ensure-pty-prebuilds.ts` guarantees both arch prebuilds are present
-# before packaging; see mac.x64ArchFiles for how the universal merge treats them.
+# Native modules cannot be dlopen'd from inside an asar. The Help-search addon
+# is already universal; `scripts/ensure-pty-prebuilds.ts` guarantees both pty
+# prebuilds are present before packaging.
 asarUnpack:
   - "**/node_modules/@lydell/node-pty-*/prebuilds/**"
+  - "**/dist/native/*.node"
 
 # Space-free regardless of productName ("Sim Dev" etc.): GitHub rewrites
 # asset names containing spaces, which would desync the electron-updater
@@ -31,6 +36,8 @@ electronFuses:
   enableNodeCliInspectArguments: false
   enableEmbeddedAsarIntegrityValidation: true
   onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false
 
 mac:
   category: public.app-category.developer-tools
@@ -39,7 +46,9 @@ mac:
       arch: [universal]
     - target: zip
       arch: [universal]
-  icon: build/generated-icon.icns
+  # Compiles to Assets.car + CFBundleIconName for the native macOS icon path;
+  # electron-builder derives the legacy .icns fallback from the same source.
+  icon: build/generated-icon.icon
   # node-pty keeps each architecture's binary at its own path, so both halves of
   # the universal build carry an identical copy of both. @electron/universal
   # refuses single-arch Mach-O files it wasn't told about, so name them here —
@@ -52,12 +61,34 @@ mac:
   mergeASARs: false
   hardenedRuntime: true
   gatekeeperAssess: false
+  # macOS refuses to show the microphone prompt at all — it kills the process —
+  # unless the bundle declares why it wants the device.
+  extendInfo:
+    NSMicrophoneUsageDescription: Sim uses your microphone for voice input in Chat and for meetings you join in the built-in browser.
+    NSCameraUsageDescription: Sim uses your camera for meetings you join in the built-in browser, such as Google Meet.
+    NSBluetoothAlwaysUsageDescription: Sim uses Bluetooth to complete passkey sign-ins with a nearby phone in the built-in browser.
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   notarize: true
 
 dmg:
   sign: false
+  title: ${productName}
+  # Finder uses the image dimensions as the installer window dimensions. The
+  # @2x companion is detected automatically and keeps the mountain artwork and
+  # install arrow sharp on Retina displays.
+  background: build/dmg-background.png
+  iconSize: 96
+  iconTextSize: 13
+  # Keep both icon centers inside the compact 660x420 Finder canvas.
+  contents:
+    - x: 165
+      y: 210
+      type: file
+    - x: 495
+      y: 210
+      type: link
+      path: /Applications
 
 # node-pty ships pure N-API prebuilds, which are ABI-stable across Node and
 # Electron versions, so there is nothing to rebuild against Electron's ABI.

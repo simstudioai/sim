@@ -1,5 +1,20 @@
 /**
  * Storage usage tracking for durable workspace and payer ledgers.
+ *
+ * Every row lock here is `FOR NO KEY UPDATE`, never `FOR UPDATE`. The
+ * `workspace`, `organization`, and `user_stats` rows these transactions lock
+ * are foreign-key parents (49 tables reference `workspace` alone), so any
+ * insert or update of a child row — a `workspace_files` row in this very
+ * transaction — implicitly takes `FOR KEY SHARE` on the parent first. A later
+ * `FOR UPDATE` on the same row is then a lock upgrade, and two concurrent
+ * uploads or deletes in one workspace deadlock on it. `FOR NO KEY UPDATE`
+ * does not conflict with `FOR KEY SHARE`, yet still conflicts with itself and
+ * with `FOR UPDATE`, so writers remain serialized against each other and
+ * against payer transfers. It is exactly the lock a plain `UPDATE` of these
+ * non-key counters takes anyway. The only key columns on these tables are
+ * `workspace.id`, `workspace.inbox_provider_id`, `organization.id`,
+ * `user_stats.id`, and `user_stats.user_id`, and no path under these locks
+ * writes any of them or deletes a locked row.
  */
 
 import { organization, userStats, workspace } from '@sim/db/schema'
@@ -18,6 +33,7 @@ import {
   getUserStorageLimit,
   getUserStorageUsage,
   isStorageEnforcementEnabled,
+  StorageLimitExceededError,
 } from '@/lib/billing/storage/limits'
 import { getFreeTierLimit, isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { DbOrTx } from '@/lib/db/types'
@@ -123,6 +139,7 @@ async function mutateStorageUsage(
 
 /**
  * Locks and reads the payer ledger after the workspace row has been locked.
+ * `FOR NO KEY UPDATE` for the reason documented at the top of this module.
  */
 async function lockStorageUsageForMutation(
   tx: DbOrTx,
@@ -133,7 +150,7 @@ async function lockStorageUsageForMutation(
       .select({ storageUsedBytes: organization.storageUsedBytes })
       .from(organization)
       .where(eq(organization.id, billingEntity.id))
-      .for('update')
+      .for('no key update')
       .limit(1)
     if (!row) throw new Error(`Storage payer organization:${billingEntity.id} not found`)
     return row.storageUsedBytes
@@ -143,7 +160,7 @@ async function lockStorageUsageForMutation(
     .select({ storageUsedBytes: userStats.storageUsedBytes })
     .from(userStats)
     .where(eq(userStats.userId, billingEntity.id))
-    .for('update')
+    .for('no key update')
     .limit(1)
   if (!row) throw new Error(`Storage payer user:${billingEntity.id} not found`)
   return row.storageUsedBytes
@@ -241,7 +258,7 @@ export async function applyStorageUsageDeltasInTx(
           .from(workspace)
           .where(inArray(workspace.id, workspaceIds))
           .orderBy(asc(workspace.id))
-          .for('update')
+          .for('no key update')
       : []
   const workspaceById = new Map(lockedWorkspaces.map((row) => [row.id, row]))
 
@@ -317,7 +334,7 @@ export async function applyStorageUsageDeltasInTx(
       .from(userStats)
       .where(inArray(userStats.userId, userIds))
       .orderBy(asc(userStats.userId))
-      .for('update')
+      .for('no key update')
     for (const row of rows) {
       payerUsageByKey.set(getPayerKey({ type: 'user', id: row.id }), row.storageUsedBytes)
     }
@@ -328,7 +345,7 @@ export async function applyStorageUsageDeltasInTx(
       .from(organization)
       .where(inArray(organization.id, organizationIds))
       .orderBy(asc(organization.id))
-      .for('update')
+      .for('no key update')
     for (const row of rows) {
       payerUsageByKey.set(getPayerKey({ type: 'organization', id: row.id }), row.storageUsedBytes)
     }
@@ -362,7 +379,7 @@ export async function applyStorageUsageDeltasInTx(
       payerDelta.maximumUsage !== undefined &&
       nextUsage > payerDelta.maximumUsage
     ) {
-      throw new Error(
+      throw new StorageLimitExceededError(
         `Storage limit exceeded. Used: ${(nextUsage / 1024 ** 3).toFixed(2)}GB, Limit: ${(payerDelta.maximumUsage / 1024 ** 3).toFixed(0)}GB`
       )
     }
@@ -438,7 +455,7 @@ async function mutateWorkspaceStorageUsage(
     })
     .from(workspace)
     .where(eq(workspace.id, workspaceId))
-    .for('update')
+    .for('no key update')
     .limit(1)
 
   if (!workspacePayer) {
@@ -471,7 +488,7 @@ async function mutateWorkspaceStorageUsage(
     currentPayerUsage + bytes > maximumUsage
   ) {
     const newUsage = currentPayerUsage + bytes
-    throw new Error(
+    throw new StorageLimitExceededError(
       `Storage limit exceeded. Used: ${(newUsage / 1024 ** 3).toFixed(2)}GB, Limit: ${(maximumUsage / 1024 ** 3).toFixed(0)}GB`
     )
   }

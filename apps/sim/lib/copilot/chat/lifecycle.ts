@@ -212,7 +212,8 @@ export async function getAccessibleCopilotChat(
  */
 export async function getAccessibleCopilotChatWithMessages(
   chatId: string,
-  userId: string
+  userId: string,
+  options?: { includeTranscript?: boolean }
 ): Promise<CopilotChatDetailRow | null> {
   const [chat] = await db
     .select(copilotChatDetailColumns)
@@ -223,7 +224,14 @@ export async function getAccessibleCopilotChatWithMessages(
   const authorized = await authorizeCopilotChatRow(chat, chatId, userId)
   if (!authorized) return null
 
-  const messages = await loadCopilotChatMessages(chatId)
+  /**
+   * The transcript is unbounded — no per-chat message cap on write and no
+   * pruning — so a caller that only needs the chat's scope should not pay to
+   * materialize it. Every check `resolveOrCreateChat` runs reads detail
+   * columns only, so an empty list stays a truthful "not loaded" rather than
+   * "no messages" for the callers that opt out.
+   */
+  const messages = options?.includeTranscript === false ? [] : await loadCopilotChatMessages(chatId)
   return { ...authorized, messages }
 }
 
@@ -231,6 +239,11 @@ export async function getAccessibleCopilotChatWithMessages(
  * Resolve or create a copilot chat session.
  * If chatId is provided, loads the existing chat. Otherwise creates a new one.
  * Supports both workflow-scoped and workspace-scoped chats.
+ *
+ * A resumed chat must match every scope the caller asserted — workflow,
+ * workspace, and `type`. Any mismatch resolves to `chat: null`, exactly as an
+ * unknown id does, so callers cannot distinguish the reasons a chat did not
+ * resolve. `title` is stamped only on a newly created chat.
  */
 export async function resolveOrCreateChat(params: {
   chatId?: string
@@ -239,15 +252,23 @@ export async function resolveOrCreateChat(params: {
   workspaceId?: string
   model: string
   type?: 'mothership' | 'copilot'
+  title?: string
+  /**
+   * Skips loading the transcript on the resume path. For a caller that keys
+   * continuity by `chatId` alone and never reads `conversationHistory`.
+   */
+  includeTranscript?: boolean
 }): Promise<ChatLoadResult> {
-  const { chatId, userId, workflowId, workspaceId, model, type } = params
+  const { chatId, userId, workflowId, workspaceId, model, type, title, includeTranscript } = params
 
   if (workspaceId) {
     await assertActiveWorkspaceAccess(workspaceId, userId)
   }
 
   if (chatId) {
-    const chat = await getAccessibleCopilotChatWithMessages(chatId, userId)
+    const chat = await getAccessibleCopilotChatWithMessages(chatId, userId, {
+      includeTranscript,
+    })
 
     if (chat) {
       if (workflowId && chat.workflowId !== workflowId) {
@@ -266,6 +287,16 @@ export async function resolveOrCreateChat(params: {
           userId,
           requestWorkspaceId: workspaceId,
           chatWorkspaceId: chat.workspaceId,
+        })
+        return { chatId, chat: null, conversationHistory: [], isNew: false }
+      }
+
+      if (type && chat.type !== type) {
+        logger.warn('Copilot chat type mismatch', {
+          chatId,
+          userId,
+          requestType: type,
+          chatType: chat.type,
         })
         return { chatId, chat: null, conversationHistory: [], isNew: false }
       }
@@ -299,7 +330,7 @@ export async function resolveOrCreateChat(params: {
       ...(workflowId ? { workflowId } : {}),
       ...(workspaceId ? { workspaceId } : {}),
       type: type ?? 'copilot',
-      title: null,
+      title: title ?? null,
       model,
       lastSeenAt: now,
     })

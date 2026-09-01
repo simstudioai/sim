@@ -9,10 +9,14 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, asc, eq, gt, inArray } from 'drizzle-orm'
-import { isRecord, type SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
+import { isRecordLike } from '@sim/utils/object'
+import { and, asc, eq, exists, gt, inArray, isNull, notExists, sql } from 'drizzle-orm'
+import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import { invalidateDeployedStateCache } from '@/lib/workflows/persistence/utils'
-import type { ForkFailedResource } from '@/ee/workspace-forking/lib/copy/copy-resources'
+import {
+  FORK_DOCUMENT_ID_PATTERN,
+  type ForkFailedResource,
+} from '@/ee/workspace-forking/lib/copy/copy-resources'
 import type { ForkCopyResolver } from '@/ee/workspace-forking/lib/remap/fork-bootstrap'
 import {
   clearDependentsOnRemap,
@@ -27,6 +31,30 @@ const WORKFLOW_PAGE = 200
 
 /** Deployment versions loaded per page so a workflow with many versions never loads all at once. */
 const DEPLOYMENT_VERSION_PAGE = 100
+
+async function findKnowledgeBasesWithNonForkDocuments(ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set()
+  const rows = await db
+    .select({ id: knowledgeBase.id })
+    .from(knowledgeBase)
+    .where(and(inArray(knowledgeBase.id, ids), exists(liveNonForkDocumentQuery())))
+    .limit(ids.length)
+  return new Set(rows.map(({ id }) => id))
+}
+
+function liveNonForkDocumentQuery() {
+  return db
+    .select({ id: document.id })
+    .from(document)
+    .where(
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        sql`${document.id} !~ ${FORK_DOCUMENT_ID_PATTERN}`,
+        isNull(document.deletedAt),
+        isNull(document.archivedAt)
+      )
+    )
+}
 
 /** Identity-or-clear resolver: a failed id resolves to null (cleared), any other id to itself. */
 function buildFailedResolver(failedByKind: Map<ForkRemapKind, Set<string>>): ForkCopyResolver {
@@ -77,12 +105,9 @@ function clearFailedSubBlockReferences(
  * is the count of failed resources whose references were cleared.
  *
  * Storage accounting: this cleanup never decrements storage usage because it never removes
- * anything that was counted. Copied file blobs are the only counted copies (incremented in
- * `executeForkFileBlobCopies` only after the blob lands), and a failed file's blob never
- * landed - its metadata row is intentionally left re-uploadable, and nothing was charged. The
- * dropped table/KB/document placeholders are DB rows the upload path never counts, and any KB
- * blobs copied before their KB failed are left in storage (rows only are dropped here) but
- * uncounted - mirroring the KB upload path, which never counts KB blobs.
+ * anything that remains counted. A failed file copy is not charged and leaves its metadata row
+ * re-uploadable. A failed KB copy reverses its usage and retires its active file-ownership rows
+ * before reaching this cleanup; deterministic blobs remain available for a safe retry.
  */
 export async function clearFailedForkResourceReferences(params: {
   childWorkspaceId: string
@@ -93,6 +118,12 @@ export async function clearFailedForkResourceReferences(params: {
 }): Promise<{ cleared: number; clearingFailed: boolean }> {
   const { childWorkspaceId, failures, requestId = 'unknown' } = params
   if (failures.length === 0) return { cleared: 0, clearingFailed: false }
+
+  const failedKnowledgeBaseIds = failures.flatMap((failure) =>
+    failure.kind === 'knowledge-base' ? [failure.childId] : []
+  )
+  const retainedKnowledgeBaseIds =
+    await findKnowledgeBasesWithNonForkDocuments(failedKnowledgeBaseIds)
 
   const failedByKind = new Map<ForkRemapKind, Set<string>>()
   const markFailed = (kind: ForkRemapKind, id: string) => {
@@ -105,23 +136,42 @@ export async function clearFailedForkResourceReferences(params: {
   // Standalone documents copied into an already-existing target KB (the doc-into-mapped-KB sync
   // path) - dropped individually, since their KB is not ours to remove.
   const docIds: string[] = []
+  let cleanupCount = 0
   for (const failure of failures) {
     if (failure.kind === 'table') {
       markFailed('table', failure.childId)
       tableIds.push(failure.childId)
+      cleanupCount += 1
     } else if (failure.kind === 'knowledge-document') {
       markFailed('knowledge-document', failure.childId)
       docIds.push(failure.childId)
+      cleanupCount += 1
     } else if (failure.kind === 'file') {
       // A failed file blob: clear `file-upload` references to its copied storage key. No row to
       // drop - the metadata row is left in place so the user can re-upload the missing blob.
       markFailed('file', failure.childKey)
+      cleanupCount += 1
     } else {
+      if (retainedKnowledgeBaseIds.has(failure.childId)) {
+        for (const docId of failure.documentChildIds) {
+          markFailed('knowledge-document', docId)
+          docIds.push(docId)
+        }
+        if (failure.documentChildIds.length > 0) cleanupCount += 1
+        logger.warn(
+          `[${requestId}] Keeping a failed copied knowledge base that contains non-fork documents`,
+          { childWorkspaceId, childKnowledgeBaseId: failure.childId }
+        )
+        continue
+      }
       markFailed('knowledge-base', failure.childId)
       for (const docId of failure.documentChildIds) markFailed('knowledge-document', docId)
       kbIds.push(failure.childId)
+      cleanupCount += 1
     }
   }
+
+  if (failedByKind.size === 0) return { cleared: 0, clearingFailed: false }
 
   // Whether BOTH reference-clear phases completed without throwing. The placeholder drop below is
   // gated on this: if clearing threw, a workflow (draft or deployed version) may still reference
@@ -185,7 +235,9 @@ export async function clearFailedForkResourceReferences(params: {
       await db.delete(userTableDefinitions).where(inArray(userTableDefinitions.id, tableIds))
     }
     if (kbIds.length > 0) {
-      await db.delete(knowledgeBase).where(inArray(knowledgeBase.id, kbIds))
+      await db
+        .delete(knowledgeBase)
+        .where(and(inArray(knowledgeBase.id, kbIds), notExists(liveNonForkDocumentQuery())))
     }
     if (docIds.length > 0) {
       await db.delete(document).where(inArray(document.id, docIds))
@@ -197,7 +249,7 @@ export async function clearFailedForkResourceReferences(params: {
     })
   }
 
-  return { cleared: failures.length, clearingFailed: false }
+  return { cleared: cleanupCount, clearingFailed: false }
 }
 
 /**
@@ -274,13 +326,13 @@ export function rewriteDeploymentVersionState(
   state: unknown,
   resolve: ForkCopyResolver
 ): { state: unknown; changed: boolean } {
-  if (!isRecord(state) || !isRecord(state.blocks)) return { state, changed: false }
+  if (!isRecordLike(state) || !isRecordLike(state.blocks)) return { state, changed: false }
 
   let nextBlocks: Record<string, unknown> | null = null
   for (const [blockId, block] of Object.entries(state.blocks)) {
-    if (!isRecord(block)) continue
+    if (!isRecordLike(block)) continue
     const blockType = typeof block.type === 'string' ? block.type : undefined
-    if (!blockType || !isRecord(block.subBlocks)) continue
+    if (!blockType || !isRecordLike(block.subBlocks)) continue
     const { subBlocks: cleared, changed } = clearFailedSubBlockReferences(
       block.subBlocks as SubBlockRecord,
       blockType,
@@ -304,6 +356,9 @@ export function rewriteDeploymentVersionState(
  * no-op. After a version is rewritten its cached deployed state is evicted so execute/serve rebuilds
  * from the cleaned snapshot. Bounded work (no long transaction): per-version short UPDATEs, versions
  * keyset-paginated, and a per-workflow failure is logged without aborting the other workflows.
+ * After every workflow has been attempted, any failures are reported to the caller so it can keep
+ * the failed resource placeholders in place rather than deleting rows a deployed version may still
+ * reference.
  */
 export async function clearFailedReferencesInDeploymentVersions(
   workflowIds: ReadonlySet<string>,
@@ -312,6 +367,7 @@ export async function clearFailedReferencesInDeploymentVersions(
 ): Promise<void> {
   if (workflowIds.size === 0) return
   const resolve = buildFailedResolver(failedByKind)
+  const failures: unknown[] = []
 
   for (const workflowId of workflowIds) {
     try {
@@ -355,10 +411,18 @@ export async function clearFailedReferencesInDeploymentVersions(
         afterVersion = versions[versions.length - 1].version
       }
     } catch (error) {
+      failures.push(error)
       logger.error(`[${requestId}] Failed to clear references in deployment versions`, {
         workflowId,
         error: getErrorMessage(error),
       })
     }
+  }
+
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures,
+      `Failed to clear deployment-version references for ${failures.length} workflow(s)`
+    )
   }
 }

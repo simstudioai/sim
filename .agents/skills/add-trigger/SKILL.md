@@ -472,7 +472,51 @@ Add to `helm/sim/values.yaml` under the existing polling cron jobs:
 - Cursor-based (changes API): `apps/sim/lib/webhooks/polling/google-drive.ts`
 - Timestamp-based: `apps/sim/lib/webhooks/polling/google-calendar.ts`
 
+## Option Lists: `selectorKey` or `options`, never a per-block fetcher
+
+A sub-block gets its choices from exactly one of two places. There is no third.
+
+**`selectorKey` — every remote list.** Use the `add-selector` skill to add the key to the
+browser-safe manifest and attach its provider behavior on the server. All remote selectors execute
+through `selectors.execute`; never add a client provider module or selector-only fetch route.
+
+```ts
+{ id: 'triggerCredentials', type: 'oauth-input', canonicalParamId: 'oauthCredential', mode: 'trigger' },
+{ id: 'labelIds', type: 'dropdown', multiSelect: true,
+  selectorKey: 'gmail.labels', dependsOn: ['triggerCredentials'], mode: 'trigger' },
+{ id: 'manualLabelIds', type: 'short-input', mode: 'trigger-advanced' },
+```
+
+`canonicalParamId: 'oauthCredential'` on the credential sub-block is the line people forget. The
+shared context builder uses trigger mode and projects only active `dependsOn` values under their
+canonical ids. Exact `{{KEY}}` environment references remain unresolved until the authorized server
+executor. A credential field is also recognized by its `oauth-input` type as a compatibility
+fallback.
+
+**`options` — everything else.** A static array, or a pure function of the block's own values for a list that narrows to a sibling's selection. No I/O.
+
+```ts
+options: (params) => {
+  const model = params?.values.model
+  return typeof model === 'string' ? effortsFor(model) : DEFAULT_EFFORTS
+}
+```
+
+**Never fetch inside `options`, and never reach into the stores from a block definition.** A fetcher that resolves its credential with `readSubBlockValue(blockId, ...)` only works on the canvas — every surface that is not the editor gets an empty list. `fetchOptions`/`fetchOptionById` were removed for exactly this reason.
+
+Two rules the checks enforce:
+
+- **Selector query keys contain no dependency values.** Credential IDs, secrets, unresolved
+  references, and their hashes stay out of browser cache identities.
+- **A sub-block that `dependsOn` a credential / knowledge-base / table selector must be reconfigurable at fork-sync time** — a `selectorKey`, a canonical pair whose basic member is a selector, or a `short-input`/`long-input`. `bun run check:fork-dependent-coverage` fails otherwise, because a fork sync clears those fields on every push and an unofferable one can never be set anywhere that sticks.
+
 ## Checklist
+
+Webhook and polling routes are legitimate external ingress boundaries. They must not call this
+Sim app's own API routes to reuse provider or business logic. Extract the shared provider operation
+or authorized application use case and call it directly from the trigger handler and any other
+server adapter. HTTP is reserved for an actual cross-process/capability boundary. Tool work uses a
+registered `InternalToolConfig.operation`; the retired `directExecution` property must not return.
 
 ### Trigger Definition
 - [ ] Created `utils.ts` with options, instructions, extra fields, and output builders
@@ -511,3 +555,6 @@ Add to `helm/sim/values.yaml` under the existing polling cron jobs:
 - [ ] `bun run type-check` passes
 - [ ] Manually verify output keys match trigger `outputs` keys
 - [ ] Trigger UI shows correctly in the block
+- [ ] Ran `bun run scripts/generate-docs.ts` and committed the refreshed pages — trigger sections
+      render into the owning integration's docs page, and CI's `bun run docs:check` fails on stale
+      pages

@@ -88,7 +88,12 @@ vi.mock('@/lib/workspaces/policy', () => ({
 
 vi.mock('@sim/audit', () => auditMock)
 
-import { acceptInvitation } from '@/lib/invitations/core'
+import {
+  acceptInvitation,
+  rejectInvitation,
+  revokeInvitationAsAdmin,
+  updateInvitation,
+} from '@/lib/invitations/core'
 
 function queueWhereResponses(responses: unknown[][]) {
   const queue = [...responses]
@@ -99,11 +104,16 @@ function queueWhereResponses(responses: unknown[][]) {
       orderBy: ReturnType<typeof vi.fn>
       returning: ReturnType<typeof vi.fn>
       groupBy: ReturnType<typeof vi.fn>
+      for: ReturnType<typeof vi.fn>
     }
     thenable.limit = vi.fn(() => Promise.resolve(result))
     thenable.orderBy = vi.fn(() => Promise.resolve(result))
     thenable.returning = vi.fn(() => Promise.resolve(result))
     thenable.groupBy = vi.fn(() => Promise.resolve(result))
+    thenable.for = vi.fn((lockMode: string) => {
+      dbChainMockFns.for(lockMode)
+      return thenable
+    })
     return thenable as ReturnType<typeof dbChainMockFns.where>
   })
 }
@@ -702,6 +712,8 @@ describe('acceptInvitation', () => {
       [],
       // Candidate personal workspaces covered by the acceptance lock set.
       [],
+      // No billing-owner workspace escaped the conversion's locked sweep.
+      [],
       // Post-join owned-set re-check under the billing-identity lock.
       [],
       // Grant-txn membership re-check under the lock: member still present.
@@ -754,6 +766,137 @@ describe('acceptInvitation', () => {
         metadata: expect.objectContaining({ invitationId: 'inv-1', memberRole: 'member' }),
       })
     )
+  })
+
+  it('rolls back when a billing-owner workspace is created after the acceptance lock plan', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: null,
+      workspaceMode: 'personal',
+      billedAccountUserId: 'owner-1',
+    })
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-new',
+      fixedSeats: false,
+    })
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: null,
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
+      // Billing-owner workspaces included in the pre-lock conversion plan.
+      [{ id: 'workspace-1' }],
+      // A new personal workspace appeared before provisioning acquired the
+      // billing owner's identity lock, so it escaped the original plan.
+      [{ id: 'workspace-2' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result).toEqual({
+      success: false,
+      kind: 'server-error',
+      message: "The workspace owner's workspaces changed while accepting — please try again.",
+    })
+    expect(mockEnsureTeamOrganizationForAcceptance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billingOwnerUserId: 'owner-1',
+        workspaceOrganizationId: null,
+        workspaceIdsToAttach: ['workspace-1'],
+        executor: dbChainMock.db,
+      })
+    )
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('maps an unexpected provisioning failure only after the acceptance transaction rejects', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: null,
+      workspaceMode: 'personal',
+      billedAccountUserId: 'owner-1',
+    })
+    mockEnsureTeamOrganizationForAcceptance.mockRejectedValueOnce(
+      new Error('subscription re-home failed')
+    )
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: null,
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      // Invitee-owned personal workspaces for the acceptance lock plan.
+      [],
+      // Billing-owner workspaces covered by the conversion lock plan.
+      [{ id: 'workspace-1' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result).toEqual({ success: false, kind: 'server-error' })
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
   })
 
   it('re-reads the workspace after locking when another acceptance attaches it first', async () => {
@@ -988,7 +1131,7 @@ describe('acceptInvitation', () => {
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.redirectPath).toBe('/workspace/workspace-1/home')
+      expect(result.redirectPath).toBe('/workspace/workspace-1')
     }
     expect(mockAttachOwnedWorkspacesToOrganizationTx).toHaveBeenCalledWith(
       expect.anything(),
@@ -1437,7 +1580,7 @@ describe('acceptInvitation', () => {
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.redirectPath).toBe('/workspace/workspace-1/home')
+      expect(result.redirectPath).toBe('/workspace/workspace-1')
     }
   })
 
@@ -1726,7 +1869,7 @@ describe('acceptInvitation', () => {
         invitationId: 'inv-1',
         token: 'tok-1',
       })
-    ).rejects.toThrow('commit failed')
+    ).resolves.toEqual({ success: false, kind: 'server-error' })
 
     expect(auditMock.recordAudit).not.toHaveBeenCalled()
     expect(mockReconcileOrganizationSeats).not.toHaveBeenCalled()
@@ -1855,5 +1998,186 @@ describe('acceptInvitation', () => {
     }
     // Aborted before granting workspace access — no zombie permission write.
     expect(mockSetActiveOrganizationForCurrentSession).not.toHaveBeenCalled()
+  })
+})
+
+function invitationHydrationRows(params?: {
+  status?: 'pending' | 'accepted'
+  organizationId?: string
+}) {
+  const organizationId = params?.organizationId ?? 'org-1'
+  return [
+    [
+      {
+        id: 'inv-1',
+        kind: 'organization',
+        email: 'invitee@example.com',
+        organizationId,
+        membershipIntent: 'internal',
+        inviterId: 'owner-1',
+        role: 'member',
+        status: params?.status ?? 'pending',
+        token: 'tok-1',
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+        updatedAt: new Date('2026-07-30T12:00:00.000Z'),
+      },
+    ],
+    [
+      {
+        id: 'grant-1',
+        workspaceId: 'workspace-1',
+        permission: 'write',
+        workspaceName: 'Workspace',
+      },
+    ],
+    [{ name: 'Acme' }],
+    [{ name: 'Owner', email: 'owner@example.com' }],
+  ]
+}
+
+describe('locked invitation mutations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: null,
+      workspaceMode: 'personal',
+      billedAccountUserId: 'owner-1',
+    })
+  })
+
+  it('reject cannot overwrite an invitation accepted before its protected re-read', async () => {
+    queueWhereResponses([
+      ...invitationHydrationRows({ status: 'pending' }),
+      ...invitationHydrationRows({ status: 'accepted' }),
+    ])
+
+    const result = await rejectInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result).toEqual({ success: false, kind: 'already-processed' })
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'rejected' })
+    )
+  })
+
+  it('PATCH locks its workspace before row claim and authorizes the protected state', async () => {
+    queueWhereResponses([
+      ...invitationHydrationRows({ organizationId: 'org-old' }),
+      ...invitationHydrationRows({ organizationId: 'org-new' }),
+      [{ id: 'permission-1', permissionType: 'admin' }],
+      [{ id: 'inv-1' }],
+      [],
+    ])
+
+    const result = await updateInvitation({
+      actorId: 'admin-1',
+      invitationId: 'inv-1',
+      grants: [{ workspaceId: 'workspace-1', permission: 'admin' }],
+    })
+
+    expect(result.success).toBe(true)
+    const executedSql = dbChainMockFns.execute.mock.calls.map(([query]) =>
+      ((query as { strings?: readonly string[] }).strings ?? []).join('')
+    )
+    const invitationLockIndex = executedSql.findIndex((sqlText) =>
+      sqlText.includes('pg_advisory_xact_lock')
+    )
+    const workspaceLockIndex = executedSql.findIndex(
+      (sqlText, index) => index > invitationLockIndex && sqlText.includes('pg_advisory_xact_lock')
+    )
+    const rowLockIndex = executedSql.findIndex((sqlText) => sqlText.includes('for update'))
+    expect(invitationLockIndex).toBeGreaterThanOrEqual(0)
+    expect(workspaceLockIndex).toBeGreaterThan(invitationLockIndex)
+    expect(rowLockIndex).toBeGreaterThan(workspaceLockIndex)
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.set.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('PATCH never mutates a non-pending protected re-read', async () => {
+    queueWhereResponses([
+      ...invitationHydrationRows({ status: 'pending' }),
+      ...invitationHydrationRows({ status: 'accepted' }),
+    ])
+
+    await expect(
+      updateInvitation({
+        actorId: 'admin-1',
+        invitationId: 'inv-1',
+        role: 'admin',
+      })
+    ).resolves.toEqual({ success: false, kind: 'not-pending' })
+    expect(dbChainMockFns.for).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  it('DELETE authorizes against the organization from its protected re-read', async () => {
+    queueWhereResponses([
+      ...invitationHydrationRows({ organizationId: 'org-old' }),
+      ...invitationHydrationRows({ organizationId: 'org-new' }),
+      [{ id: 'member-1', role: 'admin' }],
+      [{ id: 'inv-1' }],
+    ])
+
+    const result = await revokeInvitationAsAdmin({
+      actorId: 'admin-1',
+      invitationId: 'inv-1',
+    })
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.set.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('PATCH role update observes an organization-admin demotion before mutating', async () => {
+    queueWhereResponses([
+      ...invitationHydrationRows(),
+      ...invitationHydrationRows(),
+      [{ id: 'member-1', role: 'member' }],
+    ])
+
+    await expect(
+      updateInvitation({
+        actorId: 'admin-1',
+        invitationId: 'inv-1',
+        role: 'admin',
+      })
+    ).resolves.toEqual({ success: false, kind: 'organization-forbidden' })
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  it('PATCH grant update observes an explicit-admin downgrade before mutating', async () => {
+    queueWhereResponses([
+      ...invitationHydrationRows(),
+      ...invitationHydrationRows(),
+      [{ id: 'permission-1', permissionType: 'write' }],
+    ])
+
+    await expect(
+      updateInvitation({
+        actorId: 'admin-1',
+        invitationId: 'inv-1',
+        grants: [{ workspaceId: 'workspace-1', permission: 'admin' }],
+      })
+    ).resolves.toEqual({
+      success: false,
+      kind: 'workspace-forbidden',
+      workspaceId: 'workspace-1',
+    })
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 })

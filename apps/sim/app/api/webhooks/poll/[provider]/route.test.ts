@@ -66,10 +66,13 @@ describe('webhook polling route (fire-and-forget)', () => {
     expect(response.status).toBe(202)
     const data = await response.json()
     expect(data).toMatchObject({ status: 'started' })
+    // `reclaimOnFailure` is what stops a timed-out acquire from leaving a lock
+    // no one owns, which skipped every poll until the TTL expired.
     expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledWith(
       'gmail-polling-lock',
       expect.any(String),
-      expect.any(Number)
+      expect.any(Number),
+      { reclaimOnFailure: true }
     )
 
     await flushMicrotasks()

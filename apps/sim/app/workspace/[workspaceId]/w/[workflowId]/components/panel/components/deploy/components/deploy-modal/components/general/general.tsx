@@ -1,19 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useId, useState } from 'react'
 import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
   ChipConfirmModal,
+  ChipModal,
+  ChipModalBody,
+  ChipModalHeader,
   cn,
   Expand,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalHeader,
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
@@ -33,6 +31,8 @@ interface GeneralDeployProps {
   workflowId: string | null
   deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
+  /** A snapshot is expected but has not arrived — render loading, not "undeployed". */
+  isAwaitingSnapshot: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
   isPromotingVersion: boolean
@@ -51,6 +51,7 @@ export function GeneralDeploy({
   workflowId,
   deployedState,
   isLoadingDeployedState,
+  isAwaitingSnapshot,
   versions,
   versionsLoading,
   isPromotingVersion,
@@ -59,6 +60,7 @@ export function GeneralDeploy({
   onLoadDeploymentComplete,
   onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
+  const expandedPreviewDescriptionId = useId()
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
   const previewMode: PreviewMode =
@@ -135,13 +137,6 @@ export function GeneralDeploy({
     }
   }
 
-  useEffect(() => {
-    setShowLoadDialog(false)
-    setVersionToLoad(null)
-    setShowPromoteDialog(false)
-    setVersionToPromote(null)
-  }, [workflowId])
-
   const confirmPromoteToLive = async () => {
     if (!versionToPromote || isPromotingVersion) return
     const target = versionToPromote
@@ -169,7 +164,13 @@ export function GeneralDeploy({
   const showToggle = selectedVersion !== null && deployedState
 
   const hasDeployedData = deployedState && Object.keys(deployedState.blocks || {}).length > 0
-  const showLoadingSkeleton = isLoadingDeployedState && !hasDeployedData
+  /*
+   * `isAwaitingSnapshot` counts as loading. A missing snapshot is not evidence
+   * that the workflow is undeployed — it is usually the snapshot not having
+   * arrived yet — and treating it as evidence is what rendered "Deploy your
+   * workflow to see a preview" directly above a row reading `v1 (live)`.
+   */
+  const showLoadingSkeleton = (isLoadingDeployedState || isAwaitingSnapshot) && !hasDeployedData
 
   if (showLoadingSkeleton) {
     return (
@@ -197,7 +198,7 @@ export function GeneralDeploy({
       <div className='space-y-3'>
         <div>
           <div className='relative mb-[6.5px]'>
-            <Label className='block truncate pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+            <Label className='block truncate pl-0.5 text-[var(--text-primary)] text-small'>
               {previewMode === 'selected' && selectedVersionInfo
                 ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
                 : 'Live Workflow'}
@@ -261,7 +262,7 @@ export function GeneralDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
             Versions
           </Label>
           <Versions
@@ -327,21 +328,26 @@ export function GeneralDeploy({
       />
 
       {workflowToShow && (
-        <Modal open={showExpandedPreview} onOpenChange={setShowExpandedPreview}>
-          <ModalContent size='full' className='flex h-[90vh] flex-col'>
-            <ModalHeader>
-              {previewMode === 'selected' && selectedVersionInfo
-                ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
-                : 'Live Workflow'}
-            </ModalHeader>
-            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
-              <ModalDescription className='sr-only'>
-                Visual preview of the selected workflow version.
-              </ModalDescription>
-              <Preview workflowState={workflowToShow} autoSelectLeftmost />
-            </ModalBody>
-          </ModalContent>
-        </Modal>
+        <ChipModal
+          open={showExpandedPreview}
+          onOpenChange={setShowExpandedPreview}
+          srTitle='Workflow preview'
+          aria-describedby={expandedPreviewDescriptionId}
+          size='full'
+          className='h-[90vh] [&>div]:h-full'
+        >
+          <ChipModalHeader onClose={() => setShowExpandedPreview(false)}>
+            {previewMode === 'selected' && selectedVersionInfo
+              ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
+              : 'Live Workflow'}
+          </ChipModalHeader>
+          <ChipModalBody fullBleed>
+            <p id={expandedPreviewDescriptionId} className='sr-only'>
+              Visual preview of the selected workflow version.
+            </p>
+            <Preview workflowState={workflowToShow} autoSelectLeftmost />
+          </ChipModalBody>
+        </ChipModal>
       )}
     </>
   )

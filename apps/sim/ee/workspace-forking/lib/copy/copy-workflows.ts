@@ -1,8 +1,11 @@
 import { folder as folderTable, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import type { DbOrTx } from '@/lib/db/types'
+import { assertFolderCollectionHasRoom } from '@/lib/folders/queries'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
   remapConditionIdsInSubBlocks,
@@ -21,6 +24,7 @@ import {
   applyDependentOverrides,
   collectClearedDependents,
   type NeedsConfigurationField,
+  replaceCustomBlockInputs,
   type SubBlockTransform,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 import type {
@@ -42,12 +46,17 @@ interface ResolveForkFolderMappingParams {
   userId: string
   now: Date
   /**
-   * Source folder ids that will directly hold copied content (workflows); null entries
+   * Which folder tree to mirror. `folder` rows are one table discriminated by this column, and
+   * the four folder-bearing families (`workflow`, `file`, `knowledge_base`, `table`) each own a
+   * disjoint tree, so a mapping run is always scoped to exactly one of them - reading across
+   * types would alias unrelated same-named folders onto each other.
+   */
+  resourceType: FolderResourceType
+  /**
+   * Source folder ids that will directly hold copied content of `resourceType`; null entries
    * (root-placed content) are ignored. A source folder is copied into the target only when
    * its subtree contains at least one of these, so a fork/sync never creates folders that
-   * would end up empty. Copied workspace FILES never influence this set: their folders are a
-   * separate tree (`folder` rows with `resourceType = 'file'`, which this copy only ever reads
-   * as `'workflow'`) and are flattened to root by the copy.
+   * would end up empty.
    */
   contentFolderIds: ReadonlyArray<string | null>
 }
@@ -59,8 +68,11 @@ interface ResolveForkFolderMappingParams {
  * parent are reused instead of duplicated. Folders whose subtree holds no copied content are
  * pruned - never created - though a pruned folder still maps onto an existing target folder
  * when one matches, so previously-synced content refs keep resolving. Returns a map from
- * source folder id to target folder id; a copied workflow whose folder is absent from the
+ * source folder id to target folder id; copied content whose folder is absent from the
  * map is placed at the target's root (see {@link copyWorkflowStateIntoTarget}).
+ *
+ * Call once per folder-bearing family being copied; the returned maps are disjoint (folder ids
+ * are globally unique) and safe to merge for content-reference rewriting.
  */
 export async function resolveForkFolderMapping({
   tx,
@@ -68,6 +80,7 @@ export async function resolveForkFolderMapping({
   targetWorkspaceId,
   userId,
   now,
+  resourceType,
   contentFolderIds,
 }: ResolveForkFolderMappingParams): Promise<Map<string, string>> {
   const map = new Map<string, string>()
@@ -78,7 +91,7 @@ export async function resolveForkFolderMapping({
     .where(
       and(
         eq(folderTable.workspaceId, sourceWorkspaceId),
-        eq(folderTable.resourceType, 'workflow'),
+        eq(folderTable.resourceType, resourceType),
         isNull(folderTable.deletedAt)
       )
     )
@@ -105,7 +118,7 @@ export async function resolveForkFolderMapping({
     .where(
       and(
         eq(folderTable.workspaceId, targetWorkspaceId),
-        eq(folderTable.resourceType, 'workflow'),
+        eq(folderTable.resourceType, resourceType),
         isNull(folderTable.deletedAt)
       )
     )
@@ -158,6 +171,21 @@ export async function resolveForkFolderMapping({
   }
 
   if (newFolders.length > 0) {
+    /**
+     * Charge the whole batch against the target workspace's folder ceiling in one check
+     * before writing any of it. Readers cap the active folder index at
+     * `MAX_FOLDERS_PER_WORKSPACE`, so a fork that mirrors a large source tree into an
+     * already-populated target could otherwise leave the target unreadable.
+     *
+     * Runs inside the fork transaction, after the `fork-target` advisory lock, so it is
+     * atomic against every other fork/promote into this target and a refusal rolls the
+     * whole copy back. It does NOT take the folder mutation lock: that helper resets the
+     * transaction's `lock_timeout`, which the fork sets deliberately, so an ordinary
+     * concurrent `createFolder` can still slip a row in between the count and the insert.
+     */
+    await assertFolderCollectionHasRoom(targetWorkspaceId, resourceType, tx, {
+      additionalRows: newFolders.length,
+    })
     await tx.insert(folderTable).values(newFolders)
   }
 
@@ -234,8 +262,21 @@ export async function loadWorkflowNameRegistry(
 }
 
 /**
- * Batched read of the current DRAFT subBlocks for a set of (replace) target
- * workflows, keyed `workflowId -> blockId -> subBlocks`. One query for the whole
+ * One target block as it stands BEFORE this sync overwrites it.
+ *
+ * The `type` rides along with the sub-blocks because a custom block's inputs are only
+ * meaningful under the type that declared them: the same field id on a different block is a
+ * different workflow's field. {@link replaceCustomBlockInputs} uses the pair to decide whether
+ * the target's own values may be kept.
+ */
+export interface ForkTargetDraftBlock {
+  type: string
+  subBlocks: SubBlockRecord
+}
+
+/**
+ * Batched read of the current DRAFT blocks for a set of (replace) target
+ * workflows, keyed `workflowId -> blockId -> block`. One query for the whole
  * promote so the locked apply phase doesn't do N per-workflow loads; called
  * pre-write so it reflects the target state the user configured before this sync
  * overwrites it. Promote uses it to detect required dependents the sync left empty
@@ -244,13 +285,14 @@ export async function loadWorkflowNameRegistry(
 export async function loadTargetDraftSubBlocks(
   executor: DbOrTx,
   workflowIds: string[]
-): Promise<Map<string, Map<string, SubBlockRecord>>> {
-  const byWorkflow = new Map<string, Map<string, SubBlockRecord>>()
+): Promise<Map<string, Map<string, ForkTargetDraftBlock>>> {
+  const byWorkflow = new Map<string, Map<string, ForkTargetDraftBlock>>()
   if (workflowIds.length === 0) return byWorkflow
   const rows = await executor
     .select({
       workflowId: workflowBlocks.workflowId,
       blockId: workflowBlocks.id,
+      blockType: workflowBlocks.type,
       subBlocks: workflowBlocks.subBlocks,
     })
     .from(workflowBlocks)
@@ -258,10 +300,13 @@ export async function loadTargetDraftSubBlocks(
   for (const row of rows) {
     let blocks = byWorkflow.get(row.workflowId)
     if (!blocks) {
-      blocks = new Map<string, SubBlockRecord>()
+      blocks = new Map<string, ForkTargetDraftBlock>()
       byWorkflow.set(row.workflowId, blocks)
     }
-    blocks.set(row.blockId, (row.subBlocks ?? {}) as SubBlockRecord)
+    blocks.set(row.blockId, {
+      type: row.blockType,
+      subBlocks: (row.subBlocks ?? {}) as SubBlockRecord,
+    })
   }
   return byWorkflow
 }
@@ -338,12 +383,20 @@ export interface CopyWorkflowStateParams {
   /** Optional resource-reference remap applied to every block's subBlocks. */
   transformSubBlocks?: SubBlockTransform
   /**
-   * The target workflow's current draft subBlocks (block id -> subBlocks), for
+   * Optional remap of a block's own `type`. Only custom blocks use it: their reference IS
+   * the type, so unlike every other resource there is no sub-block value to rewrite. Returns
+   * the type unchanged when nothing is mapped, which deliberately leaves the copy pointing at
+   * the source block rather than deleting the node — see {@link remapForkBlockType}.
+   */
+  transformBlockType?: (blockType: string, block: { id: string; name: string }) => string
+  /**
+   * The target workflow's current draft blocks (block id -> type + subBlocks), for
    * `replace` mode only. When present, required dependents that the sync left empty
    * (the parent change cleared and the stored mapping didn't fill) are reported in
-   * {@link CopyWorkflowResult.needsConfiguration}.
+   * {@link CopyWorkflowResult.needsConfiguration}, and a custom block keeps the target's own
+   * values for inputs the sync modal cannot configure (see {@link replaceCustomBlockInputs}).
    */
-  targetCurrentBlocks?: Map<string, SubBlockRecord>
+  targetCurrentBlocks?: Map<string, ForkTargetDraftBlock>
   /**
    * Per-block (block id -> subBlock key -> value) stored dependent values applied last,
    * after the reference transform cleared the source's, so the stored mapping is the sole
@@ -362,6 +415,13 @@ export interface CopyWorkflowStateParams {
    * creation, where every id is derived fresh.
    */
   resolveBlockId?: ForkBlockIdResolver
+  /**
+   * The resolved public webhook path per TARGET block id - the block's own live path, or a
+   * retiring one it adopts (see `resolveForkTriggerPaths`). Pinned into the target block's
+   * `triggerPath` so the URL stops being a derivation of the block id this sync assigns.
+   * Omitted on fork creation, where the child has no webhooks yet.
+   */
+  triggerPathByBlockId?: ReadonlyMap<string, string>
   requestId?: string
 }
 
@@ -390,10 +450,12 @@ export async function copyWorkflowStateIntoTarget(
     workflowIdMap,
     folderIdMap,
     transformSubBlocks,
+    transformBlockType,
     targetCurrentBlocks,
     dependentOverrides,
     nameRegistry,
     resolveBlockId,
+    triggerPathByBlockId,
     requestId = 'unknown',
   } = params
 
@@ -423,7 +485,7 @@ export async function copyWorkflowStateIntoTarget(
     const newBlockId = blockIdMapping.get(oldBlockId)!
 
     let updatedData = block.data
-    if (block.data && typeof block.data === 'object' && !Array.isArray(block.data)) {
+    if (isRecordLike(block.data)) {
       const dataObj = block.data as Record<string, unknown>
       if (typeof dataObj.parentId === 'string' && blockIdMapping.has(dataObj.parentId)) {
         updatedData = {
@@ -438,6 +500,19 @@ export async function copyWorkflowStateIntoTarget(
     const sourceSubBlocks = (block.subBlocks ?? {}) as unknown as SubBlockRecord
     const sanitizedSource = sanitizeSubBlocksForDuplicate(sourceSubBlocks)
     let subBlocks: SubBlockRecord = sanitizedSource
+    // The sanitizer strips `triggerPath` (the SOURCE's URL must never be copied). Pin the
+    // TARGET's resolved path back in - the one this block already serves, or a retiring one it
+    // adopts - so the URL stops being a derivation of the block id this sync assigns. Otherwise
+    // any later change to that id silently re-points a URL external systems already call (a
+    // Slack Request URL, a provider subscription). With no resolved path the field stays empty
+    // and derives as before, so a first-time sync is unchanged.
+    const resolvedTriggerPath = triggerPathByBlockId?.get(newBlockId)
+    if (resolvedTriggerPath) {
+      subBlocks = {
+        ...subBlocks,
+        triggerPath: { id: 'triggerPath', type: 'short-input', value: resolvedTriggerPath },
+      }
+    }
     // Tracks the block's live `canonicalModes` through this pass, so a `tool-input` reindex
     // (a dropped custom-tool/MCP entry shifts later tools' array positions) is visible to every
     // later step below that resolves a nested tool's basic/advanced mode - not just the final
@@ -445,11 +520,21 @@ export async function copyWorkflowStateIntoTarget(
     let activeCanonicalModes: CanonicalModeOverrides | undefined = (
       block.data as { canonicalModes?: Record<string, 'basic' | 'advanced'> } | undefined
     )?.canonicalModes
+    // A mixed action/trigger block shares one `canonicalModes` key across both surfaces, so the
+    // remap has to know which surface is live: without it a trigger field reads as a dormant
+    // member of the action pair and the remap clears the value.
+    const blockTriggerMode = block.triggerMode === true
     if (transformSubBlocks) {
-      subBlocks = transformSubBlocks(subBlocks, block.type, activeCanonicalModes, (next) => {
-        activeCanonicalModes = next
-        updatedData = { ...updatedData, canonicalModes: next } as BlockData
-      })
+      subBlocks = transformSubBlocks(
+        subBlocks,
+        block.type,
+        activeCanonicalModes,
+        (next) => {
+          activeCanonicalModes = next
+          updatedData = { ...updatedData, canonicalModes: next } as BlockData
+        },
+        blockTriggerMode
+      )
     }
     if (varIdMapping.size > 0) {
       subBlocks = remapVariableIdsInSubBlocks(subBlocks, varIdMapping)
@@ -488,16 +573,31 @@ export async function copyWorkflowStateIntoTarget(
           block.type,
           newBlockId,
           block.name,
-          targetCurrent,
+          targetCurrent.subBlocks,
           subBlocks,
-          activeCanonicalModes
+          activeCanonicalModes,
+          blockTriggerMode
         )
       )
+    }
+
+    const nextBlockType = transformBlockType
+      ? transformBlockType(block.type, { id: oldBlockId, name: block.name })
+      : block.type
+    if (nextBlockType !== block.type) {
+      // Only a custom block can change type, and once it does its stored inputs describe the
+      // OLD block's fields. Replace them with what the user configured for the target — the
+      // same stored dependent values every other reconfigurable field uses, just applied
+      // wholesale because ALL of a custom block's inputs are reconfigurable, not a `dependsOn`
+      // subset. `applyDependentOverrides` above is a no-op for them: it allowlists on
+      // `dependsOn` + `selectorKey`, which no custom-block input has.
+      subBlocks = replaceCustomBlockInputs(subBlocks, blockOverrides, nextBlockType, targetCurrent)
     }
 
     newBlocks[newBlockId] = {
       ...block,
       id: newBlockId,
+      type: nextBlockType,
       // double-cast-allowed: remap helpers return SubBlockRecord; the entries retain the SubBlockState shape this block requires
       subBlocks: subBlocks as unknown as Record<string, SubBlockState>,
       data: updatedData,

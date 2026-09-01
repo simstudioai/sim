@@ -13,6 +13,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,7 +59,7 @@ export const GET = withRouteHandler(
         token,
         name: file.originalName,
         type: file.contentType,
-        size: file.size,
+        size: getWorkspaceFileSize(file),
         workspaceName,
         ownerName,
       })
@@ -123,13 +124,11 @@ export const POST = withRouteHandler(
       }
 
       const response = NextResponse.json({ authType: resolved.share.authType })
-      setDeploymentAuthCookie(
+      setDeploymentAuthCookie({
         response,
-        'file',
-        resolved.share.id,
-        resolved.share.authType,
-        resolved.share.password
-      )
+        cookiePrefix: 'file',
+        resource: resolved.share,
+      })
       logger.info('Public file share password accepted', { token, shareId: resolved.share.id })
       return response
     } catch (error) {

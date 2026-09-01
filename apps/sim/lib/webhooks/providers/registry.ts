@@ -4,6 +4,7 @@ import { airtableHandler } from '@/lib/webhooks/providers/airtable'
 import { ashbyHandler } from '@/lib/webhooks/providers/ashby'
 import { attioHandler } from '@/lib/webhooks/providers/attio'
 import { azureDevOpsHandler } from '@/lib/webhooks/providers/azure-devops'
+import { bitbucketHandler } from '@/lib/webhooks/providers/bitbucket'
 import { calcomHandler } from '@/lib/webhooks/providers/calcom'
 import { calendlyHandler } from '@/lib/webhooks/providers/calendly'
 import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
@@ -20,12 +21,14 @@ import { gmailHandler } from '@/lib/webhooks/providers/gmail'
 import { gongHandler } from '@/lib/webhooks/providers/gong'
 import { googleFormsHandler } from '@/lib/webhooks/providers/google-forms'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
+import { granolaHandler } from '@/lib/webhooks/providers/granola'
 import { greenhouseHandler } from '@/lib/webhooks/providers/greenhouse'
 import { imapHandler } from '@/lib/webhooks/providers/imap'
 import { incidentioHandler } from '@/lib/webhooks/providers/incidentio'
 import { instantlyHandler } from '@/lib/webhooks/providers/instantly'
 import { intercomHandler } from '@/lib/webhooks/providers/intercom'
 import { jiraHandler } from '@/lib/webhooks/providers/jira'
+import { jotformHandler } from '@/lib/webhooks/providers/jotform'
 import { jsmHandler } from '@/lib/webhooks/providers/jsm'
 import { lemlistHandler } from '@/lib/webhooks/providers/lemlist'
 import { linearHandler } from '@/lib/webhooks/providers/linear'
@@ -58,6 +61,7 @@ import { vercelHandler } from '@/lib/webhooks/providers/vercel'
 import { webflowHandler } from '@/lib/webhooks/providers/webflow'
 import { whatsappHandler } from '@/lib/webhooks/providers/whatsapp'
 import { zendeskHandler } from '@/lib/webhooks/providers/zendesk'
+import { zohoDeskHandler } from '@/lib/webhooks/providers/zoho-desk'
 import { zoomHandler } from '@/lib/webhooks/providers/zoom'
 
 const logger = createLogger('WebhookProviderRegistry')
@@ -67,6 +71,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   ashby: ashbyHandler,
   attio: attioHandler,
   azure_devops: azureDevOpsHandler,
+  bitbucket: bitbucketHandler,
   calendly: calendlyHandler,
   calcom: calcomHandler,
   circleback: circlebackHandler,
@@ -83,12 +88,14 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   google_forms: googleFormsHandler,
   fathom: fathomHandler,
   grain: grainHandler,
+  granola: granolaHandler,
   greenhouse: greenhouseHandler,
   imap: imapHandler,
   incidentio: incidentioHandler,
   intercom: intercomHandler,
   instantly: instantlyHandler,
   jira: jiraHandler,
+  jotform: jotformHandler,
   jsm: jsmHandler,
   lemlist: lemlistHandler,
   linear: linearHandler,
@@ -122,6 +129,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   webflow: webflowHandler,
   whatsapp: whatsappHandler,
   zendesk: zendeskHandler,
+  zoho_desk: zohoDeskHandler,
   zoom: zoomHandler,
 }
 

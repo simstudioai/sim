@@ -3,6 +3,11 @@
  * Used by both client-side signature computation and server-side comparison.
  */
 
+import { isRecordLike } from '@sim/utils/object'
+import {
+  normalizeWorkflowEdgeSourceHandle,
+  normalizeWorkflowEdgeTargetHandle,
+} from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
@@ -194,7 +199,7 @@ export function sanitizeTools(tools: unknown[] | undefined): Record<string, unkn
   if (!Array.isArray(tools)) return []
 
   return tools.map((tool) => {
-    if (tool && typeof tool === 'object' && !Array.isArray(tool)) {
+    if (isRecordLike(tool)) {
       const { isExpanded, ...rest } = tool as ToolWithExpanded
       return rest
     }
@@ -286,7 +291,7 @@ type InputFormatItem = Record<string, unknown> & { collapsed?: boolean }
 export function sanitizeInputFormat(inputFormat: unknown[] | undefined): Record<string, unknown>[] {
   if (!Array.isArray(inputFormat)) return []
   return inputFormat.map((item) => {
-    if (item && typeof item === 'object' && !Array.isArray(item)) {
+    if (isRecordLike(item)) {
       const { collapsed, ...rest } = item as InputFormatItem
       return rest
     }
@@ -313,13 +318,26 @@ export function normalizeEdge(edge: Edge): NormalizedEdge {
     source: edge.source,
     target: edge.target,
   }
+  /*
+   * Canonicalized here rather than by each caller, because the two sides of a
+   * redeploy check are loaded by different paths and only some of them
+   * normalize: the server diffs the normalized tables — which now collapse a
+   * falsy handle to nothing — against the version's raw jsonb, which does not.
+   * An edge persisted with `sourceHandle: ''` (two write paths use `?? null`,
+   * which preserves it) would then be present on one side and absent on the
+   * other, counting as removed-and-re-added and asking every such workflow to
+   * redeploy. Both spellings name one port, so the comparison must not be able
+   * to tell them apart however its inputs arrived.
+   */
+  const sourceHandle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle)
+  const targetHandle = normalizeWorkflowEdgeTargetHandle(edge.targetHandle)
   // Only include handles if they have a non-null value
   // This treats null and undefined as equivalent (both omitted)
-  if (edge.sourceHandle != null) {
-    normalized.sourceHandle = edge.sourceHandle
+  if (sourceHandle != null) {
+    normalized.sourceHandle = sourceHandle
   }
-  if (edge.targetHandle != null) {
-    normalized.targetHandle = edge.targetHandle
+  if (targetHandle != null) {
+    normalized.targetHandle = targetHandle
   }
   return normalized
 }

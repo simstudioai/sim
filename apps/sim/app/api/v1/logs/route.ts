@@ -1,15 +1,12 @@
-import { db } from '@sim/db'
-import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListLogsContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
-import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
   checkRateLimit,
@@ -22,23 +19,6 @@ const logger = createLogger('V1LogsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-interface CursorData {
-  startedAt: string
-  id: string
-}
-
-function encodeCursor(data: CursorData): string {
-  return Buffer.from(JSON.stringify(data)).toString('base64')
-}
-
-function decodeCursor(cursor: string): CursorData | null {
-  try {
-    return JSON.parse(Buffer.from(cursor, 'base64').toString())
-  } catch {
-    return null
-  }
-}
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -74,6 +54,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
     })
 
+    const decodedCursor = params.cursor
+      ? decodePublicLogCursor(params.cursor, params.order ?? 'desc')
+      : null
+    if (params.cursor && !decodedCursor) {
+      return NextResponse.json({ error: 'Invalid cursor' }, { status: 400 })
+    }
+    const cursor = decodedCursor ?? undefined
+
     const filters = {
       workspaceId: params.workspaceId,
       workflowIds: params.workflowIds?.split(',').filter(Boolean),
@@ -88,50 +76,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       minCost: params.minCost,
       maxCost: params.maxCost,
       model: params.model,
-      cursor: params.cursor ? decodeCursor(params.cursor) || undefined : undefined,
+      cursor,
       order: params.order,
     }
 
-    const conditions = buildLogFilters(filters)
-    const orderBy = getOrderBy(params.order)
-
-    const baseQuery = db
-      .select({
-        id: workflowExecutionLogs.id,
-        workflowId: workflowExecutionLogs.workflowId,
-        workspaceId: workflowExecutionLogs.workspaceId,
-        executionId: workflowExecutionLogs.executionId,
-        deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
-        level: workflowExecutionLogs.level,
-        trigger: workflowExecutionLogs.trigger,
-        startedAt: workflowExecutionLogs.startedAt,
-        endedAt: workflowExecutionLogs.endedAt,
-        totalDurationMs: workflowExecutionLogs.totalDurationMs,
-        costTotal: workflowExecutionLogs.costTotal,
-        files: workflowExecutionLogs.files,
-        executionData: params.details === 'full' ? workflowExecutionLogs.executionData : sql`null`,
-        workflowName: workflow.name,
-        workflowDescription: workflow.description,
-      })
-      .from(workflowExecutionLogs)
-      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-
-    const logs = await baseQuery
-      .where(conditions)
-      .orderBy(orderBy)
-      .limit(params.limit + 1)
-
-    const hasMore = logs.length > params.limit
-    const data = logs.slice(0, params.limit)
-
-    let nextCursor: string | undefined
-    if (hasMore && data.length > 0) {
-      const lastLog = data[data.length - 1]
-      nextCursor = encodeCursor({
-        startedAt: lastLog.startedAt.toISOString(),
-        id: lastLog.id,
-      })
-    }
+    const { data, nextCursor } = await listPublicWorkflowLogs({
+      filters,
+      limit: params.limit,
+      includeExecutionData: params.details === 'full',
+    })
 
     const needsMaterialize =
       params.details === 'full' && (params.includeFinalOutput || params.includeTraceSpans)
@@ -167,12 +120,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
           const result = buildBase(log)
           if (log.executionData) {
-            const execData = (await materializeExecutionData(
+            const execData = (await materializeExecutionDataForDisplay(
               log.executionData as Record<string, unknown> | null,
               {
                 workspaceId: log.workspaceId,
                 workflowId: log.workflowId,
                 executionId: log.executionId,
+                userId,
               }
             )) as any
             if (params.includeFinalOutput && execData.finalOutput) {
@@ -191,7 +145,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const response = createApiResponse(
       {
         data: formattedLogs,
-        nextCursor,
+        nextCursor: nextCursor ?? undefined,
       },
       limits,
       rateLimit // This is the API endpoint rate limit, not workflow execution limits

@@ -1,15 +1,14 @@
-import type { DeleteExpectedExpenseParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { DeleteExpectedExpenseParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteExpectedExpenseTool: ToolConfig<
+export const deleteExpectedExpenseTool: InternalToolConfig<
   DeleteExpectedExpenseParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_delete_expected_expense',
   name: 'SAP Concur Delete Expected Expense',
@@ -72,29 +71,22 @@ export const deleteExpectedExpenseTool: ToolConfig<
         'User UUID acting on the request (required when using a Company JWT, optional otherwise)',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const expenseUuid = trimRequired(params.expenseUuid, 'expenseUuid')
       const query: Record<string, string> = {}
       if (params.userId?.trim()) query.userId = params.userId.trim()
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/expenses/${encodeURIComponent(expenseUuid)}`,
         method: 'DELETE',
         ...(Object.keys(query).length > 0 ? { query } : {}),
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
-    data: {
-      type: 'json',
-      description: 'Returns boolean true on 200 OK when the expected expense is deleted.',
-      properties: {},
-    },
+    data: { type: 'boolean', description: 'true when the expected expense was deleted' },
   },
 }

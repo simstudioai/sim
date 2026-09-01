@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import nodemailer from 'nodemailer'
 import { env, envBoolean, envNumber } from '@/lib/core/config/env'
+import { getSmtpEhloName } from '@/lib/messaging/email/ehlo'
 import { sendViaNodemailer } from '@/lib/messaging/email/providers/_nodemailer'
 import type { MailProvider } from '@/lib/messaging/email/types'
 
@@ -31,6 +32,7 @@ export function createSmtpProvider(): MailProvider | null {
     port,
     secure: envBoolean(env.SMTP_SECURE) ?? port === 465,
     auth: user && pass ? { user, pass } : undefined,
+    name: getSmtpEhloName(),
   })
 
   return {

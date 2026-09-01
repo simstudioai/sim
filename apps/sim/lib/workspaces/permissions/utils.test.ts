@@ -196,6 +196,8 @@ describe('Permission Utils', () => {
           isExternal: false,
           joinedAt: '2026-04-22T00:00:00.000Z',
           roleSource: 'explicit',
+          isOrgAdmin: false,
+          isBilledAccount: false,
         },
       ])
     })
@@ -252,8 +254,39 @@ describe('Permission Utils', () => {
       expect(orgAdmin).toMatchObject({
         permissionType: 'admin',
         roleSource: 'org-admin',
+        isOrgAdmin: true,
         isExternal: false,
       })
+    })
+
+    it('reports isOrgAdmin on a workspace owner whose roleSource outranks it', async () => {
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'owner-user', organizationId: 'org-1' }],
+        [
+          {
+            userId: 'owner-user',
+            email: 'owner@example.com',
+            name: 'Owner',
+            image: null,
+            permissionType: 'admin' as PermissionType,
+            joinedAt,
+            userOrganizationId: 'org-1',
+          },
+        ],
+        [
+          {
+            userId: 'owner-user',
+            email: 'owner@example.com',
+            name: 'Owner',
+            image: null,
+            joinedAt,
+          },
+        ],
+      ])
+
+      const result = await getUsersWithPermissions('ws')
+
+      expect(result[0]).toMatchObject({ roleSource: 'owner', isOrgAdmin: true })
     })
 
     it('marks users as external when they are not members of the workspace organization', async () => {
@@ -743,6 +776,33 @@ describe('Permission Utils', () => {
       const result = await getWorkspaceWithOwner('workspace123')
 
       expect(result).toEqual({ id: 'workspace123', ownerId: null })
+    })
+
+    /**
+     * Archived visibility is applied in JS, not SQL, so the read can be shared by the
+     * gates that disagree about it. That makes these two the boundary worth pinning:
+     * if the filter ever stops matching the old `archived_at IS NULL` predicate, archived
+     * workspaces silently become visible to callers that asked not to see them.
+     */
+    it.concurrent('should hide an archived workspace by default', async () => {
+      const chain = createMockChain([
+        { id: 'workspace123', ownerId: 'owner456', archivedAt: new Date('2026-01-01') },
+      ])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await getWorkspaceWithOwner('workspace123')
+
+      expect(result).toBeNull()
+    })
+
+    it.concurrent('should return an archived workspace when asked to include them', async () => {
+      const archivedAt = new Date('2026-01-01')
+      const chain = createMockChain([{ id: 'workspace123', ownerId: 'owner456', archivedAt }])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await getWorkspaceWithOwner('workspace123', { includeArchived: true })
+
+      expect(result).toEqual({ id: 'workspace123', ownerId: 'owner456', archivedAt })
     })
   })
 

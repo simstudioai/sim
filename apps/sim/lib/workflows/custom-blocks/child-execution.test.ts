@@ -1,0 +1,266 @@
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
+
+const { mockCheckAttributedUsageLimits, mockSubscribe, mockUnsubscribe } = vi.hoisted(() => ({
+  mockCheckAttributedUsageLimits: vi.fn(),
+  mockSubscribe: vi.fn(),
+  mockUnsubscribe: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
+}))
+
+vi.mock('@/lib/execution/cancellation', () => ({
+  subscribeToExecutionCancellation: mockSubscribe,
+}))
+
+import {
+  admitCustomBlockChildExecution,
+  buildCustomBlockCorrelation,
+  CustomBlockAdmissionError,
+  createChildCancellationSignal,
+  trackChildRun,
+  waitForChildRuns,
+} from '@/lib/workflows/custom-blocks/child-execution'
+import { isBoundarySafeError } from '@/executor/errors/boundary'
+
+const attribution = { actorUserId: 'owner-1', workspaceId: 'workspace-source' } as any
+
+describe('admitCustomBlockChildExecution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSubscribe.mockResolvedValue(mockUnsubscribe)
+  })
+
+  it('passes when the source payer has headroom', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+
+    await expect(admitCustomBlockChildExecution(attribution)).resolves.toBeUndefined()
+  })
+
+  it('forwards the payer-scoped message, which describes the shared org', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      scope: 'payer',
+      message: 'Organization usage limit exceeded: $50.00 pooled of $50.00 organization limit.',
+    })
+
+    await expect(admitCustomBlockChildExecution(attribution)).rejects.toThrow(
+      'Organization usage limit exceeded: $50.00 pooled of $50.00 organization limit.'
+    )
+  })
+
+  it("never forwards the owner's personal member-cap message to a consumer", async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      scope: 'member',
+      message:
+        'Member credit limit exceeded: 900 of 1,000 credits used. Ask an admin to raise your credit limit.',
+    })
+
+    const error = await admitCustomBlockChildExecution(attribution).catch((e: Error) => e)
+
+    expect(error).toBeInstanceOf(CustomBlockAdmissionError)
+    expect(error.message).not.toContain('Member credit limit')
+    expect(error.message).not.toContain('900')
+    expect(error.message).toBe(
+      'This custom block is unavailable because a usage limit was reached. Ask an organization admin to review it.'
+    )
+  })
+
+  it("never forwards the owner's account-block message to a consumer", async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      scope: 'actor',
+      message: 'Account frozen. Please contact support to resolve this issue.',
+    })
+
+    const error = await admitCustomBlockChildExecution(attribution).catch((e: Error) => e)
+
+    expect(error.message).not.toContain('Account frozen')
+    expect(error.message).not.toContain('support')
+  })
+
+  it('takes no concurrency reservation', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+
+    await admitCustomBlockChildExecution(attribution)
+
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('buildCustomBlockCorrelation', () => {
+  it('records the invoking run without naming anything', () => {
+    const correlation = buildCustomBlockCorrelation({
+      invokerExecutionId: 'exec-1',
+      invokerRequestId: 'req-1',
+      invokerWorkflowId: 'wf-1',
+      invokerWorkspaceId: 'ws-consumer',
+      blockType: 'custom_block_abc',
+    })
+
+    expect(correlation).toEqual({
+      source: 'custom_block',
+      executionId: 'exec-1',
+      requestId: 'req-1',
+      workflowId: 'wf-1',
+      triggerType: 'custom_block_abc',
+      invokerWorkspaceId: 'ws-consumer',
+    })
+  })
+
+  it('is undefined without an invoking execution id', () => {
+    expect(buildCustomBlockCorrelation({ blockType: 'custom_block_abc' })).toBeUndefined()
+  })
+})
+
+describe('createChildCancellationSignal', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSubscribe.mockResolvedValue(mockUnsubscribe)
+  })
+
+  it('aborts when the parent signal aborts', async () => {
+    const parent = new AbortController()
+    const { signal } = await createChildCancellationSignal({
+      parentSignal: parent.signal,
+      parentExecutionId: 'parent-1',
+    })
+
+    expect(signal.aborted).toBe(false)
+    parent.abort()
+    expect(signal.aborted).toBe(true)
+  })
+
+  it('preserves the parent execution deadline on the composed child signal', async () => {
+    const parent = createTimeoutAbortController(60_000)
+
+    try {
+      const { signal } = await createChildCancellationSignal({ parentSignal: parent.signal })
+
+      expect(signal).not.toBe(parent.signal)
+      expect(getRemainingExecutionMs(signal)).toBeGreaterThan(0)
+      expect(getRemainingExecutionMs(signal)).toBeLessThanOrEqual(60_000)
+    } finally {
+      parent.cleanup()
+    }
+  })
+
+  it('starts aborted when the parent already aborted', async () => {
+    const parent = new AbortController()
+    parent.abort()
+
+    const { signal } = await createChildCancellationSignal({ parentSignal: parent.signal })
+
+    expect(signal.aborted).toBe(true)
+  })
+
+  it('aborts on the bound parent cancellation signal', async () => {
+    const { signal } = await createChildCancellationSignal({ parentExecutionId: 'parent-1' })
+    const handler = mockSubscribe.mock.calls[0][1]
+
+    handler()
+    expect(signal.aborted).toBe(true)
+    expect(mockSubscribe).toHaveBeenCalledWith('parent-1', handler)
+  })
+
+  it('unsubscribes on dispose so a looped block leaks nothing', async () => {
+    const parent = new AbortController()
+    const { dispose } = await createChildCancellationSignal({
+      parentSignal: parent.signal,
+      parentExecutionId: 'parent-1',
+    })
+
+    dispose()
+
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('CustomBlockAdmissionError', () => {
+  it('is boundary-safe so the consumer sees a usage-limit classification', () => {
+    const error = new CustomBlockAdmissionError('Organization usage limit exceeded')
+
+    expect(isBoundarySafeError(error)).toBe(true)
+    expect(error.errorType).toBe('usage_limit')
+    expect(error.message).toBe('Organization usage limit exceeded')
+  })
+})
+
+describe('createChildCancellationSignal durable backstop', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSubscribe.mockResolvedValue(mockUnsubscribe)
+  })
+
+  it('fails closed when the durable cancellation subscription cannot be established', async () => {
+    mockSubscribe.mockRejectedValue(new Error('redis down'))
+
+    await expect(createChildCancellationSignal({ parentExecutionId: 'parent-1' })).rejects.toThrow(
+      'redis down'
+    )
+  })
+})
+
+describe('child run tracking', () => {
+  it('waits for a child the engine abandoned mid-execution', async () => {
+    // The scenario this exists for: the parent cancelled, so at drain time the
+    // child has NOT finished. Registration must already have happened.
+    let settle: () => void = () => {}
+    let finished = false
+    const childRun = new Promise<void>((resolve) => {
+      settle = resolve
+    }).then(() => {
+      finished = true
+    })
+
+    trackChildRun('invoker-1', childRun)
+
+    const drained = waitForChildRuns('invoker-1')
+    expect(finished).toBe(false)
+    settle()
+    await drained
+
+    expect(finished).toBe(true)
+  })
+
+  it('gives up on a hung child rather than wedging the invoking run', async () => {
+    vi.useFakeTimers()
+    try {
+      // Never settles — an unbounded drain would hang the parent forever.
+      trackChildRun('invoker-hung', new Promise<void>(() => {}))
+
+      const drained = waitForChildRuns('invoker-hung')
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      await expect(drained).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let a rejected child break the drain', async () => {
+    trackChildRun('invoker-2', Promise.reject(new Error('db down')))
+
+    await expect(waitForChildRuns('invoker-2')).resolves.toBeUndefined()
+  })
+
+  it('is a no-op for a run that registered nothing', async () => {
+    await expect(waitForChildRuns('invoker-never')).resolves.toBeUndefined()
+    await expect(waitForChildRuns(undefined)).resolves.toBeUndefined()
+  })
+
+  it('releases its entry so a run that never drains cannot leak', async () => {
+    const childRun = Promise.resolve()
+    trackChildRun('invoker-3', childRun)
+    await childRun
+    await Promise.resolve()
+
+    await expect(waitForChildRuns('invoker-3')).resolves.toBeUndefined()
+  })
+})

@@ -48,15 +48,6 @@ export const KALSHI_MARKET_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete market output definition
- */
-export const KALSHI_MARKET_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Kalshi market object',
-  properties: KALSHI_MARKET_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for event objects.
  * @see https://trading-api.readme.io/reference/getevents
  */
@@ -70,15 +61,6 @@ export const KALSHI_EVENT_OUTPUT_PROPERTIES = {
   strike_date: { type: 'string', description: 'Strike/settlement date', optional: true },
   status: { type: 'string', description: 'Event status', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete event output definition
- */
-export const KALSHI_EVENT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Kalshi event object',
-  properties: KALSHI_EVENT_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for order objects.
@@ -106,15 +88,6 @@ export const KALSHI_ORDER_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete order output definition
- */
-export const KALSHI_ORDER_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Kalshi order object',
-  properties: KALSHI_ORDER_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for position objects.
  * @see https://trading-api.readme.io/reference/getpositions
  */
@@ -136,15 +109,6 @@ export const KALSHI_POSITION_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete position output definition
- */
-export const KALSHI_POSITION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Kalshi market position object',
-  properties: KALSHI_POSITION_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for event position objects.
  * @see https://trading-api.readme.io/reference/getpositions
  */
@@ -154,15 +118,6 @@ export const KALSHI_EVENT_POSITION_OUTPUT_PROPERTIES = {
   realized_pnl: { type: 'number', description: 'Realized P&L in cents', optional: true },
   total_cost: { type: 'number', description: 'Total cost basis in cents', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete event position output definition
- */
-export const KALSHI_EVENT_POSITION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Kalshi event position object',
-  properties: KALSHI_EVENT_POSITION_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for fill/trade objects.
@@ -182,15 +137,6 @@ export const KALSHI_FILL_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete fill output definition
- */
-export const KALSHI_FILL_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Kalshi trade fill object',
-  properties: KALSHI_FILL_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for trade objects (public trades).
  * @see https://trading-api.readme.io/reference/gettrades
  */
@@ -202,15 +148,6 @@ export const KALSHI_TRADE_OUTPUT_PROPERTIES = {
   taker_side: { type: 'string', description: 'Taker side (yes/no)' },
   created_time: { type: 'string', description: 'Trade time (ISO 8601)' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete trade output definition
- */
-export const KALSHI_TRADE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Kalshi public trade object',
-  properties: KALSHI_TRADE_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for candlestick/OHLC objects.
@@ -227,15 +164,6 @@ export const KALSHI_CANDLESTICK_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete candlestick output definition
- */
-export const KALSHI_CANDLESTICK_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Kalshi price candlestick/OHLC data',
-  properties: KALSHI_CANDLESTICK_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for orderbook level objects.
  * @see https://trading-api.readme.io/reference/getmarketorderbook
  */
@@ -243,15 +171,6 @@ export const KALSHI_ORDERBOOK_LEVEL_OUTPUT_PROPERTIES = {
   price: { type: 'number', description: 'Price level in cents' },
   quantity: { type: 'number', description: 'Quantity at this price level' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete orderbook level output definition
- */
-export const KALSHI_ORDERBOOK_LEVEL_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Orderbook price level',
-  properties: KALSHI_ORDERBOOK_LEVEL_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for series objects.
@@ -272,15 +191,6 @@ export const KALSHI_SERIES_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete series output definition
- */
-export const KALSHI_SERIES_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Kalshi series object',
-  properties: KALSHI_SERIES_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for balance objects.
  * @see https://trading-api.readme.io/reference/getbalance
  */
@@ -288,15 +198,6 @@ export const KALSHI_BALANCE_OUTPUT_PROPERTIES = {
   balance: { type: 'number', description: 'Available balance in cents' },
   portfolio_value: { type: 'number', description: 'Total portfolio value in cents' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete balance output definition
- */
-export const KALSHI_BALANCE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Kalshi account balance',
-  properties: KALSHI_BALANCE_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for settlement objects.
@@ -333,15 +234,6 @@ export const KALSHI_ANNOUNCEMENT_OUTPUT_PROPERTIES = {
 export const KALSHI_PAGING_OUTPUT_PROPERTIES = {
   cursor: { type: 'string', description: 'Cursor for fetching next page', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete paging output definition
- */
-export const KALSHI_PAGING_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pagination information',
-  properties: KALSHI_PAGING_OUTPUT_PROPERTIES,
-}
 
 // Base params for authenticated endpoints
 export interface KalshiAuthParams {

@@ -6,6 +6,7 @@ import type {
   BrowserChromeImportResult,
   BrowserCredentialMetadata,
   BrowserImportProfile,
+  DesktopZoomPercent,
 } from '@sim/desktop-bridge'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,9 +60,49 @@ vi.mock('@sim/emcn', () => ({
         </button>
       </div>
     ) : null,
+  ChipSelect: ({
+    value,
+    onChange,
+    options,
+    disabled,
+    'aria-label': ariaLabel,
+  }: {
+    value?: string
+    onChange?: (value: string) => void
+    options?: Array<{ label: string; value: string }>
+    disabled?: boolean
+    'aria-label'?: string
+  }) => (
+    <select
+      aria-label={ariaLabel}
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange?.(event.currentTarget.value)}
+    >
+      {(options ?? []).map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
   Label: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Switch: ({ checked }: { checked: boolean }) => (
-    <button type='button' role='switch' aria-checked={checked} />
+  Switch: ({
+    checked,
+    disabled,
+    onCheckedChange,
+  }: {
+    checked: boolean
+    disabled?: boolean
+    onCheckedChange?: (checked: boolean) => void
+  }) => (
+    <button
+      type='button'
+      role='switch'
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onCheckedChange?.(!checked)}
+    />
   ),
   toast: mockToast,
 }))
@@ -69,6 +110,7 @@ vi.mock('@sim/emcn', () => ({
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'ws1' }),
   useRouter: () => mockRouter,
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 vi.mock('@/lib/desktop', () => ({
@@ -207,6 +249,11 @@ const IMPORTED_BOTH: BrowserChromeImportResult = {
 
 interface BridgeOverrides {
   browserEnabled?: boolean
+  browserSearchSuggestionsEnabled?: boolean
+  browserTheme?: 'app' | 'light' | 'dark'
+  browserDefaultZoom?: DesktopZoomPercent
+  browserDownloadDirectory?: string
+  chosenBrowserDownloadDirectory?: string
   profiles?: BrowserImportProfile[]
   importResult?: BrowserChromeImportResult
   listProfilesFails?: boolean
@@ -215,25 +262,50 @@ interface BridgeOverrides {
 
 function createBridge({
   browserEnabled = true,
+  browserSearchSuggestionsEnabled = true,
+  browserTheme = 'app',
+  browserDefaultZoom = 100,
+  browserDownloadDirectory = '/Users/sim/Downloads',
+  chosenBrowserDownloadDirectory = '/Users/sim/Desktop/Browser files',
   profiles = PROFILES,
   importResult = IMPORTED_BOTH,
   listProfilesFails = false,
   vaultAvailable = true,
 }: BridgeOverrides = {}) {
+  const preferences = {
+    notificationsEnabled: true,
+    notificationSounds: true,
+    notificationsOnlyWhenUnfocused: true,
+    launchAtLogin: false,
+    autoDownloadUpdates: true,
+    browserEnabled,
+    browserSearchSuggestionsEnabled,
+    browserTheme,
+    browserDefaultZoom,
+    browserDownloadDirectory,
+  }
   return {
     settings: {
-      getPreferences: vi.fn(async () => ({
-        notificationsEnabled: true,
-        notificationSounds: true,
-        notificationsOnlyWhenUnfocused: true,
-        launchAtLogin: false,
-        autoDownloadUpdates: true,
-        browserEnabled,
-      })),
+      getPreferences: vi.fn(async () => preferences),
       setBrowserEnabled: vi.fn(),
+      setBrowserSearchSuggestionsEnabled: vi.fn(async (enabled: boolean) => ({
+        ...preferences,
+        browserSearchSuggestionsEnabled: enabled,
+      })),
+      setBrowserTheme: vi.fn(async (theme: 'app' | 'light' | 'dark') => ({
+        ...preferences,
+        browserTheme: theme,
+      })),
+      setBrowserDefaultZoom: vi.fn(async (zoom: DesktopZoomPercent) => ({
+        ...preferences,
+        browserDefaultZoom: zoom,
+      })),
+      chooseBrowserDownloadDirectory: vi.fn(async () => ({
+        ...preferences,
+        browserDownloadDirectory: chosenBrowserDownloadDirectory,
+      })),
     },
     browserAgent: {
-      getKnownSessions: vi.fn(async () => ({ sessions: [] })),
       clearBrowsingData: vi.fn(async () => ({ sessions: [{ hostname: 'left.test' }] })),
     },
     browserImport: {
@@ -277,12 +349,95 @@ async function click(button: HTMLButtonElement) {
 const importDialog = () => container.querySelector('[aria-label="Import from your browser"]')
 
 describe('Browser settings', () => {
-  it('keeps only the agent-browser toggle on the page itself', async () => {
-    // Passwords and browsing data each own a page; this one is just the switch.
+  it('keeps browser controls together in one General section', async () => {
     await render()
 
-    expect(container.querySelector('section[aria-label="Agent browser"]')).not.toBeNull()
+    expect(container.querySelector('section[aria-label="General"]')).not.toBeNull()
+    expect(container.querySelector('section[aria-label="Agent browser"]')).toBeNull()
+    expect(container.querySelector('section[aria-label="Appearance"]')).toBeNull()
+    expect(container.querySelector('section[aria-label="Downloads"]')).toBeNull()
     expect(container.querySelector('section[aria-label="Saved passwords"]')).toBeNull()
+  })
+
+  it('uses concise setting labels without explanatory footer copy', async () => {
+    await render()
+
+    expect(container.textContent).toContain('Let Chat browse the web')
+    expect(container.textContent).toContain('Theme')
+    expect(container.textContent).toContain('Search suggestions')
+    expect(container.textContent).not.toContain(
+      'Pages open in a browser built into Sim, signed in separately from your own.'
+    )
+    expect(container.textContent).not.toContain('Website theme')
+    expect(container.textContent).not.toContain('Supported websites use this appearance')
+    expect(container.textContent).not.toContain('signed in or holding cookies')
+    expect(container.textContent).not.toContain('Saved passwords are never deleted here')
+  })
+
+  it('explains and persists the live-search privacy switch', async () => {
+    const bridge = createBridge({ browserSearchSuggestionsEnabled: true })
+    mockBridge.current = bridge
+    await render()
+
+    expect(container.textContent).toContain(
+      'Send address-bar typing to Google for live completions'
+    )
+    const switches = [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')]
+    expect(switches[1]).toHaveAttribute('aria-checked', 'true')
+
+    await click(switches[1])
+
+    expect(bridge.settings.setBrowserSearchSuggestionsEnabled).toHaveBeenCalledWith(false)
+  })
+
+  it('persists an independent website theme', async () => {
+    const bridge = createBridge({ browserTheme: 'app' })
+    mockBridge.current = bridge
+    await render()
+
+    const select = container.querySelector<HTMLSelectElement>('select[aria-label="Browser theme"]')
+    expect(select?.value).toBe('app')
+
+    await act(async () => {
+      if (!select) throw new Error('Missing browser theme selector')
+      select.value = 'dark'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    expect(bridge.settings.setBrowserTheme).toHaveBeenCalledWith('dark')
+    expect(select?.value).toBe('dark')
+  })
+
+  it('persists the default browser zoom', async () => {
+    const bridge = createBridge({ browserDefaultZoom: 100 })
+    mockBridge.current = bridge
+    await render()
+
+    const select = container.querySelector<HTMLSelectElement>('select[aria-label="Default zoom"]')
+    expect(select?.value).toBe('100')
+
+    await act(async () => {
+      if (!select) throw new Error('Missing default zoom selector')
+      select.value = '125'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    expect(bridge.settings.setBrowserDefaultZoom).toHaveBeenCalledWith(125)
+    expect(select?.value).toBe('125')
+  })
+
+  it('shows and changes the browser download location', async () => {
+    const bridge = createBridge()
+    mockBridge.current = bridge
+    await render()
+
+    const section = container.querySelector('section[aria-label="General"]')
+    expect(section?.textContent).toContain('/Users/sim/Downloads')
+
+    await click(buttonLabelled('Change'))
+
+    expect(bridge.settings.chooseBrowserDownloadDirectory).toHaveBeenCalledTimes(1)
+    expect(section?.textContent).toContain('/Users/sim/Desktop/Browser files')
   })
 
   it('reaches both sub-pages from the header', async () => {
@@ -292,6 +447,19 @@ describe('Browser settings', () => {
       'Passwords',
       'Clear all',
     ])
+  })
+
+  it('reserves the real header actions while preferences are loading', async () => {
+    const bridge = createBridge()
+    bridge.settings.getPreferences = vi.fn(() => new Promise(() => {}))
+    mockBridge.current = bridge
+
+    await render()
+
+    const actions = [...container.querySelectorAll<HTMLButtonElement>('header button')]
+    expect(actions.map((button) => button.textContent)).toEqual(['Passwords', 'Clear all'])
+    expect(actions.every((button) => button.disabled)).toBe(true)
+    expect(container.querySelector('section[aria-label="General"]')).toBeNull()
   })
 
   it('lists each data type as a standard settings row in one section', async () => {
@@ -383,15 +551,6 @@ describe('Browser settings', () => {
     vi.clearAllMocks()
   })
 
-  it('hides the Passwords action on shells without the credential surface', async () => {
-    mockBridge.current = { ...createBridge(), browserCredentials: undefined }
-    await render()
-
-    expect(
-      [...container.querySelectorAll('header button')].map((b) => b.textContent)
-    ).not.toContain('Passwords')
-  })
-
   it('opens the manager from the header rather than inlining it', async () => {
     await render()
     expect(container.querySelector('[aria-label="Passwords view"]')).toBeNull()
@@ -410,6 +569,6 @@ describe('Browser settings', () => {
     await click(buttonLabelled('Back'))
 
     expect(container.querySelector('[aria-label="Passwords view"]')).toBeNull()
-    expect(container.querySelector('section[aria-label="Agent browser"]')).not.toBeNull()
+    expect(container.querySelector('section[aria-label="General"]')).not.toBeNull()
   })
 })

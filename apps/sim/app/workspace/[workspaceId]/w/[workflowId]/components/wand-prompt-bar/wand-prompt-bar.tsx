@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
-import { SendIcon, XIcon } from 'lucide-react'
+import { Send, X } from '@sim/emcn/icons'
 import { Button } from '@/components/ui/button'
 
 interface WandPromptBarProps {
@@ -120,7 +120,7 @@ export function WandPromptBar({
           onClick={handleCancel}
           className='size-8 rounded-full text-muted-foreground hover-hover:bg-accent/50 hover-hover:text-foreground'
         >
-          <XIcon className='size-4' />
+          <X className='size-4' />
         </Button>
 
         {!isStreaming && (
@@ -131,7 +131,7 @@ export function WandPromptBar({
             className='size-8 rounded-full text-muted-foreground hover-hover:bg-primary/10 hover-hover:text-foreground'
             disabled={isLoading || isStreaming || !promptValue.trim()}
           >
-            <SendIcon className='size-4' />
+            <Send className='size-4' />
           </Button>
         )}
       </div>

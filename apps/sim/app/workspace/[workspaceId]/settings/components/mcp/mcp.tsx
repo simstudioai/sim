@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Badge, Button, Chip, ChipConfirmModal, cn, Tooltip, toast } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { McpIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
@@ -25,9 +25,13 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { getRefreshActionState } from '@/app/workspace/[workspaceId]/settings/components/mcp/refresh-action-state'
 import { getServerToolsLabel } from '@/app/workspace/[workspaceId]/settings/components/mcp/server-tools-label'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
@@ -67,12 +71,10 @@ interface ServerListItemProps {
   canManage: boolean
   server: McpServer
   tools: McpTool[]
-  isDeleting: boolean
   isConnecting: boolean
   isLoadingTools?: boolean
   isRefreshing?: boolean
   discoveryError?: string | null
-  onRemove: () => void
   onViewDetails: () => void
   onAuthorize: () => void
 }
@@ -81,12 +83,10 @@ function ServerListItem({
   canManage,
   server,
   tools,
-  isDeleting,
   isConnecting,
   isLoadingTools = false,
   isRefreshing = false,
   discoveryError = null,
-  onRemove,
   onViewDetails,
   onAuthorize,
 }: ServerListItemProps) {
@@ -110,56 +110,46 @@ function ServerListItem({
     server.connectionStatus === 'disconnected' ||
     showDiscoveryError
 
+  const serverName = server.name || 'Unnamed server'
+  // Transport rides on the description rather than beside the name — inside the
+  // row's truncating title a long name would clip it away entirely.
+  const statusText = isConnecting
+    ? 'Waiting for authorization...'
+    : isRefreshing
+      ? 'Refreshing...'
+      : isLoadingTools && tools.length === 0
+        ? 'Loading...'
+        : showDiscoveryError
+          ? discoveryError
+          : toolsLabel
+
   return (
-    <div className='flex items-center justify-between gap-3'>
-      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-        <div className='flex items-center gap-1.5'>
-          <span className='max-w-[200px] truncate text-[var(--text-body)] text-sm'>
-            {server.name || 'Unnamed server'}
+    <SettingsResourceRow
+      icon={<McpIcon className='text-[var(--text-icon)]' />}
+      iconFilled
+      title={serverName}
+      description={
+        <>
+          {`${transportLabel} · `}
+          {/* Only the status reddens — the transport is neutral metadata. */}
+          <span
+            className={cn(
+              hasConnectionIssue && !isConnecting ? 'text-[var(--text-error)]' : undefined
+            )}
+          >
+            {statusText}
           </span>
-          <span className='text-[var(--text-muted)] text-caption'>({transportLabel})</span>
-        </div>
-        <p
-          className={cn(
-            'truncate text-caption',
-            hasConnectionIssue && !isConnecting
-              ? 'text-[var(--text-error)]'
-              : 'text-[var(--text-muted)]'
-          )}
-        >
-          {isConnecting
-            ? 'Waiting for authorization...'
-            : isRefreshing
-              ? 'Refreshing...'
-              : isLoadingTools && tools.length === 0
-                ? 'Loading...'
-                : showDiscoveryError
-                  ? discoveryError
-                  : toolsLabel}
-        </p>
-      </div>
-      <div className='flex flex-shrink-0 items-center gap-1'>
-        {canManage && server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
+        </>
+      }
+      onClick={onViewDetails}
+      clickLabel={`Open ${serverName}`}
+      navigable
+      trailing={
+        canManage && server.authType === 'oauth' && server.connectionStatus !== 'connected' ? (
           <Chip onClick={onAuthorize}>{isConnecting ? 'Reopen authorization' : 'Authorize'}</Chip>
-        )}
-        <RowActionsMenu
-          label='Server actions'
-          actions={[
-            { label: 'Details', onSelect: onViewDetails },
-            ...(canManage
-              ? [
-                  {
-                    label: 'Delete',
-                    destructive: true,
-                    disabled: isDeleting,
-                    onSelect: onRemove,
-                  },
-                ]
-              : []),
-          ]}
-        />
-      </div>
-    </div>
+        ) : undefined
+      }
+    />
   )
 }
 
@@ -187,6 +177,17 @@ export function MCP() {
   const workspaceId = params.workspaceId as string
   const workspacePermissions = useUserPermissionsContext()
   const canEdit = canMutateWorkspaceSettingsSection('mcp', workspacePermissions)
+  const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {
+    ...mcpServerIdParam.parser,
+    ...mcpServerIdUrlKeys,
+  })
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [editingServerId, setEditingServerId] = useState<string | null>(null)
+  const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
+  const [serverToDeleteId, setServerToDeleteId] = useState<string | null>(null)
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
+  const isServerFormOpen = showAddModal || editingServerId !== null
 
   const {
     data: servers = [],
@@ -194,32 +195,31 @@ export function MCP() {
     error: serversError,
   } = useMcpServers(workspaceId)
   const { data: mcpToolsData = [], toolsStateByServer } = useMcpToolsQuery(workspaceId)
-  const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId)
+  const { data: storedTools = [], refetch: refetchStoredTools } = useStoredMcpTools(workspaceId, {
+    enabled: selectedServerId !== null,
+  })
   const forceRefreshToolsMutation = useForceRefreshMcpTools()
   const forceRefreshTools = forceRefreshToolsMutation.mutate
   const createServerMutation = useCreateMcpServer()
   const deleteServerMutation = useDeleteMcpServer()
   const refreshServerMutation = useRefreshMcpServer()
   const updateServerMutation = useUpdateMcpServer()
-  const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
-  const { data: allowedMcpDomains = null } = useAllowedMcpDomains()
-
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [editingServerId, setEditingServerId] = useState<string | null>(null)
-
-  const [searchTerm, setSearchTerm] = useSettingsSearch()
-  const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
+  const availableEnvVars = useAvailableEnvVarKeys(workspaceId, { enabled: isServerFormOpen })
+  const {
+    data: allowedMcpDomains = null,
+    isPending: allowedMcpDomainsPending,
+    isError: allowedMcpDomainsFailed,
+  } = useAllowedMcpDomains({ enabled: isServerFormOpen })
+  const domainPolicyUnavailable =
+    isServerFormOpen && (allowedMcpDomainsPending || allowedMcpDomainsFailed)
+  const domainPolicyError = allowedMcpDomainsFailed
+    ? 'Unable to load the MCP domain policy. Try again before saving this server.'
+    : undefined
   const { connectingServers: connectingOauthServers, startOauthForServer } = useMcpOauthPopup({
     workspaceId,
   })
 
-  const [serverToDeleteId, setServerToDeleteId] = useState<string | null>(null)
   const showDeleteDialog = serverToDeleteId !== null
-
-  const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {
-    ...mcpServerIdParam.parser,
-    ...mcpServerIdUrlKeys,
-  })
 
   const initialServerIdRef = useRef(selectedServerId)
   const didDeepLinkRefreshRef = useRef(false)
@@ -230,8 +230,6 @@ export function MCP() {
     if (canEdit) forceRefreshTools(workspaceId)
     refetchStoredTools()
   }, [canEdit, workspaceId, forceRefreshTools, refetchStoredTools])
-
-  const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
 
   const handleRemoveServer = (serverId: string) => {
     setServerToDeleteId(serverId)
@@ -247,6 +245,9 @@ export function MCP() {
 
     try {
       await deleteServerMutation.mutateAsync({ workspaceId, serverId })
+      // Deleting from the detail view leaves a dead id in the URL — drop it so Back
+      // doesn't land on a server that no longer exists.
+      if (selectedServerId === serverId) handleBackToList()
       logger.info(`Removed MCP server: ${serverId}`)
     } catch (error) {
       logger.error('Failed to remove MCP server:', error)
@@ -402,6 +403,28 @@ export function MCP() {
   const hasServers = servers && servers.length > 0
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && servers.length > 0
 
+  // Delete is reachable from both the list and the detail header, so the confirm
+  // modal has to render in whichever branch is mounted.
+  const deleteConfirmModal = canEdit ? (
+    <ChipConfirmModal
+      open={showDeleteDialog}
+      onOpenChange={(open) => {
+        if (!open) setServerToDeleteId(null)
+      }}
+      srTitle='Delete MCP server'
+      title='Delete MCP server'
+      text={[
+        'Are you sure you want to delete ',
+        {
+          text: servers.find((s) => s.id === serverToDeleteId)?.name || 'this server',
+          bold: true,
+        },
+        '? This action cannot be undone.',
+      ]}
+      confirm={{ label: 'Delete', onClick: confirmDeleteServer }}
+    />
+  ) : null
+
   if (selectedServer) {
     const { server, tools } = selectedServer
     const transportLabel = formatTransportLabel(server.transport || 'http')
@@ -429,32 +452,30 @@ export function MCP() {
                   text: 'Edit',
                   onSelect: () => setEditingServerId(server.id),
                 },
+                {
+                  id: 'delete',
+                  text: deletingServers.has(server.id) ? 'Deleting...' : 'Delete',
+                  onSelect: () => handleRemoveServer(server.id),
+                  disabled: deletingServers.has(server.id),
+                },
               ]
             : []
         }
       >
         <SettingsSection label='Server'>
           <div className='flex flex-col gap-4.5'>
-            <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-muted)] text-caption'>Server name</span>
-              <p className='text-[var(--text-body)] text-sm'>{server.name || 'Unnamed server'}</p>
-            </div>
+            <SettingsField label='Server name'>{server.name || 'Unnamed server'}</SettingsField>
 
-            <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-muted)] text-caption'>Transport</span>
-              <p className='text-[var(--text-body)] text-sm'>{transportLabel}</p>
-            </div>
+            <SettingsField label='Transport'>{transportLabel}</SettingsField>
 
             {server.url && (
-              <div className='flex flex-col gap-2'>
-                <span className='text-[var(--text-muted)] text-caption'>URL</span>
-                <p className='break-all text-[var(--text-body)] text-sm'>{server.url}</p>
-              </div>
+              <SettingsField label='URL' breakAll>
+                {server.url}
+              </SettingsField>
             )}
 
             {server.connectionStatus !== 'connected' && (
-              <div className='flex flex-col gap-2'>
-                <span className='text-[var(--text-muted)] text-caption'>Status</span>
+              <SettingsField label='Status'>
                 <p className='text-[var(--text-error)] text-sm'>
                   {getServerToolsLabel(
                     [],
@@ -463,12 +484,11 @@ export function MCP() {
                     server.authType
                   )}
                 </p>
-              </div>
+              </SettingsField>
             )}
 
             {canEdit && server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
-              <div className='flex flex-col gap-2'>
-                <span className='text-[var(--text-muted)] text-caption'>Authentication</span>
+              <SettingsField label='Authentication'>
                 <div>
                   <Chip
                     variant='primary'
@@ -479,7 +499,7 @@ export function MCP() {
                     {connectingOauthServers.has(server.id) ? 'Reopen authorization' : 'Authorize'}
                   </Chip>
                 </div>
-              </div>
+              </SettingsField>
             )}
           </div>
         </SettingsSection>
@@ -515,7 +535,7 @@ export function MCP() {
                     >
                       <div className='flex-1'>
                         <div className='flex h-[16px] items-center gap-1.5'>
-                          <p className='font-medium text-[var(--text-primary)] text-sm leading-none'>
+                          <p className='text-[var(--text-primary)] text-sm leading-none'>
                             {tool.name}
                           </p>
                           {issues.length > 0 && (
@@ -551,7 +571,7 @@ export function MCP() {
 
                     {isExpanded && hasParams && (
                       <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
-                        <p className='mb-1.5 font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
+                        <p className='mb-1.5 text-[var(--text-muted)] text-caption uppercase tracking-wide'>
                           Parameters
                         </p>
                         <div className='flex flex-col gap-1.5'>
@@ -573,7 +593,7 @@ export function MCP() {
                                   className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] px-2 py-1.5'
                                 >
                                   <div className='flex items-center gap-1.5'>
-                                    <span className='font-medium text-[var(--text-primary)] text-small'>
+                                    <span className='text-[var(--text-primary)] text-small'>
                                       {paramName}
                                     </span>
                                     <Badge variant='outline' size='sm'>
@@ -586,7 +606,7 @@ export function MCP() {
                                     )}
                                   </div>
                                   {paramDesc && (
-                                    <p className='mt-[3px] text-[var(--text-tertiary)] text-xs leading-relaxed'>
+                                    <p className='mt-[3px] text-[var(--text-tertiary)] text-caption leading-relaxed'>
                                       {paramDesc}
                                     </p>
                                   )}
@@ -626,8 +646,11 @@ export function MCP() {
             workspaceId={workspaceId}
             availableEnvVars={availableEnvVars}
             allowedMcpDomains={allowedMcpDomains}
+            domainPolicyUnavailable={domainPolicyUnavailable}
+            domainPolicyError={domainPolicyError}
           />
         )}
+        {deleteConfirmModal}
       </SettingsPanel>
     )
   }
@@ -655,11 +678,9 @@ export function MCP() {
         }
       >
         {listError ? (
-          <div className='flex h-full flex-col items-center justify-center gap-2'>
-            <p className='text-[var(--text-error)] text-small leading-tight'>
-              {getErrorMessage(listError, 'Failed to load MCP servers')}
-            </p>
-          </div>
+          <SettingsEmptyState tone='error'>
+            {getErrorMessage(listError, 'Failed to load MCP servers')}
+          </SettingsEmptyState>
         ) : serversLoading ? (
           <SettingsEmptyState>Loading...</SettingsEmptyState>
         ) : !hasServers ? (
@@ -667,7 +688,7 @@ export function MCP() {
             {canEdit ? 'Click "Add server" above to get started' : 'No MCP servers configured'}
           </SettingsEmptyState>
         ) : (
-          <div className='flex flex-col gap-2'>
+          <div className={RESOURCE_LIST_STACK}>
             {filteredServers.map((server) => {
               if (!server?.id) return null
               const tools = toolsByServer[server.id] || []
@@ -682,7 +703,6 @@ export function MCP() {
                   canManage={canEdit}
                   server={server}
                   tools={tools}
-                  isDeleting={deletingServers.has(server.id)}
                   isConnecting={connectingOauthServers.has(server.id)}
                   isLoadingTools={isLoadingTools}
                   isRefreshing={
@@ -692,7 +712,6 @@ export function MCP() {
                   discoveryError={
                     serverToolsState?.error ? getErrorMessage(serverToolsState.error) : null
                   }
-                  onRemove={() => handleRemoveServer(server.id)}
                   onViewDetails={() => handleViewDetails(server.id)}
                   onAuthorize={() => startOauthForServer(server.id)}
                 />
@@ -724,28 +743,12 @@ export function MCP() {
           workspaceId={workspaceId}
           availableEnvVars={availableEnvVars}
           allowedMcpDomains={allowedMcpDomains}
+          domainPolicyUnavailable={domainPolicyUnavailable}
+          domainPolicyError={domainPolicyError}
         />
       )}
 
-      {canEdit && (
-        <ChipConfirmModal
-          open={showDeleteDialog}
-          onOpenChange={(open) => {
-            if (!open) setServerToDeleteId(null)
-          }}
-          srTitle='Delete MCP server'
-          title='Delete MCP server'
-          text={[
-            'Are you sure you want to delete ',
-            {
-              text: servers.find((s) => s.id === serverToDeleteId)?.name || 'this server',
-              bold: true,
-            },
-            '? This action cannot be undone.',
-          ]}
-          confirm={{ label: 'Delete', onClick: confirmDeleteServer }}
-        />
-      )}
+      {deleteConfirmModal}
     </>
   )
 }

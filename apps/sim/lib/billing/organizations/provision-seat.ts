@@ -98,7 +98,15 @@ export async function ensureTeamOrganizationForAcceptance(
       workspaceOrganizationId,
       error,
     })
-    return { success: false, failureCode: 'server-error' }
+    /**
+     * This helper runs inside the invitation acceptance transaction and may
+     * already have created an organization, re-homed a subscription, attached
+     * workspaces, or queued billing reconciliation. Returning a failure value
+     * would let that transaction commit those partial writes. Propagate every
+     * unexpected failure so the transaction rolls back; the acceptance
+     * boundary converts it to the public `server-error` result afterwards.
+     */
+    throw error
   }
 }
 

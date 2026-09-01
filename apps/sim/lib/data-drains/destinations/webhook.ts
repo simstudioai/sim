@@ -46,9 +46,9 @@ const RESERVED_SIGNATURE_HEADER_NAMES = new Set([
 const HEADER_INJECTION_PATTERN = /[\r\n\0]/
 
 async function resolvePublicTarget(url: string): Promise<string> {
-  const result = await validateUrlWithDNS(url, 'url')
-  if (!result.isValid || !result.resolvedIP) {
-    throw new Error(result.error ?? 'Webhook URL failed SSRF validation')
+  const result = await validateUrlWithDNS(url, 'url', 'configuredEndpoint')
+  if (!result.isValid) {
+    throw new Error(result.error)
   }
   return result.resolvedIP
 }
@@ -58,7 +58,7 @@ const webhookConfigSchema = z.object({
     .string()
     .url('url must be a valid URL')
     .max(2048, 'url must be at most 2048 characters')
-    .refine((value) => validateExternalUrl(value, 'url').isValid, {
+    .refine((value) => validateExternalUrl(value, 'url', 'configuredEndpoint').isValid, {
       message: 'url must be HTTPS and not point at a private, loopback, or metadata address',
     }),
   signatureHeader: z
@@ -165,6 +165,7 @@ export const webhookDestination: DrainDestination<
       isProbe: true,
     })
     const response = await secureFetchWithPinnedIP(config.url, resolvedIP, {
+      profile: 'configuredEndpoint',
       method: 'POST',
       body: new Uint8Array(probe),
       headers,
@@ -193,6 +194,7 @@ export const webhookDestination: DrainDestination<
           let response: Awaited<ReturnType<typeof secureFetchWithPinnedIP>> | undefined
           try {
             response = await secureFetchWithPinnedIP(config.url, resolvedIP, {
+              profile: 'configuredEndpoint',
               method: 'POST',
               body: new Uint8Array(body),
               headers,

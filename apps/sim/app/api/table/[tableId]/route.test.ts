@@ -14,6 +14,8 @@ const {
   mockUpdateTableLocks,
   mockFindActiveFolder,
   mockGetLimits,
+  mockAuthenticate,
+  mockReadTable,
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockDeleteTable: vi.fn(),
@@ -23,6 +25,18 @@ const {
   mockUpdateTableLocks: vi.fn(),
   mockFindActiveFolder: vi.fn(),
   mockGetLimits: vi.fn(),
+  mockAuthenticate: vi.fn(),
+  mockReadTable: vi.fn(),
+}))
+
+vi.mock('@/lib/table/api', () => ({
+  internalTableSessionOrExecutorAuth: { authenticate: mockAuthenticate },
+  internalTableErrorPolicies: {
+    concealTableAuthorization: { project: () => null },
+  },
+}))
+vi.mock('@/lib/table/application/tables', () => ({
+  readTableDetailsUseCase: { operation: { id: 'tables.read' }, execute: mockReadTable },
 }))
 
 vi.mock('@/lib/table', () => ({
@@ -33,9 +47,15 @@ vi.mock('@/lib/table', () => ({
   updateTableLocks: mockUpdateTableLocks,
   TableConflictError: class extends Error {},
 }))
+vi.mock('@/lib/table/service', () => ({
+  deleteTable: mockDeleteTable,
+  getTableById: mockGetTableById,
+  moveTableToFolder: mockMoveTableToFolder,
+  renameTable: mockRenameTable,
+  updateTableLocks: mockUpdateTableLocks,
+}))
 vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
 vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mockFindActiveFolder }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: vi.fn() }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: vi.fn(),
@@ -44,11 +64,14 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 vi.mock('@/app/api/table/utils', () => ({
   accessError: () => new Response('denied', { status: 403 }),
   checkAccess: mockCheckAccess,
-  normalizeColumn: (column: unknown) => column,
   tableLockErrorResponse: () => null,
 }))
+vi.mock('@/lib/table/wire', () => ({
+  normalizeColumn: (column: unknown) => column,
+  toWireTimestamp: (value: Date) => value.toISOString(),
+}))
 
-import { PATCH } from '@/app/api/table/[tableId]/route'
+import { GET, PATCH } from '@/app/api/table/[tableId]/route'
 
 const TABLE = {
   id: 'tbl_1',
@@ -77,6 +100,13 @@ const routeContext = { params: Promise.resolve({ tableId: 'tbl_1' }) }
 describe('PATCH /api/table/[tableId] folder moves', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockMoveTableToFolder.mockResolvedValue({ name: 'Table' })
+    mockRenameTable.mockResolvedValue({ id: 'tbl_1', name: 'Table' })
+    mockDeleteTable.mockResolvedValue({ archived: { name: 'Table', workspaceId: 'workspace-1' } })
+    mockUpdateTableLocks.mockResolvedValue({
+      table: { ...TABLE, locks: {} },
+      previousLocks: {},
+    })
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -99,8 +129,7 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
       'tbl_1',
       'workspace-1',
       'folder-1',
-      expect.any(String),
-      'user-1'
+      expect.any(String)
     )
   })
 
@@ -118,8 +147,7 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
       'tbl_1',
       'workspace-1',
       null,
-      expect.any(String),
-      'user-1'
+      expect.any(String)
     )
   })
 
@@ -148,5 +176,49 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
     expect(response.status).toBe(400)
     expect(mockMoveTableToFolder).not.toHaveBeenCalled()
     expect(mockRenameTable).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/table/[tableId] application adapter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAuthenticate.mockResolvedValue({
+      kind: 'delegated',
+      serviceId: 'executor',
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-canonical',
+      delegationId: 'delegation-1',
+      audience: 'sim:tables',
+      issuedAt: new Date('2026-01-01'),
+      expiresAt: new Date('2026-01-02'),
+    })
+    mockReadTable.mockResolvedValue({
+      table: {
+        ...TABLE,
+        description: null,
+        metadata: null,
+        rowCount: 0,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+      maxRows: 1000,
+      folderPath: '/',
+    })
+  })
+
+  it('uses the delegated principal workspace instead of the query assertion', async () => {
+    const request = new NextRequest(
+      'http://localhost:3000/api/table/tbl_1?workspaceId=workspace-forged'
+    )
+
+    const response = await GET(request, routeContext)
+
+    expect(mockReadTable).toHaveBeenCalledOnce()
+    expect(response.status).toBe(200)
+    expect(mockReadTable.mock.calls[0][0].input).toEqual({
+      tableId: 'tbl_1',
+      workspaceId: 'workspace-canonical',
+    })
   })
 })

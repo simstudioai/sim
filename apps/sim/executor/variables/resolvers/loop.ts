@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { assertNoLargeValueRefs } from '@/lib/execution/payloads/large-value-ref'
 import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   extractInnermostOuterBranchIndex,
   extractOuterBranchIndex,
@@ -165,7 +166,9 @@ export class LoopResolver implements Resolver {
       if (loopScope.items !== undefined) {
         obj.items = loopScope.items
       }
-      return obj
+      return useAsyncPath
+        ? this.importOutputProvenance(loopScope.inputResolvedSecretTraceProvenance, obj, context)
+        : obj
     }
 
     const [rawProperty, ...remainingPathParts] = rest
@@ -188,15 +191,28 @@ export class LoopResolver implements Resolver {
     }
 
     if (pathParts.length > 0) {
-      return useAsyncPath && this.navigatePathAsync
-        ? this.navigatePathAsync(value, pathParts, context)
-        : navigatePath(value, pathParts, {
-            allowLargeValueRefs: context.allowLargeValueRefs,
-            executionContext: context.executionContext,
-          })
+      if (useAsyncPath) {
+        const resolved = this.navigatePathAsync
+          ? this.navigatePathAsync(value, pathParts, context)
+          : navigatePath(value, pathParts, {
+              allowLargeValueRefs: context.allowLargeValueRefs,
+              executionContext: context.executionContext,
+            })
+        return this.importOutputProvenance(
+          loopScope.inputResolvedSecretTraceProvenance,
+          Promise.resolve(resolved),
+          context
+        )
+      }
+      return navigatePath(value, pathParts, {
+        allowLargeValueRefs: context.allowLargeValueRefs,
+        executionContext: context.executionContext,
+      })
     }
 
-    return value
+    return useAsyncPath
+      ? this.importOutputProvenance(loopScope.inputResolvedSecretTraceProvenance, value, context)
+      : value
   }
 
   private resolveOutput(loopId: string, pathParts: string[], context: ResolutionContext): unknown {
@@ -225,7 +241,8 @@ export class LoopResolver implements Resolver {
     pathParts: string[],
     context: ResolutionContext
   ): Promise<unknown> {
-    const output = context.executionState.getBlockOutput(loopId)
+    const state = context.executionState.getBlockState(loopId)
+    const output = state?.output
     if (!output || typeof output !== 'object') {
       return undefined
     }
@@ -236,17 +253,40 @@ export class LoopResolver implements Resolver {
           executionContext: context.executionContext,
         })
     if (pathParts.length > 0) {
-      return this.navigatePathAsync
+      const resolved = this.navigatePathAsync
         ? this.navigatePathAsync(value, pathParts, context)
         : navigatePath(value, pathParts, {
             allowLargeValueRefs: context.allowLargeValueRefs,
             executionContext: context.executionContext,
           })
+      return this.importOutputProvenance(
+        state?.resolvedSecretTraceProvenance,
+        await resolved,
+        context
+      )
     }
     if (!context.allowLargeValueRefs) {
       assertNoLargeValueRefs(value)
     }
-    return value
+    return this.importOutputProvenance(state?.resolvedSecretTraceProvenance, value, context)
+  }
+
+  private async importOutputProvenance(
+    provenance: ResolvedSecretTraceProvenanceV1 | undefined,
+    value: unknown | Promise<unknown>,
+    context: ResolutionContext
+  ): Promise<unknown> {
+    const resolvedValue = await value
+    const registry = context.executionContext.resolvedSecretTraceRegistry
+    if (!registry || !provenance) return resolvedValue
+    const imported = await registry.importProvenanceForValueAtInputPath(
+      provenance,
+      resolvedValue,
+      context.inputPath,
+      { trusted: true, origin: 'loopResolver.itemCrossing' }
+    )
+    if (imported.matched) context.onResolvedSecretReference?.()
+    return resolvedValue
   }
 
   private findInnermostLoopForBlock(blockId: string): string | undefined {

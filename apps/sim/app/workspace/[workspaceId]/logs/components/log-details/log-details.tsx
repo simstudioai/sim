@@ -1,6 +1,16 @@
 'use client'
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   Badge,
   Button,
@@ -22,35 +32,55 @@ import {
   Tooltip,
   useCopyToClipboard,
 } from '@sim/emcn'
-import { Workflow, Wrench } from '@sim/emcn/icons'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronUp,
+  Clipboard,
+  Search,
+  SquareArrowUpRight,
+  Workflow,
+  Wrench,
+  X,
+} from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
-import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { createPortal } from 'react-dom'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import { sendMothershipMessage } from '@/lib/mothership/events'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+/**
+ * Deep imports on purpose: importing these back through the parent `logs/components`
+ * barrel forms a parent->child cycle that would keep the barrel edge to the snapshot
+ * alive and silently defeat the ExecutionSnapshot lazy split below.
+ */
 import {
-  ExecutionSnapshot,
-  FileCards,
-  TraceView,
-} from '@/app/workspace/[workspaceId]/logs/components'
+  SnapshotBoundary,
+  SnapshotModalFallback,
+} from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/snapshot-boundary'
+import { FileCards } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/file-download'
+import { TraceView } from '@/app/workspace/[workspaceId]/logs/components/log-details/components/trace-view'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import {
   logDetailsTabParam,
   logDetailsTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/logs/search-params'
 import {
-  DELETED_WORKFLOW_LABEL,
   formatDate,
   getDisplayStatus,
+  resolveLogWorkflowId,
   StatusBadge,
   TriggerBadge,
+  workflowEditorPath,
 } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -58,6 +88,17 @@ import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'
 import type { ChatContext } from '@/stores/panel'
+
+/**
+ * Lazy per the code-splitting rule in `sim-imports.md`: the snapshot renders the workflow
+ * preview canvas, whose graph is ~7.6 MB of source. Rendering is gated on the detail's
+ * open state, so the chunk is fetched on first use, never during SSR or hydration.
+ */
+const ExecutionSnapshot = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/execution-snapshot'
+  ).then((m) => ({ default: m.ExecutionSnapshot }))
+)
 
 /**
  * Renders an already-apportioned integer credit value. `dollars` is only used
@@ -307,6 +348,19 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
   const isWorkflowExecutionLog =
     (log.trigger === 'manual' && !!log.duration) || !!log.executionData?.traceSpans
 
+  /**
+   * The workflow this run belongs to, when it is still reachable. Null for Sim
+   * agent jobs and deleted workflows, which render their label as static text.
+   */
+  const openableWorkflowId = resolveLogWorkflowId(log)
+
+  const workflowLabel =
+    log.trigger === 'mothership'
+      ? log.jobTitle || 'Untitled Job'
+      : openableWorkflowId
+        ? log.workflow?.name || 'Unknown'
+        : DELETED_WORKFLOW_LABEL
+
   const hasCostInfo = !!(isWorkflowExecutionLog && log.cost)
   const showWorkflowState =
     isWorkflowExecutionLog &&
@@ -397,7 +451,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
    * mothership-triggered logs are excluded — `isLikelyExecution` already encodes
    * "has an executionId and isn't a mothership run".
    */
-  const canTroubleshoot = log.status === 'failed' && isLikelyExecution
+  const canTroubleshoot = isChatEnabled && log.status === 'failed' && isLikelyExecution
 
   /**
    * Hands the failed run to Chat. When a chat is already mounted (e.g. the run
@@ -442,28 +496,42 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               {/* Timestamp + Workflow header */}
               <div className='grid grid-cols-2 gap-x-3 pb-0.5'>
                 <div className='flex min-w-0 flex-col gap-0.5'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Timestamp
-                  </span>
-                  <span className='font-medium text-[var(--text-secondary)] text-sm tabular-nums'>
+                  <span className='text-[var(--text-tertiary)] text-caption'>Timestamp</span>
+                  <span className='text-[var(--text-secondary)] text-sm tabular-nums'>
                     {formattedTimestamp
                       ? `${formattedTimestamp.compactDate} ${formattedTimestamp.compactTime}`
                       : '—'}
                   </span>
                 </div>
                 <div className='flex min-w-0 flex-col gap-0.5'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                  <span className='text-[var(--text-tertiary)] text-caption'>
                     {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
                   </span>
-                  <div className='flex min-w-0 items-center gap-1.5'>
-                    <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                    <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
-                      {log.trigger === 'mothership'
-                        ? log.jobTitle || 'Untitled Job'
-                        : log.workflow?.name ||
-                          (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
-                    </span>
-                  </div>
+                  {openableWorkflowId ? (
+                    <Link
+                      href={workflowEditorPath(workspaceId, openableWorkflowId)}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      prefetch={false}
+                      className='-mx-1.5 -my-0.5 group flex w-fit min-w-0 max-w-[calc(100%+0.75rem)] items-center gap-1.5 rounded-[5px] px-1.5 py-0.5 transition-colors hover-hover:bg-[var(--surface-active)] focus-visible:bg-[var(--surface-active)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)]'
+                    >
+                      <span className='inline-grid size-[14px] shrink-0 place-items-center'>
+                        <Workflow className='col-start-1 row-start-1 size-[14px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
+                        <SquareArrowUpRight className='col-start-1 row-start-1 size-[14px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none' />
+                      </span>
+                      <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm transition-colors group-hover:text-[var(--text-primary)] group-focus-visible:text-[var(--text-primary)]'>
+                        {workflowLabel}
+                      </span>
+                      <span className='sr-only'>(opens in a new tab)</span>
+                    </Link>
+                  ) : (
+                    <div className='flex min-w-0 items-center gap-1.5'>
+                      <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                      <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
+                        {workflowLabel}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -481,10 +549,10 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                       handleKeyboardActivation(event, () => copyRunId(log.executionId!))
                     }
                   >
-                    <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                    <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
                       Run ID
                     </span>
-                    <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                    <span className='min-w-0 truncate text-[var(--text-secondary)] text-caption tabular-nums'>
                       {copiedRunId ? 'Copied!' : log.executionId}
                     </span>
                   </div>
@@ -492,32 +560,24 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
                 {/* Level */}
                 <div className='flex h-10 items-center justify-between px-3'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Level
-                  </span>
+                  <span className='text-[var(--text-tertiary)] text-caption'>Level</span>
                   <StatusBadge status={logStatus} />
                 </div>
 
                 {/* Trigger */}
                 <div className='flex h-10 items-center justify-between px-3'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Trigger
-                  </span>
+                  <span className='text-[var(--text-tertiary)] text-caption'>Trigger</span>
                   {log.trigger ? (
                     <TriggerBadge trigger={log.trigger} />
                   ) : (
-                    <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                      None
-                    </span>
+                    <span className='text-[var(--text-secondary)] text-caption'>None</span>
                   )}
                 </div>
 
                 {/* Duration */}
                 <div className='flex h-10 items-center justify-between px-3'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Duration
-                  </span>
-                  <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                  <span className='text-[var(--text-tertiary)] text-caption'>Duration</span>
+                  <span className='text-[var(--text-secondary)] text-caption tabular-nums'>
                     {formatDuration(log.duration, { precision: 2 }) || '—'}
                   </span>
                 </div>
@@ -525,7 +585,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 {/* Version */}
                 {log.deploymentVersion && (
                   <div className='flex h-10 items-center gap-2 px-3'>
-                    <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                    <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
                       Version
                     </span>
                     <div className='flex w-0 flex-1 justify-end'>
@@ -539,10 +599,8 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 {/* Snapshot */}
                 {showWorkflowState && (
                   <div className='flex h-10 items-center justify-between px-3'>
-                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Snapshot
-                    </span>
-                    <Chip leftIcon={Eye} flush onClick={() => setIsExecutionSnapshotOpen(true)}>
+                    <span className='text-[var(--text-tertiary)] text-caption'>Snapshot</span>
+                    <Chip leftIcon={Eye} onClick={() => setIsExecutionSnapshotOpen(true)}>
                       View Snapshot
                     </Chip>
                   </div>
@@ -551,10 +609,8 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 {/* Troubleshoot */}
                 {canTroubleshoot && (
                   <div className='flex h-10 items-center justify-between px-3'>
-                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Troubleshoot
-                    </span>
-                    <Chip leftIcon={Wrench} flush onClick={handleTroubleshoot}>
+                    <span className='text-[var(--text-tertiary)] text-caption'>Troubleshoot</span>
+                    <Chip leftIcon={Wrench} onClick={handleTroubleshoot}>
                       Troubleshoot in Chat
                     </Chip>
                   </div>
@@ -564,9 +620,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               {/* Workflow Input */}
               {isWorkflowExecutionLog && workflowInput && !permissionConfig.hideTraceSpans && (
                 <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                    Workflow Input
-                  </span>
+                  <span className='text-[var(--text-tertiary)] text-caption'>Workflow Input</span>
                   <WorkflowOutputSection output={workflowInput} />
                 </div>
               )}
@@ -576,7 +630,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
                   <span
                     className={cn(
-                      'font-medium text-caption',
+                      'text-caption',
                       workflowOutput.error
                         ? 'text-[var(--text-error)]'
                         : 'text-[var(--text-tertiary)]'
@@ -596,34 +650,30 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 <div className='divide-y divide-[var(--border)] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
                   {costBreakdown.rows.map((row) => (
                     <div key={row.key} className='flex h-10 items-center justify-between px-3'>
-                      <span className='min-w-0 truncate font-medium text-[var(--text-tertiary)] text-caption'>
+                      <span className='min-w-0 truncate text-[var(--text-tertiary)] text-caption'>
                         {row.label}
                       </span>
-                      <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                      <span className='flex-shrink-0 text-[var(--text-secondary)] text-caption tabular-nums'>
                         {creditLabel(row.credits, row.dollars)}
                       </span>
                     </div>
                   ))}
                   <div className='flex h-10 items-center justify-between px-3'>
-                    <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                      Total
-                    </span>
-                    <span className='font-semibold text-[var(--text-primary)] text-caption tabular-nums'>
+                    <span className='text-[var(--text-secondary)] text-caption'>Total</span>
+                    <span className='text-[var(--text-primary)] text-caption tabular-nums'>
                       {creditLabel(costBreakdown.totalCredits, costBreakdown.totalDollars)}
                     </span>
                   </div>
                   {(costBreakdown.tokens.input > 0 || costBreakdown.tokens.output > 0) && (
                     <div className='flex h-10 items-center justify-between px-3'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Tokens
-                      </span>
-                      <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                      <span className='text-[var(--text-tertiary)] text-caption'>Tokens</span>
+                      <span className='text-[var(--text-secondary)] text-caption tabular-nums'>
                         {costBreakdown.tokens.input} in · {costBreakdown.tokens.output} out
                       </span>
                     </div>
                   )}
                   <div className='px-3 py-2'>
-                    <p className='font-medium text-[var(--text-tertiary)] text-xs'>
+                    <p className='text-[var(--text-tertiary)] text-xs'>
                       Total includes a {formatCost(BASE_EXECUTION_CHARGE)} base charge plus model
                       and tool usage.
                     </p>
@@ -641,15 +691,13 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               <TraceView traceSpans={traceSpans} runCostDollars={log.cost?.total} />
             ) : log.executionData ? (
               <div className='flex h-full items-center justify-center px-4 text-center'>
-                <span className='font-medium text-[var(--text-tertiary)] text-sm'>
+                <span className='text-[var(--text-tertiary)] text-sm'>
                   No trace data available for this run
                 </span>
               </div>
             ) : (
               <div className='flex h-full items-center justify-center px-4 text-center'>
-                <span className='font-medium text-[var(--text-tertiary)] text-sm'>
-                  Loading trace…
-                </span>
+                <span className='text-[var(--text-tertiary)] text-sm'>Loading trace…</span>
               </div>
             )}
           </div>
@@ -658,13 +706,28 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
       {/* Frozen Canvas Modal */}
       {log.executionId && (
-        <ExecutionSnapshot
-          executionId={log.executionId}
-          traceSpans={traceSpans}
-          isModal
+        <SnapshotBoundary
+          key={`${log.executionId}:${isExecutionSnapshotOpen ? 'open' : 'closed'}`}
           isOpen={isExecutionSnapshotOpen}
-          onClose={() => setIsExecutionSnapshotOpen(false)}
-        />
+          onLoadError={() => setIsExecutionSnapshotOpen(false)}
+        >
+          <Suspense
+            fallback={
+              <SnapshotModalFallback
+                isOpen={isExecutionSnapshotOpen}
+                onClose={() => setIsExecutionSnapshotOpen(false)}
+              />
+            }
+          >
+            <ExecutionSnapshot
+              executionId={log.executionId}
+              traceSpans={traceSpans}
+              isModal
+              isOpen={isExecutionSnapshotOpen}
+              onClose={() => setIsExecutionSnapshotOpen(false)}
+            />
+          </Suspense>
+        </SnapshotBoundary>
       )}
     </>
   )
@@ -763,7 +826,7 @@ export const LogDetails = memo(function LogDetails({
           <div className='flex h-full flex-col px-3.5 pt-3'>
             {/* Header */}
             <div className='flex items-center justify-between'>
-              <h2 className='font-medium text-[var(--text-primary)] text-sm'>Log Details</h2>
+              <h2 className='text-[var(--text-primary)] text-sm'>Log Details</h2>
               <div className='flex items-center gap-[1px]'>
                 {log.status === 'failed' &&
                   (log.workflow?.id || log.workflowId) &&

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 
 export const metadata: Metadata = {
   title: 'Sign-in couldn’t be completed',
@@ -24,6 +25,24 @@ interface OAuthErrorPageProps {
 const FRIENDLY: Record<string, string> = {
   access_denied: 'You declined the request at the provider, so nothing was connected.',
   oAuth_code_missing: 'The provider didn’t return a valid response. Please try again.',
+  /**
+   * DISABLE_REGISTRATION rejecting a first-time social sign-in. Better Auth
+   * reports this as `signup disabled`, which it slugs into the `error` param.
+   * Without a message here the visitor is told to "try again", which can never
+   * succeed.
+   */
+  signup_disabled:
+    'Account creation is disabled on this instance. Ask your admin to create an account for you.',
+  /**
+   * Better Auth refuses to link an untrusted provider onto an existing account
+   * (`accountLinking.trustedProviders`). Retrying reproduces it exactly, so the
+   * generic "try again" strands the user — name the recovery path instead.
+   */
+  account_not_linked:
+    'An account already exists for this email address. Sign in using the method you originally signed up with.',
+  /** The provider returned no email claim, so there is nothing to sign in as. */
+  email_not_found:
+    'Your identity provider didn’t share an email address with us, so we couldn’t complete sign-in. Please contact your administrator.',
 }
 
 function messageForError(code: string | undefined): string {
@@ -36,9 +55,10 @@ export default async function OAuthErrorPage({ searchParams }: OAuthErrorPagePro
   const code = typeof params.error === 'string' ? params.error : undefined
 
   return (
-    <main className='flex min-h-screen items-center justify-center px-6'>
+    <main className='desktop-title-bar-page flex items-center justify-center px-6'>
+      <DesktopTitleBarLane />
       <div className='max-w-sm text-center'>
-        <h1 className='font-semibold text-foreground text-lg'>Couldn’t complete that</h1>
+        <h1 className='text-foreground text-lg'>Couldn’t complete that</h1>
         <p className='mt-2 text-muted-foreground text-sm'>{messageForError(code)}</p>
         <p className='mt-4 text-muted-foreground text-sm'>
           You can close this tab and try again from Sim.

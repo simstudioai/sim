@@ -6,10 +6,21 @@ import { eq } from 'drizzle-orm'
 import { decodeJwt } from 'jose'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
-import { getAllOAuthServices } from '@/lib/oauth'
+import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
+import {
+  canonicalizeServiceProviderId,
+  credentialProviderMatchesService,
+  getAllOAuthServices,
+} from '@/lib/oauth'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { overlayVisibility } from '@/blocks/visibility/context'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 interface GetCredentialsParams {
   workflowId?: string
@@ -17,7 +28,7 @@ interface GetCredentialsParams {
 
 export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any> = {
   name: 'get_credentials',
-  async execute(params: GetCredentialsParams, context?: { userId: string }): Promise<any> {
+  async execute(params, context): Promise<any> {
     const logger = createLogger('GetCredentialsServerTool')
 
     if (!context?.userId) {
@@ -27,7 +38,7 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
 
     const authenticatedUserId = context.userId
 
-    let workspaceId: string | undefined
+    let workspaceId = context.workspaceId
 
     if (params?.workflowId) {
       const { hasAccess, workspaceId: wId } = await verifyWorkflowAccess(
@@ -41,10 +52,10 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
           workflowId: params.workflowId,
           authenticatedUserId,
         })
-        throw new Error(errorMessage)
+        throw new OrchestrationError('forbidden', errorMessage)
       }
 
-      workspaceId = wId
+      workspaceId = requireCopilotWorkspace(context, wId)
     }
 
     const userId = authenticatedUserId
@@ -69,8 +80,23 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       .limit(1)
     const userEmail = userRecord.length > 0 ? userRecord[0]?.email : null
 
-    // Get all available OAuth services
-    const allOAuthServices = getAllOAuthServices()
+    const permissionConfig = workspaceId ? await getUserPermissionConfig(userId, workspaceId) : null
+    const configuredAllowedIntegrations = intersectIntegrationAllowlists(
+      permissionConfig?.allowedIntegrations ?? null,
+      getAllowedIntegrationsFromEnv()
+    )
+    const allowedIntegrationTypes = configuredAllowedIntegrations
+      ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
+      : null
+
+    const serviceMetadata = getAllOAuthServices()
+    const credentialVisibility = createIntegrationCredentialVisibility({
+      allowedIntegrationTypes,
+      blockVisibility: overlayVisibility(),
+      oauthServices: serviceMetadata,
+    })
+    const allOAuthServices = serviceMetadata.filter((service) => service.authType === 'oauth')
+    const visibleOAuthServices = allOAuthServices.filter(credentialVisibility.isOAuthServiceVisible)
 
     // Track connected provider IDs
     const connectedProviderIds = new Set<string>()
@@ -86,7 +112,14 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
 
     for (const acc of accounts) {
       const providerId = acc.providerId
-      connectedProviderIds.add(providerId)
+      const service = allOAuthServices.find((candidate) =>
+        credentialProviderMatchesService(providerId, candidate)
+      )
+      if (!credentialVisibility.isCredentialVisible({ providerId, type: 'oauth' })) continue
+      // `notConnectedServices` below compares against `service.providerId`, so an
+      // alternate authorization server's id (`salesforce-sandbox`) has to fold
+      // onto it or the service is listed as connected AND not connected.
+      connectedProviderIds.add(canonicalizeServiceProviderId(providerId, service))
 
       const [baseProvider, featureType = 'default'] = providerId.split('-')
       let displayName = ''
@@ -105,7 +138,6 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       if (!displayName) displayName = `${acc.accountId} (${baseProvider})`
 
       // Find the service name for this provider ID
-      const service = allOAuthServices.find((s) => s.providerId === providerId)
       const serviceName = service?.name ?? providerId
 
       connectedCredentials.push({
@@ -129,14 +161,24 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       const seenCredentialIds = new Set(connectedCredentials.map((c) => c.id))
       for (const cred of sharedCredentials) {
         if (seenCredentialIds.has(cred.id)) continue
-        connectedProviderIds.add(cred.providerId)
+        if (
+          !credentialVisibility.isCredentialVisible({
+            providerId: cred.providerId,
+            type: cred.type,
+          })
+        ) {
+          continue
+        }
+        const service = allOAuthServices.find((candidate) =>
+          credentialProviderMatchesService(cred.providerId, candidate)
+        )
+        connectedProviderIds.add(canonicalizeServiceProviderId(cred.providerId, service))
         const [, featureType = 'default'] = cred.providerId.split('-')
         connectedCredentials.push({
           id: cred.id,
           name: cred.displayName,
           provider: cred.providerId,
-          serviceName:
-            allOAuthServices.find((s) => s.providerId === cred.providerId)?.name ?? cred.providerId,
+          serviceName: service?.name ?? cred.providerId,
           lastUsed: cred.updatedAt.toISOString(),
           isDefault: featureType === 'default',
         })
@@ -144,7 +186,7 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
     }
 
     // Build list of not connected services
-    const notConnectedServices = allOAuthServices
+    const notConnectedServices = visibleOAuthServices
       .filter((service) => !connectedProviderIds.has(service.providerId))
       .map((service) => ({
         providerId: service.providerId,

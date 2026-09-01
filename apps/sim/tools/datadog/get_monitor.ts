@@ -1,4 +1,5 @@
 import type { GetMonitorParams, GetMonitorResponse } from '@/tools/datadog/types'
+import { datadogErrorMessage, datadogPathSegment, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = {
@@ -19,7 +20,7 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated group states to include (e.g., "alert,warn", "alert,warn,no data,ok")',
+        'Comma-separated group states to include. Valid values are "all", "alert", "warn", and "no data" (e.g., "alert,warn").',
     },
     withDowntimes: {
       type: 'boolean',
@@ -49,14 +50,15 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       const queryParams = new URLSearchParams()
 
       if (params.groupStates) queryParams.set('group_states', params.groupStates)
       if (params.withDowntimes) queryParams.set('with_downtimes', 'true')
 
+      const monitorId = datadogPathSegment(params.monitorId)
       const queryString = queryParams.toString()
-      return `https://api.${site}/api/v1/monitor/${params.monitorId}${queryString ? `?${queryString}` : ''}`
+      return `https://api.${site}/api/v1/monitor/${monitorId}${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -68,13 +70,13 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
-          monitor: {} as any,
+          monitor: {},
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 
@@ -115,6 +117,11 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
         overall_state: { type: 'string', description: 'Current monitor state' },
         created: { type: 'string', description: 'Creation timestamp' },
         modified: { type: 'string', description: 'Last modification timestamp' },
+        options: {
+          type: 'json',
+          description: 'Monitor options (thresholds, notification settings)',
+        },
+        creator: { type: 'json', description: 'Monitor creator (email, handle, name)' },
       },
     },
   },

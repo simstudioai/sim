@@ -15,6 +15,8 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { getDesktopBridge } from '@/lib/desktop'
+import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
@@ -22,10 +24,12 @@ import {
   AttachedFilesList,
   DropOverlay,
   MicButton,
+  MicrophonePermissionHelp,
   PromptEditor,
   SendButton,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
+import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
   FileAttachmentForApi,
   MothershipResource,
@@ -35,13 +39,23 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useSpeechToText } from '@/hooks/use-speech-to-text'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import { type SpeechToTextError, useSpeechToText } from '@/hooks/use-speech-to-text'
+import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 
 const logger = createLogger('UserInput')
+
+/**
+ * Whether the element is somewhere the user could be typing. Focusing the composer on mount
+ * must not steal focus from another field, but may take it from a link or button — opening a
+ * chat leaves the sidebar link focused, and the composer should win.
+ */
+function isTextEntry(element: HTMLElement): boolean {
+  const tag = element.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || element.isContentEditable
+}
 
 interface UserInputProps {
   defaultValue?: string
@@ -89,6 +103,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { userId, onContextAdd, onContextRemove } = useChatSurface()
+  const [microphonePermissionHelpOpen, setMicrophonePermissionHelpOpen] = useState(false)
 
   const [initialValue] = useState(() => {
     if (defaultValue) return defaultValue
@@ -124,6 +139,21 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const editorRef = useRef(editor)
   editorRef.current = editor
   const textareaRef = editor.textareaRef
+
+  /**
+   * Attaches context chips pushed from elsewhere in the app (browser/terminal
+   * selection actions, the highlight-to-chat action in the file/table
+   * viewers). `preventDefault` claims the event so the producer knows a live
+   * input consumed it and skips its persist-and-navigate fallback.
+   */
+  useEffect(() => {
+    const handleAddContext = (event: Event) => {
+      handleMothershipAddContextEvent(event, editorRef.current)
+    }
+
+    window.addEventListener(MOTHERSHIP_ADD_CONTEXT_EVENT, handleAddContext)
+    return () => window.removeEventListener(MOTHERSHIP_ADD_CONTEXT_EVENT, handleAddContext)
+  }, [])
 
   const draftScopeKeyRef = useRef(draftScopeKey)
   draftScopeKeyRef.current = draftScopeKey
@@ -173,6 +203,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
 
   const isFirstSaveRef = useRef(true)
+  const draftSaveTimerRef = useRef<number | null>(null)
+  const pendingDraftRef = useRef<{ key: string; payload: DraftPayload } | null>(null)
   useEffect(() => {
     if (isFirstSaveRef.current) {
       isFirstSaveRef.current = false
@@ -189,12 +221,31 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         size: f.size,
         ...(f.path ? { path: f.path } : {}),
       }))
-    useMothershipDraftsStore.getState().setDraft(draftScopeKeyRef.current, {
-      text: editor.value,
-      fileAttachments: fileAttachments.length > 0 ? fileAttachments : undefined,
-      contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
-    })
+    pendingDraftRef.current = {
+      key: draftScopeKeyRef.current,
+      payload: {
+        text: editor.value,
+        fileAttachments: fileAttachments.length > 0 ? fileAttachments : undefined,
+        contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
+      },
+    }
+    if (draftSaveTimerRef.current !== null) window.clearTimeout(draftSaveTimerRef.current)
+    draftSaveTimerRef.current = window.setTimeout(() => {
+      const pending = pendingDraftRef.current
+      if (pending) useMothershipDraftsStore.getState().setDraft(pending.key, pending.payload)
+      pendingDraftRef.current = null
+      draftSaveTimerRef.current = null
+    }, 200)
   }, [editor.value, files.attachedFiles, editor.contexts])
+
+  useEffect(
+    () => () => {
+      if (draftSaveTimerRef.current !== null) window.clearTimeout(draftSaveTimerRef.current)
+      const pending = pendingDraftRef.current
+      if (pending) useMothershipDraftsStore.getState().setDraft(pending.key, pending.payload)
+    },
+    []
+  )
 
   const onContextRemoveRef = useRef(onContextRemove)
   onContextRemoveRef.current = onContextRemove
@@ -223,7 +274,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       }
     }
     const removed = prev.filter((p) => !curr.some((c) => contextId(c) === contextId(p)))
-    if (removed.length > 0) removed.forEach((ctx) => onContextRemoveRef.current?.(ctx))
+    if (removed.length > 0) removed.forEach((ctx) => onContextRemoveRef.current?.(ctx, curr))
     prevSelectedContextsRef.current = curr
   }, [editor.contexts])
 
@@ -271,7 +322,41 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     )
   }
 
+  function handleSpeechError(error: SpeechToTextError) {
+    if (error === 'microphone-blocked') {
+      const desktopBridge = getDesktopBridge()
+      if (desktopBridge) {
+        const { openMicrophoneSettings } = desktopBridge
+        toast.error(
+          'Microphone access is blocked. Allow Sim to use the microphone in your system privacy settings.',
+          openMicrophoneSettings
+            ? {
+                action: {
+                  label: 'Open Settings',
+                  onClick: () => void openMicrophoneSettings(),
+                },
+              }
+            : undefined
+        )
+      } else {
+        toast.error('Microphone access is blocked. Allow it for this site and try again.', {
+          action: {
+            label: 'Show steps',
+            onClick: () => setMicrophonePermissionHelpOpen(true),
+          },
+        })
+      }
+      return
+    }
+    if (error === 'microphone-unavailable') {
+      toast.error('No microphone found. Connect one and try again.')
+      return
+    }
+    toast.error('Could not start voice input. Try again.')
+  }
+
   const {
+    audioLevelsRef,
     isListening,
     isSupported: isSttSupported,
     toggleListening: rawToggle,
@@ -279,6 +364,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   } = useSpeechToText({
     onTranscript: handleTranscript,
     onUsageLimitExceeded: handleUsageLimitExceeded,
+    onError: handleSpeechError,
     workspaceId,
   })
 
@@ -296,6 +382,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const isSendingRef = useRef(isSending)
   isSendingRef.current = isSending
   const wasSendingRef = useRef(false)
+  const composerOwnsFocusRef = useRef(false)
 
   useImperativeHandle(
     ref,
@@ -404,36 +491,31 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   }, [])
 
   useEffect(() => {
-    if (wasSendingRef.current && !isSending) {
-      const active = document.activeElement
-      const isEditingElsewhere =
-        active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement
-      if (!isEditingElsewhere) {
-        textareaRef.current?.focus()
-      }
+    if (
+      wasSendingRef.current &&
+      !isSending &&
+      composerOwnsFocusRef.current &&
+      document.hasFocus()
+    ) {
+      textareaRef.current?.focus()
     }
     wasSendingRef.current = isSending
   }, [isSending, textareaRef])
 
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => {
+      if (!document.hasFocus()) return
       const active = document.activeElement
-      const isEditingElsewhere =
-        active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement
-      if (!isEditingElsewhere) {
-        textareaRef.current?.focus()
-      }
+      if (active instanceof HTMLElement && isTextEntry(active)) return
+      textareaRef.current?.focus()
     })
     return () => window.cancelAnimationFrame(raf)
   }, [textareaRef])
 
-  const handleContainerClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if ((e.target as HTMLElement).closest('button')) return
-      textareaRef.current?.focus()
-    },
-    [textareaRef]
-  )
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button, [role="dialog"]')) return
+    textareaRef.current?.focus()
+  }
 
   const handleSubmit = useCallback(() => {
     const currentFiles = filesRef.current
@@ -453,13 +535,19 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     // getPlainValue restores skill chips' EM SPACE sentinel to a literal '/'
     // so the message reads as clean `/skill-name` (skills travel via contexts
     // regardless). Only the submitted copy is converted; the live input is not.
+    const activeContexts = currentEditor.getActiveContexts()
     onSubmit(
       currentEditor.getPlainValue(),
       fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
-      currentEditor.contexts.length > 0 ? currentEditor.contexts : undefined
+      activeContexts.length > 0 ? activeContexts : undefined
     )
     currentEditor.clear()
     sttPrefixRef.current = ''
+    if (draftSaveTimerRef.current !== null) {
+      window.clearTimeout(draftSaveTimerRef.current)
+      draftSaveTimerRef.current = null
+    }
+    pendingDraftRef.current = null
     if (draftScopeKeyRef.current) {
       useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
     }
@@ -511,9 +599,17 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   return (
     <div
       onClick={handleContainerClick}
+      onFocusCapture={() => {
+        composerOwnsFocusRef.current = true
+      }}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          composerOwnsFocusRef.current = false
+        }
+      }}
       className={cn(
-        'relative z-10 mx-auto w-full max-w-[48rem] cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
-        isInitialView && 'shadow-sm'
+        'relative z-10 mx-auto w-full max-w-chat cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+        isInitialView && 'shadow-ambient'
       )}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -533,7 +629,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
-        className={isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]'}
+        className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
       />
 
       <div className='flex items-center justify-between'>
@@ -582,7 +678,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>
-          {isSttSupported && <MicButton isListening={isListening} onToggle={toggleListening} />}
+          {isSttSupported && (
+            <MicButton
+              audioLevelsRef={audioLevelsRef}
+              isListening={isListening}
+              onToggle={toggleListening}
+            />
+          )}
           <SendButton
             isSending={isSending}
             canSubmit={canSubmit}
@@ -602,6 +704,11 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       />
 
       {files.isDragging && <DropOverlay />}
+
+      <MicrophonePermissionHelp
+        open={microphonePermissionHelpOpen}
+        onOpenChange={setMicrophonePermissionHelpOpen}
+      />
     </div>
   )
 })

@@ -5,6 +5,7 @@
  * with table-specific information so LLMs can construct proper queries.
  */
 
+import { columnTypeById } from '@/lib/table/column-types'
 import type { TableSummary } from '@/lib/table/types'
 
 /**
@@ -91,7 +92,7 @@ ${filterExample}${sortExample}`
     const exampleCols = table.columns.slice(0, 3)
     const dataExample = exampleCols.reduce(
       (obj, col) => {
-        obj[col.name] = col.type === 'number' ? 123 : col.type === 'boolean' ? true : 'example'
+        obj[col.name] = columnTypeById(col.type).sampleValue
         return obj
       },
       {} as Record<string, unknown>
@@ -160,7 +161,7 @@ export function enrichTableToolParameters(
   if (enrichedProperties.limit && toolId === 'table_query_rows') {
     enrichedProperties.limit = {
       ...enrichedProperties.limit,
-      description: `Maximum rows to return (min: 1, max: 1000, default: 100). For ranking queries: use limit=1 for highest/lowest, limit=2 for second highest, etc.`,
+      description: `Maximum rows to return (min: 1). Omit to return every matching row; the query fails if the result exceeds 5MB. For ranking queries: use limit=1 for highest/lowest, limit=2 for second highest, etc.`,
     }
   }
 
@@ -168,7 +169,7 @@ export function enrichTableToolParameters(
     const exampleCols = table.columns.slice(0, 2)
     const exampleData = exampleCols.reduce(
       (obj: Record<string, unknown>, col: { name: string; type: string }) => {
-        obj[col.name] = col.type === 'number' ? 123 : col.type === 'boolean' ? true : 'value'
+        obj[col.name] = columnTypeById(col.type).sampleValue
         return obj
       },
       {} as Record<string, unknown>

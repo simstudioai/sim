@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { instagramGetPublishingLimitTool } from '@/tools/instagram/get_publishing_limit'
 
 describe('instagramGetPublishingLimitTool', () => {
-  it('maps and describes the structured quota config', async () => {
+  it('maps the structured quota config', async () => {
     const result = await instagramGetPublishingLimitTool.transformResponse?.(
       Response.json({
         data: [
@@ -24,10 +24,6 @@ describe('instagramGetPublishingLimitTool', () => {
         quotaUsage: 12,
         config: { quotaTotal: 100, quotaDuration: 86_400 },
       },
-    })
-    expect(instagramGetPublishingLimitTool.outputs?.config.properties).toMatchObject({
-      quotaTotal: { type: 'number', nullable: true },
-      quotaDuration: { type: 'number', nullable: true },
     })
   })
 

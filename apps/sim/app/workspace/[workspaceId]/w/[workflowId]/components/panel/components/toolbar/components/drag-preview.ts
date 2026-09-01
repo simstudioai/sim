@@ -4,7 +4,7 @@
 export interface DragItemInfo {
   name: string
   bgColor: string
-  iconElement?: HTMLElement | null
+  iconContainer?: HTMLElement | null
 }
 
 /**
@@ -32,25 +32,23 @@ export function createDragPreview(info: DragItemInfo): HTMLElement {
     z-index: 9999;
   `
 
-  const iconContainer = document.createElement('div')
-  iconContainer.style.cssText = `
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    background: ${info.bgColor};
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  `
+  const iconContainer = info.iconContainer
+    ? (info.iconContainer.cloneNode(true) as HTMLElement)
+    : document.createElement('div')
+  iconContainer.style.width = '24px'
+  iconContainer.style.height = '24px'
+  iconContainer.style.borderRadius = '6px'
+  iconContainer.style.display = 'flex'
+  iconContainer.style.alignItems = 'center'
+  iconContainer.style.justifyContent = 'center'
+  iconContainer.style.flexShrink = '0'
+  if (!info.iconContainer) iconContainer.style.background = info.bgColor
 
-  if (info.iconElement) {
-    const clonedIcon = info.iconElement.cloneNode(true) as HTMLElement
+  const clonedIcon = iconContainer.querySelector<HTMLElement>('svg, img')
+  if (clonedIcon) {
     clonedIcon.style.width = '16px'
     clonedIcon.style.height = '16px'
-    clonedIcon.style.color = 'white'
     clonedIcon.style.flexShrink = '0'
-    iconContainer.appendChild(clonedIcon)
   }
 
   const text = document.createElement('span')

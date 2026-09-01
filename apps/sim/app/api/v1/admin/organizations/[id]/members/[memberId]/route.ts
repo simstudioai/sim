@@ -36,7 +36,7 @@ import {
   adminV1UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
+import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
 import {
   removeUserFromOrganization,
   WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR,
@@ -45,6 +45,7 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminInvalidJsonResponse,
   adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
@@ -89,7 +90,6 @@ export const GET = withRouteHandler(
           createdAt: member.createdAt,
           userName: user.name,
           userEmail: user.email,
-          currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
           billingBlocked: userStats.billingBlocked,
         })
@@ -103,9 +103,9 @@ export const GET = withRouteHandler(
         return notFoundResponse('Member')
       }
 
-      // currentPeriodCost is only a baseline; add this member's attributed
-      // usage_log for the org's period so admin shows real current usage.
-      const ledgerByUser = await getOrgMemberLedgerByUser(organizationId)
+      const { usageByUser } = await getOrganizationMemberUsageSnapshot(organizationId, {
+        userIds: [memberData.userId],
+      })
 
       const data: AdminMemberDetail = {
         id: memberData.id,
@@ -115,9 +115,7 @@ export const GET = withRouteHandler(
         createdAt: memberData.createdAt.toISOString(),
         userName: memberData.userName,
         userEmail: memberData.userEmail,
-        currentPeriodCost: (
-          Number(memberData.currentPeriodCost ?? 0) + (ledgerByUser.get(memberData.userId) ?? 0)
-        ).toString(),
+        currentPeriodCost: (usageByUser.get(memberData.userId) ?? 0).toString(),
         currentUsageLimit: memberData.currentUsageLimit,
         billingBlocked: memberData.billingBlocked ?? false,
       }
@@ -144,7 +142,7 @@ export const PATCH = withRouteHandler(
         { params: routeParams },
         {
           validationErrorResponse: adminValidationErrorResponse,
-          invalidJson: 'throw',
+          invalidJsonResponse: adminInvalidJsonResponse,
         }
       )
       if (!parsed.success) return parsed.response

@@ -11,6 +11,21 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSOProvidersRoute')
 
+/** Secrets shorter than this reveal too large a fraction of themselves in 4 characters. */
+const MIN_LENGTH_FOR_HINT = 16
+
+/**
+ * Last four characters of a stored client secret, so an admin can tell *which*
+ * secret is saved rather than only that one exists. Four characters of a
+ * high-entropy secret is not a meaningful disclosure to an owner or admin, who
+ * can rotate it anyway — but short secrets are left unhinted, where the same four
+ * characters would be a large share of the value.
+ */
+function buildClientSecretHint(clientSecret: unknown): string | null {
+  if (typeof clientSecret !== 'string' || clientSecret.length < MIN_LENGTH_FOR_HINT) return null
+  return clientSecret.slice(-4)
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
@@ -60,6 +75,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           samlConfig: ssoProvider.samlConfig,
           userId: ssoProvider.userId,
           organizationId: ssoProvider.organizationId,
+          jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
         })
         .from(ssoProvider)
         .where(whereClause)
@@ -69,7 +85,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         if (oidcConfig) {
           try {
             const parsed = JSON.parse(oidcConfig)
+            const hint = buildClientSecretHint(parsed.clientSecret)
             parsed.clientSecret = REDACTED_MARKER
+            if (hint) parsed.clientSecretHint = hint
             oidcConfig = JSON.stringify(parsed)
           } catch {
             oidcConfig = null

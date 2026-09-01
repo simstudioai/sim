@@ -17,6 +17,56 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
   bgColor: '#F25A5A',
   iconColor: '#F25A5A',
   icon: RevenueCatIcon,
+  canvasPresentation: {
+    defaultTitle: 'RevenueCat',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in project', field: 'projectId' },
+      ],
+    },
+    sentences: {
+      byOperation: {
+        get_customer: [{ text: 'Read customer', field: 'appUserId', core: true }],
+        delete_customer: [{ text: 'Delete customer', field: 'appUserId', core: true }],
+        create_purchase: [
+          { text: 'Record a purchase of', field: 'productId', core: true },
+          { text: 'for customer', field: 'appUserId', core: true },
+          { text: ', priced', field: 'price' },
+        ],
+        grant_entitlement: [
+          { text: 'Grant entitlement', field: 'entitlementIdentifier', core: true },
+          { text: 'to customer', field: 'appUserId' },
+          { text: ', lasting', field: 'duration' },
+        ],
+        revoke_entitlement: [
+          { text: 'Revoke entitlement', field: 'entitlementIdentifier', core: true },
+          { text: 'from customer', field: 'appUserId' },
+        ],
+        list_offerings: [
+          { text: 'List offerings available to', field: 'appUserId', core: true },
+          { text: ', on', field: 'platform' },
+        ],
+        update_subscriber_attributes: [
+          { text: 'Update attributes on customer', field: 'appUserId', core: true },
+        ],
+        defer_google_subscription: [
+          { text: 'Defer Google Play subscription', field: 'productId', core: true },
+          { text: 'for customer', field: 'appUserId' },
+          { text: ', by', field: 'extendByDays', after: 'days' },
+        ],
+        refund_google_subscription: [
+          { text: 'Refund store transaction', field: 'productId', core: true },
+          { text: 'for customer', field: 'appUserId' },
+        ],
+        revoke_google_subscription: [
+          { text: 'Revoke Google Play subscription', field: 'productId', core: true },
+          { text: 'from customer', field: 'appUserId' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

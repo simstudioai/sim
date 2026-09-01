@@ -1,7 +1,7 @@
-import { Link, Section, Text } from '@react-email/components'
-import { baseStyles, colors, typography } from '@/components/emails/_styles'
-import { proFeatures } from '@/components/emails/billing/constants'
-import { EmailLayout } from '@/components/emails/components'
+import { Text } from '@react-email/components'
+import { baseStyles } from '@/components/emails/_styles'
+import { ProFeaturesBox } from '@/components/emails/billing/pro-features-box'
+import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -26,81 +26,21 @@ export function FreeTierUpgradeEmail({
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
-        You've used <strong>{dollarsToCredits(currentUsage).toLocaleString()}</strong> of your{' '}
-        <strong>{dollarsToCredits(limit).toLocaleString()}</strong> free credits ({percentUsed}%).
-        Upgrade to Pro to keep building without interruption.
+        You've used <EmailStrong>{dollarsToCredits(currentUsage).toLocaleString()}</EmailStrong> of
+        your <EmailStrong>{dollarsToCredits(limit).toLocaleString()}</EmailStrong> free credits (
+        {percentUsed}%). Upgrade to Pro to keep building without interruption.
       </Text>
 
-      {/* Pro Features */}
-      <Section
-        style={{
-          backgroundColor: colors.surfaceSubtle,
-          border: `1px solid ${colors.brandTertiary}20`,
-          borderRadius: '8px',
-          padding: '16px 20px',
-          margin: '16px 0',
-        }}
-      >
-        <Text
-          style={{
-            fontSize: '14px',
-            fontWeight: 600,
-            color: colors.brandTertiary,
-            fontFamily: typography.fontFamily,
-            margin: '0 0 12px 0',
-            textTransform: 'uppercase' as const,
-            letterSpacing: '0.5px',
-          }}
-        >
-          Pro includes
-        </Text>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <tbody>
-            {proFeatures.map((feature, i) => (
-              <tr key={i}>
-                <td
-                  style={{
-                    padding: '6px 0',
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    color: colors.textPrimary,
-                    fontFamily: typography.fontFamily,
-                    width: '45%',
-                  }}
-                >
-                  {feature.label}
-                </td>
-                <td
-                  style={{
-                    padding: '6px 0',
-                    fontSize: '14px',
-                    color: colors.textMuted,
-                    fontFamily: typography.fontFamily,
-                  }}
-                >
-                  {feature.desc}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
+      <ProFeaturesBox />
 
-      <Link href={upgradeLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Upgrade to Pro</Text>
-      </Link>
+      <EmailButton href={upgradeLink}>Upgrade to Pro</EmailButton>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-        One-time notification at 80% usage.
-      </Text>
+      <Text style={baseStyles.footnote}>One-time notification at 80% usage.</Text>
     </EmailLayout>
   )
 }

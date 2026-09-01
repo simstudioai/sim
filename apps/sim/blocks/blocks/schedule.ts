@@ -1,9 +1,5 @@
-import type { SVGProps } from 'react'
-import { createElement } from 'react'
-import { Clock } from 'lucide-react'
+import { Clock } from '@sim/emcn/icons'
 import type { BlockConfig } from '@/blocks/types'
-
-const ScheduleIcon = (props: SVGProps<SVGSVGElement>) => createElement(Clock, props)
 
 export const ScheduleBlock: BlockConfig = {
   type: 'schedule',
@@ -19,8 +15,32 @@ export const ScheduleBlock: BlockConfig = {
   `,
   category: 'triggers',
   bgColor: '#6366F1',
-  icon: ScheduleIcon,
+  icon: Clock,
 
+  canvasPresentation: {
+    defaultTitle: 'Schedule',
+    /*
+     * Schedule has no registry trigger to name — the schedule itself is the
+     * event — so it declares its own. Each detail is already gated on
+     * `scheduleType`, so exactly the branch belonging to the chosen frequency is
+     * on the card and the rest drop. The frequency therefore lives in the detail
+     * copy rather than in a `scheduleType` chip, whose dropdown labels are form
+     * labels — "Runs Every X Minutes every 15 minutes" is what that reads like.
+     */
+    triggerSentences: {
+      default: [
+        'Run',
+        { text: 'every', field: 'minutesInterval', after: 'minutes', core: true },
+        { text: 'hourly, at minute', field: 'hourlyMinute', core: true },
+        { text: 'daily at', field: 'dailyTime', core: true },
+        { text: 'weekly on', field: 'weeklyDay', core: true },
+        { text: 'at', field: 'weeklyDayTime', core: true },
+        { text: 'monthly on day', field: 'monthlyDay', core: true },
+        { text: 'at', field: 'monthlyTime', core: true },
+        { text: 'on cron', field: 'cronExpression', core: true },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'scheduleType',

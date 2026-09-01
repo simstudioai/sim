@@ -163,6 +163,10 @@ async function createCandidateProviderState(
     const configured = await handler.configurePolling({
       webhook: { ...webhookData, providerConfig },
       requestId: input.requestId,
+      userId: input.userId,
+      workspaceId:
+        typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : null,
+      deploymentVersionId: input.fence.deploymentVersionId,
       persistProviderConfig: async (configuredProviderConfig) => {
         persistedProviderConfig = configuredProviderConfig
         await dependencies.checkpointCandidate({

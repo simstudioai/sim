@@ -43,7 +43,12 @@ describe('desktop tool authorization', () => {
       toolName: 'read',
       args: { path: 'user-local/Project--mount-1/README.md', offset: 0, limit: 100 },
     })
-    getRunSegment.mockResolvedValue({ id: 'run-1', userId: 'user-1', status: 'active' })
+    getRunSegment.mockResolvedValue({
+      id: 'run-1',
+      chatId: 'chat-1',
+      userId: 'user-1',
+      status: 'active',
+    })
     claimPendingAsyncToolCall.mockResolvedValue({ toolCallId: 'browser-tool', status: 'running' })
   })
 
@@ -52,6 +57,7 @@ describe('desktop tool authorization', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
+      chatId: 'chat-1',
       toolName: 'read',
       args: { path: 'user-local/Project--mount-1/README.md', offset: 0, limit: 100 },
     })
@@ -69,10 +75,26 @@ describe('desktop tool authorization', () => {
     const response = await POST(request('browser-tool'))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
+      chatId: 'chat-1',
       toolName: 'browser_navigate',
       args: { url: 'https://example.com' },
     })
     expect(claimPendingAsyncToolCall).toHaveBeenCalledWith('browser-tool', 'desktop-browser')
+  })
+
+  it('rejects retired browser tools retained only for history', async () => {
+    getAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'retired-browser-tool',
+      runId: 'run-1',
+      status: 'pending',
+      toolName: 'browser_request_takeover',
+      args: { reason: 'Legacy handoff' },
+    })
+
+    const response = await POST(request('retired-browser-tool'))
+
+    expect(response.status).toBe(403)
+    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
   })
 
   it('rejects a replayed browser action after its pending row was claimed', async () => {

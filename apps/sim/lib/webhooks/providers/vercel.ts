@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -261,7 +262,7 @@ export const vercelHandler: WebhookProviderHandler = {
 
     const linksRaw = payload.links
     let links: { deployment: string; project: string } | null = null
-    if (linksRaw && typeof linksRaw === 'object' && !Array.isArray(linksRaw)) {
+    if (isRecordLike(linksRaw)) {
       const L = linksRaw as Record<string, unknown>
       const dep = L.deployment
       const proj = L.project
@@ -279,7 +280,7 @@ export const vercelHandler: WebhookProviderHandler = {
     let deploymentMeta: Record<string, unknown> | null = null
     if (deployment && typeof deployment === 'object') {
       const meta = (deployment as Record<string, unknown>).meta
-      if (meta && typeof meta === 'object' && !Array.isArray(meta)) {
+      if (isRecordLike(meta)) {
         deploymentMeta = meta as Record<string, unknown>
       }
     }

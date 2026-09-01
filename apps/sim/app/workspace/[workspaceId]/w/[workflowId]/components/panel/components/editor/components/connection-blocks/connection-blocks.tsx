@@ -4,7 +4,6 @@ import { useCallback, useRef, useState } from 'react'
 import { ChevronDown, handleKeyboardActivation } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   FieldItem,
@@ -12,8 +11,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
-import { getTileIconColorClass } from '@/blocks/icon-color'
-import { getBlock } from '@/blocks/registry'
+import { BlockTile } from '@/blocks/block-tile'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -29,7 +27,6 @@ interface ConnectionBlocksProps {
 interface FieldTreeNodesProps {
   fields: SchemaField[]
   parentPath: string
-  level: number
   connection: ConnectedBlock
   isFieldExpanded: (connectionId: string, fieldPath: string) => boolean
   onToggleFieldExpansion: (connectionId: string, fieldPath: string) => void
@@ -38,7 +35,6 @@ interface FieldTreeNodesProps {
 function FieldTreeNodes({
   fields,
   parentPath,
-  level,
   connection,
   isFieldExpanded,
   onToggleFieldExpansion,
@@ -54,7 +50,6 @@ function FieldTreeNodes({
           connection={connection}
           field={field}
           path={fieldPath}
-          level={level}
           hasChildren={hasChildren}
           isExpanded={expanded}
           onToggleExpand={(p) => onToggleFieldExpansion(connection.id, p)}
@@ -65,7 +60,6 @@ function FieldTreeNodes({
             <FieldTreeNodes
               fields={field.children!}
               parentPath={fieldPath}
-              level={level + 1}
               connection={connection}
               isFieldExpanded={isFieldExpanded}
               onToggleFieldExpansion={onToggleFieldExpansion}
@@ -103,8 +97,6 @@ function ConnectionItem({
   mergedSubBlocks,
   sourceBlock,
 }: ConnectionItemProps) {
-  const blockConfig = getBlock(connection.type)
-
   const fields = useBlockOutputFields({
     blockId: connection.id,
     blockType: connection.type,
@@ -112,19 +104,6 @@ function ConnectionItem({
     triggerMode: sourceBlock?.triggerMode,
   })
   const hasFields = fields.length > 0
-
-  let Icon = blockConfig?.icon
-  let bgColor = blockConfig?.bgColor || '#6B7280'
-
-  if (!blockConfig) {
-    if (connection.type === 'loop') {
-      Icon = RepeatIcon as typeof Icon
-      bgColor = '#2FB3FF'
-    } else if (connection.type === 'parallel') {
-      Icon = SplitIcon as typeof Icon
-      bgColor = '#FEE12B'
-    }
-  }
 
   return (
     <div className='mb-0.5 last:mb-0' ref={connectionRef}>
@@ -144,24 +123,10 @@ function ConnectionItem({
           handleKeyboardActivation(event, () => onToggleExpand(connection.id))
         }}
       >
-        <div
-          className='[&_img]:!size-full relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-          style={{ background: bgColor }}
-        >
-          {Icon && (
-            <Icon
-              className={clsx(
-                'transition-transform duration-200',
-                getTileIconColorClass(bgColor),
-                hasFields && 'group-hover:scale-110',
-                '!size-[9px]'
-              )}
-            />
-          )}
-        </div>
+        <BlockTile blockType={connection.type} size='sm' />
         <span
           className={clsx(
-            'truncate font-medium',
+            'truncate',
             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
           )}
         >
@@ -183,7 +148,6 @@ function ConnectionItem({
           <FieldTreeNodes
             fields={fields}
             parentPath=''
-            level={0}
             connection={connection}
             isFieldExpanded={isFieldExpanded}
             onToggleFieldExpansion={onToggleFieldExpansion}

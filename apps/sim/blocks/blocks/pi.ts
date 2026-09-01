@@ -56,14 +56,21 @@ const CLOUD_BRANCH: { field: 'mode'; value: 'cloud_branch' } = {
 }
 const CLOUD_ANY: {
   field: 'mode'
-  value: Array<'cloud' | 'cloud_branch' | 'cloud_review'>
+  value: Array<'cloud' | 'cloud_branch' | 'cloud_plan' | 'cloud_review'>
 } = {
   field: 'mode',
-  value: ['cloud', 'cloud_branch', 'cloud_review'],
+  value: ['cloud', 'cloud_branch', 'cloud_plan', 'cloud_review'],
 }
 const CLOUD_AUTHORING: { field: 'mode'; value: Array<'cloud' | 'cloud_branch'> } = {
   field: 'mode',
   value: ['cloud', 'cloud_branch'],
+}
+const CLOUD_SANDBOX: {
+  field: 'mode'
+  value: Array<'cloud' | 'cloud_branch' | 'cloud_plan'>
+} = {
+  field: 'mode',
+  value: ['cloud', 'cloud_branch', 'cloud_plan'],
 }
 const BABYSIT_ENABLED_VALUES: Array<true | 'true'> = [true, 'true']
 const CLOUD_WITH_BABYSIT: {
@@ -106,12 +113,12 @@ function getCloudBranchWithoutBabysitCondition(values?: Record<string, unknown>)
   }
 }
 const LOCAL: { field: 'mode'; value: 'local' } = { field: 'mode', value: 'local' }
-const AUTHORING_MODES: {
+const CONTEXTUAL_MODES: {
   field: 'mode'
-  value: Array<'cloud' | 'cloud_branch' | 'local'>
+  value: Array<'cloud' | 'cloud_branch' | 'cloud_plan' | 'local'>
 } = {
   field: 'mode',
-  value: ['cloud', 'cloud_branch', 'local'],
+  value: ['cloud', 'cloud_branch', 'cloud_plan', 'local'],
 }
 const MEMORY_TYPES = ['conversation', 'sliding_window', 'sliding_window_tokens']
 
@@ -146,14 +153,14 @@ const hostedModelApiKeyCondition = getApiKeyCondition()
 /**
  * API Key visibility for the Pi block.
  *
- * Create PR hands the model key to the sandbox as an environment variable, so
+ * Plan, Create PR, and Update PR hand the model key to the sandbox as an environment variable, so
  * Sim never supplies a hosted key there — the field is shown for every model,
  * including ones that are hosted elsewhere in Sim. Review Code and Local Dev
  * keep the model client inside Sim, so they follow the standard hosted-model
  * rule and hide the field when Sim covers the key.
  */
 const piApiKeyCondition = (values?: Record<string, unknown>) =>
-  isPiByokOnlyMode(values?.mode) ? CLOUD_AUTHORING : hostedModelApiKeyCondition(values)
+  isPiByokOnlyMode(values?.mode) ? CLOUD_SANDBOX : hostedModelApiKeyCondition(values)
 
 export const PiBlock: BlockConfig<PiResponse> = {
   type: 'pi',
@@ -161,20 +168,31 @@ export const PiBlock: BlockConfig<PiResponse> = {
   description: 'Run an autonomous coding agent on a repo',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'The Pi Coding Agent runs the Pi harness against a real repository. Create PR spins up an isolated sandbox, clones a GitHub repo, edits with native shell + git, and opens a pull request; Update PR checks out an existing remote branch, pushes commits back without force-pushing, and creates or updates its pull request. Babysit Mode then keeps the pull request under watch, fixing trusted bot review threads and failing required checks in bounded rounds. Review Code checks out a pinned PR snapshot with read-only tools and posts a structured review with optional inline comments. Local Dev edits files on your own machine over SSH. Create PR, Update PR, and Local Dev can reuse skills and multi-turn memory; Review Code runs without either because PR contents are untrusted. Any mode can optionally get one web_search tool backed by your own Exa, Serper, Parallel AI, or Firecrawl key; the agent writes its own queries, so repository content may reach the provider, and results are untrusted third-party data.',
+    'The Pi Coding Agent runs the Pi harness against a real repository. Plan explores a disposable sandbox checkout and returns an implementation plan without pushing changes. Create PR spins up an isolated sandbox, clones a GitHub repo, edits with native shell + git, and opens a pull request; Update PR checks out an existing remote branch, pushes commits back without force-pushing, and creates or updates its pull request. Babysit Mode then keeps the pull request under watch, fixing trusted bot review threads and failing required checks in bounded rounds. Review Code checks out a pinned PR snapshot with read-only tools and posts a structured review with optional inline comments. Local Dev edits files on your own machine over SSH. Plan, Create PR, Update PR, and Local Dev can reuse skills and multi-turn memory; Review Code runs without either because PR contents are untrusted. Any mode can optionally get one web_search tool backed by your own Exa, Serper, Parallel AI, or Firecrawl key; the agent writes its own queries, so repository content may reach the provider, and results are untrusted third-party data.',
   bestPractices: `
+  - Use Plan to inspect a GitHub repo and produce an implementation plan without persisting changes.
   - Use Create PR for hands-off changes against a GitHub repo where a reviewable PR is the deliverable.
   - Use Update PR to continue work on an existing remote branch and create or update its pull request.
   - Enable Babysit Mode on Create PR or Update PR when trusted review bots and required checks should be monitored and fixed in bounded rounds.
   - Use Review Code to analyze an existing PR and leave summary + inline review comments.
   - Use Local Dev to edit a repo on your own machine; expose the machine on a public hostname/tunnel so Sim can reach it over SSH.
-  - Create PR and Update PR require your own provider API key for every model, including ones Sim hosts, because the model runs in the sandbox. Review Code and Local Dev keep the model key in Sim and can use either BYOK or a hosted key.
+  - Plan, Create PR, and Update PR require your own provider API key for every model, including ones Sim hosts, because the model runs in the sandbox. Review Code and Local Dev keep the model key in Sim and can use either BYOK or a hosted key.
   - Internet Search is off by default and always needs your own key for the selected provider, entered on the block. There is no workspace BYOK fallback and no hosted key. Leave it on None unless the task genuinely needs external information.
   `,
   category: 'blocks',
   integrationType: IntegrationType.AI,
   bgColor: '#000000',
   icon: PiIcon,
+  canvasPresentation: {
+    defaultTitle: 'Pi Coding Agent',
+    sentences: {
+      default: [
+        { text: 'Run', field: 'task', core: true },
+        { text: 'on', field: ['repo', 'repoPath'] },
+        { text: ', in', field: 'mode', after: 'mode' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'mode',
@@ -201,6 +219,11 @@ export const PiBlock: BlockConfig<PiResponse> = {
               label: 'Update PR',
               id: 'cloud_branch',
               description: 'Updates an existing branch and creates or updates its pull request',
+            },
+            {
+              label: 'Plan',
+              id: 'cloud_plan',
+              description: 'Explores a disposable checkout and returns an implementation plan',
             },
             {
               label: 'Review Code',
@@ -246,7 +269,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       defaultValue: 'none',
       options: SEARCH_PROVIDER_OPTIONS,
       tooltip:
-        'Gives the agent a single web_search tool backed by the selected provider. Search always uses your own key for that provider, never a Sim-hosted one, because cloud authoring places the key inside the coding sandbox.',
+        'Gives the agent a single web_search tool backed by the selected provider. Search always uses your own key for that provider, never a Sim-hosted one, because sandbox modes place the key inside the coding sandbox.',
     },
     {
       id: 'searchApiKey',
@@ -294,7 +317,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       paramVisibility: 'user-only',
       placeholder: 'GitHub personal access token',
       tooltip:
-        'Personal access token used for GitHub access. Create PR and Update PR both need clone, push, and pull request read/write permissions. With Babysit Mode, either also needs check/Actions reads, thread writes, and issue comments. Review Code needs clone + review permissions.',
+        'Personal access token used for GitHub access. Plan needs clone access only. Create PR and Update PR both need clone, push, and pull request read/write permissions. With Babysit Mode, either also needs check/Actions reads, thread writes, and issue comments. Review Code needs clone + review permissions.',
       required: true,
       condition: CLOUD_ANY,
     },
@@ -304,8 +327,8 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'short-input',
       placeholder: 'e.g., main (defaults to the repository default branch)',
       tooltip:
-        'Create PR clones this branch and opens against it. Update PR changes an existing pull request only when set, or uses it when creating a missing pull request.',
-      condition: CLOUD_AUTHORING,
+        'Plan and Create PR clone this branch, defaulting to the repository default. Create PR opens against it. Update PR changes an existing pull request only when set, or uses it when creating a missing pull request.',
+      condition: CLOUD_SANDBOX,
     },
     {
       id: 'targetBranch',
@@ -461,6 +484,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       id: 'privateKey',
       title: 'Private Key',
       type: 'code',
+      password: true,
       paramVisibility: 'user-only',
       placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----\n...',
       required: {
@@ -524,7 +548,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       type: 'skill-input',
       defaultValue: [],
       mode: 'advanced',
-      condition: AUTHORING_MODES,
+      condition: CONTEXTUAL_MODES,
     },
     {
       id: 'thinkingLevel',
@@ -554,7 +578,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
         { label: 'Sliding window (tokens)', id: 'sliding_window_tokens' },
       ],
       mode: 'advanced',
-      condition: AUTHORING_MODES,
+      condition: CONTEXTUAL_MODES,
     },
     {
       id: 'conversationId',
@@ -564,12 +588,12 @@ export const PiBlock: BlockConfig<PiResponse> = {
       mode: 'advanced',
       required: {
         field: 'mode',
-        value: ['cloud', 'cloud_branch', 'local'],
+        value: ['cloud', 'cloud_branch', 'cloud_plan', 'local'],
         and: { field: 'memoryType', value: MEMORY_TYPES },
       },
       condition: {
         field: 'mode',
-        value: ['cloud', 'cloud_branch', 'local'],
+        value: ['cloud', 'cloud_branch', 'cloud_plan', 'local'],
         and: { field: 'memoryType', value: MEMORY_TYPES },
       },
       dependsOn: ['memoryType'],
@@ -582,7 +606,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       mode: 'advanced',
       condition: {
         field: 'mode',
-        value: ['cloud', 'cloud_branch', 'local'],
+        value: ['cloud', 'cloud_branch', 'cloud_plan', 'local'],
         and: { field: 'memoryType', value: ['sliding_window'] },
       },
       dependsOn: ['memoryType'],
@@ -595,7 +619,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       mode: 'advanced',
       condition: {
         field: 'mode',
-        value: ['cloud', 'cloud_branch', 'local'],
+        value: ['cloud', 'cloud_branch', 'cloud_plan', 'local'],
         and: { field: 'memoryType', value: ['sliding_window_tokens'] },
       },
       dependsOn: ['memoryType'],
@@ -607,14 +631,15 @@ export const PiBlock: BlockConfig<PiResponse> = {
   inputs: {
     mode: {
       type: 'string',
-      description: 'Execution mode: Create PR, Update PR, Review Code, or Local Dev',
+      description:
+        'Execution mode: Plan (cloud_plan), Create PR (cloud), Update PR (cloud_branch), Review Code (cloud_review), or Local Dev (local)',
     },
     task: { type: 'string', description: 'Instruction for the coding agent' },
     model: { type: 'string', description: 'AI model to use' },
     owner: { type: 'string', description: 'GitHub repository owner (cloud modes)' },
     repo: { type: 'string', description: 'GitHub repository name (cloud modes)' },
     githubToken: { type: 'string', description: 'GitHub token (cloud modes)' },
-    baseBranch: { type: 'string', description: 'Base branch for the pull request' },
+    baseBranch: { type: 'string', description: 'Branch to inspect or use as the PR base' },
     branchName: { type: 'string', description: 'Branch to create (Create PR)' },
     targetBranch: { type: 'string', description: 'Existing branch to update (Update PR)' },
     draft: { type: 'boolean', description: 'Open the PR as a draft (Create PR)' },
@@ -667,8 +692,16 @@ export const PiBlock: BlockConfig<PiResponse> = {
   outputs: {
     content: { type: 'string', description: 'Final agent message / run summary' },
     model: { type: 'string', description: 'Model used for the run' },
-    changedFiles: { type: 'json', description: 'Files changed by the agent' },
-    diff: { type: 'string', description: 'Unified diff of the changes' },
+    changedFiles: {
+      type: 'json',
+      description: 'Files changed by the agent',
+      condition: { field: 'mode', value: ['cloud', 'cloud_branch', 'cloud_review', 'local'] },
+    },
+    diff: {
+      type: 'string',
+      description: 'Unified diff of the changes',
+      condition: { field: 'mode', value: ['cloud', 'cloud_branch', 'cloud_review', 'local'] },
+    },
     prUrl: {
       type: 'string',
       description: 'URL of the created or babysat pull request',

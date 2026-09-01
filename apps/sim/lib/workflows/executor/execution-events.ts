@@ -1,9 +1,5 @@
-import type {
-  ChildWorkflowContext,
-  IterationContext,
-  ParentIteration,
-} from '@/executor/execution/types'
-import type { BlockLog } from '@/executor/types'
+import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
+import type { ParentIteration } from '@/executor/execution/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export type ExecutionEventType =
@@ -48,6 +44,15 @@ interface BaseExecutionEvent {
   eventId?: number
 }
 
+export interface ExecutionEventDisplayData {
+  input?: unknown
+  output?: unknown
+  error?: string
+  text?: string
+  chunk?: string
+  clearLiveDisplay?: true
+}
+
 /**
  * Execution started event
  */
@@ -72,7 +77,7 @@ interface ExecutionCompletedEvent extends BaseExecutionEvent {
     startTime: string
     endTime: string
     /** Authoritative per-block terminal states from the server's blockLogs. */
-    finalBlockLogs?: BlockLog[]
+    finalBlockLogs?: SecretSafeBlockLog[]
   }
 }
 
@@ -88,7 +93,7 @@ interface ExecutionPausedEvent extends BaseExecutionEvent {
     startTime: string
     endTime: string
     /** Authoritative per-block terminal states from the server's blockLogs. */
-    finalBlockLogs?: BlockLog[]
+    finalBlockLogs?: SecretSafeBlockLog[]
   }
 }
 
@@ -100,9 +105,10 @@ interface ExecutionErrorEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     error: string
+    display?: ExecutionEventDisplayData
     duration: number
     /** Authoritative per-block terminal states from the server's blockLogs. */
-    finalBlockLogs?: BlockLog[]
+    finalBlockLogs?: SecretSafeBlockLog[]
   }
 }
 
@@ -112,7 +118,7 @@ interface ExecutionCancelledEvent extends BaseExecutionEvent {
   data: {
     duration: number
     /** Authoritative per-block terminal states from the server's blockLogs. */
-    finalBlockLogs?: BlockLog[]
+    finalBlockLogs?: SecretSafeBlockLog[]
   }
 }
 
@@ -149,6 +155,7 @@ interface BlockCompletedEvent extends BaseExecutionEvent {
     blockType: string
     input?: any
     output: any
+    display?: ExecutionEventDisplayData
     durationMs: number
     startedAt: string
     executionOrder: number
@@ -177,6 +184,7 @@ interface BlockErrorEvent extends BaseExecutionEvent {
     blockType: string
     input?: any
     error: string
+    display?: ExecutionEventDisplayData
     durationMs: number
     startedAt: string
     executionOrder: number
@@ -224,6 +232,7 @@ interface StreamChunkEvent extends BaseExecutionEvent {
   data: {
     blockId: string
     chunk: string
+    display?: ExecutionEventDisplayData
   }
 }
 
@@ -263,6 +272,7 @@ interface StreamThinkingEvent extends BaseExecutionEvent {
   data: {
     blockId: string
     text: string
+    display?: ExecutionEventDisplayData
   }
 }
 
@@ -316,6 +326,25 @@ export type StreamDoneData = StreamDoneEvent['data']
 export type StreamThinkingData = StreamThinkingEvent['data']
 export type StreamToolData = StreamToolEvent['data']
 
+export function getBlockInvocationKey(
+  data: Pick<
+    BlockStartedData,
+    | 'blockId'
+    | 'executionOrder'
+    | 'iterationContainerId'
+    | 'iterationCurrent'
+    | 'childWorkflowBlockId'
+  >
+): string {
+  return [
+    data.blockId,
+    data.executionOrder,
+    data.iterationContainerId ?? '',
+    data.iterationCurrent ?? '',
+    data.childWorkflowBlockId ?? '',
+  ].join(':')
+}
+
 /**
  * Helper to create SSE formatted message
  */
@@ -328,245 +357,4 @@ export function formatSSEEvent(event: ExecutionEvent): string {
  */
 export function encodeSSEEvent(event: ExecutionEvent): Uint8Array {
   return new TextEncoder().encode(formatSSEEvent(event))
-}
-
-/**
- * Options for creating SSE execution callbacks
- */
-interface SSECallbackOptions {
-  executionId: string
-  workflowId: string
-  controller: ReadableStreamDefaultController<Uint8Array>
-  isStreamClosed: () => boolean
-  setStreamClosed: () => void
-}
-
-/**
- * Creates execution callbacks using a provided event sink.
- */
-export function createExecutionCallbacks(options: {
-  executionId: string
-  workflowId: string
-  sendEvent: (event: ExecutionEvent) => void | Promise<void>
-}) {
-  const { executionId, workflowId, sendEvent } = options
-
-  const sendBufferedEvent = async (event: ExecutionEvent) => {
-    await sendEvent(event)
-  }
-
-  const onBlockStart = async (
-    blockId: string,
-    blockName: string,
-    blockType: string,
-    executionOrder: number,
-    iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext
-  ) => {
-    await sendBufferedEvent({
-      type: 'block:started',
-      timestamp: new Date().toISOString(),
-      executionId,
-      workflowId,
-      data: {
-        blockId,
-        blockName,
-        blockType,
-        executionOrder,
-        ...(iterationContext && {
-          iterationCurrent: iterationContext.iterationCurrent,
-          iterationTotal: iterationContext.iterationTotal,
-          iterationType: iterationContext.iterationType,
-          iterationContainerId: iterationContext.iterationContainerId,
-          ...(iterationContext.parentIterations?.length && {
-            parentIterations: iterationContext.parentIterations,
-          }),
-        }),
-        ...(childWorkflowContext && {
-          childWorkflowBlockId: childWorkflowContext.parentBlockId,
-          childWorkflowName: childWorkflowContext.workflowName,
-        }),
-      },
-    })
-  }
-
-  const onBlockComplete = async (
-    blockId: string,
-    blockName: string,
-    blockType: string,
-    callbackData: {
-      input?: unknown
-      output: any
-      executionTime: number
-      startedAt: string
-      executionOrder: number
-      endedAt: string
-      childWorkflowInstanceId?: string
-    },
-    iterationContext?: IterationContext,
-    childWorkflowContext?: ChildWorkflowContext
-  ) => {
-    const hasError = callbackData.output?.error
-    const iterationData = iterationContext
-      ? {
-          iterationCurrent: iterationContext.iterationCurrent,
-          iterationTotal: iterationContext.iterationTotal,
-          iterationType: iterationContext.iterationType,
-          iterationContainerId: iterationContext.iterationContainerId,
-          ...(iterationContext.parentIterations?.length && {
-            parentIterations: iterationContext.parentIterations,
-          }),
-        }
-      : {}
-    const childWorkflowData = childWorkflowContext
-      ? {
-          childWorkflowBlockId: childWorkflowContext.parentBlockId,
-          childWorkflowName: childWorkflowContext.workflowName,
-        }
-      : {}
-
-    const instanceData = callbackData.childWorkflowInstanceId
-      ? { childWorkflowInstanceId: callbackData.childWorkflowInstanceId }
-      : {}
-
-    if (hasError) {
-      await sendBufferedEvent({
-        type: 'block:error',
-        timestamp: new Date().toISOString(),
-        executionId,
-        workflowId,
-        data: {
-          blockId,
-          blockName,
-          blockType,
-          input: callbackData.input,
-          error: callbackData.output.error,
-          durationMs: callbackData.executionTime || 0,
-          startedAt: callbackData.startedAt,
-          executionOrder: callbackData.executionOrder,
-          endedAt: callbackData.endedAt,
-          ...iterationData,
-          ...childWorkflowData,
-          ...instanceData,
-        },
-      })
-    } else {
-      await sendBufferedEvent({
-        type: 'block:completed',
-        timestamp: new Date().toISOString(),
-        executionId,
-        workflowId,
-        data: {
-          blockId,
-          blockName,
-          blockType,
-          input: callbackData.input,
-          output: callbackData.output,
-          durationMs: callbackData.executionTime || 0,
-          startedAt: callbackData.startedAt,
-          executionOrder: callbackData.executionOrder,
-          endedAt: callbackData.endedAt,
-          ...iterationData,
-          ...childWorkflowData,
-          ...instanceData,
-        },
-      })
-    }
-  }
-
-  const onStream = async (streamingExecution: unknown) => {
-    const streamingExec = streamingExecution as { stream: ReadableStream; execution: any }
-    const blockId = streamingExec.execution?.blockId
-    const reader = streamingExec.stream.getReader()
-    const decoder = new TextDecoder()
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        await sendBufferedEvent({
-          type: 'stream:chunk',
-          timestamp: new Date().toISOString(),
-          executionId,
-          workflowId,
-          data: { blockId, chunk },
-        })
-      }
-      await sendBufferedEvent({
-        type: 'stream:done',
-        timestamp: new Date().toISOString(),
-        executionId,
-        workflowId,
-        data: { blockId },
-      })
-    } finally {
-      try {
-        reader.releaseLock()
-      } catch {}
-    }
-  }
-
-  const onChildWorkflowInstanceReady = async (
-    blockId: string,
-    childWorkflowInstanceId: string,
-    iterationContext?: IterationContext,
-    executionOrder?: number,
-    childWorkflowContext?: ChildWorkflowContext
-  ) => {
-    await sendBufferedEvent({
-      type: 'block:childWorkflowStarted',
-      timestamp: new Date().toISOString(),
-      executionId,
-      workflowId,
-      data: {
-        blockId,
-        childWorkflowInstanceId,
-        ...(iterationContext && {
-          iterationCurrent: iterationContext.iterationCurrent,
-          iterationTotal: iterationContext.iterationTotal,
-          iterationType: iterationContext.iterationType,
-          iterationContainerId: iterationContext.iterationContainerId,
-          ...(iterationContext.parentIterations?.length && {
-            parentIterations: iterationContext.parentIterations,
-          }),
-        }),
-        ...(childWorkflowContext && {
-          childWorkflowBlockId: childWorkflowContext.parentBlockId,
-          childWorkflowName: childWorkflowContext.workflowName,
-        }),
-        ...(executionOrder !== undefined && { executionOrder }),
-      },
-    })
-  }
-
-  return {
-    sendEvent: sendBufferedEvent,
-    onBlockStart,
-    onBlockComplete,
-    onStream,
-    onChildWorkflowInstanceReady,
-  }
-}
-
-/**
- * Creates SSE callbacks for workflow execution streaming
- */
-export function createSSECallbacks(options: SSECallbackOptions) {
-  const { executionId, workflowId, controller, isStreamClosed, setStreamClosed } = options
-
-  const sendEvent = (event: ExecutionEvent) => {
-    if (isStreamClosed()) return
-    try {
-      controller.enqueue(encodeSSEEvent(event))
-    } catch {
-      setStreamClosed()
-    }
-  }
-
-  return createExecutionCallbacks({
-    executionId,
-    workflowId,
-    sendEvent,
-  })
 }

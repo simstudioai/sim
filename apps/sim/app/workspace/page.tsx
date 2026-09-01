@@ -11,7 +11,13 @@ import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
+import {
+  buildUpgradeHref,
+  isUpgradeReason,
+  UPGRADE_REASON_PARAM,
+} from '@/lib/billing/upgrade-reasons'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WorkspacePage')
@@ -44,13 +50,14 @@ function WorkspaceStatusCard({
   onPrimary,
 }: WorkspaceStatusCardProps) {
   return (
-    <main className='flex h-screen w-full items-center justify-center bg-[var(--surface-1)] p-6'>
+    <main className='desktop-title-bar-page flex w-full items-center justify-center bg-[var(--surface-1)] p-6'>
+      <DesktopTitleBarLane />
       <div className='flex max-w-md flex-col items-center gap-3 text-center'>
         <div className='flex size-10 items-center justify-center rounded-full bg-[var(--surface-3)]'>
           <CircleAlert className='size-[18px] text-[var(--text-icon)]' aria-hidden />
         </div>
         <div className='space-y-1'>
-          <h1 className='font-medium text-[var(--text-primary)] text-lg'>{title}</h1>
+          <h1 className='text-[var(--text-primary)] text-lg'>{title}</h1>
           <p className='text-[var(--text-muted)] text-sm'>{description}</p>
         </div>
         <div className='flex items-center gap-2'>
@@ -113,6 +120,20 @@ export default function WorkspacePage() {
 
     if (isWorkspacesLoading || workspacesError || !data) return
 
+    const urlParams = new URLSearchParams(window.location.search)
+    const redirectWorkflowId = urlParams.get('redirect_workflow')
+    const redirectTarget = urlParams.get('redirect')
+    const rawReason = urlParams.get(UPGRADE_REASON_PARAM)
+
+    // `?redirect=upgrade` is how a caller that cannot know a workspace id — a
+    // self-hosted deployment, an email — reaches the plan picker. It has to
+    // survive workspace creation too: a first-time visitor has no workspace to
+    // resolve, and dropping the intent lands them on home with no explanation.
+    const destinationFor = (id: string) =>
+      redirectTarget === 'upgrade'
+        ? buildUpgradeHref(id, isUpgradeReason(rawReason) ? rawReason : undefined)
+        : `/workspace/${id}`
+
     const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
 
     if (workspaces.length === 0) {
@@ -133,14 +154,11 @@ export default function WorkspacePage() {
         return
       }
       hasRedirectedRef.current = true
-      handleNoWorkspaces(router, () => setRecoveryFailed(true))
+      handleNoWorkspaces(router, () => setRecoveryFailed(true), destinationFor)
       return
     }
 
     hasRedirectedRef.current = true
-
-    const urlParams = new URLSearchParams(window.location.search)
-    const redirectWorkflowId = urlParams.get('redirect_workflow')
 
     const localRecentId = WorkspaceRecencyStorage.getMostRecent()
     const findWorkspace = (id: string | null) =>
@@ -155,7 +173,7 @@ export default function WorkspacePage() {
     }
 
     logger.info(`Redirecting to workspace: ${targetWorkspace.id}`)
-    router.replace(`/workspace/${targetWorkspace.id}/home`)
+    router.replace(destinationFor(targetWorkspace.id))
   }, [session, isSessionPending, sessionError, isWorkspacesLoading, workspacesError, data, router])
 
   const blockedPolicy =
@@ -201,7 +219,8 @@ export default function WorkspacePage() {
   }
 
   return (
-    <div className='flex h-screen w-full items-center justify-center'>
+    <div className='desktop-title-bar-page flex w-full items-center justify-center'>
+      <DesktopTitleBarLane />
       <div
         className='size-[18px] animate-spin rounded-full'
         style={{
@@ -234,12 +253,13 @@ async function handleWorkflowRedirect(
   } catch (error) {
     logger.error('Error fetching workflow for redirect:', error)
   }
-  router.replace(`/workspace/${fallbackWorkspaceId}/home`)
+  router.replace(`/workspace/${fallbackWorkspaceId}`)
 }
 
 async function handleNoWorkspaces(
   router: ReturnType<typeof useRouter>,
-  onUnrecoverable: () => void
+  onUnrecoverable: () => void,
+  destinationFor: (workspaceId: string) => string
 ): Promise<void> {
   logger.warn('No workspaces found, creating default workspace')
   try {
@@ -249,7 +269,7 @@ async function handleNoWorkspaces(
     if (data.workspace?.id) {
       logger.info(`Created default workspace: ${data.workspace.id}`)
       sessionStorage.removeItem(WORKSPACE_RACE_RETRY_KEY)
-      router.replace(`/workspace/${data.workspace.id}/home`)
+      router.replace(destinationFor(data.workspace.id))
       return
     }
     logger.error('Failed to create default workspace')

@@ -13,5 +13,3 @@ export const getAllPostMeta = libraryRegistry.getAllPostMeta
 export const getPostBySlug = libraryRegistry.getPostBySlug
 export const getAllTags = libraryRegistry.getAllTags
 export const getRelatedPosts = libraryRegistry.getRelatedPosts
-export const getNavLibraryPosts = libraryRegistry.getNavPosts
-export const invalidateLibraryCaches = libraryRegistry.invalidateCaches

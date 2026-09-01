@@ -344,47 +344,6 @@ describe('useChatStreaming thinking + abort', () => {
     expect(assistant?.thinking).toBe('real thought')
   })
 
-  it('TTS audioStreamHandler receives answer text only', async () => {
-    const audioStreamHandler = vi.fn().mockResolvedValue(undefined)
-
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'thinking',
-        data: 'secret internal monologue that must not be spoken.',
-      })
-      await options.onEvent({
-        blockId: 'agent-1',
-        chunk: 'Hello world.',
-      })
-      await options.onEvent({
-        event: 'final',
-        data: { success: true, output: {} },
-      })
-    })
-
-    await act(async () => {
-      await handle
-        .latest()
-        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), {
-          voiceSettings: {
-            isVoiceEnabled: true,
-            voiceId: 'voice-1',
-            autoPlayResponses: true,
-          },
-          audioStreamHandler,
-        })
-    })
-    await flushUiBatch()
-
-    expect(audioStreamHandler).toHaveBeenCalled()
-    for (const call of audioStreamHandler.mock.calls) {
-      expect(String(call[0])).not.toContain('secret')
-      expect(String(call[0])).not.toContain('monologue')
-    }
-    expect(audioStreamHandler.mock.calls.some((c) => String(c[0]).includes('Hello'))).toBe(true)
-  })
-
   it('stopStreaming preserves thinking and aborts the shared controller', async () => {
     const abortController = new AbortController()
     let resolveStream!: () => void

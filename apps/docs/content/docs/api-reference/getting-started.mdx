@@ -1,0 +1,216 @@
+---
+title: Getting Started
+description: Base URL, first API call, response format, error handling, and pagination
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+## Base URL
+
+All API requests are made to:
+
+```
+https://www.sim.ai
+```
+
+## Quick Start
+
+<Steps>
+
+<Step>
+### Get your API key
+
+Go to the Sim platform and navigate to **Settings**, then go to **Sim Keys** and click **Create**. See [Authentication](/api-reference/authentication) for details on key types.
+</Step>
+
+<Step>
+### Find your workflow ID
+
+Open a workflow in the Sim editor. The workflow ID is in the URL:
+
+```
+https://www.sim.ai/workspace/{workspaceId}/w/{workflowId}
+```
+
+You can also use the [List Workflows](/api-reference/workflows/listWorkflows) endpoint to get all workflow IDs in a workspace.
+</Step>
+
+<Step>
+### Deploy your workflow
+
+A workflow must be deployed before it can be executed via the API. Click the **Deploy** button in the editor toolbar, or use the dashboard to manage deployments.
+</Step>
+
+<Step>
+### Make your first request
+
+<Tabs items={['curl', 'TypeScript', 'Python']}>
+  <Tab value="curl">
+    ```bash
+    curl -X POST https://www.sim.ai/api/v2/workflows/{workflowId}/execute \
+      -H "Content-Type: application/json" \
+      -H "X-API-Key: YOUR_API_KEY" \
+      -d '{"input": {}}'
+    ```
+  </Tab>
+  <Tab value="TypeScript">
+    ```typescript
+    const response = await fetch(
+      `https://www.sim.ai/api/v2/workflows/${workflowId}/execute`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': process.env.SIM_API_KEY!,
+        },
+        body: JSON.stringify({ input: {} }),
+      }
+    )
+
+    const data = await response.json()
+    console.log(data.data.output)
+    ```
+  </Tab>
+  <Tab value="Python">
+    ```python
+    import requests
+    import os
+
+    response = requests.post(
+        f"https://www.sim.ai/api/v2/workflows/{workflow_id}/execute",
+        headers={
+            "Content-Type": "application/json",
+            "X-API-Key": os.environ["SIM_API_KEY"],
+        },
+        json={"input": {}},
+    )
+
+    data = response.json()
+    print(data["data"]["output"])
+    ```
+  </Tab>
+</Tabs>
+</Step>
+
+</Steps>
+
+## Sync vs Async Execution
+
+By default, workflow executions are **synchronous** — the API blocks until the workflow completes and returns the result directly.
+
+For long-running workflows, use **asynchronous execution** by passing `async: true`:
+
+```bash
+curl -X POST https://www.sim.ai/api/v2/workflows/{workflowId}/execute \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -d '{"input": {}, "async": true}'
+```
+
+Keyed callers can optionally provide `X-Run-Id: my-run-123` to choose the run ID. Run IDs cannot be reused; a duplicate returns `409`.
+
+This returns immediately with a `runId` and `statusUrl`:
+
+```json
+{
+  "data": {
+    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+    "statusUrl": "https://www.sim.ai/api/v2/workflows/{workflowId}/runs/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74"
+  }
+}
+```
+
+Poll the run status endpoint until the status is terminal:
+
+```bash
+curl https://www.sim.ai/api/v2/workflows/{workflowId}/runs/{runId}?includeOutput=true \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+<Callout type="info">
+  Execution status transitions follow: `queued` → `running` → `completed`, `failed`, `cancelled`, or `paused`. The `data.output` field is populated for completed executions when `includeOutput=true`.
+</Callout>
+
+## Response Format
+
+Successful v2 responses wrap the run resource in `data`:
+
+```json
+{
+  "data": {
+    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+    "workflowId": "{workflowId}",
+    "status": "completed",
+    "output": { "result": "Hello, world!" },
+    "error": null,
+    "durationMs": 842
+  }
+}
+```
+
+## Error Handling
+
+The API uses standard HTTP status codes. v2 errors include a stable code and human-readable message:
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Workflow not found"
+  }
+}
+```
+
+| Status | Meaning | What to do |
+| --- | --- | --- |
+| `400` | Invalid request parameters | Check the `details` array for specific field errors |
+| `401` | Missing or invalid API key | Verify your `X-API-Key` header |
+| `403` | Access denied | Check you have permission for this resource |
+| `404` | Resource not found | Verify the ID exists and belongs to your workspace |
+| `429` | Rate limit exceeded | Wait for the duration in the `Retry-After` header |
+
+### Unrecognized fields are rejected
+
+Every v2 endpoint validates the request against its published schema — path parameters, query string, and body — and answers `400` for any field it does not declare. A misspelled parameter is an error rather than a silent no-op, so `?limt=20` fails instead of quietly returning an unbounded list.
+
+This holds for endpoints that declare no query parameters at all. Do not append tracking tags, cache busters, or other extra parameters to a v2 URL; send only what the endpoint documents.
+
+```json
+{
+  "error": {
+    "code": "BAD_REQUEST",
+    "message": "Invalid request",
+    "details": [
+      { "code": "unrecognized_keys", "keys": ["limt"], "path": [], "message": "Unrecognized key: \"limt\"" }
+    ]
+  }
+}
+```
+
+<Callout type="info">
+  Use [Get Billing Status](/api-reference/billing/getBillingStatus) to inspect current credit and storage usage.
+</Callout>
+
+## Rate Limits
+
+Rate limits depend on your subscription plan and apply separately to synchronous and asynchronous executions.
+
+When rate limited, the API returns a `429` response with a `Retry-After` header indicating how many seconds to wait before retrying.
+
+## Pagination
+
+List endpoints (workflows, logs, audit logs) use **cursor-based pagination**:
+
+```bash
+# First page
+curl "https://www.sim.ai/api/v2/logs?limit=20" \
+  -H "X-API-Key: YOUR_API_KEY"
+
+# Next page — use the nextCursor from the previous response
+curl "https://www.sim.ai/api/v2/logs?limit=20&cursor=abc123" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+The response includes a `nextCursor` field. When `nextCursor` is absent or `null`, you have reached the last page.

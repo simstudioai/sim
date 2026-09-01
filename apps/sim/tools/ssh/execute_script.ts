@@ -1,7 +1,7 @@
 import type { SSHExecuteScriptParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const executeScriptTool: ToolConfig<SSHExecuteScriptParams, SSHResponse> = {
+export const executeScriptTool: InternalToolConfig<SSHExecuteScriptParams, SSHResponse> = {
   id: 'ssh_execute_script',
   name: 'SSH Execute Script',
   description: 'Upload and execute a multi-line script on a remote SSH server',
@@ -64,13 +64,8 @@ export const executeScriptTool: ToolConfig<SSHExecuteScriptParams, SSHResponse> 
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/execute-script',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

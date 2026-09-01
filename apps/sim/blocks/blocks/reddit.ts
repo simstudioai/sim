@@ -4,6 +4,8 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RedditResponse } from '@/tools/reddit/types'
 
+const REPORT_REASON_FIELD = ['reportReason', 'reportOtherReason'] as const
+
 export const RedditBlock: BlockConfig<RedditResponse> = {
   type: 'reddit',
   name: 'Reddit',
@@ -17,6 +19,129 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
   bgColor: '#FF5700',
   iconColor: '#FF5700',
   icon: RedditIcon,
+  canvasPresentation: {
+    defaultTitle: 'Reddit',
+    sentences: {
+      byOperation: {
+        get_posts: [
+          { text: 'Fetch posts from', field: 'subreddit', core: true },
+          { text: ', sorted by', field: 'sort' },
+          { text: ', up to', field: 'limit', after: 'posts' },
+        ],
+        get_comments: [
+          { text: 'Fetch comments on post', field: 'postId', core: true },
+          { text: 'in', field: 'subreddit' },
+          { text: ', sorted by', field: 'commentSort' },
+        ],
+        get_controversial: [
+          { text: 'Fetch controversial posts from', field: 'subreddit', core: true },
+          { text: ', up to', field: 'controversialLimit', after: 'posts' },
+        ],
+        search: [
+          { text: 'Search for', field: 'searchQuery', core: true },
+          { text: 'in', field: 'subreddit' },
+          { text: ', sorted by', field: 'searchSort' },
+        ],
+        submit_post: [
+          { text: 'Submit', field: 'title', core: true },
+          { text: 'to', field: 'submitSubreddit', core: true },
+          { text: 'as a', field: 'postType' },
+        ],
+        vote: [
+          { text: 'Set vote on', field: 'voteId', core: true },
+          { text: 'to', field: 'voteDirection' },
+        ],
+        save: [
+          { text: 'Save', field: 'saveId', core: true },
+          { text: 'to category', field: 'saveCategory' },
+        ],
+        unsave: [{ text: 'Remove', field: 'saveId', after: 'from saved items', core: true }],
+        reply: [
+          { text: 'Reply to', field: 'replyParentId', core: true },
+          { text: 'with', field: 'replyText' },
+        ],
+        edit: [
+          { text: 'Edit the text of', field: 'editThingId', core: true },
+          { text: 'to', field: 'editText' },
+        ],
+        delete: [{ text: 'Delete', field: 'deleteId', core: true }],
+        subscribe: [
+          { text: 'Set subscription for', field: 'subscribeSubreddit', core: true },
+          { text: 'to', field: 'subscribeAction' },
+        ],
+        get_me: ['Fetch the authenticated user profile'],
+        get_user: [{ text: 'Fetch the public profile of', field: 'username', core: true }],
+        send_message: [
+          { text: 'Send', field: 'messageSubject', core: true },
+          { text: 'to', field: 'messageTo', core: true },
+        ],
+        get_messages: [
+          { text: 'Read', field: 'messageLimit', after: 'messages', core: true },
+          { text: 'from', field: 'messageWhere' },
+        ],
+        get_subreddit_info: [{ text: 'Read metadata for', field: 'subreddit', core: true }],
+        get_subreddit_rules: [{ text: 'Read the rules of', field: 'subreddit', core: true }],
+        get_user_posts: [
+          { text: 'Fetch posts by', field: 'userListUsername', core: true },
+          { text: ', sorted by', field: 'userListSort' },
+          { text: ', up to', field: 'userListLimit', after: 'posts' },
+        ],
+        get_user_comments: [
+          { text: 'Fetch comments by', field: 'userListUsername', core: true },
+          { text: ', sorted by', field: 'userListSort' },
+          { text: ', up to', field: 'userListLimit', after: 'comments' },
+        ],
+        get_saved: [
+          {
+            text: 'Fetch',
+            field: 'userListLimit',
+            after: 'saved items',
+            core: true,
+          },
+          { text: 'for', field: 'userListUsername', core: true },
+        ],
+        get_info: [{ text: 'Look up', field: 'infoIds', after: 'by fullname', core: true }],
+        search_subreddits: [
+          { text: 'Search subreddits for', field: 'searchSubredditsQuery', core: true },
+          { text: ', sorted by', field: 'searchSubredditsSort' },
+          { text: ', up to', field: 'searchSubredditsLimit', after: 'results' },
+        ],
+        list_my_subreddits: [
+          {
+            text: 'List',
+            field: 'listMineLimit',
+            after: 'subscribed subreddits',
+            core: true,
+          },
+        ],
+        report: [
+          { text: 'Report', field: 'reportThingId', core: true },
+          { text: 'to moderators for', field: REPORT_REASON_FIELD },
+        ],
+        hide: [{ text: 'Hide post', field: 'hideId', core: true }],
+        unhide: [{ text: 'Unhide post', field: 'hideId', core: true }],
+        marknsfw: [{ text: 'Mark post', field: 'nsfwId', after: 'as NSFW', core: true }],
+        unmarknsfw: [{ text: 'Clear the NSFW mark on post', field: 'nsfwId', core: true }],
+        mark_read: [{ text: 'Mark message', field: 'markReadId', after: 'as read', core: true }],
+        mark_all_read: ['Mark all inbox messages as read'],
+        mod_approve: [
+          { text: 'Approve', field: 'modThingId', after: 'as a moderator', core: true },
+        ],
+        mod_remove: [{ text: 'Remove', field: 'modThingId', after: 'as a moderator', core: true }],
+        mod_distinguish: [
+          { text: 'Set distinction on', field: 'modThingId', core: true },
+          { text: 'to', field: 'distinguishHow' },
+        ],
+        lock: [{ text: 'Lock', field: 'modThingId', after: 'to prevent replies', core: true }],
+        unlock: [{ text: 'Unlock', field: 'modThingId', after: 'to allow replies', core: true }],
+        mod_sticky: [
+          { text: 'Set post', field: 'stickyId', core: true },
+          { text: 'to', field: 'stickyState' },
+          { text: 'in slot', field: 'stickyNum' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

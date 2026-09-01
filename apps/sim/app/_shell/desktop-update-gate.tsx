@@ -2,11 +2,26 @@
 
 import { useEffect, useState } from 'react'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
-import { Button } from '@sim/emcn'
+import { Chip, useNativeSurfaceOcclusionReady } from '@sim/emcn'
 import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
 import { isShellOutdated } from '@/lib/desktop/min-version'
 
+/**
+ * Resolves this deployment's channel to the newest release's installer, so a
+ * manual download lands on the same build the updater would have installed.
+ */
+const DOWNLOAD_REDIRECT_PATH = '/api/desktop/update/download'
+
 const DOWNLOAD_FALLBACK_URL = 'https://github.com/simstudioai/sim/releases/latest'
+
+function manualDownloadUrl(): string {
+  const origin = window.location.origin
+  // openExternal only accepts https, so an http self-hosted origin cannot
+  // serve the redirect to the system browser.
+  return origin.startsWith('https://')
+    ? `${origin}${DOWNLOAD_REDIRECT_PATH}`
+    : DOWNLOAD_FALLBACK_URL
+}
 
 interface GateAction {
   label: string
@@ -21,16 +36,16 @@ function gateActionFor(state: DesktopUpdateState): GateAction {
     // background; the button covers the manual path.
     return {
       label: 'Get the latest version',
-      onClick: () => void getDesktopBridge()?.openExternal(DOWNLOAD_FALLBACK_URL),
+      onClick: () => void getDesktopBridge()?.openExternal(manualDownloadUrl()),
     }
   }
   switch (state.status) {
     case 'checking':
-      return { label: 'Checking for updates...', disabled: true, onClick: () => {} }
+      return { label: 'Checking for updates…', disabled: true, onClick: () => {} }
     case 'downloading':
       return {
         label:
-          state.percent !== undefined ? `Downloading ${state.percent}%` : 'Downloading update...',
+          state.percent !== undefined ? `Downloading ${state.percent}%` : 'Downloading update…',
         disabled: true,
         onClick: () => {},
       }
@@ -72,6 +87,8 @@ export function DesktopUpdateGate() {
     return unsubscribe
   }, [])
 
+  const nativeSurfaceReady = useNativeSurfaceOcclusionReady(outdated, 'takeover')
+
   if (!outdated) {
     return null
   }
@@ -79,19 +96,23 @@ export function DesktopUpdateGate() {
   const action = gateActionFor(updateState)
 
   return (
-    <div className='fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 bg-[var(--bg)] px-8 text-center'>
+    <div
+      className='fixed inset-0 z-[var(--z-shell-gate)] flex flex-col items-center justify-center gap-4 bg-[var(--bg)] px-8 text-center'
+      style={{ visibility: nativeSurfaceReady ? undefined : 'hidden' }}
+      data-native-surface-occlusion='takeover'
+    >
       <div className='flex max-w-sm flex-col gap-2'>
-        <h1 className='font-medium text-[var(--text-primary)] text-lg'>Update Sim to continue</h1>
+        <h1 className='text-[var(--text-primary)] text-lg'>Update Sim to continue</h1>
         <p className='text-[var(--text-secondary)] text-sm'>
           This version of the Sim desktop app is no longer compatible with the latest Sim. Install
           the update to keep going.
         </p>
       </div>
-      <Button variant='primary' disabled={action.disabled} onClick={action.onClick}>
+      <Chip variant='primary' disabled={action.disabled} onClick={action.onClick}>
         {action.label}
-      </Button>
+      </Chip>
       {updateState.status === 'error' && (
-        <p className='text-[var(--text-muted)] text-xs'>
+        <p className='text-[var(--text-error)] text-xs'>
           The update could not be downloaded. Check your connection and try again.
         </p>
       )}

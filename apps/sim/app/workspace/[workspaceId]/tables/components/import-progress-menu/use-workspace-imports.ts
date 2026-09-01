@@ -132,17 +132,18 @@ export function useWorkspaceImports(
 
     for (const upload of uploads) {
       if (upload.workspaceId !== workspaceId) continue
-      if (scopeTableId && upload.uploadId !== scopeTableId) continue
+      if (scopeTableId && upload.tableId !== scopeTableId) continue
       if (canceledIds[upload.uploadId] || seen.has(upload.uploadId)) continue
       rows.push({
         id: upload.uploadId,
-        tableId: upload.uploadId,
+        tableId: upload.tableId ?? upload.uploadId,
         workspaceId: upload.workspaceId,
         title: upload.title,
         phase: 'importing',
         jobType: 'import',
         rowsProcessed: 0,
         percent: upload.percent,
+        jobId: upload.uploadId,
       })
     }
 

@@ -18,12 +18,17 @@ const FORM_MIME_TYPE = 'application/vnd.google-apps.form'
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
 
 /**
- * Drive API page size when listing forms. The Drive API caps pageSize at 100.
+ * Drive API page size when listing forms. Drive coerces anything above 1000, but
+ * 100 is used because every listed form costs one `forms.get` plus (when
+ * responses are indexed) a full `forms.responses.list` walk for its change
+ * indicator, so a smaller page keeps per-call Forms API volume bounded.
  */
 const DRIVE_PAGE_SIZE = 100
 
 /**
- * Maximum responses returned per Forms API page (API caps and defaults to 5000).
+ * Responses requested per `forms.responses.list` page. 5000 is what the API
+ * returns when `pageSize` is unspecified or zero; it is sent explicitly rather
+ * than relying on that default. No hard maximum is documented.
  */
 const RESPONSES_PAGE_SIZE = 5000
 
@@ -215,31 +220,39 @@ async function fetchFormStructure(
 }
 
 /**
- * Result of fetching a form's responses: the collected responses (capped at
- * `MAX_RESPONSES_PER_FORM` for rendering) plus the greatest submission timestamp
- * across ALL response pages.
+ * Result of scanning a form's responses: the retained responses (at most
+ * `retain`, in listing order) plus the greatest submission timestamp across ALL
+ * response pages.
  *
- * `latestSubmittedTime` is tracked separately from the capped `responses` so the
- * content hash computed in getDocument stays identical to the one computed during
- * listing, which scans the same full set via `fetchLatestResponseTime`. If it
- * were derived from the capped slice alone, a form with more than
- * `MAX_RESPONSES_PER_FORM` responses could hash differently between the two paths
- * and re-sync on every run.
+ * `latestSubmittedTime` is deliberately independent of `retain` so the change
+ * indicator is identical whether listing scanned with `retain: 0` or
+ * `getDocument` scanned with the configured render cap. Deriving it from the
+ * retained slice alone would let a form with more responses than the cap hash
+ * differently on the two paths and re-sync on every run.
  */
-interface FetchedResponses {
+interface ScannedResponses {
   responses: FormResponse[]
   latestSubmittedTime?: string
 }
 
 /**
- * Fetches form responses, retaining up to `MAX_RESPONSES_PER_FORM` for rendering.
- * Every page is scanned for the latest submission timestamp even after the
- * render cap is reached — the Forms API does not guarantee response order, so
- * the newest submission may sit on any page. `fetchLatestResponseTime` scans
- * the same full set during listing, keeping the content hash identical across
- * the listing and getDocument paths regardless of form size.
+ * Walks every page of a form's responses, retaining at most `retain` of them.
+ *
+ * Every page is scanned for the latest submission timestamp even once `retain`
+ * is satisfied — the Forms API does not guarantee response order, so the newest
+ * submission may sit on any page. Listing calls this with `retain: 0` purely for
+ * the change indicator; `getDocument` passes the configured render cap.
+ *
+ * Throws on a failed read rather than returning partial data: a swallowed error
+ * would poison the stub's content hash and re-process the form on every sync,
+ * while throwing routes into the per-form catch that sets `skippedOnError` →
+ * `listingCapped`.
  */
-async function fetchFormResponses(accessToken: string, formId: string): Promise<FetchedResponses> {
+async function scanFormResponses(
+  accessToken: string,
+  formId: string,
+  retain: number
+): Promise<ScannedResponses> {
   const collected: FormResponse[] = []
   let latest = ''
   let pageToken: string | undefined
@@ -268,7 +281,7 @@ async function fetchFormResponses(accessToken: string, formId: string): Promise<
     if (pageLatest && pageLatest > latest) latest = pageLatest
 
     for (const r of responses) {
-      if (collected.length >= MAX_RESPONSES_PER_FORM) break
+      if (collected.length >= retain) break
       collected.push(r)
     }
 
@@ -276,52 +289,6 @@ async function fetchFormResponses(accessToken: string, formId: string): Promise<
   } while (pageToken)
 
   return { responses: collected, latestSubmittedTime: latest || undefined }
-}
-
-/**
- * Reads the latest response submission time for change detection without
- * retaining responses. Scans every page — the Forms API does not guarantee
- * response order, so the newest submission may sit on any page. Returns the
- * greatest `lastSubmittedTime` (falling back to `createTime`), or undefined
- * when there are none. Throws on a failed read so the caller skips the form
- * for this run instead of computing a hash from incomplete data — a swallowed
- * error would poison the stub's content hash and re-process the form on every
- * sync, while throwing routes into the per-form catch that sets
- * `skippedOnError` → `listingCapped`.
- */
-async function fetchLatestResponseTime(
-  accessToken: string,
-  formId: string
-): Promise<string | undefined> {
-  let latest = ''
-  let pageToken: string | undefined
-
-  do {
-    const url = new URL(`${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/responses`)
-    url.searchParams.set('pageSize', String(RESPONSES_PAGE_SIZE))
-    if (pageToken) url.searchParams.set('pageToken', pageToken)
-
-    const response = await fetchWithRetry(url.toString(), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to read responses for change detection on form ${formId}: ${response.status}`
-      )
-    }
-
-    const data = (await response.json()) as FormResponseList
-    const pageLatest = latestResponseTime(data.responses ?? [])
-    if (pageLatest && pageLatest > latest) latest = pageLatest
-    pageToken = data.nextPageToken
-  } while (pageToken)
-
-  return latest || undefined
 }
 
 /**
@@ -487,7 +454,8 @@ export const googleFormsConnector: ConnectorConfig = {
       q: buildDriveQuery(folderIds),
       pageSize: String(DRIVE_PAGE_SIZE),
       orderBy: 'modifiedTime desc',
-      fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners)',
+      fields:
+        'nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners)',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
@@ -547,9 +515,23 @@ export const googleFormsConnector: ConnectorConfig = {
     const stubs = await mapWithConcurrency(files, LIST_CONCURRENCY, async (file) => {
       try {
         const form = await fetchFormStructure(accessToken, file.id)
-        if (!form) return null
+        if (!form) {
+          /**
+           * Drive listed this file moments ago, and Drive `q` already excluded
+           * trashed files, so the Forms API 404 is far more likely to be a
+           * transient read (permission propagation, eventual consistency) than a
+           * deletion — and the API gives no way to tell the two apart. Treating
+           * it as a truncated listing costs one deferred reconciliation; treating
+           * it as absence would hard-delete a live document.
+           */
+          skippedOnError = true
+          logger.warn(`Form not readable via Forms API during listing: ${file.name} (${file.id})`)
+          return null
+        }
         const latest =
-          contentScope === 'both' ? await fetchLatestResponseTime(accessToken, file.id) : undefined
+          contentScope === 'both'
+            ? (await scanFormResponses(accessToken, file.id, 0)).latestSubmittedTime
+            : undefined
         return formToStub({
           file,
           formTitle: form.info?.title || form.info?.documentTitle,
@@ -635,18 +617,24 @@ export const googleFormsConnector: ConnectorConfig = {
 
     try {
       const form = await fetchFormStructure(accessToken, file.id)
-      if (!form) return null
+      /**
+       * The Drive metadata read above already confirmed a live, untrashed form, so a
+       * Forms API 404 here is an inconsistent read (permission propagation, eventual
+       * consistency) rather than a deletion — the same conclusion `listDocuments`
+       * reaches. Genuine deletion is observed by the form leaving the Drive listing,
+       * which reconciliation handles; returning null here would hard-delete instead.
+       */
+      if (!form) {
+        throw new Error(`Form ${file.id} is listed in Drive but not readable via the Forms API`)
+      }
 
       const responseCap = resolveResponseCap(sourceConfig)
       const fetched =
         contentScope === 'both'
-          ? await fetchFormResponses(accessToken, file.id)
+          ? await scanFormResponses(accessToken, file.id, responseCap)
           : { responses: [], latestSubmittedTime: undefined }
-      const responses = fetched.responses
-      const cappedResponses =
-        responses.length > responseCap ? responses.slice(0, responseCap) : responses
 
-      const content = renderFormDocument(form, cappedResponses)
+      const content = renderFormDocument(form, fetched.responses)
       if (!content.trim()) return null
 
       const stub = formToStub({
@@ -659,10 +647,15 @@ export const googleFormsConnector: ConnectorConfig = {
       })
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
+      /**
+       * Absence is already covered above (404 Drive metadata, trashed, non-form MIME
+       * type). Anything reaching here is transient and must propagate so the engine
+       * records a failed hydration instead of silently dropping a form that still exists.
+       */
       logger.warn(`Failed to fetch content for form: ${file.name} (${file.id})`, {
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 

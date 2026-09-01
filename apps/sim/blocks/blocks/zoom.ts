@@ -5,6 +5,13 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ZoomResponse } from '@/tools/zoom/types'
 import { getTrigger } from '@/triggers'
 
+/*
+ * Canonical basic/advanced pair for the meeting a card points at. Listing both
+ * members keeps the sentence working for an advanced-mode user, who has only
+ * the raw id filled.
+ */
+const MEETING_FIELD = ['meetingSelector', 'meetingId'] as const
+
 export const ZoomBlock: BlockConfig<ZoomResponse> = {
   type: 'zoom',
   name: 'Zoom',
@@ -18,6 +25,48 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
   bgColor: '#2D8CFF',
   iconColor: '#2D8CFF',
   icon: ZoomIcon,
+  canvasPresentation: {
+    defaultTitle: 'Zoom',
+    sentences: {
+      byOperation: {
+        zoom_create_meeting: [
+          { text: 'Create meeting', field: 'topic', core: true },
+          { text: ', starting', field: 'startTime' },
+          { text: ', for', field: 'duration', after: 'minutes' },
+        ],
+        zoom_list_meetings: ['List meetings', { text: 'of type', field: 'listType' }],
+        zoom_get_meeting: [{ text: 'Read details of meeting', field: MEETING_FIELD, core: true }],
+        zoom_update_meeting: [
+          { text: 'Update meeting', field: MEETING_FIELD, core: true },
+          { text: ', renaming it to', field: 'topicUpdate' },
+          { text: ', starting', field: 'startTime' },
+        ],
+        zoom_delete_meeting: [
+          { text: 'Delete meeting', field: MEETING_FIELD, core: true },
+          { text: ', occurrence', field: 'occurrenceId' },
+        ],
+        zoom_get_meeting_invitation: [
+          { text: 'Read invitation text for meeting', field: MEETING_FIELD, core: true },
+        ],
+        zoom_list_recordings: [
+          'List cloud recordings',
+          { text: 'from', field: 'fromDate' },
+          { text: 'through', field: 'toDate' },
+        ],
+        zoom_get_meeting_recordings: [
+          { text: 'Fetch recordings of meeting', field: MEETING_FIELD, core: true },
+        ],
+        zoom_delete_recording: [
+          'Delete recordings',
+          { text: 'from meeting', field: MEETING_FIELD, core: true },
+          { text: ', recording file', field: 'recordingId' },
+        ],
+        zoom_list_past_participants: [
+          { text: 'List participants of past meeting', field: MEETING_FIELD, core: true },
+        ],
+      },
+    },
+  },
   triggers: {
     enabled: true,
     available: [
@@ -222,6 +271,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'password',
       title: 'Password',
       type: 'short-input',
+      password: true,
+      required: false,
       placeholder: 'Meeting password',
       mode: 'advanced',
       condition: {

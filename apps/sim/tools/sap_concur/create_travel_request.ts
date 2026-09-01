@@ -1,14 +1,10 @@
-import type { CreateTravelRequestParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
-import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
-} from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { CreateTravelRequestParams, SapConcurResponse } from '@/tools/sap_concur/types'
+import { baseSapConcurInput, transformSapConcurResponse } from '@/tools/sap_concur/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createTravelRequestTool: ToolConfig<
+export const createTravelRequestTool: InternalToolConfig<
   CreateTravelRequestParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_create_travel_request',
   name: 'SAP Concur Create Travel Request',
@@ -61,25 +57,24 @@ export const createTravelRequestTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional Concur user UUID — required when impersonating another user',
+      description:
+        'Concur user UUID of the Request owner — required when using the default `client_credentials` (company) grant; omitting it returns 400 `missingRequiredParam`.',
     },
     body: {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Travel request payload (name, purpose, startDate, endDate, requestPolicyId, etc.)',
+        'Travel request payload. Supported fields: name, businessPurpose, startDate/endDate (YYYY-MM-DD), startTime/endTime (HH:mm), mainDestination ({ city, countryCode, countrySubDivisionCode, name }), policy ({ id }), and custom1-custom20 ({ value } or { code, value }). An id field is not allowed.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const query: Record<string, string> = {}
-      if (params.userId) query.userId = params.userId
+      const userId = params.userId?.trim()
+      if (userId) query.userId = userId
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/requests`,
         method: 'POST',
         body: params.body,
@@ -87,7 +82,7 @@ export const createTravelRequestTool: ToolConfig<
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
@@ -258,6 +253,22 @@ export const createTravelRequestTool: ToolConfig<
         custom2: { type: 'json', description: 'Custom field 2', optional: true },
         custom3: { type: 'json', description: 'Custom field 3', optional: true },
         custom4: { type: 'json', description: 'Custom field 4', optional: true },
+        custom5: { type: 'json', description: 'Custom field 5', optional: true },
+        custom6: { type: 'json', description: 'Custom field 6', optional: true },
+        custom7: { type: 'json', description: 'Custom field 7', optional: true },
+        custom8: { type: 'json', description: 'Custom field 8', optional: true },
+        custom9: { type: 'json', description: 'Custom field 9', optional: true },
+        custom10: { type: 'json', description: 'Custom field 10', optional: true },
+        custom11: { type: 'json', description: 'Custom field 11', optional: true },
+        custom12: { type: 'json', description: 'Custom field 12', optional: true },
+        custom13: { type: 'json', description: 'Custom field 13', optional: true },
+        custom14: { type: 'json', description: 'Custom field 14', optional: true },
+        custom15: { type: 'json', description: 'Custom field 15', optional: true },
+        custom16: { type: 'json', description: 'Custom field 16', optional: true },
+        custom17: { type: 'json', description: 'Custom field 17', optional: true },
+        custom18: { type: 'json', description: 'Custom field 18', optional: true },
+        custom19: { type: 'json', description: 'Custom field 19', optional: true },
+        custom20: { type: 'json', description: 'Custom field 20', optional: true },
       },
     },
   },

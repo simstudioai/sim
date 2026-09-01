@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { posToDOMRect } from '@tiptap/core'
-import { PluginKey } from '@tiptap/pm/state'
-import type { Editor } from '@tiptap/react'
-import { useEditorState } from '@tiptap/react'
-import { BubbleMenu } from '@tiptap/react/menus'
 import {
+  Blimp,
   Bold,
   Check,
   Code,
@@ -19,9 +15,15 @@ import {
   Strikethrough,
   TextQuote,
   Unlink,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import { PluginKey } from '@tiptap/pm/state'
+import type { Editor } from '@tiptap/react'
+import { useEditorState } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
+import { BUBBLE_MENU_CLASS } from './bubble-menu-chrome'
 import { applyLink, LinkUrlInput } from './link-editing'
 import { ToolbarButton, ToolbarDivider } from './toolbar-button'
+import { useBubbleMenuFloating } from './use-bubble-menu-floating'
 
 /**
  * Whether the formatting toolbar may show for the given range: the editor is editable, the range
@@ -44,16 +46,12 @@ function revealBubbleMenu(editor: Editor, key: PluginKey): void {
   editor.commands.setMeta(key, 'updatePosition')
 }
 
-/** Pins the toolbar to the viewport so it stays put while the document scrolls instead of tracking the text. */
-const FLOATING_OPTIONS = { strategy: 'fixed' } as const
-
-/** Renders into the body so a transformed/clipping ancestor can't reparent the fixed toolbar and shift it. */
-const APPEND_TO_BODY = () => document.body
-
 interface EditorBubbleMenuProps {
   editor: Editor
-  /** The editor's scrollable viewport, used to keep the toolbar on-screen for selections taller than it. */
+  /** The editor's scrollable viewport, so the toolbar repositions with the selection as the pane scrolls. */
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
+  /** Adds the current selection to Chat as a reference. Omit to hide the action. */
+  onAddToChat?: () => void
 }
 
 /**
@@ -62,7 +60,11 @@ interface EditorBubbleMenuProps {
  * live in the `/` slash menu. Active states are read through {@link useEditorState} so the bar
  * stays correct without re-rendering the editor on every transaction.
  */
-export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMenuProps) {
+export function EditorBubbleMenu({
+  editor,
+  scrollContainerRef,
+  onAddToChat,
+}: EditorBubbleMenuProps) {
   const [linkValue, setLinkValue] = useState<string | null>(null)
   const linkInputRef = useRef<HTMLInputElement>(null)
   const linkRangeRef = useRef<{ from: number; to: number } | null>(null)
@@ -178,49 +180,31 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
     setLinkValue(null)
   }
 
-  const anchorCacheRef = useRef<{ key: string; rect: DOMRect } | null>(null)
-  const resolveAnchor = useCallback(() => {
-    const { view, state } = editor
-    if (!view.dom.isConnected) return null
-    const { from, to } = state.selection
-    const key = `${from}:${to}`
-    if (anchorCacheRef.current?.key !== key) {
-      const selection = posToDOMRect(view, from, to)
-      const viewport = scrollContainerRef.current?.getBoundingClientRect()
-      const rect =
-        viewport && selection.height > viewport.height
-          ? new DOMRect(
-              selection.left,
-              Math.min(Math.max(selection.top, viewport.top), viewport.bottom),
-              selection.width,
-              0
-            )
-          : selection
-      anchorCacheRef.current = { key, rect }
-    }
-    const { rect } = anchorCacheRef.current
-    return { getBoundingClientRect: () => rect, getClientRects: () => [rect] }
-  }, [editor, scrollContainerRef])
+  const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
+
+  const shouldShow = useCallback(
+    ({ editor: e, from, to }: { editor: Editor; from: number; to: number }) => {
+      // Read-only never shows the menu — even mid-link-edit (e.g. a stream starting) — so a link
+      // can't be applied to a doc that must not mutate.
+      if (!e.isEditable) return false
+      if (isEditingLink) return true
+      if (isPointerDownRef.current) return false
+      return hasFormattableSelection(e, from, to)
+    },
+    [isEditingLink]
+  )
 
   return (
     <BubbleMenu
       editor={editor}
       pluginKey={bubbleMenuKey}
       getReferencedVirtualElement={resolveAnchor}
-      options={FLOATING_OPTIONS}
-      appendTo={APPEND_TO_BODY}
+      appendTo={appendTo}
       role='toolbar'
       aria-label='Text formatting'
       updateDelay={0}
-      shouldShow={({ editor: e, from, to }) => {
-        // Read-only never shows the menu — even mid-link-edit (e.g. a stream starting) — so a link
-        // can't be applied to a doc that must not mutate.
-        if (!e.isEditable) return false
-        if (isEditingLink) return true
-        if (isPointerDownRef.current) return false
-        return hasFormattableSelection(e, from, to)
-      }}
-      className='fade-in-0 z-[var(--z-popover)] flex animate-in items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm duration-150 ease-out motion-reduce:animate-none'
+      shouldShow={shouldShow}
+      className={BUBBLE_MENU_CLASS}
     >
       {isEditingLink ? (
         <>
@@ -243,6 +227,17 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
         </>
       ) : (
         <>
+          {onAddToChat && (
+            <>
+              <ToolbarButton
+                icon={Blimp}
+                label='Add to Chat'
+                isActive={false}
+                onClick={onAddToChat}
+              />
+              <ToolbarDivider />
+            </>
+          )}
           <ToolbarButton
             icon={Bold}
             label='Bold'

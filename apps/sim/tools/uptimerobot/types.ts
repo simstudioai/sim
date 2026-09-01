@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecordOrNull } from '@sim/utils/object'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Base URL for the UptimeRobot v3 REST API. */
@@ -195,10 +196,6 @@ function asEnum(value: unknown): string | null {
   return typeof value === 'string' ? value : null
 }
 
-function asObject(value: unknown): Raw | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Raw) : null
-}
-
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
@@ -310,7 +307,7 @@ export function buildMaintenanceWindowBody(
 // region Mappers (raw API JSON -> typed output objects)
 
 export function mapMonitor(raw: Raw): UptimeRobotMonitor {
-  const lastIncident = asObject(raw.lastIncident)
+  const lastIncident = toRecordOrNull(raw.lastIncident)
   return {
     id: asNumber(raw.id) ?? 0,
     friendlyName: asString(raw.friendlyName) ?? '',
@@ -336,7 +333,7 @@ export function mapMonitor(raw: Raw): UptimeRobotMonitor {
     lastIncidentId: asString(raw.lastIncidentId),
     groupId: asNumber(raw.groupId),
     tags: asArray(raw.tags).map((tag) => {
-      const t = asObject(tag) ?? {}
+      const t = toRecordOrNull(tag) ?? {}
       return {
         id: asNumber(t.id) ?? 0,
         name: asString(t.name) ?? '',
@@ -344,7 +341,7 @@ export function mapMonitor(raw: Raw): UptimeRobotMonitor {
       }
     }),
     assignedAlertContacts: asArray(raw.assignedAlertContacts).map((contact) => {
-      const c = asObject(contact) ?? {}
+      const c = toRecordOrNull(contact) ?? {}
       return {
         alertContactId: asNumber(c.alertContactId) ?? 0,
         threshold: asNumber(c.threshold) ?? 0,
@@ -419,7 +416,7 @@ export function mapPsp(raw: Raw): UptimeRobotPsp {
 }
 
 export function mapIncidentSummary(raw: Raw): UptimeRobotIncidentSummary {
-  const monitor = asObject(raw.monitor) ?? {}
+  const monitor = toRecordOrNull(raw.monitor) ?? {}
   return {
     id: asString(raw.id) ?? '',
     status: asEnum(raw.status),
@@ -437,7 +434,7 @@ export function mapIncidentSummary(raw: Raw): UptimeRobotIncidentSummary {
 }
 
 export function mapIncidentDetail(raw: Raw): UptimeRobotIncidentDetail {
-  const rootCause = asObject(raw.rootCause)
+  const rootCause = toRecordOrNull(raw.rootCause)
   return {
     id: asString(raw.id) ?? '',
     status: asEnum(raw.status),
@@ -457,7 +454,7 @@ export function mapIncidentDetail(raw: Raw): UptimeRobotIncidentDetail {
 }
 
 export function mapAccount(raw: Raw): UptimeRobotAccount {
-  const subscription = asObject(raw.activeSubscription) ?? {}
+  const subscription = toRecordOrNull(raw.activeSubscription) ?? {}
   return {
     email: asString(raw.email),
     fullName: asString(raw.fullName),

@@ -10,15 +10,53 @@ import type { EventRecorder } from '@/main/observability'
 const logger = createLogger('DesktopUpdater')
 
 const INITIAL_CHECK_DELAY_MS = 10_000
-const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
+const PRERELEASE_CHECK_INTERVAL_MS = 5 * 60 * 1000
+const STABLE_CHECK_INTERVAL_MS = 30 * 60 * 1000
+const UPDATE_CHECK_TIMEOUT_MS = 10_000
+const INTERACTIVE_FEEDBACK_TIMEOUT_MS = 12_000
+const FEED_STATUS_HEADER = 'x-sim-desktop-update-feed'
+const MAX_UPDATE_MANIFEST_BYTES = 256 * 1024
 
-export type UpdateChannel = 'latest' | 'beta' | 'alpha'
+export type UpdateChannel = 'latest' | 'staging' | 'dev'
+
+/** Reads a small updater manifest without allowing an origin to fill main-process memory. */
+export async function readUpdateManifest(response: Response): Promise<string | null> {
+  if (!response.ok) return null
+  const declaredLength = response.headers.get('content-length')
+  if (declaredLength !== null) {
+    const bytes = Number(declaredLength)
+    if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > MAX_UPDATE_MANIFEST_BYTES) {
+      throw new Error('Update manifest exceeded the size limit')
+    }
+  }
+
+  if (!response.body) return ''
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let bytesRead = 0
+  let manifest = ''
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      bytesRead += value.byteLength
+      if (bytesRead > MAX_UPDATE_MANIFEST_BYTES) {
+        await reader.cancel()
+        throw new Error('Update manifest exceeded the size limit')
+      }
+      manifest += decoder.decode(value, { stream: true })
+    }
+    return manifest + decoder.decode()
+  } finally {
+    reader.releaseLock()
+  }
+}
 
 /**
  * The per-environment update feed served by the Sim deployment this shell is
  * pointed at (`/api/desktop/update/latest-mac.yml`). Each environment pins
- * which shell build its clients are offered — dev serves alpha builds,
- * staging beta, prod stable — so the environment, not the client, is the
+ * which shell build its clients are offered — dev serves dev builds,
+ * staging serves staging builds, prod stable — so the environment, not the client, is the
  * channel. Returns null for origins that can't host a feed.
  */
 export function feedUrlForOrigin(origin: string): string | null {
@@ -35,21 +73,38 @@ export function feedUrlForOrigin(origin: string): string | null {
 
 /**
  * Where the feed rewrites every manifest entry to. Downloads are constrained to
- * this prefix rather than to https alone, so a feed that serves an attacker's
- * host cannot get a bundle in front of the user's Download button.
+ * the running channel's repository, the manifest version's tag, and the exact
+ * artifact names produced by the release workflow.
  */
 const RELEASE_ASSET_ORIGIN = 'https://github.com'
-const RELEASE_ASSET_PATH = '/simstudioai/sim/releases/download/'
+const RELEASE_REPOSITORIES: Record<UpdateChannel, string> = {
+  latest: 'simstudioai/sim',
+  staging: 'simstudioai/sim-desktop-releases',
+  dev: 'simstudioai/sim-desktop-releases',
+}
 
-/** Whether a manifest url is one of our own release assets. */
-function isReleaseAssetUrl(rawUrl: string): boolean {
+function isReleaseAssetUrl(rawUrl: string, version: string, channel: UpdateChannel): boolean {
   if (!isSafeExternalUrl(rawUrl)) return false
   try {
     const url = new URL(rawUrl)
-    // Compared on the parsed origin and the parsed pathname, never by prefix on
-    // the raw string: `https://github.com.evil.example/…` must not pass, and
-    // `URL` has already normalized away any `..` segments by this point.
-    return url.origin === RELEASE_ASSET_ORIGIN && url.pathname.startsWith(RELEASE_ASSET_PATH)
+    const normalizedVersion = version.replace(/^v/, '')
+    const repository = RELEASE_REPOSITORIES[channel]
+    const releasePath = `/${repository}/releases/download/v${normalizedVersion}/`
+    const assetName = decodeURIComponent(url.pathname.slice(releasePath.length))
+    const expectedAssetNames = new Set([
+      `Sim-${normalizedVersion}-universal.dmg`,
+      `Sim-${normalizedVersion}-universal.zip`,
+    ])
+    return (
+      url.origin === RELEASE_ASSET_ORIGIN &&
+      url.username === '' &&
+      url.password === '' &&
+      url.search === '' &&
+      url.hash === '' &&
+      url.pathname.startsWith(releasePath) &&
+      !assetName.includes('/') &&
+      expectedAssetNames.has(assetName)
+    )
   } catch {
     return false
   }
@@ -58,18 +113,25 @@ function isReleaseAssetUrl(rawUrl: string): boolean {
 /**
  * Maps the running version to its update channel: prerelease builds follow
  * their prerelease channel, stable builds only ever see stable releases.
- * Channels are strictly isolated — alpha/beta builds carry their own app
+ * Channels are strictly isolated — dev/staging builds carry their own app
  * identity (Sim Dev / Sim Staging) and update only via their origin feed;
  * the packaged GitHub fallback feed is stable-only.
  */
 export function resolveUpdateChannel(version: string): UpdateChannel {
-  if (version.includes('-alpha')) {
-    return 'alpha'
+  if (/-dev(?:\.|$)/.test(version) || /-alpha(?:\.|$)/.test(version)) {
+    return 'dev'
   }
-  if (version.includes('-beta')) {
-    return 'beta'
+  if (/-staging(?:\.|$)/.test(version) || /-beta(?:\.|$)/.test(version)) {
+    return 'staging'
   }
   return 'latest'
+}
+
+/** Dev/staging shells poll rapidly; production shells use a quieter cadence. */
+export function updateCheckIntervalMs(version: string): number {
+  return resolveUpdateChannel(version) === 'latest'
+    ? STABLE_CHECK_INTERVAL_MS
+    : PRERELEASE_CHECK_INTERVAL_MS
 }
 
 interface ParsedSemver {
@@ -85,7 +147,7 @@ interface ParsedSemver {
  * misconfigured feed).
  */
 export function parseSemver(version: string): ParsedSemver | null {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/.exec(version.trim())
+  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(version.trim())
   if (!match) {
     return null
   }
@@ -175,7 +237,7 @@ export interface UpdaterDeps {
   /** Test seam: overrides the lazy electron-updater load. */
   loadAutoUpdater?: () => typeof import('electron-updater')['autoUpdater']
   /** Test seam: overrides the origin feed availability probe. */
-  probeOriginFeed?: (feedUrl: string) => Promise<boolean>
+  probeOriginFeed?: (feedUrl: string) => Promise<boolean | 'no-release'>
   /**
    * Test seam: overrides Squirrel self-update capability detection (whether
    * the running bundle carries a real Developer ID signature).
@@ -183,6 +245,10 @@ export interface UpdaterDeps {
   canSelfUpdate?: () => Promise<boolean>
   /** Test seam: overrides the manual-mode manifest fetch (body or null). */
   fetchManifest?: (url: string) => Promise<string | null>
+  /** Test seam for the macOS-only updater gate. */
+  platform?: NodeJS.Platform
+  /** Flushes desktop-owned state before Squirrel terminates the process. */
+  beforeInstall?: () => Promise<void>
 }
 
 export interface UpdaterHandle {
@@ -217,6 +283,14 @@ export function isNewerVersion(candidateVersion: string, currentVersion: string)
     return false
   }
   return isDowngrade(candidateVersion, currentVersion)
+}
+
+/** A signed shell may only install a strictly newer build from its own environment stream. */
+function isValidUpdateCandidate(candidateVersion: string, currentVersion: string): boolean {
+  return (
+    resolveUpdateChannel(candidateVersion) === resolveUpdateChannel(currentVersion) &&
+    isNewerVersion(candidateVersion, currentVersion)
+  )
 }
 
 /**
@@ -255,7 +329,8 @@ async function detectSelfUpdateCapability(): Promise<boolean> {
  * the download in the browser), `install` performs the `ready` action.
  */
 interface UpdateEngine {
-  check(): void
+  /** `interactive` requests must always publish a terminal state for their waiting UI. */
+  check(interactive?: boolean): void
   advance(): void
   install(): void
   setAutoDownload(enabled: boolean): void
@@ -263,22 +338,27 @@ interface UpdateEngine {
 
 /**
  * Keeps installed shells current against the per-environment update feed:
- * checks on launch and every four hours, and mirrors pipeline state to the
+ * checks on launch, then every five minutes for dev/staging builds or every
+ * thirty minutes for production builds, and mirrors pipeline state to the
  * renderer for the settings update UI and the minimum-shell-version gate.
  *
  * Developer-ID-signed builds use electron-updater (background download,
- * install on user confirmation — never mid-session without consent). Builds
+ * then install and relaunch from an explicit Update action). Builds
  * that can't self-update (ad-hoc signed: local installs, pre-signing CI
  * prereleases) still poll the same feed but surface `available` as a manual
  * download link, so the whole pipeline is testable before signing exists.
  */
 export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
+  if ((deps.platform ?? process.platform) !== 'darwin') {
+    return NOOP_UPDATER_HANDLE
+  }
   if (!app.isPackaged && !deps.loadAutoUpdater && !deps.canSelfUpdate) {
     return NOOP_UPDATER_HANDLE
   }
 
   const currentVersion = app.getVersion()
   let state: DesktopUpdateState = { status: 'idle' }
+  let installAfterDownload = false
   const listeners = new Set<(state: DesktopUpdateState) => void>()
   const setState = (next: DesktopUpdateState) => {
     state = next
@@ -299,25 +379,105 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       return null
     }
 
-    autoUpdater.channel = resolveUpdateChannel(currentVersion)
-    autoUpdater.allowDowngrade = false
+    const setChannelWithoutDowngrades = (channel: UpdateChannel) => {
+      autoUpdater.channel = channel
+      autoUpdater.allowDowngrade = false
+    }
+    setChannelWithoutDowngrades(resolveUpdateChannel(currentVersion))
     autoUpdater.autoDownload = deps.autoDownload?.() ?? true
+    // Explicit Update actions must reopen Sim after Squirrel swaps the bundle.
+    autoUpdater.autoRunAppAfterInstall = true
     // Never install without vetting the downloaded version first. Enabled per
     // download in the update-downloaded handler, but only for accepted updates
     // — so a blocked/downgrade build that was already downloaded is never
     // silently installed on quit.
     autoUpdater.autoInstallOnAppQuit = false
     autoUpdater.logger = null
+    let installInFlight = false
+
+    const quitAndInstall = () => {
+      if (installInFlight) return
+      if (!deps.beforeInstall) {
+        autoUpdater.quitAndInstall()
+        return
+      }
+      installInFlight = true
+      void Promise.resolve()
+        .then(() => deps.beforeInstall?.())
+        .then(() => autoUpdater.quitAndInstall())
+        .catch((error) => {
+          autoUpdater.autoInstallOnAppQuit = false
+          installInFlight = false
+          logger.error('Pre-install teardown failed', {
+            message: getErrorMessage(error, 'unknown'),
+          })
+          deps.events.record('update_error', { message: 'Pre-install teardown failed' })
+          setState({ status: 'error', version: state.version })
+        })
+    }
+
+    let activeProbeId: number | null = null
+    let nextProbeId = 0
+    let probeTimeout: ReturnType<typeof setTimeout> | null = null
+    let activeUpdaterCheckId: number | null = null
+    let nextUpdaterCheckId = 0
+    let updaterCheckTimeout: ReturnType<typeof setTimeout> | null = null
+    let updaterRequestId: number | null = null
+    let acceptedUpdateVersion: string | null = null
+
+    const finishProbe = (probeId: number) => {
+      if (activeProbeId !== probeId) return
+      activeProbeId = null
+      if (probeTimeout !== null) {
+        clearTimeout(probeTimeout)
+        probeTimeout = null
+      }
+    }
+    const finishUpdaterCheck = (checkId: number) => {
+      if (activeUpdaterCheckId !== checkId) return
+      activeUpdaterCheckId = null
+      if (updaterCheckTimeout !== null) {
+        clearTimeout(updaterCheckTimeout)
+        updaterCheckTimeout = null
+      }
+    }
 
     autoUpdater.on('checking-for-update', () => {
+      if (activeUpdaterCheckId === null) return
       setState({ status: 'checking' })
     })
 
     autoUpdater.on('update-not-available', () => {
+      const checkId = activeUpdaterCheckId
+      if (checkId === null) return
+      finishUpdaterCheck(checkId)
+      if (updaterRequestId === checkId) updaterRequestId = null
+      installAfterDownload = false
       setState({ status: 'idle' })
     })
 
     autoUpdater.on('update-available', (info) => {
+      const checkId = activeUpdaterCheckId
+      if (checkId === null) return
+      finishUpdaterCheck(checkId)
+      if (updaterRequestId === checkId) updaterRequestId = null
+      const channel = resolveUpdateChannel(currentVersion)
+      const validOriginAssets =
+        !originFeedConfigured ||
+        (info.files.length > 0 &&
+          info.files.every((file) => isReleaseAssetUrl(file.url, info.version, channel)))
+      if (!isValidUpdateCandidate(info.version, currentVersion) || !validOriginAssets) {
+        acceptedUpdateVersion = null
+        installAfterDownload = false
+        autoUpdater.autoInstallOnAppQuit = false
+        deps.events.record('update_blocked_version', {
+          version: info.version,
+          reason: validOriginAssets ? 'not-newer' : 'unusable-url',
+        })
+        setState({ status: 'idle' })
+        return
+      }
+      acceptedUpdateVersion = info.version
       deps.events.record('update_check', { available: info.version })
       // With auto-download on, download-progress events follow immediately;
       // `available` is the terminal state only when downloads are manual.
@@ -328,6 +488,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     })
 
     autoUpdater.on('download-progress', (progress) => {
+      if (state.status !== 'downloading') return
       setState({
         status: 'downloading',
         version: state.version,
@@ -336,33 +497,37 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     })
 
     autoUpdater.on('update-downloaded', (info) => {
-      if (isDowngrade(currentVersion, info.version)) {
+      if (state.status !== 'downloading' && !installAfterDownload) return
+      if (
+        acceptedUpdateVersion !== info.version ||
+        !isValidUpdateCandidate(info.version, currentVersion)
+      ) {
+        acceptedUpdateVersion = null
+        installAfterDownload = false
         autoUpdater.autoInstallOnAppQuit = false
         deps.events.record('update_blocked_version', { version: info.version })
         setState({ status: 'idle' })
         return
       }
+      acceptedUpdateVersion = null
       autoUpdater.autoInstallOnAppQuit = true
       deps.events.record('update_downloaded', { version: info.version })
       setState({ status: 'ready', version: info.version })
-      const win = deps.getWindow()
-      const options = {
-        type: 'info' as const,
-        buttons: ['Restart Now', 'Later'],
-        defaultId: 0,
-        cancelId: 1,
-        message: `Sim ${info.version} is ready to install`,
-        detail: 'Restart to finish updating. If you choose Later, the update installs on quit.',
+      if (installAfterDownload) {
+        installAfterDownload = false
+        quitAndInstall()
       }
-      const prompt = win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options)
-      void prompt.then(({ response }) => {
-        if (response === 0) {
-          autoUpdater.quitAndInstall()
-        }
-      })
     })
 
     autoUpdater.on('error', (error) => {
+      const checkId = activeUpdaterCheckId
+      if (checkId !== null) {
+        finishUpdaterCheck(checkId)
+        if (updaterRequestId === checkId) updaterRequestId = null
+      } else if (state.status !== 'downloading') {
+        return
+      }
+      installAfterDownload = false
       deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
       setState({ status: 'error', version: state.version })
     })
@@ -382,23 +547,37 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     const probeOriginFeed =
       deps.probeOriginFeed ??
       (async (feedUrl: string) => {
-        const response = await net.fetch(`${feedUrl}/latest-mac.yml`)
-        return response.ok
+        const response = await net.fetch(`${feedUrl}/latest-mac.yml`, {
+          signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
+        })
+        if (response.ok) return true
+        return response.status === 404 && response.headers.get(FEED_STATUS_HEADER) === 'no-release'
+          ? 'no-release'
+          : false
       })
-    const feedConfigured: Promise<boolean> = (async () => {
+    type FeedResolution = 'origin' | 'fallback' | 'no-release' | 'skip'
+    let originFeedConfigured = false
+    const resolveFeedForCheck = async (probeId: number): Promise<FeedResolution> => {
+      if (originFeedConfigured) return 'origin'
       const feedUrl = feedUrlForOrigin(deps.appOrigin())
       const stableBuild = resolveUpdateChannel(currentVersion) === 'latest'
       if (!feedUrl) {
-        return stableBuild
+        return stableBuild ? 'fallback' : 'skip'
       }
       try {
-        if (!(await probeOriginFeed(feedUrl))) {
+        const availability = await probeOriginFeed(feedUrl)
+        if (availability === 'no-release') {
+          return 'no-release'
+        }
+        if (!availability) {
           throw new Error('feed responded non-OK')
         }
+        if (activeProbeId !== probeId) return 'skip'
         autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl, channel: 'latest' })
-        autoUpdater.channel = 'latest'
+        setChannelWithoutDowngrades('latest')
+        originFeedConfigured = true
         deps.events.record('update_feed', { url: feedUrl })
-        return true
+        return 'origin'
       } catch (error) {
         logger.warn(
           stableBuild
@@ -406,29 +585,90 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
             : 'Origin update feed unavailable; prerelease build skips update checks',
           { feedUrl, message: getErrorMessage(error, 'unknown') }
         )
-        return stableBuild
+        return stableBuild ? 'fallback' : 'skip'
       }
-    })()
+    }
+    const startUpdaterCheck = (interactive: boolean) => {
+      if (updaterRequestId !== null) {
+        if (interactive) setState({ status: 'error' })
+        return
+      }
+      const checkId = ++nextUpdaterCheckId
+      activeUpdaterCheckId = checkId
+      updaterRequestId = checkId
+      updaterCheckTimeout = setTimeout(() => {
+        if (activeUpdaterCheckId !== checkId) return
+        finishUpdaterCheck(checkId)
+        deps.events.record('update_error', { message: 'Update check timed out' })
+        if (state.status === 'checking') setState({ status: 'error' })
+      }, UPDATE_CHECK_TIMEOUT_MS)
+      autoUpdater
+        .checkForUpdates()
+        .then(() => {
+          if (updaterRequestId === checkId) updaterRequestId = null
+          if (activeUpdaterCheckId !== checkId) return
+          finishUpdaterCheck(checkId)
+          if (interactive && state.status === 'checking') setState({ status: 'error' })
+        })
+        .catch((error) => {
+          if (updaterRequestId === checkId) updaterRequestId = null
+          if (activeUpdaterCheckId !== checkId) return
+          finishUpdaterCheck(checkId)
+          logger.warn('Update check failed', { message: getErrorMessage(error, 'unknown') })
+          if (state.status === 'checking') setState({ status: 'error' })
+        })
+    }
 
     return {
-      check() {
-        void feedConfigured.then((mayCheck) => {
-          if (!mayCheck) {
+      check(interactive = false) {
+        if (
+          activeProbeId !== null ||
+          activeUpdaterCheckId !== null ||
+          state.status === 'available' ||
+          state.status === 'downloading' ||
+          state.status === 'ready'
+        ) {
+          return
+        }
+        if (interactive) {
+          setState({ status: 'checking' })
+        }
+        if (originFeedConfigured) {
+          startUpdaterCheck(interactive)
+          return
+        }
+        const probeId = ++nextProbeId
+        activeProbeId = probeId
+        probeTimeout = setTimeout(() => {
+          if (activeProbeId !== probeId) return
+          finishProbe(probeId)
+          deps.events.record('update_error', { message: 'Update feed probe timed out' })
+          if (state.status === 'checking') setState({ status: 'error' })
+        }, UPDATE_CHECK_TIMEOUT_MS)
+        void resolveFeedForCheck(probeId).then((feed) => {
+          if (activeProbeId !== probeId) return
+          finishProbe(probeId)
+          if (feed === 'no-release') {
+            if (interactive && state.status === 'checking') setState({ status: 'idle' })
             return
           }
-          autoUpdater.checkForUpdates().catch((error) => {
-            logger.warn('Update check failed', { message: getErrorMessage(error, 'unknown') })
-          })
+          if (feed === 'skip') {
+            if (interactive && state.status === 'checking') setState({ status: 'error' })
+            return
+          }
+          startUpdaterCheck(interactive)
         })
       },
       advance() {
+        setState({ status: 'downloading', version: state.version })
         autoUpdater.downloadUpdate().catch((error) => {
+          installAfterDownload = false
           logger.warn('Update download failed', { message: getErrorMessage(error, 'unknown') })
           setState({ status: 'error', version: state.version })
         })
       },
       install() {
-        autoUpdater.quitAndInstall()
+        quitAndInstall()
       },
       setAutoDownload(enabled) {
         autoUpdater.autoDownload = enabled
@@ -440,18 +680,35 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     const fetchManifest =
       deps.fetchManifest ??
       (async (url: string) => {
-        const response = await net.fetch(url)
-        return response.ok ? await response.text() : null
+        const response = await net.fetch(url, {
+          signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
+        })
+        return readUpdateManifest(response)
       })
     let downloadUrl: string | null = null
+    let activeCheckId: number | null = null
+    let nextCheckId = 0
+    let checkTimeout: ReturnType<typeof setTimeout> | null = null
 
     const doCheck = async () => {
+      if (activeCheckId !== null || state.status === 'available') return
+      const checkId = ++nextCheckId
+      activeCheckId = checkId
+      downloadUrl = null
       setState({ status: 'checking', manual: true })
+      checkTimeout = setTimeout(() => {
+        if (activeCheckId !== checkId) return
+        activeCheckId = null
+        checkTimeout = null
+        deps.events.record('update_error', { message: 'Manual update check timed out' })
+        setState({ status: 'error', manual: true })
+      }, UPDATE_CHECK_TIMEOUT_MS)
       try {
         const feedUrl = feedUrlForOrigin(deps.appOrigin())
         const manifest = feedUrl ? await fetchManifest(`${feedUrl}/latest-mac.yml`) : null
+        if (activeCheckId !== checkId) return
         const version = manifest ? (/^version:\s*(\S+)\s*$/m.exec(manifest)?.[1] ?? null) : null
-        if (!manifest || !version || !isNewerVersion(version, currentVersion)) {
+        if (!manifest || !version || !isValidUpdateCandidate(version, currentVersion)) {
           setState({ status: 'idle', manual: true })
           return
         }
@@ -465,7 +722,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         const urls = Array.from(
           manifest.matchAll(/^\s*(?:-\s*)?url:\s*(\S+)\s*$/gm),
           (m) => m[1]
-        ).filter(isReleaseAssetUrl)
+        ).filter((url) => isReleaseAssetUrl(url, version, resolveUpdateChannel(currentVersion)))
         downloadUrl =
           urls.find((url) => url.endsWith('.dmg')) ??
           urls.find((url) => url.endsWith('.zip')) ??
@@ -486,8 +743,17 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         deps.events.record('update_check', { available: version, manual: true })
         setState({ status: 'available', version, manual: true })
       } catch (error) {
+        if (activeCheckId !== checkId) return
         logger.warn('Manual update check failed', { message: getErrorMessage(error, 'unknown') })
         setState({ status: 'error', version: state.version, manual: true })
+      } finally {
+        if (activeCheckId === checkId) {
+          activeCheckId = null
+          if (checkTimeout !== null) {
+            clearTimeout(checkTimeout)
+            checkTimeout = null
+          }
+        }
       }
     }
 
@@ -511,13 +777,23 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
 
   let engine: UpdateEngine | null = null
   let pendingAutoDownload: boolean | null = null
+  let pendingInteractiveCheck = false
 
   const canSelfUpdate = deps.canSelfUpdate ?? detectSelfUpdateCapability
   void canSelfUpdate()
-    .catch(() => true)
+    .catch((error) => {
+      logger.warn('Could not detect self-update capability; using manual updates', {
+        message: getErrorMessage(error, 'unknown'),
+      })
+      return false
+    })
     .then((capable) => {
       engine = capable ? buildAutoEngine() : buildManualEngine()
       if (!engine) {
+        if (pendingInteractiveCheck) {
+          pendingInteractiveCheck = false
+          setState({ status: 'error' })
+        }
         return
       }
       if (pendingAutoDownload !== null) {
@@ -526,9 +802,13 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       if (!capable) {
         deps.events.record('update_manual_mode', {})
       }
+      if (pendingInteractiveCheck) {
+        pendingInteractiveCheck = false
+        engine.check(true)
+      }
       const check = () => engine?.check()
       setTimeout(check, INITIAL_CHECK_DELAY_MS)
-      setInterval(check, CHECK_INTERVAL_MS)
+      setInterval(check, updateCheckIntervalMs(currentVersion))
     })
 
   return {
@@ -541,14 +821,20 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     },
     getState: () => state,
     check() {
-      if (!engine || state.status === 'checking' || state.status === 'downloading') {
+      if (state.status === 'checking' || state.status === 'downloading') {
+        return
+      }
+      if (!engine) {
+        pendingInteractiveCheck = true
+        setState({ status: 'checking' })
         return
       }
       if (state.status === 'available') {
+        installAfterDownload = !state.manual
         engine.advance()
         return
       }
-      engine.check()
+      engine.check(true)
     },
     install() {
       if (!engine) {
@@ -570,8 +856,6 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     },
   }
 }
-
-const INTERACTIVE_CHECK_TIMEOUT_MS = 30_000
 
 /**
  * Menu-triggered manual check with user-visible feedback. A thin dialog layer
@@ -643,7 +927,13 @@ export function checkForUpdatesInteractive(
         })
         return
       default:
-        void showDialog({ type: 'info', message: 'Sim is up to date' })
+        void showDialog({
+          type: 'info',
+          buttons: ['OK'],
+          defaultId: 0,
+          message: 'You’re up to date!',
+          detail: `Sim ${app.getVersion()} is currently the newest version available.`,
+        })
     }
   }
 
@@ -671,6 +961,6 @@ export function checkForUpdatesInteractive(
     }
     finish(state)
   })
-  const timeout = setTimeout(() => finish(handle.getState()), INTERACTIVE_CHECK_TIMEOUT_MS)
+  const timeout = setTimeout(() => finish({ status: 'error' }), INTERACTIVE_FEEDBACK_TIMEOUT_MS)
   handle.check()
 }

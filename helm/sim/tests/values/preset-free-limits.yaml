@@ -1,0 +1,8 @@
+# Simulates a chart release older than the one that stopped presetting free-tier
+# caps, plus a values file that carried those keys forward.
+app:
+  envDefaults:
+    FREE_TABLES_LIMIT: "3"
+    FREE_TABLE_ROWS_LIMIT: "1000"
+  env:
+    FREE_STORAGE_LIMIT_GB: "5"

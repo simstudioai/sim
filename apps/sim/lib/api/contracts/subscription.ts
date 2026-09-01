@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { INTERNAL_CHAT_BILLING_SOURCES } from '@/lib/billing/usage-sources'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
   BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
@@ -26,17 +27,15 @@ export const billingUpdateCostBodySchema = z.object({
   model: z.string().min(1, 'Model is required'),
   inputTokens: z.number().min(0).default(0),
   outputTokens: z.number().min(0).default(0),
-  source: z
-    .enum(['copilot', 'workspace-chat', 'mcp_copilot', 'mothership_block'])
-    .default('copilot'),
+  source: z.enum(INTERNAL_CHAT_BILLING_SOURCES).default('copilot'),
   idempotencyKey: z.string().min(1, 'Idempotency key is required'),
   /**
    * Originating workspace, used for org-workspace cost attribution on hosted
    * Sim. The value remains optional because self-hosted/headless callers may
    * supply an ID from another deployment or omit it. Modern protocols bind a
-   * locally known workspace to their immutable envelope. Markerless legacy-v0
-   * callbacks re-resolve current workspace payer state because old Go cannot
-   * return admission material; unknown workspaces remain account-only.
+   * locally known workspace to their immutable envelope. Markerless local
+   * self-hosted callbacks re-resolve current workspace payer state; unknown
+   * workspaces remain account-only.
    */
   workspaceId: z.string().min(1).optional(),
 })
@@ -64,6 +63,8 @@ export const billingQuerySchema = z.object({
   context: z.enum(['user', 'organization']).optional().default('user'),
   id: z.string().min(1).optional(),
   includeOrg: booleanQueryParamSchema,
+  memberLimit: z.coerce.number().int().min(1).max(100).default(50),
+  memberOffset: z.coerce.number().int().min(0).default(0),
 })
 
 export const billingUsageDataSchema = z
@@ -158,6 +159,13 @@ export const organizationBillingDataSchema = z
     averageUsagePerMember: z.number(),
     billingPeriodStart: z.string().nullable(),
     billingPeriodEnd: z.string().nullable(),
+    membersTotal: z.number().int().min(0),
+    memberPagination: z.object({
+      total: z.number().int().min(0),
+      limit: z.number().int().min(1).max(100),
+      offset: z.number().int().min(0),
+      hasMore: z.boolean(),
+    }),
     members: z.array(organizationBillingMemberSchema),
     billingBlocked: z.boolean(),
     billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable(),
@@ -194,6 +202,8 @@ export const usageQuerySchema = z.object({
   context: z.enum(['user', 'organization']).optional().default('user'),
   userId: z.string().optional(),
   organizationId: z.string().optional(),
+  memberLimit: z.coerce.number().int().min(1).max(100).default(50),
+  memberOffset: z.coerce.number().int().min(0).default(0),
 })
 
 export const updateUsageLimitBodySchema = z

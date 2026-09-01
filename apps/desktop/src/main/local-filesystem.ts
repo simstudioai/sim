@@ -1,4 +1,5 @@
-import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises'
+import type { Dirent } from 'node:fs'
+import { lstat, opendir, readFile, realpath, stat } from 'node:fs/promises'
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
 import type {
   LocalFilesystemData,
@@ -21,6 +22,13 @@ import { isRecordLike } from '@sim/utils/object'
 import { app, dialog, shell } from 'electron'
 import micromatch from 'micromatch'
 import safeRegex from 'safe-regex2'
+import {
+  advanceAccountDataGeneration,
+  captureAccountDataGeneration,
+  isAccountDataGenerationCurrent,
+  runAccountDataMutation,
+  waitForAccountDataMutations,
+} from '@/main/account-data-generation'
 import type {
   LocalFilesystemGrantStore,
   PersistedLocalFilesystemGrant,
@@ -28,6 +36,7 @@ import type {
 
 const MAX_URI_LENGTH = 4096
 const MAX_LIST_ENTRIES = 500
+const LIST_METADATA_BATCH_SIZE = 16
 const MAX_SCAN_ENTRIES = 10_000
 const MAX_SCAN_DEPTH = 50
 const MAX_GLOB_RESULTS = 500
@@ -256,6 +265,69 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
+function compareDirectoryEntries(left: Dirent, right: Dirent): number {
+  return left.name.localeCompare(right.name)
+}
+
+function addToBoundedDirectoryHeap(heap: Dirent[], entry: Dirent, limit: number): void {
+  if (heap.length < limit) {
+    heap.push(entry)
+    let index = heap.length - 1
+    while (index > 0) {
+      const parentIndex = Math.floor((index - 1) / 2)
+      if (compareDirectoryEntries(heap[parentIndex], heap[index]) >= 0) break
+      const parent = heap[parentIndex]
+      heap[parentIndex] = heap[index]
+      heap[index] = parent
+      index = parentIndex
+    }
+    return
+  }
+
+  if (compareDirectoryEntries(entry, heap[0]) >= 0) return
+  heap[0] = entry
+  let index = 0
+  while (true) {
+    const leftIndex = index * 2 + 1
+    const rightIndex = leftIndex + 1
+    let largestIndex = index
+    if (
+      leftIndex < heap.length &&
+      compareDirectoryEntries(heap[leftIndex], heap[largestIndex]) > 0
+    ) {
+      largestIndex = leftIndex
+    }
+    if (
+      rightIndex < heap.length &&
+      compareDirectoryEntries(heap[rightIndex], heap[largestIndex]) > 0
+    ) {
+      largestIndex = rightIndex
+    }
+    if (largestIndex === index) return
+    const current = heap[index]
+    heap[index] = heap[largestIndex]
+    heap[largestIndex] = current
+    index = largestIndex
+  }
+}
+
+async function selectDirectoryEntries(
+  path: string,
+  limit: number,
+  signal?: AbortSignal
+): Promise<{ entries: Dirent[]; truncated: boolean }> {
+  const entries: Dirent[] = []
+  let seen = 0
+  const directory = await opendir(path)
+  for await (const entry of directory) {
+    throwIfAborted(signal)
+    seen++
+    addToBoundedDirectoryHeap(entries, entry, limit)
+  }
+  entries.sort(compareDirectoryEntries)
+  return { entries, truncated: seen > entries.length }
+}
+
 export class LocalFilesystemService {
   private readonly mounts = new Map<string, GrantedMount>()
   private readonly activeRequests = new Map<string, AbortController>()
@@ -314,7 +386,9 @@ export class LocalFilesystemService {
 
   /** Revoke every remembered grant, used on sign-out and origin changes. */
   async forgetAll(): Promise<void> {
+    advanceAccountDataGeneration()
     this.close()
+    await waitForAccountDataMutations()
     await this.grantStore?.clear()
   }
 
@@ -534,17 +608,32 @@ export class LocalFilesystemService {
   }
 
   private async mountDirectory(): Promise<LocalFilesystemData> {
+    const generation = captureAccountDataGeneration()
     const selection = await this.chooseDirectory()
     if (!selection) return { mount: null, cancelled: true }
+    if (!isAccountDataGenerationCurrent(generation)) {
+      throw new LocalFilesystemError('CANCELLED', 'The folder request expired during sign-out.')
+    }
 
     const selected = typeof selection === 'string' ? { path: selection } : selection
     const stopAccessing = selected.bookmark
       ? this.startAccessingBookmark(selected.bookmark)
       : undefined
+    let accessReleased = false
+    const releaseAccess = stopAccessing
+      ? () => {
+          if (accessReleased) return
+          accessReleased = true
+          stopAccessing()
+        }
+      : undefined
 
     try {
       const rootPath = await realpath(selected.path)
       const rootStat = await stat(rootPath)
+      if (!isAccountDataGenerationCurrent(generation)) {
+        throw new LocalFilesystemError('CANCELLED', 'The folder request expired during sign-out.')
+      }
       if (!rootStat.isDirectory()) {
         throw new LocalFilesystemError('NOT_A_DIRECTORY', 'The selected item is not a directory.')
       }
@@ -553,7 +642,7 @@ export class LocalFilesystemService {
       const id = existing?.id ?? generateId()
       const bookmark = selected.bookmark ?? existing?.bookmark
       const nextStopAccessing = selected.bookmark
-        ? stopAccessing
+        ? releaseAccess
         : (existing?.stopAccessing ??
           (bookmark ? this.startAccessingBookmark(bookmark) : undefined))
       if (selected.bookmark) {
@@ -569,10 +658,21 @@ export class LocalFilesystemService {
         ...(nextStopAccessing ? { stopAccessing: nextStopAccessing } : {}),
       }
       this.mounts.set(id, mount)
-      mount.remembered = await this.persistMounts()
+      try {
+        mount.remembered = await runAccountDataMutation(generation, () => this.persistMounts())
+      } catch (error) {
+        this.mounts.delete(id)
+        throw error
+      }
+      if (!isAccountDataGenerationCurrent(generation)) {
+        mount.stopAccessing?.()
+        this.mounts.delete(id)
+        await this.grantStore?.clear()
+        throw new LocalFilesystemError('CANCELLED', 'The folder request expired during sign-out.')
+      }
       return { mount: this.publicMount(mount), cancelled: false }
     } catch (error) {
-      stopAccessing?.()
+      releaseAccess?.()
       throw error
     }
   }
@@ -592,7 +692,9 @@ export class LocalFilesystemService {
 
   private async restoreRememberedMounts(): Promise<void> {
     if (!this.grantStore) return
+    const generation = captureAccountDataGeneration()
     const grants = await this.grantStore.load()
+    if (!isAccountDataGenerationCurrent(generation)) return
     let skipped = false
 
     for (const grant of grants) {
@@ -604,6 +706,10 @@ export class LocalFilesystemService {
       try {
         const rootPath = await realpath(grant.rootPath)
         const rootStat = await stat(rootPath)
+        if (!isAccountDataGenerationCurrent(generation)) {
+          stopAccessing?.()
+          return
+        }
         if (!rootStat.isDirectory()) {
           stopAccessing?.()
           skipped = true
@@ -625,7 +731,7 @@ export class LocalFilesystemService {
     }
 
     if (skipped) {
-      await this.persistMounts()
+      await runAccountDataMutation(generation, () => this.persistMounts())
     }
   }
 
@@ -658,19 +764,22 @@ export class LocalFilesystemService {
   }
 
   private async forgetMount(uri: string): Promise<LocalFilesystemData> {
+    const generation = captureAccountDataGeneration()
     const { mount } = this.parseUri(uri)
     mount.stopAccessing?.()
     this.mounts.delete(mount.id)
 
-    const persisted = await this.persistMounts()
-    if (!persisted && this.grantStore) {
-      // Fail closed: if an updated encrypted grant set cannot be written,
-      // remove the store so a revoked mount cannot return after restart.
-      await this.grantStore.clear()
-      for (const remaining of this.mounts.values()) {
-        remaining.remembered = false
+    await runAccountDataMutation(generation, async () => {
+      const persisted = await this.persistMounts()
+      if (!persisted && this.grantStore) {
+        // Fail closed: if an updated encrypted grant set cannot be written,
+        // remove the store so a revoked mount cannot return after restart.
+        await this.grantStore.clear()
+        for (const remaining of this.mounts.values()) {
+          remaining.remembered = false
+        }
       }
-    }
+    })
     return { forgotten: true }
   }
 
@@ -780,31 +889,37 @@ export class LocalFilesystemService {
       throw new LocalFilesystemError('NOT_A_DIRECTORY', 'The localfs URI is not a directory.')
     }
 
-    const directoryEntries = await readdir(resolvedPath.realPath, { withFileTypes: true })
-    directoryEntries.sort((a, b) => a.name.localeCompare(b.name))
-    const truncated = directoryEntries.length > MAX_LIST_ENTRIES
-    // `allSettled`, so one entry disappearing mid-read does not fail the whole
-    // listing. Build output, downloads and caches churn constantly, and a
-    // single ENOENT should drop that row rather than the directory.
-    const settled = await Promise.allSettled(
-      directoryEntries.slice(0, MAX_LIST_ENTRIES).map(async (directoryEntry) => {
-        const childRelativePath = [resolvedPath.relativePath, directoryEntry.name]
-          .filter(Boolean)
-          .join('/')
-        const metadata = await lstat(resolve(resolvedPath.realPath, directoryEntry.name))
-        const item: LocalFilesystemEntry = {
-          name: directoryEntry.name,
-          uri: localUri(resolvedPath.mount.id, childRelativePath),
-          kind: entryKind(directoryEntry),
-          size: metadata.size,
-          modifiedAt: metadata.mtime.toISOString(),
-        }
-        return item
-      })
+    const { entries: directoryEntries, truncated } = await selectDirectoryEntries(
+      resolvedPath.realPath,
+      MAX_LIST_ENTRIES
     )
-    const entries = settled.flatMap((result) =>
-      result.status === 'fulfilled' ? [result.value] : []
-    )
+
+    const entries: LocalFilesystemEntry[] = []
+    for (let index = 0; index < directoryEntries.length; index += LIST_METADATA_BATCH_SIZE) {
+      const batch = directoryEntries.slice(index, index + LIST_METADATA_BATCH_SIZE)
+      const items = await Promise.all(
+        batch.map(async (directoryEntry): Promise<LocalFilesystemEntry | null> => {
+          try {
+            const childRelativePath = [resolvedPath.relativePath, directoryEntry.name]
+              .filter(Boolean)
+              .join('/')
+            const metadata = await lstat(resolve(resolvedPath.realPath, directoryEntry.name))
+            return {
+              name: directoryEntry.name,
+              uri: localUri(resolvedPath.mount.id, childRelativePath),
+              kind: entryKind(directoryEntry),
+              size: metadata.size,
+              modifiedAt: metadata.mtime.toISOString(),
+            }
+          } catch {
+            return null
+          }
+        })
+      )
+      for (const item of items) {
+        if (item) entries.push(item)
+      }
+    }
     return { entries, truncated }
   }
 
@@ -835,16 +950,16 @@ export class LocalFilesystemService {
       throwIfAborted(signal)
       const current = stack.pop()
       if (!current) break
-      const children = await readdir(current.path, { withFileTypes: true })
-      children.sort((a, b) => b.name.localeCompare(a.name))
-
-      for (const child of children) {
+      const remaining = MAX_SCAN_ENTRIES - scanned
+      if (remaining <= 0) {
+        truncated = true
+        break
+      }
+      const selection = await selectDirectoryEntries(current.path, remaining, signal)
+      scanned += selection.entries.length
+      const childDirectories: Array<{ path: string; relativeFromBase: string; depth: number }> = []
+      for (const child of selection.entries) {
         throwIfAborted(signal)
-        scanned++
-        if (scanned > MAX_SCAN_ENTRIES) {
-          truncated = true
-          break
-        }
         const relativeFromBase = [current.relativeFromBase, child.name].filter(Boolean).join('/')
         const childPath = resolve(current.path, child.name)
         const mountRelativePath = [resolvedPath.relativePath, relativeFromBase]
@@ -868,12 +983,19 @@ export class LocalFilesystemService {
         }
 
         if (child.isDirectory() && !child.isSymbolicLink() && current.depth < MAX_SCAN_DEPTH) {
-          stack.push({
+          childDirectories.push({
             path: childPath,
             relativeFromBase,
             depth: current.depth + 1,
           })
         }
+      }
+      if (selection.truncated) {
+        truncated = true
+        break
+      }
+      for (let index = childDirectories.length - 1; index >= 0; index--) {
+        stack.push(childDirectories[index])
       }
     }
 
@@ -1080,18 +1202,20 @@ export class LocalFilesystemService {
       throwIfAborted(signal)
       const current = stack.pop()
       if (!current) break
-      const children = await readdir(current.path, { withFileTypes: true })
-      for (const child of children) {
+      const remaining = MAX_SCAN_ENTRIES - scanned
+      if (remaining <= 0) {
+        truncated = true
+        break
+      }
+      const selection = await selectDirectoryEntries(current.path, remaining, signal)
+      scanned += selection.entries.length
+      const childDirectories: Array<{ path: string; relativeFromBase: string; depth: number }> = []
+      for (const child of selection.entries) {
         throwIfAborted(signal)
-        scanned++
-        if (scanned > MAX_SCAN_ENTRIES) {
-          truncated = true
-          break
-        }
         const relativeFromBase = [current.relativeFromBase, child.name].filter(Boolean).join('/')
         const childPath = resolve(current.path, child.name)
         if (child.isDirectory() && !child.isSymbolicLink() && current.depth < MAX_SCAN_DEPTH) {
-          stack.push({
+          childDirectories.push({
             path: childPath,
             relativeFromBase,
             depth: current.depth + 1,
@@ -1111,6 +1235,13 @@ export class LocalFilesystemService {
           truncated = true
           break
         }
+      }
+      if (selection.truncated) {
+        truncated = true
+        break
+      }
+      for (let index = childDirectories.length - 1; index >= 0; index--) {
+        stack.push(childDirectories[index])
       }
     }
 

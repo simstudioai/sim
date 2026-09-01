@@ -1,0 +1,117 @@
+---
+slug: agent-as-yjs-peer
+title: 'The Agent Is Just Another Peer'
+description: How we let an AI agent write into a live collaborative document by making it an ordinary Yjs peer, and the things that turned out to be easy, hard, and surprising.
+date: 2026-08-03
+updated: 2026-08-03
+authors:
+  - waleed
+readingTime: 11
+tags: [Yjs, CRDT, Collaboration, AI, ProseMirror, TipTap, Streaming, Architecture]
+ogImage: /blog/agent-as-yjs-peer/cover.jpg
+canonical: https://www.sim.ai/blog/agent-as-yjs-peer
+draft: false
+featured: true
+faq:
+  - q: "How does Sim let an AI agent write into a document while people are editing it?"
+    a: "The agent is treated as an ordinary Yjs peer. Each streamed chunk is reconciled into a private copy of the document, the single resulting CRDT update is captured, and only that update is applied to the live document, the same way an edit from another user would arrive. Concurrent human edits merge with it automatically."
+  - q: "Does the agent overwrite what collaborators are typing?"
+    a: "No. The agent applies a minimal update rather than replacing the document, so its operations merge with everyone else's. An agent writing at the bottom leaves an edit at the top alone, and an agent inserting above where someone is typing does not move their text."
+  - q: "Do you need relative-position anchoring to keep the agent's edits in the right place?"
+    a: "No, and that was the surprising part. Yjs operations are defined by item identity rather than character offset, so they are already relative. A whole-document diff that produces Yjs operations is robust to concurrent inserts without any explicit anchoring. Anchoring is only needed by systems that insert at absolute offsets."
+  - q: "How does undo work when an agent and a person are both editing?"
+    a: "Agent operations are applied under a dedicated transaction origin that the collaboration undo manager does not track, so pressing undo only reverts your own edits and never steps through the agent's output. On other screens the agent's writing arrives as remote updates, which a local undo manager never captures."
+  - q: "Why is streaming an AI into a rich-text document harder than into a text box?"
+    a: "A collaborative rich-text document is a shared data structure, not a string, so you cannot append to it. And when the storage format is Markdown, a rich-text editor and a Markdown file disagree about what things like blank lines mean, which you have to reconcile."
+---
+
+Sim's files are documents you edit together. Several people can be in the same file at once, with everyone's cursors and changes showing up live, and we wanted the AI agent to be able to write into them too.
+
+Our first attempt at that wiped out people's edits. The agent would generate a sentence, we'd set the document to the new text, and whatever you'd typed a moment earlier would just disappear. It worked fine when you were the only one editing, but the second someone else was typing, the agent kept clobbering their work.
+
+The underlying issue is that a collaborative document isn't really a string you can write into. It's a shared data structure (a [CRDT](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type)), and everyone editing it is mutating that structure at the same time. So when the agent replaced the whole document on each chunk, it wasn't so much appending its text as overwriting the structure out from under everyone else.
+
+What we needed was for the agent to change the document the way a person does, in small incremental edits that merge with everyone else's, instead of one big replace every time.
+
+<AgentPeerDemo />
+
+## Writing like a keystroke
+
+The editor already knows how to do this. When you type a character, it doesn't ship the whole document to your collaborators; it works out the smallest change your keystroke made and sends only that. Sim's files use [Yjs](https://yjs.dev) for the shared state, and the function that turns an editor change into one of those minimal updates is `updateYFragment`. It's the same function that runs on every keypress.
+
+So we wanted the agent to go through `updateYFragment` as well. The only real question was what to diff against. The live document keeps changing while the agent writes, and if the agent diffs against the live document, a collaborator's edit shows up as a difference the agent will try to reconcile away. The agent would end up quietly undoing the humans.
+
+The way around that is to give the agent its own private copy of the document to work against. When a stream starts, we snapshot the live document into a throwaway replica that nothing else touches:
+
+```ts
+export function beginAgentStream(editor) {
+  const binding = ySyncPluginKey.getState(editor.state)?.binding
+  if (!binding) return null
+  const shadow = new Y.Doc()
+  Y.applyUpdate(shadow, Y.encodeStateAsUpdate(binding.doc)) // snapshot the live doc, once
+  return { shadow, fragment: shadow.getXmlFragment('default'), meta: null }
+}
+```
+
+Then, for each chunk the model produces, the agent reconciles that private copy toward the new text, we capture the single update the reconciliation produced, and we apply just that update to the real document, exactly as if it had arrived over the network from another user:
+
+```ts
+// simplified; the real version cleans up the listener and handles the no-binding case
+export function applyAgentStreamFrame(editor, session, body) {
+  const target = PMNode.fromJSON(editor.schema, parseMarkdownToDoc(body))
+  let delta = null
+  session.shadow.on('update', (update, origin) => {
+    if (origin === AGENT_STREAM_ORIGIN) delta = update
+  })
+  session.shadow.transact(() => {
+    updateYFragment(session.shadow, session.fragment, target, session.meta)
+  }, AGENT_STREAM_ORIGIN)
+  if (delta) Y.applyUpdate(binding.doc, delta, AGENT_STREAM_ORIGIN)
+}
+```
+
+The private copy is the part that took a while to appreciate. Because it only ever sees the agent's own reconciliations and never anyone else's edits, the difference between one chunk and the next is precisely what the agent changed and nothing else. The agent never forms an opinion about what the whole document should look like. It produces a small, well-scoped change and hands it to the CRDT, which merges it with whatever everyone else is doing the same way it merges any two people's edits. Moment.dev [described arriving at a similar idea from a different direction](https://www.moment.dev/blog/collab-with-ai-is-hard): don't let the agent chase a moving target.
+
+## What you get for free
+
+Once the agent's output is just ordinary CRDT operations, a few things we'd braced for stopped being problems.
+
+The first is concurrent editing, and this was the pleasant surprise. We assumed we would eventually need something like relative-position anchoring so the agent's edits landed correctly while people typed around them. We never did. Yjs operations are defined in terms of item identities rather than character offsets, so they are already relative. If a collaborator inserts a paragraph above where the agent is writing, the agent's operations still land in the right place, because they were never pinned to a numeric position to begin with. We tested this fairly hard: an agent appending at the bottom while someone edits the top, an agent inserting above where someone is typing, and an agent rewriting a paragraph someone else is editing. In every case the two documents converge to the same state instead of one write clobbering the other, which was the whole problem we started with. Systems that insert at absolute character offsets do need anchoring, and [Electric's server-side agent](https://electric.ax/blog/2026/04/08/ai-agents-as-crdt-peers-with-yjs) is a good example of one that uses it, but a whole-document diff never computes an offset, so the problem doesn't come up.
+
+The second is undo. If the agent's output went onto your undo stack, a single undo would walk backward through the model's tokens, which is not what anyone wants. We apply every agent operation under a dedicated transaction origin (`AGENT_STREAM_ORIGIN`, which is just a `Symbol`), and the collaboration undo manager only tracks its own origin. Your undo history has your edits in it and not the agent's. On everyone else's screen the agent's writing arrives as remote updates, which a local undo manager never captures anyway.
+
+The third is the streaming itself. Because each chunk is a real operation on the shared document, a collaborator watching the same file sees the same smooth, formatted stream that the person who triggered it sees, and we didn't write anything to make that happen. The channel that keeps two people in sync is the same channel that carries the stream, so the agent's output reaches everyone through the path a person's keystrokes already take. There is no separate streaming pipe to build or keep in step with it. The one server-side write left is the final save, which turns the finished document back into Markdown on disk.
+
+## Where it got genuinely hard: Markdown
+
+The concurrency turned out to be the easy part. The hard part was that our files are stored as Markdown, and a Markdown file and a rich-text editor don't agree on what a blank line means.
+
+We found this the way you usually find these things. Someone opened a document, it looked fine for the first section, and then there was an enormous run of blank space with the rest of the content pushed so far down you'd never scroll to it. The file hadn't lost any data. It had picked up close to two thousand empty paragraphs in the middle.
+
+The cause is a real impedance mismatch. In Markdown, a run of blank lines between two blocks is insignificant, and two blank lines mean the same thing as ten. But the editor rebuilds an empty paragraph node for every blank line it sees, to preserve spacing faithfully. So a document that at some point picked up a large run of blank lines, from a paste or from a model that emitted a lot of newlines, would turn that run into a couple thousand real nodes. Because the nodes are real, they get written back out to the Markdown file, parsed into nodes again on the next open, and never go away on their own. It was also behind a subtler problem where the document visibly reflowed about half a second after opening, because the static preview collapses empty paragraphs while the live editor gives each one a line of height.
+
+The fix was to stop treating blank runs as meaningful when we parse. Markdown says they're insignificant, so we collapse them, which also makes the file render the same in our editor as it does on GitHub or anywhere else it gets opened. We left the serializer alone, since a blank line inside a fenced code block is significant and collapsing that would break code samples.
+
+The part I find most interesting is why we hit this when Notion and Obsidian don't. Notion doesn't store Markdown; its source of truth is blocks, so it can keep empty blocks around without a file to answer to. Obsidian edits the Markdown text directly rather than through a rich-text node tree, so a blank line is just a blank line. We took the harder middle option, a rich-text tree on top of a Markdown file, because we want editing to feel like a document and the storage to be a plain file you can read, diff, and hand to an agent. It's the right tradeoff for us, but it means the normalization between the two representations is our problem to own, and blank lines are the first place that shows up.
+
+## Keeping it fast and honest
+
+A few smaller decisions are worth mentioning.
+
+The server and the client convert Markdown with the exact same code. When a file opens, the server turns its Markdown into the initial CRDT document, and when it saves, it turns the CRDT document back into Markdown. Both directions go through the same parse and serialize functions the editor uses in the browser, and the CRDT step uses the same binding library. There is no second Markdown implementation to drift from the first, so the preview, the collaborative document, and the file on disk can't disagree.
+
+There's also a performance detail on the hot path. Reconciling the shadow needs a mapping between the editor's nodes and the CRDT's, and building that mapping from scratch takes time proportional to the size of the document. But `updateYFragment` maintains the mapping in place as it runs, which is what the editor's own binding relies on for the whole life of a document. So we build it once, on the first chunk, and reuse it for every chunk after. That's only safe because nothing but the agent touches the shadow, and it's a small win that grows with document size.
+
+On the screen that starts the stream, we make the editor read-only until the agent finishes. The agent is already writing there, and letting you type into the same place at the same moment is a fight over the cursor with nothing to gain. Everyone else stays fully editable, because on their screen the agent's writing is just remote updates arriving, the same as another person typing.
+
+The last one is about who applies the stream when the file is open in more than one place. Only one client should write the agent's chunks into the shared document; if two did, every change would land twice. So the clients pick one to do it, over the same awareness channel they already use to show who's present, and everyone else receives the result as ordinary updates.
+
+## How we convinced ourselves
+
+We didn't want to trust any of this on reasoning alone, so we reproduced the two-writer situation with real peers: two editors wired together over Yjs, one running the actual streaming code and the other typing in between the agent's chunks. We ran it for the obvious cases and the awkward ones, including a full rewrite of the document while someone edits a paragraph the rewrite deletes.
+
+That last case taught us something we had wrong. We assumed that if the agent rewrote the document and deleted the paragraph a collaborator was editing, that person's edit would be lost, and we wrote the test asserting exactly that. It failed. Yjs doesn't drop the edit. It keeps the inserted text and reattaches it to whatever survived nearby, so the edit moved instead of vanishing. Our intuition said someone loses in a conflict, and the CRDT quietly chose to lose nothing. We fixed the test to match what actually happens, which is the right order to do it in.
+
+## Takeaways
+
+If you're putting an AI agent into a document people edit together, the most useful move is to stop treating the agent as special. Have it produce the same small operations a keystroke produces, in the CRDT's own language, and let the CRDT do the merging. With Yjs in particular you probably don't need position anchoring, because the operations are already relative. The channel that syncs collaborators is the same one that streams the agent, so there's no reason to build two. And if your editor is rich text while your storage is Markdown, the merging is the easy part, and the real work is deciding, carefully, what the two representations are allowed to disagree about.

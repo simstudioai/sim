@@ -2,16 +2,18 @@
  * @vitest-environment node
  */
 
+import { db } from '@sim/db'
 import { executionLargeValueDependencies, executionLargeValueReferences } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { eq, notInArray } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addLargeValueReference,
+  collectLargeValueReferenceKeys,
   MAX_LARGE_VALUE_REFERENCES_PER_SCOPE,
   pruneLargeValueMetadata,
   registerLargeValueOwner,
-  replaceLargeValueReferences,
+  replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
 
 function largeValueKey(id: string, executionId = 'source-execution'): string {
@@ -205,42 +207,44 @@ describe('large value metadata', () => {
     const otherWorkspaceKey =
       'execution/workspace-2/workflow-1/source-execution/large-value-lv_abcdefghijkl.json'
 
-    await replaceLargeValueReferences(
+    const value = {
+      a: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_abcdefghijkl',
+        kind: 'json',
+        size: 123,
+        key: matchingKey,
+      },
+      duplicate: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_abcdefghijkl',
+        kind: 'json',
+        size: 123,
+        key: matchingKey,
+      },
+      ignored: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_abcdefghijkl',
+        kind: 'json',
+        size: 123,
+        key: otherWorkspaceKey,
+      },
+    }
+
+    await replaceLargeValueReferenceKeysWithClient(
+      db,
       {
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
         executionId: 'execution-2',
         source: 'execution_log',
       },
-      {
-        a: {
-          __simLargeValueRef: true,
-          version: 1,
-          id: 'lv_abcdefghijkl',
-          kind: 'json',
-          size: 123,
-          key: matchingKey,
-        },
-        duplicate: {
-          __simLargeValueRef: true,
-          version: 1,
-          id: 'lv_abcdefghijkl',
-          kind: 'json',
-          size: 123,
-          key: matchingKey,
-        },
-        ignored: {
-          __simLargeValueRef: true,
-          version: 1,
-          id: 'lv_abcdefghijkl',
-          kind: 'json',
-          size: 123,
-          key: otherWorkspaceKey,
-        },
-      }
+      collectLargeValueReferenceKeys(value, 'workspace-1')
     )
 
-    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
     expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
     expect(eq).toHaveBeenCalledWith(executionLargeValueReferences.source, 'execution_log')
     expect(dbChainMockFns.values).toHaveBeenCalledWith([

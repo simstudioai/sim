@@ -20,6 +20,7 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { enrichSandboxCapabilities } from '@/lib/execution/remote-sandbox/wand-enricher'
 import { enrichTableSchema } from '@/lib/table/llm/wand'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { extractResponseText, parseResponsesUsage } from '@/providers/openai/utils'
@@ -52,14 +53,6 @@ interface ChatMessage {
   content: string
 }
 
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return '[unserializable]'
-  }
-}
-
 /**
  * Wand enricher function type.
  * Enrichers add context to the system prompt based on generationType.
@@ -90,6 +83,8 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
   },
 
   'table-schema': enrichTableSchema,
+  /** JavaScript, Python, and Shell swap prompt text while retaining sandbox enrichment. */
+  'javascript-function-body': enrichSandboxCapabilities,
 }
 
 async function updateUserStatsForWand(
@@ -324,9 +319,23 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         '\n\nIMPORTANT: Return ONLY the raw cron expression (e.g., "0 9 * * 1-5"). Do NOT wrap it in markdown code blocks, backticks, or quotes. Do NOT include any explanation or text before or after the expression.'
     }
 
+    // Both the JavaScript and Python function-body prompts share this type, so
+    // the reinforcement stays language-neutral.
+    if (generationType === 'javascript-function-body') {
+      finalSystemPrompt +=
+        '\n\nIMPORTANT: Return ONLY the raw function body. Do NOT wrap it in markdown code blocks (no ```javascript, no ```python, no ```). Do NOT include any explanation before or after the code.'
+    }
+
     if (generationType === 'json-object') {
       finalSystemPrompt +=
         '\n\nIMPORTANT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (no ```json or ```). Do NOT include any explanation or text before or after the JSON. The response must start with { and end with }.'
+    }
+
+    // Separate from json-object: that reinforcement demands braces, which would
+    // fight a field whose contract is an array.
+    if (generationType === 'json-array') {
+      finalSystemPrompt +=
+        '\n\nIMPORTANT: Return ONLY the raw JSON array. Do NOT wrap it in markdown code blocks (no ```json or ```). Do NOT include any explanation or text before or after the JSON. The response must start with [ and end with ].'
     }
 
     const messages: ChatMessage[] = [{ role: 'system', content: finalSystemPrompt }]

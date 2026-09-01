@@ -59,15 +59,6 @@ export const ADD_MEMORY_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete add memory object output definition
- */
-export const ADD_MEMORY_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Queued memory processing job returned from add operation',
-  properties: ADD_MEMORY_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for memory objects returned by get operations.
  * Get responses include full memory details with timestamps and ownership info.
  * @see https://docs.mem0.ai/api-reference/memory/get-memories
@@ -100,15 +91,6 @@ export const MEMORY_OUTPUT_PROPERTIES = {
     description: 'ISO 8601 timestamp when the memory was last updated',
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete memory object output definition
- */
-export const MEMORY_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Memory object with full details including timestamps and ownership',
-  properties: MEMORY_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for search result objects returned by search operations.

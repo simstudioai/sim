@@ -4,6 +4,9 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { QuiverSvgResponse } from '@/tools/quiver/types'
 
+const REFERENCE_IMAGES_FIELD = ['referenceFiles', 'referenceInput'] as const
+const IMAGE_FIELD = ['imageFile', 'imageInput'] as const
+
 export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
   type: 'quiver',
   name: 'Quiver',
@@ -16,6 +19,23 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
   bgColor: '#FFFFFF',
   icon: QuiverIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Quiver',
+    sentences: {
+      byOperation: {
+        text_to_svg: [
+          { text: 'Generate an SVG from', field: 'prompt', core: true },
+          { text: ', styled by', field: 'instructions' },
+          { text: ', referencing', field: REFERENCE_IMAGES_FIELD },
+        ],
+        image_to_svg: [
+          { text: 'Convert', field: IMAGE_FIELD, after: 'to an SVG', core: true },
+          { text: ', sized to', field: 'targetSize', after: 'px' },
+        ],
+        list_models: ['List available models'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -1,0 +1,515 @@
+---
+title: Zoho Desk
+description: Manage Zoho Desk tickets, comments, threads, and contacts
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zoho_desk"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Zoho Desk](https://www.zoho.com/desk/) is Zoho's customer support help desk. Support teams use it to receive tickets from email, web forms, chat, phone, and social channels, route them to the right department and agent, and track every customer conversation through to resolution.
+
+With the Sim Zoho Desk integration, you can:
+
+- **Read and filter tickets**: List tickets across an organization filtered by department, status, or priority, or fetch a single ticket by ID with its related contact, assignee, and department.
+- **Update tickets**: Change subject, status, priority, assignee, department, category, due date, and custom fields — useful for AI triage that classifies an incoming ticket and writes the result back.
+- **Work with conversations**: List and read ticket threads (the customer-facing email/chat exchange) and comments (internal agent notes), then add your own comment as public or private.
+- **Look up contacts**: Retrieve the contact behind a ticket to enrich it with data from your CRM or knowledge base.
+- **Download attachments**: Pull an attachment from a thread or comment into a Sim file you can pass to downstream blocks.
+- **Trigger on events**: Start a workflow when a ticket, comment, thread, contact, agent, task, or article changes in Zoho Desk.
+
+**How it works in Sim:**
+Add a Zoho Desk block to your workflow, connect your Zoho account, and pick the Organization (portal) to work in — Sim loads the list for you from the connected account. Choose an operation and fill in its parameters; the block calls the Zoho Desk API and returns structured data for downstream blocks. For comment and thread bodies, Sim adds a derived plain-text `contentText` field alongside Zoho's raw HTML `content`, so an AI agent can read the message without HTML markup.
+
+To trigger on Zoho Desk activity instead, use the block's trigger mode. Sim creates the webhook subscription in Zoho Desk for you and removes it automatically when the workflow is undeployed.
+
+**Requirements and limitations**
+
+> Zoho Desk webhooks require a Zoho Desk edition of **Professional or higher** — Free and Standard plans cannot create webhook subscriptions, so the trigger will fail to deploy on those plans.
+>
+> Connecting a Zoho account with **OAuth** — which the trigger requires — works only for the **US data center** (`accounts.zoho.com`). To use Zoho Desk blocks from the EU, India, or Australia data centers, connect a [Self Client](/integrations/zoho-desk-service-account) instead and set its data center. The Japan, Canada, Saudi Arabia, China, and UK data centers are not supported by either path.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Read and update Zoho Desk tickets, manage comments and threads, look up contacts, and download attachments. Can also trigger workflows from Zoho Desk webhook events.
+
+
+
+## Actions
+
+### Zoho Desk List Tickets
+
+List tickets from a Zoho Desk organization with optional filters. Returns a list projection: description, resolution, statusType and classification are only available from Get Ticket.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `from` | number | No | Pagination start index \(0-based\) |
+| `limit` | number | No | Number of tickets to return \(1-100\) |
+| `departmentIds` | string | No | Filter by department ID \(comma-separated for multiple\) |
+| `status` | string | No | Filter by status, including custom statuses. Comma-separate to match multiple \(e.g. "Open,On Hold"\) |
+| `priority` | string | No | Filter by priority. Comma-separate to match multiple \(e.g. "High,Urgent"\) |
+| `assignee` | string | No | Filter by assignee: an agent ID, or "Unassigned". Comma-separate to match multiple. |
+| `channel` | string | No | Filter by origin channel, spelled as your portal spells it. Comma-separate to match multiple. |
+| `receivedInDays` | number | No | Only tickets whose last customer response was within the last 15, 30, or 90 days \(Zoho filters on customerResponseTime, despite the name\) |
+| `sortBy` | string | No | Sort field: createdTime, customerResponseTime, or responseDueDate. Prefix with - for descending. |
+| `include` | string | No | Comma-separated related data to embed. Allowed: contacts, products, departments, team, isRead, assignee |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tickets` | array | List of tickets |
+|   ↳ `id` | string | Ticket ID |
+|   ↳ `ticketNumber` | string | Human-readable ticket number |
+|   ↳ `subject` | string | Ticket subject |
+|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
+|   ↳ `status` | string | Ticket status |
+|   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
+|   ↳ `priority` | string | Ticket priority |
+|   ↳ `category` | string | Ticket category |
+|   ↳ `subCategory` | string | Ticket sub-category |
+|   ↳ `classification` | string | Ticket classification |
+|   ↳ `channel` | string | Origin channel |
+|   ↳ `departmentId` | string | Department ID |
+|   ↳ `contactId` | string | Contact ID |
+|   ↳ `accountId` | string | Account ID |
+|   ↳ `assigneeId` | string | Assignee ID |
+|   ↳ `email` | string | Contact email |
+|   ↳ `phone` | string | Contact phone |
+|   ↳ `dueDate` | string | Due date |
+|   ↳ `responseDueDate` | string | Response due date |
+|   ↳ `createdTime` | string | Created timestamp |
+|   ↳ `modifiedTime` | string | Last modified timestamp |
+|   ↳ `customerResponseTime` | string | Time the last customer response was received |
+|   ↳ `closedTime` | string | Closed timestamp |
+|   ↳ `resolution` | string | Resolution text |
+|   ↳ `threadCount` | string | Number of threads |
+|   ↳ `commentCount` | string | Number of comments |
+|   ↳ `webUrl` | string | Web URL to the ticket |
+|   ↳ `isEscalated` | boolean | Whether the ticket is escalated |
+|   ↳ `isOverDue` | boolean | Whether the ticket is overdue |
+|   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
+|   ↳ `cf` | json | Custom field values, keyed by custom field API name |
+| `count` | number | Number of tickets returned |
+
+### Zoho Desk Get Ticket
+
+Retrieve a single Zoho Desk ticket by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `ticketId` | string | Yes | Ticket ID to retrieve |
+| `include` | string | No | Comma-separated related data to embed. Allowed: contacts, products, assignee, departments, contract, isRead, team, skills |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ticket` | object | The ticket |
+|   ↳ `id` | string | Ticket ID |
+|   ↳ `ticketNumber` | string | Human-readable ticket number |
+|   ↳ `subject` | string | Ticket subject |
+|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
+|   ↳ `status` | string | Ticket status |
+|   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
+|   ↳ `priority` | string | Ticket priority |
+|   ↳ `category` | string | Ticket category |
+|   ↳ `subCategory` | string | Ticket sub-category |
+|   ↳ `classification` | string | Ticket classification |
+|   ↳ `channel` | string | Origin channel |
+|   ↳ `departmentId` | string | Department ID |
+|   ↳ `contactId` | string | Contact ID |
+|   ↳ `accountId` | string | Account ID |
+|   ↳ `assigneeId` | string | Assignee ID |
+|   ↳ `email` | string | Contact email |
+|   ↳ `phone` | string | Contact phone |
+|   ↳ `dueDate` | string | Due date |
+|   ↳ `responseDueDate` | string | Response due date |
+|   ↳ `createdTime` | string | Created timestamp |
+|   ↳ `modifiedTime` | string | Last modified timestamp |
+|   ↳ `customerResponseTime` | string | Time the last customer response was received |
+|   ↳ `closedTime` | string | Closed timestamp |
+|   ↳ `resolution` | string | Resolution text |
+|   ↳ `threadCount` | string | Number of threads |
+|   ↳ `commentCount` | string | Number of comments |
+|   ↳ `webUrl` | string | Web URL to the ticket |
+|   ↳ `isEscalated` | boolean | Whether the ticket is escalated |
+|   ↳ `isOverDue` | boolean | Whether the ticket is overdue |
+|   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
+|   ↳ `cf` | json | Custom field values, keyed by custom field API name |
+
+### Zoho Desk Update Ticket
+
+Update fields on an existing Zoho Desk ticket.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `ticketId` | string | Yes | Ticket ID to update |
+| `subject` | string | No | Ticket subject |
+| `status` | string | No | Ticket status \(e.g. Open, Closed\) |
+| `priority` | string | No | Ticket priority \(e.g. High\) |
+| `assigneeId` | string | No | Assignee \(agent\) ID |
+| `departmentId` | string | No | Department ID |
+| `category` | string | No | Ticket category |
+| `subCategory` | string | No | Ticket sub-category |
+| `dueDate` | string | No | Due date \(ISO 8601\) |
+| `description` | string | No | Ticket description |
+| `resolution` | string | No | Resolution notes recorded on the ticket |
+| `classification` | string | No | Ticket classification. Zoho's system-defined values are Problem, Request, and Question; portals can define custom values. Pass "" to clear it. |
+| `customFields` | json | No | Custom field values as a JSON object, keyed by custom field API name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ticket` | object | The updated ticket |
+|   ↳ `id` | string | Ticket ID |
+|   ↳ `ticketNumber` | string | Human-readable ticket number |
+|   ↳ `subject` | string | Ticket subject |
+|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
+|   ↳ `status` | string | Ticket status |
+|   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
+|   ↳ `priority` | string | Ticket priority |
+|   ↳ `category` | string | Ticket category |
+|   ↳ `subCategory` | string | Ticket sub-category |
+|   ↳ `classification` | string | Ticket classification |
+|   ↳ `channel` | string | Origin channel |
+|   ↳ `departmentId` | string | Department ID |
+|   ↳ `contactId` | string | Contact ID |
+|   ↳ `accountId` | string | Account ID |
+|   ↳ `assigneeId` | string | Assignee ID |
+|   ↳ `email` | string | Contact email |
+|   ↳ `phone` | string | Contact phone |
+|   ↳ `dueDate` | string | Due date |
+|   ↳ `responseDueDate` | string | Response due date |
+|   ↳ `createdTime` | string | Created timestamp |
+|   ↳ `modifiedTime` | string | Last modified timestamp |
+|   ↳ `customerResponseTime` | string | Time the last customer response was received |
+|   ↳ `closedTime` | string | Closed timestamp |
+|   ↳ `resolution` | string | Resolution text |
+|   ↳ `threadCount` | string | Number of threads |
+|   ↳ `commentCount` | string | Number of comments |
+|   ↳ `webUrl` | string | Web URL to the ticket |
+|   ↳ `isEscalated` | boolean | Whether the ticket is escalated |
+|   ↳ `isOverDue` | boolean | Whether the ticket is overdue |
+|   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
+|   ↳ `cf` | json | Custom field values, keyed by custom field API name |
+
+### Zoho Desk List Comments
+
+List comments on a Zoho Desk ticket.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `ticketId` | string | Yes | Ticket ID |
+| `from` | number | No | Pagination start index \(0-based\) |
+| `limit` | number | No | Number of comments to return \(1-100, default 50\) |
+| `sortBy` | string | No | Sort by commentedTime. Ascending by default; prefix with - for descending \(-commentedTime\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | List of comments |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `content` | string | Comment content \(raw; may be HTML\) |
+|   ↳ `contentType` | string | Content type \(plainText/html\) |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
+|   ↳ `isPublic` | boolean | Whether the comment is public |
+|   ↳ `commenterId` | string | Commenter ID |
+|   ↳ `commenter` | object | Who wrote the comment |
+|     ↳ `name` | string | Display name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|     ↳ `type` | string | Commenter type \(AGENT/END_USER\) |
+|     ↳ `roleName` | string | Role name |
+|     ↳ `photoURL` | string | Avatar URL |
+|   ↳ `commentedTime` | string | Commented timestamp |
+|   ↳ `modifiedTime` | string | Modified timestamp |
+|   ↳ `attachments` | array | Comment attachments |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | File name |
+|     ↳ `size` | string | File size as reported by Zoho |
+|     ↳ `href` | string | Download href |
+| `count` | number | Number of comments returned |
+
+### Zoho Desk Add Comment
+
+Add a comment to a Zoho Desk ticket.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `ticketId` | string | Yes | Ticket ID |
+| `content` | string | Yes | Comment content |
+| `contentType` | string | No | Content type: plainText or html. Defaults to plainText so agent-written text posts literally; pass 'html' to send markup \(Zoho's own API default is html\). |
+| `isPublic` | boolean | No | Whether the comment is public |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | object | The created comment |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `content` | string | Comment content \(raw; may be HTML\) |
+|   ↳ `contentType` | string | Content type \(plainText/html\) |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
+|   ↳ `isPublic` | boolean | Whether the comment is public |
+|   ↳ `commenterId` | string | Commenter ID |
+|   ↳ `commenter` | object | Who wrote the comment |
+|     ↳ `name` | string | Display name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|     ↳ `type` | string | Commenter type \(AGENT/END_USER\) |
+|     ↳ `roleName` | string | Role name |
+|     ↳ `photoURL` | string | Avatar URL |
+|   ↳ `commentedTime` | string | Commented timestamp |
+|   ↳ `modifiedTime` | string | Modified timestamp |
+|   ↳ `attachments` | array | Comment attachments |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | File name |
+|     ↳ `size` | string | File size as reported by Zoho |
+|     ↳ `href` | string | Download href |
+
+### Zoho Desk List Threads
+
+List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `ticketId` | string | Yes | Ticket ID |
+| `from` | number | No | Pagination start index \(0-based\) |
+| `limit` | number | No | Number of threads to return \(1-200, default 100\) |
+| `sortBy` | string | No | Sort by sendDateTime. Zoho sorts descending \(newest first\) when unset; pass sendDateTime for oldest first. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | array | List of threads |
+|   ↳ `id` | string | Thread ID |
+|   ↳ `channel` | string | Thread channel |
+|   ↳ `direction` | string | Direction \(in/out\) |
+|   ↳ `content` | string | Thread content \(raw; may be HTML\) |
+|   ↳ `contentType` | string | Content type |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
+|   ↳ `summary` | string | Thread summary |
+|   ↳ `responderId` | string | Responder ID |
+|   ↳ `createdTime` | string | Created timestamp |
+|   ↳ `hasAttach` | boolean | Whether the thread has attachments |
+|   ↳ `attachmentCount` | string | Number of attachments |
+|   ↳ `fromEmailAddress` | string | From email address |
+|   ↳ `to` | string | To email address |
+|   ↳ `cc` | string | CC email address |
+|   ↳ `bcc` | string | BCC email address |
+|   ↳ `replyTo` | string | Reply-to email address |
+|   ↳ `isForward` | boolean | Whether the thread is a forward |
+|   ↳ `isContentTruncated` | boolean | Whether Zoho truncated the thread content; fetch fullContentURL for the rest |
+|   ↳ `fullContentURL` | string | URL returning the untruncated thread content |
+|   ↳ `plainText` | string | Zoho's own plain-text rendering of the thread, when it supplies one |
+|   ↳ `status` | string | Delivery status of the thread \(e.g. SUCCESS, PENDING, FAILED, DRAFT\) |
+|   ↳ `isDescriptionThread` | boolean | Whether this thread is the ticket's original description |
+|   ↳ `visibility` | string | Thread visibility \(e.g. public\) |
+|   ↳ `canReply` | boolean | Whether the thread can be replied to |
+|   ↳ `author` | object | Who sent the thread |
+|     ↳ `name` | string | Display name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|     ↳ `type` | string | Author type \(AGENT/END_USER\) |
+|     ↳ `photoURL` | string | Avatar URL |
+|   ↳ `attachments` | array | Thread attachments |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | File name |
+|     ↳ `size` | string | File size as reported by Zoho |
+|     ↳ `href` | string | Download href |
+| `count` | number | Number of threads returned |
+
+### Zoho Desk Get Thread
+
+Retrieve the full content of a single Zoho Desk ticket thread.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `ticketId` | string | Yes | Ticket ID |
+| `threadId` | string | Yes | Thread ID |
+| `include` | string | No | Related data to embed. Allowed: plainText — Zoho's own plain-text rendering of the thread |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `thread` | object | The thread |
+|   ↳ `id` | string | Thread ID |
+|   ↳ `channel` | string | Thread channel |
+|   ↳ `direction` | string | Direction \(in/out\) |
+|   ↳ `content` | string | Thread content \(raw; may be HTML\) |
+|   ↳ `contentType` | string | Content type |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
+|   ↳ `summary` | string | Thread summary |
+|   ↳ `responderId` | string | Responder ID |
+|   ↳ `createdTime` | string | Created timestamp |
+|   ↳ `hasAttach` | boolean | Whether the thread has attachments |
+|   ↳ `attachmentCount` | string | Number of attachments |
+|   ↳ `fromEmailAddress` | string | From email address |
+|   ↳ `to` | string | To email address |
+|   ↳ `cc` | string | CC email address |
+|   ↳ `bcc` | string | BCC email address |
+|   ↳ `replyTo` | string | Reply-to email address |
+|   ↳ `isForward` | boolean | Whether the thread is a forward |
+|   ↳ `isContentTruncated` | boolean | Whether Zoho truncated the thread content; fetch fullContentURL for the rest |
+|   ↳ `fullContentURL` | string | URL returning the untruncated thread content |
+|   ↳ `plainText` | string | Zoho's own plain-text rendering of the thread, when it supplies one |
+|   ↳ `status` | string | Delivery status of the thread \(e.g. SUCCESS, PENDING, FAILED, DRAFT\) |
+|   ↳ `isDescriptionThread` | boolean | Whether this thread is the ticket's original description |
+|   ↳ `visibility` | string | Thread visibility \(e.g. public\) |
+|   ↳ `canReply` | boolean | Whether the thread can be replied to |
+|   ↳ `author` | object | Who sent the thread |
+|     ↳ `name` | string | Display name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|     ↳ `type` | string | Author type \(AGENT/END_USER\) |
+|     ↳ `photoURL` | string | Avatar URL |
+|   ↳ `attachments` | array | Thread attachments |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | File name |
+|     ↳ `size` | string | File size as reported by Zoho |
+|     ↳ `href` | string | Download href |
+
+### Zoho Desk Get Contact
+
+Retrieve a Zoho Desk contact by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `contactId` | string | Yes | Contact ID to retrieve |
+| `include` | string | No | Comma-separated related data to embed. Allowed: accounts, owner |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | The contact |
+|   ↳ `id` | string | Contact ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Primary email |
+|   ↳ `secondaryEmail` | string | Secondary email |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `mobile` | string | Mobile number |
+|   ↳ `accountId` | string | Associated account ID |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `type` | string | Contact type |
+|   ↳ `title` | string | Job title |
+|   ↳ `street` | string | Street |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `country` | string | Country |
+|   ↳ `zip` | string | ZIP / postal code |
+|   ↳ `description` | string | Description |
+|   ↳ `cf` | json | Custom field values, keyed by custom field API name |
+
+### Zoho Desk Get Attachment
+
+Download a Zoho Desk ticket attachment (from its href) as a file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `href` | string | Yes | Attachment download href \(from a thread or comment attachment\) |
+| `fileName` | string | No | Optional file name for the downloaded file |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | The downloaded attachment file |
+
+### Zoho Desk List Organizations
+
+List the Zoho Desk organizations (portals) the connected account can access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organizations` | array | Accessible organizations |
+|   ↳ `id` | string | Organization ID |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `portalName` | string | Portal name |
+| `count` | number | Number of organizations returned |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Zoho Desk Event
+
+Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, contact, agent, task, or article changes).
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | This trigger creates and manages a webhook subscription in your Zoho Desk account. |
+| `orgId` | project-selector | Yes | The Zoho Desk organization \(portal\) to subscribe in. |
+| `manualOrgId` | string | Yes | Type an organization ID instead of picking one from the list. |
+| `eventType` | string | Yes | Event |
+| `triggerDepartmentIds` | string | No | Restrict events to these departments. Leave empty for all departments. |
+| `fields` | string | No | For Ticket Updated: only fire when one of these fields changes \(max 5\). Previous values are included in the payload. |
+| `direction` | string | No | Thread Direction |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The Zoho Desk event type \(e.g. Ticket_Add\) |
+| `eventTime` | string | Event time in milliseconds since epoch |
+| `orgId` | string | Zoho Desk organization ID |
+| `payload` | json | The full resource that changed \(ticket, comment, thread, etc.\). Comment and thread events gain a derived plain-text `contentText` alongside the raw `content` + `contentType`; ticket events gain `descriptionText` alongside `description`. |
+| `prevState` | json | Previous state of the resource \(update events only\) |
+

@@ -1,8 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type {
   RowExecutionMetadata,
   TableDefinition,
@@ -10,9 +18,30 @@ import type {
   WorkflowGroup,
 } from '@/lib/table/types'
 
-const { mockResolveBillingAttribution, mockResolveSystemBillingAttribution } = vi.hoisted(() => ({
+const {
+  mockResolveBillingAttribution,
+  mockResolveSystemBillingAttribution,
+  mockRunsCancel,
+  mockRunsList,
+  mockGetJobQueue,
+  mockGetTableById,
+  mockListActiveDispatches,
+  mockMarkActiveDispatchesCancelled,
+  mockQueueCancelByKey,
+  mockQueueCancelJob,
+  mockUpdateRow,
+} = vi.hoisted(() => ({
   mockResolveBillingAttribution: vi.fn(),
   mockResolveSystemBillingAttribution: vi.fn(),
+  mockRunsCancel: vi.fn(),
+  mockRunsList: vi.fn(),
+  mockGetJobQueue: vi.fn(),
+  mockGetTableById: vi.fn(),
+  mockListActiveDispatches: vi.fn(),
+  mockMarkActiveDispatchesCancelled: vi.fn(),
+  mockQueueCancelByKey: vi.fn(),
+  mockQueueCancelJob: vi.fn(),
+  mockUpdateRow: vi.fn(),
 }))
 
 const SYSTEM_BILLING_ATTRIBUTION = {
@@ -34,14 +63,47 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
 }))
 
+vi.mock('@trigger.dev/sdk', () => ({
+  runs: {
+    cancel: mockRunsCancel,
+    list: mockRunsList,
+  },
+}))
+
+vi.mock('@/lib/core/async-jobs/config', () => ({
+  getJobQueue: mockGetJobQueue,
+}))
+
+vi.mock('@/lib/table/dispatcher', () => ({
+  listActiveDispatches: mockListActiveDispatches,
+  markActiveDispatchesCancelled: mockMarkActiveDispatchesCancelled,
+}))
+
+vi.mock('@/lib/table/rows/service', () => ({
+  updateRow: mockUpdateRow,
+}))
+
+vi.mock('@/lib/table/service', () => ({
+  getTableById: mockGetTableById,
+}))
+
 import {
   buildEnqueueItems,
+  cancelCellRunsByTags,
+  cancelWorkflowGroupRuns,
   pickNextEligibleGroupForRow,
   type WorkflowGroupCellPayload,
 } from '@/lib/table/workflow-columns'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resetDbChainMock()
+  mockGetJobQueue.mockResolvedValue({
+    cancelByKey: mockQueueCancelByKey,
+    cancelJob: mockQueueCancelJob,
+  })
+  mockListActiveDispatches.mockResolvedValue([])
+  mockMarkActiveDispatchesCancelled.mockResolvedValue([])
   mockResolveBillingAttribution.mockImplementation(
     ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
       Promise.resolve({
@@ -102,7 +164,7 @@ function queuedMarker(workflowId: string): RowExecutionMetadata {
 }
 
 beforeAll(() => {
-  setEnvFlags({ isTriggerDevEnabled: true })
+  setEnvFlags({ isTriggerDevEnabled: true, isBillingEnabled: true })
 })
 
 afterAll(resetEnvFlagsMock)
@@ -188,6 +250,23 @@ describe('buildEnqueueItems billing attribution', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
   })
 
+  it('caps the cascade carrier and serializes each workflow attempt budget', async () => {
+    const [item] = await buildEnqueueItems([run])
+
+    expect(item.payload).toHaveProperty('executionTimeoutMs')
+    expect(item.options.maxDurationSeconds).toBe(5_700)
+    expect(item.options.metadata?.correlation).toEqual({
+      executionId: 'execution-1',
+      requestId: 'wfgrp-execution-1',
+      source: 'workflow_group',
+      workflowId: 'workflow-1',
+      triggerType: 'table',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+  })
+
   it('preserves an existing immutable attribution snapshot without re-resolving', async () => {
     const billingAttribution = {
       actorUserId: 'external-actor',
@@ -207,5 +286,110 @@ describe('buildEnqueueItems billing attribution', () => {
     expect(item.payload.billingAttribution).toEqual(billingAttribution)
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
+  })
+})
+
+describe('cancelCellRunsByTags', () => {
+  it('bounds Trigger.dev cancellation concurrency and limits the retained scan window', async () => {
+    mockRunsList.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        for (let index = 0; index < 25; index++) yield { id: `run-${index}` }
+      },
+    })
+    let activeCancellations = 0
+    let maxActiveCancellations = 0
+    mockRunsCancel.mockImplementation(async () => {
+      activeCancellations++
+      maxActiveCancellations = Math.max(maxActiveCancellations, activeCancellations)
+      await Promise.resolve()
+      activeCancellations--
+    })
+
+    await cancelCellRunsByTags(['tableId:table-1'])
+
+    expect(mockRunsCancel).toHaveBeenCalledTimes(25)
+    expect(maxActiveCancellations).toBeLessThanOrEqual(10)
+    expect(mockRunsList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tag: ['tableId:table-1'],
+        limit: 100,
+        from: expect.any(Date),
+      })
+    )
+  })
+})
+
+describe('cancelWorkflowGroupRuns deletion races', () => {
+  const group = makeGroup({ id: 'g1' })
+  const table = makeTable([group])
+  const inFlightExecution = {
+    tableId: table.id,
+    rowId: 'row1',
+    groupId: group.id,
+    status: 'running',
+    executionId: 'execution-1',
+    jobId: null,
+    workflowId: group.workflowId,
+    error: null,
+    runningBlockIds: [],
+    blockErrors: {},
+    cancelledAt: null,
+  }
+
+  beforeEach(() => {
+    setEnvFlags({ isTriggerDevEnabled: false, isBillingEnabled: true })
+    mockGetTableById.mockResolvedValue(table)
+  })
+
+  it('ignores a row deleted after its in-flight execution was selected', async () => {
+    queueTableRows(schemaMock.tableRowExecutions, [inFlightExecution])
+    mockUpdateRow.mockRejectedValueOnce(new TableRowNotFoundError())
+
+    await expect(cancelWorkflowGroupRuns(table.id)).resolves.toBe(1)
+    expect(mockUpdateRow).toHaveBeenCalledOnce()
+  })
+
+  it('ignores a transaction-wrapped row deletion', async () => {
+    queueTableRows(schemaMock.tableRowExecutions, [inFlightExecution])
+    mockUpdateRow.mockRejectedValueOnce(
+      new Error('Failed query', { cause: new TableRowNotFoundError() })
+    )
+
+    await expect(cancelWorkflowGroupRuns(table.id)).resolves.toBe(1)
+  })
+
+  it('rethrows unrelated cancellation write failures', async () => {
+    const error = new Error('database unavailable')
+    queueTableRows(schemaMock.tableRowExecutions, [inFlightExecution])
+    mockUpdateRow.mockRejectedValueOnce(error)
+
+    await expect(cancelWorkflowGroupRuns(table.id)).rejects.toBe(error)
+  })
+
+  it('ignores a tombstone foreign-key failure caused by a deleted row', async () => {
+    mockListActiveDispatches.mockResolvedValueOnce([
+      { id: 'dispatch-1', scope: { groupIds: [group.id], rowIds: ['row1'] } },
+    ])
+    const cause = Object.assign(new Error('foreign key violation'), {
+      code: '23503',
+      constraint_name: 'table_row_executions_row_id_user_table_rows_id_fk',
+    })
+    dbChainMockFns.onConflictDoNothing.mockRejectedValueOnce(new Error('Failed query', { cause }))
+
+    await expect(cancelWorkflowGroupRuns(table.id, 'row1')).resolves.toBe(0)
+  })
+
+  it('rethrows tombstone failures from any other constraint', async () => {
+    mockListActiveDispatches.mockResolvedValueOnce([
+      { id: 'dispatch-1', scope: { groupIds: [group.id], rowIds: ['row1'] } },
+    ])
+    const cause = Object.assign(new Error('foreign key violation'), {
+      code: '23503',
+      constraint_name: 'table_row_executions_table_id_user_table_definitions_id_fk',
+    })
+    const error = new Error('Failed query', { cause })
+    dbChainMockFns.onConflictDoNothing.mockRejectedValueOnce(error)
+
+    await expect(cancelWorkflowGroupRuns(table.id, 'row1')).rejects.toBe(error)
   })
 })

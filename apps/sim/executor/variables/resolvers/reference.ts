@@ -34,6 +34,8 @@ export interface ResolutionContext {
   currentNodeId: string
   loopScope?: LoopScope
   allowLargeValueRefs?: boolean
+  inputPath?: readonly string[]
+  onResolvedSecretReference?: () => void
 }
 
 export interface Resolver {

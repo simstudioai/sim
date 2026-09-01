@@ -79,7 +79,7 @@ export function ConnectorSyncGraphic() {
       >
         <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div className='mb-4 flex items-center justify-between'>
-            <span className='font-medium text-[var(--text-primary)] text-base'>Connectors</span>
+            <span className='text-[var(--text-primary)] text-base'>Connectors</span>
             <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
               Auto-sync
             </ChipTag>
@@ -103,7 +103,7 @@ export function ConnectorSyncGraphic() {
                   <row.icon className='size-[14px]' />
                 </span>
                 <span className='min-w-0 flex-1'>
-                  <span className='block truncate font-medium text-[var(--text-primary)] text-small'>
+                  <span className='block truncate text-[var(--text-primary)] text-small'>
                     {row.name}
                   </span>
                   <span className='block truncate text-[var(--text-muted)] text-caption'>

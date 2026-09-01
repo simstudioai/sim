@@ -24,6 +24,20 @@ describe('environment-utils mock', () => {
       conflicts: [],
       decryptionFailures: [],
     })
+    await expect(environmentUtilsMock.getEffectiveEnvironmentSnapshot('user-1')).resolves.toEqual({
+      personalEncrypted: {},
+      workspaceEncrypted: {},
+      personalDecrypted: {},
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: [],
+    })
+    await expect(
+      environmentUtilsMock.getEffectiveEnvironmentVariableNames('user-1')
+    ).resolves.toEqual([])
+    await expect(
+      environmentUtilsMock.resolveEffectiveEnvironmentVariables('user-1', 'ws-1', ['API_KEY'])
+    ).resolves.toEqual({})
     await expect(environmentUtilsMock.upsertPersonalEnvVars('user-1', {})).resolves.toEqual({
       added: [],
       updated: [],

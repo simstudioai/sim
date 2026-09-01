@@ -18,7 +18,6 @@
 
 import { context, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { TraceSpan } from '@/lib/logs/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
@@ -335,7 +334,6 @@ export function createOTelSpansForWorkflowExecution(params: {
   endTime: string
   totalDurationMs: number
   status: 'success' | 'error'
-  error?: string
 }): void {
   try {
     const tracer = getTracer()
@@ -358,11 +356,8 @@ export function createOTelSpansForWorkflowExecution(params: {
     if (params.status === 'error') {
       rootSpan.setStatus({
         code: SpanStatusCode.ERROR,
-        message: params.error || 'Workflow execution failed',
+        message: 'Workflow execution failed',
       })
-      if (params.error) {
-        rootSpan.recordException(new Error(params.error))
-      }
     } else {
       rootSpan.setStatus({ code: SpanStatusCode.OK })
     }
@@ -388,52 +383,6 @@ export function createOTelSpansForWorkflowExecution(params: {
 }
 
 /**
- * Create a real-time OpenTelemetry span for a block execution
- * Can be called from block handlers during execution for real-time tracing
- */
-export async function traceBlockExecution<T>(
-  blockType: string,
-  blockId: string,
-  blockName: string,
-  fn: (span: Span) => Promise<T>
-): Promise<T> {
-  const tracer = getTracer()
-
-  const blockMapping = BLOCK_TYPE_MAPPING[blockType] || {
-    spanName: `block.${blockType}`,
-    spanKind: 'internal',
-    getAttributes: () => ({}),
-  }
-
-  return tracer.startActiveSpan(
-    blockMapping.spanName,
-    {
-      attributes: {
-        [TraceAttr.BlockType]: blockType,
-        [TraceAttr.BlockId]: blockId,
-        [TraceAttr.BlockName]: blockName,
-      },
-    },
-    async (span) => {
-      try {
-        const result = await fn(span)
-        span.setStatus({ code: SpanStatusCode.OK })
-        return result
-      } catch (error) {
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: getErrorMessage(error, 'Block execution failed'),
-        })
-        span.recordException(toError(error))
-        throw error
-      } finally {
-        span.end()
-      }
-    }
-  )
-}
-
-/**
  * Track platform events (workflow creation, knowledge base operations, etc.)
  */
 export function trackPlatformEvent(
@@ -456,9 +405,7 @@ export function trackPlatformEvent(
   }
 }
 
-// ============================================================================
 // PLATFORM TELEMETRY EVENTS
-// ============================================================================
 //
 // Naming Convention:
 //   Event:     platform.{resource}.{past_tense_action}
@@ -479,7 +426,6 @@ export function trackPlatformEvent(
 //   - Webhook:        platform.webhook.*
 //   - Billing:        platform.billing.*
 //   - Template:       platform.template.*
-// ============================================================================
 
 /**
  * Platform Events - Typed event tracking helpers
@@ -672,7 +618,6 @@ export const PlatformEvents = {
     blocksExecuted: number
     hasErrors: boolean
     totalCost?: number
-    errorMessage?: string
   }) => {
     trackPlatformEvent('platform.workflow.executed', {
       'workflow.id': attrs.workflowId,
@@ -682,7 +627,6 @@ export const PlatformEvents = {
       'execution.blocks_executed': attrs.blocksExecuted,
       'execution.has_errors': attrs.hasErrors,
       ...(attrs.totalCost !== undefined && { 'execution.total_cost': attrs.totalCost }),
-      ...(attrs.errorMessage && { 'execution.error_message': attrs.errorMessage }),
     })
   },
 

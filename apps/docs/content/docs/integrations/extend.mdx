@@ -1,0 +1,53 @@
+---
+title: Extend
+description: Parse and extract content from documents
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="extend_v2"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Extend](https://www.extend.ai/) is a document processing platform that uses AI to parse and extract structured content from documents, turning unstructured files into usable data.
+
+In Sim, the Extend integration allows your agents to submit a document for parsing and receive back the processed content as structured chunks and block-level elements, along with the page count and credits consumed by the run. This enables workflows to pull structured data out of documents—such as PDFs or other file references—for downstream steps to consume, without manually building document-parsing logic.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Extend AI into the workflow. Parse and extract structured content from documents or file references.
+
+
+
+## Actions
+
+### Extend Document Parser
+
+Parse and extract content from documents using Extend AI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `file` | file | Yes | Document to be processed |
+| `outputFormat` | string | No | Target output format \(markdown or spatial\). Defaults to markdown. |
+| `chunking` | string | No | Chunking strategy \(page, document, or section\). Defaults to page. |
+| `engine` | string | No | Parsing engine \(parse_performance or parse_light\). Defaults to parse_performance. |
+| `apiKey` | string | Yes | Extend API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the parser run |
+| `status` | string | Processing status |
+| `chunks` | json | Parsed document content chunks |
+| `blocks` | json | Block-level document elements with type and content |
+| `pageCount` | number | Number of pages processed |
+| `creditsUsed` | number | API credits consumed |
+
+

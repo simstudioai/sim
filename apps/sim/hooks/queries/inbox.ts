@@ -12,6 +12,7 @@ import {
   listInboxSendersContract,
   listInboxTasksContract,
   removeInboxSenderContract,
+  type SecretMountPolicyInput,
   updateInboxConfigContract,
 } from '@/lib/api/contracts'
 
@@ -133,6 +134,37 @@ export function useUpdateInboxAddress() {
         params: { id: workspaceId },
         body: { username },
       })
+    },
+    onSettled: (_data, _error, variables) => {
+      return queryClient.invalidateQueries({ queryKey: inboxKeys.config(variables.workspaceId) })
+    },
+  })
+}
+
+export function useUpdateInboxSecretPolicy() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      ...policy
+    }: { workspaceId: string } & Required<SecretMountPolicyInput>) => {
+      return requestJson(updateInboxConfigContract, {
+        params: { id: workspaceId },
+        body: policy,
+      })
+    },
+    onMutate: async ({ workspaceId, ...policy }) => {
+      const queryKey = inboxKeys.config(workspaceId)
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<InboxConfig>(queryKey)
+      if (previous) queryClient.setQueryData<InboxConfig>(queryKey, { ...previous, ...policy })
+      return { previous }
+    },
+    onError: (_error, variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(inboxKeys.config(variables.workspaceId), context.previous)
+      }
     },
     onSettled: (_data, _error, variables) => {
       return queryClient.invalidateQueries({ queryKey: inboxKeys.config(variables.workspaceId) })

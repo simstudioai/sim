@@ -534,6 +534,38 @@ export const flowiseProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'Partial: self-hosted only and at the image level. The runtime available to Custom JS Function and Custom Tool code is controlled by server environment variables: TOOL_FUNCTION_BUILTIN_DEP (which NodeJS built-in modules code may require, set to crypto,fs in the shipped .env.example and documented as accepting * for all builtins), TOOL_FUNCTION_EXTERNAL_DEP (which npm packages are importable, set to moment,lodash,pg,mysql2,mongodb,ioredis,redis,typeorm,@zilliz/milvus2-sdk-node in the same file), and ALLOW_BUILTIN_DEP, which the docs describe as allowing the project dependencies already bundled with Flowise to be used, illustrated with cheerio and typeorm. Adding an npm package that is not already bundled requires adding it to packages/components, rebuilding Flowise, and restarting the server, so it is a redeploy of your own image rather than a per-step dependency declaration; there is no runtime npm install inside the code node, and no documented way to declare OS-level system packages or preinstalled CLI binaries. Flowise does not document any way for users of the managed Flowise Cloud product to set these server environment variables.',
+        detail:
+          'The Custom Tool docs describe the workflow explicitly: add the package under packages/components with pnpm add, run pnpm build, "then, add the imported libraries to TOOL_FUNCTION_EXTERNAL_DEP environment variable", then restart the application. TOOL_FUNCTION_BUILTIN_DEP is additive rather than a replacement: packages/components/src/utils.ts concatenates it onto a hardcoded defaultAllowBuiltInDep list (assert, buffer, crypto, events, path, querystring, timers, url, zlib), so the shipped crypto,fs value widens that base set rather than defining it; TOOL_FUNCTION_EXTERNAL_DEP is additive in the same way, layered onto a defaultAllowExternalDependencies list of axios and node-fetch. Python is not a supported code-step runtime at all, so the configurable surface is Node-only.',
+        shortValue: 'Self-hosted only: env-var allowlists plus a rebuild; no Cloud control',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/configuration/environment-variables',
+            label:
+              'Flowise Docs: Environment Variables (TOOL_FUNCTION_BUILTIN_DEP, TOOL_FUNCTION_EXTERNAL_DEP, ALLOW_BUILTIN_DEP)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
+            label: 'Flowise Docs: Custom Tool (adding external npm dependencies)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://raw.githubusercontent.com/FlowiseAI/Flowise/main/packages/server/.env.example',
+            label: 'GitHub: Flowise packages/server/.env.example (shipped dependency allowlists)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/components/src/utils.ts',
+            label:
+              'GitHub: packages/components/src/utils.ts (defaultAllowBuiltInDep, defaultAllowExternalDependencies, additive allowlists)',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes: any chatflow can be called as a REST API via /api/v1/prediction/{chatflowId}, with client code generated for Python, JavaScript, and cURL, and sessionId support for maintaining conversation context.',
@@ -752,6 +784,26 @@ export const flowiseProfile: CompetitorProfile = {
             url: 'https://docs.flowiseai.com/configuration/sso',
             label: 'Flowise Docs: SSO',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Partial: self-hosted server environment variables rather than an admin-console setting. JWT_TOKEN_EXPIRY_IN_MINUTES sets the access-token lifetime and JWT_REFRESH_TOKEN_EXPIRY_IN_MINUTES sets the refresh-token lifetime, which together bound how long a sign-in survives, and EXPIRE_AUTH_TOKENS_ON_RESTART invalidates all tokens on server restart. No idle/inactivity timeout is documented, and Flowise does not document any equivalent control for admins of the managed Flowise Cloud product.',
+        detail:
+          'The shipped .env.example sets JWT_TOKEN_EXPIRY_IN_MINUTES=360 and JWT_REFRESH_TOKEN_EXPIRY_IN_MINUTES=43200 (30 days); the Application authorization docs page instead cites defaults of 60 minutes and 129,600 minutes (90 days), so the documented default differs from the shipped one. Because these are process environment variables, changing them is a deploy-level action for the whole instance, not a per-organization policy an account admin can set from the Workspaces UI.',
+        shortValue: 'Self-hosted JWT expiry env vars; no idle timeout, no documented Cloud control',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/configuration/authorization/app-level',
+            label: 'Flowise Docs: Application authorization (JWT expiry and session variables)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://raw.githubusercontent.com/FlowiseAI/Flowise/main/packages/server/.env.example',
+            label: 'GitHub: Flowise packages/server/.env.example (shipped JWT expiry defaults)',
+            asOf: '2026-08-10',
           },
         ],
       },

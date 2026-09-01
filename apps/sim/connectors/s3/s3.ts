@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/ssrf'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
@@ -9,6 +10,7 @@ import { s3ConnectorMeta } from '@/connectors/s3/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
+  htmlToPlainText,
   isSkippedDocument,
   markSkipped,
   parseTagDate,
@@ -28,10 +30,36 @@ const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 const LIST_MAX_KEYS = 1000
 
 /**
+ * Extensions whose bytes are rendered markup rather than prose. Their content is
+ * run through {@link htmlToPlainText} before indexing so the knowledge base
+ * stores readable text instead of raw tags. `xml` is deliberately absent: its
+ * element names are meaningful search terms, and flattening would delete them.
+ */
+const MARKUP_EXTENSIONS = new Set(['html', 'htm'])
+
+/**
+ * Accepted bucket-name shape. The bucket is interpolated into the AWS
+ * virtual-hosted host (`{bucket}.s3.{region}.amazonaws.com`), so a value
+ * carrying `/`, `@`, `#`, `?` or `:` would relocate the request to an entirely
+ * different origin and ship the SigV4 `Authorization` header there. This is
+ * deliberately looser than AWS's own naming rules (S3-compatible stores are not
+ * bound by them) while still confining the value to characters that cannot
+ * escape the host component.
+ */
+const BUCKET_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{1,62}$/
+
+/** Accepted region shape — AWS region codes plus Cloudflare R2's `auto`. */
+const REGION_PATTERN = /^[A-Za-z0-9-]{1,64}$/
+
+/**
  * Default set of file extensions considered safely text-extractable. Objects
  * with any other extension (or no extension) are skipped, since their content
  * cannot be reliably decoded to plain text. Users can override this list via
  * the `extensions` config field.
+ *
+ * `rtf` is deliberately absent: there is no RTF text extractor here, so the
+ * indexed content would be the control-word source (`{\rtf1\ansi\deff0...`)
+ * rather than the document's prose.
  */
 const DEFAULT_EXTENSIONS = new Set([
   'txt',
@@ -48,7 +76,6 @@ const DEFAULT_EXTENSIONS = new Set([
   'yaml',
   'yml',
   'log',
-  'rtf',
 ])
 
 /**
@@ -194,6 +221,14 @@ function resolveContext(accessToken: string, sourceConfig: Record<string, unknow
   if (!secretAccessKey) throw new Error('Missing AWS Secret Access Key')
   if (!region) throw new Error('Missing AWS region')
   if (!bucket) throw new Error('Missing S3 bucket name')
+  if (!REGION_PATTERN.test(region)) {
+    throw new Error('Region must contain only letters, digits, and hyphens (e.g. us-east-1, auto)')
+  }
+  if (!BUCKET_PATTERN.test(bucket)) {
+    throw new Error(
+      'Bucket name must be 2-63 characters of letters, digits, dots, hyphens, or underscores'
+    )
+  }
 
   const endpoint = rawEndpoint ? parseEndpoint(rawEndpoint) : undefined
 
@@ -228,6 +263,22 @@ function resolveScheme(ctx: S3Context): string {
 function buildObjectPath(ctx: S3Context, key: string): string {
   const encodedKey = encodeS3PathComponent(key)
   return ctx.endpoint ? `/${encodeS3PathComponent(ctx.bucket)}/${encodedKey}` : `/${encodedKey}`
+}
+
+/**
+ * True when a key contains a whole `.` or `..` path segment, which this
+ * connector cannot address.
+ *
+ * The request URL is re-parsed with `new URL()` before it goes on the wire
+ * (inside `secureFetchWithValidation`), and WHATWG path normalization collapses
+ * dot segments — so the wire URI stops matching the signed canonical URI and the
+ * request resolves to a different object. Percent-encoding does not help: the
+ * URL spec matches `%2e` case-insensitively as a dot segment too, so `%2E%2E` is
+ * collapsed exactly like `..`. Such keys are therefore excluded from the listing
+ * rather than indexed against the wrong bytes.
+ */
+function hasDotSegment(key: string): boolean {
+  return key.split('/').some((segment) => segment === '.' || segment === '..')
 }
 
 /**
@@ -470,11 +521,15 @@ async function listObjectsPage(
 
   const url = buildUrl(ctx, bucketPath, canonicalQueryString)
 
-  const response = await secureFetchWithRetry(url, { method: 'GET', headers }, retryOptions)
+  const response = await secureFetchWithRetry(
+    url,
+    { profile: 'configuredEndpoint', method: 'GET', headers, stripAuthOnRedirect: true },
+    retryOptions
+  )
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(`S3 ListObjectsV2 failed: ${response.status} ${errorText}`)
+    throw new Error(`S3 ListObjectsV2 failed: ${response.status} ${truncate(errorText, 500)}`)
   }
 
   const xml = await response.text()
@@ -510,7 +565,16 @@ export const s3Connector: ConnectorConfig = {
     )
 
     const stubs = objects
-      .filter((entry) => isSupportedKey(entry.key, allowedExtensions) && entry.size > 0)
+      .filter((entry) => {
+        if (!isSupportedKey(entry.key, allowedExtensions) || entry.size <= 0) return false
+        if (hasDotSegment(entry.key)) {
+          logger.warn('Skipping S3 object whose key contains a dot path segment', {
+            key: entry.key,
+          })
+          return false
+        }
+        return true
+      })
       .map((entry) => stubOrSkipBySize(objectToStub(ctx, entry), entry.size, MAX_FILE_SIZE))
 
     const { documents, indexableCount, capReached } = takeIndexableWithinCap(
@@ -542,17 +606,31 @@ export const s3Connector: ConnectorConfig = {
     const ctx = resolveContext(accessToken, sourceConfig)
     const key = externalId
 
+    if (hasDotSegment(key)) {
+      throw new Error(`S3 key contains an unaddressable dot path segment: ${key}`)
+    }
+
     try {
       const encodedPath = buildObjectPath(ctx, key)
       const headers = buildSignedHeaders(ctx, 'GET', encodedPath, '')
       const url = buildUrl(ctx, encodedPath, '')
 
-      const response = await secureFetchWithRetry(url, { method: 'GET', headers })
+      const response = await secureFetchWithRetry(url, {
+        profile: 'configuredEndpoint',
+        method: 'GET',
+        headers,
+        stripAuthOnRedirect: true,
+      })
 
+      /**
+       * Only a deleted object (404) resolves to `null`. Every other failure is
+       * rethrown below so the sync engine records a visible failed document
+       * instead of dropping the object with no counter and no error log.
+       */
       if (response.status === 404) return null
       if (!response.ok) {
         const errorText = await response.text()
-        throw new Error(`S3 GetObject failed: ${response.status} ${errorText}`)
+        throw new Error(`S3 GetObject failed: ${response.status} ${truncate(errorText, 500)}`)
       }
 
       const etag = normalizeEtag(response.headers.get('etag') ?? '')
@@ -580,7 +658,8 @@ export const s3Connector: ConnectorConfig = {
           sizeLimitSkipReason(MAX_FILE_SIZE)
         )
       }
-      const content = body.toString('utf-8')
+      const raw = body.toString('utf-8')
+      const content = MARKUP_EXTENSIONS.has(getExtension(key)) ? htmlToPlainText(raw) : raw
       if (!content.trim()) return null
 
       const entry: S3ObjectEntry = {
@@ -594,7 +673,7 @@ export const s3Connector: ConnectorConfig = {
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
       logger.warn('Failed to get S3 object', { key, error: toError(error).message })
-      return null
+      throw toError(error)
     }
   },
 

@@ -96,6 +96,26 @@ const { mockBlockConfigs, createMockGetBlock, slackWithCanonicalParam } = vi.hoi
       ],
       inputs: { input: { type: 'any' } },
     },
+    envGatedFunction: {
+      name: 'Environment-gated Function',
+      description: 'Execute custom code',
+      category: 'code',
+      bgColor: '#9C27B0',
+      tools: {
+        access: ['function'],
+        config: { tool: () => 'function' },
+      },
+      subBlocks: [
+        { id: 'code', type: 'code', label: 'Code' },
+        {
+          id: 'language',
+          type: 'dropdown',
+          label: 'Language',
+          showWhenEnvSet: 'NEXT_PUBLIC_TEST_REMOTE_RUNTIME',
+        },
+      ],
+      inputs: { input: { type: 'any' } },
+    },
     condition: {
       name: 'Condition',
       description: 'Branch based on condition',
@@ -1447,6 +1467,29 @@ describe('Serializer Extended Tests', () => {
   })
 
   describe('edge cases with empty and null values', () => {
+    it('preserves execution parameters hidden by a presentation-only environment gate', () => {
+      const serializer = new Serializer()
+      const block: BlockState = {
+        id: 'func-python',
+        type: 'envGatedFunction',
+        name: 'Python Function',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          code: { id: 'code', type: 'code', value: 'from datetime import datetime' },
+          language: { id: 'language', type: 'dropdown', value: 'python' },
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'func-python': block }, [], {})
+
+      expect(serialized.blocks[0].config.params).toMatchObject({
+        code: 'from datetime import datetime',
+        language: 'python',
+      })
+    })
+
     it('should handle blocks with all null subBlock values', () => {
       const serializer = new Serializer()
       const block: BlockState = {

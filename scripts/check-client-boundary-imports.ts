@@ -1,6 +1,25 @@
 #!/usr/bin/env bun
 /**
- * Guards against the Next.js `'use client'` server-import foot-gun.
+ * Guards the two Next.js boundary directives: `'use client'` imports and any
+ * `'use server'` module.
+ *
+ * ## `'use server'`
+ *
+ * A single `'use server'` module anywhere in the graph flips Next's
+ * `hasServerActions()` to true, which removes the early 404 for Server Action
+ * requests. Next classifies a request as a Server Action from HEADERS ALONE —
+ * no body inspection, no auth — so once actions exist, ANY unauthenticated
+ * `POST` with `Content-Type: multipart/form-data` to ANY App Router path takes
+ * the non-fetch action path, which bare-`throw`s and surfaces as an HTTP 500.
+ * A trickle of such requests is enough to trip the ALB 5xx alarm. Every export
+ * of a `'use server'` module is also a remotely invocable, unauthenticated
+ * endpoint.
+ *
+ * Sim has no Server Actions — server-only modules use the `.server.ts` suffix
+ * and are called directly from route handlers. If you genuinely need a Server
+ * Action, remove this check deliberately and wrap every export in auth.
+ *
+ * ## `'use client'`
  *
  * Next.js rewrites EVERY export of a `'use client'` module into a client
  * reference in the server bundle. Server-evaluated code can only *render* such
@@ -36,6 +55,8 @@ import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const APP_DIR = path.join(ROOT, 'apps/sim')
+/** Everything Next compiles into the app's module graph. */
+const DIRECTIVE_SCAN_DIRS = [path.join(ROOT, 'apps'), path.join(ROOT, 'packages')]
 
 /** Server-evaluated, non-JSX surfaces. A file matches if its path passes one. */
 function isServerSurface(rel: string): boolean {
@@ -69,30 +90,65 @@ async function listFiles(dir: string): Promise<string[]> {
   return out
 }
 
-const useClientCache = new Map<string, boolean>()
+/**
+ * Drops a trailing `//` or `/* *\/` comment from an already-trimmed line. A
+ * directive keeps its meaning when a note follows it on the same line, so the
+ * comment has to come off before the directive is matched.
+ */
+function stripTrailingComment(line: string): string {
+  return line.replace(/(?:\/\/.*|\/\*.*?\*\/)\s*$/, '').trim()
+}
 
-async function isUseClientModule(absFile: string): Promise<boolean> {
-  const cached = useClientCache.get(absFile)
-  if (cached !== undefined) return cached
-  let content: string
-  try {
-    content = await readFile(absFile, 'utf8')
-  } catch {
-    useClientCache.set(absFile, false)
-    return false
-  }
-  // The directive must be the first statement (comments/blank lines may precede it).
-  let isClient = false
+/** A lone directive statement, e.g. `'use server'` or `"use client";`. */
+const DIRECTIVE_STATEMENT = /^(['"])(use [a-z-]+)\1\s*;?$/
+
+/**
+ * Returns the module's leading directive prologue string, if any. A directive
+ * must be the first statement; comments and blank lines may precede it.
+ */
+function leadingDirective(content: string): string | null {
   for (const raw of content.split('\n')) {
     const line = raw.trim()
     if (line === '' || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
       continue
     }
-    isClient = line === "'use client'" || line === '"use client"'
-    break
+    const match = DIRECTIVE_STATEMENT.exec(stripTrailingComment(line))
+    return match ? match[2] : null
   }
+  return null
+}
+
+const useClientCache = new Map<string, boolean>()
+
+async function isUseClientModule(absFile: string): Promise<boolean> {
+  const cached = useClientCache.get(absFile)
+  if (cached !== undefined) return cached
+  let isClient = false
+  try {
+    isClient = leadingDirective(await readFile(absFile, 'utf8')) === 'use client'
+  } catch {}
   useClientCache.set(absFile, isClient)
   return isClient
+}
+
+/**
+ * Locations declaring `'use server'` — module prologue or inline in a function
+ * body. Either form registers Server Actions app-wide.
+ */
+async function findUseServerDirectives(): Promise<string[]> {
+  const found: string[] = []
+  for (const dir of DIRECTIVE_SCAN_DIRS) {
+    for (const absFile of await listFiles(dir)) {
+      const lines = (await readFile(absFile, 'utf8')).split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        const match = DIRECTIVE_STATEMENT.exec(stripTrailingComment(lines[i].trim()))
+        if (match?.[2] === 'use server') {
+          found.push(`${path.relative(ROOT, absFile)}:${i + 1}`)
+        }
+      }
+    }
+  }
+  return found
 }
 
 /** Resolve an import specifier to an absolute source file, or null if external/unresolved. */
@@ -188,6 +244,22 @@ interface Violation {
 
 async function main() {
   const checkMode = process.argv.includes('--check')
+  let failed = false
+
+  const serverDirectives = await findUseServerDirectives()
+  if (serverDirectives.length === 0) {
+    console.log("✓ No 'use server' directives (Server Actions stay disabled).")
+  } else {
+    failed = true
+    console.error(
+      `\n✗ ${serverDirectives.length} 'use server' directive(s) found.\n` +
+        `  These enable Next's Server Action handling app-wide, which turns any unauthenticated\n` +
+        `  multipart/form-data POST to any App Router path into a 500, and exposes every export\n` +
+        `  as an unauthenticated endpoint. Use a '.server.ts' module called from a route handler.\n`
+    )
+    for (const location of serverDirectives) console.error(`  ${location}`)
+  }
+
   const allFiles = await listFiles(APP_DIR)
   const violations: Violation[] = []
 
@@ -212,19 +284,20 @@ async function main() {
     console.log(
       "✓ Client-boundary import check passed (no server file imports a value from a 'use client' module)."
     )
-    return
+  } else {
+    failed = true
+    console.error(
+      `\n✗ ${violations.length} server file(s) import a runtime value from a 'use client' module.\n` +
+        `  On the server these resolve to client-reference stubs and throw when called (e.g. 'X.list is not a function').\n` +
+        `  Move the imported factory/fetcher/constant into a non-'use client' module (hooks/queries/utils/*-keys.ts or fetch-*.ts).\n` +
+        `  See .claude/rules/sim-queries.md. Escape hatch: // ${ALLOW_DIRECTIVE}: <reason> above the import.\n`
+    )
+    for (const v of violations) {
+      console.error(`  ${v.file}:${v.line}  imports from '${v.specifier}'`)
+    }
   }
 
-  console.error(
-    `\n✗ ${violations.length} server file(s) import a runtime value from a 'use client' module.\n` +
-      `  On the server these resolve to client-reference stubs and throw when called (e.g. 'X.list is not a function').\n` +
-      `  Move the imported factory/fetcher/constant into a non-'use client' module (hooks/queries/utils/*-keys.ts or fetch-*.ts).\n` +
-      `  See .claude/rules/sim-queries.md. Escape hatch: // ${ALLOW_DIRECTIVE}: <reason> above the import.\n`
-  )
-  for (const v of violations) {
-    console.error(`  ${v.file}:${v.line}  imports from '${v.specifier}'`)
-  }
-  if (checkMode) process.exit(1)
+  if (failed && checkMode) process.exit(1)
 }
 
 main().catch((error) => {

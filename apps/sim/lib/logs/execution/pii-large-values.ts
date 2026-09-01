@@ -13,7 +13,7 @@ import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/la
 import {
   MAX_DURABLE_LARGE_VALUE_BYTES,
   MAX_INLINE_MATERIALIZATION_BYTES,
-} from '@/lib/execution/payloads/materialization.server'
+} from '@/lib/execution/payloads/limits'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'

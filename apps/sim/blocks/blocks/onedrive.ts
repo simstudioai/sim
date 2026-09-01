@@ -9,6 +9,28 @@ import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
 
 const logger = createLogger('OneDriveBlock')
 
+const UPLOAD_FILE_FIELD = ['file', 'fileReference'] as const
+const UPLOAD_FOLDER_FIELD = ['uploadFolderSelector', 'uploadManualFolderId'] as const
+const CREATE_FOLDER_PARENT_FIELD = [
+  'createFolderParentSelector',
+  'createFolderManualParentId',
+] as const
+const LIST_FOLDER_FIELD = ['listFolderSelector', 'listManualFolderId'] as const
+const GET_ITEM_FIELD = ['getItemFileSelector', 'getItemManualFileId'] as const
+const DOWNLOAD_FILE_FIELD = ['downloadFileSelector', 'downloadManualFileId'] as const
+const MOVE_FILE_FIELD = ['moveFileSelector', 'moveManualFileId'] as const
+const MOVE_DESTINATION_FIELD = [
+  'moveDestinationFolderSelector',
+  'moveDestinationManualFolderId',
+] as const
+const COPY_FILE_FIELD = ['copyFileSelector', 'copyManualFileId'] as const
+const COPY_DESTINATION_FIELD = [
+  'copyDestinationFolderSelector',
+  'copyDestinationManualFolderId',
+] as const
+const SHARE_FILE_FIELD = ['shareLinkFileSelector', 'shareLinkManualFileId'] as const
+const DELETE_FILE_FIELD = ['deleteFileSelector', 'deleteManualFileId'] as const
+
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   type: 'onedrive',
   name: 'OneDrive',
@@ -21,6 +43,58 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: MicrosoftOneDriveIcon,
+  canvasPresentation: {
+    defaultTitle: 'OneDrive',
+    sentences: {
+      byOperation: {
+        create_folder: [
+          { text: 'Create folder', field: 'folderName', core: true },
+          { text: 'in', field: CREATE_FOLDER_PARENT_FIELD },
+        ],
+        create_file: [
+          { text: 'Create file', field: 'fileName', core: true },
+          { text: 'in', field: UPLOAD_FOLDER_FIELD },
+        ],
+        upload: [
+          { text: 'Upload', field: UPLOAD_FILE_FIELD, core: true },
+          { text: 'to', field: UPLOAD_FOLDER_FIELD },
+        ],
+        download: [
+          { text: 'Download', field: DOWNLOAD_FILE_FIELD, core: true },
+          { text: ', saved as', field: 'downloadFileName' },
+        ],
+        list: [
+          'List files and folders',
+          { text: 'in', field: LIST_FOLDER_FIELD },
+          { text: ', matching', field: 'query' },
+        ],
+        search: ['Search every folder', { text: 'for', field: 'query' }],
+        get_item: [
+          {
+            text: 'Read metadata for',
+            field: GET_ITEM_FIELD,
+            core: true,
+          },
+        ],
+        get_drive_info: ['Read drive details and storage quota'],
+        move: [
+          { text: 'Move', field: MOVE_FILE_FIELD, core: true },
+          { text: 'into', field: MOVE_DESTINATION_FIELD },
+          { text: ', renamed to', field: 'newName' },
+        ],
+        copy: [
+          { text: 'Copy', field: COPY_FILE_FIELD, core: true },
+          { text: 'into', field: COPY_DESTINATION_FIELD },
+          { text: ', named', field: 'destinationFileName' },
+        ],
+        create_share_link: [
+          { text: 'Share', field: SHARE_FILE_FIELD, core: true },
+          { text: 'with a link set to', field: 'linkType' },
+        ],
+        delete: [{ text: 'Delete', field: DELETE_FILE_FIELD, core: true }],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {
@@ -41,6 +115,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         { label: 'Create Sharing Link', id: 'create_share_link' },
         { label: 'Delete File', id: 'delete' },
       ],
+      value: () => 'list',
     },
     // One Drive Credentials
     {
@@ -315,6 +390,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     {
       id: 'moveFileSelector',
       title: 'Select File or Folder to Move',
+      canvasNoun: 'a file or folder',
       type: 'file-selector',
       canonicalParamId: 'moveFileId',
       serviceId: 'onedrive',
@@ -371,6 +447,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     {
       id: 'copyFileSelector',
       title: 'Select File or Folder to Copy',
+      canvasNoun: 'a file or folder',
       type: 'file-selector',
       canonicalParamId: 'copyFileId',
       serviceId: 'onedrive',
@@ -429,6 +506,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     {
       id: 'shareLinkFileSelector',
       title: 'Select File or Folder to Share',
+      canvasNoun: 'a file or folder',
       type: 'file-selector',
       canonicalParamId: 'shareLinkFileId',
       serviceId: 'onedrive',
@@ -479,6 +557,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     {
       id: 'deleteFileSelector',
       title: 'Select File to Delete',
+      canvasNoun: 'a file',
       type: 'file-selector',
       canonicalParamId: 'deleteFileId',
       serviceId: 'onedrive',

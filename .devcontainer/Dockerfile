@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.13-alpine
+FROM oven/bun:1.3.14-alpine
 
 # Install necessary packages for development
 RUN apk add --no-cache \

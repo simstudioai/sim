@@ -1,19 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ChipConfirmModal, ChipInput, Label, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import {
   MAX_SESSION_POLICY_HOURS,
   MIN_IDLE_TIMEOUT_HOURS,
   MIN_SESSION_LIFETIME_HOURS,
 } from '@/lib/api/contracts/organization'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import {
+  type SessionPolicyResponse,
   useOrganizationSessionPolicy,
   useRevokeOrganizationSessions,
   useUpdateOrganizationSessionPolicy,
@@ -39,13 +40,11 @@ function HourField({ id, title, hint, value, onChange }: HourFieldProps) {
       </Label>
       <ChipInput
         id={id}
-        type='number'
         inputMode='numeric'
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder='No limit'
         className='w-[220px]'
-        inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
       />
       <p className='text-[var(--text-muted)] text-caption'>{hint}</p>
     </div>
@@ -58,52 +57,26 @@ function parseHours(value: string): number | null {
   return Number.isInteger(parsed) ? parsed : Number.NaN
 }
 
-export function SessionPolicySettings({ organizationId }: SessionPolicySettingsProps) {
-  const { data, isLoading } = useOrganizationSessionPolicy(organizationId)
+interface SessionPolicyFormProps extends SessionPolicySettingsProps {
+  initialData: SessionPolicyResponse
+}
+
+function SessionPolicyForm({ organizationId, initialData }: SessionPolicyFormProps) {
   const updatePolicy = useUpdateOrganizationSessionPolicy()
   const revokeSessions = useRevokeOrganizationSessions()
 
-  const [maxSessionHours, setMaxSessionHours] = useState('')
-  const [idleTimeoutHours, setIdleTimeoutHours] = useState('')
-  const [savedMaxSessionHours, setSavedMaxSessionHours] = useState('')
-  const [savedIdleTimeoutHours, setSavedIdleTimeoutHours] = useState('')
+  const initialMaxSessionHours = initialData.configured.maxSessionHours?.toString() ?? ''
+  const initialIdleTimeoutHours = initialData.configured.idleTimeoutHours?.toString() ?? ''
+  const [maxSessionHours, setMaxSessionHours] = useState(initialMaxSessionHours)
+  const [idleTimeoutHours, setIdleTimeoutHours] = useState(initialIdleTimeoutHours)
+  const [savedMaxSessionHours, setSavedMaxSessionHours] = useState(initialMaxSessionHours)
+  const [savedIdleTimeoutHours, setSavedIdleTimeoutHours] = useState(initialIdleTimeoutHours)
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false)
-  const [formInitialized, setFormInitialized] = useState(false)
-
-  useEffect(() => {
-    if (!data || formInitialized) return
-    const max = data.configured.maxSessionHours?.toString() ?? ''
-    const idle = data.configured.idleTimeoutHours?.toString() ?? ''
-    setMaxSessionHours(max)
-    setIdleTimeoutHours(idle)
-    setSavedMaxSessionHours(max)
-    setSavedIdleTimeoutHours(idle)
-    setFormInitialized(true)
-  }, [data, formInitialized])
 
   const hasChanges =
-    formInitialized &&
-    (maxSessionHours !== savedMaxSessionHours || idleTimeoutHours !== savedIdleTimeoutHours)
+    maxSessionHours !== savedMaxSessionHours || idleTimeoutHours !== savedIdleTimeoutHours
 
   useSettingsUnsavedGuard({ isDirty: hasChanges })
-
-  if (isLoading) {
-    return (
-      <SettingsPanel>
-        <SettingsEmptyState>Loading session policy...</SettingsEmptyState>
-      </SettingsPanel>
-    )
-  }
-
-  if (isBillingEnabled && data && !data.isEnterprise) {
-    return (
-      <SettingsPanel>
-        <SettingsEmptyState>
-          Session policies are available on Enterprise plans only.
-        </SettingsEmptyState>
-      </SettingsPanel>
-    )
-  }
 
   async function handleSave() {
     const max = parseHours(maxSessionHours)
@@ -162,23 +135,35 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
     }
   }
 
+  const actions = [
+    {
+      id: 'revoke-sessions',
+      text: 'Sign out all members',
+      variant: 'destructive' as const,
+      onSelect: () => setShowRevokeConfirm(true),
+      disabled: false,
+    },
+    ...saveDiscardActions({
+      dirty: hasChanges,
+      saving: updatePolicy.isPending,
+      onSave: handleSave,
+      onDiscard: handleDiscard,
+    }),
+  ]
+
+  if (isBillingEnabled && !initialData.isEnterprise) {
+    return (
+      <SettingsPanel>
+        <SettingsEmptyState>
+          Session policies are available on Enterprise plans only.
+        </SettingsEmptyState>
+      </SettingsPanel>
+    )
+  }
+
   return (
     <>
-      <SettingsPanel
-        actions={[
-          {
-            text: 'Sign out all members',
-            variant: 'destructive',
-            onSelect: () => setShowRevokeConfirm(true),
-          },
-          ...saveDiscardActions({
-            dirty: hasChanges,
-            saving: updatePolicy.isPending,
-            onSave: handleSave,
-            onDiscard: handleDiscard,
-          }),
-        ]}
-      >
+      <SettingsPanel actions={actions}>
         <div className='flex flex-col gap-7'>
           <HourField
             id='max-session-hours'
@@ -211,5 +196,48 @@ export function SessionPolicySettings({ organizationId }: SessionPolicySettingsP
         }}
       />
     </>
+  )
+}
+
+export function SessionPolicySettings({ organizationId }: SessionPolicySettingsProps) {
+  const { data, error, isLoading } = useOrganizationSessionPolicy(organizationId)
+
+  if (isLoading) {
+    return (
+      <SettingsPanel
+        actions={[
+          {
+            id: 'revoke-sessions',
+            text: 'Sign out all members',
+            variant: 'destructive',
+            disabled: true,
+            onSelect: () => undefined,
+          },
+          ...saveDiscardActions({
+            dirty: false,
+            saving: false,
+            saveDisabled: true,
+            onSave: () => undefined,
+            onDiscard: () => undefined,
+          }),
+        ]}
+      >
+        <SettingsEmptyState>Loading session policy...</SettingsEmptyState>
+      </SettingsPanel>
+    )
+  }
+
+  if (!data) {
+    return (
+      <SettingsPanel>
+        <SettingsEmptyState tone='error'>
+          {getErrorMessage(error, 'Failed to load session policy')}
+        </SettingsEmptyState>
+      </SettingsPanel>
+    )
+  }
+
+  return (
+    <SessionPolicyForm key={organizationId} organizationId={organizationId} initialData={data} />
   )
 }

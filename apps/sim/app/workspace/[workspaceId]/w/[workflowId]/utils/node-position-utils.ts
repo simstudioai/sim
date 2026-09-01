@@ -1,28 +1,40 @@
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import { showsCanvasErrorRow } from '@/lib/workflows/blocks/canvas-rows'
+import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getBlock } from '@/blocks/registry'
 
 /**
- * Estimates block dimensions based on block type.
- * Uses subblock count to estimate height for blocks that haven't been measured yet.
+ * Estimates block dimensions for a block that has not been measured yet, from
+ * its type alone — the caller has no subblock values to work from, so the row
+ * count is a guess bounded to a plausible range.
+ *
+ * Routed through {@link calculateWorkflowBlockDimensions} rather than summing
+ * rows locally: that function owns the section gaps, the error-row height, and
+ * the painted floor, and a second copy of the arithmetic here drifted from it
+ * the moment any of those changed.
  *
  * @param blockType - The type of block (e.g., 'condition', 'agent')
  * @returns Estimated width and height for the block
  */
 export function estimateBlockDimensions(blockType: string): { width: number; height: number } {
+  if (blockType === 'note') {
+    return {
+      width: BLOCK_DIMENSIONS.NOTE_WIDTH,
+      height: getNoteBlockHeight(true),
+    }
+  }
+
   const blockConfig = getBlock(blockType)
   const subBlockCount = blockConfig?.subBlocks?.length ?? 3
   const estimatedRows = Math.max(3, Math.min(Math.ceil(subBlockCount / 2), 7))
-  const hasErrorRow = blockType !== 'starter' && blockType !== 'response' ? 1 : 0
 
-  const height =
-    BLOCK_DIMENSIONS.HEADER_HEIGHT +
-    BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
-    (estimatedRows + hasErrorRow) * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT
-
-  return {
-    width: BLOCK_DIMENSIONS.FIXED_WIDTH,
-    height: Math.max(height, BLOCK_DIMENSIONS.MIN_HEIGHT),
-  }
+  return calculateWorkflowBlockDimensions({
+    blockType,
+    visibleSubBlockCount: estimatedRows,
+    hasErrorRow: blockConfig
+      ? showsCanvasErrorRow(blockConfig, blockType, false)
+      : blockType !== 'starter' && blockType !== 'response',
+  })
 }
 
 /**
@@ -58,6 +70,15 @@ export function clampPositionToContainer(
  * Single source of truth for container sizing - ensures consistency between
  * live drag updates and final dimension calculations.
  *
+ * Child coordinates are relative to the container's own origin — React Flow
+ * places a child at the parent's origin plus its position, and
+ * {@link clampPositionToContainer} keeps them clear of the chrome by flooring
+ * them at `LEFT_PADDING` and `HEADER_HEIGHT + TOP_PADDING`. A child's far edge
+ * is therefore already the distance the container has to cover, and only the
+ * trailing padding is owed on top. Adding the header and leading padding here
+ * as well counted them twice, leaving every container 66px taller and 16px
+ * wider than its contents.
+ *
  * @param childPositions - Array of child positions with their dimensions
  * @returns Calculated width and height for the container
  */
@@ -81,14 +102,11 @@ export function calculateContainerDimensions(
 
   const width = Math.max(
     CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-    CONTAINER_DIMENSIONS.LEFT_PADDING + maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
+    maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
   )
   const height = Math.max(
     CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-    CONTAINER_DIMENSIONS.HEADER_HEIGHT +
-      CONTAINER_DIMENSIONS.TOP_PADDING +
-      maxBottom +
-      CONTAINER_DIMENSIONS.BOTTOM_PADDING
+    maxBottom + CONTAINER_DIMENSIONS.BOTTOM_PADDING
   )
 
   return { width, height }

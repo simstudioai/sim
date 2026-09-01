@@ -19,9 +19,10 @@
 import { defaultBuildLogger, Template, waitForTimeout } from '@e2b/code-interpreter'
 import {
   PI_APT,
+  PI_BUN_VERSION_ASSERT,
+  PI_GLOBAL_NPM_PACKAGES,
   PI_NODE_MAJOR,
   PI_NODE_VERSION_ASSERT,
-  PI_NPM,
   PI_SANDBOX_CPU_COUNT,
   PI_SANDBOX_MEMORY_MB,
 } from '@/scripts/pi-sandbox-packages'
@@ -38,7 +39,8 @@ const piTemplate = Template()
   .fromTemplate('code-interpreter-v1')
   .runCmd(INSTALL_NODE_COMMAND, { user: 'root' })
   .aptInstall([...PI_APT])
-  .npmInstall([...PI_NPM], { g: true })
+  .npmInstall([...PI_GLOBAL_NPM_PACKAGES], { g: true })
+  .runCmd(PI_BUN_VERSION_ASSERT, { user: 'root' })
   .setStartCmd(START_COMMAND, waitForTimeout(1_000))
 
 async function main() {

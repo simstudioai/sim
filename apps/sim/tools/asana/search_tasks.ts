@@ -1,7 +1,10 @@
 import type { AsanaSearchTasksParams, AsanaSearchTasksResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaSearchTasksTool: ToolConfig<AsanaSearchTasksParams, AsanaSearchTasksResponse> = {
+export const asanaSearchTasksTool: InternalToolConfig<
+  AsanaSearchTasksParams,
+  AsanaSearchTasksResponse
+> = {
   id: 'asana_search_tasks',
   name: 'Asana Search Tasks',
   description: 'Search for tasks in an Asana workspace',
@@ -51,13 +54,8 @@ export const asanaSearchTasksTool: ToolConfig<AsanaSearchTasksParams, AsanaSearc
     },
   },
 
-  request: {
-    url: '/api/tools/asana/search-tasks',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       workspace: params.workspace,
       text: params.text,

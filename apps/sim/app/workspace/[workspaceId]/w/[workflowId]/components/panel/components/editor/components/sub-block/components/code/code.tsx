@@ -10,8 +10,8 @@ import {
   highlight,
   languages,
 } from '@sim/emcn'
+import { Check, Wand } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { Check, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,10 @@ import {
   getValidWorkflowSearchRange,
   type WorkflowSearchTextHighlight,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import {
   checkTagTrigger,
   TagDropdown,
@@ -56,20 +60,60 @@ const logger = createLogger('Code')
  * Default AI prompt for Python code generation.
  */
 const PYTHON_AI_PROMPT = `You are an expert Python programmer.
-Generate ONLY the raw body of a Python function based on the user's request.
-The code should be executable within a Python function body context.
+Generate ONLY raw Python source based on the user's request.
+The source runs as a module with __name__ set to '__main__'.
 - 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
 - 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use os.environ or env.
 
 Current code context: {context}
 
 IMPORTANT FORMATTING RULES:
-1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes.
+1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. When the placeholder is the complete expression, prefer the unquoted form (for example, 'api_key = {{API_KEY}}'). Quoted and embedded string forms are also supported. Sim binds the resolved value separately from the source at execution time, preserving its exact string contents.
 2. Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes.
-3. Function Body ONLY: Do NOT include the function signature (e.g., 'def my_func(...)') or surrounding braces. Return the final value with 'return'.
-4. Imports: You may add imports as needed (standard library or pip-installed packages) without comments.
+3. Module Source: You may define functions and classes and use an if __name__ == '__main__' guard. Assign the final structured value to __sim_result__. A top-level return is supported only for backward-compatible legacy snippets.
+4. Imports: The Python standard library is always available. Third-party packages are available ONLY when the block has a sandbox selected — the sandbox's package list is appended below when one is. Never import a package that is not on that list.
 5. No Markdown: Do NOT include backticks, code fences, or any markdown.
-6. Clarity: Write clean, readable Python code.`
+6. Clarity: Write clean, readable Python code.
+7. No Explanations: Output the raw Python code only — no prose before or after it.
+
+Example Scenario:
+User Prompt: "Fetch user data from an API. Use the User ID passed in as 'userId' and an API Key stored as the 'SERVICE_API_KEY' environment variable."
+
+Generated Code:
+import json
+import urllib.error
+import urllib.request
+
+user_id = <userId>  # Correct: accessing an input parameter without quotes
+api_key = {{SERVICE_API_KEY}}  # Correct: accessing an environment variable without quotes
+url = f"https://api.example.com/users/{user_id}"
+
+request = urllib.request.Request(url, headers={"Authorization": f"Bearer {api_key}"})
+
+try:
+    with urllib.request.urlopen(request) as response:
+        # Assign the fetched data, which becomes the block's output
+        __sim_result__ = json.loads(response.read().decode())
+except urllib.error.HTTPError as error:
+    # Raising marks the block execution as failed
+    raise Exception(f"API request failed with status {error.code}: {error.read().decode()}")`
+
+const SHELL_AI_PROMPT = `You are an expert Bash programmer.
+Generate ONLY the raw Bash script based on the user's request.
+- Input parameters and workflow values use angle-bracket references such as <paramName>.
+- Environment variables use double curly braces such as {{ENV_VAR_NAME}}.
+
+Current code context: {context}
+
+IMPORTANT FORMATTING RULES:
+1. Reference environment variables with the exact {{VARIABLE_NAME}} syntax. For a complete argument, prefer the unquoted placeholder; quoted and embedded forms are also supported. Sim supplies the exact value through a runtime environment binding instead of inserting it into the script source.
+2. Reference input parameters and workflow variables with the exact <variable_name> syntax.
+3. Return only executable shell commands. Do not include markdown or code fences.
+4. Use set -euo pipefail when it is safe for the requested script.
+5. Only use commands available in the default image or the selected sandbox's CLI tools.
+6. To return a typed result, print exactly one line prefixed with __SIM_RESULT__= followed by JSON. Keep ordinary command output in stdout.
+7. A placeholder inside a quoted heredoc such as <<'EOF' is supported without enabling unrelated $VAR, backtick, or command substitutions in that heredoc.
+8. Write clean, readable Bash.`
 
 /**
  * Line height constant for consistent rendering.
@@ -98,6 +142,21 @@ const escapeHtml = (value: string): string =>
     .replaceAll("'", '&#39;')
 
 /**
+ * Highlighter that conceals the editor's contents.
+ *
+ * @remarks
+ * `react-simple-code-editor` paints its textarea with a transparent text fill
+ * and shows the markup returned by its `highlight` prop instead, so swapping the
+ * highlighter is what actually hides a secret — the textarea's own value is
+ * never visible.
+ *
+ * @param codeToHighlight - The plaintext editor contents
+ * @returns Escaped markup with every character replaced by a mask glyph
+ */
+export const highlightMaskedCode = (codeToHighlight: string): string =>
+  escapeHtml(maskSecretText(codeToHighlight))
+
+/**
  * Type definition for code placeholders during syntax highlighting.
  */
 interface CodePlaceholder {
@@ -114,7 +173,7 @@ interface CodePlaceholder {
  * @returns A function that highlights code with syntax and custom highlights
  */
 const createHighlightFunction = (
-  effectiveLanguage: 'javascript' | 'python' | 'json',
+  effectiveLanguage: 'javascript' | 'python' | 'json' | 'shell',
   shouldHighlightReference: (part: string) => boolean,
   shouldHighlightEnvVar: (varName: string) => boolean,
   workflowSearchHighlight?: WorkflowSearchTextHighlight | null
@@ -150,7 +209,12 @@ const createHighlightFunction = (
       return match
     })
 
-    const lang = effectiveLanguage === 'python' ? 'python' : 'javascript'
+    const lang =
+      effectiveLanguage === 'python'
+        ? 'python'
+        : effectiveLanguage === 'shell'
+          ? 'bash'
+          : 'javascript'
     let highlightedCode = highlight(processedCode, languages[lang], lang)
 
     highlightedCode = applyDarkModeTokenStyling(highlightedCode)
@@ -189,7 +253,9 @@ interface CodeProps {
   blockId: string
   subBlockId: string
   placeholder?: string
-  language?: 'javascript' | 'json' | 'python'
+  /** Whether to conceal the value except while the editor is focused */
+  password?: boolean
+  language?: 'javascript' | 'json' | 'python' | 'shell'
   generationType?: GenerationType
   value?: string
   isPreview?: boolean
@@ -218,6 +284,7 @@ export const Code = memo(function Code({
   blockId,
   subBlockId,
   placeholder = 'Write JavaScript...',
+  password = false,
   language = 'javascript',
   generationType = 'javascript-function-body',
   value: propValue,
@@ -245,6 +312,7 @@ export const Code = memo(function Code({
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
   const [activeLineNumber, setActiveLineNumber] = useState(1)
   const [copied, setCopied] = useState(false)
+  const [isFocused, setIsFocused] = useState(false)
 
   const editorRef = useRef<HTMLDivElement>(null)
   const handleStreamStartRef = useRef<() => void>(() => {})
@@ -261,7 +329,8 @@ export const Code = memo(function Code({
     useCallback((state) => state.blocks?.[blockId]?.type, [blockId])
   )
 
-  const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
+  const effectiveLanguage =
+    (languageValue as 'javascript' | 'python' | 'json' | 'shell') || language
   const isFunctionCode = blockType === 'function' && subBlockId === 'code'
 
   const trimmedCode = code.trim()
@@ -306,6 +375,9 @@ export const Code = memo(function Code({
     if (languageValue === CodeLanguage.Python) {
       return 'Write Python...'
     }
+    if (languageValue === CodeLanguage.Shell) {
+      return 'Write shell commands...'
+    }
     return placeholder
   }, [languageValue, placeholder])
 
@@ -314,20 +386,32 @@ export const Code = memo(function Code({
       return {
         ...wandConfig,
         prompt: PYTHON_AI_PROMPT,
-        placeholder: 'Describe the Python function you want to create...',
+        placeholder: 'Describe the Python script you want to create...',
+      }
+    }
+    if (languageValue === CodeLanguage.Shell) {
+      return {
+        ...wandConfig,
+        prompt: SHELL_AI_PROMPT,
+        placeholder: 'Describe the shell commands you want to run...',
       }
     }
     return wandConfig
   }, [wandConfig, languageValue])
 
   const [tableIdValue] = useSubBlockValue<string>(blockId, 'tableId')
+  const [sandboxIdValue] = useSubBlockValue<string>(blockId, 'sandboxId')
 
   const wandHook = useWand({
     wandConfig: dynamicWandConfig || { enabled: false, prompt: '' },
     currentValue: code,
     contextParams: {
       tableId: typeof tableIdValue === 'string' ? tableIdValue : null,
+      sandboxId: typeof sandboxIdValue === 'string' ? sandboxIdValue : null,
     },
+    // Keyed off the same value that swaps the prompt below, so history from the
+    // previous language cannot steer the next generation back to it.
+    historyResetKey: typeof languageValue === 'string' ? languageValue : undefined,
     onStreamStart: () => handleStreamStartRef.current?.(),
     onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
     onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
@@ -682,6 +766,8 @@ export const Code = memo(function Code({
     valuePath: [],
   })
 
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
+
   const highlightCode = useMemo(
     () =>
       createHighlightFunction(
@@ -751,6 +837,7 @@ export const Code = memo(function Code({
   )
 
   const handleEditorFocus = useCallback(() => {
+    setIsFocused(true)
     startSession(codeRef.current)
     if (!isPreview && !disabled && !readOnly && codeRef.current.trim() === '') {
       setShowTags(true)
@@ -759,6 +846,7 @@ export const Code = memo(function Code({
   }, [disabled, isPreview, readOnly, startSession])
 
   const handleEditorBlur = useCallback(() => {
+    setIsFocused(false)
     flushPending()
   }, [flushPending])
 
@@ -863,7 +951,7 @@ export const Code = memo(function Code({
                 aria-label='Generate code with AI'
                 className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
               >
-                <Wand2 className='size-4' />
+                <Wand className='size-4' />
               </Button>
             )}
         </div>
@@ -881,7 +969,7 @@ export const Code = memo(function Code({
             onKeyDown={handleKeyDown}
             onFocus={handleEditorFocus}
             onBlur={handleEditorBlur}
-            highlight={highlightCode}
+            highlight={shouldMask ? highlightMaskedCode : highlightCode}
             {...getCodeEditorProps({ isStreaming: isAiStreaming, isPreview, disabled })}
           />
 

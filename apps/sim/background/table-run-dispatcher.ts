@@ -17,13 +17,18 @@ export interface TableRunDispatcherPayload {
  * dispatcher loop for the dispatch's entire lifetime — each iteration
  * processes a window of cells via `batchTriggerAndWait`, which checkpoints
  * the parent via CRIU during the wait so we don't pay compute while cells
- * execute. The cursor is persisted in DB; if this run crashes, trigger.dev
- * retries and the next attempt resumes from the persisted cursor.
+ * execute. The cursor is persisted in DB between windows.
  */
 export const tableRunDispatcherTask = task({
   id: 'table-run-dispatcher',
-  machine: 'small-1x',
-  retry: { maxAttempts: 3 },
+  /**
+   * Memory, not CPU. Peak RSS sits at a flat 457-464 MB plateau regardless of
+   * run length (10x the duration moves it ~4 MB), and it has crept ~2% per
+   * release for a month — 446 MB in late July to 545 MB, past the 512 MiB
+   * `small-1x` ceiling. Meanwhile CPU utilization peaks at 0.19 and sits at
+   * 0.03 for p90, so the larger preset is bought for its RAM.
+   */
+  machine: 'small-2x',
   queue: {
     name: 'table-run-dispatcher',
     concurrencyLimit: 8,

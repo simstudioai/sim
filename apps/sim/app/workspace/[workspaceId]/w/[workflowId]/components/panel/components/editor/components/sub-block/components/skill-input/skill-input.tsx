@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { Combobox, type ComboboxOptionGroup } from '@sim/emcn'
-import { Plus, XIcon } from 'lucide-react'
+import { Plus, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { AgentSkillsIcon } from '@/components/icons'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
@@ -44,12 +44,17 @@ export function SkillInput({
   const [editingSkillId, setEditingSkillId] = useState<string | null>(null)
   const [editingSkillSnapshot, setEditingSkillSnapshot] = useState<SkillDefinition | null>(null)
 
+  const skillsById = useMemo(
+    () => new Map(workspaceSkills.map((skill) => [skill.id, skill])),
+    [workspaceSkills]
+  )
+
   // Prefer the live query cache so the modal reflects concurrent edits, but
   // fall back to the click-time snapshot when a background refetch drops the
   // skill — otherwise the modal would close mid-edit and silently discard the
   // draft; saving surfaces the real server error instead.
   const editingSkill = editingSkillId
-    ? (workspaceSkills.find((s) => s.id === editingSkillId) ?? editingSkillSnapshot)
+    ? (skillsById.get(editingSkillId) ?? editingSkillSnapshot)
     : null
 
   const selectedSkills: StoredSkill[] = useMemo(() => {
@@ -119,10 +124,10 @@ export function SkillInput({
 
   const resolveSkillName = useCallback(
     (stored: StoredSkill): string => {
-      const found = workspaceSkills.find((s) => s.id === stored.skillId)
+      const found = skillsById.get(stored.skillId)
       return found?.name ?? stored.name ?? stored.skillId
     },
-    [workspaceSkills]
+    [skillsById]
   )
 
   return (
@@ -141,7 +146,7 @@ export function SkillInput({
 
         {selectedSkills.length > 0 &&
           selectedSkills.map((stored, index) => {
-            const fullSkill = workspaceSkills.find((s) => s.id === stored.skillId)
+            const fullSkill = skillsById.get(stored.skillId)
             const skillName = resolveSkillName(stored)
             const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
               activeSearchTarget,
@@ -168,7 +173,7 @@ export function SkillInput({
                     <div className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--border-1)]'>
                       <AgentSkillsIcon className='size-[10px] text-[var(--text-icon)]' />
                     </div>
-                    <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+                    <span className='truncate text-[var(--text-primary)] text-small'>
                       {formatDisplayText(skillName, { workflowSearchHighlight })}
                     </span>
                   </div>
@@ -183,7 +188,7 @@ export function SkillInput({
                         className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                         aria-label='Remove skill'
                       >
-                        <XIcon className='size-[13px]' />
+                        <X className='size-[13px]' />
                       </button>
                     )}
                   </div>

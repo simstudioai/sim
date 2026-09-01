@@ -11,14 +11,6 @@ let cachedTriggerOptions: TriggerOption[] | null = null
 let cachedTriggerMetadataMap: Map<string, { label: string; color: string }> | null = null
 
 /**
- * Reset cache - useful for HMR in development or testing
- */
-export function resetTriggerOptionsCache() {
-  cachedTriggerOptions = null
-  cachedTriggerMetadataMap = null
-}
-
-/**
  * Dynamically generates trigger filter options from the trigger registry and block definitions.
  * Results are cached after first call for performance (~98% faster on subsequent calls).
  */
@@ -40,6 +32,7 @@ export function getTriggerOptions(): TriggerOption[] {
     { value: 'copilot', label: 'Sim agent', color: '#ec4899' },
     { value: 'mothership', label: 'Sim agent', color: '#ec4899' },
     { value: 'workflow', label: 'Workflow', color: '#0369a1' },
+    { value: 'custom_block', label: 'Custom block', color: '#0369a1' },
   ]
 
   for (const trigger of triggers) {

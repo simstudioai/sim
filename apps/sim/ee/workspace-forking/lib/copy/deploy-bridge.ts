@@ -1,11 +1,12 @@
 import { db, runOutsideTransactionContext } from '@sim/db'
-import { workflow, workflowDeploymentVersion } from '@sim/db/schema'
+import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, exists, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
+import { isInternalTriggerProvider, isPollingWebhookProvider } from '@/triggers/constants'
 
 const logger = createLogger('WorkspaceForkDeployBridge')
 
@@ -226,4 +227,84 @@ export async function readDeployedState(
       variables: (data.variables ?? {}) as Record<string, Variable>,
     }
   })
+}
+
+/** A live, path-based webhook on a target block: the URL it serves and the workflow it belongs to. */
+export interface ForkTargetWebhook {
+  path: string
+  workflowId: string
+  /**
+   * The provider the path is served under. An inbound request is authenticated and parsed as this
+   * provider, so a URL is only meaningfully transferable to a trigger of the SAME provider.
+   */
+  provider: string | null
+}
+
+/**
+ * The public webhook path each target trigger block currently serves on, keyed by block id.
+ *
+ * A webhook's path defaults to its block id (`triggerPath || block.id`, see
+ * `lib/webhooks/deploy.ts`), so the target's URL has always been a *derivation* of an id the
+ * sync itself assigns. Reading the live path lets the copy pin it back into the target block's
+ * own `triggerPath`, turning the URL into stored data - the sync then cannot move a URL that
+ * external systems (a Slack Request URL, a provider subscription) are already pointing at.
+ *
+ * Only rows serving a PUBLIC URL are returned. Three families are excluded, because preserving
+ * their path would be meaningless and offering it for adoption actively wrong:
+ * - shared-app providers (the native Slack trigger) route by `routingKey` with a NULL path;
+ * - polling providers ({@link isPollingWebhookProvider}) keep a webhook row as state, but Sim
+ *   pulls from the provider - nothing external calls the path;
+ * - internal providers ({@link isInternalTriggerProvider}) register a path that the public
+ *   trigger route deliberately rejects, so it is not an endpoint either.
+ *
+ * Scoped to each workflow's ACTIVE deployment version, exactly as inbound delivery resolves a
+ * path (`lib/webhooks/processor.ts`). A workflow keeps non-archived webhook rows from previous
+ * versions too (`lib/webhooks/deploy.ts` reads "ALL webhooks for this workflow (all versions)"
+ * before narrowing to the current one), so an unscoped read would return several rows per block
+ * and pick a stale path arbitrarily - pinning a URL nothing is actually serving, which is the
+ * precise failure this function exists to prevent.
+ */
+export async function loadTargetWebhookPathsByBlock(
+  executor: DbOrTx,
+  targetWorkflowIds: string[]
+): Promise<Map<string, ForkTargetWebhook>> {
+  if (targetWorkflowIds.length === 0) return new Map()
+  const rows = await executor
+    .select({
+      blockId: webhook.blockId,
+      path: webhook.path,
+      workflowId: webhook.workflowId,
+      provider: webhook.provider,
+    })
+    .from(webhook)
+    .innerJoin(
+      workflowDeploymentVersion,
+      and(
+        eq(workflowDeploymentVersion.workflowId, webhook.workflowId),
+        eq(workflowDeploymentVersion.isActive, true),
+        eq(workflowDeploymentVersion.id, webhook.deploymentVersionId)
+      )
+    )
+    .where(
+      and(
+        inArray(webhook.workflowId, targetWorkflowIds),
+        isNull(webhook.archivedAt),
+        isNotNull(webhook.blockId),
+        isNotNull(webhook.path)
+      )
+    )
+  const byBlock = new Map<string, ForkTargetWebhook>()
+  for (const row of rows) {
+    if (!row.blockId || !row.path) continue
+    if (isPollingWebhookProvider(row.provider) || isInternalTriggerProvider(row.provider)) {
+      continue
+    }
+    // One live path-based row per block within a version - `path_deployment_unique` enforces it.
+    byBlock.set(row.blockId, {
+      path: row.path,
+      workflowId: row.workflowId,
+      provider: row.provider,
+    })
+  }
+  return byBlock
 }

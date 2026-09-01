@@ -13,6 +13,23 @@ type RouteHandler<T = unknown> = (
   context: T
 ) => Promise<NextResponse | Response> | NextResponse | Response
 
+interface RouteHandlerErrorContext {
+  error: unknown
+  requestId: string
+}
+
+interface RouteHandlerTypedErrorContext {
+  error: HttpError
+  requestId: string
+  status: number
+}
+
+interface RouteHandlerOptions {
+  clientAbortResponse?: (context: RouteHandlerErrorContext) => NextResponse | Response
+  typedErrorResponse?: (context: RouteHandlerTypedErrorContext) => NextResponse | Response
+  unhandledErrorResponse?: (context: RouteHandlerErrorContext) => NextResponse | Response
+}
+
 /**
  * Reads a numeric `statusCode` (4xx or 5xx) off an `HttpError` so typed domain
  * errors (e.g. `WorkspaceAccessDeniedError`, `InvalidFieldError`) map to the
@@ -29,11 +46,11 @@ type RouteHandler<T = unknown> = (
  * safe to expose to clients (no stack traces, secrets, file paths, ORM
  * internals).
  */
-function readTypedErrorStatus(error: unknown): number | undefined {
+function readTypedError(error: unknown): RouteHandlerTypedErrorContext['error'] | undefined {
   if (!(error instanceof HttpError)) return undefined
   const status = error.statusCode
-  if (status < 400 || status >= 600) return undefined
-  return status
+  if (!Number.isInteger(status) || status < 400 || status >= 600) return undefined
+  return error
 }
 
 /**
@@ -57,45 +74,83 @@ function applyResponseHeaders(
 }
 
 /**
+ * Extracts the 32-hex trace id from a W3C `traceparent` header
+ * (`00-<trace-id>-<span-id>-<flags>`) so cross-service log lines can be
+ * grepped by the same trace id the Go copilot logs. Returns undefined for
+ * absent or malformed headers and the all-zero (invalid) trace id.
+ */
+function traceIdFromTraceparent(header: string | null | undefined): string | undefined {
+  if (!header) return undefined
+  const match = /^[0-9a-f]{2}-([0-9a-f]{32})-[0-9a-f]{16}-[0-9a-f]{2}$/.exec(header.trim())
+  if (!match || match[1] === '00000000000000000000000000000000') return undefined
+  return match[1]
+}
+
+/**
  * Wraps a Next.js API route handler with centralized error reporting.
  *
  * - Generates a unique request ID and stores it in AsyncLocalStorage so every
  *   logger in the request lifecycle automatically includes it
  * - Logs all 4xx and 5xx responses with method, path, status, duration
+ * - Classifies errors after a client disconnect as a normal 499 cancellation
  * - Catches unhandled errors, logs them, and returns a 500 with the request ID
+ * - Supports a route-family-specific client-abort response envelope
+ * - Supports a route-family-specific unhandled-error response envelope
  * - Attaches `x-request-id`, plus the rate-limit headers when the route
  *   recorded a snapshot for the request
  */
-export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
+export function withRouteHandler<T>(
+  handler: RouteHandler<T>,
+  options: RouteHandlerOptions = {}
+): RouteHandler<T> {
   return async (request: NextRequest, context: T) => {
     const requestId = generateRequestId()
     const startTime = Date.now()
     const method = request?.method ?? 'UNKNOWN'
     const path =
       request?.nextUrl?.pathname ?? new URL(request?.url ?? '/', 'http://localhost').pathname
+    const traceId = traceIdFromTraceparent(request?.headers?.get?.('traceparent'))
 
-    return runWithRequestContext({ requestId, method, path }, async () => {
+    return runWithRequestContext({ requestId, method, path, traceId }, async () => {
       let response: NextResponse | Response
       try {
         response = await handler(request, context)
       } catch (error) {
         const duration = Date.now() - startTime
         const message = getErrorMessage(error, 'Unknown error')
-        const typedStatus = readTypedErrorStatus(error)
-        if (typedStatus !== undefined) {
+        if (request.signal.aborted) {
+          logger.info('Client closed request', { duration, status: 499 })
+          response = options.clientAbortResponse
+            ? options.clientAbortResponse({ error, requestId })
+            : new Response(null, { status: 499 })
+          applyResponseHeaders(response, request, requestId)
+          return response
+        }
+
+        const typedError = readTypedError(error)
+        if (typedError) {
+          const typedStatus = typedError.statusCode
           if (typedStatus >= 500) {
             logger.error('Unhandled route error', { duration, status: typedStatus, error: message })
           } else {
             logger.warn('Typed route error', { duration, status: typedStatus, error: message })
           }
-          response = NextResponse.json({ error: message, requestId }, { status: typedStatus })
-        } else {
-          logger.error('Unhandled route error', { duration, error: message })
-          response = NextResponse.json(
-            { error: 'Internal server error', requestId },
-            { status: 500 }
-          )
+          response = options.typedErrorResponse
+            ? options.typedErrorResponse({ error: typedError, requestId, status: typedStatus })
+            : NextResponse.json({ error: message, requestId }, { status: typedStatus })
+          applyResponseHeaders(response, request, requestId)
+          return response
         }
+
+        if (options.unhandledErrorResponse) {
+          logger.error('Unhandled route error', { duration, error: message })
+          response = options.unhandledErrorResponse({ error, requestId })
+          applyResponseHeaders(response, request, requestId)
+          return response
+        }
+
+        logger.error('Unhandled route error', { duration, error: message })
+        response = NextResponse.json({ error: 'Internal server error', requestId }, { status: 500 })
         applyResponseHeaders(response, request, requestId)
         return response
       }

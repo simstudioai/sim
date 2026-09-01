@@ -61,6 +61,16 @@ export const airweaveSearchTool: ToolConfig<AirweaveSearchParams, AirweaveSearch
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) =>
+        params.retrievalStrategy === 'keyword' &&
+        params.expandQuery !== true &&
+        params.rerank !== true &&
+        params.generateAnswer !== true
+          ? {}
+          : { query: params.query },
+    },
     url: (params) => `https://api.airweave.ai/collections/${params.collectionId}/search`,
     method: 'POST',
     headers: (params) => ({

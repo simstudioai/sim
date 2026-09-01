@@ -268,9 +268,7 @@ export function buildPresentation(files: PptxFiles): PresentationData {
   return result
 }
 
-// ---------------------------------------------------------------------------
 // Placeholder Position Inheritance
-// ---------------------------------------------------------------------------
 
 /**
  * Extract placeholder info (type, idx) from a raw placeholder XML node

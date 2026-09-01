@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { workspace } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -77,6 +78,7 @@ vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
 }))
 vi.mock('@/ee/workspace-forking/lib/remap/fork-bootstrap', () => ({
   createForkBootstrapTransform: vi.fn(() => (subBlocks: unknown) => subBlocks),
+  createForkBlockTypeTransform: vi.fn(() => (blockType: string) => blockType),
 }))
 vi.mock('@/ee/workspace-forking/lib/remap/reference-scan', () => ({
   collectReferencedDocumentIds: vi.fn(() => new Set<string>()),
@@ -91,7 +93,7 @@ vi.mock('@/lib/workspaces/policy', () => ({
 
 import { createFork } from '@/ee/workspace-forking/lib/create-fork'
 
-const SOURCE = { id: 'src-ws', name: 'Parent' } as never
+const SOURCE = { id: 'src-ws', name: 'Parent', allowPersonalApiKeys: false } as never
 const POLICY = {
   organizationId: null,
   workspaceMode: 'personal',
@@ -124,6 +126,12 @@ describe('createFork storage headroom gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    /**
+     * The fork transaction re-reads the parent's organization under the lock to
+     * confirm it has not moved since `assertCanFork` captured the policy.
+     * Matches POLICY.organizationId, so the fork proceeds.
+     */
+    queueTableRows(workspace, [{ organizationId: null }])
     mockSumForkCopyBytes.mockResolvedValue(0)
     mockAssertForkStorageHeadroom.mockResolvedValue(undefined)
     mockLoadSourceDeployedStates.mockResolvedValue({
@@ -134,10 +142,12 @@ describe('createFork storage headroom gate', () => {
       keyMap: new Map(),
       idMap: new Map(),
       blobTasks: [],
+      folderIdMap: new Map(),
     })
     mockCopyForkResourceContainers.mockResolvedValue({
       idMap: new Map(),
       mappingEntries: [],
+      folderIdMap: new Map(),
       contentPlan: {
         sourceWorkspaceId: 'src-ws',
         childWorkspaceId: 'child-ws',
@@ -183,6 +193,24 @@ describe('createFork storage headroom gate', () => {
     expect(mockStartBackgroundWork).not.toHaveBeenCalled()
   })
 
+  it('refuses when the parent changed organizations after the policy was captured', async () => {
+    resetDbChainMock()
+    /**
+     * `assertCanFork` captures `policy.organizationId` before this transaction,
+     * so an admin workspace move committing in between would otherwise leave
+     * the fork locking the organization the parent has already left and
+     * inserting the child there — the cross-organization edge the lock exists
+     * to prevent. The parent is re-read under the lock to catch exactly this.
+     */
+    queueTableRows(workspace, [{ organizationId: 'org-moved-away' }])
+    mockSumForkCopyBytes.mockResolvedValue(0)
+
+    await expect(createFork(forkParams())).rejects.toThrow(
+      'changed organizations while this fork was being created'
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
   it('proceeds under quota, summing exactly the selected files + knowledge bases', async () => {
     mockSumForkCopyBytes.mockResolvedValue(500)
 
@@ -200,6 +228,23 @@ describe('createFork storage headroom gate', () => {
       bytes: 500,
     })
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(mockCopyForkResourceContainers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentMappingContext: {
+          edgeChildWorkspaceId: result.workspace.id,
+          sourceIsParent: true,
+        },
+      })
+    )
+  })
+
+  it('preserves the source workspace personal API-key policy in the child', async () => {
+    const result = await createFork(forkParams())
+
+    expect(result.workspace.allowPersonalApiKeys).toBe(false)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ allowPersonalApiKeys: false })
+    )
   })
 
   it('seeds identity mappings for copied FILES by storage key (a later sync must not re-offer them)', async () => {
@@ -207,6 +252,7 @@ describe('createFork storage headroom gate', () => {
       keyMap: new Map([['workspace/src-ws/a.png', 'workspace/child/a.png']]),
       idMap: new Map([['file-1', 'file-1-copy']]),
       blobTasks: [],
+      folderIdMap: new Map(),
     })
 
     await createFork(forkParams({ files: ['file-1'] }))

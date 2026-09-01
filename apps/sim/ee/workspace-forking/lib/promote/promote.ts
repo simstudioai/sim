@@ -33,6 +33,7 @@ import {
 import {
   getActiveDeploymentVersionNumbers,
   loadSourceDeployedStates,
+  loadTargetWebhookPathsByBlock,
 } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import {
   assertForkStorageHeadroom,
@@ -63,7 +64,10 @@ import {
   upsertEdgeMappings,
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import { getMcpServerMetaByIds } from '@/ee/workspace-forking/lib/mapping/resources'
-import { collectForkSyncBlockers } from '@/ee/workspace-forking/lib/promote/cleared-refs'
+import {
+  collectForkSyncBlockers,
+  verifyForkDropAcknowledgments,
+} from '@/ee/workspace-forking/lib/promote/cleared-refs'
 import {
   augmentForkResolver,
   buildPromoteCopySelection,
@@ -78,7 +82,14 @@ import {
   type PromoteRunWorkflowSnapshot,
   upsertPromoteRun,
 } from '@/ee/workspace-forking/lib/promote/promote-run-store'
+import {
+  buildForkTriggerPlan,
+  type ForkTriggerMappingInput,
+  type ForkTriggerUrlChange,
+  resolveForkTriggerPaths,
+} from '@/ee/workspace-forking/lib/promote/trigger-urls'
 import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
+import { createForkBlockTypeTransform } from '@/ee/workspace-forking/lib/remap/fork-bootstrap'
 import {
   createForkSubBlockTransform,
   type ForkReference,
@@ -119,6 +130,17 @@ export interface PromoteForkParams {
    * plan's copyable candidates, so an arbitrary id is ignored.
    */
   copyResources?: PromoteCopyResources
+  /**
+   * References the caller explicitly acknowledged dropping, so the sync clears them in the target
+   * instead of blocking. Honoured only where the source resource is genuinely gone (re-derived
+   * in-transaction), so a live reference can never be dropped by a crafted payload.
+   */
+  dropReferences?: Array<{ kind: ForkRemapKind; sourceId: string }>
+  /**
+   * Which retiring public URL each arriving trigger takes over. Re-validated in-transaction
+   * against the adoptable set the plan derives, so an entry the plan does not offer is ignored.
+   */
+  triggerMappings?: ForkTriggerMappingInput[]
   requestId?: string
 }
 
@@ -159,6 +181,16 @@ export interface PromoteForkResult {
    * behavior is never silent.
    */
   clearedOptional: Array<{ workflowName: string; blocks: string[] }>
+  /**
+   * Source-deleted references the user acknowledged dropping that this sync actually cleared in
+   * the target. Only entries whose source was verified gone in-transaction appear here.
+   */
+  droppedReferences: Array<{ kind: ForkRemapKind; sourceId: string }>
+  /**
+   * Public trigger URLs this sync stopped serving in the target - a URL that retired with no
+   * arriving trigger adopting it. Whatever calls it externally has to be repointed.
+   */
+  triggerUrlChanges: ForkTriggerUrlChange[]
 }
 
 function collectCredentialPairs(plan: ForkPromotePlan): Array<[string, string]> {
@@ -307,6 +339,10 @@ interface PromoteTxApplied {
   needsConfiguration: Array<{ workflowId: string; workflowName: string; blocks: string[] }>
   /** Per-workflow optional dependents a parent change cleared (surfaced, not gated). */
   clearedOptional: Array<{ workflowName: string; blocks: string[] }>
+  /** Acknowledged source-deleted references this sync cleared instead of blocking on. */
+  droppedReferences: Array<{ kind: ForkRemapKind; sourceId: string }>
+  /** Public trigger URLs this sync stopped serving (nothing adopted them). */
+  triggerUrlChanges: ForkTriggerUrlChange[]
   /** Heavy content for resources copied into the target this sync, filled best-effort post-commit. */
   copyContentPlan: ForkContentPlan | null
   /** Serialized in-content maps for the post-commit skill-body rewrite (paired with the plan). */
@@ -442,10 +478,23 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       params.copyResources,
       plan.copyableUnmapped
     )
+    // Drop acknowledgments the server will honour, verified against the SOURCE inside this same
+    // locked tx. Resolved BEFORE the unmapped gate because a source-deleted reference on a
+    // required field is in `unmappedRequired`: gating on it first would reject the sync with
+    // "map all required ... first" no matter what the user dropped, making Drop inert for the
+    // required references it exists to unblock.
+    const verifiedDrops = await verifyForkDropAcknowledgments(
+      tx,
+      sourceWorkspaceId,
+      params.dropReferences
+    )
+    const droppedKeys = new Set(verifiedDrops.map((entry) => `${entry.kind}:${entry.sourceId}`))
     // plan.unmappedRequired is already references.filter(resolver == null).filter(required), so
     // subtracting the refs the copy will resolve is equivalent to re-scanning the predicate.
     const postCopyUnmappedRequired = plan.unmappedRequired.filter(
-      (reference) => !willResolve.has(`${reference.kind}:${reference.sourceId}`)
+      (reference) =>
+        !willResolve.has(`${reference.kind}:${reference.sourceId}`) &&
+        !droppedKeys.has(`${reference.kind}:${reference.sourceId}`)
     )
     if (postCopyUnmappedRequired.length > 0) {
       return {
@@ -477,9 +526,10 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     // plan's unmapped references are threaded through so the gate's happy path reuses the plan's
     // scan (computed moments earlier over the same states, inside this same locked tx) instead of
     // re-running the full per-block reference scan; the scan re-runs only when something blocks.
+    let droppedReferences: Array<{ kind: ForkRemapKind; sourceId: string }> = []
     const gateResolver: ForkReferenceResolver = (kind, sourceId) =>
       willResolve.has(`${kind}:${sourceId}`) ? sourceId : plan.resolver(kind, sourceId)
-    const blockers = await collectForkSyncBlockers({
+    const { blockers, appliedDrops } = await collectForkSyncBlockers({
       executor: tx,
       sourceWorkspaceId,
       items: plan.items,
@@ -488,10 +538,12 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       workflowIdMap: plan.workflowIdMap,
       resolveBlockId,
       planUnmapped: [...plan.unmappedRequired, ...plan.unmappedOptional],
+      droppedReferences: verifiedDrops,
     })
     if (blockers.length > 0) {
       return { blocked: 'cleared-refs', blockers }
     }
+    droppedReferences = appliedDrops
 
     // Resolve the source->target folder map BEFORE the copy so the folders already exist in the
     // target and the copy can rewrite `sim:folder/<id>` references inside copied skill / markdown
@@ -506,6 +558,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       targetWorkspaceId,
       userId,
       now,
+      resourceType: 'workflow',
       contentFolderIds: plan.items.map((item) => item.sourceMeta.folderId),
     })
 
@@ -595,6 +648,12 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       // copy-faithful dependents (a copied table's column picks) instead of clearing them.
       isCopiedTarget: (kind, sourceId) => copyIdMapByKind?.get(kind)?.has(sourceId) ?? false,
     })
+    // Custom blocks reference by block TYPE, not by a sub-block value, so their rewrite runs
+    // on its own channel. An unmapped one keeps the source's type — the sync gate has already
+    // refused the promote by then (`unmapped-custom-block`), so this never silently ships.
+    const blockTypeTransform = createForkBlockTypeTransform(
+      (kind, sourceId) => resolver(kind, sourceId) ?? null
+    )
 
     // Batch every prior-version read (replace + archive targets) into one query before any
     // write, so the locked apply phase doesn't do N round-trips. Reads are pre-write, so
@@ -638,6 +697,22 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     // block map + resolver loaded before the would-clear gate above.
     const blockPairs: ForkBlockPair[] = []
 
+    // Every trigger block's final public path, resolved ONCE for the whole sync: the path a
+    // target block already serves, or a retiring one it adopts. Rebuilt here rather than trusted
+    // from the caller, so an adoption is re-validated against the live webhooks inside this same
+    // locked transaction and a stale preview can never move a URL the plan no longer offers.
+    const triggerPlan = buildForkTriggerPlan({
+      items: plan.items,
+      sourceStates,
+      resolveBlockId,
+      targetWebhooks: await loadTargetWebhookPathsByBlock(
+        tx,
+        plan.items.map((item) => item.targetWorkflowId)
+      ),
+    })
+    const { pathByTargetBlockId: triggerPathByBlockId, changes: triggerUrlChanges } =
+      resolveForkTriggerPaths(triggerPlan, params.triggerMappings)
+
     const updatedSnapshots: PromoteRunWorkflowSnapshot[] = []
     const createdTargetIds: string[] = []
     const writtenItems: typeof plan.items = []
@@ -667,11 +742,13 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         workflowIdMap: plan.workflowIdMap,
         folderIdMap,
         transformSubBlocks: transform,
+        transformBlockType: blockTypeTransform,
         targetCurrentBlocks:
           item.mode === 'replace' ? targetDraftByWorkflow.get(item.targetWorkflowId) : undefined,
         dependentOverrides: overridesByWorkflow.get(item.targetWorkflowId),
         nameRegistry,
         resolveBlockId,
+        triggerPathByBlockId,
         requestId,
       })
       blockPairs.push(
@@ -901,6 +978,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       undeployEventIds,
       needsConfiguration,
       clearedOptional,
+      droppedReferences,
+      triggerUrlChanges,
       copyContentPlan,
       copyContentRefMaps,
       copyContentBlobTasks,
@@ -924,6 +1003,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       archivedNames: [],
       needsConfiguration: [],
       clearedOptional: [],
+      droppedReferences: [],
+      triggerUrlChanges: [],
     }
   }
 
@@ -1097,5 +1178,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       blocks,
     })),
     clearedOptional: txResult.clearedOptional,
+    droppedReferences: txResult.droppedReferences,
+    triggerUrlChanges: txResult.triggerUrlChanges,
   }
 }

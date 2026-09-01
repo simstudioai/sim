@@ -4,7 +4,7 @@ The rendering-parity guarantee (identical to Chrome of the pinned version) is on
 
 1. **Read the release notes.** Electron breaking-changes page for the target major, plus its Chromium/Node versions. Note anything touching: session/cookies, permissions, `setWindowOpenHandler`, `will-navigate`/`will-redirect`, preload/sandbox, `net`/loopback, fuses.
 2. **Bump the pin** in `apps/desktop/package.json` (exact version), `bun install`, `bun run type-check && bun run test`.
-3. **Fuses:** the build sets `strictlyRequireAllFuses` — if `electron-builder` fails on a new fuse, decide its state explicitly in `electron-builder.yml` rather than loosening the strict flag.
+3. **Fuses:** the packaged smoke test asserts the complete fuse wire. Decide the policy for every new fuse, configure it in `electron-builder.yml` when supported, and update the expected wire only after verifying the packaged binary.
 4. **Cookie-encryption go/no-go:** packaged build → sign in → quit → relaunch → still signed in. If the session is lost, flip `enableCookieEncryption: false`, file it in the README, and retest.
 5. **Manual spot-checks (packaged build):**
    - Google sign-in via the system-browser handoff (127.0.0.1 loopback callback → token redeem).

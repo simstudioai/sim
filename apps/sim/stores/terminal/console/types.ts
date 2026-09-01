@@ -66,6 +66,7 @@ export interface ConsoleUpdate {
   childWorkflowName?: string
   childWorkflowInstanceId?: string
   agentStreamThinking?: string
+  clearAgentStreamThinking?: boolean
   agentStreamToolCalls?: AgentStreamToolCall[]
   agentStreamActive?: boolean
 }

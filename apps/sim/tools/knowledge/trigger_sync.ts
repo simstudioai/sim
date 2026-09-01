@@ -1,7 +1,7 @@
 import type { KnowledgeTriggerSyncResponse } from '@/tools/knowledge/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeTriggerSyncTool: ToolConfig<any, KnowledgeTriggerSyncResponse> = {
+export const knowledgeTriggerSyncTool: InternalToolConfig<any, KnowledgeTriggerSyncResponse> = {
   id: 'knowledge_trigger_sync',
   name: 'Knowledge Trigger Sync',
   description: 'Trigger a manual sync for a knowledge base connector',
@@ -22,12 +22,10 @@ export const knowledgeTriggerSyncTool: ToolConfig<any, KnowledgeTriggerSyncRespo
     },
   },
 
-  request: {
-    url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/connectors/${params.connectorId}/sync`,
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
+  operation: {
+    input: (params) => ({
+      knowledgeBaseId: params.knowledgeBaseId,
+      connectorId: params.connectorId,
     }),
   },
 

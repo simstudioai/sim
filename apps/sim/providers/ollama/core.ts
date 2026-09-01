@@ -11,6 +11,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -22,10 +23,10 @@ import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   generateSchemaInstructions,
+  isFunctionToolCall,
   prepareToolExecution,
   sumToolCosts,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 /**
  * Ollama enforces JSON mode (`json_object`) but ignores `json_schema`, so
@@ -265,7 +266,8 @@ export async function executeOllamaProviderRequest(
         }
       }
 
-      const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+      const toolCallsInResponse =
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
@@ -312,17 +314,27 @@ export async function executeOllamaProviderRequest(
             }
           }
 
-          const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-          const result = await executeTool(toolName, executionParams, {
-            signal: request.abortSignal,
-          })
+          const { toolParams, executionParams } = prepareToolExecution(
+            tool,
+            toolArgs,
+            request,
+            toolCall.id
+          )
+          const { rawResponse, modelResponse } = await executeProviderTool(
+            toolName,
+            executionParams,
+            {
+              signal: request.abortSignal,
+            }
+          )
           const toolCallEndTime = Date.now()
 
           return {
             toolCall,
             toolName,
             toolParams,
-            result,
+            result: rawResponse,
+            modelResult: modelResponse,
             startTime: toolCallStartTime,
             endTime: toolCallEndTime,
             duration: toolCallEndTime - toolCallStartTime,
@@ -365,6 +377,8 @@ export async function executeOllamaProviderRequest(
       for (const executionResult of executionResults) {
         const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
           executionResult
+        const modelResult =
+          'modelResult' in executionResult ? (executionResult.modelResult ?? result) : result
 
         timeSegments.push({
           type: 'tool',
@@ -388,6 +402,13 @@ export async function executeOllamaProviderRequest(
             tool: toolName,
           }
         }
+        const modelResultContent = modelResult.success
+          ? (modelResult.output ?? null)
+          : {
+              error: true,
+              message: modelResult.error || 'Tool execution failed',
+              tool: toolName,
+            }
 
         toolCalls.push({
           name: toolName,
@@ -402,7 +423,7 @@ export async function executeOllamaProviderRequest(
         currentMessages.push({
           role: 'tool',
           tool_call_id: toolCall.id,
-          content: JSON.stringify(resultContent),
+          content: JSON.stringify(modelResultContent),
         })
       }
 
@@ -454,7 +475,7 @@ export async function executeOllamaProviderRequest(
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
         currentResponse,
-        currentResponse.choices[0]?.message?.tool_calls,
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: providerId }
       )
     }
@@ -501,12 +522,12 @@ export async function executeOllamaProviderRequest(
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
         finalResponse,
-        finalResponse.choices[0]?.message?.tool_calls,
+        finalResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: providerId }
       )
     } else if (
       iterationCount === MAX_TOOL_ITERATIONS &&
-      currentResponse.choices[0]?.message?.tool_calls?.length
+      currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)?.length
     ) {
       /**
        * The capped turn still requests tools, so make one tool-disabled call to
@@ -542,7 +563,7 @@ export async function executeOllamaProviderRequest(
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
         synthesisResponse,
-        synthesisResponse.choices[0]?.message?.tool_calls,
+        synthesisResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: providerId }
       )
     }

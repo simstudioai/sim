@@ -1,7 +1,8 @@
+import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type { QuiverImageToSvgParams, QuiverSvgResponse } from '@/tools/quiver/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const quiverImageToSvgTool: ToolConfig<QuiverImageToSvgParams, QuiverSvgResponse> = {
+export const quiverImageToSvgTool: InternalToolConfig<QuiverImageToSvgParams, QuiverSvgResponse> = {
   id: 'quiver_image_to_svg',
   name: 'Quiver Image to SVG',
   description: 'Convert raster images into vector SVG format using QuiverAI',
@@ -64,11 +65,13 @@ export const quiverImageToSvgTool: ToolConfig<QuiverImageToSvgParams, QuiverSvgR
     },
   },
 
-  request: {
-    url: '/api/tools/quiver/image-to-svg',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    modelInput: {
+      mode: 'private-provenance',
+      inputPaths: (params) =>
+        selectModelBoundFileInputPaths(params.image, ['image'], { parseSerializedFile: true }),
+    },
+    input: (params) => ({
       apiKey: params.apiKey,
       model: params.model,
       image: params.image,

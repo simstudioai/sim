@@ -1,9 +1,11 @@
 import { FALAI_HOSTED_KEY_MARKUP_MULTIPLIER } from '@/lib/tools/falai-pricing'
 import { hostedKeyEnabledWhen } from '@/tools/hosting'
 import type { ImageGenerationParams, ImageGenerationResponse } from '@/tools/image/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const imageGenerateTool: ToolConfig<ImageGenerationParams, ImageGenerationResponse> = {
+type ImageGenerationToolConfig = InternalToolConfig<ImageGenerationParams, ImageGenerationResponse>
+
+export const imageGenerateTool: ImageGenerationToolConfig = {
   id: 'image_generate',
   name: 'Image Generator',
   description: 'Generate images with OpenAI GPT Image, Google Nano Banana, or Fal.ai image models',
@@ -151,18 +153,12 @@ export const imageGenerateTool: ToolConfig<ImageGenerationParams, ImageGeneratio
     },
   },
 
-  request: {
-    url: '/api/tools/image',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: ImageGenerationParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-        __usingHostedKey?: boolean
-      }
-    ) => ({
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ prompt: params.prompt }),
+    },
+    input: (params: ImageGenerationParams & { __usingHostedKey?: boolean }) => ({
       provider: params.provider,
       apiKey: params.apiKey,
       model: params.model,
@@ -180,9 +176,6 @@ export const imageGenerateTool: ToolConfig<ImageGenerationParams, ImageGeneratio
       enableSafetyChecker: params.enableSafetyChecker,
       enableWebSearch: params.enableWebSearch,
       thinkingLevel: params.thinkingLevel,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
       useHostedCostTracking: params.__usingHostedKey === true,
     }),
   },

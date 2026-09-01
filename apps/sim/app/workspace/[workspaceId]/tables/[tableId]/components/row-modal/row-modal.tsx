@@ -1,8 +1,9 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import {
   Checkbox,
+  Chip,
   ChipConfirmModal,
   ChipDatePicker,
   ChipModal,
@@ -13,12 +14,16 @@ import {
   ChipModalHeader,
   ChipTimePicker,
   Label,
+  toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
-import { useTimezone } from '@/hooks/queries/general-settings'
+import { columnTypeOf } from '@/lib/table/column-types'
+import { resolveCurrencyCode } from '@/lib/table/currency'
+import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
+import { type TimezoneState, useTimezoneState } from '@/hooks/queries/general-settings'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import {
   cleanCellValue,
@@ -44,12 +49,16 @@ export interface RowModalProps {
 function cleanRowData(
   columns: ColumnDefinition[],
   rowData: Record<string, unknown>,
-  timeZone: string
+  timeZone: string,
+  dateEditorsReady: boolean
 ): Record<string, unknown> {
   const cleanData: Record<string, unknown> = {}
 
   columns.forEach((col) => {
     const value = rowData[col.name]
+    if (columnTypeOf(col).editor === 'date' && !dateEditorsReady) {
+      return
+    }
     try {
       cleanData[col.name] = cleanCellValue(value, col, timeZone)
     } catch {
@@ -76,7 +85,13 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   const schema = table?.schema
   const columns = schema?.columns || []
 
-  const timeZone = useTimezone()
+  const timezoneState = useTimezoneState()
+  const editTimeZoneRef = useRef<string | null>(null)
+  if (timezoneState.status === 'ready' && editTimeZoneRef.current === null) {
+    editTimeZoneRef.current = timezoneState.timezone
+  }
+  const dateEditorsReady = editTimeZoneRef.current !== null
+  const timeZone = editTimeZoneRef.current ?? timezoneState.timezone
   const [rowData, setRowData] = useState<Record<string, unknown>>(() =>
     mode === 'edit' && row ? row.data : {}
   )
@@ -87,12 +102,18 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   const isSubmitting =
     updateRowMutation.isPending || deleteRowMutation.isPending || deleteRowsMutation.isPending
 
+  const timezoneBlockedMessage = getTimezoneEditBlockedMessage(timezoneState)
+  const hasEditableColumn = columns.some(
+    (column) => columnTypeOf(column).editor !== 'date' || dateEditorsReady
+  )
+
   const handleFormSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
     setError(null)
+    if (!hasEditableColumn) return
 
     try {
-      const cleanData = cleanRowData(columns, rowData, timeZone)
+      const cleanData = cleanRowData(columns, rowData, timeZone, dateEditorsReady)
 
       if (row) {
         await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
@@ -167,15 +188,28 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
           Update values for {table?.name ?? 'table'}
         </p>
         <form onSubmit={handleFormSubmit} className='contents'>
-          <button type='submit' hidden disabled={isSubmitting} />
-          {columns.map((column) => (
-            <ColumnField
-              key={column.name}
-              column={column}
-              value={rowData[column.name]}
-              onChange={(value) => setRowData((prev) => ({ ...prev, [column.name]: value }))}
-            />
-          ))}
+          <button type='submit' hidden disabled={isSubmitting || !hasEditableColumn} />
+          {columns.map((column) =>
+            columnTypeOf(column).editor === 'date' && !dateEditorsReady ? (
+              <TimezoneBlockedColumnField
+                key={column.name}
+                column={column}
+                value={rowData[column.name]}
+                status={timezoneState.status}
+                onAttemptEdit={() => {
+                  if (timezoneBlockedMessage) toast.error(timezoneBlockedMessage)
+                }}
+              />
+            ) : (
+              <ColumnField
+                key={column.name}
+                column={column}
+                value={rowData[column.name]}
+                timeZone={timeZone}
+                onChange={(value) => setRowData((prev) => ({ ...prev, [column.name]: value }))}
+              />
+            )
+          )}
         </form>
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
@@ -185,7 +219,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
         primaryAction={{
           label: isSubmitting ? 'Updating...' : 'Update Row',
           onClick: () => handleFormSubmit(),
-          disabled: isSubmitting,
+          disabled: isSubmitting || !hasEditableColumn,
         }}
       />
     </ChipModal>
@@ -195,13 +229,12 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
 interface ColumnFieldProps {
   column: ColumnDefinition
   value: unknown
+  timeZone: string
   onChange: (value: unknown) => void
 }
 
-function ColumnField({ column, value, onChange }: ColumnFieldProps) {
-  const checkboxId = useId()
-  const timeZone = useTimezone()
-  const title = (
+function ColumnTitle({ column }: { column: ColumnDefinition }) {
+  return (
     <>
       {column.name}
       {column.unique && (
@@ -209,9 +242,66 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
       )}
     </>
   )
-  const hint = `Type: ${column.type}${column.required ? '' : ' (optional)'}`
+}
 
-  if (column.type === 'boolean') {
+function columnFieldHint(column: ColumnDefinition): string {
+  const typeLabel =
+    column.type === 'currency'
+      ? `currency (${resolveCurrencyCode(column.currencyCode)})`
+      : column.type
+  return `Type: ${typeLabel}${column.required ? '' : ' (optional)'}`
+}
+
+interface TimezoneBlockedColumnFieldProps {
+  column: ColumnDefinition
+  value: unknown
+  status: TimezoneState['status']
+  onAttemptEdit: () => void
+}
+
+function TimezoneBlockedColumnField({
+  column,
+  value,
+  status,
+  onAttemptEdit,
+}: TimezoneBlockedColumnFieldProps) {
+  const rawValue =
+    typeof value === 'string'
+      ? value
+      : value === null || value === undefined
+        ? ''
+        : JSON.stringify(value)
+  const displayValue = status === 'loading' ? 'Loading timezone…' : rawValue || 'No value'
+
+  return (
+    <ChipModalField
+      type='custom'
+      title={<ColumnTitle column={column} />}
+      required={column.required}
+      hint={columnFieldHint(column)}
+    >
+      {(aria) => (
+        <Chip
+          {...aria}
+          variant='border'
+          fullWidth
+          onClick={onAttemptEdit}
+          aria-label={`Edit ${column.name}`}
+        >
+          {displayValue}
+        </Chip>
+      )}
+    </ChipModalField>
+  )
+}
+
+function ColumnField({ column, value, timeZone, onChange }: ColumnFieldProps) {
+  const checkboxId = useId()
+  const title = <ColumnTitle column={column} />
+  const hint = columnFieldHint(column)
+  const definition = columnTypeOf(column)
+
+  if (definition.editor === 'toggle') {
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <div className='flex items-center gap-2'>
@@ -231,6 +321,9 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
+  // The one type wanting a mono multi-line field; `editor: 'text'` covers both
+  // this and a plain input, so it stays explicit rather than inventing a field
+  // only one type would ever set.
   if (column.type === 'json') {
     return (
       <ChipModalField
@@ -239,7 +332,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
         required={column.required}
         hint={hint}
         mono
-        value={formatValueForInput(value, column.type)}
+        value={formatValueForInput(value, column.type, timeZone)}
         onChange={onChange}
         placeholder='{"key": "value"}'
         rows={4}
@@ -247,28 +340,26 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
-  if (column.type === 'date') {
-    const parts = dateValueToLocalParts(formatValueForInput(value, 'date'))
+  if (definition.editor === 'date') {
+    const parts = dateValueToLocalParts(formatValueForInput(value, column.type, timeZone))
+    const valueFromParts = (day: string, time: string | null) =>
+      column.type === 'ttl' && time ? `${day}T${time}` : localPartsToDateValue(day, time, timeZone)
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <div className='flex items-center gap-2'>
           <ChipDatePicker
             value={parts.day ?? undefined}
             today={todayLocalCalendarDate(timeZone)}
-            onChange={(day) => onChange(localPartsToDateValue(day, parts.time, timeZone))}
+            onChange={(day) => onChange(valueFromParts(day, parts.time))}
             placeholder='Select date'
-            flush
             className='flex-1'
           />
           <ChipTimePicker
             value={parts.time?.slice(0, 5)}
             onChange={(time) =>
-              onChange(
-                localPartsToDateValue(parts.day ?? todayLocalCalendarDate(timeZone), time, timeZone)
-              )
+              onChange(valueFromParts(parts.day ?? todayLocalCalendarDate(timeZone), time))
             }
             placeholder='Add time'
-            flush
             className='w-[110px]'
           />
         </div>
@@ -276,7 +367,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
-  if (column.type === 'select') {
+  if (definition.editor === 'select') {
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <SelectValueEditor column={column} value={value} onChange={onChange} fullWidth />
@@ -290,8 +381,13 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
       title={title}
       required={column.required}
       hint={hint}
-      inputType={column.type === 'number' ? 'number' : 'text'}
-      value={formatValueForInput(value, column.type)}
+      // A native number input rejects the formatted amounts this type's parser
+      // exists to accept, so those types take a text field — the same shape the
+      // grid's inline editor uses.
+      inputType={
+        definition.inputMode === 'decimal' && !definition.acceptsFormattedInput ? 'number' : 'text'
+      }
+      value={formatValueForInput(value, column.type, timeZone)}
       onChange={onChange}
       placeholder={`Enter ${column.name}`}
     />

@@ -8,6 +8,7 @@ import {
   ChipInput,
   ChipLink,
   ChipTextarea,
+  cn,
   Send,
   toast,
 } from '@sim/emcn'
@@ -15,9 +16,9 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { INTEGRATIONS, resolveOAuthServiceForIntegration } from '@/lib/integrations'
-import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { resolveCredentialDisplay } from '@/lib/integrations'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -28,10 +29,15 @@ import {
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
+  RESOURCE_TILE_BASE,
+  RESOURCE_TILE_PLAIN,
+} from '@/app/workspace/[workspaceId]/components/resource-tile'
+import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   useCreateCredentialDraft,
   useDeleteWorkspaceCredential,
@@ -39,10 +45,15 @@ import {
   type WorkspaceCredential,
 } from '@/hooks/queries/credentials'
 import {
+  assertMicrosoftDataverseReconnectAvailable,
+  useConnectMicrosoftDataverseOAuthService,
+  useMicrosoftDataverseCredentialBinding,
+} from '@/hooks/queries/oauth/microsoft-dataverse-connections'
+import {
   useConnectOAuthService,
-  useDisconnectOAuthService,
   useOAuthConnections,
 } from '@/hooks/queries/oauth/oauth-connections'
+import { useOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('ConnectedCredentialDetail')
@@ -68,7 +79,6 @@ export function ConnectedCredentialDetail({
 
   const { data: oauthConnections = [] } = useOAuthConnections()
   const connectOAuthService = useConnectOAuthService()
-  const disconnectOAuthService = useDisconnectOAuthService()
   const createDraft = useCreateCredentialDraft()
   const deleteCredential = useDeleteWorkspaceCredential()
 
@@ -76,7 +86,19 @@ export function ConnectedCredentialDetail({
     () => credentials.find((c) => c.id === credentialId) ?? null,
     [credentials, credentialId]
   )
-
+  const isDataverseCredential =
+    credential?.type === 'oauth' && credential.providerId === 'microsoft-dataverse'
+  const dataverseCredentialQuery = useOAuthCredentialDetail(
+    isDataverseCredential ? credentialId : undefined,
+    undefined,
+    isDataverseCredential
+  )
+  const dataverseBinding = useMicrosoftDataverseCredentialBinding({
+    isPending: dataverseCredentialQuery.isPending,
+    providerId: credential?.type === 'oauth' ? (credential.providerId ?? undefined) : undefined,
+    scopes: dataverseCredentialQuery.data?.[0]?.scopes,
+  })
+  const connectMicrosoftDataverseOAuthService = useConnectMicrosoftDataverseOAuthService()
   const isAdmin = credential?.role === 'admin'
 
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
@@ -97,32 +119,24 @@ export function ConnectedCredentialDetail({
     [oauthServiceNameByProviderId]
   )
 
-  const serviceConfig = useMemo(() => {
-    if (!credential?.providerId) return null
-    return getServiceConfigByProviderId(credential.providerId)
-  }, [credential])
-
-  /**
-   * Resolve the integration block type from the credential's OAuth service so
-   * the header tile can render with the same brand background used by the rows
-   * on the integrations list page. Several integrations can share one service
-   * (e.g. Jira and Jira Service Management); the one named after the service
-   * is preferred since it is the service's canonical integration.
-   */
-  const integrationBlockType = useMemo(() => {
-    if (!serviceConfig) return ''
-    const candidates = INTEGRATIONS.filter(
-      (i) => resolveOAuthServiceForIntegration(i)?.providerId === serviceConfig.providerId
-    )
-    const serviceName = serviceConfig.name.toLowerCase()
-    const canonical = candidates.find((i) => i.name.toLowerCase() === serviceName)
-    return (canonical ?? candidates[0])?.type ?? ''
-  }, [serviceConfig])
+  const display = useMemo(
+    () => (credential ? resolveCredentialDisplay(credential) : null),
+    [credential]
+  )
+  const serviceConfig = display?.service ?? null
+  const integrationBlockType = display?.blockType ?? ''
 
   const handleReconnectOAuth = async () => {
     if (!credential || credential.type !== 'oauth' || !credential.providerId || !workspaceId) return
     try {
-      await createDraft.mutateAsync({
+      if (isDataverseCredential) {
+        assertMicrosoftDataverseReconnectAvailable({
+          bindingState: dataverseBinding.state,
+          credentialQueryFailed: dataverseCredentialQuery.isError,
+        })
+      }
+
+      const draft = await createDraft.mutateAsync({
         workspaceId,
         providerId: credential.providerId,
         displayName: credential.displayName,
@@ -143,10 +157,19 @@ export function ConnectedCredentialDetail({
         requestedAt: Date.now(),
       })
 
-      await connectOAuthService.mutateAsync({
-        providerId: credential.providerId,
-        callbackURL: window.location.href,
-      })
+      if (dataverseBinding.state === 'bound' && dataverseBinding.environmentUrl) {
+        await connectMicrosoftDataverseOAuthService.mutateAsync({
+          callbackURL: window.location.href,
+          draftId: draft.draftId,
+          environmentUrl: dataverseBinding.environmentUrl,
+        })
+      } else {
+        await connectOAuthService.mutateAsync({
+          providerId: credential.providerId,
+          callbackURL: window.location.href,
+          draftId: draft.draftId,
+        })
+      }
     } catch (error: unknown) {
       toast.error("Couldn't start reconnect", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
@@ -155,30 +178,15 @@ export function ConnectedCredentialDetail({
     }
   }
 
+  /**
+   * Every credential type disconnects through the workspace-scoped credential
+   * delete, which authorizes against credential admin — explicit members and
+   * derived workspace admins alike.
+   */
   const handleConfirmDelete = async () => {
     if (!credential) return
     try {
-      if (credential.type === 'service_account') {
-        await deleteCredential.mutateAsync(credential.id)
-      } else {
-        if (!credential.accountId || !credential.providerId) {
-          toast.error("Can't disconnect", {
-            description: 'Missing account information. Try reconnecting this credential first.',
-          })
-          return
-        }
-        await disconnectOAuthService.mutateAsync({
-          provider: credential.providerId.split('-')[0] || credential.providerId,
-          providerId: credential.providerId,
-          serviceId: credential.providerId,
-          accountId: credential.accountId,
-        })
-        window.dispatchEvent(
-          new CustomEvent('oauth-credentials-updated', {
-            detail: { providerId: credential.providerId, workspaceId },
-          })
-        )
-      }
+      await deleteCredential.mutateAsync(credential.id)
       setShowDeleteConfirmDialog(false)
       router.push(integrationsHref)
     } catch (error) {
@@ -205,8 +213,12 @@ export function ConnectedCredentialDetail({
                 ? () => setReconnectOpen(true)
                 : handleReconnectOAuth
             }
-            disabled={connectOAuthService.isPending}
-            leftIcon={serviceConfig?.icon}
+            disabled={
+              connectOAuthService.isPending ||
+              connectMicrosoftDataverseOAuthService.isPending ||
+              dataverseBinding.isPending
+            }
+            leftIcon={display?.icon ?? undefined}
           >
             Reconnect
           </Chip>
@@ -216,20 +228,23 @@ export function ConnectedCredentialDetail({
         </Chip>
         <Chip
           onClick={() => setShowDeleteConfirmDialog(true)}
-          disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
+          disabled={deleteCredential.isPending}
         >
           Disconnect
         </Chip>
-        <Chip onClick={form.save} disabled={!form.isDirty || form.isSaving}>
-          {form.isSaving ? 'Saving...' : 'Save'}
-        </Chip>
+        <SaveDiscardChips
+          dirty={form.isDirty}
+          saving={form.isSaving}
+          onSave={form.save}
+          onDiscard={form.discard}
+        />
       </>
     ) : null
 
   if (credentialsLoading && !credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>
+        <SettingsEmptyState variant='inline'>Loading…</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
@@ -237,34 +252,31 @@ export function ConnectedCredentialDetail({
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Credential not found.</p>
+        <SettingsEmptyState variant='inline'>Credential not found.</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
 
-  const serviceLabel =
-    serviceConfig?.name || resolveProviderLabel(credential.providerId) || 'Unknown service'
+  const headingTitle =
+    display?.detailTitle || resolveProviderLabel(credential.providerId) || 'Unknown service'
 
   return (
     <>
       <CredentialDetailLayout back={back} actions={actions}>
         <CredentialDetailHeading
           leading={
-            serviceConfig ? (
-              <IntegrationTile
-                blockType={integrationBlockType}
-                icon={serviceConfig.icon as ComponentType<{ className?: string }>}
-              />
+            display?.icon ? (
+              <IntegrationTile blockType={integrationBlockType} icon={display.icon} />
             ) : (
-              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
-                <span className='font-medium text-[var(--text-tertiary)] text-small'>
+              <div className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}>
+                <span className='text-[var(--text-tertiary)] text-small'>
                   {resolveProviderLabel(credential.providerId).slice(0, 1) || '?'}
                 </span>
               </div>
             )
           }
-          title={serviceLabel}
-          subtitle={serviceConfig?.description || 'Connected service'}
+          title={headingTitle}
+          subtitle={display?.detailSubtitle ?? 'Connected service'}
         />
 
         <DetailSection title='Credential ID'>
@@ -312,7 +324,7 @@ export function ConnectedCredentialDetail({
         confirm={{
           label: 'Disconnect',
           onClick: handleConfirmDelete,
-          pending: disconnectOAuthService.isPending || deleteCredential.isPending,
+          pending: deleteCredential.isPending,
           pendingLabel: 'Disconnecting...',
         }}
       />
@@ -335,8 +347,8 @@ export function ConnectedCredentialDetail({
           onOpenChange={setReconnectOpen}
           workspaceId={workspaceId}
           serviceAccountProviderId={credential.providerId as ServiceAccountProviderId}
-          serviceName={serviceConfig?.name || credential.displayName}
-          serviceIcon={serviceConfig?.icon as ComponentType<{ className?: string }>}
+          serviceName={display?.familyName || serviceConfig?.name || credential.displayName}
+          serviceIcon={display?.icon as ComponentType<{ className?: string }>}
           credentialId={credential.id}
           credentialDisplayName={credential.displayName}
           credentialDescription={credential.description ?? undefined}

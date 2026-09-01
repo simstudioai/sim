@@ -38,9 +38,7 @@ import {
 } from './style-resolver'
 import { renderTextBody } from './text-renderer'
 
-// ---------------------------------------------------------------------------
 // Shape blipFill (image fill) — resolve to blob URL for reuse (e.g. SVG/PNG in process diagrams)
-// ---------------------------------------------------------------------------
 
 /** Resolve shape blipFill to a blob URL so we can render it (e.g. slide 23 process graphic). */
 function resolveShapeBlipUrl(blipFill: SafeXmlNode, ctx: RenderContext): string | null {
@@ -55,9 +53,7 @@ function resolveShapeBlipUrl(blipFill: SafeXmlNode, ctx: RenderContext): string 
   return getOrCreateBlobUrl(mediaPath, data, ctx.mediaUrlCache)
 }
 
-// ---------------------------------------------------------------------------
 // Line End Marker (Arrowhead) Helpers
-// ---------------------------------------------------------------------------
 
 let markerIdCounter = 0
 let gradientIdCounter = 0
@@ -278,9 +274,7 @@ function getLineEndsFromLn(ln: SafeXmlNode): { headEnd?: LineEndInfo; tailEnd?: 
   return out
 }
 
-// ---------------------------------------------------------------------------
 // Shape Rendering
-// ---------------------------------------------------------------------------
 
 /**
  * Render a shape node into an absolutely-positioned HTML element with SVG geometry.

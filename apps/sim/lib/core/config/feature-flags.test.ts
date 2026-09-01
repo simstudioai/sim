@@ -11,9 +11,9 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
   envRef: {
     APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
-    FORKING_ENABLED: undefined as boolean | undefined,
-    DEPLOY_AS_BLOCK: undefined as boolean | undefined,
     TABLES_V2_API: undefined as boolean | undefined,
+    TABLE_ROW_TTL: undefined as boolean | undefined,
+    CREDENTIAL_GROUPS: undefined as boolean | undefined,
   },
 }))
 
@@ -76,9 +76,10 @@ describe('getFeatureFlags', () => {
   it('derives flags from fallback secrets when AppConfig is disabled, without fetching', async () => {
     const flags = await getFeatureFlags()
     // All registered flags should be present, disabled (env vars unset in test env)
-    expect(flags['pii-redaction']).toEqual({ enabled: false })
-    expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
+    expect(flags['tables-v2-api']).toEqual({ enabled: false })
+    expect(flags['table-row-ttl']).toEqual({ enabled: false })
+    expect(flags['credential-groups']).toEqual({ enabled: false })
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
@@ -103,9 +104,10 @@ describe('getFeatureFlags', () => {
     setEnvFlags({ isAppConfigEnabled: true })
     mockFetch.mockResolvedValue(null)
     const flags = await getFeatureFlags()
-    expect(flags['pii-redaction']).toEqual({ enabled: false })
-    expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
+    expect(flags['tables-v2-api']).toEqual({ enabled: false })
+    expect(flags['table-row-ttl']).toEqual({ enabled: false })
+    expect(flags['credential-groups']).toEqual({ enabled: false })
   })
 
   it('degrades gracefully on a malformed document', async () => {
@@ -120,68 +122,35 @@ describe('isFeatureEnabled', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
-    envRef.FORKING_ENABLED = undefined
-    envRef.DEPLOY_AS_BLOCK = undefined
+    envRef.CREDENTIAL_GROUPS = undefined
   })
 
-  describe('workspace-forking flag', () => {
-    it('falls back to FORKING_ENABLED when AppConfig is disabled', async () => {
-      envRef.FORKING_ENABLED = undefined
-      expect(await isFeatureEnabled('workspace-forking', { userId: 'u1', orgId: 'o1' })).toBe(false)
+  describe('credential-groups flag', () => {
+    it('uses a global fallback switch off AppConfig', async () => {
+      expect(await isFeatureEnabled('credential-groups')).toBe(false)
 
-      envRef.FORKING_ENABLED = true
-      expect(await isFeatureEnabled('workspace-forking', { userId: 'u1', orgId: 'o1' })).toBe(true)
+      envRef.CREDENTIAL_GROUPS = true
+      expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
 
-    it('targets specific orgs/users via AppConfig, ignoring the fallback secret', async () => {
-      envRef.FORKING_ENABLED = undefined
-      withAppConfig({ 'workspace-forking': { orgIds: ['o1'], userIds: ['u9'] } })
-
-      expect(await isFeatureEnabled('workspace-forking', { orgId: 'o1' })).toBe(true)
-      expect(await isFeatureEnabled('workspace-forking', { userId: 'u9' })).toBe(true)
-      expect(await isFeatureEnabled('workspace-forking', { orgId: 'o2', userId: 'u1' })).toBe(false)
-    })
-  })
-
-  describe('deploy-as-block flag', () => {
-    it('falls back to DEPLOY_AS_BLOCK when AppConfig is disabled', async () => {
-      envRef.DEPLOY_AS_BLOCK = undefined
-      expect(await isFeatureEnabled('deploy-as-block', { userId: 'u1', orgId: 'o1' })).toBe(false)
-
-      envRef.DEPLOY_AS_BLOCK = true
-      expect(await isFeatureEnabled('deploy-as-block', { userId: 'u1', orgId: 'o1' })).toBe(true)
+    it('uses the global AppConfig clause', async () => {
+      withAppConfig({ 'credential-groups': { enabled: true } })
+      expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
 
-    it('targets specific orgs via AppConfig, ignoring the fallback secret', async () => {
-      envRef.DEPLOY_AS_BLOCK = undefined
-      withAppConfig({ 'deploy-as-block': { orgIds: ['o1'] } })
-      expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o1' })).toBe(true)
-      expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o2' })).toBe(false)
+    it('opens for an allowlisted workspace only', async () => {
+      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-1' })).toBe(true)
+      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-2' })).toBe(false)
+      expect(await isFeatureEnabled('credential-groups')).toBe(false)
     })
   })
 
-  describe('table-views flag', () => {
-    it('falls back to TABLE_VIEWS when AppConfig is disabled', async () => {
-      envRef.TABLE_VIEWS = undefined
-      expect(await isFeatureEnabled('table-views', { userId: 'u1', orgId: 'o1' })).toBe(false)
-
-      envRef.TABLE_VIEWS = true
-      expect(await isFeatureEnabled('table-views', { userId: 'u1', orgId: 'o1' })).toBe(true)
-    })
-
-    it('targets specific orgs and users via AppConfig, ignoring the fallback secret', async () => {
-      envRef.TABLE_VIEWS = undefined
-      withAppConfig({ 'table-views': { orgIds: ['o1'], userIds: ['u9'] } })
-      expect(await isFeatureEnabled('table-views', { orgId: 'o1' })).toBe(true)
-      expect(await isFeatureEnabled('table-views', { userId: 'u9' })).toBe(true)
-      expect(await isFeatureEnabled('table-views', { userId: 'u1', orgId: 'o2' })).toBe(false)
-    })
-
-    it('resolves off with no context, so a signed-out render never gates on', async () => {
-      envRef.TABLE_VIEWS = undefined
-      withAppConfig({ 'table-views': { orgIds: ['o1'] } })
-      expect(await isFeatureEnabled('table-views')).toBe(false)
-    })
+  it('matches the workspaceIds clause', async () => {
+    withAppConfig({ f: { workspaceIds: ['ws-1'] } })
+    expect(await enabled('f', { workspaceId: 'ws-1' })).toBe(true)
+    expect(await enabled('f', { workspaceId: 'ws-2' })).toBe(false)
+    expect(await enabled('f', { userId: 'ws-1' })).toBe(false)
   })
 
   it('returns false for an unknown flag', async () => {
@@ -270,5 +239,25 @@ describe('tables-v2-api flag', () => {
   it('global enabled turns it on for everyone', async () => {
     withAppConfig({ 'tables-v2-api': { enabled: true } })
     expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
+  })
+})
+
+describe('table-row-ttl flag', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({ isAppConfigEnabled: false })
+    envRef.TABLE_ROW_TTL = undefined
+  })
+
+  it('uses a global fallback switch off AppConfig', async () => {
+    expect(await isFeatureEnabled('table-row-ttl')).toBe(false)
+
+    envRef.TABLE_ROW_TTL = true
+    expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
+  })
+
+  it('uses the global AppConfig clause', async () => {
+    withAppConfig({ 'table-row-ttl': { enabled: true } })
+    expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
   })
 })

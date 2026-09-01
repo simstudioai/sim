@@ -1,0 +1,984 @@
+---
+title: Azure AD
+description: Manage identities, licenses, roles, and access in Azure AD (Microsoft Entra ID)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_ad"
+  color="#0078D4"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Azure Active Directory](https://entra.microsoft.com) (now Microsoft Entra ID) is Microsoft's cloud-based identity and access management service. It helps organizations manage users, groups, and access to applications and resources across cloud and on-premises environments.
+
+With the Azure AD integration in Sim, you can:
+
+- **Manage users**: List, create, update, and delete user accounts in your directory
+- **Manage groups**: Create and configure security groups and Microsoft 365 groups
+- **Control group membership**: Add and remove members from groups programmatically
+- **Query directory data**: Search and filter users and groups using OData expressions
+- **Automate onboarding/offboarding**: Create new user accounts with initial passwords and enable/disable accounts as part of HR workflows
+
+In Sim, the Azure AD integration enables your agents to programmatically manage your organization's identity infrastructure. This allows for automation scenarios such as provisioning new employees, updating user profiles in bulk, managing team group memberships, and auditing directory data. By connecting Sim with Azure AD, you can streamline identity lifecycle management and ensure your directory stays in sync with your organization's needs.
+
+## Need Help?
+
+If you encounter issues with the Azure AD integration, contact us at [help@sim.ai](mailto:help@sim.ai)
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Azure Active Directory into your workflows. Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.
+
+
+
+## Actions
+
+### List Azure AD Users
+
+List users in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Maximum number of users to return \(default 100, max 999\) |
+| `filter` | string | No | OData filter expression \(e.g., "department eq 'Sales'"\) |
+| `search` | string | No | Search string to filter users by displayName or mail |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | List of users |
+|   ↳ `id` | string | User ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `givenName` | string | First name |
+|   ↳ `surname` | string | Last name |
+|   ↳ `userPrincipalName` | string | User principal name \(email\) |
+|   ↳ `mail` | string | Email address |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `department` | string | Department |
+|   ↳ `officeLocation` | string | Office location |
+|   ↳ `mobilePhone` | string | Mobile phone number |
+|   ↳ `accountEnabled` | boolean | Whether the account is enabled |
+| `userCount` | number | Number of users returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### Get Azure AD User
+
+Get a user by ID or user principal name from Azure AD
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name \(e.g., "user@example.com"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | User details |
+|   ↳ `id` | string | User ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `givenName` | string | First name |
+|   ↳ `surname` | string | Last name |
+|   ↳ `userPrincipalName` | string | User principal name \(email\) |
+|   ↳ `mail` | string | Email address |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `department` | string | Department |
+|   ↳ `officeLocation` | string | Office location |
+|   ↳ `mobilePhone` | string | Mobile phone number |
+|   ↳ `accountEnabled` | boolean | Whether the account is enabled |
+
+### Create Azure AD User
+
+Create a new user in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Yes | Display name for the user |
+| `mailNickname` | string | Yes | Mail alias for the user |
+| `userPrincipalName` | string | Yes | User principal name \(e.g., "user@example.com"\) |
+| `password` | string | Yes | Initial password for the user |
+| `accountEnabled` | boolean | Yes | Whether the account is enabled |
+| `givenName` | string | No | First name |
+| `surname` | string | No | Last name |
+| `jobTitle` | string | No | Job title |
+| `department` | string | No | Department |
+| `officeLocation` | string | No | Office location |
+| `mobilePhone` | string | No | Mobile phone number |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | Created user details |
+|   ↳ `id` | string | User ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `givenName` | string | First name |
+|   ↳ `surname` | string | Last name |
+|   ↳ `userPrincipalName` | string | User principal name \(email\) |
+|   ↳ `mail` | string | Email address |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `officeLocation` | string | Office location |
+|   ↳ `mobilePhone` | string | Mobile phone number |
+|   ↳ `businessPhones` | array | Business phone numbers |
+|   ↳ `preferredLanguage` | string | Preferred language |
+
+### Update Azure AD User
+
+Update user properties in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name |
+| `displayName` | string | No | Display name |
+| `givenName` | string | No | First name |
+| `surname` | string | No | Last name |
+| `jobTitle` | string | No | Job title |
+| `department` | string | No | Department |
+| `officeLocation` | string | No | Office location |
+| `mobilePhone` | string | No | Mobile phone number |
+| `accountEnabled` | boolean | No | Whether the account is enabled |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the update was successful |
+| `userId` | string | ID of the updated user |
+
+### Delete Azure AD User
+
+Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a temporary container and can be restored within 30 days.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the deletion was successful |
+| `userId` | string | ID of the deleted user |
+
+### List Azure AD Groups
+
+List groups in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Maximum number of groups to return \(default 100, max 999\) |
+| `filter` | string | No | OData filter expression \(e.g., "securityEnabled eq true"\) |
+| `search` | string | No | Search string to filter groups by displayName or description |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groups` | array | List of groups |
+|   ↳ `id` | string | Group ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Group description |
+|   ↳ `mail` | string | Email address |
+|   ↳ `mailEnabled` | boolean | Whether mail is enabled |
+|   ↳ `mailNickname` | string | Mail nickname |
+|   ↳ `securityEnabled` | boolean | Whether security is enabled |
+|   ↳ `groupTypes` | array | Group types |
+|   ↳ `visibility` | string | Group visibility |
+|   ↳ `createdDateTime` | string | Creation date |
+| `groupCount` | number | Number of groups returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### Get Azure AD Group
+
+Get a group by ID from Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | object | Group details |
+|   ↳ `id` | string | Group ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Group description |
+|   ↳ `mail` | string | Email address |
+|   ↳ `mailEnabled` | boolean | Whether mail is enabled |
+|   ↳ `mailNickname` | string | Mail nickname |
+|   ↳ `securityEnabled` | boolean | Whether security is enabled |
+|   ↳ `groupTypes` | array | Group types |
+|   ↳ `visibility` | string | Group visibility |
+|   ↳ `createdDateTime` | string | Creation date |
+
+### Create Azure AD Group
+
+Create a new group in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Yes | Display name for the group |
+| `mailNickname` | string | Yes | Mail alias for the group \(ASCII only, max 64 characters\) |
+| `description` | string | No | Group description |
+| `mailEnabled` | boolean | Yes | Whether mail is enabled \(true for Microsoft 365 groups\) |
+| `securityEnabled` | boolean | Yes | Whether security is enabled \(true for security groups\) |
+| `groupTypes` | string | No | Group type: "Unified" for Microsoft 365 group, leave empty for security group |
+| `visibility` | string | No | Group visibility: "Private" or "Public" \(can be changed later\), or "HiddenMembership" \(Microsoft 365 groups only; can only be set at creation and never changed afterward\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | object | Created group details |
+|   ↳ `id` | string | Group ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Group description |
+|   ↳ `mail` | string | Email address |
+|   ↳ `mailEnabled` | boolean | Whether mail is enabled |
+|   ↳ `mailNickname` | string | Mail nickname |
+|   ↳ `securityEnabled` | boolean | Whether security is enabled |
+|   ↳ `groupTypes` | array | Group types |
+|   ↳ `visibility` | string | Group visibility |
+|   ↳ `createdDateTime` | string | Creation date |
+
+### Update Azure AD Group
+
+Update group properties in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+| `displayName` | string | No | Display name |
+| `description` | string | No | Group description |
+| `mailNickname` | string | No | Mail alias |
+| `visibility` | string | No | Group visibility: "Private" or "Public" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the update was successful |
+| `groupId` | string | ID of the updated group |
+
+### Delete Azure AD Group
+
+Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security groups can be restored within 30 days.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the deletion was successful |
+| `groupId` | string | ID of the deleted group |
+
+### List Azure AD Group Members
+
+List members of a group in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | No | Group ID. Not needed when Next Page is provided to fetch a later page. |
+| `top` | number | No | Maximum number of members to return \(default 100, max 999\) |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | List of group members |
+|   ↳ `id` | string | Member ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `mail` | string | Email address |
+|   ↳ `odataType` | string | Directory object type |
+| `memberCount` | number | Number of members returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### Add Azure AD Group Member
+
+Add a member to a group in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+| `memberId` | string | Yes | User ID of the member to add |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `added` | boolean | Whether the member was added successfully |
+| `groupId` | string | Group ID |
+| `memberId` | string | Member ID that was added |
+
+### Remove Azure AD Group Member
+
+Remove a member from a group in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+| `memberId` | string | Yes | User ID of the member to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `removed` | boolean | Whether the member was removed successfully |
+| `groupId` | string | Group ID |
+| `memberId` | string | Member ID that was removed |
+
+### Assign Microsoft Entra ID License
+
+Add or remove subscription licenses (SKUs) on a user in Microsoft Entra ID. Removing a license immediately revokes the access it granted to the associated services.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name to change licenses for |
+| `addSkuIds` | string | No | Comma-separated SKU IDs \(GUIDs\) of the licenses to assign. Leave empty to only remove licenses. |
+| `removeSkuIds` | string | No | Comma-separated SKU IDs \(GUIDs\) of the licenses to remove. Leave empty to only add licenses. |
+| `disabledPlanIds` | string | No | Comma-separated service plan IDs \(GUIDs\) to disable on every license being assigned |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | ID of the user whose licenses changed |
+| `displayName` | string | Display name of the user |
+| `userPrincipalName` | string | User principal name of the user |
+| `assignedLicenses` | array | Licenses assigned to the user after the change |
+|   ↳ `skuId` | string | SKU ID of the assigned license |
+|   ↳ `disabledPlans` | array | Service plan IDs disabled on this license |
+
+### List Microsoft Entra ID User Licenses
+
+List the subscription licenses assigned to a user in Microsoft Entra ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `licenses` | array | Licenses assigned to the user |
+|   ↳ `id` | string | License detail ID |
+|   ↳ `skuId` | string | SKU ID of the license |
+|   ↳ `skuPartNumber` | string | SKU part number \(e.g., "ENTERPRISEPACK"\) |
+|   ↳ `servicePlans` | array | Service plans included in the license |
+|     ↳ `servicePlanId` | string | Service plan ID |
+|     ↳ `servicePlanName` | string | Service plan name |
+|     ↳ `provisioningStatus` | string | Provisioning status of the service plan |
+|     ↳ `appliesTo` | string | Whether the plan applies to "User" or "Company" |
+| `licenseCount` | number | Number of licenses returned |
+
+### List Microsoft Entra ID Subscribed SKUs
+
+List the subscription SKUs the tenant owns, including how many license units are prepaid and how many are consumed
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `skus` | array | Subscription SKUs owned by the tenant |
+|   ↳ `id` | string | Subscribed SKU object ID |
+|   ↳ `skuId` | string | SKU ID, used when assigning or removing licenses |
+|   ↳ `skuPartNumber` | string | SKU part number \(e.g., "ENTERPRISEPACK"\) |
+|   ↳ `appliesTo` | string | Whether the SKU applies to "User" or "Company" |
+|   ↳ `capabilityStatus` | string | Capability status of the subscription |
+|   ↳ `consumedUnits` | number | Number of licenses currently assigned |
+|   ↳ `prepaidUnits` | object | Prepaid license unit counts by status |
+|     ↳ `enabled` | number | Number of units that are enabled |
+|     ↳ `suspended` | number | Number of units that are suspended |
+|     ↳ `warning` | number | Number of units that are in warning status |
+|     ↳ `lockedOut` | number | Number of units that are locked out |
+|   ↳ `servicePlans` | array | Service plans included in the SKU |
+|     ↳ `servicePlanId` | string | Service plan ID |
+|     ↳ `servicePlanName` | string | Service plan name |
+|     ↳ `provisioningStatus` | string | Provisioning status of the service plan |
+|     ↳ `appliesTo` | string | Whether the plan applies to "User" or "Company" |
+| `skuCount` | number | Number of SKUs returned |
+
+### Revoke Microsoft Entra ID Sign-In Sessions
+
+Invalidate every refresh token and session cookie issued to a user, forcing them to sign in again on all applications and devices. Revocation can take a few minutes to take effect and does not apply to external users.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name whose sessions should be revoked |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `revoked` | boolean | Whether Microsoft Graph confirmed the sessions were revoked |
+| `userId` | string | ID of the user whose sessions were revoked |
+
+### Set Microsoft Entra ID User Password
+
+Set a specific password on a user by updating their password profile. Cannot be used for federated users. Requires an administrator role in Microsoft Entra ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name whose password should be set |
+| `password` | string | Yes | The new password. Must satisfy the tenant password policy. |
+| `forceChangePasswordNextSignIn` | boolean | No | Whether the user must change this password at their next sign-in. Defaults to true. |
+| `forceChangePasswordNextSignInWithMfa` | boolean | No | Whether the user must complete multifactor authentication before being forced to change the password |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the password was set successfully |
+| `userId` | string | ID of the user whose password was set |
+| `forceChangePasswordNextSignIn` | boolean | Whether the user must change the password at their next sign-in |
+
+### Reset Microsoft Entra ID User Password
+
+Reset another user's password through their password authentication method. Leave the new password empty to have Microsoft generate one and return it. The user is prompted to change the password at their next sign-in. Cannot be run against your own account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name whose password should be reset |
+| `newPassword` | string | No | The new password. Required for tenants with hybrid password scenarios. Leave empty for a cloud-only password to have Microsoft generate and return one. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether Microsoft Graph accepted the password reset operation |
+| `userId` | string | ID of the user whose password was reset |
+| `newPassword` | string | The system-generated password, returned only when no new password was supplied in the request. Like every tool output it appears in workflow outputs and run history, and is sent to the model when an agent calls this tool, so prefer supplying your own password when the value must not leave the workflow. |
+| `operationLocation` | string | URL to poll for the status of the long-running password reset operation |
+
+### List Microsoft Entra ID Authentication Methods
+
+List the authentication methods a user has registered, such as passwords, phone numbers, FIDO2 keys, and authenticator apps
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `methods` | array | Authentication methods registered by the user |
+|   ↳ `id` | string | Authentication method ID |
+|   ↳ `odataType` | string | Authentication method type \(e.g., "#microsoft.graph.phoneAuthenticationMethod"\). Method-specific details vary by type. |
+|   ↳ `createdDateTime` | string | When the authentication method was registered |
+| `methodCount` | number | Number of authentication methods returned |
+
+### List Microsoft Entra ID Sign-Ins
+
+List sign-in events from the Microsoft Entra ID sign-in logs, newest first. Requires a Microsoft Entra ID P1 or P2 license. Apply a date filter to keep large queries from timing out.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Maximum number of sign-ins to return \(default and maximum page size is 1000\) |
+| `filter` | string | No | OData filter expression. Filterable fields include userPrincipalName, userId, appId, appDisplayName, ipAddress, createdDateTime, conditionalAccessStatus, riskState and status/errorCode. Example: "createdDateTime ge 2024-01-01T00:00:00Z and status/errorCode ne 0". |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `signIns` | array | Sign-in events |
+|   ↳ `id` | string | Sign-in event ID |
+|   ↳ `createdDateTime` | string | When the sign-in was initiated |
+|   ↳ `userId` | string | ID of the user who signed in |
+|   ↳ `userDisplayName` | string | Display name of the user |
+|   ↳ `userPrincipalName` | string | User principal name of the user |
+|   ↳ `appId` | string | ID of the application used to sign in |
+|   ↳ `appDisplayName` | string | Display name of the application |
+|   ↳ `resourceId` | string | ID of the resource that was accessed |
+|   ↳ `resourceDisplayName` | string | Display name of the resource |
+|   ↳ `ipAddress` | string | IP address the sign-in came from |
+|   ↳ `clientAppUsed` | string | Legacy client app used to sign in |
+|   ↳ `correlationId` | string | Correlation ID for the sign-in request |
+|   ↳ `conditionalAccessStatus` | string | Conditional access result: success, failure, notApplied, or unknownFutureValue |
+|   ↳ `isInteractive` | boolean | Whether the sign-in was interactive |
+|   ↳ `riskDetail` | string | Reason behind a specific risk state |
+|   ↳ `riskLevelAggregated` | string | Aggregated risk level for the sign-in |
+|   ↳ `riskState` | string | Risk state of the user or sign-in |
+|   ↳ `errorCode` | number | Sign-in status error code. 0 indicates a successful sign-in. |
+|   ↳ `failureReason` | string | Failure reason from the sign-in status |
+|   ↳ `deviceDisplayName` | string | Display name of the device used |
+|   ↳ `deviceId` | string | ID of the device used |
+|   ↳ `deviceOperatingSystem` | string | Operating system of the device used |
+|   ↳ `deviceBrowser` | string | Browser used to sign in |
+|   ↳ `deviceIsCompliant` | boolean | Whether the device is compliant |
+|   ↳ `deviceIsManaged` | boolean | Whether the device is managed |
+|   ↳ `locationCity` | string | City the sign-in came from |
+|   ↳ `locationState` | string | State the sign-in came from |
+|   ↳ `locationCountryOrRegion` | string | Two-letter country or region code the sign-in came from |
+| `signInCount` | number | Number of sign-ins returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### List Microsoft Entra ID Directory Audits
+
+List directory audit records showing who changed what in Microsoft Entra ID, such as user creation, group membership changes, and role assignments
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Maximum number of audit records to return |
+| `filter` | string | No | OData filter expression. Filterable fields include activityDateTime, activityDisplayName, correlationId, loggedByService, initiatedBy and targetResources. Example: "activityDateTime ge 2024-01-01T00:00:00Z". |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audits` | array | Directory audit records |
+|   ↳ `id` | string | Audit record ID |
+|   ↳ `activityDateTime` | string | When the activity took place |
+|   ↳ `activityDisplayName` | string | Name of the activity |
+|   ↳ `category` | string | Category of the activity |
+|   ↳ `correlationId` | string | Correlation ID for the activity |
+|   ↳ `loggedByService` | string | Service that logged the activity |
+|   ↳ `operationType` | string | Operation type \(e.g., Add, Update, Delete\) |
+|   ↳ `result` | string | Result of the activity: success, failure, timeout, or unknownFutureValue |
+|   ↳ `resultReason` | string | Reason for the result |
+|   ↳ `initiatedByUserId` | string | ID of the user who initiated the activity |
+|   ↳ `initiatedByUserPrincipalName` | string | User principal name of the initiating user |
+|   ↳ `initiatedByUserDisplayName` | string | Display name of the initiating user |
+|   ↳ `initiatedByAppId` | string | App ID that initiated the activity |
+|   ↳ `initiatedByAppDisplayName` | string | Display name of the app that initiated the activity |
+|   ↳ `targetResources` | array | Resources the activity acted on |
+|     ↳ `id` | string | ID of the target resource |
+|     ↳ `displayName` | string | Display name of the target resource |
+|     ↳ `type` | string | Type of the target resource \(e.g., User, Group\) |
+|     ↳ `userPrincipalName` | string | User principal name of the target, null for non-user resources |
+| `auditCount` | number | Number of audit records returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### List Microsoft Entra ID User App Role Assignments
+
+List the application role assignments granted to a user, including assignments the user inherits from groups they are a direct member of
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | No | User ID or user principal name. Not needed when Next Page is provided to fetch a later page. |
+| `top` | number | No | Maximum number of assignments to return |
+| `filter` | string | No | OData filter expression. Filterable fields include id, resourceId and principalDisplayName. Example: "resourceId eq 8e881353-1735-45af-af21-ee1344582a4d". |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignments` | array | App role assignments granted to the user |
+|   ↳ `id` | string | App role assignment ID, used when removing the assignment |
+|   ↳ `appRoleId` | string | ID of the app role. All-zero GUID means the assignment grants access without a specific role. |
+|   ↳ `createdDateTime` | string | When the assignment was created |
+|   ↳ `principalId` | string | ID of the assigned principal |
+|   ↳ `principalDisplayName` | string | Display name of the assigned principal |
+|   ↳ `principalType` | string | Principal type: User, Group, or ServicePrincipal |
+|   ↳ `resourceId` | string | ID of the resource service principal that defines the app role |
+|   ↳ `resourceDisplayName` | string | Display name of the resource |
+| `assignmentCount` | number | Number of assignments returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### Grant Microsoft Entra ID App Role To User
+
+Grant a user an application role on a service principal, giving them access to that application
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | Object ID or user principal name of the user to grant the app role to. A user principal name is resolved to its object ID before the grant. |
+| `resourceId` | string | Yes | Object ID of the resource service principal that defines the app role. Use List Service Principals to find it. |
+| `appRoleId` | string | Yes | ID of the app role to grant. Use the all-zero GUID 00000000-0000-0000-0000-000000000000 to assign access without a specific role. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignment` | object | The created app role assignment |
+|   ↳ `id` | string | App role assignment ID, used when removing the assignment |
+|   ↳ `appRoleId` | string | ID of the app role. All-zero GUID means the assignment grants access without a specific role. |
+|   ↳ `createdDateTime` | string | When the assignment was created |
+|   ↳ `principalId` | string | ID of the assigned principal |
+|   ↳ `principalDisplayName` | string | Display name of the assigned principal |
+|   ↳ `principalType` | string | Principal type: User, Group, or ServicePrincipal |
+|   ↳ `resourceId` | string | ID of the resource service principal that defines the app role |
+|   ↳ `resourceDisplayName` | string | Display name of the resource |
+
+### Revoke Microsoft Entra ID App Role From User
+
+Revoke an application role assignment from a user, removing their access to that application. Takes the assignment's own ID, not the app role ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name the assignment belongs to |
+| `appRoleAssignmentId` | string | Yes | ID of the app role assignment to remove, taken from the "id" field of List User App Role Assignments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `removed` | boolean | Whether the assignment was removed successfully |
+| `userId` | string | ID of the user the assignment belonged to |
+| `appRoleAssignmentId` | string | ID of the removed app role assignment |
+
+### List Microsoft Entra ID Service Principals
+
+List the enterprise applications and service principals in the tenant, including the app roles each one exposes
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Maximum number of service principals to return \(default and maximum page size is 100\) |
+| `filter` | string | No | OData filter expression. Example: "servicePrincipalType eq 'Application'" or "startsWith\(displayName, 'Salesforce'\)". |
+| `search` | string | No | Search string matched against the service principal display name |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `servicePrincipals` | array | Service principals in the tenant |
+|   ↳ `id` | string | Service principal object ID, used as the resource ID of an app role assignment |
+|   ↳ `appId` | string | Application ID associated with the service principal |
+|   ↳ `displayName` | string | Display name of the service principal |
+|   ↳ `servicePrincipalType` | string | Type of service principal \(e.g., Application, ManagedIdentity, Legacy\) |
+|   ↳ `accountEnabled` | boolean | Whether users can sign in to the associated application |
+|   ↳ `appOwnerOrganizationId` | string | Tenant ID where the application is registered |
+|   ↳ `signInAudience` | string | Which Microsoft accounts are supported by the associated application |
+|   ↳ `tags` | array | Custom strings used to categorize the service principal |
+|   ↳ `appRoles` | array | App roles exposed by the associated application |
+|     ↳ `id` | string | App role ID, used when granting an app role assignment |
+|     ↳ `displayName` | string | Display name of the app role |
+|     ↳ `description` | string | Description of the app role |
+|     ↳ `value` | string | Value included in the roles claim for this app role |
+|     ↳ `isEnabled` | boolean | Whether the app role can be assigned |
+|     ↳ `allowedMemberTypes` | array | Principal types the app role can be assigned to \(User and/or Application\) |
+| `servicePrincipalCount` | number | Number of service principals returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### List Microsoft Entra ID Application Assignments
+
+List every user, group, and service principal assigned to an application, by reading the app role assignments on its service principal. Recently granted or removed assignments can take time to appear.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `servicePrincipalId` | string | No | Object ID of the service principal. Use List Service Principals to find it. Not needed when Next Page is provided to fetch a later page. |
+| `filter` | string | No | OData filter expression supporting eq and startswith. Example: "principalType eq 'User'". |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assignments` | array | Principals assigned to the application |
+|   ↳ `id` | string | App role assignment ID, used when removing the assignment |
+|   ↳ `appRoleId` | string | ID of the app role. All-zero GUID means the assignment grants access without a specific role. |
+|   ↳ `createdDateTime` | string | When the assignment was created |
+|   ↳ `principalId` | string | ID of the assigned principal |
+|   ↳ `principalDisplayName` | string | Display name of the assigned principal |
+|   ↳ `principalType` | string | Principal type: User, Group, or ServicePrincipal |
+|   ↳ `resourceId` | string | ID of the resource service principal that defines the app role |
+|   ↳ `resourceDisplayName` | string | Display name of the resource |
+| `assignmentCount` | number | Number of assignments returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### List Microsoft Entra ID Directory Roles
+
+List the administrator roles that are activated in the tenant, such as Global Administrator and User Administrator. Roles that have never been activated are not returned.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `roles` | array | Activated directory roles |
+|   ↳ `id` | string | Directory role object ID |
+|   ↳ `displayName` | string | Display name of the directory role |
+|   ↳ `description` | string | Description of the directory role |
+|   ↳ `roleTemplateId` | string | ID of the directory role template |
+| `roleCount` | number | Number of directory roles returned |
+
+### List Microsoft Entra ID Directory Role Members
+
+List the principals holding an administrator role. Returns up to 1000 members; this endpoint does not support paging.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `directoryRoleId` | string | Yes | Object ID of the directory role. Use List Directory Roles to find it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Principals holding the directory role |
+|   ↳ `id` | string | Member ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `mail` | string | Email address |
+|   ↳ `odataType` | string | Directory object type |
+| `memberCount` | number | Number of members returned |
+
+### Add Microsoft Entra ID Directory Role Member
+
+Grant a user an administrator role in Microsoft Entra ID. This is a privileged change that expands what the user can do across the tenant.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `directoryRoleId` | string | Yes | Object ID of the directory role. Use List Directory Roles to find it. |
+| `memberId` | string | Yes | Object ID of the user to grant the role to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `added` | boolean | Whether the member was added successfully |
+| `directoryRoleId` | string | ID of the directory role |
+| `memberId` | string | ID of the member that was added |
+
+### Remove Microsoft Entra ID Directory Role Member
+
+Revoke an administrator role from a user in Microsoft Entra ID. Removes only the role membership; the user account itself is not deleted.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `directoryRoleId` | string | Yes | Object ID of the directory role. Use List Directory Roles to find it. |
+| `memberId` | string | Yes | Object ID of the user to remove the role from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `removed` | boolean | Whether the member was removed successfully |
+| `directoryRoleId` | string | ID of the directory role |
+| `memberId` | string | ID of the member that was removed |
+
+### List Microsoft Entra ID Devices
+
+List the devices registered in Microsoft Entra ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Maximum number of devices to return |
+| `filter` | string | No | OData filter expression. Example: "accountEnabled eq false" or "operatingSystem eq 'Windows'". |
+| `search` | string | No | Search string matched against the device display name |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `devices` | array | Registered devices |
+|   ↳ `id` | string | Device object ID, used to get, update, or delete the device |
+|   ↳ `deviceId` | string | Unique device identifier set during registration |
+|   ↳ `displayName` | string | Display name of the device |
+|   ↳ `operatingSystem` | string | Operating system of the device |
+|   ↳ `operatingSystemVersion` | string | Operating system version of the device |
+|   ↳ `accountEnabled` | boolean | Whether the device is enabled |
+|   ↳ `isCompliant` | boolean | Whether the device complies with MDM policies |
+|   ↳ `isManaged` | boolean | Whether the device is managed by an MDM app |
+|   ↳ `trustType` | string | Device registration type: Workplace, AzureAd, or ServerAd |
+|   ↳ `profileType` | string | Device profile type: RegisteredDevice, SecureVM, Printer, Shared, or IoT |
+|   ↳ `manufacturer` | string | Manufacturer of the device |
+|   ↳ `model` | string | Model of the device |
+|   ↳ `approximateLastSignInDateTime` | string | Approximate time the device last signed in |
+|   ↳ `registrationDateTime` | string | When the device was registered |
+| `deviceCount` | number | Number of devices returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### Get Microsoft Entra ID Device
+
+Get a registered device by its object ID from Microsoft Entra ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deviceObjectId` | string | Yes | Device object ID \(the "id" field\), not the "deviceId" registration identifier |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `device` | object | Device details |
+|   ↳ `id` | string | Device object ID, used to get, update, or delete the device |
+|   ↳ `deviceId` | string | Unique device identifier set during registration |
+|   ↳ `displayName` | string | Display name of the device |
+|   ↳ `operatingSystem` | string | Operating system of the device |
+|   ↳ `operatingSystemVersion` | string | Operating system version of the device |
+|   ↳ `accountEnabled` | boolean | Whether the device is enabled |
+|   ↳ `isCompliant` | boolean | Whether the device complies with MDM policies |
+|   ↳ `isManaged` | boolean | Whether the device is managed by an MDM app |
+|   ↳ `trustType` | string | Device registration type: Workplace, AzureAd, or ServerAd |
+|   ↳ `profileType` | string | Device profile type: RegisteredDevice, SecureVM, Printer, Shared, or IoT |
+|   ↳ `manufacturer` | string | Manufacturer of the device |
+|   ↳ `model` | string | Model of the device |
+|   ↳ `approximateLastSignInDateTime` | string | Approximate time the device last signed in |
+|   ↳ `registrationDateTime` | string | When the device was registered |
+
+### List Microsoft Entra ID User Devices
+
+List the devices a user has registered or owns. Devices the caller cannot read are returned with only their ID and the remaining fields null.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | No | User ID or user principal name. Not needed when Next Page is provided to fetch a later page. |
+| `deviceRelationship` | string | No | Which devices to list: "registered" for devices the user registered, or "owned" for devices the user owns. Defaults to "registered". |
+| `top` | number | No | Maximum number of devices to return |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `devices` | array | Devices linked to the user |
+|   ↳ `id` | string | Device object ID, used to get, update, or delete the device |
+|   ↳ `deviceId` | string | Unique device identifier set during registration |
+|   ↳ `displayName` | string | Display name of the device |
+|   ↳ `operatingSystem` | string | Operating system of the device |
+|   ↳ `operatingSystemVersion` | string | Operating system version of the device |
+|   ↳ `accountEnabled` | boolean | Whether the device is enabled |
+|   ↳ `isCompliant` | boolean | Whether the device complies with MDM policies |
+|   ↳ `isManaged` | boolean | Whether the device is managed by an MDM app |
+|   ↳ `trustType` | string | Device registration type: Workplace, AzureAd, or ServerAd |
+|   ↳ `profileType` | string | Device profile type: RegisteredDevice, SecureVM, Printer, Shared, or IoT |
+|   ↳ `manufacturer` | string | Manufacturer of the device |
+|   ↳ `model` | string | Model of the device |
+|   ↳ `approximateLastSignInDateTime` | string | Approximate time the device last signed in |
+|   ↳ `registrationDateTime` | string | When the device was registered |
+| `deviceCount` | number | Number of devices returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### List Microsoft Entra ID Conditional Access Policies
+
+List the conditional access policies configured in the tenant, including their state and the conditions and controls they enforce. Read-only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Maximum number of policies to return |
+| `filter` | string | No | OData filter expression. Example: "state eq 'enabled'". |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `policies` | array | Conditional access policies |
+|   ↳ `id` | string | Conditional access policy ID |
+|   ↳ `displayName` | string | Display name of the policy |
+|   ↳ `state` | string | Policy state: enabled, disabled, or enabledForReportingButNotEnforced |
+|   ↳ `templateId` | string | ID of the template the policy was created from |
+|   ↳ `createdDateTime` | string | When the policy was created |
+|   ↳ `modifiedDateTime` | string | When the policy was last modified |
+|   ↳ `conditions` | json | Conditions that trigger the policy \(users, applications, platforms, locations, risk levels\) |
+|   ↳ `grantControls` | json | Controls enforced when the policy applies, or null when none are configured |
+|   ↳ `sessionControls` | json | Session controls enforced when the policy applies, or null when none are set |
+| `policyCount` | number | Number of policies returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+### Get Microsoft Entra ID Conditional Access Policy
+
+Get a single conditional access policy by ID, including the conditions it matches and the controls it enforces. Read-only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `policyId` | string | Yes | Conditional access policy ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `policy` | object | Conditional access policy details |
+|   ↳ `id` | string | Conditional access policy ID |
+|   ↳ `displayName` | string | Display name of the policy |
+|   ↳ `state` | string | Policy state: enabled, disabled, or enabledForReportingButNotEnforced |
+|   ↳ `templateId` | string | ID of the template the policy was created from |
+|   ↳ `createdDateTime` | string | When the policy was created |
+|   ↳ `modifiedDateTime` | string | When the policy was last modified |
+|   ↳ `conditions` | json | Conditions that trigger the policy \(users, applications, platforms, locations, risk levels\) |
+|   ↳ `grantControls` | json | Controls enforced when the policy applies, or null when none are configured |
+|   ↳ `sessionControls` | json | Session controls enforced when the policy applies, or null when none are set |
+
+

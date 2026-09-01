@@ -1,400 +1,135 @@
-import { db } from '@sim/db'
-import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import {
-  assertWorkflowMutable,
-  authorizeWorkflowByWorkspacePermission,
-} from '@sim/platform-authz/workflow'
-import { toError } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
+import { executeCopilotWorkflowUseCase } from '@/lib/copilot/application/execute-workflow-use-case'
 import { EditWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { env } from '@/lib/core/config/env'
-import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  applyTargetedLayout,
-  getTargetedLayoutImpact,
-  transferBlockHeights,
-} from '@/lib/workflows/autolayout'
-import {
-  DEFAULT_HORIZONTAL_SPACING,
-  DEFAULT_VERTICAL_SPACING,
-} from '@/lib/workflows/autolayout/constants'
-import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
-import {
-  loadWorkflowFromNormalizedTables,
-  saveWorkflowToNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
-import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
-import { applyOperationsToWorkflowState } from './engine'
-import {
-  collectWorkflowFieldIssues,
-  formatWorkflowLintMessage,
-  hasWorkflowLintIssues,
-  lintEditedWorkflowState,
-  type WorkflowLintReport,
-  type WorkflowLintUnresolvedReference,
-} from './lint'
-import { type EditWorkflowParams, isDeferredSkippedItem, type ValidationError } from './types'
-import {
-  collectUnresolvedAgentToolReferences,
-  collectUnresolvedReferences,
-  preValidateCredentialInputs,
-  UNRESOLVABLE_AT_LINT_NOTE,
-} from './validation'
+  type ApplyWorkflowOperationsResult,
+  applyWorkflowOperations,
+} from '@/lib/workflows/application/apply-workflow-operations'
+import { formatWorkflowLintMessage, hasWorkflowLintIssues } from '@/lib/workflows/editing/lint'
+import type { EditWorkflowParams, SkippedItem } from '@/lib/workflows/editing/types'
+import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 
-async function getCurrentWorkflowStateFromDb(
-  workflowId: string
-): Promise<{ workflowState: any; subBlockValues: Record<string, Record<string, any>> }> {
-  const logger = createLogger('EditWorkflowServerTool')
-  const [workflowRecord] = await db
-    .select()
-    .from(workflowTable)
-    .where(eq(workflowTable.id, workflowId))
-    .limit(1)
-  if (!workflowRecord) throw new Error(`Workflow ${workflowId} not found in database`)
-  const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-  if (!normalized) throw new Error('Workflow has no normalized data')
+const logger = createLogger('EditWorkflowServerTool')
 
-  const { state: validatedState, warnings } = normalizeWorkflowState({
-    blocks: normalized.blocks,
-    edges: normalized.edges,
-    loops: normalized.loops || {},
-    parallels: normalized.parallels || {},
-  })
-
-  if (warnings.length > 0) {
-    logger.warn('Normalized workflow state loaded from DB for copilot', {
-      workflowId,
-      warningCount: warnings.length,
-      warnings,
-    })
+/**
+ * Re-states a `not_found` from the use case in terms the model can act on (#6918).
+ *
+ * The message is deliberately Copilot's rather than the use case's: it names
+ * `workflows/**` + '/meta.json', a path that exists only in the copilot VFS, so an
+ * HTTP caller hitting `POST /api/v2/workflows/{workflowId}/operations` would be
+ * told to look somewhere it cannot reach. Every other classification is passed
+ * through untouched.
+ */
+function enrichWorkflowNotFound(error: unknown, workflowId: string): unknown {
+  if (error instanceof OrchestrationError && error.code === 'not_found') {
+    return new OrchestrationError(
+      'not_found',
+      `Workflow not found: ${workflowId}. Pass the workflow's canonical id (copy it from ` +
+        `workflows/**` +
+        `/meta.json or the tool result that created it) — a workflow name or @-mention is not an id.`
+    )
   }
-
-  const subBlockValues: Record<string, Record<string, any>> = {}
-  Object.entries(validatedState.blocks).forEach(([blockId, block]) => {
-    subBlockValues[blockId] = {}
-    Object.entries((block as any).subBlocks || {}).forEach(([subId, sub]) => {
-      if ((sub as any).value !== undefined) subBlockValues[blockId][subId] = (sub as any).value
-    })
-  })
-  return { workflowState: validatedState, subBlockValues }
+  return error
 }
 
+function mapSkippedItem(item: SkippedItem) {
+  return {
+    type: item.type,
+    operationType: item.operationType,
+    blockId: item.blockId,
+    reason: item.reason,
+    ...(item.details && { details: item.details }),
+  }
+}
+
+function parseCurrentUserWorkflow(currentUserWorkflow: string): Record<string, unknown> {
+  try {
+    return JSON.parse(currentUserWorkflow)
+  } catch (error) {
+    logger.error('Failed to parse currentUserWorkflow', error)
+    throw new OrchestrationError('validation', 'Invalid currentUserWorkflow format')
+  }
+}
+
+/**
+ * Copilot's surface over the shared `workflows.operations.apply` use case.
+ *
+ * Owns only what a surface owns: argument shaping, abort checkpoints, and the
+ * tool result the model reads. Authorization, the lock and plan gates, the edit
+ * engine, persistence, semantic audit, and the realtime notification all live in
+ * the application use case, which `POST /api/v2/workflows/{workflowId}/operations`
+ * enters through as well.
+ *
+ * `currentUserWorkflow` — the unsaved canvas the user is looking at — is passed
+ * through as `baseGraph`, which the use case honours only for a delegated
+ * principal. No other surface can supply it.
+ */
 export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown> = {
   name: EditWorkflow.id,
   async execute(params: EditWorkflowParams, context?: ServerToolContext): Promise<unknown> {
-    const logger = createLogger('EditWorkflowServerTool')
     const { operations, workflowId, currentUserWorkflow } = params
     if (!Array.isArray(operations) || operations.length === 0) {
-      throw new Error('operations are required and must be an array')
+      throw new OrchestrationError('validation', 'operations are required and must be an array')
     }
-    if (!workflowId) throw new Error('workflowId is required')
-    if (!context?.userId) {
-      throw new Error('Unauthorized workflow access')
-    }
-
-    const authorization = await authorizeWorkflowByWorkspacePermission({
-      workflowId,
-      userId: context.userId,
-      action: 'write',
-    })
-    if (!authorization.allowed) {
-      throw new Error(authorization.message || 'Unauthorized workflow access')
-    }
-
-    await assertWorkflowMutable(workflowId)
-
-    const workspaceId = authorization.workflow?.workspaceId ?? undefined
-    const workflowName = authorization.workflow?.name ?? undefined
+    if (!workflowId) throw new OrchestrationError('validation', 'workflowId is required')
 
     logger.info('Executing edit_workflow', {
       operationCount: operations.length,
       workflowId,
       hasCurrentUserWorkflow: !!currentUserWorkflow,
-      chatId: context.chatId,
+      chatId: context?.chatId,
     })
 
     assertServerToolNotAborted(context)
 
-    let workflowState: any
-    if (currentUserWorkflow) {
-      try {
-        workflowState = JSON.parse(currentUserWorkflow)
-      } catch (error) {
-        logger.error('Failed to parse currentUserWorkflow', error)
-        throw new Error('Invalid currentUserWorkflow format')
-      }
-    } else {
-      const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
-      workflowState = fromDb.workflowState
-    }
-
-    const permissionConfig =
-      context?.userId && workspaceId
-        ? await getUserPermissionConfig(context.userId, workspaceId)
-        : null
-
-    // Pre-validate credential and apiKey inputs before applying operations
-    // This filters out invalid credentials and apiKeys for hosted models
-    let operationsToApply = operations
-    const credentialErrors: ValidationError[] = []
-    if (context?.userId) {
-      const { filteredOperations, errors: credErrors } = await preValidateCredentialInputs(
+    const result: ApplyWorkflowOperationsResult = await executeCopilotWorkflowUseCase(
+      context,
+      applyWorkflowOperations,
+      {
+        workflowId,
         operations,
-        { userId: context.userId, workspaceId },
-        workflowState
-      )
-      operationsToApply = filteredOperations
-      credentialErrors.push(...credErrors)
-    }
-
-    // Apply operations directly to the workflow state
-    const {
-      state: modifiedWorkflowState,
-      validationErrors,
-      skippedItems,
-    } = applyOperationsToWorkflowState(workflowState, operationsToApply, permissionConfig)
-
-    // Add credential validation errors
-    validationErrors.push(...credentialErrors)
-
-    // Resolve credential/resource references against the workspace (Tier 2).
-    // Includes oauth-input credentials and only the active canonical member, so a
-    // credential "set in basic mode but unresolved in the dropdown" is caught.
-    let unresolvedReferences: WorkflowLintUnresolvedReference[] = []
-    if (context?.userId) {
-      try {
-        unresolvedReferences = await collectUnresolvedReferences(modifiedWorkflowState, {
-          userId: context.userId,
-          workspaceId,
-        })
-        // Back-compat: also surface unresolved references through the input-validation channel.
-        validationErrors.push(
-          ...unresolvedReferences.map((ref) => ({
-            blockId: ref.blockId,
-            blockType: ref.blockType ?? 'unknown',
-            field: ref.field,
-            value: ref.value,
-            error: ref.reason,
-          }))
-        )
-      } catch (error) {
-        logger.warn('Selector ID validation failed', {
-          error: toError(error).message,
-        })
+        ...(currentUserWorkflow
+          ? { baseGraph: parseCurrentUserWorkflow(currentUserWorkflow) }
+          : {}),
+        checkAborted: () => assertServerToolNotAborted(context),
       }
-
-      // Resolve agent-block tool/skill references (custom tools, MCP servers,
-      // skills). A well-shaped entry whose id does not resolve is dropped at
-      // runtime, so the agent silently loses the tool/skill - surface it through
-      // the same lint + input-validation channels as credential/resource refs.
-      try {
-        const toolReferences = await collectUnresolvedAgentToolReferences(modifiedWorkflowState, {
-          userId: context.userId,
-          workspaceId,
-        })
-        unresolvedReferences.push(...toolReferences)
-        validationErrors.push(
-          ...toolReferences.map((ref) => ({
-            blockId: ref.blockId,
-            blockType: ref.blockType ?? 'agent',
-            field: ref.field,
-            value: ref.value,
-            error: ref.reason,
-          }))
-        )
-      } catch (error) {
-        logger.warn('Agent tool/skill reference validation failed', {
-          error: toError(error).message,
-        })
-      }
-    }
-
-    // Validate the workflow state
-    const validation = validateWorkflowState(modifiedWorkflowState, { sanitize: true })
-
-    if (!validation.valid) {
-      logger.error('Edited workflow state is invalid', {
-        errors: validation.errors,
-        warnings: validation.warnings,
-      })
-      throw new Error(`Invalid edited workflow: ${validation.errors.join('; ')}`)
-    }
-
-    if (validation.warnings.length > 0) {
-      logger.warn('Edited workflow validation warnings', {
-        warnings: validation.warnings,
-      })
-    }
-
-    // Extract and persist custom tools to database (reuse workspaceId from selector validation)
-    if (context?.userId && workspaceId) {
-      try {
-        assertServerToolNotAborted(context)
-        const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
-        const { saved, errors } = await extractAndPersistCustomTools(
-          finalWorkflowState,
-          workspaceId,
-          context.userId
-        )
-
-        if (saved > 0) {
-          logger.info(`Persisted ${saved} custom tool(s) to database`, { workflowId })
-        }
-
-        if (errors.length > 0) {
-          logger.warn('Some custom tools failed to persist', { errors, workflowId })
-        }
-      } catch (error) {
-        logger.error('Failed to persist custom tools', { error, workflowId })
-      }
-    } else if (context?.userId && !workspaceId) {
-      logger.warn('Workflow has no workspaceId, skipping custom tools persistence', {
-        workflowId,
-      })
-    } else {
-      logger.warn('No userId in context - skipping custom tools persistence', { workflowId })
-    }
-
-    logger.info('edit_workflow successfully applied operations', {
-      operationCount: operations.length,
-      blocksCount: Object.keys(modifiedWorkflowState.blocks).length,
-      edgesCount: modifiedWorkflowState.edges.length,
-      inputValidationErrors: validationErrors.length,
-      skippedItemsCount: skippedItems.length,
-      schemaValidationErrors: validation.errors.length,
-      validationWarnings: validation.warnings.length,
+    ).catch((error: unknown) => {
+      throw enrichWorkflowNotFound(error, workflowId)
     })
 
-    // Format validation errors for LLM feedback
     const inputErrors =
-      validationErrors.length > 0
-        ? validationErrors.map((e) => `Block "${e.blockId}" (${e.blockType}): ${e.error}`)
+      result.inputValidationErrors.length > 0
+        ? result.inputValidationErrors.map(
+            (error) => `Block "${error.blockId}" (${error.blockType}): ${error.error}`
+          )
         : undefined
-
-    // Split engine skipped items into genuine failures vs benign, self-healing
-    // deferrals. A deferred forward-reference edge (invalid_edge_target) is NOT
-    // a failure: the engine wires it automatically once its target block exists
-    // (this call or a later one) via pendingConnections. Surfacing it through
-    // the same "skipped" failure channel as real skips makes a literal model
-    // thrash (re-issuing a self-healing op). Keep them in separate result fields
-    // and preserve item.type/details so the prompt can branch on a
-    // machine-readable category instead of pattern-matching prose.
-    const mapSkippedItem = (item: (typeof skippedItems)[number]) => ({
-      type: item.type,
-      operationType: item.operationType,
-      blockId: item.blockId,
-      reason: item.reason,
-      ...(item.details && { details: item.details }),
-    })
-
-    const genuineSkippedItems = skippedItems.filter((item) => !isDeferredSkippedItem(item))
-    const deferredItems = skippedItems.filter((item) => isDeferredSkippedItem(item))
-
     const skippedDetails =
-      genuineSkippedItems.length > 0 ? genuineSkippedItems.map(mapSkippedItem) : undefined
-    const deferredDetails = deferredItems.length > 0 ? deferredItems.map(mapSkippedItem) : undefined
-
-    // Persist the workflow state to the database
-    const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
-
-    const { layoutBlockIds, resizedBlockIds, shiftSourceBlockIds } = getTargetedLayoutImpact({
-      before: workflowState,
-      after: finalWorkflowState,
-    })
-
-    let layoutedBlocks = finalWorkflowState.blocks
-
-    if (layoutBlockIds.length > 0 || resizedBlockIds.length > 0 || shiftSourceBlockIds.length > 0) {
-      try {
-        transferBlockHeights(workflowState.blocks, finalWorkflowState.blocks)
-        layoutedBlocks = applyTargetedLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
-          changedBlockIds: layoutBlockIds,
-          resizedBlockIds,
-          shiftSourceBlockIds,
-          horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
-          verticalSpacing: DEFAULT_VERTICAL_SPACING,
-        })
-      } catch (error) {
-        logger.warn('Targeted autolayout failed, using default positions', {
-          workflowId,
-          error: toError(error).message,
-        })
-      }
-    }
-
-    const workflowStateForDb = {
-      blocks: layoutedBlocks,
-      edges: finalWorkflowState.edges,
-      loops: generateLoopBlocks(layoutedBlocks as any),
-      parallels: generateParallelBlocks(layoutedBlocks as any),
-      lastSaved: Date.now(),
-      isDeployed: false,
-    }
-
-    // Aggregate lint report: graph (sources/sinks/orphans/ports) + Tier-1 config
-    // (required + canonical-mode) + Tier-2 resolution (credential/resource IDs).
-    const graphLint = lintEditedWorkflowState(workflowStateForDb as any)
-    const fieldIssues = collectWorkflowFieldIssues(workflowStateForDb.blocks as any)
-    const workflowLint: WorkflowLintReport = {
-      ...graphLint,
-      fieldIssues,
-      unresolvedReferences,
-      notes: unresolvedReferences.length > 0 ? [UNRESOLVABLE_AT_LINT_NOTE] : [],
-    }
-    const workflowLintMessage = hasWorkflowLintIssues(workflowLint)
-      ? formatWorkflowLintMessage(workflowLint)
+      result.skipped.length > 0 ? result.skipped.map(mapSkippedItem) : undefined
+    const deferredDetails =
+      result.deferred.length > 0 ? result.deferred.map(mapSkippedItem) : undefined
+    const sanitizationWarnings = result.warnings.length > 0 ? result.warnings : undefined
+    const workflowLintMessage = hasWorkflowLintIssues(result.lint)
+      ? formatWorkflowLintMessage(result.lint)
       : undefined
-
-    assertServerToolNotAborted(context)
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowStateForDb as any)
-    if (!saveResult.success) {
-      logger.error('Failed to persist workflow state to database', {
-        workflowId,
-        error: saveResult.error,
-      })
-      throw new Error(`Failed to save workflow: ${saveResult.error}`)
-    }
-
-    // Update workflow's lastSynced timestamp
-    assertServerToolNotAborted(context)
-    await db
-      .update(workflowTable)
-      .set({
-        lastSynced: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(workflowTable.id, workflowId))
-
-    logger.info('Workflow state persisted to database', { workflowId })
-
-    fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': env.INTERNAL_API_SECRET,
-      },
-      body: JSON.stringify({ workflowId }),
-    }).catch((error) => {
-      logger.warn('Failed to notify socket server of workflow update', { workflowId, error })
-    })
-
-    const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
 
     return {
       success: true,
-      workflowId,
-      workflowName: workflowName ?? 'Workflow',
-      workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
-      workflowLint,
+      workflowId: result.workflowId,
+      workflowName: result.workflowName || 'Workflow',
+      /**
+       * Sanitized before it reaches the agent (#6904). The graph goes back into
+       * a model context, so non-serializable and oversized values have to be
+       * stripped; the application use case returns the graph it persisted, not
+       * a copilot-shaped one.
+       */
+      workflowState: sanitizeForCopilot(result.graph),
+      workflowLint: result.lint,
       ...(workflowLintMessage && { workflowLintMessage }),
       ...(inputErrors && {
         inputValidationErrors: inputErrors,

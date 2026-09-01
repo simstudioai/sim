@@ -1,7 +1,7 @@
 import type { OutlookSendParams, OutlookSendResponse } from '@/tools/outlook/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse> = {
+export const outlookSendTool: InternalToolConfig<OutlookSendParams, OutlookSendResponse> = {
   id: 'outlook_send',
   name: 'Outlook Send',
   description: 'Send emails using Outlook',
@@ -69,13 +69,8 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/outlook/send',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: OutlookSendParams) => {
+  operation: {
+    input: (params: OutlookSendParams) => {
       return {
         accessToken: params.accessToken,
         to: params.to,

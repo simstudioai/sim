@@ -9,9 +9,7 @@ import type { ColorModifier } from '../utils/color'
 import { applyColorModifiers, hslToRgb, presetColorToHex, rgbToHex } from '../utils/color'
 import type { RenderContext } from './render-context'
 
-// ---------------------------------------------------------------------------
 // Color Resolution
-// ---------------------------------------------------------------------------
 
 /**
  * Build a cache key for a color node based on its tag, value, and modifiers.
@@ -205,9 +203,7 @@ function resolveColorWithPlaceholder(
   return resolveColorUncached(colorNode, ctx, placeholderColorNode)
 }
 
-// ---------------------------------------------------------------------------
 // Fill Resolution
-// ---------------------------------------------------------------------------
 
 /**
  * Resolve a fill from shape properties (spPr) into a CSS background value.
@@ -263,9 +259,7 @@ export function resolveFill(spPr: SafeXmlNode, ctx: RenderContext): string {
   return ''
 }
 
-// ---------------------------------------------------------------------------
 // Pattern Fill Resolution
-// ---------------------------------------------------------------------------
 
 /**
  * Resolve `<a:pattFill>` into a CSS background value using repeating gradients.
@@ -500,9 +494,7 @@ function resolveGradient(
   return `linear-gradient(180deg, ${stopsStr})`
 }
 
-// ---------------------------------------------------------------------------
 // Line Style Resolution
-// ---------------------------------------------------------------------------
 
 /**
  * Resolve a line (outline) node into CSS-compatible properties.
@@ -623,9 +615,7 @@ function ooxmlDashToCss(val: string): string {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Gradient Fill Resolution (structured data for SVG use)
-// ---------------------------------------------------------------------------
 
 export interface GradientFillData {
   type: 'linear' | 'radial'
@@ -753,9 +743,7 @@ export function resolveThemeFillReference(
   return { fillCss: resolveColorToCss(fillRef, ctx), gradientFillData: null }
 }
 
-// ---------------------------------------------------------------------------
 // Gradient Stroke Resolution
-// ---------------------------------------------------------------------------
 
 export interface GradientStrokeData {
   stops: Array<{ position: number; color: string }>

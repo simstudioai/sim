@@ -7,6 +7,7 @@ import { updateInboxConfigContract } from '@/lib/api/contracts/inbox'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
+import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { disableInbox, enableInbox, updateInboxAddress } from '@/lib/mothership/inbox/lifecycle'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -31,6 +32,8 @@ export const GET = withRouteHandler(
         .select({
           inboxEnabled: workspace.inboxEnabled,
           inboxAddress: workspace.inboxAddress,
+          inboxSecretScope: workspace.inboxSecretScope,
+          inboxMountedSecrets: workspace.inboxMountedSecrets,
         })
         .from(workspace)
         .where(eq(workspace.id, workspaceId))
@@ -68,6 +71,10 @@ export const GET = withRouteHandler(
     return NextResponse.json({
       enabled: ws.inboxEnabled,
       address: ws.inboxAddress,
+      ...normalizeSecretMountPolicy({
+        secretScope: ws.inboxSecretScope,
+        mountedSecrets: ws.inboxMountedSecrets,
+      }),
       entitled,
       taskStats: stats,
     })
@@ -92,9 +99,57 @@ export const PATCH = withRouteHandler(
     const body = parsed.data.body
 
     try {
+      const [current] = await db
+        .select({
+          inboxEnabled: workspace.inboxEnabled,
+          inboxAddress: workspace.inboxAddress,
+          inboxProviderId: workspace.inboxProviderId,
+          inboxSecretScope: workspace.inboxSecretScope,
+          inboxMountedSecrets: workspace.inboxMountedSecrets,
+        })
+        .from(workspace)
+        .where(eq(workspace.id, workspaceId))
+        .limit(1)
+      if (!current) {
+        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+      }
+
+      const hasPolicyUpdate = body.secretScope !== undefined || body.mountedSecrets !== undefined
+      const secretMountPolicy = normalizeSecretMountPolicy({
+        secretScope: body.secretScope ?? current.inboxSecretScope,
+        mountedSecrets: body.mountedSecrets ?? current.inboxMountedSecrets,
+      })
+      const persistPolicy = async () => {
+        if (!hasPolicyUpdate) return
+        await db
+          .update(workspace)
+          .set({
+            inboxSecretScope: secretMountPolicy.secretScope,
+            inboxMountedSecrets: secretMountPolicy.mountedSecrets,
+            updatedAt: new Date(),
+          })
+          .where(eq(workspace.id, workspaceId))
+      }
+
       if (body.enabled === false) {
         await disableInbox(workspaceId)
-        return NextResponse.json({ enabled: false, address: null })
+        await persistPolicy()
+        return NextResponse.json({
+          enabled: false,
+          address: null,
+          providerId: null,
+          ...secretMountPolicy,
+        })
+      }
+
+      if (body.enabled === undefined && body.username === undefined && hasPolicyUpdate) {
+        await persistPolicy()
+        return NextResponse.json({
+          enabled: current.inboxEnabled,
+          address: current.inboxAddress,
+          providerId: current.inboxProviderId,
+          ...secretMountPolicy,
+        })
       }
 
       if (!(await hasWorkspaceInboxAccess(workspaceId))) {
@@ -102,21 +157,18 @@ export const PATCH = withRouteHandler(
       }
 
       if (body.enabled === true) {
-        const [current] = await db
-          .select({ inboxEnabled: workspace.inboxEnabled })
-          .from(workspace)
-          .where(eq(workspace.id, workspaceId))
-          .limit(1)
-        if (current?.inboxEnabled) {
+        if (current.inboxEnabled) {
           return NextResponse.json({ error: 'Inbox is already enabled' }, { status: 409 })
         }
         const config = await enableInbox(workspaceId, { username: body.username })
-        return NextResponse.json(config)
+        await persistPolicy()
+        return NextResponse.json({ ...config, ...secretMountPolicy })
       }
 
       if (body.username) {
         const config = await updateInboxAddress(workspaceId, body.username)
-        return NextResponse.json(config)
+        await persistPolicy()
+        return NextResponse.json({ ...config, ...secretMountPolicy })
       }
 
       return NextResponse.json({ error: 'No valid update provided' }, { status: 400 })

@@ -1,11 +1,13 @@
 import type { ChatContext } from '@/stores/panel'
+import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
-const EDIT_CONTENT_TOOL_ID = 'edit_content'
+const EDIT_CONTENT_TOOL_ID = 'apply_file_edit'
 const RUN_SUBAGENT_ID = 'run'
 
 export type {
   MothershipResource,
   MothershipResourceType,
+  WorkspaceResourceRef,
 } from '@/lib/copilot/resources/types'
 
 /** Union of all valid context kind strings, derived from {@link ChatContext}. */
@@ -112,6 +114,8 @@ export interface ContentBlock {
   type: ContentBlockType
   content?: string
   subagent?: string
+  /** Orchestrator-chosen display name for a `subagent` start block (shown instead of the generic agent label). */
+  subagentName?: string
   toolCall?: ToolCallInfo
   options?: OptionItem[]
   timestamp?: number
@@ -148,6 +152,22 @@ export interface ChatMessageContext {
   blockType?: string
   skillId?: string
   serverId?: string
+  /** Selected passage for a `file_selection` context. */
+  text?: string
+  /** Source file name for a `file_selection` context. */
+  fileName?: string
+  /** 1-based inclusive line range for a `file_selection` context. */
+  startLine?: number
+  endLine?: number
+  /** Source table name for a `table_selection` context. */
+  tableName?: string
+  /** Selected row ids for a `table_selection` context. */
+  rowIds?: string[]
+  /** Selected column ids for a `table_selection` cell range. */
+  columnIds?: string[]
+  tabId?: string
+  terminalId?: string
+  selection?: BrowserTextSelection | TerminalTextSelection
 }
 
 export interface ChatMessage {
@@ -171,10 +191,13 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   custom_tool: 'Custom Tool Agent',
   scout: 'Scout Agent',
   search: 'Search Agent',
+  platform: 'Platform Agent',
   superagent: 'Superagent',
   run: 'Run Agent',
-  agent: 'Tools Agent',
-  scheduled_task: 'Scheduled Task Agent',
+  // The extensions subagent's wire/scope AgentID stays `agent` (pre-rename);
+  // `extensions` is its current model-facing trigger tool name.
+  agent: 'Extensions Agent',
+  extensions: 'Extensions Agent',
   // `job` retained as a backward-compat alias so historical transcripts still render a label.
   job: 'Job Agent',
   file: 'File Agent',

@@ -1,19 +1,40 @@
 import type { DaytonaSandboxSummary } from '@/tools/daytona/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const DAYTONA_API_BASE_URL = 'https://app.daytona.io/api'
 
 export const DAYTONA_TOOLBOX_BASE_URL = 'https://proxy.app.daytona.io/toolbox'
 
 /**
- * Trims and URL-encodes a sandbox identifier, rejecting empty values so a
- * blank ID can never resolve to a different API route.
+ * Trims and URL-encodes a sandbox identifier so it can only ever resolve to the
+ * intended sandbox-scoped route.
+ *
+ * Delegates to {@link safeUrlPathSegment}, which additionally rejects the dot
+ * segments `.` and `..`: percent-encoding leaves those intact and the URL
+ * parser then normalizes them away, popping a path segment. See that helper's
+ * documentation for the full explanation.
  */
 export function encodeSandboxId(sandboxId: string): string {
-  const trimmed = sandboxId?.trim()
-  if (!trimmed) {
-    throw new Error('Sandbox ID is required')
-  }
-  return encodeURIComponent(trimmed)
+  return safeUrlPathSegment(sandboxId, 'Sandbox ID')
+}
+
+/**
+ * The sandbox identifier as it should read back in a tool's output, for the
+ * lifecycle responses that return no body of their own.
+ *
+ * `sandboxId` is declared `type: 'string'`, but the value arrives unvalidated
+ * from an LLM tool call or stored workflow state and a numeric-looking id can
+ * land as a JSON number — the same widening {@link safeUrlPathSegment} accepts.
+ * This runs inside `transformResponse`, so the request has *already* been sent:
+ * a bare `.trim()` here would throw an unnamed `TypeError` after the sandbox was
+ * started, stopped, or irreversibly deleted. Stringifying keeps the call's
+ * result reportable.
+ *
+ * Only reached for a value {@link encodeSandboxId} already accepted, so the
+ * rejection of unusable shapes stays where it belongs — before the request.
+ */
+export function resolveSandboxId(sandboxId: string | number | bigint): string {
+  return String(sandboxId).trim()
 }
 
 /**

@@ -21,7 +21,7 @@ export function BlockHandles({ block, handlesVisible = true }: BlockHandlesProps
         <span
           aria-hidden
           className={cn(
-            '-translate-y-1/2 absolute top-5 left-[-7px] h-5 w-[7px] rounded-l-[2px] bg-[var(--workflow-edge)] transition-opacity duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+            '-translate-y-1/2 absolute top-5 left-[-7px] h-5 w-[7px] rounded-l-[2px] bg-[var(--workflow-edge)] transition-opacity [transition-duration:360ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
             handlesVisible ? 'opacity-100' : 'opacity-0'
           )}
         />
@@ -30,7 +30,7 @@ export function BlockHandles({ block, handlesVisible = true }: BlockHandlesProps
         <span
           aria-hidden
           className={cn(
-            '-translate-y-1/2 absolute top-5 right-[-7px] h-5 w-[7px] rounded-r-[2px] bg-[var(--workflow-edge)] transition-opacity duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+            '-translate-y-1/2 absolute top-5 right-[-7px] h-5 w-[7px] rounded-r-[2px] bg-[var(--workflow-edge)] transition-opacity [transition-duration:360ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
             handlesVisible ? 'opacity-100' : 'opacity-0'
           )}
         />

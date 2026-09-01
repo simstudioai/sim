@@ -1,9 +1,10 @@
 'use client'
 
-import { forwardRef, memo, useMemo, useState } from 'react'
+import { forwardRef, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,
@@ -11,6 +12,7 @@ import {
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
+import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
   GenericResourceData,
@@ -60,15 +62,17 @@ function shouldShowStreamingFilePanel(
 interface MothershipViewProps {
   workspaceId: string
   chatId?: string
+  desktopScopeId: string
   resources: MothershipResource[]
   activeResourceId: string | null
+  activityResourceIds?: ReadonlySet<string>
   isCollapsed: boolean
   className?: string
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
-  /** Resolved server-side by the home page; forwarded to the embedded table. */
-  tableViewsEnabled?: boolean
+  /** Claims the current resource selection after direct panel interaction. */
+  onUserInteraction?: () => void
 }
 
 export const MothershipView = memo(
@@ -76,20 +80,52 @@ export const MothershipView = memo(
     {
       workspaceId,
       chatId,
+      desktopScopeId,
       resources,
       activeResourceId,
+      activityResourceIds,
       isCollapsed,
       className,
       previewSession,
       isAgentResponding,
       genericResourceData,
-      tableViewsEnabled,
+      onUserInteraction,
     }: MothershipViewProps,
     ref
   ) {
-    const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
+    const active = resources.find((r) => r.id === activeResourceId) ?? null
     const { canEdit } = useUserPermissionsContext()
     const { removeResource } = useMothershipResources()
+    const browserOverlayControllerRef = useRef<BrowserPanelOverlayController | null>(null)
+
+    const registerBrowserOverlayController = useCallback(
+      (controller: BrowserPanelOverlayController | null) => {
+        browserOverlayControllerRef.current = controller
+      },
+      []
+    )
+
+    const requestAddResourceOpen = useCallback(
+      (open: () => void) => {
+        const controller = browserOverlayControllerRef.current
+        if (active?.type !== 'browser' || !controller) {
+          open()
+          return
+        }
+        let didOpen = false
+        const openOnce = () => {
+          if (didOpen) return
+          didOpen = true
+          open()
+        }
+        void controller.requestOverlay('resources', openOnce).then(openOnce, openOnce)
+      },
+      [active?.type]
+    )
+
+    const closeAddResource = useCallback(() => {
+      return browserOverlayControllerRef.current?.closeOverlay('resources') ?? Promise.resolve()
+    }, [])
 
     const persistentResources = useMemo(() => resources.filter(isPersistentPanel), [resources])
 
@@ -126,7 +162,10 @@ export const MothershipView = memo(
       // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
       // other rich types (html, svg, …) on the file list loading.
       !(isActiveCsv && filesLoading) &&
-      !(activeFile && isCsvStreamOnly(activeFile))
+      !(activeFile && isCsvStreamOnly(activeFile)) &&
+      // A Sim page is locked to its rendered view (the pdf model — the raw
+      // source is not a mode this surface offers), so no toggle either.
+      activeFile?.type !== SIM_PAGE_CONTENT_TYPE
 
     return (
       <div
@@ -134,23 +173,33 @@ export const MothershipView = memo(
         // Read by the browser panel to declare its resize anchor: an inline px
         // width means a divider drag pinned it, otherwise `w-1/2` governs.
         data-mothership-panel=''
+        onPointerDownCapture={onUserInteraction}
+        onKeyDownCapture={onUserInteraction}
         className={cn(
-          'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]',
+          'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
           isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-1/2 border-l',
+          /* This panel is the right half of the pane, never under the traffic lights,
+             yet it embeds whole pages whose header bars reserve that lane. Zeroing the
+             inherited variable here keeps their top bars flush inside the panel. */
+          '[--workspace-content-title-bar-inset:0px]',
           className
         )}
       >
         <div className='flex min-h-0 flex-1 flex-col'>
           <ResourceTabs
             workspaceId={workspaceId}
+            desktopScopeId={desktopScopeId}
             chatId={chatId}
             resources={resources}
             activeId={active?.id ?? null}
+            activityIds={activityResourceIds}
             actions={
               active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null
             }
             previewMode={isActivePreviewable ? previewMode : undefined}
             onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
+            onRequestAddResourceOpen={requestAddResourceOpen}
+            onAddResourceClose={closeAddResource}
           />
           <div className='relative min-h-0 flex-1 overflow-hidden'>
             {/*
@@ -166,7 +215,7 @@ export const MothershipView = memo(
             */}
             {persistentResources.map((resource) => (
               <div
-                key={resource.id}
+                key={`${desktopScopeId}:${resource.id}`}
                 className={cn('absolute inset-0', resource.id !== active?.id && 'hidden')}
               >
                 {/*
@@ -178,21 +227,23 @@ export const MothershipView = memo(
                 */}
                 <ResourceContent
                   workspaceId={workspaceId}
+                  desktopScopeId={desktopScopeId}
                   resource={resource}
                   visible={resource.id === active?.id}
+                  onBrowserOverlayControllerChange={registerBrowserOverlayController}
                 />
               </div>
             ))}
             {active && !isPersistentPanel(active) && (
               <ResourceContent
                 workspaceId={workspaceId}
+                desktopScopeId={desktopScopeId}
                 resource={active}
                 previewMode={isActivePreviewable ? previewMode : undefined}
                 previewSession={previewForActive}
                 isAgentResponding={isAgentResponding}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
-                tableViewsEnabled={tableViewsEnabled}
                 onNotFound={(resourceId) => removeResource('log', resourceId)}
               />
             )}

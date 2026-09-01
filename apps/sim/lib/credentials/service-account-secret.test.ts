@@ -41,7 +41,9 @@ vi.mock('@/lib/api/server', () => ({
 }))
 vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
   getClientCredentialAccountMinter: (providerId: string) =>
-    providerId === 'zoom-service-account' || providerId === 'box-service-account'
+    providerId === 'zoom-service-account' ||
+    providerId === 'box-service-account' ||
+    providerId === 'netsuite-service-account'
       ? mockClientCredentialMinter
       : undefined,
 }))
@@ -104,6 +106,7 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       accountId: 'acc-1',
       displayName: 'Jira Bot',
       cloudId: 'cloud-1',
+      emailAddress: 'bot@acme.com',
     })
     const result = await verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, {
       apiToken: 'tok',
@@ -112,6 +115,9 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     expect(result.providerId).toBe(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID)
     expect(result.displayName).toBe('Jira Bot')
     expect(result.auditMetadata.atlassianCloudId).toBe('cloud-1')
+    expect(result.principal).toEqual({ kind: 'user', id: 'acc-1', label: 'bot@acme.com' })
+    expect(result.auditMetadata.principalId).toBe('acc-1')
+    expect(result.auditMetadata.principalLabel).toBe('bot@acme.com')
     const blob = JSON.parse(result.encryptedServiceAccountKey)
     expect(blob).toMatchObject({
       apiToken: 'tok',
@@ -127,17 +133,32 @@ describe('verifyAndBuildServiceAccountSecret', () => {
   })
 
   it('validates and encrypts a Google service-account JSON key', async () => {
-    const json = JSON.stringify({ type: 'service_account', client_email: 'svc@proj.iam' })
+    const json = JSON.stringify({
+      type: 'service_account',
+      client_email: 'svc@proj.iam',
+      project_id: 'proj',
+    })
     const result = await verifyAndBuildServiceAccountSecret('google-service-account', {
       serviceAccountJson: json,
     })
     expect(result.providerId).toBe('google-service-account')
     expect(result.displayName).toBe('svc@proj.iam')
     expect(result.encryptedServiceAccountKey).toBe(json)
+    expect(result.principal).toEqual({ kind: 'user', id: 'svc@proj.iam' })
+    expect(result.auditMetadata).toEqual({
+      googleClientEmail: 'svc@proj.iam',
+      googleProjectId: 'proj',
+      principalKind: 'user',
+      principalId: 'svc@proj.iam',
+    })
   })
 
   it('accepts a legacy Google create with an empty providerId', async () => {
-    const json = JSON.stringify({ type: 'service_account', client_email: 'svc@proj.iam' })
+    const json = JSON.stringify({
+      type: 'service_account',
+      client_email: 'svc@proj.iam',
+      project_id: 'proj',
+    })
     const result = await verifyAndBuildServiceAccountSecret('', { serviceAccountJson: json })
     expect(result.providerId).toBe('google-service-account')
   })
@@ -157,6 +178,7 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       expiresInSeconds: 3600,
       identity: {
         displayName: 'Zoom account acc-1',
+        principal: { kind: 'tenant', id: 'acc-1' },
         auditMetadata: { zoomAccountId: 'acc-1' },
         storedMetadata: { apiUrl: 'https://api.zoom.us' },
       },
@@ -168,7 +190,11 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     })
     expect(result.providerId).toBe('zoom-service-account')
     expect(result.displayName).toBe('Zoom account acc-1')
-    expect(result.auditMetadata).toEqual({ zoomAccountId: 'acc-1' })
+    expect(result.auditMetadata).toEqual({
+      zoomAccountId: 'acc-1',
+      principalKind: 'tenant',
+      principalId: 'acc-1',
+    })
     expect(mockClientCredentialMinter).toHaveBeenCalledWith({
       clientId: 'cid',
       clientSecret: 'csec',
@@ -181,7 +207,11 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       clientId: 'cid',
       clientSecret: 'csec',
       orgId: 'acc-1',
-      metadata: { apiUrl: 'https://api.zoom.us' },
+      metadata: {
+        apiUrl: 'https://api.zoom.us',
+        principalKind: 'tenant',
+        principalId: 'acc-1',
+      },
     })
   })
 
@@ -193,9 +223,42 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       orgId: '999',
     })
     expect(result.displayName).toBe('Box 999')
-    expect(result.auditMetadata).toEqual({})
+    expect(result.principal).toBeNull()
+    expect(result.auditMetadata).toEqual({ principalKind: 'none' })
     const blob = JSON.parse(result.encryptedServiceAccountKey)
-    expect(blob.metadata).toBeUndefined()
+    expect(blob.metadata).toEqual({ principalKind: 'none' })
+  })
+
+  it('threads NetSuite certificate material into the minter and encrypted blob', async () => {
+    mockClientCredentialMinter.mockResolvedValue({
+      accessToken: 'minted',
+      expiresInSeconds: 3600,
+      instanceUrl: 'https://1234567.suitetalk.api.netsuite.com',
+      identity: {
+        displayName: 'Oracle NetSuite 1234567',
+        principal: { kind: 'tenant', id: '1234567' },
+        auditMetadata: { netSuiteAccountId: '1234567' },
+      },
+    })
+
+    const result = await verifyAndBuildServiceAccountSecret('netsuite-service-account', {
+      orgId: ' https://1234567.suitetalk.api.netsuite.com/ ',
+      clientId: ' client-id ',
+      certificateId: ' certificate-id ',
+      privateKey: ' -----BEGIN PRIVATE KEY-----key ',
+    })
+
+    expect(mockClientCredentialMinter).toHaveBeenCalledWith({
+      orgId: 'https://1234567.suitetalk.api.netsuite.com/',
+      clientId: 'client-id',
+      certificateId: 'certificate-id',
+      privateKey: '-----BEGIN PRIVATE KEY-----key',
+    })
+    expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({
+      providerId: 'netsuite-service-account',
+      certificateId: 'certificate-id',
+      privateKey: '-----BEGIN PRIVATE KEY-----key',
+    })
   })
 
   it('throws when client-credential required fields are missing, without minting', async () => {

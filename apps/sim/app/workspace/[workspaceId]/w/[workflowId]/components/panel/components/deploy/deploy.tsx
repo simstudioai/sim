@@ -1,56 +1,53 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Tooltip } from '@sim/emcn'
+import { Chip, Tooltip, toast } from '@sim/emcn'
+import { useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
-  useChangeDetection,
   useDeployment,
+  useDeploymentViewState,
   useDeployReadiness,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-import { useDeployedWorkflowState, useDeploymentInfo } from '@/hooks/queries/deployments'
+import { apiKeysQueryOptions } from '@/hooks/queries/api-key-list'
+import { workflowMcpServersQueryOptions } from '@/hooks/queries/workflow-mcp-servers'
+import { workspaceSettingsQueryOptions } from '@/hooks/queries/workspace'
 import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface DeployProps {
   activeWorkflowId: string | null
   userPermissions: WorkspaceUserPermissions
-  className?: string
   disabled?: boolean
 }
 
-export function Deploy({
-  activeWorkflowId,
-  userPermissions,
-  className,
-  disabled = false,
-}: DeployProps) {
+export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: DeployProps) {
+  const queryClient = useQueryClient()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string | undefined
   const [isModalOpen, setIsModalOpen] = useState(false)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
   const { hasBlocks } = useCurrentWorkflow()
 
-  const { data: deploymentInfo } = useDeploymentInfo(activeWorkflowId, {
-    enabled: !isRegistryLoading,
-  })
-  const isDeployed = deploymentInfo?.isDeployed ?? false
-
-  const isDeployedStateEnabled = Boolean(activeWorkflowId) && isDeployed && !isRegistryLoading
-  const {
-    data: deployedStateData,
-    isLoading: isLoadingDeployedState,
-    isFetching: isFetchingDeployedState,
-  } = useDeployedWorkflowState(activeWorkflowId, { enabled: isDeployedStateEnabled })
-  const deployedState = isDeployedStateEnabled ? (deployedStateData ?? null) : null
   const deployReadiness = useDeployReadiness(activeWorkflowId)
 
-  const { changeDetected, isChangeDetectionSettling } = useChangeDetection({
+  /*
+   * One derivation for the chip, the modal preview and the modal footer. They
+   * previously each read their own mix of raw flags, which is how the preview
+   * could say "Deploy your workflow to see a preview" while the version list
+   * beneath it said `v1 (live)`.
+   */
+  const deployment = useDeploymentViewState({
     workflowId: activeWorkflowId,
-    deployedState,
-    isLoadingDeployedState: isLoadingDeployedState || isFetchingDeployedState,
+    enabled: !isRegistryLoading,
+    deployReadiness,
   })
-  const isDeploymentSettling = isChangeDetectionSettling || deployReadiness.isSyncing
+  const { status: buttonStatus, isDeployed, deployedState } = deployment
+  const isDeploymentSettling = deployment.isSettling
 
   const { isDeploying, handleDeployClick } = useDeployment({
     workflowId: activeWorkflowId,
@@ -65,10 +62,17 @@ export function Deploy({
     isDeploying ||
     !canDeploy ||
     isEmpty ||
+    /*
+     * A click is interpreted against `isDeployed`: deployed opens the modal,
+     * undeployed deploys. While that is unknown the click has no defined
+     * meaning, and guessing "undeployed" would turn a failed info read into an
+     * unintended new version.
+     */
+    buttonStatus === 'unknown' ||
     (!isDeployed && deployReadiness.isBlocked && !deployReadiness.isSyncing)
 
   const onDeployClick = async () => {
-    if (disabled || !canDeploy || !activeWorkflowId) return
+    if (isRegistryLoading || isDisabled || !activeWorkflowId) return
 
     if (isDeploymentSettling) {
       setIsModalOpen(true)
@@ -80,6 +84,21 @@ export function Deploy({
       setIsModalOpen(true)
     }
   }
+
+  useRegisterGlobalCommands(() => [
+    {
+      id: 'deploy-workflow',
+      handler: () => {
+        /* The palette can't render a disabled state for this action yet, so a
+           gated invocation reports the same reason the button's tooltip shows. */
+        if (isRegistryLoading || isDisabled) {
+          toast({ message: isRegistryLoading ? 'Workflow is still loading' : getTooltipText() })
+          return
+        }
+        void onDeployClick()
+      },
+    },
+  ])
 
   const getTooltipText = () => {
     if (isEmpty) {
@@ -94,61 +113,87 @@ export function Deploy({
     if (isDeploying) {
       return 'Deploying...'
     }
-    if (isChangeDetectionSettling) {
+    if (isDeploymentSettling) {
       return 'Syncing deployment state...'
     }
     if (deployReadiness.isBlocked && !isDeployed) {
       return deployReadiness.tooltip
     }
-    if (changeDetected) {
+    if (buttonStatus === 'changed') {
       return 'Update deployment'
     }
-    if (isDeployed) {
+    if (buttonStatus === 'live') {
       return 'Active deployment'
     }
     return 'Deploy workflow'
   }
 
   const getButtonLabel = () => {
-    if (changeDetected) {
-      return 'Update'
+    /*
+     * The label carries the busy state, matching every sibling control on this
+     * surface (`{isUndeploying ? 'Undeploying...' : 'Undeploy'}` in the modal
+     * footer) and the vocabulary `deployReadiness` already speaks. This chip was
+     * the one button that announced nothing and merely went disabled.
+     *
+     * Scoped to the deploy action, which is bounded by the mutation. The
+     * readiness states are deliberately NOT surfaced here: `saving` fires on
+     * every settled keystroke, so rendering it would reintroduce exactly the
+     * label churn this state machine exists to remove. Those stay in the
+     * tooltip, where they explain why the button is disabled.
+     */
+    if (isDeploying) {
+      return 'Deploying...'
     }
-    if (isDeployed) {
-      return 'Live'
+
+    switch (buttonStatus) {
+      case 'changed':
+        return 'Update'
+      case 'live':
+        return 'Live'
+      /*
+       * Only reachable before we know the workflow is deployed, so "Deploy" is
+       * the answer rather than a guess we would have to take back.
+       */
+      default:
+        return 'Deploy'
     }
-    return 'Deploy'
+  }
+
+  const prefetchDeployModal = () => {
+    if (!workspaceId || isRegistryLoading || isDisabled) return
+    void Promise.all([
+      queryClient.prefetchQuery(apiKeysQueryOptions(workspaceId, 'combined')),
+      queryClient.prefetchQuery(workspaceSettingsQueryOptions(workspaceId)),
+      queryClient.prefetchQuery(workflowMcpServersQueryOptions(workspaceId)),
+    ])
   }
 
   return (
     <>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <span>
-            <Button
-              className='h-[30px] gap-1.5 px-2.5'
-              variant={
-                isRegistryLoading ? 'active' : changeDetected || !isDeployed ? 'tertiary' : 'active'
-              }
+          <span className='inline-flex'>
+            <Chip
+              variant='border'
               onClick={onDeployClick}
+              onMouseEnter={prefetchDeployModal}
+              onFocus={prefetchDeployModal}
               disabled={isRegistryLoading || isDisabled}
             >
               {getButtonLabel()}
-            </Button>
+            </Chip>
           </span>
         </Tooltip.Trigger>
         <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
       </Tooltip.Root>
 
       <DeployModal
+        key={activeWorkflowId ?? 'no-workflow'}
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         workflowId={activeWorkflowId}
-        isDeployed={isDeployed}
-        needsRedeployment={changeDetected}
-        deployedState={deployedState}
-        isLoadingDeployedState={isLoadingDeployedState || isFetchingDeployedState}
+        deployment={deployment}
         deployReadiness={deployReadiness}
-        isDeploymentSettling={isDeploymentSettling}
       />
     </>
   )

@@ -1,0 +1,1281 @@
+---
+title: Tables
+description: Manage tables — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+`sim tables` is also spelled `sim table`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## Add column
+
+```bash
+sim tables columns create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--column <json\|@file>` | Yes | Column definition to add. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Delete column
+
+```bash
+sim tables columns delete <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--column-name <value>` | Yes | Name of the column to delete. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Update column
+
+```bash
+sim tables columns update <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--column-name <value>` | Yes | Current name of the column to update. |
+| `--updates <json\|@file>` | Yes | Mutable column fields. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Add workflow group
+
+```bash
+sim tables groups create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--group <json\|@file>` | Yes | Workflow or enrichment producer definition. (JSON, or @path / @- to read a file or stdin). |
+| `--output-columns <json\|@file>` | Yes | Columns created for producer outputs. (JSON, or @path / @- to read a file or stdin). |
+| `--auto-run` | No | Whether to schedule existing rows after group creation. |
+| `--no-auto-run` | No | Send --auto-run as false. |
+
+</CommandTable>
+
+## Delete workflow group
+
+```bash
+sim tables groups delete <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--group-id <value>` | Yes | Workflow group to delete. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## List workflow groups
+
+```bash
+sim tables groups list <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+## Update workflow group
+
+```bash
+sim tables groups update <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--group-id <value>` | Yes | Workflow group to update. |
+| `--workflow-id <value>` | No | Replacement backing workflow identifier. |
+| `--name <value>` | No | Replacement workflow-group display name. |
+| `--dependencies <json\|@file>` | No | Replacement input dependencies. (JSON, or @path / @- to read a file or stdin). |
+| `--outputs <json\|@file>` | No | Replacement producer outputs. (JSON, or @path / @- to read a file or stdin). |
+| `--new-output-columns <json\|@file>` | No | Columns to add for new outputs. (JSON, or @path / @- to read a file or stdin). |
+| `--mapping-updates <json\|@file>` | No | Existing output-column mapping changes. (JSON, or @path / @- to read a file or stdin). |
+| `--input-mappings <json\|@file>` | No | Replacement workflow input mappings. (JSON, or @path / @- to read a file or stdin). |
+| `--deployment-mode <value>` | No | Replacement workflow execution mode. Accepted values: `live`, `deployed`. |
+| `--type <value>` | No | Workflow-group producer type. Must match the group's stored type — a group's producer cannot be changed after creation. Accepted values: `manual`, `enrichment`. |
+| `--auto-run` | No | Replacement automatic-run setting. |
+| `--no-auto-run` | No | Send --auto-run as false. |
+
+</CommandTable>
+
+## Bulk delete tables and folders
+
+```bash
+sim tables batch-delete [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--table-ids <json\|@file>` | No | Tables to archive, by identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Apply a distinct patch to each listed row
+
+```bash
+sim tables rows update-each <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--updates <json\|@file>` | Yes | One merge patch per row. Each row identifier may appear at most once. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Create rows
+
+```bash
+sim tables rows create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--data <json\|@file>` | No | One row keyed by column name (JSON, or @path / @-; choose exactly one body flag). |
+| `--rows <json\|@file>` | No | Several rows keyed by column name (JSON, or @path / @-; choose exactly one body flag). |
+
+</CommandTable>
+
+## Delete row
+
+```bash
+sim tables rows delete <tableId> <rowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Delete rows matching a filter, or an explicit list of ids
+
+```bash
+sim tables rows batch-delete <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--limit <value>` | No | Maximum matching rows to delete. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
+| `--row <value...>` | No | Explicit row identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Get row
+
+```bash
+sim tables rows get <tableId> <rowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--include-run-state` | No | Include per-workflow-group run state on the returned row. Off by default. |
+| `--no-include-run-state` | No | Send --include-run-state as false. |
+
+</CommandTable>
+
+## List rows
+
+```bash
+sim tables rows list <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200. |
+| `--no-include-run-state` | No | Send --include-run-state as false. |
+
+</CommandTable>
+
+## Query rows
+
+```bash
+sim tables rows query <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filter <json\|@file>` | No | Condition: &#123;"field":"status","op":"eq","value":"active"&#125;. Groups: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125; or &#123;"any":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200. |
+| `--no-include-run-state` | No | Send --include-run-state as false. |
+
+</CommandTable>
+
+## Count rows matching a filter
+
+```bash
+sim tables rows count <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filter <json\|@file>` | No | Condition: &#123;"field":"status","op":"eq","value":"active"&#125;. Groups: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125; or &#123;"any":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Run one row’s enrichment group
+
+```bash
+sim tables rows enrich <tableId> <rowId> <groupId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+| `groupId` | Yes | Workflow or enrichment group to run. |
+
+</CommandTable>
+
+## Search cells for a value and return their coordinates
+
+```bash
+sim tables rows search <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--query <value>` | Yes | Value to search for. |
+| `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Update every row matching a filter
+
+```bash
+sim tables rows batch-update <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filter <json\|@file>` | Yes | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--data <json\|@file>` | Yes | Row-data patch applied to every matching row. (JSON, or @path / @- to read a file or stdin). |
+| `--limit <value>` | No | Maximum matching rows to update. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Update row
+
+```bash
+sim tables rows update <tableId> <rowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--data <json\|@file>` | Yes | Partial row-data patch keyed by column name. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Cancel a running dispatch
+
+```bash
+sim tables dispatches cancel <tableId> <dispatchId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `dispatchId` | Yes | Unique table run-dispatch identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Start a column or enrichment run
+
+```bash
+sim tables dispatches create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--group-ids <value...>` | Yes | Workflow or enrichment groups to run. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--run-mode <value>` | No | Whether to run all or only incomplete cells. Accepted values: `all`, `incomplete`. |
+| `--row-ids <value...>` | No | Explicit row subset to run. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--exclude-row-ids <value...>` | No | Rows excluded from a select-all run scope. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--max-rows <n>` | No | Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run. |
+
+</CommandTable>
+
+## Get run dispatch
+
+```bash
+sim tables dispatches get <tableId> <dispatchId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `dispatchId` | Yes | Unique table run-dispatch identifier. |
+
+</CommandTable>
+
+## List active run dispatches
+
+```bash
+sim tables dispatches list <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+## Stop a running export
+
+```bash
+sim tables exports cancel <tableId> <exportId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `exportId` | Yes | Unique table-export identifier. |
+
+</CommandTable>
+
+## Create table export
+
+```bash
+sim tables exports create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--format <value>` | No | Export file format. Accepted values: `csv`, `json`. |
+
+</CommandTable>
+
+## Get table export
+
+```bash
+sim tables exports get <tableId> <exportId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `exportId` | Yes | Unique table-export identifier. |
+
+</CommandTable>
+
+## Get the download URL for a finished export
+
+```bash
+sim tables exports download <tableId> <exportId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `exportId` | Yes | Unique table-export identifier. |
+
+</CommandTable>
+
+## Stop a running import
+
+```bash
+sim tables imports cancel <importId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `importId` | Yes | Unique table-import identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Get table import
+
+```bash
+sim tables imports get <importId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `importId` | Yes | Unique table-import identifier. |
+
+</CommandTable>
+
+## Stop every running column job
+
+```bash
+sim tables cancel-runs <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | Yes | Whether to cancel across the table or one row. Accepted values: `all`, `row`. |
+| `--row-id <value>` | No | Row whose runs should be canceled for row scope. |
+| `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Create table
+
+```bash
+sim tables create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Identifier: letters, numbers, and underscores; cannot start with a number. |
+| `--description <value>` | No | Optional table description. |
+| `--schema <json\|@file>` | Yes | Table schema: &#123;"columns":[&#123;"name":"email","type":"string"&#125;]&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+## Create a table folder at a path
+
+```bash
+sim tables folders create <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+## Delete folder
+
+```bash
+sim tables folders delete <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--recursive` | No | Delete the folder and its descendants. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## List table folders
+
+```bash
+sim tables folders list [options]
+```
+
+Also available as `sim tables folders ls`.
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Case-insensitive substring match against the folder name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+## Rename or move a table folder
+
+```bash
+sim tables folders move <path> <destination>
+```
+
+Also available as `sim tables folders mv`.
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+## Restore an archived table folder
+
+```bash
+sim tables folders restore <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+## Create view
+
+```bash
+sim tables views create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Saved-view display name. |
+| `--config <json\|@file>` | Yes | Saved filter, sort, and column-layout configuration. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Delete view
+
+```bash
+sim tables views delete <tableId> <viewId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `viewId` | Yes | Unique saved-view identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Get view
+
+```bash
+sim tables views get <tableId> <viewId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `viewId` | Yes | Unique saved-view identifier. |
+
+</CommandTable>
+
+## List views
+
+```bash
+sim tables views list <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+## Update view
+
+```bash
+sim tables views update <tableId> <viewId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `viewId` | Yes | Unique saved-view identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Replacement saved-view display name. |
+| `--config <json\|@file>` | No | Complete replacement saved-view configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--config-patch <json\|@file>` | No | Saved-view configuration fields to shallow-merge. (JSON, or @path / @- to read a file or stdin). |
+| `--is-default` | No | Whether to promote this view to the table default. |
+| `--no-is-default` | No | Send --is-default as false. |
+
+</CommandTable>
+
+## Delete table
+
+```bash
+sim tables delete <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Get enrichment run detail
+
+```bash
+sim tables enrichment get <tableId> <rowId> <groupId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+| `groupId` | Yes | Workflow or enrichment group to run. |
+
+</CommandTable>
+
+## Get table
+
+```bash
+sim tables get <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+## List tables
+
+```bash
+sim tables list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--search <value>` | No | Case-insensitive substring match against the resource name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Move tables and folders
+
+```bash
+sim tables move [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--table-ids <json\|@file>` | No | Tables to move, by identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value...>` | No | Table folders to move, by path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--to <value>` | No | Destination folder path; omit for root. |
+
+</CommandTable>
+
+## Restore an archived table
+
+```bash
+sim tables restore <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+## Update table
+
+```bash
+sim tables update <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Identifier: letters, numbers, and underscores; cannot start with a number. |
+| `--description <value>` | No | Replacement table description, or null to clear it. (--description null sends the word, not JSON null). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+## Move a table to a folder
+
+```bash
+sim tables mv <tableId> <folder>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+## Insert a row, or update the one that conflicts on a unique column
+
+```bash
+sim tables upsert <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--data <json\|@file>` | Yes | Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges. (JSON, or @path / @- to read a file or stdin). |
+| `--on <value>` | No | Unique column to resolve the conflict against. |
+
+</CommandTable>
+
+## Import a CSV, into a new table by default
+
+```bash
+sim tables import [path] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | No | Local CSV file to import; omit when using --file-id |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <name>` | No | Identifier for the new table: letters, numbers, and underscores; defaults to the sanitized file name. |
+| `--table-id <id>` | No | Import into this existing table instead of creating one. |
+| `--mode <append\|replace>` | No | How to write into --table-id (default: append). Accepted values: `append`, `replace`. |
+| `--folder <path>` | No | Folder path for the new table, as shown in the app. |
+| `--file-id <id>` | No | Import a file already in the workspace instead of a local path. |
+| `--mapping <json\|@file>` | No | Column mapping (--table-id only). |
+| `--create-columns <json\|@file>` | No | Columns to create (--table-id only). |
+| `--timezone <iana>` | No | Timezone for date parsing, e.g. America/New_York. |
+| `-y, --yes` | No | Confirm this destructive operation (required with --mode replace). |
+| `--no-wait` | No | Return once the import is queued instead of watching it. |
+
+</CommandTable>
+
+## List table resources and child folders together
+
+```bash
+sim tables ls [path] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | No | Folder path to list; defaults to the root folder |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <text>` | No | Filter folders and resources by name. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Create a table directory at a path
+
+```bash
+sim tables mkdir <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path to create; the leading / is optional |
+
+</CommandTable>

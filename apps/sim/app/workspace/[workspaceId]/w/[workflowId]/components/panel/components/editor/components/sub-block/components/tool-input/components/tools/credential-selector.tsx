@@ -1,8 +1,8 @@
 'use client'
 
-import { createElement, useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Combobox } from '@sim/emcn'
-import { ExternalLink } from 'lucide-react'
+import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
@@ -19,6 +19,7 @@ import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/conn
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
@@ -30,9 +31,9 @@ const getProviderIcon = (providerName: OAuthProvider) => {
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
   if (!baseProviderConfig) {
-    return <ExternalLink className='size-3' />
+    return <SquareArrowUpRight className='size-3' />
   }
-  return createElement(baseProviderConfig.icon, { className: 'size-3' })
+  return <BrandIcon icon={baseProviderConfig.icon} className='size-3' />
 }
 
 const getProviderName = (providerName: OAuthProvider) => {
@@ -146,6 +147,13 @@ export function ToolCredentialSelector({
   const needsUpdate =
     hasSelection && missingRequiredScopes.length > 0 && !disabled && !credentialsLoading
 
+  useEffect(() => {
+    if (showOAuthModal && selectedId && !selectedCredential && !credentialsLoading) {
+      consumeOAuthReturnContext()
+      setShowOAuthModal(false)
+    }
+  }, [showOAuthModal, selectedId, selectedCredential, credentialsLoading])
+
   const handleSelect = useCallback(
     (credentialId: string) => {
       onChange(credentialId)
@@ -237,7 +245,7 @@ export function ToolCredentialSelector({
 
       {needsUpdate && (
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
-          <div className='flex items-center font-medium text-caption'>
+          <div className='flex items-center text-caption'>
             <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
             Additional permissions required
           </div>
@@ -251,11 +259,12 @@ export function ToolCredentialSelector({
                 providerId: effectiveProviderId,
                 preCount: credentials.length,
                 workspaceId,
+                reconnect: true,
                 requestedAt: Date.now(),
               })
               setShowOAuthModal(true)
             }}
-            className='w-full px-2 py-1 font-medium text-caption'
+            className='w-full px-2 py-1 text-caption'
           >
             Update access
           </Button>
@@ -277,7 +286,7 @@ export function ToolCredentialSelector({
         />
       )}
 
-      {showOAuthModal && (
+      {showOAuthModal && selectedCredential && (
         <ConnectOAuthModal
           mode='reauthorize'
           open={showOAuthModal}
@@ -292,6 +301,15 @@ export function ToolCredentialSelector({
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}
           newScopes={missingRequiredScopes}
           serviceId={serviceId}
+          // A reauthorize must return to the authorization server that issued
+          // the credential — deriving it from the service id would send a
+          // sandbox user to production, where they cannot sign in at all.
+          providerId={selectedCredential.provider}
+          reconnectTarget={{
+            workspaceId,
+            credentialId: selectedCredential.id,
+            displayName: selectedCredential.name,
+          }}
         />
       )}
     </div>

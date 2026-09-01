@@ -13,6 +13,8 @@
  * terminal's hidden textarea, the roles here act on a real page: `copy` and
  * `paste` go to the frame that was clicked.
  */
+
+import { resolveDesktopZoom } from '@sim/desktop-bridge'
 import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from 'electron'
 import { clipboard, Menu } from 'electron'
 
@@ -22,9 +24,9 @@ import { clipboard, Menu } from 'electron'
  * Chromium refuses to scale past them, and a rung outside the range would come
  * back clamped and leave the menu offering a step that never lands.
  */
-const ZOOM_STEP_RATIO = 1.1
 const MIN_ZOOM_FACTOR = 0.5
 const MAX_ZOOM_FACTOR = 3
+const ZOOM_FACTOR_BOUNDS = { min: MIN_ZOOM_FACTOR, max: MAX_ZOOM_FACTOR } as const
 
 /**
  * What the panel calls 100%.
@@ -32,15 +34,15 @@ const MAX_ZOOM_FACTOR = 3
  * The browser lives in a panel that is only ever a fraction of the window, so
  * it renders a rung below Chromium's native scale and treats THAT as its
  * baseline: the menu reads 100% there, and every other rung is reported
- * relative to it. Users get a zoom control that behaves the way one should —
- * starts at 100%, resets to 100% — over a page that is genuinely rendering at
- * ~91% of native.
+ * relative to it. New installs start there; when a user chooses a different
+ * default, Actual Size returns to that configured percentage. The initial 100%
+ * is genuinely rendering at ~91% of native.
  *
  * Defined as one rung below native rather than as a round number so the ladder
  * still lands exactly on Chromium's 1.0 (the crispest rasterization, one step
  * up from the baseline) instead of straddling it.
  */
-export const BASE_ZOOM_FACTOR = 1 / ZOOM_STEP_RATIO
+export const BASE_ZOOM_FACTOR = resolveDesktopZoom(1, 'out', 1, ZOOM_FACTOR_BOUNDS)
 
 /**
  * A Chromium zoom factor as a percentage of {@link BASE_ZOOM_FACTOR} — what the
@@ -60,9 +62,12 @@ export function zoomPercentOf(factor: number): number {
  * the item rather than offer a step that does nothing.
  */
 export function steppedZoomFactor(current: number, direction: 1 | -1): number {
-  const base = Number.isFinite(current) && current > 0 ? current : BASE_ZOOM_FACTOR
-  const next = direction === 1 ? base * ZOOM_STEP_RATIO : base / ZOOM_STEP_RATIO
-  return Math.min(MAX_ZOOM_FACTOR, Math.max(MIN_ZOOM_FACTOR, next))
+  return resolveDesktopZoom(
+    current,
+    direction === 1 ? 'in' : 'out',
+    BASE_ZOOM_FACTOR,
+    ZOOM_FACTOR_BOUNDS
+  )
 }
 
 /** The parts of a right-click the menu acts on. */
@@ -76,9 +81,11 @@ interface AgentPageContext {
   canGoBack: boolean
   canGoForward: boolean
   zoomFactor: number
+  defaultZoomFactor: number
 }
 
 interface AgentContextMenuHandlers {
+  addToChat(text: string): void
   copy(): void
   paste(): void
   back(): void
@@ -90,8 +97,12 @@ interface AgentContextMenuHandlers {
 }
 
 export interface AgentContextMenuHost {
+  /** Attaches selected page text to the chat that owns this browser tab. */
+  addToChat(text: string): void
   /** Opens a link from the page in another tab of the same browser. */
   openTab(url: string): void
+  /** Returns the device's current default page zoom factor. */
+  defaultZoomFactor(): number
 }
 
 /**
@@ -109,6 +120,14 @@ export function buildAgentContextMenuTemplate(
 ): MenuItemConstructorOptions[] {
   const template: MenuItemConstructorOptions[] = []
   const linkUrl = /^https?:\/\//i.test(params.linkURL) ? params.linkURL : ''
+  const selectionText = params.selectionText
+
+  if (selectionText.trim()) {
+    template.push(
+      { label: 'Add to chat', click: () => handlers.addToChat(selectionText) },
+      { type: 'separator' }
+    )
+  }
 
   if (linkUrl) {
     template.push(
@@ -118,7 +137,7 @@ export function buildAgentContextMenuTemplate(
     )
   }
 
-  if (params.selectionText.trim()) {
+  if (selectionText.trim()) {
     template.push({ label: 'Copy', click: () => handlers.copy() })
   }
   if (params.isEditable && params.editFlags.canPaste) {
@@ -151,8 +170,8 @@ export function buildAgentContextMenuTemplate(
     },
     {
       label: `Actual Size (${zoomPercent}%)`,
-      enabled: zoomPercent !== 100,
-      click: () => handlers.setZoomFactor(BASE_ZOOM_FACTOR),
+      enabled: page.zoomFactor !== page.defaultZoomFactor,
+      click: () => handlers.setZoomFactor(page.defaultZoomFactor),
     }
   )
 
@@ -168,8 +187,10 @@ export function attachAgentContextMenu(contents: WebContents, host: AgentContext
         canGoBack: contents.navigationHistory.canGoBack(),
         canGoForward: contents.navigationHistory.canGoForward(),
         zoomFactor: contents.getZoomFactor(),
+        defaultZoomFactor: host.defaultZoomFactor(),
       },
       {
+        addToChat: (text) => host.addToChat(text),
         copy: () => contents.copy(),
         paste: () => contents.paste(),
         back: () => contents.navigationHistory.goBack(),

@@ -26,19 +26,23 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
 
 import { db } from '@sim/db'
 import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
-import { ZOOM_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { refreshOAuthToken } from '@/lib/oauth'
 import {
-  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
-  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
-  SLACK_CUSTOM_BOT_PROVIDER_ID,
-} from '@/lib/oauth/types'
+  NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
+  ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
+} from '@/lib/credentials/client-credential-accounts/descriptors'
+import { refreshOAuthToken } from '@/lib/oauth'
 import {
   getCredential,
   refreshAccessTokenIfNeeded,
   refreshTokenIfNeeded,
   resolveServiceAccountToken,
-} from '@/app/api/auth/oauth/utils'
+} from '@/lib/oauth/credential-service'
+import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
+import {
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  SLACK_CUSTOM_BOT_PROVIDER_ID,
+} from '@/lib/oauth/types'
 
 const mockDb = db as any
 const mockRefreshOAuthToken = refreshOAuthToken as any
@@ -323,9 +327,11 @@ describe('OAuth Utils', () => {
       const result = await refreshTokenIfNeeded('request-id', slackCredential(), 'row-1')
 
       expect(result).toEqual({ accessToken: 'new-at', refreshed: true })
+      const installationIdentity = getOAuthRefreshCoordinationIdentity('slack:T08CM6ZNYBE')
       expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe(
-        'oauth:refresh:slack:T08CM6ZNYBE'
+        `oauth:refresh:${installationIdentity}`
       )
+      expect(installationIdentity).not.toContain('T08CM6ZNYBE')
       expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][2]).toBe(30)
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('slack', 'live-rt')
       expect(mockSet).toHaveBeenCalledWith(
@@ -364,7 +370,11 @@ describe('OAuth Utils', () => {
       )
 
       expect(result).toEqual({ accessToken: 'new-at', refreshed: true })
-      expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe('oauth:refresh:row-1')
+      const rowIdentity = getOAuthRefreshCoordinationIdentity('row-1')
+      expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe(
+        `oauth:refresh:${rowIdentity}`
+      )
+      expect(rowIdentity).not.toContain('row-1')
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('slack', 'stale-rt')
     })
 
@@ -388,8 +398,9 @@ describe('OAuth Utils', () => {
         'Failed to refresh token'
       )
 
+      const installationIdentity = getOAuthRefreshCoordinationIdentity('slack:T08CM6ZNYBE')
       expect(fakeRedis.set).toHaveBeenCalledWith(
-        'oauth:dead:slack:T08CM6ZNYBE',
+        `oauth:dead:${installationIdentity}`,
         'token_revoked',
         'EX',
         3600
@@ -440,6 +451,23 @@ describe('OAuth Utils', () => {
       })
       const result = await resolveServiceAccountToken('cred-1', SLACK_CUSTOM_BOT_PROVIDER_ID)
       expect(result.accessToken).toBe('xoxb-tok')
+    })
+
+    it('returns the bot token for an action-only Slack bot without a signing secret', async () => {
+      mockSelectChain([
+        {
+          type: 'service_account',
+          providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
+          encryptedServiceAccountKey: 'enc',
+        },
+      ])
+      mockDecryptSecret.mockResolvedValueOnce({
+        decrypted: JSON.stringify({ botToken: 'xoxb-action' }),
+      })
+
+      const result = await resolveServiceAccountToken('cred-1', SLACK_CUSTOM_BOT_PROVIDER_ID)
+
+      expect(result.accessToken).toBe('xoxb-action')
     })
 
     it('throws when the Slack bot credential is missing', async () => {
@@ -523,6 +551,33 @@ describe('OAuth Utils', () => {
         accessToken: 'tok-1',
         instanceUrl: 'https://org.my.salesforce.com',
       })
+      expect(mockMinter).toHaveBeenCalledTimes(1)
+    })
+
+    it('forwards NetSuite certificate material and caches its SuiteTalk instance URL', async () => {
+      const credId = 'ccsa-netsuite-certificate'
+      const fields = {
+        clientId: 'netsuite-client',
+        certificateId: 'certificate-id',
+        orgId: 'https://1234567.suitetalk.api.netsuite.com',
+        privateKey: 'private-key',
+      }
+      mockDecryptSecret.mockResolvedValueOnce({ decrypted: JSON.stringify(fields) })
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      mockMinter.mockResolvedValueOnce({
+        accessToken: 'netsuite-token',
+        expiresInSeconds: 3600,
+        instanceUrl: fields.orgId,
+      })
+
+      const first = await resolveServiceAccountToken(credId, NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID)
+
+      expect(first).toEqual({ accessToken: 'netsuite-token', instanceUrl: fields.orgId })
+      expect(mockMinter).toHaveBeenCalledWith(fields, { skipIdentity: true })
+
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      const cached = await resolveServiceAccountToken(credId, NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID)
+      expect(cached).toEqual(first)
       expect(mockMinter).toHaveBeenCalledTimes(1)
     })
 

@@ -17,12 +17,16 @@ export interface LargeValueRef {
 
 export interface WorkflowExecutionResult {
   success: boolean
+  executionId?: string
   output?: any
   error?: string
   logs?: any[]
   metadata?: {
     duration?: number
     executionId?: string
+    runId?: string
+    startTime?: string
+    endTime?: string
     [key: string]: any
   }
   traceSpans?: any[]
@@ -37,17 +41,28 @@ export interface WorkflowStatus {
 }
 
 export interface ExecutionOptions {
+  /** Client-side HTTP timeout in milliseconds. */
   timeout?: number
   stream?: boolean
   selectedOutputs?: string[]
   async?: boolean
+  /** Server-side async execution cap in seconds (1–604800). */
+  executionTimeoutSeconds?: number
 }
+
+export type SyncExecutionOptions = Omit<ExecutionOptions, 'async' | 'executionTimeoutSeconds'> & {
+  /** Async mode is controlled by executeWorkflowSync and cannot be overridden. */
+  async?: never
+  /** Server-side execution timeout overrides are async-only. */
+  executionTimeoutSeconds?: never
+}
+
+const MAX_EXECUTION_TIMEOUT_SECONDS = 604_800
 
 export interface AsyncExecutionResult {
   success: boolean
-  jobId: string
+  runId: string
   statusUrl: string
-  executionId?: string
   message: string
   async: true
 }
@@ -58,6 +73,32 @@ export interface JobStatusResult {
   metadata?: Record<string, unknown>
   output?: unknown
   error?: string
+}
+
+export interface WorkflowExecutionError {
+  code: string
+  message: string
+  details?: unknown
+}
+
+export interface WorkflowRunStatus {
+  runId: string
+  workflowId: string
+  status: 'queued' | 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
+  trigger: string | null
+  startedAt: string | null
+  endedAt: string | null
+  durationMs: number | null
+  paused: Record<string, unknown> | null
+  cost: { total: number } | null
+  error: WorkflowExecutionError | null
+  output: unknown | null
+  blockOutputs: Record<string, unknown> | null
+}
+
+export interface GetWorkflowRunOptions {
+  includeOutput?: boolean
+  selectedOutputs?: string[]
 }
 
 export interface RateLimitInfo {
@@ -215,8 +256,27 @@ export class SimStudioClient {
     input?: any,
     options: ExecutionOptions = {}
   ): Promise<WorkflowExecutionResult | AsyncExecutionResult> {
-    const url = `${this.baseUrl}/api/workflows/${workflowId}/execute`
-    const { timeout = 30000, stream, selectedOutputs, async } = options
+    const url = `${this.baseUrl}/api/v2/workflows/${workflowId}/execute`
+    const { timeout = 30000, stream, selectedOutputs, async, executionTimeoutSeconds } = options
+
+    if (executionTimeoutSeconds !== undefined) {
+      if (!async) {
+        throw new SimStudioError(
+          'executionTimeoutSeconds is supported only for async executions',
+          'INVALID_EXECUTION_TIMEOUT'
+        )
+      }
+      if (
+        !Number.isSafeInteger(executionTimeoutSeconds) ||
+        executionTimeoutSeconds < 1 ||
+        executionTimeoutSeconds > MAX_EXECUTION_TIMEOUT_SECONDS
+      ) {
+        throw new SimStudioError(
+          `executionTimeoutSeconds must be an integer between 1 and ${MAX_EXECUTION_TIMEOUT_SECONDS}`,
+          'INVALID_EXECUTION_TIMEOUT'
+        )
+      }
+    }
 
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -227,26 +287,30 @@ export class SimStudioClient {
         'Content-Type': 'application/json',
         'X-API-Key': this.apiKey,
       }
-      if (async) {
-        headers['X-Execution-Mode'] = 'async'
-      }
 
-      let jsonBody: any = {}
+      let workflowInput: any = {}
       if (input !== undefined && input !== null) {
         if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
-          jsonBody = { ...input }
+          workflowInput = { ...input }
         } else {
-          jsonBody = { input }
+          workflowInput = { input }
         }
       }
 
-      jsonBody = await this.convertFilesToBase64(jsonBody)
+      workflowInput = await this.convertFilesToBase64(workflowInput)
+      const jsonBody: Record<string, unknown> = { input: workflowInput }
 
       if (stream !== undefined) {
         jsonBody.stream = stream
       }
       if (selectedOutputs !== undefined) {
         jsonBody.selectedOutputs = selectedOutputs
+      }
+      if (async !== undefined) {
+        jsonBody.async = async
+      }
+      if (executionTimeoutSeconds !== undefined) {
+        jsonBody.executionTimeoutSeconds = executionTimeoutSeconds
       }
 
       const fetchPromise = fetch(url, {
@@ -269,16 +333,66 @@ export class SimStudioClient {
       }
 
       if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as unknown as any
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: { code?: string; message?: string }
+        }
         throw new SimStudioError(
-          errorData.error || `HTTP ${response.status}: ${response.statusText}`,
-          errorData.code,
+          errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`,
+          errorData.error?.code,
           response.status
         )
       }
 
-      const result = await response.json()
-      return result as WorkflowExecutionResult | AsyncExecutionResult
+      const result = (await response.json()) as {
+        data?: {
+          runId: string
+          statusUrl?: string
+          status?: 'completed' | 'failed' | 'paused' | 'cancelled'
+          output?: unknown
+          error?: WorkflowExecutionError | null
+          startedAt?: string
+          endedAt?: string
+          durationMs?: number
+        }
+      }
+      if (!result.data) {
+        throw new SimStudioError('Invalid v2 workflow execution response', 'EXECUTION_ERROR')
+      }
+
+      if (response.status === 202) {
+        if (!result.data.statusUrl) {
+          throw new SimStudioError('Invalid v2 async execution response', 'EXECUTION_ERROR')
+        }
+        return {
+          success: true,
+          runId: result.data.runId,
+          statusUrl: result.data.statusUrl,
+          message: 'Workflow execution queued',
+          async: true,
+        }
+      }
+
+      if (result.data.status === 'failed') {
+        throw new SimStudioError(
+          result.data.error?.message || 'Workflow execution failed',
+          result.data.error?.code || 'EXECUTION_FAILED'
+        )
+      }
+
+      return {
+        success: result.data.status === 'completed' || result.data.status === 'paused',
+        executionId: result.data.runId,
+        output: result.data.output,
+        error: result.data.error?.message,
+        metadata: {
+          duration: result.data.durationMs,
+          executionId: result.data.runId,
+          runId: result.data.runId,
+          startTime: result.data.startedAt,
+          endTime: result.data.endedAt,
+        },
+        totalDuration: result.data.durationMs,
+      }
     } catch (error: any) {
       if (error instanceof SimStudioError) {
         throw error
@@ -310,7 +424,10 @@ export class SimStudioClient {
       })
 
       if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as unknown as any
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: string
+          code?: string
+        }
         throw new SimStudioError(
           errorData.error || `HTTP ${response.status}: ${response.statusText}`,
           errorData.code,
@@ -341,7 +458,7 @@ export class SimStudioClient {
   async executeWorkflowSync(
     workflowId: string,
     input?: any,
-    options: ExecutionOptions = {}
+    options: SyncExecutionOptions = {}
   ): Promise<WorkflowExecutionResult> {
     const syncOptions = { ...options, async: false }
     return this.executeWorkflow(workflowId, input, syncOptions) as Promise<WorkflowExecutionResult>
@@ -354,7 +471,7 @@ export class SimStudioClient {
     try {
       const status = await this.getWorkflowStatus(workflowId)
       return status.isDeployed
-    } catch (error) {
+    } catch {
       return false
     }
   }
@@ -374,8 +491,8 @@ export class SimStudioClient {
   }
 
   /**
-   * Get the status of an async job
-   * @param taskId The job ID returned from async execution
+   * Get the status of a legacy async job.
+   * @param taskId The job ID returned from legacy async execution
    */
   async getJobStatus(taskId: string): Promise<JobStatusResult> {
     const url = `${this.baseUrl}/api/jobs/${taskId}`
@@ -407,6 +524,59 @@ export class SimStudioClient {
       }
 
       throw new SimStudioError(describeError(error) || 'Failed to get job status', 'STATUS_ERROR')
+    }
+  }
+
+  /**
+   * Get a workflow run's current status and optional outputs from the v2 API.
+   */
+  async getWorkflowRun(
+    workflowId: string,
+    runId: string,
+    options: GetWorkflowRunOptions = {}
+  ): Promise<WorkflowRunStatus> {
+    const query = new URLSearchParams()
+    if (options.includeOutput !== undefined) {
+      query.set('includeOutput', String(options.includeOutput))
+    }
+    if (options.selectedOutputs?.length) {
+      query.set('selectedOutputs', options.selectedOutputs.join(','))
+    }
+    const queryString = query.toString()
+    const url = `${this.baseUrl}/api/v2/workflows/${workflowId}/runs/${runId}${queryString ? `?${queryString}` : ''}`
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': this.apiKey,
+        },
+      })
+
+      this.updateRateLimitInfo(response)
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: { code?: string; message?: string }
+        }
+        throw new SimStudioError(
+          errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`,
+          errorData.error?.code,
+          response.status
+        )
+      }
+
+      const result = (await response.json()) as { data?: WorkflowRunStatus }
+      if (!result.data) {
+        throw new SimStudioError('Invalid v2 workflow run response', 'STATUS_ERROR')
+      }
+      return result.data
+    } catch (error: any) {
+      if (error instanceof SimStudioError) {
+        throw error
+      }
+
+      throw new SimStudioError(describeError(error) || 'Failed to get workflow run', 'STATUS_ERROR')
     }
   }
 

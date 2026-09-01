@@ -3,13 +3,37 @@ import { vi } from 'vitest'
 /**
  * Creates mock SQL template literal function.
  * Mimics drizzle-orm's sql tagged template.
+ *
+ * The `Date` guards below are a best-effort backstop, not the gate: tests that
+ * override the `drizzle-orm` mock bypass them entirely. `bun run check:sql-date-binding`
+ * is the repo-wide authority. `drizzle()` overwrites postgres-js's temporal
+ * serializers (OIDs 1082/1083/1114/1184/1182/1185/1115/1231) with an identity
+ * function because drizzle maps timestamps itself through the column's
+ * `mapToDriverValue`. Outside column context that mapping never runs, so the Date
+ * reaches the wire encoder unserialized. The pools' `prepare` / `fetch_types`
+ * options are irrelevant to this failure.
  */
 export function createMockSql() {
-  const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => ({
-    strings,
-    values,
-    toSQL: () => ({ sql: strings.join('?'), params: values }),
-  })
+  const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => {
+    if (values.some((value) => value instanceof Date)) {
+      throw new Error(
+        `sql\`…\${date}\` interpolates a Date without an encoder, so drizzle never runs ` +
+          'the column mapping and postgres-js receives an unserialized Date ' +
+          '(ERR_INVALID_ARG_TYPE). Bind through the matching column: ' +
+          'sql.param(date, table.timestampColumn).'
+      )
+    }
+    const fragment = {
+      strings,
+      values,
+      toSQL: () => ({ sql: strings.join('?'), params: values }),
+      /** Mirrors drizzle's `sql``…`.as(alias)` for aliased select expressions. */
+      as: (alias: string) => ({ ...fragment, alias }),
+      /** Mirrors drizzle's `sql``…`.mapWith(decoder)` for typed select expressions. */
+      mapWith: (decoder: unknown) => ({ ...fragment, decoder }),
+    }
+    return fragment
+  }
 
   sqlFn.raw = (rawSql: string) => ({
     rawSql,
@@ -41,9 +65,9 @@ export function createMockSql() {
     }
     if (encoder === undefined && value instanceof Date) {
       throw new Error(
-        'sql.param(date) without an encoder reaches postgres-js as a Date object, ' +
-          'which its unsafe path cannot serialize (ERR_INVALID_ARG_TYPE). Bind ' +
-          'through the matching column: sql.param(date, table.timestampColumn).'
+        'sql.param(date) without an encoder skips the column mapping and reaches ' +
+          'postgres-js as an unserialized Date (ERR_INVALID_ARG_TYPE). Bind through ' +
+          'the matching column: sql.param(date, table.timestampColumn).'
       )
     }
     return { value, toSQL: () => ({ sql: '?', params: [value] }) }

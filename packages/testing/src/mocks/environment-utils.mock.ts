@@ -30,12 +30,68 @@ function emptyPersonalAndWorkspaceEnv(): {
  * environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'k' })
  * ```
  */
+/**
+ * Mirrors the real resolver: one lookup when both identities match, two when the
+ * execution actor differs from the identity owning the personal variables.
+ * Delegating keeps `mockGetPersonalAndWorkspaceEnv` the single place a test has
+ * to stub environment data.
+ */
+async function delegateExecutionEnvironment(
+  personalUserId: string | undefined,
+  workspaceUserId: string,
+  workspaceId?: string
+) {
+  const resolve = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+  if (personalUserId === undefined) {
+    const workspaceOnly = await resolve(workspaceUserId, workspaceId)
+    return {
+      ...workspaceOnly,
+      personalEncrypted: {},
+      personalDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: (workspaceOnly.decryptionFailures ?? []).filter(
+        (k: string) => k in (workspaceOnly.workspaceEncrypted ?? {})
+      ),
+    }
+  }
+
+  if (!workspaceId || workspaceUserId === personalUserId) {
+    return resolve(personalUserId, workspaceId)
+  }
+
+  const [personal, actor] = await Promise.all([
+    resolve(personalUserId, workspaceId),
+    resolve(workspaceUserId, workspaceId),
+  ])
+  const personalEncrypted = personal.personalEncrypted ?? {}
+  const workspaceEncrypted = actor.workspaceEncrypted ?? {}
+  return {
+    ...personal,
+    workspaceEncrypted: actor.workspaceEncrypted,
+    workspaceDecrypted: actor.workspaceDecrypted,
+    conflicts: Object.keys(personalEncrypted).filter((key) => key in workspaceEncrypted),
+    decryptionFailures: [
+      ...new Set([
+        ...(personal.decryptionFailures ?? []).filter((k: string) => k in personalEncrypted),
+        ...(actor.decryptionFailures ?? []).filter((k: string) => k in workspaceEncrypted),
+      ]),
+    ],
+  }
+}
+
 export const environmentUtilsMockFns = {
   mockInvalidateEffectiveDecryptedEnvCache: vi.fn(),
   mockGetEnvironmentVariableKeys: vi.fn().mockResolvedValue({ variableNames: [], count: 0 }),
   mockGetPersonalAndWorkspaceEnv: vi
     .fn()
     .mockImplementation(async () => emptyPersonalAndWorkspaceEnv()),
+  mockGetExecutionEnvironment: vi.fn().mockImplementation(delegateExecutionEnvironment),
+  mockGetEffectiveEnvironmentSnapshot: vi
+    .fn()
+    .mockImplementation(async () => emptyPersonalAndWorkspaceEnv()),
+  mockGetEffectiveEnvironmentVariableNames: vi.fn().mockResolvedValue([]),
+  mockResolveEffectiveEnvironmentVariables: vi.fn().mockResolvedValue({}),
   mockUpsertPersonalEnvVars: vi.fn().mockResolvedValue({ added: [], updated: [] }),
   mockUpsertWorkspaceEnvVars: vi.fn().mockResolvedValue([]),
   mockGetEffectiveDecryptedEnv: vi.fn().mockResolvedValue({}),
@@ -52,6 +108,14 @@ export function resetEnvironmentUtilsMock(): void {
   environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
     .mockReset()
     .mockImplementation(async () => emptyPersonalAndWorkspaceEnv())
+  environmentUtilsMockFns.mockGetExecutionEnvironment
+    .mockReset()
+    .mockImplementation(delegateExecutionEnvironment)
+  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
+    .mockReset()
+    .mockImplementation(async () => emptyPersonalAndWorkspaceEnv())
+  environmentUtilsMockFns.mockGetEffectiveEnvironmentVariableNames.mockReset().mockResolvedValue([])
+  environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockReset().mockResolvedValue({})
   environmentUtilsMockFns.mockUpsertPersonalEnvVars
     .mockReset()
     .mockResolvedValue({ added: [], updated: [] })
@@ -73,6 +137,12 @@ export const environmentUtilsMock = {
     environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache,
   getEnvironmentVariableKeys: environmentUtilsMockFns.mockGetEnvironmentVariableKeys,
   getPersonalAndWorkspaceEnv: environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv,
+  getExecutionEnvironment: environmentUtilsMockFns.mockGetExecutionEnvironment,
+  getEffectiveEnvironmentSnapshot: environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot,
+  getEffectiveEnvironmentVariableNames:
+    environmentUtilsMockFns.mockGetEffectiveEnvironmentVariableNames,
+  resolveEffectiveEnvironmentVariables:
+    environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables,
   upsertPersonalEnvVars: environmentUtilsMockFns.mockUpsertPersonalEnvVars,
   upsertWorkspaceEnvVars: environmentUtilsMockFns.mockUpsertWorkspaceEnvVars,
   getEffectiveDecryptedEnv: environmentUtilsMockFns.mockGetEffectiveDecryptedEnv,

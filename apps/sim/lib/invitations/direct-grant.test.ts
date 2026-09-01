@@ -1,33 +1,63 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, auditMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { invitation, member } from '@sim/db/schema'
+import {
+  auditMock,
+  auditMockFns,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockAcquireInvitationMutationLocks,
+  mockAcquireOrganizationUserMutationLocks,
   mockGetUserOrganization,
+  mockGetEffectiveWorkspacePermission,
+  mockGetWorkspaceWithOwner,
+  mockRevokeInvitationWorkspaceGrantTx,
   mockSyncWorkspaceEnvCredentials,
-  mockCancelPendingInvitation,
   mockSendWorkspaceAddedEmail,
   mockCaptureServerEvent,
   mockWorkspaceMemberAdded,
+  mockEnqueueOutboxEvent,
 } = vi.hoisted(() => ({
+  mockAcquireInvitationMutationLocks: vi.fn(),
+  mockAcquireOrganizationUserMutationLocks: vi.fn(),
   mockGetUserOrganization: vi.fn(),
+  mockGetEffectiveWorkspacePermission: vi.fn(),
+  mockGetWorkspaceWithOwner: vi.fn(),
+  mockRevokeInvitationWorkspaceGrantTx: vi.fn(),
   mockSyncWorkspaceEnvCredentials: vi.fn(),
-  mockCancelPendingInvitation: vi.fn(),
   mockSendWorkspaceAddedEmail: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
   mockWorkspaceMemberAdded: vi.fn(),
+  mockEnqueueOutboxEvent: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
+  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
   getUserOrganization: mockGetUserOrganization,
+}))
+
+vi.mock('@/lib/invitations/locks', () => ({
+  acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
+}))
+
+vi.mock('@/lib/invitations/core', () => ({
+  revokeInvitationWorkspaceGrantTx: mockRevokeInvitationWorkspaceGrantTx,
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: { workspaceMemberAdded: mockWorkspaceMemberAdded },
+}))
+
+vi.mock('@/lib/core/outbox/service', () => ({
+  enqueueOutboxEvent: mockEnqueueOutboxEvent,
 }))
 
 vi.mock('@/lib/credentials/environment', () => ({
@@ -35,37 +65,24 @@ vi.mock('@/lib/credentials/environment', () => ({
 }))
 
 vi.mock('@/lib/invitations/send', () => ({
-  cancelPendingInvitation: mockCancelPendingInvitation,
   sendWorkspaceAddedEmail: mockSendWorkspaceAddedEmail,
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
+  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
 }))
 
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: mockCaptureServerEvent,
 }))
 
-import { grantWorkspaceAccessDirectly, isSameOrgMember } from '@/lib/invitations/direct-grant'
-
-/**
- * Drives `db.select().from().where()` results in call order. Both an awaited
- * `where()` and a chained `.limit()` resolve to the same per-call value.
- */
-function queueWhereResponses(responses: unknown[][]) {
-  const queue = [...responses]
-  dbChainMockFns.where.mockImplementation(() => {
-    const result = queue.shift() ?? []
-    const thenable = Promise.resolve(result) as Promise<unknown[]> & {
-      limit: ReturnType<typeof vi.fn>
-      orderBy: ReturnType<typeof vi.fn>
-      returning: ReturnType<typeof vi.fn>
-      groupBy: ReturnType<typeof vi.fn>
-    }
-    thenable.limit = vi.fn(() => Promise.resolve(result))
-    thenable.orderBy = vi.fn(() => Promise.resolve(result))
-    thenable.returning = vi.fn(() => Promise.resolve(result))
-    thenable.groupBy = vi.fn(() => Promise.resolve(result))
-    return thenable as ReturnType<typeof dbChainMockFns.where>
-  })
-}
+import {
+  DirectGrantContextChangedError,
+  directGrantOutboxHandlers,
+  grantWorkspaceAccessDirectly,
+} from '@/lib/invitations/direct-grant'
+import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant-event'
 
 const baseInput = {
   userId: 'user-2',
@@ -83,6 +100,25 @@ describe('grantWorkspaceAccessDirectly', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockAcquireInvitationMutationLocks.mockResolvedValue(undefined)
+    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'member',
+    })
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'ws-1',
+      name: 'Workspace 1',
+      ownerId: 'user-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'user-1',
+    })
+    mockGetEffectiveWorkspacePermission.mockResolvedValue('admin')
+    mockRevokeInvitationWorkspaceGrantTx.mockResolvedValue({
+      revoked: true,
+      invitationCancelled: false,
+    })
     mockSendWorkspaceAddedEmail.mockResolvedValue({ success: true })
     // Insert path reports the new row via `.returning()`.
     dbChainMockFns.returning.mockResolvedValue([{ id: 'perm-new' }])
@@ -100,8 +136,107 @@ describe('grantWorkspaceAccessDirectly', () => {
     expect(mockWorkspaceMemberAdded).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: 'ws-1' })
     )
-    expect(mockSendWorkspaceAddedEmail).toHaveBeenCalledWith(
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      DIRECT_GRANT_EMAIL_EVENT_TYPE,
       expect.objectContaining({ email: 'member@example.com', workspaceId: 'ws-1' })
+    )
+    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(3)
+    expect(dbChainMockFns.for.mock.invocationCallOrder[1]).toBeLessThan(
+      mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.from).toHaveBeenCalledWith(member)
+  })
+
+  it('delivers the transactionally enqueued notification through the outbox', async () => {
+    await directGrantOutboxHandlers[DIRECT_GRANT_EMAIL_EVENT_TYPE](
+      {
+        email: 'member@example.com',
+        inviterName: 'Owner',
+        workspaceId: 'ws-1',
+        workspaceName: 'Workspace 1',
+      },
+      {
+        eventId: 'email-1',
+        eventType: DIRECT_GRANT_EMAIL_EVENT_TYPE,
+        attempts: 0,
+        maxAttempts: 10,
+        signal: new AbortController().signal,
+        checkpointPayload: vi.fn(),
+      }
+    )
+
+    expect(mockSendWorkspaceAddedEmail).toHaveBeenCalledWith({
+      email: 'member@example.com',
+      inviterName: 'Owner',
+      workspaceId: 'ws-1',
+      workspaceName: 'Workspace 1',
+    })
+  })
+
+  it('retries provider-declined notification delivery instead of dropping it', async () => {
+    mockSendWorkspaceAddedEmail.mockResolvedValueOnce({
+      success: false,
+      error: 'Provider unavailable',
+    })
+
+    await expect(
+      directGrantOutboxHandlers[DIRECT_GRANT_EMAIL_EVENT_TYPE](
+        {
+          email: 'member@example.com',
+          inviterName: 'Owner',
+          workspaceId: 'ws-1',
+          workspaceName: 'Workspace 1',
+        },
+        {
+          eventId: 'email-1',
+          eventType: DIRECT_GRANT_EMAIL_EVENT_TYPE,
+          attempts: 0,
+          maxAttempts: 10,
+          signal: new AbortController().signal,
+          checkpointPayload: vi.fn(),
+        }
+      )
+    ).rejects.toThrow('Provider unavailable')
+  })
+
+  it('rejects malformed durable notification payloads instead of dropping fields', async () => {
+    await expect(
+      directGrantOutboxHandlers[DIRECT_GRANT_EMAIL_EVENT_TYPE](
+        {
+          email: 'member@example.com',
+          inviterName: 'Owner',
+          workspaceId: 'ws-1',
+        },
+        {
+          eventId: 'email-1',
+          eventType: DIRECT_GRANT_EMAIL_EVENT_TYPE,
+          attempts: 0,
+          maxAttempts: 10,
+          signal: new AbortController().signal,
+          checkpointPayload: vi.fn(),
+        }
+      )
+    ).rejects.toThrow('Invalid workspace-added email payload')
+
+    expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
+  })
+
+  it('preserves an actor-less platform admin in audit instead of substituting the owner', async () => {
+    await grantWorkspaceAccessDirectly({
+      ...baseInput,
+      auditActor: { id: null, name: 'Admin Panel', email: null },
+    })
+
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: null,
+        actorName: 'Admin Panel',
+        actorEmail: null,
+      })
     )
   })
 
@@ -126,6 +261,30 @@ describe('grantWorkspaceAccessDirectly', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
+  })
+
+  it('can explicitly ensure a minimum permission for provisioning reconciliation', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'perm-1', permissionType: 'read' }])
+
+    const result = await grantWorkspaceAccessDirectly({
+      ...baseInput,
+      permission: 'write',
+      existingPermissionPolicy: 'ensure-at-least',
+    })
+
+    expect(result).toEqual({
+      outcome: 'updated',
+      previousPermission: 'read',
+      permission: 'write',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ permissionType: 'write' })
+    )
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'member.role_changed', resourceId: 'ws-1' })
+    )
+    expect(mockWorkspaceMemberAdded).not.toHaveBeenCalled()
     expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
   })
 
@@ -167,41 +326,45 @@ describe('grantWorkspaceAccessDirectly', () => {
   })
 
   it('supersedes lingering pending workspace invitations for the same email', async () => {
-    queueWhereResponses([
-      [], // existing permission lookup (transaction)
-      [{ invitationId: 'old-inv' }], // supersede lookup
-      [], // env lookup
-    ])
+    queueTableRows(invitation, [{ invitationId: 'old-inv' }])
+    queueTableRows(invitation, [{ invitationId: 'old-inv' }])
 
     await grantWorkspaceAccessDirectly({ ...baseInput })
 
-    expect(mockCancelPendingInvitation).toHaveBeenCalledWith('old-inv')
-  })
-})
-
-describe('isSameOrgMember', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
+    expect(mockRevokeInvitationWorkspaceGrantTx).toHaveBeenCalledWith(expect.anything(), {
+      invitationId: 'old-inv',
+      workspaceId: 'ws-1',
+    })
   })
 
-  it('returns false when the workspace has no organization', async () => {
-    expect(await isSameOrgMember('user-2', null)).toBe(false)
-    expect(mockGetUserOrganization).not.toHaveBeenCalled()
-  })
+  it('locks before re-reading scope and aborts when the workspace moved', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
+      id: 'ws-1',
+      name: 'Workspace 1',
+      ownerId: 'user-1',
+      organizationId: 'org-2',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'user-3',
+    })
 
-  it('returns false when the user belongs to no organization', async () => {
-    mockGetUserOrganization.mockResolvedValueOnce(null)
-    expect(await isSameOrgMember('user-2', 'org-1')).toBe(false)
-  })
+    await expect(grantWorkspaceAccessDirectly({ ...baseInput })).rejects.toBeInstanceOf(
+      DirectGrantContextChangedError
+    )
 
-  it('returns true when the user belongs to the workspace organization', async () => {
-    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role: 'member' })
-    expect(await isSameOrgMember('user-2', 'org-1')).toBe(true)
-  })
-
-  it('returns false when the user belongs to a different organization', async () => {
-    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-2', role: 'member' })
-    expect(await isSameOrgMember('user-2', 'org-1')).toBe(false)
+    expect(mockAcquireInvitationMutationLocks).toHaveBeenCalledWith(expect.anything(), {
+      invitationIds: [],
+      workspaceIds: ['ws-1'],
+    })
+    expect(mockAcquireOrganizationUserMutationLocks).toHaveBeenCalledWith(expect.anything(), {
+      userId: 'user-2',
+      organizationIds: ['org-1'],
+    })
+    expect(mockAcquireInvitationMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]
+    )
+    expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGetWorkspaceWithOwner.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })

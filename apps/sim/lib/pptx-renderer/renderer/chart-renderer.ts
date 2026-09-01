@@ -9,12 +9,11 @@ const logger = createLogger('PptxChartRenderer')
 import * as echarts from 'echarts'
 import type { ChartNodeData } from '../model/nodes/chart-node'
 import type { SafeXmlNode } from '../parser/xml-parser'
+import { cssFontStack } from '../utils/font-stack'
 import type { RenderContext } from './render-context'
 import { resolveColor } from './style-resolver'
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 interface SeriesData {
   name: string
@@ -73,9 +72,7 @@ type OoxmlChartType =
   | 'stockChart'
   | 'surface3DChart'
 
-// ---------------------------------------------------------------------------
 // Chart Type Mapping
-// ---------------------------------------------------------------------------
 
 const CHART_TYPE_ELEMENTS: OoxmlChartType[] = [
   'barChart',
@@ -94,9 +91,7 @@ const CHART_TYPE_ELEMENTS: OoxmlChartType[] = [
   'surface3DChart',
 ]
 
-// ---------------------------------------------------------------------------
 // Data Extraction Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Extract text values from a strRef or strCache structure.
@@ -643,9 +638,7 @@ function parseSeries(chartTypeNode: SafeXmlNode, ctx: RenderContext): SeriesData
   return seriesArr
 }
 
-// ---------------------------------------------------------------------------
 // Chart Title
-// ---------------------------------------------------------------------------
 
 /**
  * Extract chart title from chartSpace > chart > title.
@@ -745,7 +738,7 @@ function extractTxPrStyle(
     const eaTypeface = defRPr.child('ea').attr('typeface')
     const csTypeface = defRPr.child('cs').attr('typeface')
     if (latinTypeface || eaTypeface || csTypeface) {
-      style.fontFamily = latinTypeface || eaTypeface || csTypeface
+      style.fontFamily = cssFontStack(latinTypeface || eaTypeface || csTypeface || '')
     }
 
     if (
@@ -760,18 +753,15 @@ function extractTxPrStyle(
 }
 
 function getChartThemeFontFamily(ctx: RenderContext): string | undefined {
-  return (
+  const family =
     ctx.theme.minorFont.latin ||
     ctx.theme.minorFont.ea ||
     ctx.theme.majorFont.latin ||
-    ctx.theme.majorFont.ea ||
-    undefined
-  )
+    ctx.theme.majorFont.ea
+  return family ? cssFontStack(family) : undefined
 }
 
-// ---------------------------------------------------------------------------
 // Legend
-// ---------------------------------------------------------------------------
 
 /** Parsed legend info including overlay flag. */
 interface LegendInfo {
@@ -1106,9 +1096,7 @@ function hasManualGrid(
   )
 }
 
-// ---------------------------------------------------------------------------
 // Axis Parsing
-// ---------------------------------------------------------------------------
 
 const DEFAULT_AXIS_INFO: AxisInfo = {
   deleted: false,
@@ -1296,9 +1284,7 @@ function applyAxisInfo(
   }
 }
 
-// ---------------------------------------------------------------------------
 // ECharts Option Builders
-// ---------------------------------------------------------------------------
 
 /**
  * Convert OOXML data label position to ECharts bar label position.
@@ -2001,9 +1987,7 @@ function buildScatterChartOption(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Bubble Chart
-// ---------------------------------------------------------------------------
 
 function buildBubbleChartOption(
   chartTypeNode: SafeXmlNode,
@@ -2077,9 +2061,12 @@ function buildBubbleChartOption(
       : undefined,
     tooltip: {
       trigger: 'item',
+      // The name comes from the uploaded document and lands in the tooltip's innerHTML.
+      // ECharts escapes the markup it builds itself; a hand-built one escapes its own.
       formatter: (params: unknown) => {
         const p = params as { seriesName: string; value: number[] }
-        return `${p.seriesName}<br/>x: ${p.value[0]}, y: ${p.value[1]}, size: ${p.value[2]}`
+        const name = echarts.format.encodeHTML(p.seriesName)
+        return `${name}<br/>x: ${p.value[0]}, y: ${p.value[1]}, size: ${p.value[2]}`
       },
     },
     legend: buildLegendOption(
@@ -2103,9 +2090,7 @@ function buildBubbleChartOption(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Stock Chart (Candlestick)
-// ---------------------------------------------------------------------------
 
 function buildStockChartOption(
   _chartTypeNode: SafeXmlNode,
@@ -2310,9 +2295,7 @@ function buildStockChartOption(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Data Table (c:dTable)
-// ---------------------------------------------------------------------------
 
 /** Parsed c:dTable info for building the chart data table. */
 interface DataTableInfo {
@@ -2404,9 +2387,7 @@ function buildDataTableElement(info: DataTableInfo, seriesColors?: string[]): HT
   return table
 }
 
-// ---------------------------------------------------------------------------
 // Main Chart XML Parser
-// ---------------------------------------------------------------------------
 
 /**
  * Extract background colors from chartSpace and plotArea.
@@ -2556,9 +2537,7 @@ function buildChartPalette(chartXml: SafeXmlNode, ctx: RenderContext): string[] 
   return accents
 }
 
-// ---------------------------------------------------------------------------
 // Chart-Space Default Font Size + Legend Grid Adjustment
-// ---------------------------------------------------------------------------
 
 /**
  * Apply chart-space default font size to all text elements in the ECharts option
@@ -3295,9 +3274,7 @@ export function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseC
   }
 }
 
-// ---------------------------------------------------------------------------
 // Public Render Function
-// ---------------------------------------------------------------------------
 
 /**
  * Render a chart node into an HTML element with an ECharts instance.

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { FooterOverlapProbe } from '@/components/footer/footer-overlap'
 import { SimWordmark } from '@/components/ui/sim-logo'
 import { SIM_SITE_URL } from '@/lib/urls'
 
@@ -21,7 +22,7 @@ interface FooterItem {
 
 const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Enterprise', href: `${SIM_SITE_URL}/enterprise`, external: true },
-  { label: 'Mothership', href: '/mothership' },
+  { label: 'Chat', href: '/chat' },
   { label: 'Workflows', href: '/introduction' },
   { label: 'Knowledge Base', href: '/knowledgebase' },
   { label: 'Tables', href: '/tables' },
@@ -130,9 +131,20 @@ function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) 
   )
 }
 
+/**
+ * Site footer.
+ *
+ * The docs sidebar and its divider are pinned to the viewport, so they would run
+ * underneath a full-bleed footer at the end of the page. `FooterOverlapProbe`
+ * publishes how far the footer reaches into the viewport and both stop there
+ * instead. `relative z-[22]` stacks the footer above the sidebar (z-20) and its
+ * divider (z-21) so that, before the probe's first measurement, the footer covers
+ * them rather than being drawn through.
+ */
 export function Footer() {
   return (
-    <footer className='mt-[120px] w-full border-[var(--border)] border-t bg-[var(--bg)] max-sm:mt-16 max-lg:mt-[88px]'>
+    <footer className='relative z-[22] mt-[120px] w-full border-[var(--border)] border-t bg-[var(--bg)] max-sm:mt-16 max-lg:mt-[88px]'>
+      <FooterOverlapProbe />
       <div className='mx-auto w-full max-w-[1460px] px-20 pt-16 pb-16 max-sm:px-5 max-lg:px-8 max-lg:pt-12 max-lg:pb-12'>
         <nav
           aria-label='Footer navigation'

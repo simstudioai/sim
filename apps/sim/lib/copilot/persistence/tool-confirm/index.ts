@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import {
+  ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
   type AsyncCompletionEnvelope,
   type AsyncConfirmationState,
@@ -13,6 +14,7 @@ import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
 
 const logger = createLogger('CopilotOrchestratorPersistence')
 const TOOL_CONFIRMATION_TTL_SECONDS = 60 * 10
+const DURABLE_CONFIRMATION_POLL_MS = 5_000
 const toolConfirmationKey = (toolCallId: string) => `copilot:tool-confirmation:${toolCallId}`
 
 type ToolConfirmGlobal = typeof globalThis & {
@@ -46,10 +48,10 @@ export async function getToolConfirmation(
   })
   if (!row) return null
   if (row.status === ASYNC_TOOL_STATUS.delivered) {
-    logger.warn('Delivered async tool rows are outside request confirmation flow', {
-      toolCallId,
-    })
-    return null
+    return {
+      status: ASYNC_TOOL_CONFIRMATION_STATUS.background,
+      timestamp: row.updatedAt?.toISOString?.(),
+    }
   }
   return {
     status:
@@ -110,7 +112,7 @@ export function publishToolConfirmation(event: AsyncCompletionEnvelope): void {
  */
 export async function waitForToolConfirmation(
   toolCallId: string,
-  timeoutMs: number,
+  timeoutMs: number | null,
   abortSignal?: AbortSignal,
   options: {
     acceptStatus?: (status: AsyncConfirmationState['status']) => boolean
@@ -120,10 +122,12 @@ export async function waitForToolConfirmation(
   return new Promise((resolve) => {
     let settled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let pollId: ReturnType<typeof setTimeout> | null = null
     let unsubscribe: (() => void) | null = null
 
     const cleanup = () => {
       if (timeoutId) clearTimeout(timeoutId)
+      if (pollId) clearTimeout(pollId)
       if (unsubscribe) unsubscribe()
       abortSignal?.removeEventListener('abort', onAbort)
     }
@@ -137,6 +141,27 @@ export async function waitForToolConfirmation(
 
     const onAbort = () => settle(null)
 
+    const checkDurableConfirmation = async (source: 'subscribe' | 'pubsub' | 'poll') => {
+      const latest = await getToolConfirmation(toolCallId)
+      if (!latest || !acceptStatus(latest.status)) return false
+      logger.info('Resolved tool confirmation from durable state', {
+        toolCallId,
+        status: latest.status,
+        source,
+      })
+      settle(latest)
+      return true
+    }
+
+    const scheduleDurablePoll = () => {
+      if (settled || timeoutMs !== null) return
+      pollId = setTimeout(async () => {
+        pollId = null
+        await checkDurableConfirmation('poll')
+        scheduleDurablePoll()
+      }, DURABLE_CONFIRMATION_POLL_MS)
+    }
+
     unsubscribe = toolConfirmationChannel.subscribe((event) => {
       if (event.toolCallId !== toolCallId) return
       if (isAsyncEphemeralConfirmationStatus(event.status) && acceptStatus(event.status)) {
@@ -148,31 +173,16 @@ export async function waitForToolConfirmation(
         })
         return
       }
-      void getToolConfirmation(toolCallId).then((latest) => {
-        if (!latest || !acceptStatus(latest.status)) return
-        logger.info('Resolved tool confirmation from pubsub', {
-          toolCallId,
-          status: latest.status,
-        })
-        settle(latest)
-      })
+      void checkDurableConfirmation('pubsub')
     })
 
-    timeoutId = setTimeout(() => settle(null), timeoutMs)
+    if (timeoutMs !== null) timeoutId = setTimeout(() => settle(null), timeoutMs)
     if (abortSignal?.aborted) {
       settle(null)
       return
     }
     abortSignal?.addEventListener('abort', onAbort, { once: true })
 
-    void getToolConfirmation(toolCallId).then((latest) => {
-      if (latest && acceptStatus(latest.status)) {
-        logger.info('Resolved tool confirmation after subscribe', {
-          toolCallId,
-          status: latest.status,
-        })
-        settle(latest)
-      }
-    })
+    void checkDurableConfirmation('subscribe').then(scheduleDurablePoll)
   })
 }

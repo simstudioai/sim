@@ -27,7 +27,6 @@ const PORTABLE_KIND_TO_ID_FIELD = {
   file: 'fileId',
   folder: 'folderId',
   filefolder: 'fileFolderId',
-  scheduledtask: 'scheduleId',
   knowledge: 'knowledgeId',
   past_chat: 'chatId',
   workflow: 'workflowId',
@@ -44,14 +43,24 @@ const PORTABLE_KIND_TO_ID_FIELD = {
  */
 export type PortableKind = keyof typeof PORTABLE_KIND_TO_ID_FIELD
 
+/** Serializes a portable chip link, escaping Markdown delimiters in its label. */
+export function serializePortableChipLink(kind: PortableKind, id: string, label: string): string {
+  const escapedLabel = label.replace(/[\\[\]]/g, '\\$&')
+  return `[${escapedLabel}](${CHIP_LINK_SCHEME}:${kind}/${id})`
+}
+
+function parsePortableChipLabel(label: string): string {
+  return label.replace(/\\([\\[\]])/g, '$1')
+}
+
 /**
  * Matches a portable chip markdown link: `[label](sim:kind/id)`.
- * - group 1: label (any non-`]` chars)
+ * - group 1: label (plain or backslash-escaped characters)
  * - group 2: kind (lowercase letters / underscores, e.g. `past_chat`)
  * - group 3: id (any non-`)` / non-whitespace chars)
  */
 const CHIP_LINK_PATTERN = new RegExp(
-  `\\[([^\\]]+)\\]\\(${CHIP_LINK_SCHEME}:([a-z_]+)\\/([^)\\s]+)\\)`,
+  `\\[((?:\\\\.|[^\\]\\\\])+)\\]\\(${CHIP_LINK_SCHEME}:([a-z_]+)\\/([^)\\s]+)\\)`,
   'g'
 )
 
@@ -97,7 +106,7 @@ function serializeChipContext(context: ChatContext): string | null {
   if (!isPortableKind(context.kind)) return null
   const id = getPortableId(context)
   if (!id) return null
-  return `[${context.label}](${CHIP_LINK_SCHEME}:${context.kind}/${id})`
+  return serializePortableChipLink(context.kind, id, context.label)
 }
 
 /**
@@ -161,6 +170,31 @@ export function serializeSelectionForClipboard(
 }
 
 /**
+ * Finds the selection-scoped chips (`file_selection` / `table_selection`) whose
+ * highlighted token falls inside `selectedText` — the chips the copy/cut path
+ * must route through the custom clipboard MIME rather than a portable link.
+ *
+ * Uses the overlay's exact tokenization so a label that is a substring of
+ * another never false-matches.
+ */
+export function selectionContextsInText(
+  selectedText: string,
+  contexts: ChatContext[]
+): ChatContext[] {
+  const ranges = computeMentionHighlightRanges(selectedText, extractContextTokens(contexts))
+  if (ranges.length === 0) return []
+  const found: ChatContext[] = []
+  for (const range of ranges) {
+    const label = stripMentionTrigger(range.token)
+    const matched = contexts.find((c) => c.label === label)
+    if (matched && (matched.kind === 'file_selection' || matched.kind === 'table_selection')) {
+      found.push(matched)
+    }
+  }
+  return found
+}
+
+/**
  * Parses all portable chip markdown links from a string, in source order.
  *
  * Pure string→data: never fetches or executes. Matches whose kind is not a
@@ -181,7 +215,7 @@ export function parseChipLinks(text: string): ParsedChipLink[] {
     links.push({
       kind,
       id,
-      label,
+      label: parsePortableChipLabel(label),
       start: match.index,
       end: match.index + full.length,
     })
@@ -209,8 +243,6 @@ export function chipLinkToContext(link: ParsedChipLink): ChatContext {
       return { kind: 'folder', folderId: link.id, label: link.label }
     case 'filefolder':
       return { kind: 'filefolder', fileFolderId: link.id, label: link.label }
-    case 'scheduledtask':
-      return { kind: 'scheduledtask', scheduleId: link.id, label: link.label }
     case 'knowledge':
       return { kind: 'knowledge', knowledgeId: link.id, label: link.label }
     case 'past_chat':

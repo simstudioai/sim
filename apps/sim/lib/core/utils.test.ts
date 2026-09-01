@@ -24,6 +24,9 @@ beforeAll(() => {
     XAI_API_KEY_1: 'test-xai-key-1',
     XAI_API_KEY_2: 'test-xai-key-2',
     XAI_API_KEY_3: 'test-xai-key-3',
+    FIREWORKS_API_KEY_1: 'test-fireworks-key-1',
+    FIREWORKS_API_KEY_2: 'test-fireworks-key-2',
+    FIREWORKS_API_KEY_3: 'test-fireworks-key-3',
   })
 })
 
@@ -336,6 +339,29 @@ describe('getRotatingApiKey', () => {
   it.concurrent('should return xAI API key based on current minute', () => {
     const result = getRotatingApiKey('xai')
     expect(result).toMatch(/^test-xai-key-[1-3]$/)
+  })
+
+  it.concurrent('should return Fireworks API key based on current minute', () => {
+    const result = getRotatingApiKey('fireworks')
+    expect(result).toMatch(/^test-fireworks-key-[1-3]$/)
+  })
+
+  it('falls back to the single platform Fireworks key when no rotation slot is set', () => {
+    setEnv({
+      FIREWORKS_API_KEY_1: undefined,
+      FIREWORKS_API_KEY_2: undefined,
+      FIREWORKS_API_KEY_3: undefined,
+      FIREWORKS_API_KEY: 'test-fireworks-platform-key',
+    })
+
+    expect(getRotatingApiKey('fireworks')).toBe('test-fireworks-platform-key')
+
+    setEnv({
+      FIREWORKS_API_KEY: undefined,
+      FIREWORKS_API_KEY_1: 'test-fireworks-key-1',
+      FIREWORKS_API_KEY_2: 'test-fireworks-key-2',
+      FIREWORKS_API_KEY_3: 'test-fireworks-key-3',
+    })
   })
 
   it.concurrent('should throw error for unsupported provider', () => {

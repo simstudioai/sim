@@ -7,6 +7,8 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
+export const MANAGED_OAUTH_DELEGATION_HEADER = 'x-sim-managed-oauth-delegation'
+
 export const oauthAccountSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -30,8 +32,15 @@ export const disconnectOAuthBodySchema = z.object({
   accountId: z.string().optional(),
 })
 
+const firstQueryStringSchema = z
+  .union([z.string(), z.array(z.string()).min(1)])
+  .transform((value) => (Array.isArray(value) ? value[0] : value))
+
 export const connectedAccountsQuerySchema = z.object({
-  provider: z.string().min(1).optional(),
+  provider: firstQueryStringSchema
+    .transform((value) => value || undefined)
+    .pipe(z.string().min(1).optional())
+    .optional(),
 })
 
 export const connectedAccountSchema = z.object({
@@ -47,7 +56,19 @@ export const trelloTokenBodySchema = z.object({
   state: z.string().min(1, 'state is required'),
 })
 
-const emptyTrelloAuthQuerySchema = z.object({}).passthrough()
+const oauthCredentialDraftIdSchema = z
+  .string()
+  .min(1, 'draftId is required')
+  .max(255, 'draftId must be at most 255 characters')
+
+export const trelloAuthorizeQuerySchema = z.object({
+  returnUrl: z
+    .string()
+    .min(1, 'Return URL cannot be empty')
+    .max(2048, 'Return URL is too long')
+    .optional(),
+  draftId: oauthCredentialDraftIdSchema.optional(),
+})
 
 const trelloCallbackQuerySchema = z
   .object({
@@ -56,14 +77,18 @@ const trelloCallbackQuerySchema = z
   })
   .passthrough()
 
+/** Google domain-wide-delegation subject. Also applied by in-process credential callers. */
+export const impersonateEmailSchema = z.string().email()
+
 export const oauthTokenRequestBodySchema = z
   .object({
     credentialId: z.string().min(1).optional(),
     credentialAccountUserId: z.string().min(1).optional(),
     providerId: z.string().min(1).optional(),
+    toolId: z.string().min(1).optional(),
     workflowId: z.string().min(1).nullish(),
     scopes: z.array(z.string()).optional(),
-    impersonateEmail: z.string().email().optional(),
+    impersonateEmail: impersonateEmailSchema.optional(),
   })
   .refine(
     (data) => data.credentialId || (data.credentialAccountUserId && data.providerId),
@@ -82,14 +107,23 @@ export const oauthTokenPostQuerySchema = z.object({
   userId: z.string().min(1).optional(),
 })
 
+export const oauthTokenPostHeadersSchema = z.object({
+  [MANAGED_OAUTH_DELEGATION_HEADER]: z.string().min(1).optional(),
+})
+
 const oauthTokenResponseSchema = z.object({
   accessToken: z.string(),
   idToken: z.string().optional(),
   instanceUrl: z.string().optional(),
+  /** Zoho Desk — the data-center-scoped Desk REST base for this credential. */
+  apiDomain: z.string().optional(),
   cloudId: z.string().optional(),
   domain: z.string().optional(),
   authStyle: z.enum(['x-api-token']).optional(),
 })
+
+/** Token material a resolved credential yields, on the wire and in-process alike. */
+export type OAuthTokenResponse = z.output<typeof oauthTokenResponseSchema>
 
 export const oauthTokenGetContract = defineRouteContract({
   method: 'GET',
@@ -105,6 +139,7 @@ export const oauthTokenPostContract = defineRouteContract({
   method: 'POST',
   path: '/api/auth/oauth/token',
   query: oauthTokenPostQuerySchema,
+  headers: oauthTokenPostHeadersSchema,
   body: oauthTokenRequestBodySchema,
   response: {
     mode: 'json',
@@ -115,19 +150,13 @@ export const oauthTokenPostContract = defineRouteContract({
 export const shopifyAuthorizeQuerySchema = z.object({
   shop: z.string().optional(),
   returnUrl: z.string().optional(),
+  draftId: oauthCredentialDraftIdSchema.optional(),
 })
 
 export const shopifyCallbackQuerySchema = z.object({
   code: z.string().optional(),
   state: z.string().optional(),
   shop: z.string().optional(),
-})
-
-export const shopifyStoreCookieSchema = z.object({
-  accessToken: z.string().min(1),
-  shopDomain: z.string().min(1),
-  scope: z.string().optional(),
-  returnUrl: z.string().optional(),
 })
 
 const SHOPIFY_SHOP_DOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]\.myshopify\.com$/
@@ -181,7 +210,7 @@ export const storeTrelloTokenContract = defineRouteContract({
 export const authorizeTrelloContract = defineRouteContract({
   method: 'GET',
   path: '/api/auth/trello/authorize',
-  query: emptyTrelloAuthQuerySchema,
+  query: trelloAuthorizeQuerySchema,
   response: { mode: 'redirect' },
 })
 
@@ -204,6 +233,7 @@ export const instagramAuthorizeQuerySchema = z.object({
     .max(MAX_OAUTH_RETURN_URL_LENGTH, 'Return URL is too long')
     .optional(),
   workspaceId: workspaceIdSchema.optional(),
+  draftId: oauthCredentialDraftIdSchema.optional(),
 })
 
 export const authorizeInstagramContract = defineRouteContract({
@@ -248,12 +278,42 @@ export const instagramCallbackContract = defineRouteContract({
   response: { mode: 'redirect' },
 })
 
-export const authorizeOAuth2QuerySchema = z.object({
-  providerId: z.string().min(1, 'providerId is required'),
-  workspaceId: workspaceIdSchema,
-  callbackURL: z.string().min(1).optional(),
-  credentialId: z.string().min(1).optional(),
-})
+export const authorizeOAuth2QuerySchema = z
+  .object({
+    draftId: oauthCredentialDraftIdSchema.optional(),
+    providerId: z.string().min(1, 'providerId is required').optional(),
+    workspaceId: workspaceIdSchema.optional(),
+    callbackURL: z.string().min(1).optional(),
+    credentialId: z.string().min(1).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.draftId) {
+      for (const field of ['providerId', 'workspaceId', 'callbackURL', 'credentialId'] as const) {
+        if (data[field] !== undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message: `${field} cannot be combined with draftId`,
+          })
+        }
+      }
+      return
+    }
+    if (!data.providerId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['providerId'],
+        message: 'providerId is required',
+      })
+    }
+    if (!data.workspaceId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['workspaceId'],
+        message: 'workspaceId is required',
+      })
+    }
+  })
 
 export const authorizeOAuth2Contract = defineRouteContract({
   method: 'GET',

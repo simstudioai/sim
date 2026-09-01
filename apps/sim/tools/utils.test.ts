@@ -1,19 +1,16 @@
-import { createMockResponse, inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import type { QueryClient } from '@tanstack/react-query'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { prepareToolRequest } from '@/tools/request-transport'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 import {
   createCustomToolRequestBody,
   createParamSchema,
-  formatRequestParams,
   getClientEnvVars,
   validateRequiredParametersAfterMerge,
 } from '@/tools/utils'
-import { executeRequest } from '@/tools/utils.server'
-
-vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const mockGetQueryData = vi.fn()
 
@@ -122,7 +119,7 @@ describe('transformTable', () => {
   })
 })
 
-describe('formatRequestParams', () => {
+describe('prepareToolRequest', () => {
   let mockTool: ToolConfig
 
   beforeEach(() => {
@@ -145,14 +142,14 @@ describe('formatRequestParams', () => {
 
   it.concurrent('should format request with static URL', () => {
     const params = { foo: 'bar' }
-    const result = formatRequestParams(mockTool, params)
+    const result = prepareToolRequest(mockTool, params)
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       url: 'https://api.example.com',
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
       body: undefined, // No body for GET
     })
+    expect(result.headers.get('content-type')).toBe('application/json')
 
     expect(mockTool.request.headers).toHaveBeenCalledWith(params)
   })
@@ -161,19 +158,19 @@ describe('formatRequestParams', () => {
     mockTool.request.url = (params) => `https://api.example.com/${params.id}`
     const params = { id: '123' }
 
-    const result = formatRequestParams(mockTool, params)
+    const result = prepareToolRequest(mockTool, params)
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       url: 'https://api.example.com/123',
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
       body: undefined,
     })
+    expect(result.headers.get('content-type')).toBe('application/json')
   })
 
   it.concurrent('should use method from params over tool default', () => {
     const params = { method: 'POST' }
-    const result = formatRequestParams(mockTool, params)
+    const result = prepareToolRequest(mockTool, params)
 
     expect(result.method).toBe('POST')
     expect(result.body).toBe(JSON.stringify({ data: 'test-data' }))
@@ -190,7 +187,7 @@ describe('formatRequestParams', () => {
     mockTool.request.body = vi.fn().mockReturnValue('key1=value1&key2=value2')
 
     const params = { method: 'POST' }
-    const result = formatRequestParams(mockTool, params)
+    const result = prepareToolRequest(mockTool, params)
 
     expect(result.body).toBe('key1=value1&key2=value2')
   })
@@ -205,20 +202,50 @@ describe('formatRequestParams', () => {
     mockTool.request.body = vi.fn().mockReturnValue('{"prompt": "Hello"}\n{"prompt": "World"}')
 
     const params = { method: 'POST' }
-    const result = formatRequestParams(mockTool, params)
+    const result = prepareToolRequest(mockTool, params)
 
     expect(result.body).toBe('{"prompt": "Hello"}\n{"prompt": "World"}')
   })
 
   it.concurrent('should pass through a non-empty proxyUrl (trimmed)', () => {
-    const result = formatRequestParams(mockTool, { proxyUrl: '  http://user:pass@host:8080  ' })
+    const result = prepareToolRequest(mockTool, {
+      proxyUrl: '  http://user:pass@host:8080  ',
+    })
     expect(result.proxyUrl).toBe('http://user:pass@host:8080')
   })
 
   it.concurrent('should omit proxyUrl when blank, whitespace, or absent', () => {
-    expect(formatRequestParams(mockTool, {}).proxyUrl).toBeUndefined()
-    expect(formatRequestParams(mockTool, { proxyUrl: '' }).proxyUrl).toBeUndefined()
-    expect(formatRequestParams(mockTool, { proxyUrl: '   ' }).proxyUrl).toBeUndefined()
+    expect(prepareToolRequest(mockTool, {}).proxyUrl).toBeUndefined()
+    expect(prepareToolRequest(mockTool, { proxyUrl: '' }).proxyUrl).toBeUndefined()
+    expect(prepareToolRequest(mockTool, { proxyUrl: '   ' }).proxyUrl).toBeUndefined()
+  })
+
+  it('marks custom headers containing resolved environment secrets as sensitive', () => {
+    mockTool.request.headers = (params) => ({ 'X-Provider-Credential': params.headers.value })
+    mockTool.request.redirectPolicy = () => ({
+      mode: 'legacy',
+      sendCredentialsOnCrossOriginRedirect: false,
+    })
+    const params = { headers: { value: 'resolved-secret' } }
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'PROVIDER_SECRET',
+        plaintext: 'resolved-secret',
+        encryptedValue: 'encrypted-secret',
+      },
+    ])
+    registry.recordResolvedAtInputPath('PROVIDER_SECRET', 'resolved-secret', ['headers', 'value'])
+    registry.recordResolvedInputProjection(
+      ['headers', 'value'],
+      'resolved-secret',
+      '{{PROVIDER_SECRET}}'
+    )
+
+    expect(prepareToolRequest(mockTool, params, registry).redirectPolicy).toEqual({
+      mode: 'legacy',
+      sendCredentialsOnCrossOriginRedirect: false,
+      sensitiveHeaders: ['x-provider-credential'],
+    })
   })
 })
 
@@ -422,183 +449,6 @@ describe('validateRequiredParametersAfterMerge', () => {
     expect(() => {
       validateRequiredParametersAfterMerge('test-tool', toolWithMultipleRequired, {})
     }).toThrow('Param1 is required for Test Tool')
-  })
-})
-
-describe('executeRequest', () => {
-  let mockTool: ToolConfig
-  const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
-  const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
-
-  beforeEach(() => {
-    mockValidateUrlWithDNS.mockResolvedValue({
-      isValid: true,
-      resolvedIP: '93.184.216.34',
-      originalHostname: 'api.example.com',
-    })
-    mockSecureFetchWithPinnedIP.mockResolvedValue(
-      createMockResponse({ json: { result: 'success' }, status: 200 })
-    )
-
-    mockTool = {
-      id: 'test-tool',
-      name: 'Test Tool',
-      description: 'A test tool',
-      version: '1.0.0',
-      params: {},
-      request: {
-        url: 'https://api.example.com',
-        method: 'GET',
-        headers: () => ({ 'Content-Type': 'application/json' }),
-      },
-      transformResponse: vi.fn(async (response) => ({
-        success: true,
-        output: await response.json(),
-      })),
-    }
-  })
-
-  afterEach(() => {
-    vi.resetAllMocks()
-  })
-
-  it('should handle successful requests', async () => {
-    const result = await executeRequest('test-tool', mockTool, {
-      url: 'https://api.example.com',
-      method: 'GET',
-      headers: {},
-    })
-
-    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
-      'https://api.example.com',
-      '93.184.216.34',
-      {
-        method: 'GET',
-        headers: {},
-        body: undefined,
-      }
-    )
-    expect(mockTool.transformResponse).toHaveBeenCalled()
-    expect(result).toEqual({
-      success: true,
-      output: { result: 'success' },
-    })
-  })
-
-  it.concurrent('should use default transform response if not provided', async () => {
-    mockTool.transformResponse = undefined
-
-    const result = await executeRequest('test-tool', mockTool, {
-      url: 'https://api.example.com',
-      method: 'GET',
-      headers: {},
-    })
-
-    expect(result).toEqual({
-      success: true,
-      output: { result: 'success' },
-    })
-  })
-
-  it('should handle error responses', async () => {
-    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
-      createMockResponse({
-        ok: false,
-        status: 400,
-        statusText: 'Bad Request',
-        json: { message: 'Invalid input' },
-      })
-    )
-
-    const result = await executeRequest('test-tool', mockTool, {
-      url: 'https://api.example.com',
-      method: 'GET',
-      headers: {},
-    })
-
-    expect(result).toEqual({
-      success: false,
-      output: {},
-      error: 'Invalid input',
-    })
-  })
-
-  it.concurrent('should handle network errors', async () => {
-    mockSecureFetchWithPinnedIP.mockRejectedValueOnce(new Error('Network error'))
-
-    const result = await executeRequest('test-tool', mockTool, {
-      url: 'https://api.example.com',
-      method: 'GET',
-      headers: {},
-    })
-
-    expect(result).toEqual({
-      success: false,
-      output: {},
-      error: 'Network error',
-    })
-  })
-
-  it('should handle JSON parse errors in error response', async () => {
-    const errorResponse = createMockResponse({
-      ok: false,
-      status: 500,
-      statusText: 'Server Error',
-    })
-    errorResponse.json = vi.fn(async () => {
-      throw new Error('Invalid JSON')
-    })
-    errorResponse.text = vi.fn(async () => '')
-    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(errorResponse)
-
-    const result = await executeRequest('test-tool', mockTool, {
-      url: 'https://api.example.com',
-      method: 'GET',
-      headers: {},
-    })
-
-    expect(result).toEqual({
-      success: false,
-      output: {},
-      error: 'Server Error',
-    })
-  })
-
-  it('should handle transformResponse with non-JSON response', async () => {
-    const toolWithTransform = {
-      ...mockTool,
-      transformResponse: async (response: Response) => {
-        const xmlText = await response.text()
-        return {
-          success: true,
-          output: {
-            parsedData: 'mocked xml parsing result',
-            originalXml: xmlText,
-          },
-        }
-      },
-    }
-
-    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
-      createMockResponse({
-        status: 200,
-        text: '<xml><test>Mock XML response</test></xml>',
-      })
-    )
-
-    const result = await executeRequest('test-tool', toolWithTransform, {
-      url: 'https://api.example.com',
-      method: 'GET',
-      headers: {},
-    })
-
-    expect(result).toEqual({
-      success: true,
-      output: {
-        parsedData: 'mocked xml parsing result',
-        originalXml: '<xml><test>Mock XML response</test></xml>',
-      },
-    })
   })
 })
 

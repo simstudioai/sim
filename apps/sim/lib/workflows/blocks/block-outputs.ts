@@ -22,7 +22,7 @@ import {
   type OutputCondition,
   type OutputFieldDefinition,
 } from '@/blocks/types'
-import { getTool } from '@/tools/utils'
+import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('BlockOutputs')
@@ -681,13 +681,13 @@ export function getToolOutputs(
     const toolId = blockConfig.tools.config.tool(params)
     if (!toolId) return {}
 
-    const toolConfig = getTool(toolId)
-    if (!toolConfig?.outputs) return {}
+    const toolOutputs = getToolOutputsMetadata(toolId)
+    if (!toolOutputs) return {}
     if (includeHidden) {
-      return toolConfig.outputs
+      return toolOutputs
     }
     return Object.fromEntries(
-      Object.entries(toolConfig.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
+      Object.entries(toolOutputs).filter(([_, def]) => !isHiddenFromDisplay(def))
     )
   } catch (error) {
     logger.warn('Failed to get tool outputs', { error })

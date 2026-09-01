@@ -10,6 +10,10 @@ const {
   mockAbort,
   mockUploadToS3,
   mockInsertFileMetadata,
+  mockGetSignedUrl,
+  mockHeadS3Object,
+  mockPutObjectCommand,
+  mockS3Client,
   partBodies,
 } = vi.hoisted(() => ({
   mockInitiate: vi.fn(),
@@ -18,7 +22,19 @@ const {
   mockAbort: vi.fn(),
   mockUploadToS3: vi.fn(),
   mockInsertFileMetadata: vi.fn(),
+  mockGetSignedUrl: vi.fn(),
+  mockHeadS3Object: vi.fn(),
+  mockPutObjectCommand: vi.fn().mockImplementation(class {}),
+  mockS3Client: {},
   partBodies: [] as Buffer[],
+}))
+
+vi.mock('@aws-sdk/client-s3', () => ({
+  PutObjectCommand: mockPutObjectCommand,
+}))
+
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: mockGetSignedUrl,
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
@@ -34,6 +50,8 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
   completeS3MultipartUpload: mockComplete,
   abortS3MultipartUpload: mockAbort,
   uploadToS3: mockUploadToS3,
+  getS3Client: () => mockS3Client,
+  headS3Object: mockHeadS3Object,
 }))
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
@@ -57,6 +75,8 @@ describe('createMultipartUpload', () => {
     mockAbort.mockResolvedValue(undefined)
     mockUploadToS3.mockResolvedValue({ key: 'k', path: 'p', name: 'k', size: 0, type: 'text/csv' })
     mockInsertFileMetadata.mockResolvedValue({ id: 'file-1' })
+    mockGetSignedUrl.mockResolvedValue('https://s3.example/create-only')
+    mockHeadS3Object.mockResolvedValue(null)
   })
 
   it('can upload an object without persisting generic metadata', async () => {
@@ -78,6 +98,7 @@ describe('createMultipartUpload', () => {
       key: 'k',
       context: 'execution',
       contentType: 'text/csv',
+      completionPolicy: 'replace',
     })
     await handle.write('hello')
     const result = await handle.complete()
@@ -97,6 +118,7 @@ describe('createMultipartUpload', () => {
       key: 'k',
       context: 'execution',
       contentType: 'text/csv',
+      completionPolicy: 'replace',
     })
     await handle.write(a)
     await handle.write(b)
@@ -110,6 +132,13 @@ describe('createMultipartUpload', () => {
     expect(reassembled.length).toBe(10 * 1024 * 1024)
     expect(reassembled.equals(Buffer.concat([a, b]))).toBe(true)
     expect(mockComplete).toHaveBeenCalledTimes(1)
+    expect(mockComplete).toHaveBeenCalledWith(
+      'k',
+      'up1',
+      expect.any(Array),
+      { bucket: 'b', region: 'r' },
+      'replace'
+    )
     expect(result.size).toBe(10 * 1024 * 1024)
     expect(mockUploadToS3).not.toHaveBeenCalled()
   })
@@ -119,6 +148,7 @@ describe('createMultipartUpload', () => {
       key: 'k',
       context: 'execution',
       contentType: 'text/csv',
+      completionPolicy: 'replace',
     })
     await handle.write(Buffer.alloc(9 * 1024 * 1024, 7)) // crosses one part → multipart started
     await handle.abort()

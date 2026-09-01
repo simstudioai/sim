@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ConsentPreferencesTrigger } from '@/app/_shell/consent/consent-preferences-trigger'
 import { ALL_COMPETITORS } from '@/app/(landing)/comparisons/utils'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
 import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
@@ -19,12 +20,23 @@ import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
  */
 
 const LINK_CLASS =
-  'text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
+  'text-left text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
 
-interface FooterItem {
+interface FooterLinkItem {
   label: string
   href: string
   external?: boolean
+}
+
+interface FooterConsentItem {
+  label: string
+  consentPreferences: true
+}
+
+type FooterItem = FooterLinkItem | FooterConsentItem
+
+interface FooterProps {
+  showConsentPreferences?: boolean
 }
 
 /**
@@ -40,7 +52,6 @@ const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Tables', href: '/tables' },
   { label: 'Files', href: '/files' },
   { label: 'Logs', href: '/logs' },
-  { label: 'Scheduled Tasks', href: '/scheduled-tasks' },
   { label: 'MCP', href: 'https://docs.sim.ai/agents/mcp', external: true },
   { label: 'API', href: 'https://docs.sim.ai/api-reference/getting-started', external: true },
   { label: 'Self Hosting', href: 'https://docs.sim.ai/platform/self-hosting', external: true },
@@ -109,27 +120,37 @@ const SOCIAL_LINKS: FooterItem[] = [
 const LEGAL_LINKS: FooterItem[] = [
   { label: 'Terms of Service', href: '/terms' },
   { label: 'Privacy Policy', href: '/privacy' },
+  { label: 'Cookie Policy', href: '/cookie-policy' },
 ]
+
+const CONSENT_PREFERENCES_LINK: FooterConsentItem = {
+  label: 'Cookie preferences',
+  consentPreferences: true,
+}
 
 function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) {
   return (
     <div>
       <h3 className='mb-4 text-[var(--text-primary)] text-sm'>{title}</h3>
       <div className='flex flex-col gap-2.5'>
-        {items.map(({ label, href, external }) =>
-          external ? (
+        {items.map((item) =>
+          'consentPreferences' in item ? (
+            <ConsentPreferencesTrigger key={item.label} className={LINK_CLASS}>
+              {item.label}
+            </ConsentPreferencesTrigger>
+          ) : item.external ? (
             <a
-              key={label}
-              href={href}
+              key={item.label}
+              href={item.href}
               target='_blank'
               rel='noopener noreferrer'
               className={LINK_CLASS}
             >
-              {label}
+              {item.label}
             </a>
           ) : (
-            <Link key={label} href={href} className={LINK_CLASS}>
-              {label}
+            <Link key={item.label} href={item.href} className={LINK_CLASS}>
+              {item.label}
             </Link>
           )
         )}
@@ -138,7 +159,7 @@ function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) 
   )
 }
 
-export function Footer() {
+export function Footer({ showConsentPreferences = false }: FooterProps) {
   return (
     <footer className='mt-[120px] w-full border-[var(--border)] border-t max-sm:mt-16 max-lg:mt-[88px]'>
       <div className='mx-auto w-full max-w-[1460px] px-20 pt-16 pb-16 max-sm:px-5 max-lg:px-8 max-lg:pt-12 max-lg:pb-12'>
@@ -162,7 +183,12 @@ export function Footer() {
           <FooterColumn title='Integrations' items={INTEGRATION_LINKS} />
           <FooterColumn title='Models' items={MODEL_LINKS} />
           <FooterColumn title='Socials' items={SOCIAL_LINKS} />
-          <FooterColumn title='Legal' items={LEGAL_LINKS} />
+          <FooterColumn
+            title='Legal'
+            items={
+              showConsentPreferences ? [...LEGAL_LINKS, CONSENT_PREFERENCES_LINK] : LEGAL_LINKS
+            }
+          />
         </nav>
 
         <p className='mt-16 text-[var(--text-muted)] text-sm'>© 2026 Sim. All rights reserved.</p>

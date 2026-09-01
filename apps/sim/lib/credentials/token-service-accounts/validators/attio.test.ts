@@ -60,8 +60,8 @@ describe('validateAttioServiceAccount', () => {
     })
     expect(result).toEqual({
       displayName: 'Acme CRM',
-      auditMetadata: { attioWorkspaceId: 'ws-123' },
-      storedMetadata: { workspaceId: 'ws-123', workspaceSlug: 'acme-crm' },
+      principal: { kind: 'tenant', id: 'ws-123', label: 'acme-crm' },
+      auditMetadata: {},
     })
   })
 

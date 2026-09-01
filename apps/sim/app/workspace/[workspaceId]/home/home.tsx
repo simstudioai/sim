@@ -3,6 +3,7 @@
 import {
   type Dispatch,
   lazy,
+  type PointerEvent,
   type SetStateAction,
   Suspense,
   useCallback,
@@ -11,15 +12,15 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button, cn } from '@sim/emcn'
+import { Button, cn, toast } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -27,19 +28,23 @@ import {
   MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
 import {
+  addMothershipContexts,
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
+import {
+  resolveResourceEventPresentation,
+  resolveResourceSelectionUpdate,
+} from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
-import {
-  useMarkMothershipChatRead,
-  useMothershipChatHistory,
-} from '@/hooks/queries/mothership-chats'
+import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -51,8 +56,19 @@ import {
   UserInput,
   type UserInputHandle,
 } from './components'
-import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
-import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
+import {
+  getMothershipUseChatOptions,
+  type ResourceEventOptions,
+  shouldActivateResourceEvent,
+  useChat,
+  useMothershipResize,
+} from './hooks'
+import type {
+  FileAttachmentForApi,
+  MothershipResource,
+  MothershipResourceType,
+  WorkspaceResourceRef,
+} from './types'
 
 const logger = createLogger('Home')
 
@@ -71,14 +87,13 @@ interface HomeProps {
   chatId?: string
   userName?: string
   userId?: string
-  /** Resolved server-side by the page — the embedded table can't reach AppConfig. */
-  tableViewsEnabled?: boolean
 }
 
-export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps) {
+export function Home({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
+  const queryClient = useQueryClient()
   /**
    * URL is the single source of truth for the selected resource. `Home` renders
    * client-side, so nuqs reads `?resource=` from the URL on mount — the same
@@ -91,6 +106,8 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     ...resourceParam.parser,
     ...resourceUrlKeys,
   })
+  const activeResourceParamRef = useRef(activeResourceParam)
+  activeResourceParamRef.current = activeResourceParam
   /**
    * Strips any leftover URL fragment on selection change, preserving the old
    * effect's `url.hash = ''` (the only hash usage on this surface) without a
@@ -103,11 +120,13 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
    */
   const setActiveResourceUrl = useCallback<Dispatch<SetStateAction<string | null>>>(
     (action) => {
+      const nextResourceId = resolveResourceSelectionUpdate(activeResourceParamRef.current, action)
+      activeResourceParamRef.current = nextResourceId
       if (typeof window !== 'undefined' && window.location.hash) {
         const { pathname, search } = window.location
         window.history.replaceState(window.history.state, '', `${pathname}${search}`)
       }
-      void setResourceParam(action)
+      void setResourceParam(nextResourceId)
     },
     [setResourceParam]
   )
@@ -189,34 +208,56 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
 
   const wasSendingRef = useRef(false)
 
-  const { isPending: isChatHistoryPending } = useMothershipChatHistory(chatId)
   const { mutate: markRead } = useMarkMothershipChatRead(workspaceId)
 
-  const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
-
-  const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
+  const [isResourceCollapsed, setIsResourceCollapsedState] = useState(true)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
+  const [resourceActivityIds, setResourceActivityIds] = useState<Set<string>>(new Set())
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
-  isResourceCollapsedRef.current = isResourceCollapsed
+  const setResourceCollapsed = useCallback((collapsed: boolean) => {
+    isResourceCollapsedRef.current = collapsed
+    setIsResourceCollapsedState(collapsed)
+  }, [])
+  const resourceCollapseOwnedByUserRef = useRef(false)
+  const resourceSelectionOwnedByUserRef = useRef(false)
 
-  const collapseResource = useCallback(() => {
-    clearWidth()
-    setIsResourceCollapsed(true)
-  }, [clearWidth])
+  function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
+    const activeResourceId = activeResourceParamRef.current
+    const presentation = resolveResourceEventPresentation({
+      activeResourceId,
+      activationRequested: shouldActivateResourceEvent(activeResourceId, resourceId, options),
+      panelCollapseOwnedByUser: resourceCollapseOwnedByUserRef.current,
+      panelCollapsed: isResourceCollapsedRef.current,
+      resourceId,
+      selectionOwnedByUser: resourceSelectionOwnedByUserRef.current,
+    })
 
-  function handleResourceEvent() {
-    if (isResourceCollapsedRef.current) {
-      setIsResourceCollapsed(false)
+    if (presentation.revealPanel) setResourceCollapsed(false)
+    if (presentation.markActivity) {
+      setResourceActivityIds((current) => new Set(current).add(resourceId))
+      return
+    }
+    setResourceActivityIds((current) => {
+      if (!current.has(resourceId)) return current
+      const next = new Set(current)
+      next.delete(resourceId)
+      return next
+    })
+    if (presentation.activateResource && activeResourceId !== resourceId) {
+      activeResourceParamRef.current = resourceId
+      setActiveResourceUrl(resourceId)
     }
   }
 
   const {
     messages,
+    isChatHistoryPending,
     isSending,
     isReconnecting,
     sendMessage,
     stopGeneration,
     resolvedChatId,
+    desktopScopeId,
     resources,
     activeResourceId,
     setActiveResourceId,
@@ -250,15 +291,91 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     })
   )
 
+  const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize(desktopScopeId)
+  const effectiveActiveResourceIdRef = useRef(activeResourceId)
+  effectiveActiveResourceIdRef.current = activeResourceId
+  const resourceAttentionChatIdRef = useRef(resolvedChatId)
+
+  const collapseResource = useCallback(() => {
+    resourceCollapseOwnedByUserRef.current = true
+    resourceSelectionOwnedByUserRef.current = true
+    clearWidth()
+    setResourceCollapsed(true)
+  }, [clearWidth, setResourceCollapsed])
+
+  const clearResourceActivity = useCallback((resourceId: string) => {
+    setResourceActivityIds((current) => {
+      if (!current.has(resourceId)) return current
+      const next = new Set(current)
+      next.delete(resourceId)
+      return next
+    })
+  }, [])
+
+  const expandResource = () => {
+    resourceCollapseOwnedByUserRef.current = false
+    resourceSelectionOwnedByUserRef.current = true
+    const activeResourceId = activeResourceParamRef.current
+    if (activeResourceId) clearResourceActivity(activeResourceId)
+    setResourceCollapsed(false)
+  }
+
+  const selectResourceFromUser = useCallback(
+    (resourceId: string) => {
+      resourceSelectionOwnedByUserRef.current = true
+      clearResourceActivity(resourceId)
+      if (effectiveActiveResourceIdRef.current === resourceId) return
+      effectiveActiveResourceIdRef.current = resourceId
+      activeResourceParamRef.current = resourceId
+      setActiveResourceId(resourceId)
+    },
+    [setActiveResourceId, clearResourceActivity]
+  )
+
+  const addResourceFromUser = useCallback(
+    (resource: MothershipResource) => {
+      resourceCollapseOwnedByUserRef.current = false
+      resourceSelectionOwnedByUserRef.current = true
+      addResource(resource)
+      selectResourceFromUser(resource.id)
+      setResourceCollapsed(false)
+    },
+    [addResource, selectResourceFromUser, setResourceCollapsed]
+  )
+
+  const handleResourceResizePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      resourceSelectionOwnedByUserRef.current = true
+      handleResizePointerDown(event)
+    },
+    [handleResizePointerDown]
+  )
+
+  const handleResourceInteraction = useCallback(() => {
+    resourceSelectionOwnedByUserRef.current = true
+  }, [])
+
+  const prepareResourceViewForAgentTurn = useCallback(() => {
+    resourceSelectionOwnedByUserRef.current = false
+    setResourceActivityIds(new Set())
+  }, [])
+
   useEffect(() => {
+    const previousChatId = resourceAttentionChatIdRef.current
+    resourceAttentionChatIdRef.current = resolvedChatId
     wasSendingRef.current = false
     if (resolvedChatId) {
       markRead(resolvedChatId)
     } else {
       clearWidth()
-      setIsResourceCollapsed(true)
+      setResourceCollapsed(true)
     }
-  }, [resolvedChatId, markRead, clearWidth])
+    if (!resolvedChatId || (previousChatId && previousChatId !== resolvedChatId)) {
+      resourceCollapseOwnedByUserRef.current = false
+      resourceSelectionOwnedByUserRef.current = false
+      setResourceActivityIds(new Set())
+    }
+  }, [resolvedChatId, markRead, clearWidth, setResourceCollapsed])
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending && resolvedChatId) {
@@ -268,18 +385,32 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   }, [isSending, resolvedChatId, markRead])
 
   useEffect(() => {
-    if (!(resources.length > 0 && isResourceCollapsedRef.current)) return
-    setIsResourceCollapsed(false)
+    if (
+      !(resources.length > 0 && isResourceCollapsedRef.current) ||
+      resourceCollapseOwnedByUserRef.current
+    ) {
+      return
+    }
+    setResourceCollapsed(false)
     setSkipResourceTransition(true)
     const id = requestAnimationFrame(() => setSkipResourceTransition(false))
     return () => cancelAnimationFrame(id)
-  }, [resources])
+  }, [resources, setResourceCollapsed])
 
   useEffect(() => {
     if (resources.length === 0 && !isResourceCollapsedRef.current) {
-      collapseResource()
+      clearWidth()
+      setResourceCollapsed(true)
     }
-  }, [resources, collapseResource])
+  }, [resources, clearWidth, setResourceCollapsed])
+
+  useEffect(() => {
+    const resourceIds = new Set(resources.map((resource) => resource.id))
+    setResourceActivityIds((current) => {
+      const next = new Set([...current].filter((id) => resourceIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [resources])
 
   const handleStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
@@ -306,9 +437,10 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         setIsInputEntering(true)
       }
 
+      prepareResourceViewForAgentTurn()
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
-    [workspaceId, chatId, sendMessage]
+    [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage]
   )
 
   /**
@@ -322,27 +454,55 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
       if (!detail?.message) return
       e.preventDefault()
-      sendMessage(detail.message, undefined, detail.contexts)
+      prepareResourceViewForAgentTurn()
+      sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
+        ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
+      })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
-  }, [sendMessage])
+  }, [prepareResourceViewForAgentTurn, sendMessage])
 
   /**
-   * Consumes a one-shot handoff left by another surface (e.g. "Troubleshoot in
-   * Chat" on an errored log viewed from a different route) and auto-sends it
-   * into this fresh chat, tagging the run so Sim can inspect the failure. Only
-   * the cross-route path lands here — when a chat is already mounted the event
-   * above delivers directly. Gated to the new-chat surface (`!chatId`): a
+   * Consumes a one-shot handoff left by another surface and applies it to this
+   * fresh chat. Two shapes arrive here: a message handoff (e.g. "Troubleshoot in
+   * Chat" on an errored log) is auto-sent with its contexts attached; a
+   * chip-only handoff (highlight-to-chat from the standalone Files/Tables pages)
+   * seeds reference chips and sends nothing.
+   *
+   * Only the cross-route path lands here — when a chat is already mounted the
+   * events deliver directly. Gated to the new-chat surface (`!chatId`): a
    * handoff always targets a fresh chat, so an existing `/chat/[chatId]` mount
    * must never claim it if navigation races. `consume` clears the entry
    * atomically, so it fires at most once even across a StrictMode remount.
+   *
+   * Chip-only handoffs open each resource directly rather than relying on the
+   * input's listener being mounted, then dispatch so the input inserts the chip.
+   * This effect is declared after `useChat`, so its chat-init `setResources([])`
+   * has already flushed and cannot wipe the just-opened resource.
    */
   useEffect(() => {
     if (chatId) return
     const handoff = MothershipHandoffStorage.consume(workspaceId)
-    if (handoff) sendMessage(handoff.message, undefined, handoff.contexts)
-  }, [chatId, workspaceId, sendMessage])
+    if (!handoff) return
+    if (handoff.message) {
+      prepareResourceViewForAgentTurn()
+      sendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
+        ...(handoff.resumeUserMessageId
+          ? { resumeUserMessageId: handoff.resumeUserMessageId }
+          : {}),
+      })
+      return
+    }
+    const contexts = handoff.contexts ?? []
+    for (const context of contexts) handleContextAdd(context)
+    addMothershipContexts(contexts)
+    // `handleContextAdd` is a body function, so it is a new value every render;
+    // listing it would re-run this drain on every render. Omitted deliberately to
+    // keep it one-shot — and harmless either way, since `consume` clears the entry
+    // atomically and any re-run would find nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+  }, [chatId, workspaceId, prepareResourceViewForAgentTurn, sendMessage])
 
   function resolveResourceFromContext(
     context: ChatContext
@@ -355,63 +515,105 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         return context.knowledgeId ? { type: 'knowledgebase', id: context.knowledgeId } : null
       case 'table':
         return context.tableId ? { type: 'table', id: context.tableId } : null
+      case 'table_selection':
+        return context.tableId ? { type: 'table', id: context.tableId } : null
       case 'file':
+        return context.fileId ? { type: 'file', id: context.fileId } : null
+      case 'file_selection':
         return context.fileId ? { type: 'file', id: context.fileId } : null
       default:
         return null
     }
   }
 
+  /**
+   * Tab title for the resource a chip opens. A selection chip's label describes
+   * the selection (`notes.md:12-40`, `Sales (3 rows)`) but the tab shows the
+   * whole file/table, so title it from the resource name the context carries.
+   */
+  function resourceTitleForContext(context: ChatContext): string {
+    if (context.kind === 'file_selection') return context.fileName
+    if (context.kind === 'table_selection') return context.tableName
+    return context.label
+  }
+
   function handleContextAdd(context: ChatContext) {
     const resolved = resolveResourceFromContext(context)
     if (resolved) {
-      addResource({ ...resolved, title: context.label })
-      handleResourceEvent()
+      addResourceFromUser({ ...resolved, title: resourceTitleForContext(context) })
     }
   }
 
-  function handleInitialContextRemove(context: ChatContext) {
+  function handleInitialContextRemove(context: ChatContext, remaining: ChatContext[]) {
     const resolved = resolveResourceFromContext(context)
     if (!resolved) return
+    // A whole-file chip and one or more of its selection chips (or several
+    // selections of the same file/table) all resolve to the same resource tab.
+    // Only close the tab once no remaining chip still references it, so removing
+    // one of several chips doesn't yank a slideover the others still point at.
+    const stillReferenced = remaining.some((other) => {
+      const otherResolved = resolveResourceFromContext(other)
+      return otherResolved?.type === resolved.type && otherResolved.id === resolved.id
+    })
+    if (stillReferenced) return
     removeResource(resolved.type, resolved.id)
   }
 
-  const resolveFileResource = useCallback(
-    (resource: MothershipResource): MothershipResource => {
-      if (resource.type !== 'file') return resource
+  function openWorkspaceResource(resource: MothershipResource) {
+    addResourceFromUser(resource)
+  }
 
-      const reference = (resource.path || resource.id).trim()
-
-      const file = workspaceFiles.find((candidate) => {
-        const candidatePath = canonicalWorkspaceFilePath({
-          folderPath: candidate.folderPath,
-          name: candidate.name,
-        })
-        return candidate.id === reference || candidatePath === reference
-      })
-
-      if (!file) return resource
-      return {
-        ...resource,
-        id: file.id,
-        title: resource.title || file.name,
-      }
-    },
-    [workspaceFiles]
-  )
-
-  function handleWorkspaceResourceSelect(resource: MothershipResource) {
-    const resolvedResource = resolveFileResource(resource)
-    const wasAdded = addResource(resolvedResource)
-    if (!wasAdded) {
-      setActiveResourceId(resolvedResource.id)
+  /**
+   * Opens the resource a message chip points at, resolving it first. A chip may
+   * carry only a filename — the agent names a file before the client's file
+   * list knows it exists — so one forced refetch closes that window. What still
+   * resolves to nothing opens nothing, rather than a tab that cannot be
+   * viewed or removed.
+   */
+  async function handleWorkspaceResourceSelect(ref: WorkspaceResourceRef) {
+    const immediate = resolveWorkspaceResourceRef(ref, workspaceFiles)
+    if (immediate) {
+      openWorkspaceResource(immediate)
+      return
     }
-    handleResourceEvent()
+    if (ref.type !== 'file') return
+
+    // `staleTime: 0` forces the fetch this branch exists for — the cached list
+    // is what already failed to resolve. `fetchQuery` rejects on error and this
+    // handler is invoked as a void callback, so failure becomes null rather
+    // than an unhandled rejection — and stays distinct from an empty list, so
+    // "we could not look" is never reported as "it is not there".
+    const files = await queryClient
+      .fetchQuery({ ...getWorkspaceFilesQueryOptions(workspaceId), staleTime: 0 })
+      .catch(() => null)
+    const resolved = files && resolveWorkspaceResourceRef(ref, files)
+    if (resolved) {
+      openWorkspaceResource(resolved)
+      return
+    }
+    // The chip looks clickable, so refusing silently reads as a broken button.
+    toast.error(
+      files
+        ? `Couldn't find "${ref.title}" in this workspace`
+        : `Couldn't open "${ref.title}" — check your connection and try again`
+    )
+    logger.warn('Ignored a resource chip that did not resolve', {
+      type: ref.type,
+      title: ref.title,
+      hasPath: Boolean(ref.path),
+      reachedWorkspace: files !== null,
+    })
   }
 
   const hasMessages = messages.length > 0
   const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending
   const draftScopeKey = `${workspaceId}:${chatId ?? 'new'}`
+  const resourceActivityCount = resourceActivityIds.size
+  const resourceToggleLabel = isResourceCollapsed
+    ? resourceActivityCount > 0
+      ? `Expand resource view, ${resourceActivityCount} resource${resourceActivityCount === 1 ? '' : 's'} updated`
+      : 'Expand resource view'
+    : 'Collapse resource view'
 
   // The empty state is the chat pane's content, not a layout of its own. It
   // used to return early, which meant the resource panel and its toggle did
@@ -420,15 +622,22 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   const showEmptyState = !hasMessages && !showChatSkeleton
 
   return (
-    <div className='relative flex h-full bg-[var(--bg)]'>
-      <div className='relative flex h-full min-w-[320px] flex-1 flex-col'>
-        {/* Clears the expand button when the panel is closed and that button is
-            occupying the same corner. */}
+    <div className={cn('relative flex h-full bg-[var(--bg)]', RESOURCE_HEADER_CLASSES.layout)}>
+      <div className='relative flex h-full min-w-[240px] flex-1 flex-col'>
         {showEmptyState && (
           <div
             className={cn(
-              'absolute top-[8.5px] z-10',
-              isResourceCollapsed ? 'right-[54px]' : 'right-[16px]'
+              'z-10',
+              RESOURCE_HEADER_CLASSES.overlay,
+              // Collapsed, the expand toggle overlays this corner, so the chip
+              // yields the fixed reserve; open, the toggle lives in the panel's
+              // corner and the chip takes the standard end inset itself.
+              isResourceCollapsed
+                ? RESOURCE_HEADER_CLASSES.adjacentEndPosition
+                : RESOURCE_HEADER_CLASSES.endPosition,
+              skipResourceTransition
+                ? 'transition-none'
+                : 'transition-[right] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]'
             )}
           >
             <CreditsChip />
@@ -438,10 +647,10 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
           <div className='h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
             {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
             <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-              <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
+              <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
                 What should we get done{firstName ? `, ${firstName}` : ''}?
               </h1>
-              <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
+              <div ref={initialViewInputRef} className='relative w-full max-w-chat'>
                 <ChatSurfaceProvider
                   userId={userId}
                   onContextAdd={handleContextAdd}
@@ -469,6 +678,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
           </div>
         ) : (
           <MothershipChat
+            workspaceId={workspaceId}
             messages={messages}
             isSending={isSending}
             isReconnecting={isReconnecting}
@@ -502,14 +712,14 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
             role='separator'
             aria-orientation='vertical'
             aria-label='Resize resource panel'
-            onPointerDown={handleResizePointerDown}
+            onPointerDown={handleResourceResizePointerDown}
           />
         </div>
       )}
 
       <MothershipResourcesProvider
-        selectResource={setActiveResourceId}
-        addResource={addResource}
+        selectResource={selectResourceFromUser}
+        addResource={addResourceFromUser}
         removeResource={removeResource}
         reorderResources={reorderResources}
         collapseResource={collapseResource}
@@ -519,32 +729,42 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
             ref={mothershipRef}
             workspaceId={workspaceId}
             chatId={resolvedChatId}
+            desktopScopeId={desktopScopeId}
             resources={resources}
             activeResourceId={activeResourceId}
+            activityResourceIds={resourceActivityIds}
             isCollapsed={isResourceCollapsed}
             previewSession={previewSession}
             isAgentResponding={isSending}
             genericResourceData={genericResourceData ?? undefined}
-            tableViewsEnabled={tableViewsEnabled}
+            onUserInteraction={handleResourceInteraction}
             className={skipResourceTransition ? '!transition-none' : undefined}
           />
         </Suspense>
       </MothershipResourcesProvider>
 
-      {isResourceCollapsed && (
-        <div className='absolute top-[8.5px] right-[16px]'>
-          <Button
-            variant='ghost'
-            size={null}
-            type='button'
-            onClick={() => setIsResourceCollapsed(false)}
-            className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
-            aria-label='Expand resource view'
-          >
-            <PanelLeft className='size-[16px] text-[var(--text-icon)]' />
-          </Button>
-        </div>
-      )}
+      <div
+        className={cn('z-30', RESOURCE_HEADER_CLASSES.overlay, RESOURCE_HEADER_CLASSES.endPosition)}
+      >
+        <Button
+          variant='ghost'
+          size={null}
+          type='button'
+          onClick={isResourceCollapsed ? expandResource : collapseResource}
+          className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
+          aria-label={resourceToggleLabel}
+        >
+          <span className='relative'>
+            <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
+            {isResourceCollapsed && resourceActivityIds.size > 0 && (
+              <span
+                aria-hidden='true'
+                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-primary)]'
+              />
+            )}
+          </span>
+        </Button>
+      </div>
     </div>
   )
 }

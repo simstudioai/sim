@@ -1,13 +1,12 @@
-import type { GetItemizationsParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetItemizationsParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getItemizationsTool: ToolConfig<GetItemizationsParams, SapConcurProxyResponse> = {
+export const getItemizationsTool: InternalToolConfig<GetItemizationsParams, SapConcurResponse> = {
   id: 'sap_concur_get_itemizations',
   name: 'SAP Concur Get Expense Itemizations',
   description:
@@ -66,7 +65,7 @@ export const getItemizationsTool: ToolConfig<GetItemizationsParams, SapConcurPro
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Access context: TRAVELER, MANAGER, or PROXY',
+      description: 'Access context: TRAVELER (the only value the endpoint supports)',
     },
     reportId: {
       type: 'string',
@@ -81,23 +80,20 @@ export const getItemizationsTool: ToolConfig<GetItemizationsParams, SapConcurPro
       description: 'Expense ID',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userId = trimRequired(params.userId, 'userId')
       const contextType = trimRequired(params.contextType, 'contextType')
       const reportId = trimRequired(params.reportId, 'reportId')
       const expenseId = trimRequired(params.expenseId, 'expenseId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/context/${encodeURIComponent(contextType)}/reports/${encodeURIComponent(reportId)}/expenses/${encodeURIComponent(expenseId)}/itemizations`,
         method: 'GET',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
@@ -106,13 +102,7 @@ export const getItemizationsTool: ToolConfig<GetItemizationsParams, SapConcurPro
       items: {
         type: 'json',
         properties: {
-          id: { type: 'string', description: 'Itemization identifier', optional: true },
           expenseId: { type: 'string', description: 'Itemization expense id', optional: true },
-          allocations: {
-            type: 'array',
-            description: 'Allocations applied to the itemization',
-            optional: true,
-          },
           expenseType: {
             type: 'json',
             description: 'Expense type {id, name, code, isDeleted}',

@@ -5,6 +5,7 @@ import {
   parseReferencePath,
   SPECIAL_REFERENCE_PREFIXES,
 } from '@/executor/constants'
+import type { BlockState } from '@/executor/types'
 import { getBlockSchema } from '@/executor/utils/block-data'
 import {
   InvalidFieldError,
@@ -12,7 +13,7 @@ import {
   resolveBlockReference,
   resolveBlockReferenceAsync,
 } from '@/executor/utils/block-reference'
-import { formatLiteralForCode } from '@/executor/utils/code-formatting'
+import { formatInertStringLiteral, formatLiteralForCode } from '@/executor/utils/code-formatting'
 import { buildClonedSubflowId, extractOuterBranchIndex } from '@/executor/utils/subflow-utils'
 import {
   type AsyncPathNavigator,
@@ -94,7 +95,7 @@ export class BlockResolver implements Resolver {
     }
 
     const block = this.blockById.get(blockId)!
-    const output = this.getBlockOutput(blockId, context)
+    const output = this.getBlockState(blockId, context)?.output
 
     const blockData: Record<string, unknown> = {}
     const blockOutputSchemas: Record<string, OutputSchema> = {}
@@ -150,7 +151,14 @@ export class BlockResolver implements Resolver {
 
   async resolveAsync(reference: string, context: ResolutionContext): Promise<any> {
     if (!this.navigatePathAsync) {
-      return this.resolve(reference, context)
+      const value = this.resolve(reference, context)
+      const [blockName] = parseReferencePath(reference)
+      const blockId = blockName ? this.findBlockIdByName(blockName) : undefined
+      return this.importResolvedStateProvenance(
+        blockId ? this.getBlockState(blockId, context) : undefined,
+        value,
+        context
+      )
     }
     const parts = parseReferencePath(reference)
     if (parts.length === 0) {
@@ -164,7 +172,8 @@ export class BlockResolver implements Resolver {
     }
 
     const block = this.blockById.get(blockId)!
-    const output = this.getBlockOutput(blockId, context)
+    const state = this.getBlockState(blockId, context)
+    const output = state?.output
 
     const blockData: Record<string, unknown> = {}
     const blockOutputSchemas: Record<string, OutputSchema> = {}
@@ -197,12 +206,12 @@ export class BlockResolver implements Resolver {
         if (!context.allowLargeValueRefs) {
           assertNoLargeValueRefs(result.value)
         }
-        return result.value
+        return this.importResolvedStateProvenance(state, result.value, context)
       }
 
       const backwardsCompat = await this.handleBackwardsCompat(block, output, pathParts, context)
       if (backwardsCompat !== undefined) {
-        return backwardsCompat
+        return this.importResolvedStateProvenance(state, backwardsCompat, context)
       }
 
       return RESOLVED_EMPTY
@@ -210,7 +219,7 @@ export class BlockResolver implements Resolver {
       if (error instanceof InvalidFieldError) {
         const fallback = await this.handleBackwardsCompat(block, output, pathParts, context)
         if (fallback !== undefined) {
-          return fallback
+          return this.importResolvedStateProvenance(state, fallback, context)
         }
       }
       throw error
@@ -310,7 +319,31 @@ export class BlockResolver implements Resolver {
     return undefined
   }
 
-  private getBlockOutput(blockId: string, context: ResolutionContext): any {
+  private async importResolvedStateProvenance(
+    state: BlockState | undefined,
+    value: unknown,
+    context: ResolutionContext
+  ): Promise<unknown> {
+    if (
+      !state?.resolvedSecretTraceProvenance ||
+      value === undefined ||
+      value === RESOLVED_EMPTY ||
+      !context.executionContext.resolvedSecretTraceRegistry
+    ) {
+      return value
+    }
+    const imported =
+      await context.executionContext.resolvedSecretTraceRegistry.importProvenanceForValueAtInputPath(
+        state.resolvedSecretTraceProvenance,
+        value,
+        context.inputPath,
+        { trusted: true, origin: 'blockResolver.outputCrossing' }
+      )
+    if (imported.matched) context.onResolvedSecretReference?.()
+    return value
+  }
+
+  private getBlockState(blockId: string, context: ResolutionContext): BlockState | undefined {
     const outerBranchIndex = extractOuterBranchIndex(context.currentNodeId)
     const mappedBranchIndex =
       outerBranchIndex ??
@@ -321,17 +354,17 @@ export class BlockResolver implements Resolver {
       this.subflowContainerIds.has(blockId)
 
     if (shouldResolveClonedSubflowOutput) {
-      const clonedStateOutput = context.executionState.getBlockOutput(
+      const clonedState = context.executionState.getBlockState(
         buildClonedSubflowId(blockId, mappedBranchIndex)
       )
-      if (clonedStateOutput !== undefined) {
-        return clonedStateOutput
+      if (clonedState !== undefined) {
+        return clonedState
       }
     }
 
-    const stateOutput = context.executionState.getBlockOutput(blockId, context.currentNodeId)
-    if (stateOutput !== undefined) {
-      return stateOutput
+    const state = context.executionState.getBlockState(blockId, context.currentNodeId)
+    if (state !== undefined) {
+      return state
     }
 
     if (
@@ -343,7 +376,7 @@ export class BlockResolver implements Resolver {
 
     const contextState = context.executionContext.blockStates?.get(blockId)
     if (contextState?.output) {
-      return contextState.output
+      return contextState
     }
 
     return undefined
@@ -381,12 +414,7 @@ export class BlockResolver implements Resolver {
 
   private stringifyForCondition(value: any): string {
     if (typeof value === 'string') {
-      const sanitized = value
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"')
-        .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r')
-      return `"${sanitized}"`
+      return formatInertStringLiteral(value, '"')
     }
     if (value === null) {
       return 'null'

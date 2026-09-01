@@ -3,21 +3,24 @@ import { vi } from 'vitest'
 /**
  * Mutable value-export state for the shared `@/lib/core/config/env-flags` mock.
  * Defaults mirror the real module evaluated under the vitest environment
- * (NODE_ENV=test, no feature env vars set): only `isTest` and
- * `isEmailPasswordEnabled` are true.
+ * (NODE_ENV=test, no feature env vars set): only `isTest`,
+ * `isEmailPasswordEnabled`, and `isChatEnabled` are true — the last because it
+ * is an opt-out flag, on unless `NEXT_PUBLIC_CHAT_DISABLED` is set.
  */
 export interface EnvFlagsMockState {
   isProd: boolean
   isDev: boolean
   isTest: boolean
   isHosted: boolean
-  isCopilotBillingAttributionV1Enabled: boolean
-  isCopilotBillingProtocolRequired: boolean
+  isChatEnabled: boolean
+  isStatusNoticePreviewEnabled: boolean
   isCopilotToolPermissionsEnabled: boolean
   isBillingEnabled: boolean
   isEmailVerificationEnabled: boolean
   isAuthDisabled: boolean
-  isPrivateDatabaseHostsAllowed: boolean
+  egressAllowedHosts: string | undefined
+  egressAllowedIpRanges: string | undefined
+  legacyPrivateDatabaseAccess: boolean
   isRegistrationDisabled: boolean
   isEmailPasswordEnabled: boolean
   isSignupMxValidationEnabled: boolean
@@ -26,16 +29,21 @@ export interface EnvFlagsMockState {
   isTriggerDevEnabled: boolean
   isEnterpriseEnabled: boolean
   isSsoEnabled: boolean
+  isUsageMonitoringEnabled: boolean
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
   isInboxEnabled: boolean
+  isSandboxDeploymentEntitled: boolean
+  isSandboxesEnabled: boolean
   isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
+  isCustomBlocksEnabled: boolean
   isDataRetentionEnabled: boolean
   isDataDrainsEnabled: boolean
   isSessionPoliciesEnabled: boolean
   isForkingEnabled: boolean
   isRemoteSandboxEnabled: boolean
+  isMothershipSandboxEnabled: boolean
   isDocSandboxEnabled: boolean
   isOllamaConfigured: boolean
   isAzureConfigured: boolean
@@ -55,13 +63,15 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isDev: false,
   isTest: true,
   isHosted: false,
-  isCopilotBillingAttributionV1Enabled: false,
-  isCopilotBillingProtocolRequired: false,
+  isChatEnabled: true,
+  isStatusNoticePreviewEnabled: false,
   isCopilotToolPermissionsEnabled: false,
   isBillingEnabled: false,
   isEmailVerificationEnabled: false,
   isAuthDisabled: false,
-  isPrivateDatabaseHostsAllowed: false,
+  egressAllowedHosts: undefined,
+  egressAllowedIpRanges: undefined,
+  legacyPrivateDatabaseAccess: false,
   isRegistrationDisabled: false,
   isEmailPasswordEnabled: true,
   isSignupMxValidationEnabled: false,
@@ -70,19 +80,24 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isTriggerDevEnabled: false,
   isEnterpriseEnabled: false,
   isSsoEnabled: false,
+  isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
   // True with billing off and no flags set — these carry a legacy default of
   // `true` so upgrades do not remove a feature. See
   // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
   isInboxEnabled: true,
+  isSandboxDeploymentEntitled: false,
+  isSandboxesEnabled: false,
   isWhitelabelingEnabled: true,
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,
+  isCustomBlocksEnabled: false,
   isDataRetentionEnabled: false,
   isDataDrainsEnabled: false,
   isForkingEnabled: false,
   isRemoteSandboxEnabled: false,
+  isMothershipSandboxEnabled: false,
   isDocSandboxEnabled: false,
   isOllamaConfigured: false,
   isAzureConfigured: false,
@@ -106,6 +121,23 @@ const envFlagsState: EnvFlagsMockState = { ...defaultEnvFlagsState }
  * {@link resetEnvFlagsMock} restores the default implementations.
  */
 export const envFlagsMockFns = {
+  /**
+   * Egress config is exposed as functions by the real module, but held as
+   * mutable state here so a test can still write
+   * `envFlagsMock.egressAllowedHosts = '...'` and have the read observe it.
+   *
+   * The hosted gate is mirrored from production: a deployment on sim.ai ignores
+   * these entirely, so a test that sets both must see the same thing.
+   */
+  getEgressAllowedHosts: vi.fn<() => string | undefined>(() =>
+    envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedHosts
+  ),
+  getEgressAllowedIpRanges: vi.fn<() => string | undefined>(() =>
+    envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedIpRanges
+  ),
+  isLegacyPrivateDatabaseAccessAllowed: vi.fn<() => boolean>(
+    () => !envFlagsState.isHosted && envFlagsState.legacyPrivateDatabaseAccess
+  ),
   getAllowedIntegrationsFromEnv: vi.fn<() => string[] | null>(() => null),
   getPreviewBlocksFromEnv: vi.fn<() => string[]>(() => []),
   getBlacklistedProvidersFromEnv: vi.fn<() => string[]>(() => []),
@@ -140,6 +172,19 @@ export function resetEnvFlagsMock(): void {
   envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReset().mockImplementation(() => [])
   envFlagsMockFns.getAllowedMcpDomainsFromEnv.mockReset().mockImplementation(() => null)
   envFlagsMockFns.getCostMultiplier.mockReset().mockImplementation(() => 1)
+  envFlagsMockFns.getEgressAllowedHosts
+    .mockReset()
+    .mockImplementation(() =>
+      envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedHosts
+    )
+  envFlagsMockFns.getEgressAllowedIpRanges
+    .mockReset()
+    .mockImplementation(() =>
+      envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedIpRanges
+    )
+  envFlagsMockFns.isLegacyPrivateDatabaseAccessAllowed
+    .mockReset()
+    .mockImplementation(() => !envFlagsState.isHosted && envFlagsState.legacyPrivateDatabaseAccess)
 }
 
 /**
@@ -147,11 +192,11 @@ export function resetEnvFlagsMock(): void {
  * mocked module and direct assignments (`envFlagsMock.isHosted = true`)
  * delegate to the shared mutable state.
  */
-function flagAccessor(key: keyof EnvFlagsMockState): PropertyDescriptor {
+function flagAccessor<K extends keyof EnvFlagsMockState>(key: K): PropertyDescriptor {
   return {
     enumerable: true,
     get: () => envFlagsState[key],
-    set: (value: boolean) => {
+    set: (value: EnvFlagsMockState[K]) => {
       envFlagsState[key] = value
     },
   }

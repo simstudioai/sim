@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -98,28 +98,18 @@ function parseIso8601Duration(value: string | undefined): number | null {
 }
 
 /**
- * Resolves a channel reference to its "uploads" playlist ID via `channels.list`.
- *
- * Accepts a `UC…` channel ID, an `@handle` (resolved with `forHandle`), or a legacy
- * username (resolved with `forUsername`). Returns null when the channel is missing or
- * has no uploads playlist.
+ * Issues a single `channels.list` call filtered by exactly one of `id`, `forHandle`, or
+ * `forUsername`, and returns the first channel's uploads playlist ID (null when the
+ * filter matched nothing). A `list` call costs a flat 1 quota unit.
  */
-async function resolveUploadsPlaylistId(
+async function lookupUploadsPlaylist(
   apiKey: string,
-  channelRef: string,
+  filter: 'id' | 'forHandle' | 'forUsername',
+  value: string,
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<string | null> {
-  const ref = channelRef.trim()
-  if (!ref) return null
-
   const params = new URLSearchParams({ part: 'contentDetails', key: apiKey })
-  if (ref.startsWith('@')) {
-    params.set('forHandle', ref)
-  } else if (/^UC[\w-]{20,}$/.test(ref)) {
-    params.set('id', ref)
-  } else {
-    params.set('forUsername', ref)
-  }
+  params.set(filter, value)
 
   const url = `${YOUTUBE_API_BASE}/channels?${params.toString()}`
 
@@ -132,7 +122,7 @@ async function resolveUploadsPlaylistId(
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')
     logger.error('Failed to resolve channel uploads playlist', {
-      channelRef: ref,
+      filter,
       status: response.status,
       error: errorText.slice(0, 500),
     })
@@ -147,25 +137,56 @@ async function resolveUploadsPlaylistId(
 }
 
 /**
- * Resolves the effective playlist ID to sync from sourceConfig, and whether the source
- * is a channel's reverse-chronological uploads playlist (which enables early-stop for
- * the `publishedAfter` filter). A `playlistId` takes precedence over a `channelId`.
+ * Resolves a channel reference to its "uploads" playlist ID via `channels.list`.
+ *
+ * A value shaped like a channel ID is looked up with `id` first. That shape is only a
+ * heuristic for ordering the attempts, never a rejection: Google does not document a
+ * channel-ID format at all — the `UC` prefix is an observation from the example IDs in
+ * the channel-ID guide, not a documented guarantee — so the test stays deliberately
+ * loose and a miss simply falls through.
+ *
+ * Anything else — and a `UC…`-shaped value that matched no channel — is tried as a
+ * handle: `channels.list` documents that the `forHandle` value "can be prepended with an
+ * `@` symbol", i.e. the `@` is optional, so a bare `mkbhd` is a valid handle. Only a
+ * non-`@` reference that is not a handle either falls through to the legacy `forUsername`
+ * filter. Each fallback costs one extra quota unit and only runs after a miss. Returns
+ * null when no filter matches a channel with an uploads playlist.
+ */
+async function resolveUploadsPlaylistId(
+  apiKey: string,
+  channelRef: string,
+  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+): Promise<string | null> {
+  const ref = channelRef.trim()
+  if (!ref) return null
+
+  if (/^UC[\w-]{20,}$/.test(ref)) {
+    const byId = await lookupUploadsPlaylist(apiKey, 'id', ref, retryOptions)
+    if (byId) return byId
+  }
+
+  const byHandle = await lookupUploadsPlaylist(apiKey, 'forHandle', ref, retryOptions)
+  if (byHandle || ref.startsWith('@')) return byHandle
+
+  return lookupUploadsPlaylist(apiKey, 'forUsername', ref, retryOptions)
+}
+
+/**
+ * Resolves the effective playlist ID to sync from sourceConfig. A `playlistId` takes
+ * precedence over a `channelId`, which resolves to that channel's uploads playlist.
  */
 async function resolvePlaylistId(
   apiKey: string,
   sourceConfig: Record<string, unknown>,
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
-): Promise<{ playlistId: string | null; isUploadsPlaylist: boolean }> {
+): Promise<string | null> {
   const playlistId = (sourceConfig.playlistId as string | undefined)?.trim()
-  if (playlistId) return { playlistId, isUploadsPlaylist: false }
+  if (playlistId) return playlistId
 
   const channelId = (sourceConfig.channelId as string | undefined)?.trim()
-  if (channelId) {
-    const resolved = await resolveUploadsPlaylistId(apiKey, channelId, retryOptions)
-    return { playlistId: resolved, isUploadsPlaylist: resolved != null }
-  }
+  if (channelId) return resolveUploadsPlaylistId(apiKey, channelId, retryOptions)
 
-  return { playlistId: null, isUploadsPlaylist: false }
+  return null
 }
 
 /**
@@ -455,18 +476,11 @@ export const youtubeConnector: ConnectorConfig = {
       return { documents: [], hasMore: false }
     }
 
-    const cachedPlaylistId = syncContext?.resolvedPlaylistId as string | undefined
-    let playlistId: string | null = cachedPlaylistId ?? null
-    let isUploadsPlaylist = (syncContext?.isUploadsPlaylist as boolean | undefined) ?? false
+    let playlistId = (syncContext?.resolvedPlaylistId as string | undefined) ?? null
 
     if (!playlistId) {
-      const resolved = await resolvePlaylistId(apiKey, sourceConfig)
-      playlistId = resolved.playlistId
-      isUploadsPlaylist = resolved.isUploadsPlaylist
-      if (syncContext) {
-        if (playlistId) syncContext.resolvedPlaylistId = playlistId
-        syncContext.isUploadsPlaylist = isUploadsPlaylist
-      }
+      playlistId = await resolvePlaylistId(apiKey, sourceConfig)
+      if (syncContext && playlistId) syncContext.resolvedPlaylistId = playlistId
     }
 
     if (!playlistId) {
@@ -515,8 +529,15 @@ export const youtubeConnector: ConnectorConfig = {
     const excludeShorts = String(sourceConfig.excludeShorts ?? '') === 'true'
 
     const keptItems: PlaylistItem[] = []
-    let stopEarly = false
 
+    /**
+     * The `publishedAfter` cutoff is applied per item across every page, never as an
+     * early break. `playlistItems.list` documents no ordering whatsoever — not a
+     * reverse-chronological guarantee, and not a caveat denying one — so breaking on
+     * the first out-of-range item would, on any playlist that is not strictly ordered,
+     * drop every later in-scope video from the listing and hand it straight to
+     * deletion reconciliation. Draining the cursor costs 1 quota unit per 50 items.
+     */
     for (const item of items) {
       if (!getVideoId(item)) continue
 
@@ -525,16 +546,7 @@ export const youtubeConnector: ConnectorConfig = {
       if (publishedAfter != null) {
         const videoPublishedAt = item.contentDetails?.videoPublishedAt
         const ms = videoPublishedAt ? new Date(videoPublishedAt).getTime() : Number.NaN
-        if (!Number.isNaN(ms) && ms < publishedAfter) {
-          // Uploads playlists are reverse-chronological by publish date, so once we
-          // cross the cutoff no later item can qualify — stop paginating. For arbitrary
-          // playlists we only filter per-item (order is not guaranteed).
-          if (isUploadsPlaylist) {
-            stopEarly = true
-            break
-          }
-          continue
-        }
+        if (!Number.isNaN(ms) && ms < publishedAfter) continue
       }
 
       keptItems.push(item)
@@ -568,16 +580,25 @@ export const youtubeConnector: ConnectorConfig = {
         }
       } else {
         for (const item of keptItems) {
-          /**
-           * This branch cannot emit a document without the hydrated video, since the
-           * Shorts decision needs `contentDetails.duration`. An item absent from a trusted
-           * `videos.list` is skipped because there is nothing to build from — emitting a
-           * stub instead would re-hydrate to null on every sync. Deletion is never
-           * inferred from that absence: items whose video is explicitly gone were already
-           * removed above by `isPlaylistItemPrivate`.
-           */
           const video = videoMap.get(getVideoId(item))
-          if (!video) continue
+          if (!video) {
+            /**
+             * The item is absent from a trusted `videos.list`, so its duration is unknown
+             * and the Shorts decision cannot be made. Absence is NOT read as deletion:
+             * `isPlaylistItemPrivate` above is the only signal that removes an item from
+             * the listing, and dropping this one here would remove its externalId from the
+             * listing entirely, which is exactly how deletion reconciliation hard-deletes a
+             * stored document. A deferred stub is emitted instead, matching the
+             * include-Shorts branch: `getDocument` re-checks the video and returns null for
+             * a genuinely gone one, which the sync engine treats as last-known-good rather
+             * than as a delete. A gone video therefore costs one wasted `videos.list` per
+             * sync — the same cost the include-Shorts branch already pays — instead of
+             * silently destroying an indexed document.
+             */
+            const stub = itemToStub(item)
+            if (stub) documents.push(stub)
+            continue
+          }
           const doc = videoToDocument(video, true)
           if (doc) documents.push(doc)
         }
@@ -590,14 +611,14 @@ export const youtubeConnector: ConnectorConfig = {
     }
 
     const totalFetched = previouslyFetched + documents.length
-    if (syncContext) syncContext.totalDocsFetched = totalFetched
-
     const hitMax = maxVideos > 0 && totalFetched >= maxVideos
-    if (hitMax && maxVideos > 0) {
-      const overflow = totalFetched - maxVideos
-      if (overflow > 0) documents = documents.slice(0, documents.length - overflow)
-      if (syncContext) syncContext.totalDocsFetched = maxVideos
+
+    /** Videos trimmed off this page by the cap while still present at the source. */
+    const trimmedByCap = hitMax ? totalFetched - maxVideos : 0
+    if (trimmedByCap > 0) {
+      documents = documents.slice(0, documents.length - trimmedByCap)
     }
+    if (syncContext) syncContext.totalDocsFetched = hitMax ? maxVideos : totalFetched
 
     /**
      * Pagination is driven exclusively by the `playlistItems.list` cursor, never by how
@@ -607,16 +628,18 @@ export const youtubeConnector: ConnectorConfig = {
      */
     const nextPageToken = data.nextPageToken as string | undefined
 
-    // When the `maxVideos` cap stops the listing before the source is exhausted, mark the
-    // listing as capped so the sync engine does not delete still-present-but-unlisted
-    // videos from the knowledge base. `stopEarly` (publishedAfter cutoff) is NOT a cap —
-    // every remaining video is older than the cutoff and intentionally out of scope, so
-    // those should reconcile (delete) normally.
-    if (hitMax && Boolean(nextPageToken) && syncContext) {
+    /**
+     * When the `maxVideos` cap stops the listing before the source is exhausted, mark
+     * the listing as capped so the sync engine does not delete still-present-but-unlisted
+     * videos. Both truncation shapes count: videos trimmed off this page, and a further
+     * page left unread. The `publishedAfter` cutoff is NOT a cap — those videos are
+     * intentionally out of scope and must reconcile (delete) normally.
+     */
+    if (hitMax && (trimmedByCap > 0 || nextPageToken) && syncContext) {
       syncContext.listingCapped = true
     }
 
-    const hasMore = !hitMax && !stopEarly && Boolean(nextPageToken)
+    const hasMore = !hitMax && Boolean(nextPageToken)
 
     return {
       documents,
@@ -635,30 +658,31 @@ export const youtubeConnector: ConnectorConfig = {
 
     const url = `${YOUTUBE_API_BASE}/videos?part=snippet,contentDetails,status&id=${encodeURIComponent(externalId)}&key=${encodeURIComponent(apiKey)}`
 
-    try {
-      const response = await fetchWithRetry(url, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      })
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    })
 
-      if (!response.ok) {
-        if (response.status === 403 || response.status === 404) return null
-        throw new Error(`Failed to get YouTube video: ${response.status}`)
-      }
-
-      const data = await response.json()
-      const items = (data.items ?? []) as VideoItem[]
-      const video = items[0]
-
-      // An empty items array means the video is deleted or private. Region-restricted
-      // videos are still returned here, with contentDetails.regionRestriction populated.
-      if (!video) return null
-
-      return videoToDocument(video, excludeShorts)
-    } catch (error) {
-      logger.warn(`Failed to fetch YouTube video ${externalId}`, { error: toError(error).message })
-      return null
+    /**
+     * Only `videoNotFound` (404) is a genuine absence. A 403 from `videos.list` is
+     * `quotaExceeded` or `forbidden` — none of the parts requested here are
+     * owner-restricted — so it is a fault that must surface as a failed document
+     * rather than silently dropping the video from the run.
+     */
+    if (!response.ok) {
+      if (response.status === 404) return null
+      throw new Error(`Failed to get YouTube video: ${response.status}`)
     }
+
+    const data = await response.json()
+    const items = (data.items ?? []) as VideoItem[]
+    const video = items[0]
+
+    // An empty items array means the video is deleted or private. Region-restricted
+    // videos are still returned here, with contentDetails.regionRestriction populated.
+    if (!video) return null
+
+    return videoToDocument(video, excludeShorts)
   },
 
   validateConfig: async (

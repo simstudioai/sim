@@ -60,6 +60,23 @@ function isTerminalStreamStatus(status: string | null | undefined): boolean {
   )
 }
 
+/**
+ * Error codes that describe the USER stopping the turn, not a failure.
+ *
+ * A Stop reaches the client as an `error` event because the server's typed
+ * error channel is the only way a terminating stream leg reports its reason —
+ * `async_resume_aborted` in particular is emitted when Stop lands while an
+ * async tool resume is still starting up. The server already classifies these
+ * as aborts (recording an abort rather than an error, and answering 499 rather
+ * than 5xx); rendering them inline made the user's own Stop look like a
+ * failure, so the transcript honors that classification too.
+ */
+const USER_ABORT_ERROR_CODES = new Set(['async_resume_aborted', 'stream_cancelled', 'cancelled'])
+
+function isUserAbortError(payload: MothershipStreamV1ErrorPayload): boolean {
+  return typeof payload.code === 'string' && USER_ABORT_ERROR_CODES.has(payload.code)
+}
+
 function buildInlineErrorTag(payload: MothershipStreamV1ErrorPayload): string {
   const message =
     (typeof payload.displayMessage === 'string' ? payload.displayMessage : undefined) ||
@@ -117,7 +134,6 @@ function buildLiveAssistantMessage(params: {
   const toolIndexById = new Map<string, number>()
   const subagentByParentToolCallId = new Map<string, string>()
   const subagentBySpanId = new Map<string, string>()
-  let activeSubagent: string | undefined
   let activeSubagentParentToolCallId: string | undefined
   const activeCompactionIdByLane = new Map<string, string>()
   let runningText = ''
@@ -126,8 +142,8 @@ function buildLiveAssistantMessage(params: {
   let lastTimestamp: string | undefined
 
   // Scope-only resolution (mirrors the live browser stream loop): with
-  // concurrent subagents the legacy activeSubagent fallback / name-match scan
-  // would mis-attribute interleaved replayed events to the wrong lane.
+  // concurrent subagents the legacy name-match scan would mis-attribute
+  // interleaved replayed events to the wrong lane.
   const resolveScopedSubagent = (
     agentId: string | undefined,
     parentToolCallId: string | undefined,
@@ -387,7 +403,6 @@ function buildLiveAssistantMessage(params: {
           if (parentToolCallId) {
             subagentByParentToolCallId.set(parentToolCallId, name)
           }
-          activeSubagent = name
           activeSubagentParentToolCallId = parentToolCallId
           blocks.push({
             type: MothershipStreamV1EventType.span,
@@ -414,7 +429,6 @@ function buildLiveAssistantMessage(params: {
           // or an unscoped end — never by agent name, which would tear down a
           // concurrent same-name sibling that is still open.
           if (!parentToolCallId || parentToolCallId === activeSubagentParentToolCallId) {
-            activeSubagent = undefined
             activeSubagentParentToolCallId = undefined
           }
           blocks.push({
@@ -468,6 +482,11 @@ function buildLiveAssistantMessage(params: {
         continue
       }
       case MothershipStreamV1EventType.error: {
+        // A Stop is already visible: the stream ends and the composer returns.
+        // Adding a line for it just reports the user's own action back as an error.
+        if (isUserAbortError(parsed.payload)) {
+          continue
+        }
         const tag = buildInlineErrorTag(parsed.payload)
         if (runningText.includes(tag)) {
           continue

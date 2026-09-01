@@ -5,6 +5,13 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleTasksResponse } from '@/tools/google_tasks/types'
 
+/**
+ * Canonical basic/advanced pair for the task list, shared by the card
+ * sentences below. Both members are listed so the sentence still resolves for
+ * an advanced-mode user, who has only the raw id filled.
+ */
+const TASK_LIST_FIELD = ['taskListSelector', 'taskListId'] as const
+
 export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
   type: 'google_tasks',
   name: 'Google Tasks',
@@ -17,6 +24,37 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
   bgColor: '#FFFFFF',
   icon: GoogleTasksIcon,
   authMode: AuthMode.OAuth,
+  canvasPresentation: {
+    defaultTitle: 'Google Tasks',
+    sentences: {
+      byOperation: {
+        create: [
+          { text: 'Create task', field: 'title', core: true },
+          { text: 'in', field: TASK_LIST_FIELD },
+          { text: ', due', field: 'due' },
+        ],
+        list: [
+          'List tasks',
+          { text: 'in', field: TASK_LIST_FIELD },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        get: [
+          { text: 'Fetch task', field: 'taskId', core: true },
+          { text: 'from', field: TASK_LIST_FIELD },
+        ],
+        update: [
+          { text: 'Update task', field: 'taskId', core: true },
+          { text: 'in', field: TASK_LIST_FIELD },
+          { text: ', setting status to', field: 'status' },
+        ],
+        delete: [
+          { text: 'Delete task', field: 'taskId', core: true },
+          { text: 'from', field: TASK_LIST_FIELD },
+        ],
+        list_task_lists: ['List all task lists'],
+      },
+    },
+  },
 
   subBlocks: [
     {

@@ -1,7 +1,11 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import { McpConnectionError, McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
+import {
+  McpConnectionError,
+  McpOauthAuthorizationRequiredError,
+  McpServerCooldownError,
+} from '@/lib/mcp/types'
 import {
   categorizeError,
   createMcpToolId,
@@ -319,10 +323,22 @@ describe('categorizeError', () => {
     expect(result.status).toBe(401)
   })
 
-  it.concurrent('returns 503 for McpConnectionError with cooldown message', () => {
-    const error = new McpConnectionError('Server in cooldown — try again shortly.', 'mcp-a')
+  it.concurrent('returns 503 for the typed discovery-cooldown refusal', () => {
+    const error = new McpServerCooldownError('mcp-a')
     const result = categorizeError(error)
     expect(result.status).toBe(503)
+  })
+
+  /**
+   * `McpConnectionError` interpolates the server's display name into its
+   * message, so selecting the cooldown branch by searching that message reports
+   * a server named after the word as a transient 503 when its connection has
+   * genuinely failed.
+   */
+  it.concurrent('does not read a cooldown out of a server display name', () => {
+    const error = new McpConnectionError('connect ECONNREFUSED', 'Cooldown Docs')
+    const result = categorizeError(error)
+    expect(result.status).toBe(502)
   })
 
   it.concurrent('returns 502 for other McpConnectionError', () => {

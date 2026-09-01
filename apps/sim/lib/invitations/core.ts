@@ -18,7 +18,6 @@ import { isOrgAdminRole, PERMISSION_RANK, type PermissionType } from '@sim/platf
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, count, eq, inArray, lte, sql } from 'drizzle-orm'
-import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
@@ -50,11 +49,7 @@ import { getInvitePlanCategoryForUser } from '@/lib/workspaces/policy'
 
 const logger = createLogger('InvitationCore')
 
-export const INVITATION_EXPIRY_DAYS = 7
-
-export function computeInvitationExpiry(daysFromNow = INVITATION_EXPIRY_DAYS): Date {
-  return new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000)
-}
+export { computeInvitationExpiry, INVITATION_EXPIRY_DAYS } from '@/lib/invitations/expiry'
 
 export interface InvitationWithGrants {
   id: string
@@ -87,6 +82,106 @@ export async function getInvitationById(
   const [row] = await executor.select().from(invitation).where(eq(invitation.id, id)).limit(1)
   if (!row) return null
   return hydrateInvitation(row, executor)
+}
+
+/**
+ * Claims an invitation for a state-changing operation using the same advisory
+ * lock namespace and ordering as acceptance, sending, and workspace moves.
+ *
+ * The invitation advisory lock is taken first because its grants define the
+ * optional workspace lock set. Workspace advisory locks are then taken before
+ * the invitation row lock, preserving the platform's advisory-before-row lock
+ * order. Finally the invitation is hydrated again so authorization and mutation
+ * use the protected state.
+ */
+export async function lockInvitationForMutation(
+  tx: DbOrTx,
+  invitationId: string,
+  options?: {
+    lockCurrentGrantWorkspaces?: boolean
+    additionalWorkspaceIds?: string[]
+  }
+): Promise<InvitationWithGrants | null> {
+  await acquireInvitationMutationLocks(tx, {
+    invitationIds: [invitationId],
+    workspaceIds: [],
+  })
+  const beforeWorkspaceLocks = await getInvitationById(invitationId, tx)
+  if (!beforeWorkspaceLocks) return null
+
+  const currentGrantWorkspaceIds = new Set(
+    beforeWorkspaceLocks.grants.map((grant) => grant.workspaceId)
+  )
+  const workspaceIds = [
+    ...new Set([
+      ...(options?.lockCurrentGrantWorkspaces ? currentGrantWorkspaceIds : []),
+      ...(options?.additionalWorkspaceIds ?? []).filter((workspaceId) =>
+        currentGrantWorkspaceIds.has(workspaceId)
+      ),
+    ]),
+  ]
+  if (workspaceIds.length > 0) {
+    await acquireInvitationMutationLocks(tx, {
+      invitationIds: [],
+      workspaceIds,
+    })
+  }
+
+  await tx.execute(sql`select id from invitation where id = ${invitationId} for update`)
+
+  return getInvitationById(invitationId, tx)
+}
+
+/**
+ * Locks the exact membership row that can authorize an organization mutation,
+ * then evaluates the role from that protected version. A concurrent demotion
+ * or removal either commits first and is observed here, or waits until this
+ * invitation transaction commits.
+ */
+async function lockOrganizationAdminAuthority(
+  tx: DbOrTx,
+  actorId: string,
+  organizationId: string
+): Promise<boolean> {
+  const [authority] = await tx
+    .select({ id: member.id, role: member.role })
+    .from(member)
+    .where(and(eq(member.userId, actorId), eq(member.organizationId, organizationId)))
+    .for('update')
+    .limit(1)
+  return isOrgAdminRole(authority?.role)
+}
+
+/**
+ * Locks only the actor rows that can grant admin standing on this workspace:
+ * the explicit workspace permission first, then (when needed) the workspace
+ * organization's membership row. Callers visit workspace ids in sorted order,
+ * giving multi-workspace mutations a deterministic authority-row lock order.
+ */
+async function lockWorkspaceAdminAuthority(
+  tx: DbOrTx,
+  actorId: string,
+  workspaceId: string
+): Promise<boolean> {
+  const ws = await getWorkspaceWithOwner(workspaceId, { executor: tx })
+  if (!ws) return false
+
+  const [explicitAuthority] = await tx
+    .select({ id: permissions.id, permissionType: permissions.permissionType })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.userId, actorId),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId)
+      )
+    )
+    .for('update')
+    .limit(1)
+  if (explicitAuthority?.permissionType === 'admin') return true
+  if (!ws.organizationId) return false
+
+  return lockOrganizationAdminAuthority(tx, actorId, ws.organizationId)
 }
 
 async function hydrateInvitation(
@@ -483,6 +578,21 @@ class JoinerWorkspacesChangedDuringAcceptError extends Error {
 }
 
 /**
+ * Thrown after a personal subscription conversion when the billing owner
+ * created another attachable workspace after the pre-lock sweep plan was
+ * captured. The conversion now holds that owner's billing-identity lock, so
+ * this re-check is stable; rolling back lets the retry include the new
+ * workspace in the advisory-lock plan instead of leaving it personally billed
+ * after the subscription moved to the organization.
+ */
+class BillingOwnerWorkspacesChangedDuringAcceptError extends Error {
+  constructor() {
+    super('Billing owner workspaces changed during invite acceptance')
+    this.name = 'BillingOwnerWorkspacesChangedDuringAcceptError'
+  }
+}
+
+/**
  * Thrown when every grant on a member-role organization invite turned stale
  * (the workspaces left the stamped organization), which would strand the new
  * member with no workspace. Rolls the whole acceptance back.
@@ -682,6 +792,20 @@ export async function acceptInvitation(
           message: 'Your workspaces changed while accepting — please try again.',
         }
       }
+      if (error instanceof BillingOwnerWorkspacesChangedDuringAcceptError) {
+        logger.warn(
+          'Invite acceptance rolled back: billing owner workspaces changed concurrently',
+          {
+            invitationId: input.invitationId,
+            userId: input.userId,
+          }
+        )
+        return {
+          success: false,
+          kind: 'server-error',
+          message: "The workspace owner's workspaces changed while accepting — please try again.",
+        }
+      }
       if (error instanceof AllGrantsStaleDuringAcceptError) {
         logger.warn('Invite acceptance rolled back: every grant turned stale', {
           invitationId: input.invitationId,
@@ -696,7 +820,17 @@ export async function acceptInvitation(
         })
         return { success: false, kind: 'disclosure-outdated' }
       }
-      throw error
+      /**
+       * This catch is outside `db.transaction`, so reaching it guarantees
+       * Postgres has rolled back every provisioning, membership, workspace,
+       * invitation, permission, and outbox write from the failed attempt.
+       */
+      logger.error('Invitation acceptance transaction failed and was rolled back', {
+        invitationId: input.invitationId,
+        userId: input.userId,
+        error,
+      })
+      return { success: false, kind: 'server-error' }
     })
   if (result.success) {
     await runInvitationAcceptancePostCommitEffects(input, effects)
@@ -863,6 +997,36 @@ async function acceptLockedInvitation(
       if (!orgResult.success) {
         return { success: false, kind: orgResult.failureCode }
       }
+
+      /**
+       * A personal Pro→Team conversion acquires the billing owner's
+       * billing-identity lock and attaches every workspace from the pre-lock
+       * plan inside this transaction. Re-read only after that conversion:
+       * anything still attachable was created between the plan read and the
+       * identity lock, so it never received a workspace advisory lock. Abort
+       * the whole conversion/acceptance and let the retry plan include it.
+       *
+       * Do not take the identity lock here before provisioning. Organization
+       * membership paths acquire organization → identity, and reversing that
+       * order would introduce a deadlock.
+       */
+      if (!workspaceOrganizationId) {
+        const [unplannedBillingOwnerWorkspace] = await tx
+          .select({ id: workspace.id })
+          .from(workspace)
+          .where(
+            ownedAttachableWorkspacesWhere({
+              userId: billingOwnerUserId,
+              ownerMatch: 'billing-account',
+              includeArchived: true,
+            })
+          )
+          .limit(1)
+        if (unplannedBillingOwnerWorkspace) {
+          throw new BillingOwnerWorkspacesChangedDuringAcceptError()
+        }
+      }
+
       targetOrganizationId = orgResult.organizationId
       fixedSeats = orgResult.fixedSeats
       if (orgResult.postCommitEffects) {
@@ -1159,7 +1323,7 @@ async function acceptLockedInvitation(
   effects.membershipAlreadyExists = membershipAlreadyExists
 
   const redirectPath =
-    acceptedWorkspaceIds.length > 0 ? `/workspace/${acceptedWorkspaceIds[0]}/home` : '/workspace'
+    acceptedWorkspaceIds.length > 0 ? `/workspace/${acceptedWorkspaceIds[0]}` : '/workspace'
 
   return {
     success: true,
@@ -1270,6 +1434,9 @@ async function runInvitationAcceptancePostCommitEffects(
 
   if (effects.organizationId) {
     try {
+      const { setActiveOrganizationForCurrentSession } = await import(
+        '@/lib/auth/active-organization'
+      )
       await setActiveOrganizationForCurrentSession(effects.organizationId)
     } catch (activeOrgError) {
       logger.error('Failed to activate organization after accepting invitation', {
@@ -1324,41 +1491,248 @@ export type RejectInvitationResult =
   | { success: true; invitation: InvitationWithGrants }
   | { success: false; kind: AcceptInvitationFailure['kind'] }
 
+export type UpdateInvitationFailureKind =
+  | 'not-found'
+  | 'not-pending'
+  | 'external-role'
+  | 'role-not-organization-scoped'
+  | 'organization-forbidden'
+  | 'member-requires-workspace'
+  | 'grant-not-found'
+  | 'workspace-forbidden'
+
+export type UpdateInvitationResult =
+  | { success: true; invitation: InvitationWithGrants }
+  | {
+      success: false
+      kind: UpdateInvitationFailureKind
+      workspaceId?: string
+    }
+
+/**
+ * Updates a pending invitation only after claiming the invitation and all of
+ * its workspaces in the shared mutation lock namespace. Authorization is
+ * intentionally evaluated inside that transaction against the locked,
+ * re-hydrated invitation so a workspace move or acceptance cannot turn an
+ * authorized pre-lock snapshot into an unauthorized write.
+ */
+export async function updateInvitation(input: {
+  actorId: string
+  invitationId: string
+  role?: 'admin' | 'member'
+  grants?: Array<{ workspaceId: string; permission: PermissionType }>
+}): Promise<UpdateInvitationResult> {
+  return db.transaction(async (tx): Promise<UpdateInvitationResult> => {
+    const inv = await lockInvitationForMutation(tx, input.invitationId, {
+      additionalWorkspaceIds: input.grants?.map((grant) => grant.workspaceId) ?? [],
+    })
+    if (!inv) return { success: false, kind: 'not-found' }
+    if (inv.status !== 'pending') return { success: false, kind: 'not-pending' }
+
+    if (input.role !== undefined) {
+      if (inv.membershipIntent === 'external') {
+        return { success: false, kind: 'external-role' }
+      }
+      if (!inv.organizationId) {
+        return { success: false, kind: 'role-not-organization-scoped' }
+      }
+      if (!(await lockOrganizationAdminAuthority(tx, input.actorId, inv.organizationId))) {
+        return { success: false, kind: 'organization-forbidden' }
+      }
+      if (!isOrgAdminRole(input.role) && inv.grants.length === 0) {
+        return { success: false, kind: 'member-requires-workspace' }
+      }
+    }
+
+    const grantsToApply = input.grants ?? []
+    const grantWorkspaceIds = [...new Set(grantsToApply.map((grant) => grant.workspaceId))].sort()
+    for (const workspaceId of grantWorkspaceIds) {
+      if (!inv.grants.some((grant) => grant.workspaceId === workspaceId)) {
+        return {
+          success: false,
+          kind: 'grant-not-found',
+          workspaceId,
+        }
+      }
+      if (!(await lockWorkspaceAdminAuthority(tx, input.actorId, workspaceId))) {
+        return {
+          success: false,
+          kind: 'workspace-forbidden',
+          workspaceId,
+        }
+      }
+    }
+
+    const now = new Date()
+    const [claimed] = await tx
+      .update(invitation)
+      .set({
+        ...(input.role !== undefined && input.role !== inv.role ? { role: input.role } : {}),
+        updatedAt: now,
+      })
+      .where(and(eq(invitation.id, input.invitationId), eq(invitation.status, 'pending')))
+      .returning({ id: invitation.id })
+    if (!claimed) return { success: false, kind: 'not-pending' }
+
+    for (const update of grantsToApply) {
+      await tx
+        .update(invitationWorkspaceGrant)
+        .set({ permission: update.permission, updatedAt: now })
+        .where(
+          and(
+            eq(invitationWorkspaceGrant.invitationId, input.invitationId),
+            eq(invitationWorkspaceGrant.workspaceId, update.workspaceId)
+          )
+        )
+    }
+
+    return {
+      success: true,
+      invitation: {
+        ...inv,
+        role: input.role ?? inv.role,
+        updatedAt: now,
+        grants: inv.grants.map((grant) => {
+          const update = grantsToApply.find(
+            (candidate) => candidate.workspaceId === grant.workspaceId
+          )
+          return update ? { ...grant, permission: update.permission } : grant
+        }),
+      },
+    }
+  })
+}
+
 export async function rejectInvitation(
   input: AcceptInvitationInput
 ): Promise<RejectInvitationResult> {
-  const inv = await getInvitationById(input.invitationId)
+  return db.transaction(async (tx): Promise<RejectInvitationResult> => {
+    const inv = await lockInvitationForMutation(tx, input.invitationId)
 
-  if (!inv) return { success: false, kind: 'not-found' }
-  if (input.token && inv.token !== input.token) return { success: false, kind: 'invalid-token' }
-  if (inv.status !== 'pending') return { success: false, kind: 'already-processed' }
-  if (isInvitationExpired(inv)) {
-    await db
+    if (!inv) return { success: false, kind: 'not-found' }
+    if (input.token && inv.token !== input.token) return { success: false, kind: 'invalid-token' }
+    if (inv.status !== 'pending') return { success: false, kind: 'already-processed' }
+    if (isInvitationExpired(inv)) {
+      const expired = await tx
+        .update(invitation)
+        .set({ status: 'expired', updatedAt: new Date() })
+        .where(and(eq(invitation.id, inv.id), eq(invitation.status, 'pending')))
+        .returning({ id: invitation.id })
+      return {
+        success: false,
+        kind: expired.length > 0 ? 'expired' : 'already-processed',
+      }
+    }
+    if (normalizeEmail(input.userEmail) !== normalizeEmail(inv.email)) {
+      return { success: false, kind: 'email-mismatch' }
+    }
+
+    const now = new Date()
+    const rejected = await tx
       .update(invitation)
-      .set({ status: 'expired', updatedAt: new Date() })
+      .set({ status: 'rejected', updatedAt: now })
       .where(and(eq(invitation.id, inv.id), eq(invitation.status, 'pending')))
-    return { success: false, kind: 'expired' }
-  }
-  if (normalizeEmail(input.userEmail) !== normalizeEmail(inv.email)) {
-    return { success: false, kind: 'email-mismatch' }
-  }
+      .returning({ id: invitation.id })
+    if (rejected.length === 0) {
+      return { success: false, kind: 'already-processed' }
+    }
 
-  await db
-    .update(invitation)
-    .set({ status: 'rejected', updatedAt: new Date() })
-    .where(eq(invitation.id, inv.id))
-
-  return { success: true, invitation: { ...inv, status: 'rejected' } }
+    return { success: true, invitation: { ...inv, status: 'rejected', updatedAt: now } }
+  })
 }
 
-export async function cancelInvitation(invitationId: string): Promise<boolean> {
-  const result = await db
-    .update(invitation)
-    .set({ status: 'cancelled', updatedAt: new Date() })
-    .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending')))
-    .returning({ id: invitation.id })
+export type AuthorizedInvitationRevocationResult =
+  | {
+      success: true
+      invitation: InvitationWithGrants
+      invitationCancelled: boolean
+    }
+  | {
+      success: false
+      kind:
+        | 'not-found'
+        | 'not-pending'
+        | 'grant-not-found'
+        | 'scoped-forbidden'
+        | 'whole-forbidden'
+        | 'not-cancellable'
+      spansMultipleWorkspaces?: boolean
+    }
 
-  return result.length > 0
+/**
+ * API-facing revocation path. Unlike generic internal cleanup helpers, this
+ * claims the invitation and relevant workspace scopes first, then evaluates
+ * the actor's organization/workspace authority against the protected live
+ * state in the same transaction as the conditional pending-only mutation.
+ */
+export async function revokeInvitationAsAdmin(input: {
+  actorId: string
+  invitationId: string
+  workspaceId?: string
+}): Promise<AuthorizedInvitationRevocationResult> {
+  return db.transaction(async (tx): Promise<AuthorizedInvitationRevocationResult> => {
+    const inv = await lockInvitationForMutation(tx, input.invitationId, {
+      lockCurrentGrantWorkspaces: input.workspaceId === undefined,
+      additionalWorkspaceIds: input.workspaceId ? [input.workspaceId] : [],
+    })
+    if (!inv) return { success: false, kind: 'not-found' }
+    if (inv.status !== 'pending') return { success: false, kind: 'not-pending' }
+
+    const isOrganizationAdmin = inv.organizationId
+      ? await lockOrganizationAdminAuthority(tx, input.actorId, inv.organizationId)
+      : false
+
+    if (input.workspaceId) {
+      if (!inv.grants.some((grant) => grant.workspaceId === input.workspaceId)) {
+        return { success: false, kind: 'grant-not-found' }
+      }
+      if (
+        !isOrganizationAdmin &&
+        !(await lockWorkspaceAdminAuthority(tx, input.actorId, input.workspaceId))
+      ) {
+        return { success: false, kind: 'scoped-forbidden' }
+      }
+
+      const revoked = await revokeInvitationWorkspaceGrantTx(tx, {
+        invitationId: input.invitationId,
+        workspaceId: input.workspaceId,
+      })
+      if (!revoked.revoked) return { success: false, kind: 'not-cancellable' }
+      return {
+        success: true,
+        invitation: inv,
+        invitationCancelled: revoked.invitationCancelled,
+      }
+    }
+
+    let canCancel = isOrganizationAdmin
+    if (!canCancel && inv.grants.length > 0) {
+      canCancel = true
+      const workspaceIds = [...new Set(inv.grants.map((grant) => grant.workspaceId))].sort()
+      for (const workspaceId of workspaceIds) {
+        if (!(await lockWorkspaceAdminAuthority(tx, input.actorId, workspaceId))) {
+          canCancel = false
+          break
+        }
+      }
+    }
+    if (!canCancel) {
+      return {
+        success: false,
+        kind: 'whole-forbidden',
+        spansMultipleWorkspaces: inv.grants.length > 1,
+      }
+    }
+
+    const cancelled = await tx
+      .update(invitation)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(and(eq(invitation.id, input.invitationId), eq(invitation.status, 'pending')))
+      .returning({ id: invitation.id })
+    if (cancelled.length === 0) return { success: false, kind: 'not-cancellable' }
+
+    return { success: true, invitation: inv, invitationCancelled: true }
+  })
 }
 
 /**
@@ -1370,53 +1744,60 @@ export async function cancelInvitation(invitationId: string): Promise<boolean> {
  * admin of one workspace has no authority over the others. Removing the final
  * grant would otherwise strand a pending invitation that grants nothing, so
  * that case cancels it instead.
+ *
+ * Transaction-local: callers must already hold the canonical
+ * invitation/workspace advisory lock set. Keeping the grant deletion and
+ * final-grant cancellation in one implementation prevents direct grants,
+ * scoped revocation, and future callers from drifting on multi-workspace
+ * invitation semantics.
  */
-export async function revokeInvitationWorkspaceGrant({
-  invitationId,
-  workspaceId,
-}: {
-  invitationId: string
-  workspaceId: string
-}): Promise<{ revoked: boolean; invitationCancelled: boolean }> {
-  return db.transaction(async (tx) => {
-    const [pending] = await tx
-      .select({ id: invitation.id })
-      .from(invitation)
-      .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending')))
-      .for('update')
-      .limit(1)
-    if (!pending) return { revoked: false, invitationCancelled: false }
+export async function revokeInvitationWorkspaceGrantTx(
+  tx: DbOrTx,
+  {
+    invitationId,
+    workspaceId,
+  }: {
+    invitationId: string
+    workspaceId: string
+  }
+): Promise<{ revoked: boolean; invitationCancelled: boolean }> {
+  const [pending] = await tx
+    .select({ id: invitation.id })
+    .from(invitation)
+    .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending')))
+    .for('update')
+    .limit(1)
+  if (!pending) return { revoked: false, invitationCancelled: false }
 
-    const removed = await tx
-      .delete(invitationWorkspaceGrant)
-      .where(
-        and(
-          eq(invitationWorkspaceGrant.invitationId, invitationId),
-          eq(invitationWorkspaceGrant.workspaceId, workspaceId)
-        )
+  const removed = await tx
+    .delete(invitationWorkspaceGrant)
+    .where(
+      and(
+        eq(invitationWorkspaceGrant.invitationId, invitationId),
+        eq(invitationWorkspaceGrant.workspaceId, workspaceId)
       )
-      .returning({ id: invitationWorkspaceGrant.id })
-    if (removed.length === 0) return { revoked: false, invitationCancelled: false }
+    )
+    .returning({ id: invitationWorkspaceGrant.id })
+  if (removed.length === 0) return { revoked: false, invitationCancelled: false }
 
-    const [remaining] = await tx
-      .select({ value: count() })
-      .from(invitationWorkspaceGrant)
-      .where(eq(invitationWorkspaceGrant.invitationId, invitationId))
+  const [remaining] = await tx
+    .select({ value: count() })
+    .from(invitationWorkspaceGrant)
+    .where(eq(invitationWorkspaceGrant.invitationId, invitationId))
 
-    if ((remaining?.value ?? 0) > 0) {
-      await tx
-        .update(invitation)
-        .set({ updatedAt: new Date() })
-        .where(eq(invitation.id, invitationId))
-      return { revoked: true, invitationCancelled: false }
-    }
-
+  if ((remaining?.value ?? 0) > 0) {
     await tx
       .update(invitation)
-      .set({ status: 'cancelled', updatedAt: new Date() })
+      .set({ updatedAt: new Date() })
       .where(eq(invitation.id, invitationId))
-    return { revoked: true, invitationCancelled: true }
-  })
+    return { revoked: true, invitationCancelled: false }
+  }
+
+  await tx
+    .update(invitation)
+    .set({ status: 'cancelled', updatedAt: new Date() })
+    .where(eq(invitation.id, invitationId))
+  return { revoked: true, invitationCancelled: true }
 }
 
 /**

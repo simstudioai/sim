@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, OverflowText } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components'
 import { buildProvenance } from '@/app/f/[token]/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -65,8 +66,9 @@ export function PublicFileView({
   )
 
   return (
-    <div className='light flex min-h-screen flex-col bg-[var(--bg)]'>
-      <header className='sticky top-0 z-10 flex items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
+    <div className='light desktop-title-bar-page flex h-screen flex-col overflow-hidden bg-[var(--bg)]'>
+      <DesktopTitleBarLane />
+      <header className='z-10 flex shrink-0 items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
         <div className='flex min-w-0 items-center gap-3'>
           {!brand.logoUrl && (
             <>
@@ -83,7 +85,7 @@ export function PublicFileView({
             </>
           )}
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate font-medium text-[14px] text-[var(--text-body)]'>{name}</span>
+            <OverflowText label={name} className='text-[var(--text-body)] text-sm' />
             {provenance ? (
               <span className='truncate text-[12px] text-[var(--text-muted)]'>{provenance}</span>
             ) : null}
@@ -112,6 +114,7 @@ export function PublicFileView({
           contentSource={source}
           canEdit={false}
           readOnly
+          enableFind
         />
       </main>
     </div>

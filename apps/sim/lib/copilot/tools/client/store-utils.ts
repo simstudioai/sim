@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import { Loader } from '@sim/emcn'
-import { FileText } from 'lucide-react'
+import { FileText } from '@sim/emcn/icons'
 import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
@@ -45,7 +45,15 @@ function specialToolDisplay(
   }
 
   if (toolName === ReadTool.id) {
-    const target = describeReadTarget(readStringParam(params, 'path'))
+    const path = readStringParam(params, 'path')
+    // lint.json is computed at read time, so reading it IS running the checks —
+    // "Validating X" describes the outcome where "Reading issues in X" would
+    // describe the mechanism.
+    const validated = describeValidationReadTarget(path)
+    if (validated) {
+      return { text: formatValidatingLabel(validated, state), icon: FileText }
+    }
+    const target = describeReadTarget(path)
     return {
       text: formatReadingLabel(target, state),
       icon: FileText,
@@ -83,6 +91,33 @@ function formatReadingLabel(target: string | undefined, state: ClientToolCallSta
   }
 }
 
+/** The workflow name when `path` is a lint artifact; undefined otherwise. */
+function describeValidationReadTarget(path: string | undefined): string | undefined {
+  if (!path) return undefined
+  const segments = path
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map(decodeVfsSegmentSafe)
+  if (segments.length < 2 || segments[segments.length - 1] !== 'lint.json') return undefined
+  if (VFS_DIR_TO_RESOURCE[segments[0]] !== 'workflow') return undefined
+  return stripExtension(getLeafResourceSegment(segments))
+}
+
+function formatValidatingLabel(target: string, state: ClientToolCallState): string {
+  switch (state) {
+    case ClientToolCallState.success:
+      return `Validated ${target}`
+    case ClientToolCallState.error:
+      return `Attempted to validate ${target}`
+    case ClientToolCallState.rejected:
+    case ClientToolCallState.aborted:
+      return `Skipped validating ${target}`
+    default:
+      return `Validating ${target}`
+  }
+}
+
 function describeReadTarget(path: string | undefined): string | undefined {
   if (!path) return undefined
 
@@ -97,6 +132,10 @@ function describeReadTarget(path: string | undefined): string | undefined {
 
   if (segments.length === 0) return undefined
 
+  if (segments[0] === 'docs') {
+    return describeDocsReadTarget(segments)
+  }
+
   const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
   if (!resourceType) {
     return humanizeDisplayIdentifier(stripExtension(segments[segments.length - 1]), 'sentence')
@@ -107,11 +146,38 @@ function describeReadTarget(path: string | undefined): string | undefined {
   }
 
   if (resourceType === 'workflow') {
-    return stripExtension(getLeafResourceSegment(segments))
+    return describeResourceArtifactTarget(segments)
   }
 
-  const resourceName = segments[1] || segments[segments.length - 1]
-  return stripExtension(resourceName)
+  return describeResourceArtifactTarget(segments)
+}
+
+/**
+ * Resource-scoped artifact files, labeled the same prefix way as
+ * FILE_FACET_LABELS. `state.json` is the empty facet — reading a workflow means
+ * reading its state — so "Read The Elder", "Read metadata for The Elder", and
+ * "Read deployment status for The Elder" render as three distinct rows instead
+ * of three identical "Read The Elder" lines.
+ */
+const RESOURCE_ARTIFACT_LABELS: Record<string, string> = {
+  'state.json': '',
+  'meta.json': 'metadata for',
+  'deployment.json': 'deployment status for',
+  'versions.json': 'versions of',
+  'executions.json': 'runs of',
+  'views.json': 'views of',
+  'documents.json': 'documents in',
+  'connectors.json': 'connectors of',
+}
+
+function describeResourceArtifactTarget(segments: string[]): string {
+  const lastSegment = segments[segments.length - 1] || ''
+  const resourceName = stripExtension(getLeafResourceSegment(segments))
+  const artifactLabel = RESOURCE_ARTIFACT_LABELS[lastSegment]
+  if (artifactLabel !== undefined && segments.length > 1) {
+    return artifactLabel ? `${artifactLabel} ${resourceName}` : resourceName
+  }
+  return resourceName
 }
 
 // A workspace file is addressed as a directory of facets in the VFS
@@ -138,6 +204,19 @@ function describeFileReadTarget(segments: string[]): string {
   // Show just the file name, not the folder path — these are glanceable status
   // lines, and the other resource types already render the leaf only.
   return lastSegment
+}
+
+/**
+ * Labels a docs/ corpus read as `<section>/<page>` (e.g. `workflows/agent` for
+ * docs/workflows/blocks/agent.mdx). Top-level pages show just their name (e.g.
+ * `getting-started` for docs/getting-started.mdx).
+ */
+function describeDocsReadTarget(segments: string[]): string {
+  const rest = segments.slice(1)
+  if (rest.length === 0) return 'docs'
+  const leaf = stripExtension(rest[rest.length - 1])
+  if (rest.length === 1) return leaf
+  return `${rest[0]}/${leaf}`
 }
 
 function getLeafResourceSegment(segments: string[]): string {

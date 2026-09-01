@@ -4,6 +4,8 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { PipedriveResponse } from '@/tools/pipedrive/types'
 
+const PIPELINE_FIELD = ['pipelineSelector', 'pipeline_id'] as const
+
 export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
   type: 'pipedrive',
   name: 'Pipedrive',
@@ -17,6 +19,85 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
   bgColor: '#2E6936',
   iconColor: '#26A65B',
   icon: PipedriveIcon,
+  canvasPresentation: {
+    defaultTitle: 'Pipedrive',
+    sentences: {
+      byOperation: {
+        get_all_deals: [
+          'List deals',
+          { text: ', in', field: PIPELINE_FIELD },
+          { text: ', with status', field: 'status' },
+          { text: ', up to', field: 'limit' },
+        ],
+        get_deal: [{ text: 'Read deal', field: 'deal_id', core: true }],
+        create_deal: [
+          { text: 'Create deal', field: 'title', core: true },
+          { text: 'in', field: PIPELINE_FIELD },
+          { text: ', worth', field: 'value' },
+        ],
+        update_deal: [
+          { text: 'Update deal', field: 'deal_id', core: true },
+          { text: ', setting status to', field: 'status' },
+          { text: ', moving it to stage', field: 'stage_id' },
+        ],
+        get_files: ['List files', { text: ', up to', field: 'limit' }],
+        get_mail_messages: [
+          'List mail threads',
+          { text: ', from', field: 'folder' },
+          { text: ', up to', field: 'limit' },
+        ],
+        get_mail_thread: [
+          { text: 'Read every message in mail thread', field: 'thread_id', core: true },
+        ],
+        get_pipelines: ['List pipelines', { text: ', up to', field: 'limit' }],
+        get_pipeline_deals: [
+          { text: 'List deals in pipeline', field: PIPELINE_FIELD, core: true },
+          { text: ', at stage', field: 'stage_id' },
+          { text: ', up to', field: 'limit' },
+        ],
+        get_projects: [
+          { text: 'Read project', field: 'project_id', core: true },
+          { text: ', with status', field: 'status' },
+        ],
+        create_project: [
+          { text: 'Create project', field: 'title', core: true },
+          { text: ', starting', field: 'start_date' },
+          { text: ', ending', field: 'end_date' },
+        ],
+        get_activities: [
+          'List activities',
+          { text: ', of type', field: 'type' },
+          { text: ', assigned to', field: 'user_id' },
+          { text: ', up to', field: 'limit' },
+        ],
+        create_activity: [
+          { text: 'Create activity', field: 'subject', core: true },
+          { text: ', due', field: 'due_date' },
+          { text: ', on deal', field: 'deal_id' },
+        ],
+        update_activity: [
+          { text: 'Update activity', field: 'activity_id', core: true },
+          { text: ', renaming it to', field: 'subject' },
+          { text: ', due', field: 'due_date' },
+        ],
+        get_leads: [
+          { text: 'Read lead', field: 'lead_id', core: true },
+          { text: ', owned by', field: 'owner_id' },
+        ],
+        create_lead: [
+          { text: 'Create lead', field: 'title', core: true },
+          { text: ', worth', field: 'value_amount' },
+          { text: ', owned by', field: 'owner_id' },
+        ],
+        update_lead: [
+          { text: 'Update lead', field: 'lead_id', core: true },
+          { text: ', renaming it to', field: 'title' },
+          { text: ', worth', field: 'value_amount' },
+        ],
+        delete_lead: [{ text: 'Delete lead', field: 'lead_id', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

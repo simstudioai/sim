@@ -1,40 +1,44 @@
 /**
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
-const { mockCancellationSubscribers } = vi.hoisted(() => ({
+const { mockCancellationSubscribers, mockIsExecutionCancelled } = vi.hoisted(() => ({
   mockCancellationSubscribers: new Set<(event: { executionId: string }) => void>(),
+  mockIsExecutionCancelled: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/cancellation', () => ({
-  isExecutionCancelled: vi.fn(),
-  isRedisCancellationEnabled: vi.fn(),
-  getCancellationChannel: () => ({
-    publish: (event: { executionId: string }) => {
-      for (const handler of mockCancellationSubscribers) handler(event)
-    },
-    subscribe: (handler: (event: { executionId: string }) => void) => {
-      mockCancellationSubscribers.add(handler)
-      return () => {
-        mockCancellationSubscribers.delete(handler)
-      }
-    },
-    dispose: () => {
-      mockCancellationSubscribers.clear()
-    },
-  }),
+  subscribeToExecutionCancellation: async (executionId: string, onCancelled: () => void) => {
+    const handler = (event: { executionId: string }) => {
+      if (event.executionId === executionId) onCancelled()
+    }
+    mockCancellationSubscribers.add(handler)
+    if (await mockIsExecutionCancelled(executionId)) onCancelled()
+    return () => {
+      mockCancellationSubscribers.delete(handler)
+    }
+  },
 }))
 
-import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, ExecutionResult } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import { ExecutionEngine } from './engine'
+
+const executionEngineLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'ExecutionEngine'
+)
+const executionEngineBaseLogger =
+  loggerMock.createLogger.mock.results[executionEngineLoggerCallIndex]?.value
+if (!executionEngineBaseLogger) throw new Error('ExecutionEngine logger mock was not initialized')
 
 function createMockBlock(id: string): SerializedBlock {
   return {
@@ -67,6 +71,7 @@ function createMockContext(overrides: Partial<ExecutionContext> = {}): Execution
     workspaceId: 'test-workspace',
     executionId: 'test-execution',
     userId: 'test-user',
+    principal: { kind: 'session', userId: 'test-user', sessionId: 'test-session' },
     blockStates: new Map(),
     executedBlocks: new Set(),
     blockLogs: [],
@@ -140,8 +145,7 @@ describe('ExecutionEngine', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCancellationSubscribers.clear()
-    ;(isExecutionCancelled as Mock).mockResolvedValue(false)
-    ;(isRedisCancellationEnabled as Mock).mockReturnValue(false)
+    mockIsExecutionCancelled.mockResolvedValue(false)
   })
 
   afterEach(() => {
@@ -186,6 +190,156 @@ describe('ExecutionEngine', () => {
 
       expect(result.success).toBe(true)
       expect(result.status).toBeUndefined()
+    })
+
+    it('persists the selected final block provenance instead of run-global matches', async () => {
+      const node = createMockNode('function', 'function')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'Test', encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', 'Test')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: node.id,
+        output: { result: 'Test' },
+        isFinalOutput: true,
+      })
+      vi.mocked(nodeOrchestrator.handleNodeCompletion).mockImplementation(
+        (_ctx, nodeId, output) => {
+          context.blockStates.set(nodeId, {
+            output,
+            executed: true,
+            executionTime: 1,
+            resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+          })
+        }
+      )
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        nodeOrchestrator
+      )
+      const result = await engine.run(node.id)
+
+      expect(result.output).toEqual({ result: 'Test' })
+      expect(result.executionState?.resolvedSecretTraceProvenance?.entries).toEqual([
+        { name: 'TOKEN', encryptedValue: 'ciphertext' },
+      ])
+      expect(result.executionState?.finalOutputResolvedSecretTraceProvenance?.entries).toEqual([])
+    })
+
+    /**
+     * A subflow sentinel stores its aggregate without provenance, and a loop that ran no
+     * iterations has none to merge. Treating that absence as a verdict marked the run
+     * unvouchable, which withheld the user's own final output from their execution log on every
+     * later view.
+     */
+    it('derives final output provenance when the last block state carries none', async () => {
+      const node = createMockNode('loop-1', 'loop')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value-1234', encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', 'secret-value-1234')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: node.id,
+        output: { results: ['secret-value-1234'] },
+        isFinalOutput: true,
+      })
+      vi.mocked(nodeOrchestrator.handleNodeCompletion).mockImplementation(
+        (_ctx, nodeId, output) => {
+          context.blockStates.set(nodeId, { output, executed: true, executionTime: 1 })
+        }
+      )
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        nodeOrchestrator
+      )
+      const result = await engine.run(node.id)
+
+      const provenance = result.executionState?.finalOutputResolvedSecretTraceProvenance
+      expect(provenance?.complete).toBe(true)
+      expect(provenance?.entries).toEqual([{ name: 'TOKEN', encryptedValue: 'ciphertext' }])
+    })
+
+    /**
+     * The crossing at the copilot boundary reads the absence of an attached result as "no block
+     * ran", so the attach has to be total. A block failure is normalized on the way in, so only
+     * a non-Error raised by `run`'s own work — here the cancellation subscribe it awaits before
+     * the queue — reaches the catch untouched and exercises the guarantee.
+     */
+    it('attaches the execution result to a non-Error thrown by its own work', async () => {
+      const node = createMockNode('function-1', 'function')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value-1234', encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', 'secret-value-1234')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      mockIsExecutionCancelled.mockRejectedValueOnce('cancellation lookup exploded')
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        createMockNodeOrchestrator()
+      )
+
+      const thrown = await engine.run(node.id).catch((error: unknown) => error)
+
+      expect(thrown).toBeInstanceOf(Error)
+      const attached = (thrown as Error & { executionResult?: ExecutionResult }).executionResult
+      expect(attached).toBeDefined()
+      expect(attached?.executionState?.resolvedSecretTraceProvenance).toBeDefined()
+    })
+
+    /** Deriving must not weaken the guarantee: a latched registry still exports incomplete. */
+    it('keeps the final output envelope incomplete when the registry latched', async () => {
+      const node = createMockNode('loop-1', 'loop')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value-1234', encryptedValue: 'ciphertext' },
+      ])
+      registry.markIncomplete('unspecified')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: node.id,
+        output: { results: ['secret-value-1234'] },
+        isFinalOutput: true,
+      })
+      vi.mocked(nodeOrchestrator.handleNodeCompletion).mockImplementation(
+        (_ctx, nodeId, output) => {
+          context.blockStates.set(nodeId, { output, executed: true, executionTime: 1 })
+        }
+      )
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        nodeOrchestrator
+      )
+      const result = await engine.run(node.id)
+
+      expect(result.executionState?.finalOutputResolvedSecretTraceProvenance?.complete).toBe(false)
     })
 
     it('should not fall back to starter blocks for terminal resume snapshots', async () => {
@@ -476,6 +630,7 @@ describe('ExecutionEngine', () => {
 
       expect(result.status).toBe('cancelled')
       expect(nodeOrchestrator.executionCount).toBe(0)
+      expect(context.abortSignal?.aborted).toBe(true)
     })
 
     it('should stop execution when aborted mid-workflow', async () => {
@@ -554,9 +709,34 @@ describe('ExecutionEngine', () => {
   })
 
   describe('Cancellation via Redis', () => {
-    it('should check Redis for cancellation when enabled', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+    it('aborts the active execution signal without dropping its deadline', async () => {
+      mockIsExecutionCancelled.mockResolvedValue(true)
+      const timeoutController = createTimeoutAbortController(60_000)
+      const startNode = createMockNode('start', 'starter')
+      const context = createMockContext({
+        executionId: 'pubsub-signal-execution',
+        abortSignal: timeoutController.signal,
+      })
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([startNode]),
+        createMockEdgeManager(),
+        createMockNodeOrchestrator()
+      )
+
+      try {
+        expect(context.abortSignal).not.toBe(timeoutController.signal)
+        expect(getRemainingExecutionMs(context.abortSignal)).toBeGreaterThan(0)
+
+        await expect(engine.run('start')).resolves.toMatchObject({ status: 'cancelled' })
+        expect(context.abortSignal?.aborted).toBe(true)
+      } finally {
+        timeoutController.cleanup()
+      }
+    })
+
+    it('checks the durable cancellation state when subscribing', async () => {
+      mockIsExecutionCancelled.mockResolvedValue(false)
 
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
@@ -567,13 +747,11 @@ describe('ExecutionEngine', () => {
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
       await engine.run('start')
 
-      expect(isExecutionCancelled as Mock).toHaveBeenCalled()
+      expect(mockIsExecutionCancelled).toHaveBeenCalled()
     })
 
     it('should stop execution when Redis reports cancellation', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-
-      ;(isExecutionCancelled as Mock).mockResolvedValue(true)
+      mockIsExecutionCancelled.mockResolvedValue(true)
 
       const nodes = Array.from({ length: 5 }, (_, i) => createMockNode(`node${i}`, 'function'))
       for (let i = 0; i < nodes.length - 1; i++) {
@@ -597,8 +775,7 @@ describe('ExecutionEngine', () => {
     })
 
     it('wakes from a slow in-flight node when a pub/sub cancellation arrives', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+      mockIsExecutionCancelled.mockResolvedValue(false)
 
       const startNode = createMockNode('start', 'starter')
       const slowNode = createMockNode('slow', 'function')
@@ -627,8 +804,7 @@ describe('ExecutionEngine', () => {
     })
 
     it('ignores pub/sub events targeting other executions', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+      mockIsExecutionCancelled.mockResolvedValue(false)
 
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
@@ -648,26 +824,25 @@ describe('ExecutionEngine', () => {
     })
 
     it('unsubscribes from the cancellation channel after run completes', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+      mockIsExecutionCancelled.mockResolvedValue(false)
 
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
       const context = createMockContext({ executionId: 'cleanup-execution' })
       const edgeManager = createMockEdgeManager()
-      const nodeOrchestrator = createMockNodeOrchestrator()
+      const nodeOrchestrator = createMockNodeOrchestrator(20)
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
-      expect(mockCancellationSubscribers.size).toBe(1)
+      const runPromise = engine.run('start')
+      await vi.waitFor(() => expect(mockCancellationSubscribers.size).toBe(1))
 
-      await engine.run('start')
+      await runPromise
 
       expect(mockCancellationSubscribers.size).toBe(0)
     })
 
     it('honours the durable backstop when cancelled before subscribing', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(true)
+      mockIsExecutionCancelled.mockResolvedValue(true)
 
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
@@ -680,11 +855,11 @@ describe('ExecutionEngine', () => {
 
       expect(result.status).toBe('cancelled')
       expect(nodeOrchestrator.executionCount).toBe(0)
+      expect(context.abortSignal?.aborted).toBe(true)
     })
 
-    it('calls isExecutionCancelled once as the startup backstop check', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+    it('reads the durable cancellation flag once when subscribing', async () => {
+      mockIsExecutionCancelled.mockResolvedValue(false)
 
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
@@ -695,7 +870,69 @@ describe('ExecutionEngine', () => {
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
       await engine.run('start')
 
-      expect((isExecutionCancelled as Mock).mock.calls.length).toBe(1)
+      expect(mockIsExecutionCancelled).toHaveBeenCalledOnce()
+    })
+
+    it('does not poll the durable flag while a node is running', async () => {
+      mockIsExecutionCancelled.mockResolvedValue(false)
+
+      let releaseNode = () => {}
+      const nodeReleased = new Promise<void>((resolve) => {
+        releaseNode = resolve
+      })
+
+      const startNode = createMockNode('start', 'starter')
+      const slowNode = createMockNode('slow', 'wait')
+      startNode.outgoingEdges.set('edge1', { target: 'slow' })
+
+      const dag = createMockDAG([startNode, slowNode])
+      const context = createMockContext({ executionId: 'redis-poll-execution' })
+      const edgeManager = createMockEdgeManager((node) => (node.id === 'start' ? ['slow'] : []))
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      ;(nodeOrchestrator.executeNode as Mock).mockImplementation(
+        async (_ctx: ExecutionContext, nodeId: string) => {
+          if (nodeId === 'slow') {
+            mockIsExecutionCancelled.mockResolvedValue(true)
+            await nodeReleased
+          }
+          return { nodeId, output: {}, isFinalOutput: false }
+        }
+      )
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const runPromise = engine.run('start')
+
+      await vi.waitFor(() => expect(mockCancellationSubscribers.size).toBe(1))
+      await sleep(25)
+      expect(context.abortSignal?.aborted).toBe(false)
+      expect(mockIsExecutionCancelled).toHaveBeenCalledOnce()
+      for (const handler of mockCancellationSubscribers) {
+        handler({ executionId: 'redis-poll-execution' })
+      }
+      releaseNode()
+
+      await expect(runPromise).resolves.toMatchObject({ success: false, status: 'cancelled' })
+    })
+
+    it('leaves no cancellation timer behind once the run settles', async () => {
+      mockIsExecutionCancelled.mockResolvedValue(false)
+      vi.useFakeTimers()
+
+      const startNode = createMockNode('start', 'starter')
+      const dag = createMockDAG([startNode])
+      const context = createMockContext({ executionId: 'poll-cleanup-execution' })
+      const edgeManager = createMockEdgeManager()
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      await engine.run('start')
+
+      const callsAtCompletion = mockIsExecutionCancelled.mock.calls.length
+      // Well past several poll intervals: a surviving timer would add calls here.
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(vi.getTimerCount()).toBe(0)
+      expect(mockIsExecutionCancelled.mock.calls.length).toBe(callsAtCompletion)
     })
   })
 
@@ -917,12 +1154,20 @@ describe('ExecutionEngine', () => {
 
   describe('Error handling in execution', () => {
     it('should fail execution when a single node throws an error', async () => {
+      const secret = 'engine-error-secret-7f3a91'
+      const rawError = `Block execution failed ${secret} __var_API_KEY __sim_code_2_binding_0`
       const startNode = createMockNode('start', 'starter')
       const errorNode = createMockNode('error-node', 'function')
       startNode.outgoingEdges.set('edge1', { target: 'error-node' })
 
       const dag = createMockDAG([startNode, errorNode])
-      const context = createMockContext()
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
+      ])
+      registry.recordResolved('API_KEY', secret)
+      const context = createMockContext({
+        resolvedSecretTraceRegistry: registry,
+      })
       const edgeManager = createMockEdgeManager((node) => {
         if (node.id === 'start') return ['error-node']
         return []
@@ -932,7 +1177,7 @@ describe('ExecutionEngine', () => {
         executionCount: 0,
         executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
           if (nodeId === 'error-node') {
-            throw new Error('Block execution failed')
+            throw new Error(rawError)
           }
           return { nodeId, output: {}, isFinalOutput: false }
         }),
@@ -941,7 +1186,15 @@ describe('ExecutionEngine', () => {
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
 
-      await expect(engine.run('start')).rejects.toThrow('Block execution failed')
+      await expect(engine.run('start')).rejects.toThrow(rawError)
+
+      const executionLogger = executionEngineBaseLogger.withMetadata.mock.results.at(-1)?.value
+      expect(executionLogger).toBeDefined()
+      const loggerCalls = JSON.stringify(executionLogger?.error.mock.calls)
+      expect(loggerCalls).toContain('{{API_KEY}}')
+      expect(loggerCalls).not.toContain(secret)
+      expect(loggerCalls).not.toContain('__var_')
+      expect(loggerCalls).not.toContain('__sim_')
     })
 
     it('should stop parallel branches when one branch throws an error', async () => {
@@ -1650,8 +1903,7 @@ describe('ExecutionEngine', () => {
     })
 
     it('should cache Redis cancellation result', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(true)
+      mockIsExecutionCancelled.mockResolvedValue(true)
 
       const nodes = Array.from({ length: 5 }, (_, i) => createMockNode(`node${i}`, 'function'))
       const dag = createMockDAG(nodes)
@@ -1662,7 +1914,7 @@ describe('ExecutionEngine', () => {
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
       await engine.run('node0')
 
-      expect((isExecutionCancelled as Mock).mock.calls.length).toBeLessThanOrEqual(3)
+      expect(mockIsExecutionCancelled.mock.calls.length).toBeLessThanOrEqual(3)
     })
   })
 })

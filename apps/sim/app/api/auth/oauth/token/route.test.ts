@@ -12,19 +12,40 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthorizeCredentialUse, mockResolveServiceAccountToken } = vi.hoisted(() => ({
+const {
+  mockAuthenticateManagedOAuthDelegation,
+  mockAuthorizeCredentialUse,
+  mockGetToolMetadata,
+  mockResolveManagedOAuthCredentialToken,
+  mockResolveServiceAccountToken,
+} = vi.hoisted(() => ({
+  mockAuthenticateManagedOAuthDelegation: vi.fn(),
   mockAuthorizeCredentialUse: vi.fn(),
+  mockGetToolMetadata: vi.fn(),
+  mockResolveManagedOAuthCredentialToken: vi.fn(),
   mockResolveServiceAccountToken: vi.fn(),
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   ...authOAuthUtilsMock,
   resolveServiceAccountToken: mockResolveServiceAccountToken,
 }))
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUse: mockAuthorizeCredentialUse,
+  authorizeCredentialUseForAuth: mockAuthorizeCredentialUse,
 }))
+
+vi.mock('@/lib/credentials/application/managed-oauth-delegation', () => ({
+  authenticateManagedOAuthDelegation: mockAuthenticateManagedOAuthDelegation,
+  InvalidManagedOAuthDelegationError: class InvalidManagedOAuthDelegationError extends Error {},
+}))
+
+vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({
+  resolveManagedOAuthCredentialToken: { execute: mockResolveManagedOAuthCredentialToken },
+}))
+
+vi.mock('@/tools/metadata', () => ({ getToolMetadata: mockGetToolMetadata }))
 
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { GET, POST } from '@/app/api/auth/oauth/token/route'
@@ -105,6 +126,38 @@ describe('OAuth Token API Routes', () => {
 
       expect(mockAuthorizeCredentialUse).toHaveBeenCalled()
       expect(authOAuthUtilsMockFns.mockGetCredential).toHaveBeenCalled()
+    })
+
+    it('does not authenticate managed delegation for an ordinary OAuth credential', async () => {
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        authType: 'internal_jwt',
+        requesterUserId: 'workflow-owner-id',
+        credentialOwnerUserId: 'workflow-owner-id',
+      })
+      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
+        id: 'credential-id',
+        accessToken: 'test-token',
+        refreshToken: 'refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+        providerId: 'google',
+      })
+      authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockResolvedValueOnce({
+        accessToken: 'fresh-token',
+        refreshed: false,
+      })
+
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          { credentialId: 'credential-id', workflowId: 'workflow-id' },
+          { 'x-sim-managed-oauth-delegation': 'Bearer stale-delegation' }
+        )
+      )
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({ accessToken: 'fresh-token' })
+      expect(mockAuthenticateManagedOAuthDelegation).not.toHaveBeenCalled()
     })
 
     it('should handle missing credentialId', async () => {
@@ -201,6 +254,36 @@ describe('OAuth Token API Routes', () => {
     })
 
     describe('service account path', () => {
+      it('threads the NetSuite SuiteTalk instance URL into the token response', async () => {
+        const instanceUrl = 'https://1234567.suitetalk.api.netsuite.com'
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          accountId: '',
+          credentialId: 'netsuite-credential-id',
+          credentialType: 'service_account',
+          providerId: 'netsuite-service-account',
+          workspaceId: 'workspace-id',
+          usedCredentialTable: true,
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce({
+          ok: true,
+          authType: 'session',
+          requesterUserId: 'test-user-id',
+          workspaceId: 'workspace-id',
+        })
+        mockResolveServiceAccountToken.mockResolvedValueOnce({
+          accessToken: 'netsuite-token',
+          instanceUrl,
+        })
+
+        const response = await POST(
+          createMockRequest('POST', { credentialId: 'netsuite-credential-id' })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data).toMatchObject({ accessToken: 'netsuite-token', instanceUrl })
+      })
+
       it('should thread authStyle from the resolver into the response', async () => {
         authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
           accountId: '',
@@ -299,6 +382,140 @@ describe('OAuth Token API Routes', () => {
           }
         }
       )
+    })
+
+    describe('managed OAuth path', () => {
+      const managedCredential = {
+        accountId: '',
+        credentialId: 'managed-credential-id',
+        credentialType: 'managed_oauth',
+        providerId: 'google-email',
+        workspaceId: 'workspace-id',
+        usedCredentialTable: true,
+      }
+
+      beforeEach(() => {
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce(managedCredential)
+        mockGetToolMetadata.mockReturnValue({
+          oauth: {
+            required: true,
+            provider: 'google-email',
+            requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+          },
+        })
+      })
+
+      it('fails closed when workflow delegation is missing', async () => {
+        const response = await POST(
+          createMockRequest('POST', {
+            credentialId: 'managed-credential-id',
+            toolId: 'gmail_read',
+          })
+        )
+
+        expect(response.status).toBe(403)
+        await expect(response.json()).resolves.toMatchObject({
+          code: 'MANAGED_CREDENTIAL_DELEGATION_REQUIRED',
+        })
+        expect(mockResolveManagedOAuthCredentialToken).not.toHaveBeenCalled()
+      })
+
+      it('resolves a manually supplied managed credential ID with scoped delegation', async () => {
+        const principal = {
+          kind: 'delegated' as const,
+          serviceId: 'executor' as const,
+          subjectUserId: 'user-id',
+          workspaceId: 'workspace-id',
+          delegationId: 'delegation-id',
+          audience: 'sim:managed-oauth-credentials',
+          issuedAt: new Date(Date.now() - 1_000),
+          expiresAt: new Date(Date.now() + 60_000),
+          resourceScope: { credentialId: 'managed-credential-id' },
+          delegationContext: {
+            kind: 'workflow_execution' as const,
+            workflowId: 'workflow-id',
+          },
+        }
+        mockAuthenticateManagedOAuthDelegation.mockResolvedValueOnce(principal)
+        mockResolveManagedOAuthCredentialToken.mockResolvedValueOnce({
+          accessToken: 'managed-access-token',
+          refreshed: false,
+        })
+
+        const response = await POST(
+          createMockRequest(
+            'POST',
+            { credentialId: 'managed-credential-id', toolId: 'gmail_read' },
+            { 'x-sim-managed-oauth-delegation': 'Bearer delegated-token' }
+          )
+        )
+
+        expect(response.status).toBe(200)
+        await expect(response.json()).resolves.toEqual({ accessToken: 'managed-access-token' })
+        expect(mockResolveManagedOAuthCredentialToken).toHaveBeenCalledWith({
+          principal,
+          input: {
+            credentialId: 'managed-credential-id',
+            expectedProviderId: 'google-email',
+            requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+            toolId: 'gmail_read',
+          },
+          request: expect.any(NextRequest),
+        })
+      })
+
+      it('uses the trusted provider scope policy when a Slack tool omits narrower scopes', async () => {
+        mockGetToolMetadata.mockReturnValueOnce({
+          oauth: {
+            required: true,
+            provider: 'slack',
+          },
+        })
+        const principal = {
+          kind: 'delegated' as const,
+          serviceId: 'executor' as const,
+          subjectUserId: 'user-id',
+          workspaceId: 'workspace-id',
+          delegationId: 'delegation-id',
+          audience: 'sim:managed-oauth-credentials',
+          issuedAt: new Date(Date.now() - 1_000),
+          expiresAt: new Date(Date.now() + 60_000),
+          resourceScope: { credentialId: 'managed-credential-id' },
+          delegationContext: {
+            kind: 'workflow_execution' as const,
+            workflowId: 'workflow-id',
+          },
+        }
+        mockAuthenticateManagedOAuthDelegation.mockResolvedValueOnce(principal)
+        mockResolveManagedOAuthCredentialToken.mockResolvedValueOnce({
+          accessToken: 'managed-slack-token',
+          refreshed: false,
+        })
+
+        const response = await POST(
+          createMockRequest(
+            'POST',
+            { credentialId: 'managed-credential-id', toolId: 'slack_message' },
+            { 'x-sim-managed-oauth-delegation': 'Bearer delegated-token' }
+          )
+        )
+
+        expect(response.status).toBe(200)
+        expect(mockResolveManagedOAuthCredentialToken).toHaveBeenCalledWith({
+          principal,
+          input: {
+            credentialId: 'managed-credential-id',
+            expectedProviderId: 'slack',
+            requiredScopes: expect.arrayContaining([
+              'channels:read',
+              'channels:history',
+              'chat:write',
+            ]),
+            toolId: 'slack_message',
+          },
+          request: expect.any(NextRequest),
+        })
+      })
     })
 
     describe('credentialAccountUserId + providerId path', () => {
@@ -545,5 +762,66 @@ describe('OAuth Token API Routes', () => {
       expect(response.status).toBe(401)
       expect(data).toHaveProperty('error')
     })
+  })
+})
+
+describe('Salesforce instance URL resolution', () => {
+  const INSTANCE = 'https://acme--sbx.sandbox.my.salesforce.com'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue(null)
+    mockAuthorizeCredentialUse.mockResolvedValue({
+      ok: true,
+      authType: 'session',
+      requesterUserId: 'test-user-id',
+      credentialOwnerUserId: 'owner-user-id',
+    })
+    authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockResolvedValue({
+      accessToken: 'fresh-token',
+      refreshed: false,
+    })
+  })
+
+  /**
+   * The org host is smuggled through `scope` because the token response has
+   * nowhere to put it; the tools read it back as their `instanceUrl` param.
+   */
+  function credentialForProvider(providerId: string) {
+    return {
+      id: 'credential-id',
+      accessToken: 'test-token',
+      refreshToken: 'refresh-token',
+      accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+      providerId,
+      scope: `__sf_instance__:${INSTANCE} api refresh_token openid`,
+    }
+  }
+
+  it.each(['salesforce', 'salesforce-sandbox'])(
+    'returns the stored instance URL for a %s credential',
+    async (providerId) => {
+      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce(
+        credentialForProvider(providerId)
+      )
+
+      const response = await POST(createMockRequest('POST', { credentialId: 'credential-id' }))
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.instanceUrl).toBe(INSTANCE)
+    }
+  )
+
+  it('omits instanceUrl for a non-Salesforce provider carrying a lookalike scope', async () => {
+    authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
+      ...credentialForProvider('google'),
+    })
+
+    const response = await POST(createMockRequest('POST', { credentialId: 'credential-id' }))
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.instanceUrl).toBeUndefined()
   })
 })

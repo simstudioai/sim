@@ -17,19 +17,21 @@ import {
   ChipTag,
   cn,
   Info,
+  OverflowText,
   Search,
   Skeleton,
   Switch,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
-import { ChevronDown, Plus } from 'lucide-react'
 import { useQueryState } from 'nuqs'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { PLATFORM_CATEGORY_ORDER, PLATFORM_FEATURES } from '@/lib/permission-groups/features'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
@@ -45,7 +47,6 @@ import {
   MemberRow,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -76,7 +77,7 @@ import {
 import type { ProviderId } from '@/providers/types'
 import { getAllProviderIds, getProviderFromModel } from '@/providers/utils'
 import type { ProviderName } from '@/stores/providers'
-import { getTool } from '@/tools/utils'
+import { getToolMetadata } from '@/tools/metadata'
 
 const logger = createLogger('AccessControlGroupDetail')
 
@@ -120,19 +121,16 @@ function matchesStatusFilter(filter: StatusFilter, enabled: boolean) {
 interface StatusFilterChipProps {
   value: StatusFilter
   onChange: (value: StatusFilter) => void
-  /** Set when the chip is the last control in its row, so it sits flush to the edge. */
-  flush?: boolean
 }
 
 /** The All/Enabled/Disabled narrowing control shared by the three list tabs. */
-function StatusFilterChip({ value, onChange, flush }: StatusFilterChipProps) {
+function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
   return (
     <ChipDropdown
       value={value}
       onChange={(next) => onChange(next as StatusFilter)}
       options={STATUS_FILTER_OPTIONS}
       matchTriggerWidth={false}
-      flush={flush}
       className='w-[140px] flex-shrink-0'
     />
   )
@@ -151,8 +149,6 @@ interface AuthModeFieldProps {
  * disables together with the toggle that owns it. The left padding lines both
  * children up with the parent's label text — row gutter (8) + checkbox (16) +
  * gap (8) = 32 — so the field reads as subordinate rather than as a sibling row.
- * The dropdown is `flush` so its own `mx-0.5` doesn't push it 2px past the
- * caption above it.
  */
 function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFieldProps) {
   const labelId = useId()
@@ -164,7 +160,6 @@ function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFi
       </span>
       <ChipDropdown
         multiple
-        flush
         showAllOption={false}
         id={triggerId}
         // Both ids: `aria-labelledby` replaces the content-derived name, so
@@ -180,151 +175,6 @@ function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFi
     </div>
   )
 }
-
-/** Render order for the platform-feature category sections; unlisted ones follow. */
-const PLATFORM_CATEGORY_ORDER = [
-  'Sidebar',
-  'Deploy Tabs',
-  'Chat',
-  'Collaboration',
-  'Workflow Panel',
-  'Tools',
-  'Features',
-  'Settings Tabs',
-  'Logs',
-  'Files',
-]
-
-const PLATFORM_FEATURES = [
-  {
-    id: 'hide-knowledge-base',
-    label: 'Knowledge Base',
-    category: 'Sidebar',
-    configKey: 'hideKnowledgeBaseTab' as const,
-    hint: 'Hide the Knowledge Base module from the sidebar.',
-  },
-  {
-    id: 'hide-tables',
-    label: 'Tables',
-    category: 'Sidebar',
-    configKey: 'hideTablesTab' as const,
-    hint: 'Hide the Tables module from the sidebar.',
-  },
-  {
-    id: 'hide-copilot',
-    label: 'Chat',
-    category: 'Workflow Panel',
-    configKey: 'hideCopilot' as const,
-    hint: 'Hide the Chat panel so users cannot build or edit with natural language.',
-  },
-  {
-    id: 'hide-integrations',
-    label: 'Integrations',
-    category: 'Settings Tabs',
-    configKey: 'hideIntegrationsTab' as const,
-    hint: 'Hide the Integrations settings tab (OAuth connections).',
-  },
-  {
-    id: 'hide-secrets',
-    label: 'Secrets',
-    category: 'Settings Tabs',
-    configKey: 'hideSecretsTab' as const,
-    hint: 'Hide the Secrets (environment variables) settings tab.',
-  },
-  {
-    id: 'hide-api-keys',
-    label: 'API Keys',
-    category: 'Settings Tabs',
-    configKey: 'hideApiKeysTab' as const,
-    hint: 'Hide the API Keys settings tab.',
-  },
-  {
-    id: 'hide-files',
-    label: 'Files',
-    category: 'Settings Tabs',
-    configKey: 'hideFilesTab' as const,
-    hint: 'Hide the Files settings tab.',
-  },
-  {
-    id: 'hide-deploy-api',
-    label: 'API',
-    category: 'Deploy Tabs',
-    configKey: 'hideDeployApi' as const,
-    hint: 'Hide the API deployment option.',
-  },
-  {
-    id: 'hide-deploy-mcp',
-    label: 'MCP',
-    category: 'Deploy Tabs',
-    configKey: 'hideDeployMcp' as const,
-    hint: 'Hide the MCP server deployment option.',
-  },
-  {
-    id: 'disable-mcp',
-    label: 'MCP Tools',
-    category: 'Tools',
-    configKey: 'disableMcpTools' as const,
-    hint: 'Block agents from calling MCP tools.',
-  },
-  {
-    id: 'disable-custom-tools',
-    label: 'Custom Tools',
-    category: 'Tools',
-    configKey: 'disableCustomTools' as const,
-    hint: 'Block agents from calling user-defined custom tools.',
-  },
-  {
-    id: 'disable-skills',
-    label: 'Skills',
-    category: 'Tools',
-    configKey: 'disableSkills' as const,
-    hint: 'Block agents from loading skills.',
-  },
-  {
-    id: 'hide-trace-spans',
-    label: 'Trace Spans',
-    category: 'Logs',
-    configKey: 'hideTraceSpans' as const,
-    hint: 'Hide per-block trace spans in logs.',
-  },
-  {
-    id: 'disable-invitations',
-    label: 'Invitations',
-    category: 'Collaboration',
-    configKey: 'disableInvitations' as const,
-    hint: 'Prevent users from inviting others to workspaces.',
-  },
-  {
-    id: 'hide-inbox',
-    label: 'Sim Mailer',
-    category: 'Features',
-    configKey: 'hideInboxTab' as const,
-    hint: 'Hide the Sim Mailer inbox.',
-  },
-  {
-    id: 'disable-public-api',
-    label: 'Public API',
-    category: 'Features',
-    configKey: 'disablePublicApi' as const,
-    hint: 'Disable public API access to deployed workflows.',
-  },
-  // Chat and Files get a category of their own so their nested auth-mode
-  // dropdown (see `featureExtras`) reads as part of the toggle it qualifies.
-  {
-    id: 'hide-deploy-chatbot',
-    label: 'Deployment',
-    category: 'Chat',
-    configKey: 'hideDeployChatbot' as const,
-    hint: 'Hide the chat deployment option.',
-  },
-  {
-    id: 'disable-public-file-sharing',
-    label: 'Public Sharing',
-    category: 'Files',
-    configKey: 'disablePublicFileSharing' as const,
-    hint: 'Disable public file-share links.',
-  },
-]
 
 interface OrganizationMemberOption {
   userId: string
@@ -419,7 +269,7 @@ function AddMembersModal({
             All organization members are already in this group.
           </p>
         ) : (
-          <ChipModalField type='custom' title='Members'>
+          <ChipModalField type='custom' title='Members' submitOnEnter={false}>
             <div className='flex flex-col gap-3'>
               <div className='flex items-center gap-2'>
                 <ChipInput
@@ -436,9 +286,9 @@ function AddMembersModal({
 
               <div className='max-h-[280px] overflow-y-auto'>
                 {filteredMembers.length === 0 ? (
-                  <p className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                  <SettingsEmptyState variant='inline'>
                     No members found matching "{searchTerm}"
-                  </p>
+                  </SettingsEmptyState>
                 ) : (
                   <div className='flex flex-col'>
                     {filteredMembers.map((member) => {
@@ -451,15 +301,19 @@ function AddMembersModal({
                           key={member.userId}
                           type='button'
                           onClick={() => handleToggleMember(member.userId)}
-                          className='flex items-center gap-2.5 rounded-sm p-2 text-left hover-hover:bg-[var(--surface-active)]'
+                          className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
                           <MemberAvatar name={name} image={member.user?.image ?? null} />
                           <div className='min-w-0 flex-1'>
-                            <div className='truncate text-[var(--text-body)] text-sm'>{name}</div>
-                            <div className='truncate text-[var(--text-muted)] text-caption'>
-                              {email}
-                            </div>
+                            <OverflowText
+                              label={name}
+                              className='block text-[var(--text-body)] text-sm'
+                            />
+                            <OverflowText
+                              label={email}
+                              className='block text-[var(--text-muted)] text-caption'
+                            />
                           </div>
                         </button>
                       )
@@ -579,7 +433,7 @@ function CheckboxGrid({
                 checked={isAllowed(item.id)}
                 onCheckedChange={() => onToggle(item.id)}
               />
-              <span className='truncate text-sm'>{item.label}</span>
+              <OverflowText label={item.label} className='text-sm' />
             </label>
           )
         })}
@@ -675,7 +529,7 @@ function ProviderRow({
             isProviderAllowed ? 'cursor-pointer' : 'cursor-default opacity-60'
           )}
         >
-          <span className='truncate font-medium text-sm'>{providerName}</span>
+          <OverflowText label={providerName} className='text-sm' />
           {isProviderAllowed && deniedCount > 0 && (
             <ChipTag variant='gray' className='flex-shrink-0'>
               {deniedCount} blocked
@@ -733,7 +587,7 @@ function BlockToolRow({
   const checkboxId = `block-${block.type}`
 
   const toolItems = useMemo<DenylistGridItem[]>(
-    () => (block.tools?.access ?? []).map((id) => ({ id, label: getTool(id)?.name ?? id })),
+    () => (block.tools?.access ?? []).map((id) => ({ id, label: getToolMetadata(id)?.name ?? id })),
     [block.tools?.access]
   )
   const isExpandable = toolItems.length > 1
@@ -762,7 +616,16 @@ function BlockToolRow({
             !isBlockAllowed && 'opacity-60'
           )}
         >
-          <span className='truncate font-medium text-sm'>{block.name}</span>
+          <OverflowText label={block.name} className='text-sm' />
+          {/* An org running one custom block per environment has prod/uat/sandbox copies
+              sharing a name and differing only by an opaque type slug. The source workspace
+              is the only thing that tells them apart, so an allowlist decision made without
+              it is a guess. */}
+          {block.sourceWorkspaceName && (
+            <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+              {block.sourceWorkspaceName}
+            </span>
+          )}
           {isBlockAllowed && deniedCount > 0 && (
             <ChipTag variant='gray' className='flex-shrink-0'>
               {deniedCount} blocked
@@ -961,7 +824,7 @@ export function GroupDetail({
   }, [searchedPlatformFeatures, statusFilter, editingConfig])
 
   const platformCategories = useMemo(() => {
-    const categories: Record<string, typeof PLATFORM_FEATURES> = {}
+    const categories: Record<string, (typeof PLATFORM_FEATURES)[number][]> = {}
     for (const feature of filteredPlatformFeatures) {
       if (!categories[feature.category]) {
         categories[feature.category] = []
@@ -1543,8 +1406,8 @@ export function GroupDetail({
             saveDisabled: !trimmedName,
           }),
           {
+            id: 'delete',
             text: deletePermissionGroup.isPending ? 'Deleting...' : 'Delete',
-            variant: 'destructive',
             onSelect: () => setShowDeleteConfirm(true),
             disabled: deletePermissionGroup.isPending,
           },
@@ -1710,7 +1573,6 @@ export function GroupDetail({
                 onChange={(next) => void setStatusFilter(next)}
               />
               <Chip
-                flush
                 onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
                 disabled={filteredProviders.length === 0}
               >
@@ -1754,7 +1616,6 @@ export function GroupDetail({
               <StatusFilterChip
                 value={statusFilter}
                 onChange={(next) => void setStatusFilter(next)}
-                flush
               />
             </div>
             {filteredCoreBlocks.length === 0 && filteredToolBlocks.length === 0 && (
@@ -1766,10 +1627,7 @@ export function GroupDetail({
               <SettingsSection
                 label='Core Blocks'
                 action={
-                  <Chip
-                    flush
-                    onClick={() => setBlocksAllowed(filteredCoreBlocks, !coreBlocksAllAllowed)}
-                  >
+                  <Chip onClick={() => setBlocksAllowed(filteredCoreBlocks, !coreBlocksAllAllowed)}>
                     {coreBlocksAllAllowed ? 'Deselect All' : 'Select All'}
                   </Chip>
                 }
@@ -1798,7 +1656,12 @@ export function GroupDetail({
                           >
                             {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
                           </div>
-                          <span className='truncate font-medium text-sm'>{block.name}</span>
+                          <OverflowText label={block.name} className='text-sm' />
+                          {block.sourceWorkspaceName && (
+                            <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+                              {block.sourceWorkspaceName}
+                            </span>
+                          )}
                         </label>
                         {block.description && (
                           <Info side='top' className='flex-shrink-0'>
@@ -1821,10 +1684,7 @@ export function GroupDetail({
                   </Info>
                 }
                 action={
-                  <Chip
-                    flush
-                    onClick={() => setBlocksAllowed(filteredToolBlocks, !toolBlocksAllAllowed)}
-                  >
+                  <Chip onClick={() => setBlocksAllowed(filteredToolBlocks, !toolBlocksAllAllowed)}>
                     {toolBlocksAllAllowed ? 'Deselect All' : 'Select All'}
                   </Chip>
                 }
@@ -1871,7 +1731,6 @@ export function GroupDetail({
                     ),
                   }))
                 }
-                flush
                 disabled={filteredPlatformFeatures.length === 0}
               >
                 {platformAllVisible ? 'Deselect All' : 'Select All'}

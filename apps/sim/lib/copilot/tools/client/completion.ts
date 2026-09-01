@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
 import type {
   AsyncCompletionData,
   AsyncConfirmationStatus,
@@ -10,11 +11,24 @@ import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { traceparentHeader } from '@/lib/copilot/tools/client/trace-context'
 
 const logger = createLogger('CopilotClientToolCompletion')
+const COMPLETION_REPORT_ATTEMPT_TIMEOUT_MS = 15_000
 
 export class CompletionReportError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'CompletionReportError'
+  }
+}
+
+async function fetchCompletion(input: RequestInfo | URL, init: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => {
+    controller.abort(new DOMException('Completion report timed out', 'TimeoutError'))
+  }, COMPLETION_REPORT_ATTEMPT_TIMEOUT_MS)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -26,16 +40,18 @@ export async function reportClientToolCompletion(
   toolCallId: string,
   status: AsyncConfirmationStatus,
   message?: string,
-  data?: AsyncCompletionData
+  data?: AsyncCompletionData,
+  executionId?: string
 ): Promise<void> {
   const basePayload = {
     toolCallId,
+    ...(executionId ? { executionId } : {}),
     status,
     message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
     ...(data !== undefined ? { data } : {}),
   }
   const send = async (body: string) =>
-    fetch(COPILOT_CONFIRM_API_PATH, {
+    fetchCompletion(COPILOT_CONFIRM_API_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
       body,
@@ -46,7 +62,13 @@ export async function reportClientToolCompletion(
   const bodySize = new Blob([body]).size
   let lastError: Error | null = null
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  // A lost confirmation strands the server-side waiter forever (the turn shows
+  // the tool as running indefinitely), so ride out multi-second network blips:
+  // five bounded 15-second attempts with jittered exponential backoff. The
+  // confirm endpoint claims each resume exactly once, so duplicate deliveries
+  // from retries are discarded server-side.
+  const maxAttempts = 5
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await send(body)
       if (response.ok) return
@@ -61,6 +83,7 @@ export async function reportClientToolCompletion(
         const retryResponse = await send(
           JSON.stringify({
             toolCallId,
+            ...(executionId ? { executionId } : {}),
             status,
             message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
             data: dataWithoutLogs,
@@ -75,8 +98,8 @@ export async function reportClientToolCompletion(
       lastError = toError(error)
     }
 
-    if (attempt < 2) {
-      await sleep(250)
+    if (attempt < maxAttempts) {
+      await sleep(backoffWithJitter(attempt, null))
     }
   }
 
@@ -85,4 +108,31 @@ export async function reportClientToolCompletion(
     error: lastError?.message,
   })
   throw new CompletionReportError(lastError?.message ?? 'Failed to report tool completion')
+}
+
+/**
+ * Makes one unload-safe attempt to deliver a compact terminal result. The
+ * caller must keep the serialized payload below the browser's keepalive quota.
+ */
+export async function reportClientToolCompletionOnPageExit(
+  toolCallId: string,
+  status: AsyncConfirmationStatus,
+  message: string,
+  data?: AsyncCompletionData
+): Promise<void> {
+  // boundary-raw-fetch: keepalive is required so a terminal desktop result survives page unload
+  const response = await fetchCompletion(COPILOT_CONFIRM_API_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
+    body: JSON.stringify({
+      toolCallId,
+      status,
+      message,
+      ...(data !== undefined ? { data } : {}),
+    }),
+    keepalive: true,
+  })
+  if (!response.ok) {
+    throw new CompletionReportError(`Page-exit completion failed with status ${response.status}`)
+  }
 }

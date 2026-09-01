@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { userFileSchema } from '@/lib/api/contracts/primitives'
-import { toolBooleanSchema, toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
-import { defineRouteContract } from '@/lib/api/contracts/types'
+import { resolvedSecretTraceProvenanceSchema, userFileSchema } from '@/lib/api/contracts/primitives'
+import { toolBooleanSchema } from '@/lib/api/contracts/tools/media/shared'
+import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 export const videoProviders = ['runway', 'veo', 'luma', 'minimax', 'falai'] as const
 const MISSING_VIDEO_FIELDS_ERROR = 'Missing required fields: provider, apiKey, and prompt'
@@ -30,12 +30,6 @@ export const videoToolBodySchema = z
     executionId: z.string().optional(),
     userId: z.string().optional(),
     useHostedCostTracking: z.boolean().optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
   })
   .passthrough()
-
-export const videoToolContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/video',
-  body: videoToolBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
-})

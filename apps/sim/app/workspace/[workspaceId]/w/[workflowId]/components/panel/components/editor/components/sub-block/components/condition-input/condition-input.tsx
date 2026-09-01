@@ -11,9 +11,8 @@ import {
   Textarea,
   Tooltip,
 } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
 import { isElseConditionTitle } from '@/lib/workflows/conditions'
@@ -956,7 +955,7 @@ export function ConditionInput({
                     : 'rounded-t-[4px] border-[var(--border-1)] border-b'
               )}
             >
-              <span className='font-medium text-[var(--text-tertiary)] text-sm'>
+              <span className='text-[var(--text-tertiary)] text-sm'>
                 {isRouterMode ? `Route ${index + 1}` : block.title}
               </span>
               <div className='flex items-center gap-2'>
@@ -1106,7 +1105,7 @@ export function ConditionInput({
                   }}
                   placeholder='Describe when this route should be taken...'
                   disabled={disabled || isPreview}
-                  className='min-h-[100px] resize-none rounded-none border-0 px-3 py-2 text-sm text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+                  className='min-h-[100px] resize-none rounded-none border-0 px-3 py-2 text-sm text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
                   rows={4}
                   style={{ height: `${getRouterHeight(block.id)}px` }}
                 />

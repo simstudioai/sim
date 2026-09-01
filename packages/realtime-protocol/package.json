@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.2.13",
+    "bun": ">=1.3.14",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -21,10 +21,24 @@
     "./schemas": {
       "types": "./src/schemas.ts",
       "default": "./src/schemas.ts"
+    },
+    "./rooms": {
+      "types": "./src/rooms.ts",
+      "default": "./src/rooms.ts"
+    },
+    "./file-doc": {
+      "types": "./src/file-doc.ts",
+      "default": "./src/file-doc.ts"
+    },
+    "./table-presence": {
+      "types": "./src/table-presence.ts",
+      "default": "./src/table-presence.ts"
     }
   },
   "scripts": {
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
@@ -35,6 +49,7 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0"
   }
 }

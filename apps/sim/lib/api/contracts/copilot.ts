@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { cleanedWorkflowStateSchema } from '@/lib/api/contracts/workflows'
 import {
@@ -47,6 +48,7 @@ export const copilotCredentialsQuerySchema = z.object({})
 
 export const copilotConfirmBodySchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
+  executionId: z.string().min(1, 'Execution ID is required').max(255).optional(),
   status: z.enum(
     Object.values(ASYNC_TOOL_CONFIRMATION_STATUS) as [
       AsyncConfirmationStatus,
@@ -89,29 +91,6 @@ export const createWorkflowCopilotChatBodySchema = z.object({
 })
 export type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilotChatBodySchema>
 
-export const copilotTrainingExampleBodySchema = z.object({
-  json: z.string().min(1, 'JSON string is required'),
-  title: z.string().min(1, 'Title is required'),
-  tags: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-})
-export type CopilotTrainingExampleBody = z.input<typeof copilotTrainingExampleBodySchema>
-
-const copilotTrainingOperationSchema = z.object({
-  operation_type: z.string(),
-  block_id: z.string(),
-  params: z.record(z.string(), z.unknown()).optional(),
-})
-
-export const copilotTrainingDataBodySchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  prompt: z.string().min(1, 'Prompt is required'),
-  input: z.record(z.string(), z.unknown()),
-  output: z.record(z.string(), z.unknown()),
-  operations: z.array(copilotTrainingOperationSchema),
-})
-export type CopilotTrainingDataBody = z.input<typeof copilotTrainingDataBodySchema>
-
 export const renameCopilotChatBodySchema = z.object({
   chatId: z.string().min(1),
   title: z.string().min(1).max(200),
@@ -124,7 +103,8 @@ export const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
   resource: z.object({
     type: copilotResourceTypeSchema,
-    id: z.string(),
+    // Matches the bound the chat-send path enforces.
+    id: requiredFieldSchema('resource.id cannot be empty'),
     title: z.string(),
   }),
 })
@@ -159,6 +139,28 @@ export const copilotChatAbortBodySchema = z.object({
   chatId: z.string().optional(),
 })
 export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
+
+export const copilotChatSteerBodySchema = z.object({
+  streamId: z.string().min(1, 'streamId is required'),
+  chatId: z.string().min(1, 'chatId is required'),
+  steeringId: z.string().min(1, 'steeringId is required'),
+  content: z.string().min(1, 'content is required').max(32_768, 'content is too long'),
+})
+export type CopilotChatSteerBody = z.input<typeof copilotChatSteerBodySchema>
+
+export const copilotToolExecuteInternalBodySchema = z.object({
+  toolCallId: z.string().min(1, 'toolCallId is required'),
+  toolName: z.string().min(1, 'toolName is required'),
+  params: z.record(z.string(), z.unknown()).default({}),
+  userId: z.string().min(1, 'userId is required'),
+  workflowId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  chatId: z.string().optional(),
+  messageId: z.string().optional(),
+  parentToolCallId: z.string().optional(),
+  userPermission: z.string().optional(),
+})
+export type CopilotToolExecuteInternalBody = z.input<typeof copilotToolExecuteInternalBodySchema>
 
 export const copilotChatGetQuerySchema = z
   .object({
@@ -312,6 +314,15 @@ export const validateCopilotApiKeyBodySchema = z.object({
   workspaceId: z.string().min(1).optional(),
 })
 export type ValidateCopilotApiKeyBody = z.input<typeof validateCopilotApiKeyBodySchema>
+
+export const validateCopilotApiKeyResponseSchema = z.object({
+  /**
+   * Server-derived entitlement for the validated key owner. Mothership treats
+   * a missing or false value as ineligible for enterprise-only capabilities.
+   */
+  isEnterprise: z.boolean(),
+})
+export type ValidateCopilotApiKeyResponse = z.output<typeof validateCopilotApiKeyResponseSchema>
 
 export const listCopilotApiKeysContract = defineRouteContract({
   method: 'GET',
@@ -506,7 +517,7 @@ export const validateCopilotApiKeyContract = defineRouteContract({
   path: '/api/copilot/api-keys/validate',
   headers: validateCopilotApiKeyHeadersSchema,
   body: validateCopilotApiKeyBodySchema,
-  response: { mode: 'empty' },
+  response: { mode: 'json', schema: validateCopilotApiKeyResponseSchema },
   error: validateCopilotApiKeyErrorSchema,
 })
 
@@ -710,36 +721,6 @@ export const removeCopilotChatResourceContract = defineRouteContract({
   },
 })
 
-/**
- * Forwards the agent indexer's free-form JSON response.
- * Shape varies by upstream version.
- */
-export const copilotTrainingDataContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/training',
-  body: copilotTrainingDataBodySchema,
-  response: {
-    mode: 'json',
-    // untyped-response: forwards external agent indexer /operations/add response unchanged; shape varies by upstream version
-    schema: z.unknown(),
-  },
-})
-
-/**
- * Forwards the agent indexer's free-form JSON response.
- * Shape varies by upstream version.
- */
-export const copilotTrainingExampleContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/training/examples',
-  body: copilotTrainingExampleBodySchema,
-  response: {
-    mode: 'json',
-    // untyped-response: forwards external agent indexer /examples/add response unchanged; shape varies by upstream version
-    schema: z.unknown(),
-  },
-})
-
 export const renameCopilotChatContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/copilot/chat/rename',
@@ -762,22 +743,6 @@ export const revertCopilotCheckpointContract = defineRouteContract({
         id: z.string(),
         workflowState: cleanedWorkflowStateSchema,
       }),
-    }),
-  },
-})
-
-export const copilotChatAbortContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/chat/abort',
-  body: copilotChatAbortBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      aborted: z.boolean(),
-      settled: z.boolean().optional(),
-      // True when the stream did not settle within the grace window and the
-      // chat stream lock was force-broken so the chat is immediately usable.
-      forceReleased: z.boolean().optional(),
     }),
   },
 })

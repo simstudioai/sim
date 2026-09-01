@@ -42,7 +42,29 @@ tools/{service}/
 
 ## Tool Configuration Structure
 
-Every tool MUST follow this exact structure:
+### Choose the execution boundary first
+
+Every tool must use exactly one of these configurations:
+
+- **In-process operation (preferred):** use `InternalToolConfig` when the executor and the
+  implementation run in the same Sim process/trust/runtime plane. Materialize typed
+  `operation.input`, implement the handler under `apps/sim/lib/internal/{service}/execute-tool.ts`,
+  and register every tool ID in `apps/sim/lib/internal/tool-operations/registry.server.ts`.
+- **External provider request:** use `ToolConfig.request` only when the URL is an absolute external
+  HTTP(S) provider endpoint.
+
+Never set a tool URL to `/api/...`, construct an absolute URL back to Sim, declare
+`request.internal`, add the retired `directExecution` property, import a route module, or create an API route merely to normalize files,
+authorize access, or reuse server code. A real browser/API route may remain as a thin adapter, but
+the route and the tool must call the same operation directly. A true cross-process/capability
+boundary uses an explicit server client and is not disguised as a tool self-hop.
+
+For protected Sim resources, the internal handler calls the domain's authorized application use
+case with trusted execution context; use the `migrate-application-operation` skill.
+
+### External provider request
+
+Use this structure only for an absolute external provider API:
 
 ```typescript
 import type { {ServiceName}{Action}Params } from '@/tools/{service}/types'
@@ -126,6 +148,38 @@ export const {serviceName}{Action}Tool: ToolConfig<
 }
 ```
 
+### In-process operation
+
+```typescript
+import type { InternalToolConfig } from '@/tools/types'
+
+export const {serviceName}{Action}Tool: InternalToolConfig<
+  {ServiceName}{Action}Params,
+  {ServiceName}{Action}Response
+> = {
+  id: '{service}_{action}',
+  name: '{Service} {Action}',
+  description: 'Brief description',
+  version: '1.0.0',
+  params: {
+    // Same canonical metadata as an external tool.
+  },
+  operation: {
+    input: (params) => ({
+      // Map resolved tool params into the typed semantic operation input.
+    }),
+  },
+  outputs: {
+    // Define each output field.
+  },
+}
+```
+
+The registered handler accepts `InternalToolOperationCall`, validates `request.input`, uses only
+trusted `request.context` for authority, forwards `request.signal`, and returns the same bounded
+`Response` contract expected by the tool executor. It has no URL, method, request headers, fetch
+fallback, or caller-controlled `_context` authority.
+
 ## Critical Rules for Parameters
 
 ### Visibility Options
@@ -144,6 +198,26 @@ export const {serviceName}{Action}Tool: ToolConfig<
 ### Required vs Optional
 - Always explicitly set `required: true` or `required: false`
 - Optional params should have `required: false`
+
+## Resolved Secrets and Provenance Boundaries
+
+- Leave ordinary external API inputs and third-party results unchanged. Add provenance handling only
+  when an exact field is proven to cross a Sim model, durable-storage, or internal-execution boundary.
+- Project AI-consumed text/structured fields with the smallest exact model-input selector:
+  `request.modelInput` for an external request or `operation.modelInput` for an in-process operation.
+- Treat URLs, domains, resource IDs, and control fields as ordinary request values unless the exact
+  field is proven model-visible. For serialized external model content, project the serialized
+  top-level param through `request.modelInput` before the existing formatter parses it; do not add a
+  separate hard-rejection mechanism.
+- For in-process operations, use `operation.modelInput` for actual inline/raw model bytes or
+  `operation.secretProvenance` for durable writes and execution handoffs. Do not treat a storage key,
+  path, signed URL, or remote URL as provenance for fetched bytes; authorize tracked stored bytes at
+  the owning model-egress boundary. Validate the exact selection and trusted scope, then import or
+  propagate provenance at the receiving operation boundary.
+- Never substitute secret plaintext into source, serialize plaintext provenance, hand-roll private
+  headers, or blanket-sanitize tool results.
+- Add focused tests for named projection, identical unproven public text, malformed/incomplete
+  metadata, metadata stripping, scope isolation, and legacy compatibility where applicable.
 
 ## Critical Rules for Outputs
 
@@ -296,6 +370,17 @@ export const tools = {
 }
 ```
 
+3. Regenerate the tool metadata artifacts:
+
+```bash
+bun run tool-metadata:generate
+```
+
+Client code reads a tool's `params`/`outputs` from generated metadata rather than
+importing the registry, so a tool you add, change or remove is invisible to the UI until
+these are regenerated — and CI fails on stale artifacts. Commit the result. See
+`.agents/skills/tool-registry-boundary/SKILL.md`.
+
 ## Wiring Tools into the Block (Required)
 
 After registering in `tools/registry.ts`, you MUST also update the block definition at `apps/sim/blocks/blocks/{service}.ts`. This is not optional — tools are only usable from the UI if they are wired into the block.
@@ -435,6 +520,11 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 ## Checklist Before Finishing
 
 - [ ] All tool IDs use snake_case
+- [ ] Chose exactly one boundary: registered `InternalToolConfig.operation` or absolute external
+      HTTP(S) `ToolConfig.request`
+- [ ] No tool request points to `/api/...`, constructs a URL back to Sim, or declares
+      `request.internal`
+- [ ] No tool declares `directExecution`; in-process work uses a registered operation
 - [ ] All params have explicit `required: true` or `required: false`
 - [ ] All params have appropriate `visibility`
 - [ ] All nullable response fields use `?? null`
@@ -443,7 +533,14 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 - [ ] Types file has all interfaces
 - [ ] Index.ts exports all tools and re-exports types (`export * from './types'`)
 - [ ] Tools registered in `tools/registry.ts`
+- [ ] `bun run tool-metadata:generate` run and the regenerated artifacts committed
+- [ ] `bun run scripts/generate-docs.ts` run and the refreshed docs committed — the integration's
+      docs page is rendered from each tool's description, params, and outputs, and CI's
+      `bun run docs:check` fails on stale pages
 - [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs
+- [ ] Model, durable-storage, and internal-execution boundaries use the shared provenance mechanisms
+      only where a concrete Sim `{{...}}` resolution path requires them
+- [ ] Ordinary third-party inputs/results remain unchanged and private metadata never leaves Sim
 
 ## Final Validation (Required)
 
@@ -454,7 +551,9 @@ After creating all tools, you MUST validate every tool before finishing:
    - All required params are marked `required: true`
    - All optional params are marked `required: false`
    - Param types match the API (string, number, boolean, json)
-   - Request URL, method, headers, and body match the API spec
+   - For external tools, request URL, method, headers, and body match the provider API spec
+   - For internal tools, `operation.input` matches the handler schema and the handler is registered
+     with no HTTP fallback
    - `transformResponse` extracts the correct fields from the API response
    - All output fields match what the API actually returns
    - No fields are missing from outputs that the API provides

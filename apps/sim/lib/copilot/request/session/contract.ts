@@ -15,6 +15,7 @@ import {
   MothershipStreamV1TextChannel,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { hasAddressableId } from '@/lib/copilot/resources/types'
 import type { FilePreviewTargetKind } from './file-preview-session-contract'
 
 type JsonRecord = Record<string, unknown>
@@ -46,7 +47,7 @@ export interface SyntheticFilePreviewTarget {
 export interface SyntheticFilePreviewStartPayload {
   previewPhase: typeof FILE_PREVIEW_PHASE.start
   toolCallId: string
-  toolName: 'workspace_file'
+  toolName: 'prepare_file_edit'
 }
 
 export interface SyntheticFilePreviewTargetPayload {
@@ -55,14 +56,14 @@ export interface SyntheticFilePreviewTargetPayload {
   target: SyntheticFilePreviewTarget
   title?: string
   toolCallId: string
-  toolName: 'workspace_file'
+  toolName: 'prepare_file_edit'
 }
 
 export interface SyntheticFilePreviewEditMetaPayload {
   edit: JsonRecord
   previewPhase: typeof FILE_PREVIEW_PHASE.editMeta
   toolCallId: string
-  toolName: 'workspace_file'
+  toolName: 'prepare_file_edit'
 }
 
 export interface SyntheticFilePreviewContentPayload {
@@ -76,7 +77,7 @@ export interface SyntheticFilePreviewContentPayload {
   previewVersion: number
   targetKind?: string
   toolCallId: string
-  toolName: 'workspace_file'
+  toolName: 'prepare_file_edit'
 }
 
 export interface SyntheticFilePreviewCompletePayload {
@@ -85,7 +86,7 @@ export interface SyntheticFilePreviewCompletePayload {
   previewPhase: typeof FILE_PREVIEW_PHASE.complete
   previewVersion?: number
   toolCallId: string
-  toolName: 'workspace_file'
+  toolName: 'prepare_file_edit'
 }
 
 export type SyntheticFilePreviewPayload =
@@ -147,9 +148,7 @@ export type ParseStreamEventEnvelopeResult =
   | ParseStreamEventEnvelopeSuccess
   | ParseStreamEventEnvelopeFailure
 
-// ---------------------------------------------------------------------------
 // Structural helpers (CSP-safe – no codegen / eval / new Function)
-// ---------------------------------------------------------------------------
 
 function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === 'string'
@@ -187,7 +186,6 @@ function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
   )
 }
 
-// ---------------------------------------------------------------------------
 // Contract envelope validator (replaces Ajv runtime compilation)
 //
 // Validates the envelope shell (v, seq, ts, stream, trace?, scope?) and that
@@ -195,7 +193,6 @@ function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
 // Per-payload-variant validation is intentionally lightweight: the server
 // already performs strict schema validation; the client only needs enough
 // structural checking to safely dispatch inside the switch statement.
-// ---------------------------------------------------------------------------
 
 const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(Object.values(MothershipStreamV1EventType))
 
@@ -265,13 +262,18 @@ function isValidSpanPayload(payload: JsonRecord): boolean {
 }
 
 function isValidResourcePayload(payload: JsonRecord): boolean {
-  return (
-    (payload.op === MothershipStreamV1ResourceOp.upsert ||
-      payload.op === MothershipStreamV1ResourceOp.remove) &&
-    isRecordLike(payload.resource) &&
-    typeof (payload.resource as JsonRecord).id === 'string' &&
-    typeof (payload.resource as JsonRecord).type === 'string'
-  )
+  if (
+    payload.op !== MothershipStreamV1ResourceOp.upsert &&
+    payload.op !== MothershipStreamV1ResourceOp.remove
+  ) {
+    return false
+  }
+  if (!isRecordLike(payload.resource)) return false
+  const resource = payload.resource as JsonRecord
+  // Dropping a blank id here is the only guard covering both branches
+  // downstream: the handler adds a suppressed file resource to the tab strip
+  // directly, bypassing the checks in `addResource`.
+  return hasAddressableId(resource.id) && typeof resource.type === 'string'
 }
 
 function isValidRunPayload(payload: JsonRecord): boolean {
@@ -317,9 +319,7 @@ function isContractEnvelope(value: unknown): value is MothershipStreamV1EventEnv
   }
 }
 
-// ---------------------------------------------------------------------------
 // Synthetic file-preview envelope validators
-// ---------------------------------------------------------------------------
 
 function isSyntheticEnvelopeBase(value: unknown): value is Omit<
   SyntheticFilePreviewEventEnvelope,
@@ -354,7 +354,7 @@ function isSyntheticFilePreviewPayload(value: unknown): value is SyntheticFilePr
     return false
   }
 
-  if (typeof value.toolCallId !== 'string' || value.toolName !== 'workspace_file') {
+  if (typeof value.toolCallId !== 'string' || value.toolName !== 'prepare_file_edit') {
     return false
   }
 
@@ -394,9 +394,7 @@ export function isSyntheticFilePreviewEventEnvelope(
   return isSyntheticEnvelopeBase(value) && isSyntheticFilePreviewPayload(value.payload)
 }
 
-// ---------------------------------------------------------------------------
 // Stream event type guards
-// ---------------------------------------------------------------------------
 
 export function isToolCallStreamEvent(event: SessionStreamEvent): event is ToolCallStreamEvent {
   return event.type === 'tool' && isRecordLike(event.payload) && event.payload.phase === 'call'
@@ -420,9 +418,7 @@ export function isSubagentSpanStreamEvent(
   return event.type === 'span' && isRecordLike(event.payload) && event.payload.kind === 'subagent'
 }
 
-// ---------------------------------------------------------------------------
 // Public contract validators & parsers
-// ---------------------------------------------------------------------------
 
 export function isContractStreamEventEnvelope(
   value: unknown

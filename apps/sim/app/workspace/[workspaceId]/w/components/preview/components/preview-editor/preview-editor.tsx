@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
-  ChevronDown,
   Code,
   Combobox,
   cn,
@@ -12,45 +11,45 @@ import {
   handleKeyboardActivation,
   Input,
   Label,
+  OverflowText,
   Tooltip,
 } from '@sim/emcn'
-import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
   ArrowUp,
   Check,
-  ChevronDown as ChevronDownIcon,
+  ChevronDown,
   ChevronUp,
   Clipboard,
-  ExternalLink,
-  Maximize2,
-  RepeatIcon,
+  Expand,
   Search,
-  SplitIcon,
+  SquareArrowUpRight,
   X,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
-  buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
+  isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
-import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
-import type { BlockConfig, BlockIcon, SubBlockConfig, SubBlockType } from '@/blocks/types'
+import { BlockTile } from '@/blocks/block-tile'
+import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 import { useWorkflowState } from '@/hooks/queries/workflows'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -210,7 +209,7 @@ function CollapsibleSection({
       >
         <span
           className={cn(
-            'font-medium text-caption transition-colors',
+            'text-caption transition-colors',
             isError
               ? 'text-[var(--text-error)]'
               : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
@@ -350,15 +349,12 @@ function ConnectionsSection({
         <ChevronUp
           className={cn('size-[14px] transition-transform', !isAtMinHeight && 'rotate-180')}
         />
-        <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
+        <div className='text-[var(--text-primary)] text-small'>Connections</div>
       </div>
 
       {/* Content - styled like ConnectionBlocks */}
       <div className='flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
         {connections.map((connection) => {
-          const blockConfig = getBlock(connection.blockType)
-          const Icon = blockConfig?.icon
-          const bgColor = blockConfig?.bgColor || '#6B7280'
           const isExpanded = expandedBlocks.has(connection.blockId)
           const hasFields = connection.fields.length > 0
 
@@ -379,31 +375,14 @@ function ConnectionsSection({
                   handleKeyboardActivation(event, () => toggleBlock(connection.blockId))
                 }}
               >
-                <div
-                  className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                  style={{ background: bgColor }}
-                >
-                  {Icon && (
-                    <Icon
-                      className={cn(
-                        'transition-transform duration-200',
-                        getTileIconColorClass(bgColor),
-                        hasFields && 'group-hover:scale-110',
-                        '!h-[9px] !w-[9px]'
-                      )}
-                    />
-                  )}
-                </div>
-                <span
-                  className={cn(
-                    'truncate font-medium',
-                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                  )}
-                >
-                  {connection.blockName}
-                </span>
+                <BlockTile blockType={connection.blockType} size='sm' />
+                <OverflowText
+                  label={connection.blockName}
+                  className='flex-1 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                  focusTarget={hasFields ? 'nearest-interactive' : undefined}
+                />
                 {hasFields && (
-                  <ChevronDownIcon
+                  <ChevronDown
                     className={cn(
                       'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
                       'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
@@ -425,7 +404,7 @@ function ConnectionsSection({
                     >
                       <span
                         className={cn(
-                          'flex-shrink-0 font-medium',
+                          'flex-shrink-0',
                           'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
                         )}
                       >
@@ -456,19 +435,16 @@ function ConnectionsSection({
               }
             >
               <div className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#8B5CF6]'>
-                <span className='font-bold text-[9px] text-white'>V</span>
+                <span className='text-[9px] text-white'>V</span>
               </div>
-              <span
+              <OverflowText
+                label='Variables'
+                className='flex-1 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                focusTarget='nearest-interactive'
+              />
+              <ChevronDown
                 className={cn(
-                  'truncate font-medium',
-                  'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                )}
-              >
-                Variables
-              </span>
-              <ChevronDownIcon
-                className={cn(
-                  'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+                  'size-[14px] flex-shrink-0 transition-transform duration-100',
                   'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                   expandedVariables && 'rotate-180'
                 )}
@@ -483,7 +459,7 @@ function ConnectionsSection({
                     className='group flex min-h-[26px] flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg px-1.5 py-1 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
                     onContextMenu={(e) => handleValueContextMenu(e, v.value)}
                   >
-                    <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
+                    <span className='flex-shrink-0 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
                       {v.name}
                     </span>
                     <span className='min-w-0 break-all text-[var(--text-tertiary)]'>{v.value}</span>
@@ -508,19 +484,16 @@ function ConnectionsSection({
               }
             >
               <div className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#6B7280]'>
-                <span className='font-bold text-[9px] text-white'>E</span>
+                <span className='text-[9px] text-white'>E</span>
               </div>
-              <span
+              <OverflowText
+                label='Secrets'
+                className='flex-1 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                focusTarget='nearest-interactive'
+              />
+              <ChevronDown
                 className={cn(
-                  'truncate font-medium',
-                  'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                )}
-              >
-                Secrets
-              </span>
-              <ChevronDownIcon
-                className={cn(
-                  'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+                  'size-[14px] flex-shrink-0 transition-transform duration-100',
                   'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                   expandedEnvVars && 'rotate-180'
                 )}
@@ -534,7 +507,7 @@ function ConnectionsSection({
                     key={v.ref}
                     className='group flex min-h-[26px] flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg px-1.5 py-1 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
                   >
-                    <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
+                    <span className='flex-shrink-0 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
                       {v.name}
                     </span>
                     <span className='min-w-0 break-all text-[var(--text-tertiary)]'>{v.value}</span>
@@ -547,20 +520,6 @@ function ConnectionsSection({
       </div>
     </div>
   )
-}
-
-/**
- * Icon component for rendering block icons
- */
-function IconComponent({
-  icon: Icon,
-  className,
-}: {
-  icon: BlockIcon | undefined
-  className?: string
-}) {
-  if (!Icon) return null
-  return <Icon className={className} />
 }
 
 /**
@@ -646,7 +605,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
     <div className='flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-2'>
       {/* Type Selection - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           {isLoop ? 'Loop Type' : 'Parallel Type'}
         </Label>
         <Combobox
@@ -663,7 +622,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
 
       {/* Configuration - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           {getConfigLabel()}
         </Label>
 
@@ -1088,9 +1047,10 @@ function PreviewEditorContent({
     }, {})
   }, [subBlockValues])
 
+  const effectiveTrigger = block.triggerMode === true
   const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+    () => buildCanonicalIndexForSurface(blockConfig?.subBlocks || [], effectiveTrigger),
+    [blockConfig?.subBlocks, effectiveTrigger]
   )
 
   const isSubflow = block.type === 'loop' || block.type === 'parallel'
@@ -1099,23 +1059,14 @@ function PreviewEditorContent({
 
   if (isSubflow) {
     const isLoop = block.type === 'loop'
-    const SubflowIcon = isLoop ? RepeatIcon : SplitIcon
-    const subflowBgColor = isLoop ? '#2FB3FF' : '#FEE12B'
     const subflowName = block.name || (isLoop ? 'Loop' : 'Parallel')
 
     return (
       <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         {/* Header - styled like subflow header */}
         <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
-          <div
-            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
-            style={{ backgroundColor: subflowBgColor }}
-          >
-            <SubflowIcon className={cn('size-[12px]', getTileIconColorClass(subflowBgColor))} />
-          </div>
-          <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
-            {subflowName}
-          </span>
+          <BlockTile blockType={block.type} size='lg' />
+          <OverflowText label={subflowName} className='flex-1 text-[var(--text-primary)] text-sm' />
           {onClose && (
             <Button variant='ghost' className='!p-1 flex-shrink-0' onClick={onClose}>
               <X className='size-[14px]' />
@@ -1141,7 +1092,7 @@ function PreviewEditorContent({
       <div className='flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex size-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
-          <span className='font-medium text-[var(--text-primary)] text-sm'>
+          <span className='text-[var(--text-primary)] text-sm'>
             {block.name || 'Unknown Block'}
           </span>
         </div>
@@ -1158,7 +1109,6 @@ function PreviewEditorContent({
     hasAdvancedValues(blockConfig.subBlocks, rawValues, canonicalIndex)
 
   const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
-  const effectiveTrigger = block.triggerMode === true
 
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
@@ -1171,6 +1121,9 @@ function PreviewEditorContent({
     if (effectiveTrigger && subBlock.mode !== 'trigger' && subBlock.mode !== 'trigger-advanced')
       return false
     if (!isSubBlockFeatureEnabled(subBlock)) return false
+
+    // Configures the block as an agent tool; it has no meaning on the canvas.
+    if (isToolInputOnlySubBlock(subBlock)) return false
     if (
       !isSubBlockVisibleForMode(
         subBlock,
@@ -1196,20 +1149,11 @@ function PreviewEditorContent({
     <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
-        {block.type !== 'note' && (
-          <div
-            className='flex size-[18px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-            style={{ backgroundColor: blockConfig.bgColor }}
-          >
-            <IconComponent
-              icon={blockConfig.icon}
-              className={cn('size-[12px]', getTileIconColorClass(blockConfig.bgColor))}
-            />
-          </div>
-        )}
-        <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
-          {block.name || blockConfig.name}
-        </span>
+        {block.type !== 'note' && <BlockTile blockType={block.type} size='lg' />}
+        <OverflowText
+          label={block.name || blockConfig.name}
+          className='flex-1 text-[var(--text-primary)] text-sm'
+        />
         {onClose && (
           <Button variant='ghost' className='!p-1 flex-shrink-0' onClick={onClose}>
             <X className='size-[14px]' />
@@ -1242,7 +1186,7 @@ function PreviewEditorContent({
                   </Badge>
                 )}
                 {executionData.durationMs !== undefined && (
-                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                  <span className='text-[var(--text-tertiary)] text-caption'>
                     {formatDuration(executionData.durationMs, { precision: 2 })}
                   </span>
                 )}
@@ -1397,7 +1341,7 @@ function PreviewEditorContent({
             {isWorkflowBlock && childWorkflowId && (
               <div className='px-2 pt-3'>
                 <div className='subblock-content flex flex-col gap-[9.5px]'>
-                  <div className='pl-0.5 font-medium text-[var(--text-primary)] text-small leading-none'>
+                  <div className='pl-0.5 text-[var(--text-primary)] text-small leading-none'>
                     Workflow Preview
                   </div>
                   <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
@@ -1436,9 +1380,9 @@ function PreviewEditorContent({
                               className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                             >
                               {isExecutionMode && onDrillDown ? (
-                                <Maximize2 className='size-[12px]' />
+                                <Expand className='size-[12px]' />
                               ) : (
-                                <ExternalLink className='size-[12px]' />
+                                <SquareArrowUpRight className='size-[12px]' />
                               )}
                             </Button>
                           </Tooltip.Trigger>

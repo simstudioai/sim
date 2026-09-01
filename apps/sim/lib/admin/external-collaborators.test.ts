@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { member, permissions } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -57,6 +62,10 @@ describe('updateDashboardExternalCollaboratorUsageLimit', () => {
         metadata: { targetUserId: 'external-1', usageLimitDollars: 30 },
       })
     )
+    const collaboratorPredicate = dbChainMockFns.where.mock.calls[1]?.[0]
+    expect(
+      flattenMockConditions(collaboratorPredicate).some((condition) => condition.type === 'isNull')
+    ).toBe(false)
   })
 
   it('clears an existing cap', async () => {
@@ -84,7 +93,7 @@ describe('updateDashboardExternalCollaboratorUsageLimit', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('rejects users without a current non-archived workspace permission', async () => {
+  it('rejects users without any organization workspace permission', async () => {
     queueTableRows(member, [])
     queueTableRows(permissions, [])
 

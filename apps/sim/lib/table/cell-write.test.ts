@@ -1,14 +1,21 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type { RowExecutionMetadata, TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
-const { mockAppendTableEvent, mockUpdateRow, mockWriteExecutionsPatch } = vi.hoisted(() => ({
-  mockAppendTableEvent: vi.fn(),
-  mockUpdateRow: vi.fn(),
-  mockWriteExecutionsPatch: vi.fn(),
+const { mockAppendTableEvent, mockDecryptSecret, mockUpdateRow, mockWriteExecutionsPatch } =
+  vi.hoisted(() => ({
+    mockAppendTableEvent: vi.fn(),
+    mockDecryptSecret: vi.fn(),
+    mockUpdateRow: vi.fn(),
+    mockWriteExecutionsPatch: vi.fn(),
+  }))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: mockDecryptSecret,
 }))
 
 vi.mock('@/lib/table/events', () => ({
@@ -87,9 +94,13 @@ describe('writeWorkflowGroupState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    queueTableRows(schemaMock.userTableRows, [{ id: CONTEXT.rowId }])
     mockWriteExecutionsPatch.mockResolvedValue('wrote')
     mockUpdateRow.mockResolvedValue({})
     mockAppendTableEvent.mockResolvedValue(null)
+    mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: encryptedValue === 'encrypted-secret' ? 'secret-value' : encryptedValue,
+    }))
   })
 
   it('persists a status-only transition with one guarded execution write', async () => {
@@ -105,6 +116,7 @@ describe('writeWorkflowGroupState', () => {
       { [GROUP.id]: RUNNING_STATE },
       { groupId: GROUP.id, executionId: CONTEXT.executionId }
     )
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('key share')
     expect(mockUpdateRow).not.toHaveBeenCalled()
     expect(mockAppendTableEvent).toHaveBeenCalledWith({
       kind: 'cell',
@@ -119,10 +131,17 @@ describe('writeWorkflowGroupState', () => {
   })
 
   it('writes only changed data while emitting cumulative outputs', async () => {
+    const secretProvenance = {
+      complete: true,
+      columns: {
+        'second-output': { version: 1 as const, complete: true, entries: [] },
+      },
+    }
     await expect(
       writeWorkflowGroupState(CONTEXT, {
         executionState: RUNNING_STATE,
         dataPatch: { 'second-output': 'second' },
+        secretProvenance,
         eventOutputs: {
           'first-output': 'first',
           'second-output': 'second',
@@ -138,6 +157,7 @@ describe('writeWorkflowGroupState', () => {
         workspaceId: TABLE.workspaceId,
         executionsPatch: { [GROUP.id]: RUNNING_STATE },
         cancellationGuard: { groupId: GROUP.id, executionId: CONTEXT.executionId },
+        secretProvenance,
       },
       TABLE,
       CONTEXT.requestId,
@@ -202,6 +222,42 @@ describe('writeWorkflowGroupState', () => {
 
     expect(mockAppendTableEvent).not.toHaveBeenCalled()
   })
+
+  it('skips a status write when the row was deleted before pickup', async () => {
+    resetDbChainMock()
+    mockWriteExecutionsPatch.mockResolvedValue('wrote')
+
+    await expect(writeWorkflowGroupState(CONTEXT, { executionState: RUNNING_STATE })).resolves.toBe(
+      'skipped'
+    )
+
+    expect(mockWriteExecutionsPatch).not.toHaveBeenCalled()
+    expect(mockAppendTableEvent).not.toHaveBeenCalled()
+  })
+
+  it('skips a data write when the row is deleted during execution', async () => {
+    mockUpdateRow.mockRejectedValueOnce(new TableRowNotFoundError())
+
+    await expect(
+      writeWorkflowGroupState(CONTEXT, {
+        executionState: RUNNING_STATE,
+        dataPatch: { 'first-output': 'late' },
+      })
+    ).resolves.toBe('skipped')
+
+    expect(mockAppendTableEvent).not.toHaveBeenCalled()
+  })
+
+  it('still throws unrelated data-write failures', async () => {
+    mockUpdateRow.mockRejectedValueOnce(new Error('database unavailable'))
+
+    await expect(
+      writeWorkflowGroupState(CONTEXT, {
+        executionState: RUNNING_STATE,
+        dataPatch: { 'first-output': 'late' },
+      })
+    ).rejects.toThrow('database unavailable')
+  })
 })
 
 describe('createWorkflowCellProgressWriter', () => {
@@ -230,6 +286,7 @@ describe('createWorkflowCellProgressWriter', () => {
       {
         dataPatch: { 'first-output': 'first' },
         eventOutputs: { 'first-output': 'first' },
+        secretProvenance: { complete: false, columns: {} },
         runningBlockIds: [],
         blockErrors: {},
       },
@@ -245,6 +302,7 @@ describe('createWorkflowCellProgressWriter', () => {
           'first-output': 'first',
           'second-output': 'second',
         },
+        secretProvenance: { complete: false, columns: {} },
         runningBlockIds: [],
         blockErrors: {},
       },
@@ -254,6 +312,7 @@ describe('createWorkflowCellProgressWriter', () => {
       'first-output': 'first',
       'second-output': 'second',
     })
+    expect(progress.getPendingSecretProvenance()).toEqual({ complete: true, columns: {} })
 
     await progress.finish()
   })
@@ -294,11 +353,93 @@ describe('createWorkflowCellProgressWriter', () => {
     expect(writeProgress).toHaveBeenNthCalledWith(2, {
       dataPatch: { 'first-output': 'first' },
       eventOutputs: { 'first-output': 'first' },
+      secretProvenance: { complete: false, columns: {} },
       runningBlockIds: ['block-2'],
       blockErrors: {},
     })
     expect(progress.getPendingDataPatch()).toEqual({})
 
     await progress.finish()
+  })
+
+  it('persists only the secret provenance present in each mapped output cell', async () => {
+    const writeProgress = vi.fn().mockResolvedValue('wrote')
+    const progress = createWorkflowCellProgressWriter({
+      group: GROUP,
+      writeProgress,
+      onWriteError: vi.fn(),
+    })
+
+    await progress.onBlockComplete('block-1', {
+      output: { value: 'secret-value' },
+      resolvedSecretTraceProvenance: {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+      },
+    })
+    await progress.waitForPendingWrites()
+
+    expect(writeProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataPatch: { 'first-output': 'secret-value' },
+        secretProvenance: {
+          complete: true,
+          columns: {
+            'first-output': {
+              version: 1,
+              complete: true,
+              entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+              scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+            },
+          },
+        },
+      })
+    )
+  })
+
+  it('certifies a current exact-empty callback but keeps a legacy callback unknown', async () => {
+    const writeProgress = vi.fn().mockResolvedValue('wrote')
+    const progress = createWorkflowCellProgressWriter({
+      group: GROUP,
+      writeProgress,
+      onWriteError: vi.fn(),
+    })
+
+    await progress.onBlockComplete('block-1', {
+      output: { value: 'public' },
+      resolvedSecretTraceProvenance: {
+        version: 1,
+        complete: true,
+        entries: [],
+        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+      },
+    })
+    await progress.onBlockComplete('block-2', { output: { value: 'legacy-public' } })
+    await progress.waitForPendingWrites()
+
+    expect(writeProgress).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        secretProvenance: {
+          complete: true,
+          columns: {
+            'first-output': {
+              version: 1,
+              complete: true,
+              entries: [],
+              scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+            },
+          },
+        },
+      })
+    )
+    expect(writeProgress).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        secretProvenance: { complete: false, columns: {} },
+      })
+    )
   })
 })

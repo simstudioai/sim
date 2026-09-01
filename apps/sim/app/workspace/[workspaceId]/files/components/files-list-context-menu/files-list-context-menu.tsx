@@ -43,10 +43,12 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {onCreateFile && (
-          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateFile}>
-            <Plus />
-            New file
+        {/* Upload, New folder, New file — the order the page header presents
+            them once `orderHeaderActions` has pinned the primary action last. */}
+        {onUploadFile && (
+          <DropdownMenuItem disabled={disableUpload} onSelect={onUploadFile}>
+            <Upload />
+            Upload
           </DropdownMenuItem>
         )}
         {onCreateFolder && (
@@ -55,10 +57,10 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
             New folder
           </DropdownMenuItem>
         )}
-        {onUploadFile && (
-          <DropdownMenuItem disabled={disableUpload} onSelect={onUploadFile}>
-            <Upload />
-            Upload file
+        {onCreateFile && (
+          <DropdownMenuItem disabled={disableCreate} onSelect={onCreateFile}>
+            <Plus />
+            New file
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

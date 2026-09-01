@@ -11,9 +11,10 @@
  */
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
-  --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
-  --sidebar-expanded-width: 248px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
+  --sidebar-collapsed-width: 48px; /* icon rail on web; desktop overrides to 0 before first paint */
+  --sidebar-expanded-width: 238px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
   --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
+  --workspace-content-title-bar-inset: 0px; /* lane the content pane must leave clear; only non-zero when the pane, not the sidebar, sits under it */
   --desktop-title-bar-inset-x: 0px; /* clearance past the traffic lights; desktop overrides */
   --desktop-title-bar-control-offset: 0px; /* centres a lane control; desktop overrides */
   --desktop-title-bar-control-size: 0px; /* control seated in the lane; desktop overrides */
@@ -21,7 +22,25 @@
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
+  /**
+   * The padding `.workspace-content-shell` insets the panel and terminal from
+   * the viewport by (CONTENT_WINDOW_GAP).
+   *
+   * Published here because surfaces portalled to `<body>` — the toast stack —
+   * position against those elements from the viewport, so they must add back
+   * whatever separates the element from the viewport edge. Reading it rather
+   * than hardcoding 8px is what keeps the toast and the canvas controls on the
+   * same clearance when the shell drops its padding; the controls are laid out
+   * inside the shell and so need no correction.
+   */
+  --workspace-content-gap: 8px;
   --output-panel-width: 560px; /* OUTPUT_PANEL_WIDTH.DEFAULT */
+  /**
+   * Neutral border and divider thickness. Standard-density displays cannot draw
+   * a sub-pixel line crisply, so they keep a full pixel; the hidpi override below
+   * thins it. Consumed by Tailwind's `border*`, `divide-*`, and `h-px`/`w-px`.
+   */
+  --border-width: 1px;
   --auth-primary-btn-bg: #ffffff;
   --auth-primary-btn-border: #ffffff;
   --auth-primary-btn-text: #000000;
@@ -39,34 +58,62 @@
   --z-modal: 200;
   --z-popover: 300;
   --z-tooltip: 400;
+  /* Full-screen takeovers replace the app entirely, so they sit above every
+     other layer including poppers. The desktop shell gate is the outermost of
+     them: an incompatible shell invalidates everything the web app renders
+     inside it, so it outranks in-app takeovers rather than tying with them and
+     letting document order decide. */
+  --z-takeover: 500;
+  --z-shell-gate: 600;
 
   /* Shadow scale */
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
   --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.15);
+  --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.11);
   --shadow-kbd: 0 4px 0 0 rgba(48, 48, 48, 1);
   --shadow-kbd-sm: 0 2px 0 0 rgba(48, 48, 48, 1);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+  /**
+   * The scale's around-shape entry: one layer like every other, borrowing
+   * `--shadow-subtle`'s alpha and `--shadow-medium`'s blur, with the y-offset
+   * dropped so the spread lands evenly on all four sides instead of pooling
+   * underneath. For a raised surface that floats in open space (the chat input);
+   * the directional entries above still own menus, cards, and overlays.
+   */
+  --shadow-ambient: 0 0 12px 0 rgba(0, 0, 0, 0.08);
 }
 
 /**
- * Electron's `titleBarOverlay` publishes the window controls' geometry as these
- * `titlebar-area-*` env vars, and Chromium rescales them under page zoom so the
- * lane holds its physical size. Fallbacks are the platform's measured values, for
- * a shell predating the overlay; the `:root` zeros cover the different case of the
- * attribute being absent entirely, where this block never matches.
+ * One device pixel on high-density displays. Browsers floor a border to whole
+ * device pixels, so every value in (0, 1px) collapses to this same hairline and
+ * the next drawable step is a full 1px — i.e. double. Line weight between those
+ * two is therefore tuned on `--border`, never here.
+ */
+@media (min-resolution: 2dppx) {
+  :root {
+    --border-width: 0.5px;
+  }
+}
+
+/**
+ * The lane scales with page zoom like the rest of the UI (Codex-style): the
+ * 38px/81px terms are CSS px, so zooming in grows the lane and its controls
+ * with the content while the OS-drawn traffic lights hold their physical size
+ * inside it. The `env(titlebar-area-*)` terms — which Chromium rescales under
+ * zoom to keep physical geometry — act only as a floor, so zooming OUT can
+ * never shrink the lane under the lights or slide the controls beneath them.
+ * Fallbacks are the platform's measured values, for a shell predating the
+ * overlay; the `:root` zeros cover the different case of the attribute being
+ * absent entirely, where this block never matches.
  */
 html[data-sim-desktop-title-bar="inset"] {
   --sidebar-collapsed-width: 0px;
-  --desktop-title-bar-height: env(titlebar-area-height, 38px);
-  --desktop-title-bar-inset-x: env(titlebar-area-x, 81px);
-  /* 0.79 = 30px of the 38px lane, and 0.53 of that = 16px. Proportions rather
-     than px because px would scale with page zoom while the OS-drawn lights
-     would not — and calc cannot divide a length by a length to get a scale.
-     `navigator.windowControlsOverlay` could, but reading it in JS would race
-     first paint for a value the blocking script needs. */
-  --desktop-title-bar-control-size: calc(var(--desktop-title-bar-height) * 0.79);
-  --desktop-title-bar-control-icon-size: calc(var(--desktop-title-bar-control-size) * 0.53);
+  --desktop-title-bar-height: max(env(titlebar-area-height, 38px), 38px);
+  --desktop-title-bar-inset-x: max(env(titlebar-area-x, 81px), 81px);
+  /* 30px of the 38px lane, and 16px of that — CSS px on purpose, so the
+     controls zoom with the page instead of staying pinned to physical size. */
+  --desktop-title-bar-control-size: 30px;
+  --desktop-title-bar-control-icon-size: 16px;
   --desktop-title-bar-control-offset: calc(
     (var(--desktop-title-bar-height) - var(--desktop-title-bar-control-size)) /
     2
@@ -75,8 +122,14 @@ html[data-sim-desktop-title-bar="inset"] {
 
 /** The macOS desktop login shell reserves the native traffic-light lane. */
 .desktop-title-bar-page {
-  margin-top: var(--desktop-title-bar-height);
-  min-height: calc(100vh - var(--desktop-title-bar-height));
+  /* Reserve the lane with padding INSIDE the box, never `margin-top` + a
+     `calc(100vh - lane)` height. `body` carries `min-height: 100vh` of its own, and
+     a top margin here has nothing to collapse against (body is a block box with no
+     padding, border, or BFC), so it collapses through and displaces body itself —
+     leaving a document one full lane taller than the viewport. Global
+     `box-sizing: border-box` keeps this padding inside the 100vh. */
+  padding-top: var(--desktop-title-bar-height);
+  min-height: 100vh;
 }
 
 .desktop-window-drag-region {
@@ -122,12 +175,19 @@ html[data-sim-desktop-title-bar="inset"]
   letter-spacing: 0.02em;
 }
 
-.workspace-content-shell {
-  --workspace-content-title-bar-inset: 0px;
+/* The pane owns the lane whenever the sidebar is not there to own it: collapsed to
+   zero width, or slid away for a fullscreen route. */
+.workspace-content-shell[data-sidebar-collapsed],
+.workspace-content-shell[data-content-fullscreen] {
+  --workspace-content-title-bar-inset: var(--desktop-title-bar-height);
 }
 
-.workspace-content-shell[data-sidebar-collapsed] {
-  --workspace-content-title-bar-inset: var(--desktop-title-bar-height);
+/* The one case the shell drops its padding entirely (see `workspace-chrome.tsx`:
+   `isCollapsed && '[[data-sim-desktop-title-bar=inset]_&]:p-0'`). Declared on the
+   root so the portalled toast stack — which cannot inherit from the shell — sees
+   it too, and keeps the same clearance the in-shell canvas controls keep. */
+html[data-sim-desktop-title-bar="inset"]:has(.workspace-content-shell[data-sidebar-collapsed]) {
+  --workspace-content-gap: 0px;
 }
 
 .workspace-root code,
@@ -171,6 +231,14 @@ html[data-sim-desktop-title-bar="inset"]
    0 -> expanded inside it. */
 .sidebar-shell-outer[data-peek] .sidebar-container {
   transition: none;
+}
+
+/* The card is a flex column sized to its content, so the shell must be allowed to
+   shrink for the sidebar's own scroll region to bound itself once the card hits its
+   max height. Docked, this element is not a flex item and the rule is inert. */
+.sidebar-shell-outer[data-peek] .sidebar-shell-inner {
+  min-height: 0;
+  flex-shrink: 1;
 }
 
 .sidebar-container span,
@@ -298,9 +366,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --surface-2: #ffffff; /* blocks, cards, modals - pure white */
     --surface-3: #f7f7f7; /* popovers, headers */
     --surface-4: #f5f5f5; /* buttons base */
-    --border: #dedede; /* primary border */
     --surface-5: #f3f3f3; /* inputs, form elements */
-    --border-1: #e0e0e0; /* stronger border */
     --surface-6: #e5e5e5; /* popovers, elevated surfaces */
     --surface-7: #d9d9d9;
     --surface-hover: #f2f2f2; /* hover state */
@@ -312,19 +378,29 @@ html.sidebar-booting .sidebar-shell-inner {
     --text-primary: #1a1a1a;
     --text-secondary: #525252;
     --text-tertiary: #5c5c5c;
-    --text-muted: #707070;
+    --text-muted: #7a7a7a;
     --text-subtle: #8c8c8c;
-    --text-body: #3b3b3b;
-    --text-icon: #525252;
+    --text-body: #434343;
+    --text-icon: #5a5a5a;
+    --text-icon-muted: #5c5c5c;
+
+    /* Shared ThinkingLoader ink treatment. */
+    --thinking-ink-current: #2c2c2c;
+    --thinking-ink-inner: #2c2c2c;
+    --thinking-ink-outer: #5f5f5f;
+    --thinking-ink-glow: rgba(255, 255, 255, 0.6);
 
     --text-inverse: #ffffff;
     --text-muted-inverse: #a0a0a0;
     --text-error: #ef4444;
 
     /* Borders / dividers */
-    --divider: #ededed;
-    --border-muted: #e4e4e4;
+    --border: #d8d8d8;
     --border-success: #e0e0e0;
+
+    /** Legacy neutral-border aliases. New work should use --border. */
+    --border-1: var(--border);
+    --border-muted: var(--border);
 
     /* Brand & state */
     --brand-agent: #6f3dfa;
@@ -345,11 +421,6 @@ html.sidebar-booting .sidebar-shell-inner {
 
     /* Utility */
     --white: #ffffff;
-
-    /* Font weights - lighter for light mode */
-    --font-weight-base: 420;
-    --font-weight-medium: 440;
-    --font-weight-semibold: 500;
 
     /* Landing / marketing - text (static dark-section colors) */
     --landing-text: #ececec;
@@ -456,9 +527,7 @@ html.sidebar-booting .sidebar-shell-inner {
     --surface-2: #232323;
     --surface-3: #242424;
     --surface-4: #292929;
-    --border: #333333;
     --surface-5: #363636;
-    --border-1: #3d3d3d;
     --surface-6: #454545;
     --surface-7: #505050;
     --surface-hover: #262626; /* hover state */
@@ -470,19 +539,29 @@ html.sidebar-booting .sidebar-shell-inner {
     --text-primary: #e6e6e6;
     --text-secondary: #cccccc;
     --text-tertiary: #b3b3b3;
-    --text-muted: #787878;
+    --text-muted: #6e6e6e;
     --text-subtle: #7d7d7d;
-    --text-body: #cdcdcd;
-    --text-icon: #a0a0a0;
+    --text-body: #c1c1c1;
+    --text-icon: #969696;
+    --text-icon-muted: #949494;
+
+    /* Shared ThinkingLoader ink treatment. */
+    --thinking-ink-current: #d6d6d6;
+    --thinking-ink-inner: #a7a7a7;
+    --thinking-ink-outer: #d6d6d6;
+    --thinking-ink-glow: rgba(255, 255, 255, 0.9);
 
     --text-inverse: #1b1b1b;
     --text-muted-inverse: #b3b3b3;
     --text-error: #ef4444;
 
-    /* --border-strong: #303030; */
-    --divider: #393939;
-    --border-muted: #424242;
+    /* Borders / dividers */
+    --border: #444444;
     --border-success: #575757;
+
+    /** Legacy neutral-border aliases. New work should use --border. */
+    --border-1: var(--border);
+    --border-muted: var(--border);
 
     /* Brand & state */
     --brand-agent: #701ffc;
@@ -503,11 +582,6 @@ html.sidebar-booting .sidebar-shell-inner {
 
     /* Utility */
     --white: #ffffff;
-
-    /* Font weights - standard weights for dark mode */
-    --font-weight-base: 420;
-    --font-weight-medium: 480;
-    --font-weight-semibold: 550;
 
     /* Code editor (dark mode overrides) */
     --code-bg: #1f1f1f;
@@ -583,7 +657,9 @@ html.sidebar-booting .sidebar-shell-inner {
     --scrollbar-thumb-hover-color: #6a6a6a;
 
     /* Shadow scale - dark */
-    --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.4);
+    --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.3);
+    /* Same 2.7x light-to-dark alpha step --shadow-overlay takes (0.11 -> 0.3). */
+    --shadow-ambient: 0 0 12px 0 rgba(0, 0, 0, 0.22);
   }
 }
 
@@ -620,6 +696,15 @@ html.sidebar-booting .sidebar-shell-inner {
     scrollbar-gutter: stable;
     text-rendering: optimizeSpeed;
     letter-spacing: 0.28px;
+  }
+
+  /* Completes Preflight, which resets h1-h6 to `inherit` but leaves `th` at the
+     UA `bold`. Without this a table header, and every label, input, and button
+     inside it, silently renders at 700 — so `font-medium` on a header reads as
+     a step DOWN, and removing it makes the header heavier. Normalized here once
+     rather than neutralized at each `<th>`. */
+  th {
+    font-weight: inherit;
   }
 
   /* Ensure visible text caret across inputs and editors */

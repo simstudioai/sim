@@ -10,11 +10,13 @@ import { formatMessagesForProvider } from '@/providers/attachments'
 import { createReadableStreamFromLiteLLMStream } from '@/providers/litellm/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   Message,
   ProviderConfig,
@@ -26,13 +28,13 @@ import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   enforceStrictSchema,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('LiteLLMProvider')
 const LITELLM_VERSION = '1.0.0'
@@ -109,6 +111,7 @@ export const litellmProvider: ProviderConfig = {
 
     const apiKey = request.apiKey || env.LITELLM_API_KEY || 'empty'
     const litellm = new OpenAI({
+      ...openAICompatTransport(),
       apiKey,
       baseURL: `${baseUrl}/v1`,
     })
@@ -267,8 +270,11 @@ export const litellmProvider: ProviderConfig = {
         response: any,
         toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
       ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
-          const toolCallsResponse = response.choices[0].message.tool_calls
+        const toolCallsResponse =
+          typeof toolChoice === 'object'
+            ? response.choices?.[0]?.message?.tool_calls?.filter(isFunctionToolCall)
+            : undefined
+        if (toolCallsResponse?.length) {
           const result = trackForcedToolUsage(
             toolCallsResponse,
             toolChoice,
@@ -329,7 +335,8 @@ export const litellmProvider: ProviderConfig = {
           }
         }
 
-        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+        const toolCallsInResponse =
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
@@ -373,17 +380,27 @@ export const litellmProvider: ProviderConfig = {
               }
             }
 
-            const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
-              signal: request.abortSignal,
-            })
+            const { toolParams, executionParams } = prepareToolExecution(
+              tool,
+              toolArgs,
+              request,
+              toolCall.id
+            )
+            const { rawResponse, modelResponse } = await executeProviderTool(
+              toolName,
+              executionParams,
+              {
+                signal: request.abortSignal,
+              }
+            )
             const toolCallEndTime = Date.now()
 
             return {
               toolCall,
               toolName,
               toolParams,
-              result,
+              result: rawResponse,
+              modelResult: modelResponse,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
               duration: toolCallEndTime - toolCallStartTime,
@@ -426,6 +443,8 @@ export const litellmProvider: ProviderConfig = {
         for (const executionResult of executionResults) {
           const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
             executionResult
+          const modelResult =
+            'modelResult' in executionResult ? (executionResult.modelResult ?? result) : result
 
           timeSegments.push({
             type: 'tool',
@@ -449,6 +468,13 @@ export const litellmProvider: ProviderConfig = {
               tool: toolName,
             }
           }
+          const modelResultContent = modelResult.success
+            ? (modelResult.output ?? null)
+            : {
+                error: true,
+                message: modelResult.error || 'Tool execution failed',
+                tool: toolName,
+              }
 
           toolCalls.push({
             name: toolName,
@@ -464,7 +490,7 @@ export const litellmProvider: ProviderConfig = {
             role: 'tool',
             tool_call_id: toolCall.id,
             name: toolName,
-            content: JSON.stringify(resultContent),
+            content: JSON.stringify(modelResultContent),
           })
         }
 
@@ -533,7 +559,7 @@ export const litellmProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'litellm' }
         )
       }
@@ -582,12 +608,12 @@ export const litellmProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'litellm' }
         )
       } else if (
         iterationCount === MAX_TOOL_ITERATIONS &&
-        currentResponse.choices[0]?.message?.tool_calls?.length
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)?.length
       ) {
         /**
          * The capped turn still requests tools, so make one tool-disabled call
@@ -623,7 +649,7 @@ export const litellmProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           synthesisResponse,
-          synthesisResponse.choices[0]?.message?.tool_calls,
+          synthesisResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'litellm' }
         )
       }

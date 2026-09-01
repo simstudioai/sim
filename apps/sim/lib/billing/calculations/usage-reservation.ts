@@ -9,7 +9,7 @@ import {
   type ReservationDenialReason,
 } from '@/lib/core/admission/transient-failure'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
-import { getRedisClient } from '@/lib/core/config/redis'
+import { describeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { getExecutionReservationTtlMs } from '@/lib/core/execution-limits'
 
 const logger = createLogger('UsageReservation')
@@ -147,6 +147,37 @@ end
 return 0
 `
 
+/** Refreshes one proven local reservation without changing admission counts. */
+const REFRESH_LOCAL_SCRIPT = `
+local owner = redis.call('GET', KEYS[2])
+if not owner or owner ~= ARGV[2] then
+  return 0
+end
+if not redis.call('ZSCORE', KEYS[1], ARGV[1]) then
+  return 0
+end
+if KEYS[3] and not redis.call('ZSCORE', KEYS[3], ARGV[1]) then
+  return 0
+end
+redis.call('ZADD', KEYS[1], ARGV[3], ARGV[1])
+redis.call('PEXPIREAT', KEYS[1], ARGV[3])
+if KEYS[3] then
+  redis.call('ZADD', KEYS[3], ARGV[3], ARGV[1])
+  redis.call('PEXPIREAT', KEYS[3], ARGV[3])
+end
+redis.call('PEXPIREAT', KEYS[2], ARGV[3])
+return 1
+`
+
+/** Refreshes the cross-slot pointer only while it still owns this reservation. */
+const REFRESH_POINTER_SCRIPT = `
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then
+  return 0
+end
+redis.call('PEXPIREAT', KEYS[1], ARGV[2])
+return 1
+`
+
 /**
  * Removes every payer-slot constraint under one atomic owner check. It is used
  * for both rollback and terminal release; repeated calls return zero without
@@ -204,6 +235,8 @@ export class UsageReservationUnavailableError extends Error {
   readonly code = ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.code
   readonly statusCode = ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.statusCode
   readonly retryable = ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.retryable
+  readonly retryAfterSeconds =
+    ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE.retryAfterSeconds
 
   constructor(message: string, cause?: unknown) {
     super(message)
@@ -361,6 +394,8 @@ interface ReserveExecutionSlotBaseParams {
   plan: string | null | undefined
   /** Optional positive Enterprise subscription metadata override. */
   enterpriseConcurrencyLimit?: number | null
+  /** Absolute Unix-millisecond expiry for this attempt, including cleanup grace. */
+  expiresAt?: number
   /** Recorded usage for the billing entity at admission time (dollars). */
   currentUsage: number
   /** The entity's usage cap (dollars). */
@@ -389,6 +424,34 @@ export type ReserveExecutionSlotResult =
       reserved: false
       reason: ReservationDenialReason
     }
+
+/**
+ * Records connection state alongside a failed slot operation.
+ *
+ * These three functions are the first Redis calls a queued workflow makes, so
+ * when the connection is not usable they are where it surfaces — as an
+ * `Error: Command timed out` carrying no app frame and no indication of which
+ * of several very different causes applied. Pairing the failure with
+ * `describeRedisConnection()` is what makes the next occurrence self-diagnosing
+ * instead of another inference from timing alone.
+ */
+async function withReservationDiagnostics<T>(
+  operation: string,
+  reservationId: string,
+  run: () => Promise<T>
+): Promise<T> {
+  try {
+    return await run()
+  } catch (error) {
+    logger.error('Usage reservation Redis operation failed', {
+      operation,
+      reservationId,
+      error: toError(error).message,
+      redis: describeRedisConnection(),
+    })
+    throw error
+  }
+}
 
 /**
  * Atomic admission reservation that closes the usage-cap check-then-use race.
@@ -447,7 +510,13 @@ export async function reserveExecutionSlot(
     : -1
   const ttlMs = getExecutionReservationTtlMs()
   const now = Date.now()
-  const expiryScore = now + ttlMs
+  const fallbackExpiry = now + ttlMs
+  const expiryScore =
+    params.expiresAt !== undefined &&
+    Number.isSafeInteger(params.expiresAt) &&
+    params.expiresAt > now
+      ? Math.min(params.expiresAt, fallbackExpiry)
+      : fallbackExpiry
   let localResult: unknown
 
   try {
@@ -469,6 +538,7 @@ export async function reserveExecutionSlot(
       error: toError(error).message,
       entityKey,
       reservationId,
+      redis: describeRedisConnection(),
     })
     throw new UsageReservationUnavailableError(
       'Usage admission is temporarily unavailable. Please retry.',
@@ -554,6 +624,74 @@ export async function reserveExecutionSlot(
       error
     )
   }
+}
+
+/**
+ * Moves an admitted reservation's expiry to the active worker attempt deadline.
+ * Returns false when the original ownership proof has already expired, allowing
+ * the worker to run full admission again rather than execute without a slot.
+ */
+export async function refreshExecutionSlotExpiry(
+  reservationId: string,
+  expiresAt: number
+): Promise<boolean> {
+  if (!isHosted || !isBillingEnabled) return true
+
+  const redis = getRedisClient()
+  if (!redis) {
+    throw new UsageReservationUnavailableError(
+      'Usage admission is temporarily unavailable. Please retry.'
+    )
+  }
+
+  const now = Date.now()
+  if (!Number.isSafeInteger(expiresAt) || expiresAt <= now) {
+    throw new UsageReservationUnavailableError('Invalid usage reservation refresh expiry')
+  }
+
+  const boundedReservationId = requireBoundedIdentifier(reservationId, 'reservation id')
+  const pointerKey = `${POINTER_KEY_PREFIX}${boundedReservationId}`
+  const descriptorValue = await withReservationDiagnostics(
+    'refresh:read-pointer',
+    boundedReservationId,
+    () => redis.get(pointerKey)
+  )
+  if (!descriptorValue) return false
+  const descriptor = parseDescriptor(descriptorValue)
+  if (!descriptor) {
+    logger.error('Invalid usage reservation pointer; refusing refresh', { reservationId })
+    return false
+  }
+
+  const expiryAt = Math.min(expiresAt, now + getExecutionReservationTtlMs())
+  const keys = buildLocalKeys(descriptor, boundedReservationId)
+  const keyArgs = localKeyArguments(keys)
+  const localResult = await withReservationDiagnostics(
+    'refresh:extend-local',
+    boundedReservationId,
+    () =>
+      redis.eval(
+        REFRESH_LOCAL_SCRIPT,
+        keyArgs.length,
+        ...keyArgs,
+        boundedReservationId,
+        descriptorValue,
+        expiryAt.toString()
+      )
+  )
+  if (localResult !== 1) return false
+
+  const pointerResult = await withReservationDiagnostics(
+    'refresh:extend-pointer',
+    boundedReservationId,
+    () => redis.eval(REFRESH_POINTER_SCRIPT, 1, pointerKey, descriptorValue, expiryAt.toString())
+  )
+  if (pointerResult !== 1) {
+    throw new UsageReservationUnavailableError(
+      'Usage reservation pointer ownership could not be refreshed. Please retry.'
+    )
+  }
+  return true
 }
 
 /**

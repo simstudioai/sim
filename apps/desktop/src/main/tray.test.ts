@@ -179,6 +179,9 @@ describe('buildTrayMenuTemplate', () => {
     const seen = template.find((item) => item.label === 'Seen')
     expect(working?.icon).toBeDefined()
     expect(fresh?.icon).toBeDefined()
+    expect(working?.accessibilityLabel).toBe('Working, running')
+    expect(fresh?.accessibilityLabel).toBe('Fresh, unread')
+    expect(seen?.accessibilityLabel).toBe('Seen')
     // Active (yellow) and unread (green) use distinct images; read chats get none.
     expect(working?.icon).not.toBe(fresh?.icon)
     expect(seen?.icon).toBeUndefined()
@@ -224,7 +227,7 @@ describe('installTray', () => {
     Menu.buildFromTemplate.mockClear()
   })
 
-  it('fetches fresh chats on click and pops the menu', async () => {
+  it('attaches a native menu immediately and refreshes it in the background', async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
@@ -236,19 +239,20 @@ describe('installTray', () => {
     expect(handle).not.toBeNull()
     expect(Tray.instances).toHaveLength(1)
     const tray = Tray.instances[0]
-
-    const clickHandler = tray.on.mock.calls.find(
-      ([event]: unknown[]) => event === 'click'
-    )?.[1] as () => void
-    clickHandler()
-    await vi.waitFor(() => expect(tray.popUpContextMenu).toHaveBeenCalledTimes(1))
+    expect(tray.setContextMenu).toHaveBeenCalledTimes(1)
+    expect(tray.setIgnoreDoubleClickEvents).toHaveBeenCalledWith(true)
+    expect(tray.on).not.toHaveBeenCalledWith('click', expect.any(Function))
+    expect(tray.popUpContextMenu).not.toHaveBeenCalled()
     expect(fetchMock).toHaveBeenCalledWith(
       'https://sim.ai/api/copilot/chats',
       expect.objectContaining({ credentials: 'include' })
     )
+    await vi.waitFor(() =>
+      expect(JSON.stringify(tray.setContextMenu.mock.calls.at(-1)?.[0])).toContain('Hello')
+    )
   })
 
-  it('still pops the menu when the chats fetch fails', async () => {
+  it('keeps the immediately attached menu when the chats fetch fails', async () => {
     vi.mocked(session.fromPartition).mockReturnValue({
       fetch: vi.fn(async () => {
         throw new Error('offline')
@@ -257,11 +261,58 @@ describe('installTray', () => {
 
     installTray(makeDeps())
     const tray = Tray.instances[0]
-    const clickHandler = tray.on.mock.calls.find(
-      ([event]: unknown[]) => event === 'click'
-    )?.[1] as () => void
-    clickHandler()
-    await vi.waitFor(() => expect(tray.popUpContextMenu).toHaveBeenCalledTimes(1))
+    expect(tray.setContextMenu).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(session.fromPartition).toHaveBeenCalled())
+    expect(tray.popUpContextMenu).not.toHaveBeenCalled()
+  })
+
+  it('leaves rapid-click toggling to the native attached menu during a slow refresh', async () => {
+    let release: (value: unknown) => void = () => {}
+    const response = new Promise((resolve) => {
+      release = resolve
+    })
+    const fetchMock = vi.fn(() => response)
+    vi.mocked(session.fromPartition).mockReturnValue({ fetch: fetchMock } as never)
+
+    installTray(makeDeps())
+    const tray = Tray.instances[0]
+    expect(tray.setContextMenu).toHaveBeenCalledTimes(1)
+    expect(tray.on).not.toHaveBeenCalledWith('click', expect.any(Function))
+    expect(tray.on).not.toHaveBeenCalledWith('right-click', expect.any(Function))
+    expect(tray.popUpContextMenu).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    release({
+      ok: true,
+      status: 200,
+      json: async () => ({ chats: [{ id: 'c1', title: 'Hello', workspaceId: 'ws1' }] }),
+    })
+    await vi.waitFor(() =>
+      expect(JSON.stringify(tray.setContextMenu.mock.calls.at(-1)?.[0])).toContain('Hello')
+    )
+    expect(tray.setContextMenu).toHaveBeenCalledTimes(2)
+  })
+
+  it('treats a valid empty chat response as a completed warm-up', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ chats: [] }),
+    }))
+    vi.mocked(session.fromPartition).mockReturnValue({ fetch: fetchMock } as never)
+    vi.useFakeTimers()
+
+    const handle = installTray(makeDeps())
+    try {
+      await vi.advanceTimersByTimeAsync(20_000)
+      const tray = Tray.instances[0]
+      expect(tray.on).not.toHaveBeenCalledWith('click', expect.any(Function))
+      expect(tray.popUpContextMenu).not.toHaveBeenCalled()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      handle?.destroy()
+      vi.useRealTimers()
+    }
   })
 
   it('drops the previous user’s chats when the server says signed out', async () => {
@@ -279,32 +330,27 @@ describe('installTray', () => {
         : { ok: false, status: 401, json: async () => ({}) }
     )
     vi.mocked(session.fromPartition).mockReturnValue({ fetch: fetchMock } as never)
+    vi.useFakeTimers()
 
-    installTray(makeDeps())
-    const tray = Tray.instances[0]
-    const clickHandler = tray.on.mock.calls.find(
-      ([event]: unknown[]) => event === 'click'
-    )?.[1] as () => void
-
-    // Each click pops from cache then refreshes it, so poll until the menu
-    // settles rather than assuming which click sees the new state.
-    const lastMenu = () => JSON.stringify(Menu.buildFromTemplate.mock.calls.at(-1))
-    await vi.waitFor(() => {
-      clickHandler()
+    const handle = installTray(makeDeps())
+    try {
+      const tray = Tray.instances[0]
+      await vi.advanceTimersByTimeAsync(0)
+      const lastMenu = () => JSON.stringify(tray.setContextMenu.mock.calls.at(-1)?.[0])
       expect(lastMenu()).toContain('Secret')
-    })
 
-    signedIn = false
-    await vi.waitFor(() => {
-      clickHandler()
+      signedIn = false
+      await vi.advanceTimersByTimeAsync(60_000)
       expect(lastMenu()).not.toContain('Secret')
-    })
-    expect(tray.popUpContextMenu).toHaveBeenCalled()
+    } finally {
+      handle?.destroy()
+      vi.useRealTimers()
+    }
   })
 
   it('clearRecentChats empties the menu immediately and voids an in-flight fetch', async () => {
-    // Sign-out teardown calls this. The menu pops from cache BEFORE refreshing,
-    // so without it the next open would show the old titles one more time.
+    // Sign-out teardown calls this so the attached native menu cannot retain
+    // the previous user's titles while an older request is still in flight.
     let release: (value: unknown) => void = () => {}
     const inFlight = new Promise((resolve) => {
       release = resolve
@@ -325,12 +371,7 @@ describe('installTray', () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
     const tray = Tray.instances[0]
-    const clickHandler = tray.on.mock.calls.find(
-      ([event]: unknown[]) => event === 'click'
-    )?.[1] as () => void
-    clickHandler()
-    await vi.waitFor(() => expect(tray.popUpContextMenu).toHaveBeenCalled())
-    expect(JSON.stringify(Menu.buildFromTemplate.mock.calls.at(-1))).not.toContain('Secret')
+    expect(JSON.stringify(tray.setContextMenu.mock.calls.at(-1)?.[0])).not.toContain('Secret')
   })
 
   it('marks dev, staging, and local status items while leaving production unchanged', () => {

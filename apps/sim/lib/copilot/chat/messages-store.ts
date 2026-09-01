@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
-import { copilotMessages } from '@sim/db/schema'
-import { and, eq, notInArray, sql } from 'drizzle-orm'
+import { copilotChats, copilotMessages } from '@sim/db/schema'
+import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
 import { type PersistedMessage, stripToolResultOutput } from '@/lib/copilot/chat/persisted-message'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -76,6 +76,40 @@ export async function appendCopilotChatMessages(
         updatedAt: sql`now()`,
       },
     })
+}
+
+/**
+ * Persist one completed turn — the user message and the assistant reply — into
+ * a chat's transcript, bumping the chat's `updatedAt` so it sorts by recency.
+ *
+ * Headless callers need this because the orchestrator never writes messages:
+ * the interactive web surface persists them from its own client store, so a
+ * turn run without that surface would leave a chat that opens to nothing.
+ *
+ * Both messages are written in a single transaction, so a failure leaves the
+ * transcript untouched rather than showing a question with no answer.
+ *
+ * The chat row is claimed under the same liveness predicate the accessible-chat
+ * loaders use, so a chat soft-deleted while the turn was running receives
+ * nothing: the update matches no row and the transaction returns having written
+ * neither the transcript nor the recency bump. Dropping the turn is right here
+ * because the user deleted the conversation after asking — resurrecting it with
+ * a reply would undo that deletion, and the caller still has its reply in the
+ * response. Throws on a write failure.
+ */
+export async function persistCopilotChatTurn(
+  chatId: string,
+  messages: PersistedMessage[]
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(copilotChats)
+      .set({ updatedAt: new Date() })
+      .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
+      .returning({ model: copilotChats.model })
+    if (!updated) return
+    await appendCopilotChatMessages(chatId, messages, { chatModel: updated.model ?? null }, tx)
+  })
 }
 
 /**

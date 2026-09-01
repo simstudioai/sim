@@ -13,46 +13,76 @@ function buildColors() {
     isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#1a1a1a'
 
   return {
-    /** Main canvas background — a hair off-white so the white card reads via contrast, not the border alone */
-    bgOuter: '#f8f8f8',
+    /** Canvas behind the card — platform `--surface-1` (the sidebar/panel surface) */
+    bgOuter: '#fbfbfb',
     /** Card/container background — platform `--surface-2` */
     bgCard: '#ffffff',
-    /** Primary text — platform `--text-primary` */
+    /** Headings and emphasis — platform `--text-primary` */
     textPrimary: '#1a1a1a',
-    /** Secondary text — platform `--text-secondary` */
+    /** Body and value text — platform `--text-body` */
+    textBody: '#434343',
+    /** De-emphasized text inside a body block — platform `--text-secondary` */
     textSecondary: '#525252',
-    /** Tertiary text — platform `--text-tertiary` */
-    textTertiary: '#5c5c5c',
-    /** Muted text (footer) — platform `--text-muted` */
-    textMuted: '#707070',
-    /** Brand primary — neutral by default, brand color when whitelabeled */
-    brandPrimary:
-      isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#1a1a1a',
+    /** Muted text (labels, footer) — platform `--text-muted` */
+    textMuted: '#7a7a7a',
     /** Accent for buttons and links — neutral by default, brand color when whitelabeled */
     brandTertiary: accentColor,
-    /** Border/divider — platform `--border` */
-    divider: '#dedede',
-    /** Subtle fill for info/code boxes on the white card */
+    /** Borders and dividers — platform `--border` */
+    border: '#d8d8d8',
+    /** Fill for info/code boxes on the white card — platform `--surface-3` */
     surfaceSubtle: '#f7f7f7',
     /** Error surface fill — platform `--terminal-status-error-bg` */
     errorBg: '#fef2f2',
     /** Error surface border — platform `--error-muted` */
     errorBorder: '#fecaca',
+    /** Text on an inverse (dark) fill, e.g. the CTA — platform `--text-inverse` */
+    textInverse: '#ffffff',
     /** Footer background — matches the canvas */
-    footerBg: '#f8f8f8',
+    footerBg: '#fbfbfb',
   }
 }
 
 export const colors = buildColors()
 
-/** Typography settings */
+/**
+ * Typography settings. Enforced against the platform sources by
+ * `base.tokens.test.ts`.
+ */
 export const typography = {
+  /**
+   * Mirrors the platform face and its fallback chain
+   * (`apps/sim/app/_styles/fonts/season/season.ts`). This matters more than the
+   * `<Font>` webfont in `EmailLayout` — Gmail and Outlook strip `@font-face`
+   * entirely, so for most recipients the fallback chain IS the rendered font.
+   */
   fontFamily:
-    "'Season Sans', -apple-system, 'SF Pro Display', 'SF Pro Text', 'Helvetica', sans-serif",
+    "'Season Sans', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+  /**
+   * Deliberately brand-free, for emails that must read as typed by a person
+   * (the plain founder notes, the agent's thread replies). Carries the same
+   * non-brand fallbacks as {@link fontFamily} so Android and Linux clients land
+   * on Roboto rather than a generic sans.
+   */
+  systemFontFamily:
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  /**
+   * `caption`/`base`/`md` are Sim's own scale from `tailwind.config.ts`. `sm` is
+   * Tailwind's stock 14px — not a Sim token, but what `text-sm` resolves to in
+   * `chipGeometryClass`, so the CTA has to use it.
+   */
   fontSize: {
-    body: '16px',
-    small: '14px',
     caption: '12px',
+    small: '13px',
+    sm: '14px',
+    base: '15px',
+    /** Email body copy. Larger than the app's 15px `base` — the client default. */
+    md: '16px',
+    /**
+     * Display figure (OTP code, credit balance). Deliberately above the platform
+     * scale — the app has no headline-numeral token because it has no surface
+     * that needs one.
+     */
+    display: '24px',
   },
   lineHeight: {
     body: '24px',
@@ -60,19 +90,43 @@ export const typography = {
   },
 }
 
+/**
+ * Weight scale. The platform allows exactly three steps (400/500/600) — never
+ * `bold`, which resolves to 700 and sits off the scale.
+ */
+export const fontWeight = {
+  normal: 400,
+  medium: 500,
+  semibold: 600,
+} as const
+
+/** Platform `--radius` (`rounded-lg`) — the single radius the design system uses. */
+const RADIUS = '8px'
+
 /** Spacing values */
 export const spacing = {
   containerWidth: 600,
   gutter: 40,
-  sectionGap: 20,
   paragraphGap: 12,
-  /** Logo width in pixels */
-  logoWidth: 90,
+}
+
+/** Shared body-copy ramp. */
+const bodyText = {
+  fontSize: typography.fontSize.md,
+  lineHeight: typography.lineHeight.body,
+  color: colors.textBody,
+  fontWeight: fontWeight.normal,
+  fontFamily: typography.fontFamily,
+}
+
+/** Shared box geometry. */
+const boxGeometry = {
+  padding: '16px 18px',
+  borderRadius: RADIUS,
+  margin: '16px 0',
 }
 
 export const baseStyles = {
-  fontFamily: typography.fontFamily,
-
   /** Main body wrapper with outer background */
   main: {
     backgroundColor: colors.bgOuter,
@@ -80,19 +134,13 @@ export const baseStyles = {
     padding: '32px 0',
   },
 
-  /** Center wrapper for email content */
-  wrapper: {
-    maxWidth: `${spacing.containerWidth}px`,
-    margin: '0 auto',
-  },
-
   /** Main card container — white surface, chip-radius, hairline border on the near-white canvas */
   container: {
     maxWidth: `${spacing.containerWidth}px`,
     margin: '0 auto',
     backgroundColor: colors.bgCard,
-    border: `1px solid ${colors.divider}`,
-    borderRadius: '8px',
+    border: `1px solid ${colors.border}`,
+    borderRadius: RADIUS,
     overflow: 'hidden',
   },
 
@@ -109,35 +157,33 @@ export const baseStyles = {
 
   /** Standard paragraph text */
   paragraph: {
-    fontSize: typography.fontSize.body,
-    lineHeight: typography.lineHeight.body,
-    color: colors.textSecondary,
-    fontWeight: 400,
-    fontFamily: typography.fontFamily,
+    ...bodyText,
     margin: `${spacing.paragraphGap}px 0`,
   },
 
-  /** Bold label text (e.g., "Platform:", "Time:") */
-  label: {
-    fontSize: typography.fontSize.body,
-    lineHeight: typography.lineHeight.body,
-    color: colors.textSecondary,
-    fontWeight: 'bold' as const,
-    fontFamily: typography.fontFamily,
-    margin: 0,
-    display: 'inline',
+  /**
+   * The opening line of an email body — flush to the top, so it sits a fixed
+   * distance below the logo instead of inheriting the paragraph gap.
+   */
+  greeting: {
+    ...bodyText,
+    margin: `0 0 ${spacing.paragraphGap}px 0`,
   },
 
-  /** Primary CTA button - matches the platform's primary Chip (inverse fill, rounded-lg, h-30, text-sm) */
+  /**
+   * Primary CTA — the platform's primary Chip, transcribed for email:
+   * `chipPrimaryFillTokens` fill (`--text-primary`), `chipGeometryClass`
+   * geometry (`h-[30px]`, `rounded-lg`, `px-2`, `text-sm`) at normal weight.
+   */
   button: {
     display: 'inline-block',
     backgroundColor: colors.brandTertiary,
-    color: '#ffffff',
-    fontWeight: 400,
-    fontSize: '14px',
+    color: colors.textInverse,
+    fontWeight: fontWeight.normal,
+    fontSize: typography.fontSize.sm,
     lineHeight: '30px',
-    padding: '0 12px',
-    borderRadius: '8px',
+    padding: '0 8px',
+    borderRadius: RADIUS,
     textDecoration: 'none',
     textAlign: 'center' as const,
     margin: '4px 0',
@@ -147,25 +193,28 @@ export const baseStyles = {
   /** Link text style - neutral color, so it carries an underline to read as a link */
   link: {
     color: colors.brandTertiary,
-    fontWeight: 400,
+    fontWeight: fontWeight.normal,
     textDecoration: 'underline',
   },
 
   /** Horizontal divider */
   divider: {
-    borderTop: `1px solid ${colors.divider}`,
+    borderTop: `1px solid ${colors.border}`,
     margin: `16px 0`,
   },
 
-  /** Footer container (inside gray area below card) */
-  footer: {
-    maxWidth: `${spacing.containerWidth}px`,
-    margin: '0 auto',
-    padding: `32px ${spacing.gutter}px`,
-    textAlign: 'left' as const,
+  /**
+   * Footer link — muted rather than {@link link}'s accent, since the footer sits
+   * outside the card and its links are secondary to the message.
+   */
+  footerLink: {
+    color: colors.textMuted,
+    fontWeight: fontWeight.normal,
+    textDecoration: 'underline',
+    fontFamily: typography.fontFamily,
   },
 
-  /** Footer text style */
+  /** Footer text style — used inside the footer's own centered table cells */
   footerText: {
     fontSize: typography.fontSize.caption,
     lineHeight: typography.lineHeight.caption,
@@ -174,78 +223,95 @@ export const baseStyles = {
     margin: '0 0 10px 0',
   },
 
+  /**
+   * The closing fine-print line inside the card. Same ramp as
+   * {@link footerText}, but left-aligned — the card is left-aligned while the
+   * footer's own cells are not.
+   */
+  footnote: {
+    fontSize: typography.fontSize.caption,
+    lineHeight: typography.lineHeight.caption,
+    color: colors.textMuted,
+    fontFamily: typography.fontFamily,
+    margin: '0 0 10px 0',
+    textAlign: 'left' as const,
+  },
+
   /** Code/OTP container */
   codeContainer: {
     margin: '12px 0',
     padding: '12px 16px',
     backgroundColor: colors.surfaceSubtle,
-    borderRadius: '8px',
-    border: `1px solid ${colors.divider}`,
+    borderRadius: RADIUS,
+    border: `1px solid ${colors.border}`,
     textAlign: 'center' as const,
   },
 
   /** Code/OTP text */
   code: {
-    fontSize: '24px',
-    fontWeight: 'bold' as const,
+    fontSize: typography.fontSize.display,
+    fontWeight: fontWeight.semibold,
     letterSpacing: '3px',
     color: colors.textPrimary,
     fontFamily: typography.fontFamily,
     margin: 0,
   },
 
-  /** Code block text (for JSON/code display) */
-  codeBlock: {
-    fontSize: typography.fontSize.caption,
-    lineHeight: typography.lineHeight.caption,
-    color: colors.textSecondary,
-    fontFamily: 'monospace',
-    whiteSpace: 'pre-wrap' as const,
-    wordWrap: 'break-word' as const,
-    margin: 0,
-  },
-
   /** Highlighted info box (e.g., "What you get with Pro") */
   infoBox: {
+    ...boxGeometry,
     backgroundColor: colors.surfaceSubtle,
-    padding: '16px 18px',
-    borderRadius: '8px',
-    margin: '16px 0',
+  },
+
+  /** Error-state variant of {@link infoBox} */
+  errorBox: {
+    ...boxGeometry,
+    backgroundColor: colors.errorBg,
+    border: `1px solid ${colors.errorBorder}`,
   },
 
   /** Info box title */
   infoBoxTitle: {
-    fontSize: typography.fontSize.body,
+    fontSize: typography.fontSize.md,
     lineHeight: typography.lineHeight.body,
-    fontWeight: 600,
+    fontWeight: fontWeight.semibold,
     color: colors.textPrimary,
     fontFamily: typography.fontFamily,
     margin: '0 0 8px 0',
   },
 
-  /** Info box list content */
+  /**
+   * Info box body copy.
+   *
+   * `margin: 0` — so multi-row content must be ONE `Text` with `<br />` between
+   * rows, never several `Text` nodes, which would stack flush with no gap.
+   */
   infoBoxList: {
-    fontSize: typography.fontSize.body,
+    fontSize: typography.fontSize.md,
     lineHeight: '1.6',
-    color: colors.textSecondary,
+    color: colors.textBody,
     fontFamily: typography.fontFamily,
     margin: 0,
   },
 
-  /** Section borders - decorative accent line */
-  sectionsBorders: {
-    width: '100%',
-    display: 'flex',
+  /** Muted caption inside an info box, above a {@link infoBoxValue} figure */
+  infoBoxLabel: {
+    fontSize: typography.fontSize.sm,
+    lineHeight: typography.lineHeight.caption,
+    color: colors.textMuted,
+    fontWeight: fontWeight.normal,
+    fontFamily: typography.fontFamily,
+    margin: 0,
   },
 
-  sectionBorder: {
-    borderBottom: `1px solid ${colors.divider}`,
-    width: '249px',
-  },
-
-  sectionCenter: {
-    borderBottom: `1px solid ${colors.brandTertiary}`,
-    width: '102px',
+  /** The headline figure of a stat info box (e.g. a credit balance) */
+  infoBoxValue: {
+    fontSize: typography.fontSize.display,
+    lineHeight: '32px',
+    fontWeight: fontWeight.semibold,
+    color: colors.textPrimary,
+    fontFamily: typography.fontFamily,
+    margin: '4px 0 0 0',
   },
 
   /** Spacer row for vertical spacing in tables */
@@ -266,22 +332,13 @@ export const baseStyles = {
     lineHeight: '1px',
     width: `${spacing.gutter}px`,
   },
-
-  /** Info row (e.g., Platform, Device location, Time) */
-  infoRow: {
-    fontSize: typography.fontSize.body,
-    lineHeight: typography.lineHeight.body,
-    color: colors.textSecondary,
-    fontFamily: typography.fontFamily,
-    margin: '8px 0',
-  },
 }
 
-/** Styles for plain personal emails (no branding, no EmailLayout) */
+/** Styles for plain personal emails (no branding, no EmailLayout). */
 export const plainEmailStyles = {
   body: {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    backgroundColor: '#ffffff',
+    fontFamily: typography.systemFontFamily,
+    backgroundColor: colors.bgCard,
     margin: '0',
     padding: '0',
   },
@@ -291,9 +348,9 @@ export const plainEmailStyles = {
     padding: '0 24px',
   },
   p: {
-    fontSize: '15px',
+    fontSize: typography.fontSize.base,
     lineHeight: '1.6',
-    color: '#1a1a1a',
+    color: colors.textPrimary,
     margin: '0 0 16px',
   },
 } as const

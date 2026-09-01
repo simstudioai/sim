@@ -38,6 +38,7 @@ import {
   TYPE_MS_PER_ATOM,
   WORKFLOW_FOCUS_SCALE,
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 
 /**
  * Animated hero visual - the only client island in the hero, decorative and
@@ -299,7 +300,7 @@ const SEND_BUTTON_INK = {
  */
 const LANDING_LOADER_INK = {
   '--tl-grad-inner': 'var(--text-body)',
-  '--tl-grad-outer': 'color-mix(in srgb, var(--text-body) 76%, #fff)',
+  '--tl-grad-outer': 'var(--thinking-loader-outer)',
   '--tl-glow': 'transparent',
 } as CSSProperties
 
@@ -962,7 +963,7 @@ export function HeroVisual() {
           GitHub block. FOCUS is the identity transform (block 1 centered); only
           the pull-out animates. */}
       <div
-        className='absolute inset-0 transform-gpu transition-transform duration-[1700ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform'
+        className='absolute inset-0 transform-gpu transition-transform will-change-transform [transition-duration:1700ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
         style={{
           transform: sceneTransform,
           transformOrigin: 'center',
@@ -971,7 +972,7 @@ export function HeroVisual() {
       >
         {showCard && (
           <div
-            className='absolute inset-0 translate-y-0 scale-100 transition-opacity duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+            className='absolute inset-0 translate-y-0 scale-100 transition-opacity [transition-duration:420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
             style={{ opacity: workflowContentFaded ? 0 : 1 }}
           >
             <div
@@ -987,7 +988,7 @@ export function HeroVisual() {
                 // slide beats are written imperatively (a transition here would
                 // fight the per-frame writes).
                 (phase === 'toSend' || phase === 'zoomSend' || phase === 'answer') &&
-                  'transition-transform duration-[850ms] ease-[cubic-bezier(0.65,0,0.35,1)]'
+                  'transition-transform [transition-duration:850ms] [transition-timing-function:cubic-bezier(0.65,0,0.35,1)]'
               )}
               style={zoomStyle}
             >
@@ -1030,7 +1031,7 @@ export function HeroVisual() {
             {/* Edges (scene space, origin = panel center). Drawn as the camera
                 follows the connection to each revealed block. */}
             <svg
-              className='absolute top-1/2 left-1/2 overflow-visible transition-opacity duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
+              className='absolute top-1/2 left-1/2 overflow-visible transition-opacity [transition-duration:420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
               width='1'
               height='1'
               fill='none'
@@ -1047,7 +1048,7 @@ export function HeroVisual() {
                     stroke='var(--workflow-edge)'
                     strokeWidth={2 * WORKFLOW_FOCUS_SCALE}
                     strokeLinecap='round'
-                    className='transition-[stroke-dashoffset] ease-[cubic-bezier(0.22,1,0.36,1)] [stroke-dasharray:1]'
+                    className='transition-[stroke-dashoffset] [stroke-dasharray:1] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
                     style={
                       {
                         strokeDashoffset: drawn ? 0 : 1,
@@ -1078,7 +1079,7 @@ export function HeroVisual() {
                 <div
                   key={block.id}
                   className={cn(
-                    'absolute transform-gpu transition-[opacity,transform,width,height,top,left] duration-[520ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform',
+                    'absolute transform-gpu transition-[opacity,transform,width,height,top,left] will-change-transform [transition-duration:520ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
                     showKbShell &&
                       'overflow-hidden rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)]'
                   )}
@@ -1143,7 +1144,8 @@ export function HeroVisual() {
             // GPU-promoted: its per-frame transform writes composite on their own
             // layer, so the slide + dock read as smooth sub-pixel motion instead of
             // jittering as the position pixel-snaps each frame.
-            'pointer-events-none absolute top-0 left-0 z-20 transform-gpu transition-opacity duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform',
+            'pointer-events-none absolute top-0 left-0 z-20 transform-gpu transition-opacity duration-300 will-change-transform [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
+            colorMixFallbacks.loaderOuter,
             loaderFading ? 'opacity-0' : 'opacity-100'
           )}
           style={{ transformOrigin: '0 0' }}
@@ -1164,7 +1166,7 @@ export function HeroVisual() {
 
       <div
         ref={cursorElRef}
-        className='pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]'
+        className='pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]'
         style={{ opacity: showCursor ? 1 : 0 }}
       >
         <svg

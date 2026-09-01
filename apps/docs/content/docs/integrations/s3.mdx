@@ -1,0 +1,298 @@
+---
+title: S3
+description: Upload, download, list, and manage S3 files and buckets
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="s3"
+  color="linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon S3](https://aws.amazon.com/s3/) is a highly scalable, secure, and durable cloud storage service provided by Amazon Web Services. It's designed to store and retrieve any amount of data from anywhere on the web, making it one of the most widely used cloud storage solutions for businesses of all sizes.
+
+With Amazon S3, you can:
+
+- **Store unlimited data**: Upload files of any size and type with virtually unlimited storage capacity
+- **Access from anywhere**: Retrieve your files from anywhere in the world with low-latency access
+- **Ensure data durability**: Benefit from 99.999999999% (11 9's) durability with automatic data replication
+- **Control access**: Manage permissions and access controls with fine-grained security policies
+- **Scale automatically**: Handle varying workloads without manual intervention or capacity planning
+- **Integrate seamlessly**: Connect with other AWS services and third-party applications easily
+- **Optimize costs**: Choose from multiple storage classes to optimize costs based on access patterns
+
+In Sim, the S3 integration enables your agents to retrieve and access files stored in your Amazon S3 buckets using secure presigned URLs. This allows for powerful automation scenarios such as processing documents, analyzing stored data, retrieving configuration files, and accessing media content as part of your workflows. Your agents can securely fetch files from S3 without exposing your AWS credentials, making it easy to incorporate cloud-stored assets into your automation processes. This integration bridges the gap between your cloud storage and AI workflows, enabling seamless access to your stored data while maintaining security best practices through AWS's robust authentication mechanisms.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate S3 into the workflow. Upload, download, copy, and delete objects (individually or in batches), inspect object metadata, generate time-limited presigned URLs, list bucket contents, and create, list, or delete buckets. Requires AWS access key and secret access key.
+
+
+
+## Actions
+
+### S3 Put Object
+
+Upload a file to an AWS S3 bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
+| `objectKey` | string | Yes | Object key/path in S3 \(e.g., folder/filename.ext\) |
+| `file` | file | No | File to upload |
+| `content` | string | No | Text content to upload \(alternative to file\) |
+| `contentType` | string | No | Content-Type header \(auto-detected from file if not provided\) |
+| `acl` | string | No | Access control list \(e.g., private, public-read\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | URL of the uploaded S3 object |
+| `uri` | string | S3 URI of the uploaded object \(s3://bucket/key\) |
+| `metadata` | object | Upload metadata including ETag and location |
+
+### S3 Get Object
+
+Retrieve an object from an AWS S3 bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | No | Optional region override when URL does not include region \(e.g., us-east-1, eu-west-1\) |
+| `s3Uri` | string | Yes | S3 Object URL \(e.g., https://bucket.s3.region.amazonaws.com/path/to/file\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | Pre-signed URL for downloading the S3 object |
+| `file` | file | Downloaded file stored in execution files |
+| `metadata` | object | File metadata including type, size, name, and last modified date |
+
+### S3 List Objects
+
+List objects in an AWS S3 bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
+| `prefix` | string | No | Prefix to filter objects \(e.g., folder/, images/2024/\) |
+| `maxKeys` | number | No | Maximum number of objects to return \(default: 1000\) |
+| `continuationToken` | string | No | Token for pagination from previous list response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objects` | array | List of S3 objects |
+|   ↳ `key` | string | Object key |
+|   ↳ `size` | number | Object size in bytes |
+|   ↳ `lastModified` | string | Last modified timestamp |
+|   ↳ `etag` | string | Entity tag |
+| `metadata` | object | Listing metadata including pagination info |
+
+### S3 Delete Object
+
+Delete an object from an AWS S3 bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
+| `objectKey` | string | Yes | Object key/path to delete \(e.g., folder/file.txt\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the object was successfully deleted |
+| `metadata` | object | Deletion metadata |
+
+### S3 Copy Object
+
+Copy an object within or between AWS S3 buckets
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `sourceBucket` | string | Yes | Source bucket name \(e.g., my-bucket\) |
+| `sourceKey` | string | Yes | Source object key/path \(e.g., folder/file.txt\) |
+| `destinationBucket` | string | Yes | Destination bucket name \(e.g., my-other-bucket\) |
+| `destinationKey` | string | Yes | Destination object key/path \(e.g., backup/file.txt\) |
+| `acl` | string | No | Access control list for the copied object \(e.g., private, public-read\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | URL of the copied S3 object |
+| `uri` | string | S3 URI of the copied object \(s3://bucket/key\) |
+| `metadata` | object | Copy operation metadata |
+
+### S3 List Buckets
+
+List the S3 buckets owned by the authenticated AWS account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region to address the request to \(e.g., us-east-1\) |
+| `prefix` | string | No | Limit the response to bucket names that begin with this prefix |
+| `maxBuckets` | number | No | Maximum number of buckets to return \(1-10000\) |
+| `continuationToken` | string | No | Token for pagination from a previous list buckets response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `buckets` | array | List of S3 buckets owned by the account |
+|   ↳ `name` | string | Bucket name |
+|   ↳ `creationDate` | string | Bucket creation timestamp |
+|   ↳ `region` | string | AWS region where the bucket is located |
+| `metadata` | object | Listing metadata including owner and pagination info |
+
+### S3 Head Object
+
+Retrieve metadata for an S3 object without downloading its body
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
+| `objectKey` | string | Yes | Object key/path to inspect \(e.g., folder/file.txt\) |
+| `versionId` | string | No | Specific object version ID to inspect \(for versioned buckets\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exists` | boolean | Whether the object exists and was reachable |
+| `metadata` | object | Object metadata including size, content type, ETag, and last modified date |
+
+### S3 Create Bucket
+
+Create a new AWS S3 bucket in the specified region
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region to create the bucket in \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | Name for the new S3 bucket \(must be globally unique\) |
+| `acl` | string | No | Canned ACL for the bucket \(e.g., private, public-read\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | object | Created bucket metadata including name and location |
+
+### S3 Delete Bucket
+
+Delete an empty AWS S3 bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region where the bucket is located \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | Name of the S3 bucket to delete \(must be empty\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the bucket was successfully deleted |
+| `metadata` | object | Deletion metadata including bucket name |
+
+### S3 Presigned URL
+
+Generate a time-limited presigned URL to download or upload an S3 object
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region where the bucket is located \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
+| `objectKey` | string | Yes | Object key/path for the presigned URL \(e.g., folder/file.txt\) |
+| `method` | string | Yes | Operation the URL grants: get \(download\) or put \(upload\) |
+| `expiresIn` | number | No | URL validity in seconds \(1-604800, default 3600\) |
+| `contentType` | string | No | Content-Type the upload must use \(only applies to put URLs\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | The generated presigned URL |
+| `metadata` | object | Presigned URL metadata including method and expiration |
+
+### S3 Delete Objects
+
+Delete multiple objects from an AWS S3 bucket in a single batch request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | S3 bucket name \(e.g., my-bucket\) |
+| `keys` | json | Yes | Array of object keys to delete \(e.g., \["a.txt", "folder/b.txt"\]\). Max 1000. |
+| `quiet` | boolean | No | Return only deletion errors, omitting successfully deleted keys |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | array | Objects that were successfully deleted |
+|   ↳ `key` | string | Deleted object key |
+|   ↳ `versionId` | string | Version ID of the deleted object |
+|   ↳ `deleteMarker` | boolean | Whether a delete marker was created |
+| `errors` | array | Objects that failed to delete |
+|   ↳ `key` | string | Object key that failed |
+|   ↳ `code` | string | Error code |
+|   ↳ `message` | string | Error message |
+| `metadata` | object | Batch deletion summary including counts |
+
+

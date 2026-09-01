@@ -8,13 +8,20 @@ import {
   type AgentStreamToolTerminalStatus,
   settleRunningToolCallList,
 } from '@/components/agent-stream/tool-call-lifecycle'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
+import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { sendMothershipMessage } from '@/lib/mothership/events'
+import { saveBlob } from '@/lib/uploads/client/download'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
+import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/current-user-data'
 import { useExecutionStore } from '@/stores/execution'
-import { consolePersistence, loadConsoleData } from '@/stores/terminal/console/storage'
+import {
+  CONSOLE_STORAGE_VERSION,
+  consolePersistence,
+  loadConsoleData,
+} from '@/stores/terminal/console/storage'
 import type {
   ConsoleEntry,
   ConsoleEntryLocation,
@@ -310,10 +317,12 @@ const notifyBlockError = ({
 
     toast.error(displayName, {
       description: errorMessage,
-      action: {
-        label: 'Fix in Chat',
-        onClick: () => sendMothershipMessage(copilotMessage),
-      },
+      action: isChatEnabled
+        ? {
+            label: 'Fix in Chat',
+            onClick: () => sendMothershipMessage(copilotMessage),
+          }
+        : undefined,
     })
   } catch (notificationError) {
     logger.error('Failed to create block error notification', {
@@ -424,20 +433,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         return
       }
 
-      const formatCSVValue = (value: any): string => {
-        if (value === null || value === undefined) {
-          return ''
-        }
-
-        let stringValue = typeof value === 'object' ? safeConsoleStringify(value) : String(value)
-
-        if (stringValue.includes('"') || stringValue.includes(',') || stringValue.includes('\n')) {
-          stringValue = `"${stringValue.replace(/"/g, '""')}"`
-        }
-
-        return stringValue
-      }
-
       const headers = [
         'timestamp',
         'blockName',
@@ -451,23 +446,24 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         'error',
         'warning',
       ]
+      const serializeValue = (value: unknown) => formatCsvValue(value, safeConsoleStringify)
 
       const csvRows = [
-        headers.join(','),
+        toCsvRow(headers),
         ...entries.map((entry) =>
-          [
-            formatCSVValue(entry.timestamp),
-            formatCSVValue(entry.blockName),
-            formatCSVValue(entry.blockType),
-            formatCSVValue(entry.startedAt),
-            formatCSVValue(entry.endedAt),
-            formatCSVValue(entry.durationMs),
-            formatCSVValue(entry.success),
-            formatCSVValue(entry.input),
-            formatCSVValue(entry.output),
-            formatCSVValue(entry.error),
-            formatCSVValue(entry.warning),
-          ].join(',')
+          toCsvRow([
+            serializeValue(entry.timestamp),
+            serializeValue(entry.blockName),
+            serializeValue(entry.blockType),
+            serializeValue(entry.startedAt),
+            serializeValue(entry.endedAt),
+            serializeValue(entry.durationMs),
+            serializeValue(entry.success),
+            serializeValue(entry.input),
+            serializeValue(entry.output),
+            serializeValue(entry.error),
+            serializeValue(entry.warning),
+          ])
         ),
       ]
 
@@ -475,19 +471,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
       const filename = `terminal-console-${workflowId}-${timestamp}.csv`
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-      const link = document.createElement('a')
-
-      if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob)
-        link.setAttribute('href', url)
-        link.setAttribute('download', filename)
-        link.style.visibility = 'hidden'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
-      }
+      saveBlob(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), filename)
     },
 
     getWorkflowEntries: (workflowId) => {
@@ -639,6 +623,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
           if (update.agentStreamThinking !== undefined) {
             updatedEntry.agentStreamThinking = update.agentStreamThinking
+          }
+
+          if (update.clearAgentStreamThinking) {
+            updatedEntry.agentStreamThinking = undefined
           }
 
           if (update.agentStreamToolCalls !== undefined) {
@@ -845,16 +833,24 @@ async function hydrateConsoleStore(): Promise<void> {
   }
 }
 
+let consoleHydrationPromise = Promise.resolve()
+
+/** Resolves after any persisted console state discovered at module load has been applied. */
+export function waitForConsoleHydration(): Promise<void> {
+  return consoleHydrationPromise
+}
+
 if (typeof window !== 'undefined') {
   consolePersistence.bind(() => {
     const state = useTerminalConsoleStore.getState()
     return {
+      storageVersion: CONSOLE_STORAGE_VERSION,
       workflowEntries: state.workflowEntries,
       isOpen: state.isOpen,
     }
   })
 
-  hydrateConsoleStore()
+  consoleHydrationPromise = hydrateConsoleStore()
 
   window.addEventListener('pagehide', () => consolePersistence.persist())
 }

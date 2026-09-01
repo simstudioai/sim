@@ -150,7 +150,7 @@ export function ComparisonTable({
         {/* Top-left cell: title, subtitle, and billing toggle */}
         <div className='flex h-full flex-col justify-between gap-3 border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-4'>
           <div className='flex flex-col gap-0.5'>
-            <span className='font-medium text-[var(--text-primary)] text-base'>Compare plans</span>
+            <span className='text-[var(--text-primary)] text-base'>Compare plans</span>
             <span className='text-[var(--text-muted)] text-small'>Find the right plan for you</span>
           </div>
           <BillingPeriodToggle isAnnual={isAnnual} onChange={onIsAnnualChange} />
@@ -165,10 +165,8 @@ export function ComparisonTable({
               key={col.name}
               className='flex flex-col items-center gap-1 bg-[var(--surface-2)] px-3 py-4 text-center'
             >
-              <span className='font-medium text-[var(--text-primary)] text-base'>{col.name}</span>
-              <span className='font-medium text-[var(--text-primary)] text-md tabular-nums'>
-                {price}
-              </span>
+              <span className='text-[var(--text-primary)] text-base'>{col.name}</span>
+              <span className='text-[var(--text-primary)] text-md tabular-nums'>{price}</span>
               {cta && (
                 <button
                   type='button'
@@ -176,7 +174,7 @@ export function ComparisonTable({
                   disabled={cta.disabled}
                   aria-label={`${cta.label} — ${col.name}`}
                   className={cn(
-                    chipVariants({ variant: cta.variant, fullWidth: true, flush: true }),
+                    chipVariants({ variant: cta.variant, fullWidth: true }),
                     'mt-2 w-full justify-center'
                   )}
                 >
@@ -197,9 +195,7 @@ export function ComparisonTable({
                 sectionIdx > 0 && 'border-[var(--border-1)] border-t'
               )}
             >
-              <span className='font-medium text-[var(--text-primary)] text-small'>
-                {section.title}
-              </span>
+              <span className='text-[var(--text-primary)] text-small'>{section.title}</span>
             </div>
             <div
               className={cn(

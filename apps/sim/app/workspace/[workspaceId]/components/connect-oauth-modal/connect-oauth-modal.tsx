@@ -25,8 +25,17 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { getScopeDescription } from '@/lib/oauth/utils'
+import { getScopeDescription, getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import {
+  MicrosoftDataverseEnvironmentField,
+  useMicrosoftDataverseEnvironmentForm,
+} from '@/app/workspace/[workspaceId]/components/connect-oauth-modal/microsoft-dataverse-environment'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import { useCreateCredentialDraft, useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import {
+  assertMicrosoftDataverseWebOAuthAvailable,
+  useConnectMicrosoftDataverseOAuthService,
+} from '@/hooks/queries/oauth/microsoft-dataverse-connections'
 import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
 
 const logger = createLogger('ConnectOAuthModal')
@@ -49,11 +58,11 @@ function isHiddenScope(scope: string): boolean {
 function resolveService(
   provider: OAuthProvider,
   serviceId: string
-): { providerName: string; ProviderIcon: ServiceIcon } {
+): { providerName: string; ProviderIcon: ServiceIcon | null } {
   const { baseProvider } = parseProvider(provider)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
   let providerName = baseProviderConfig?.name || provider
-  let ProviderIcon: ServiceIcon = baseProviderConfig?.icon || (() => null)
+  let ProviderIcon: ServiceIcon | null = baseProviderConfig?.icon ?? null
   if (baseProviderConfig) {
     for (const [key, service] of Object.entries(baseProviderConfig.services)) {
       if (key === serviceId || service.providerId === provider) {
@@ -84,6 +93,10 @@ interface ConnectOAuthModalBaseProps {
   /** Used to resolve display metadata and the provider id when not supplied directly. */
   provider?: OAuthProvider
   serviceId?: string
+  /** Enables the environment-bound Dynamics 365 OAuth flow. Legacy Dataverse callers omit it. */
+  requireDataverseEnvironment?: boolean
+  /** Locks an environment-bound connection to the workflow or credential's selected environment. */
+  dataverseEnvironmentUrl?: string
 }
 
 /**
@@ -111,6 +124,11 @@ interface ConnectOAuthModalReauthorizeProps extends ConnectOAuthModalBaseProps {
   toolName: string
   requiredScopes?: readonly string[]
   newScopes?: readonly string[]
+  reconnectTarget?: {
+    workspaceId: string
+    credentialId: string
+    displayName: string
+  }
   onConnect?: () => Promise<void> | void
 }
 
@@ -129,10 +147,34 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   const { open, onOpenChange, mode } = props
   const isConnect = mode === 'connect'
 
-  const providerId = useMemo(
+  const declaredProviderId = useMemo(
     () => props.providerId ?? (props.serviceId ? getProviderIdFromServiceId(props.serviceId) : ''),
     [props.providerId, props.serviceId]
   )
+
+  /**
+   * Authorization servers this service can be connected through, when it has
+   * more than one (Salesforce production vs sandbox). Offered on connect only:
+   * a reauthorize must return to the server that issued the credential.
+   */
+  const { authServerOptions, authServerHint } = useMemo(() => {
+    const service = isConnect ? getServiceConfigByProviderId(declaredProviderId) : null
+    const labels = service?.providerIdLabels
+    if (!service?.additionalProviderIds?.length || !labels) {
+      return { authServerOptions: [], authServerHint: undefined }
+    }
+    return {
+      authServerOptions: [service.providerId, ...service.additionalProviderIds].map((value) => ({
+        value,
+        label: labels[value] ?? value,
+      })),
+      authServerHint: service.providerIdPickerHint,
+    }
+  }, [isConnect, declaredProviderId])
+
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const providerId = selectedProviderId ?? declaredProviderId
+  const requiredScopes = props.requiredScopes ?? EMPTY_SCOPES
 
   const [displayName, setDisplayName] = useState('')
   const [description, setDescription] = useState('')
@@ -157,6 +199,14 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   })
   const createDraft = useCreateCredentialDraft()
   const connectOAuthService = useConnectOAuthService()
+  const connectMicrosoftDataverseOAuthService = useConnectMicrosoftDataverseOAuthService()
+  const dataverseEnvironmentForm = useMicrosoftDataverseEnvironmentForm({
+    fallbackScopes: requiredScopes,
+    lockedEnvironmentUrl: props.dataverseEnvironmentUrl,
+    open,
+    providerId,
+    required: props.requireDataverseEnvironment === true,
+  })
 
   /**
    * Lowercased set of OAuth credential names already in the workspace. Drives
@@ -172,25 +222,22 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     [credentials]
   )
 
-  const requiredScopes = props.requiredScopes ?? EMPTY_SCOPES
   const newScopes = !isConnect ? (props.newScopes ?? EMPTY_SCOPES) : EMPTY_SCOPES
 
-  const newScopesSet = useMemo(
-    () => new Set([...newScopes].filter((scope) => !isHiddenScope(scope))),
-    [newScopes]
+  const newScopesSet = new Set(newScopes.filter((scope) => !isHiddenScope(scope)))
+  const displayScopes = [...dataverseEnvironmentForm.effectiveScopes].filter(
+    (scope) => !isHiddenScope(scope)
   )
 
-  const displayScopes = useMemo(() => {
-    const filtered = [...requiredScopes].filter((scope) => !isHiddenScope(scope))
-    if (isConnect) return filtered
-    return filtered.sort((a, b) => {
+  if (!isConnect) {
+    displayScopes.sort((a, b) => {
       const aIsNew = newScopesSet.has(a)
       const bIsNew = newScopesSet.has(b)
       if (aIsNew && !bIsNew) return -1
       if (!aIsNew && bIsNew) return 1
       return 0
     })
-  }, [isConnect, requiredScopes, newScopesSet])
+  }
 
   /**
    * Initialize the connect form once per open session, after credentials have
@@ -202,6 +249,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   useEffect(() => {
     if (!open) {
       prefilled.current = false
+      setSelectedProviderId(null)
       return
     }
     if (!isConnect || prefilled.current || credentialsLoading) return
@@ -231,7 +279,12 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     setValidationError(null)
     setSubmitError(null)
     try {
+      const environmentUrl = dataverseEnvironmentForm.validate()
+      if (dataverseEnvironmentForm.enabled && !environmentUrl) return
+      if (environmentUrl) assertMicrosoftDataverseWebOAuthAvailable()
+
       let connectorType: string | undefined
+      let draftId: string | undefined
 
       if (isConnect) {
         const trimmed = displayName.trim()
@@ -240,12 +293,13 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           return
         }
 
-        await createDraft.mutateAsync({
+        const draft = await createDraft.mutateAsync({
           workspaceId,
           providerId,
           displayName: trimmed,
           description: description.trim() || undefined,
         })
+        draftId = draft.draftId
 
         const preCount = credentials.filter(
           (c) => c.type === 'oauth' && c.providerId === providerId
@@ -255,6 +309,15 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           displayName: trimmed,
           providerId,
           preCount,
+          baselineCredentials: credentials
+            .filter(
+              (credential) => credential.type === 'oauth' && credential.providerId === providerId
+            )
+            .map((credential) => ({
+              id: credential.id,
+              accountId: credential.accountId,
+              updatedAt: credential.updatedAt,
+            })),
           workspaceId,
           requestedAt: Date.now(),
         }
@@ -280,6 +343,16 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
         handleClose()
         return
       } else {
+        if (props.reconnectTarget) {
+          const draft = await createDraft.mutateAsync({
+            workspaceId: props.reconnectTarget.workspaceId,
+            providerId,
+            credentialId: props.reconnectTarget.credentialId,
+            displayName: props.reconnectTarget.displayName,
+          })
+          draftId = draft.draftId
+        }
+
         logger.info('Reauthorizing OAuth2', {
           providerId,
           requiredScopes,
@@ -292,10 +365,19 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
         callbackURL.searchParams.set(ADD_CONNECTOR_SEARCH_PARAM, connectorType)
       }
 
-      await connectOAuthService.mutateAsync({
-        providerId,
-        callbackURL: callbackURL.toString(),
-      })
+      if (environmentUrl) {
+        await connectMicrosoftDataverseOAuthService.mutateAsync({
+          callbackURL: callbackURL.toString(),
+          draftId,
+          environmentUrl,
+        })
+      } else {
+        await connectOAuthService.mutateAsync({
+          providerId,
+          callbackURL: callbackURL.toString(),
+          draftId,
+        })
+      }
       handleClose()
     } catch (err: unknown) {
       const message = getErrorMessage(err, 'Failed to start OAuth connection')
@@ -304,10 +386,17 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     }
   }
 
-  const isPending = (isConnect && createDraft.isPending) || connectOAuthService.isPending
+  const createsDraft = isConnect || (!isConnect && Boolean(props.reconnectTarget))
+  const isPending =
+    (createsDraft && createDraft.isPending) ||
+    connectOAuthService.isPending ||
+    connectMicrosoftDataverseOAuthService.isPending
   const isDisabled = isConnect
-    ? !displayName.trim() || isPending || Boolean(existingCredential)
-    : isPending
+    ? !displayName.trim() ||
+      !dataverseEnvironmentForm.isComplete ||
+      isPending ||
+      Boolean(existingCredential)
+    : !dataverseEnvironmentForm.isComplete || isPending
 
   const displayNameError =
     validationError ??
@@ -319,7 +408,10 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
-      <ChipModalHeader icon={ProviderIcon} onClose={handleClose}>
+      <ChipModalHeader
+        icon={ProviderIcon ? withBrandIcon(ProviderIcon) : null}
+        onClose={handleClose}
+      >
         {title}
       </ChipModalHeader>
       <ChipModalBody>
@@ -327,6 +419,18 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           <p className='text-[var(--text-tertiary)] text-caption'>
             The "{props.toolName}" tool requires access to your account.
           </p>
+        )}
+
+        {authServerOptions.length > 0 && (
+          <ChipModalField
+            type='dropdown'
+            title='Environment'
+            value={providerId}
+            onChange={setSelectedProviderId}
+            options={authServerOptions}
+            align='start'
+            hint={authServerHint}
+          />
         )}
 
         {isConnect && (
@@ -344,6 +448,8 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
             error={displayNameError}
           />
         )}
+
+        <MicrosoftDataverseEnvironmentField form={dataverseEnvironmentForm} />
 
         {isConnect && (
           <ChipModalField
@@ -364,7 +470,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
                 {displayScopes.map((scope) => (
                   <InfoCardItem key={scope}>
                     <span className='flex items-center gap-2'>
-                      {getScopeDescription(scope)}
+                      {getScopeDescription(scope, providerId)}
                       {!isConnect && newScopesSet.has(scope) && (
                         <Badge variant='amber' size='sm'>
                           New

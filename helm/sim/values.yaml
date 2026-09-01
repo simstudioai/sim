@@ -20,7 +20,7 @@ app:
   # Image configuration
   image:
     repository: simstudioai/simstudio
-    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "v0.7.44") or pin via image.digest.
+    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "v0.8.18") or pin via image.digest.
     tag: ""
     # Optional image digest pin: "sha256:..." — when set, overrides tag.
     digest: ""
@@ -84,6 +84,17 @@ app:
     # these hops, and uses the first untrusted address as the client IP. Required for correct
     # session IPs and rate-limit keying behind a multi-hop proxy chain (e.g. "10.0.0.0/16").
     AUTH_TRUSTED_PROXIES: ""
+    # EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES: destinations on your private network that
+    # workflows may reach. Outbound requests to private, reserved, and loopback addresses are
+    # blocked by default; naming a destination here permits it, allows plain HTTP to it, and lifts
+    # the blocked-port list for it. In-cluster services can be named by hostname, e.g.
+    # "*.svc.cluster.local" or "vllm.ai.svc.cluster.local", or covered by the pod/service CIDR in
+    # EGRESS_ALLOWED_IP_RANGES. Cloud metadata endpoints stay blocked however broad the list is,
+    # and neither setting is honored for URLs harvested from content or for a proxy. Pair with a
+    # NetworkPolicy that constrains what the pod can reach — note networkPolicy.enabled grants
+    # broad egress on 443 only, so a target on another port also needs a networkPolicy.egress rule.
+    EGRESS_ALLOWED_HOSTS: ""
+    EGRESS_ALLOWED_IP_RANGES: ""
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
     # NEXT_PUBLIC_SOCKET_URL: public WebSocket URL for browsers. Leave empty to default to the
     # page's own origin (assumes the ingress/reverse proxy routes /socket.io to the realtime service).
@@ -102,11 +113,12 @@ app:
     # Optional: Scheduled Jobs Authentication
     # Generate using: openssl rand -hex 32
     CRON_SECRET: ""         # OPTIONAL - required only if cronjobs.enabled=true, authenticates scheduled job requests
+    TABLE_ROW_TTL: ""       # Enable TTL columns and expired-row cleanup when AppConfig is unavailable
 
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
     API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest; if unset, keys are stored in plain text
-    REDIS_URL: ""           # OPTIONAL - Redis connection string for caching/sessions; can also come from app secret or External Secrets
+    REDIS_URL: ""           # OPTIONAL - external Redis connection string. Overrides the bundled Redis (see the `redis:` section) and suppresses its Deployment. A REDIS_URL from a pre-created Secret or External Secrets also wins, without needing to be repeated here.
     
     # Email & Communication
     # Configure one provider — the mailer auto-detects in priority order:
@@ -122,6 +134,7 @@ app:
     SMTP_USER: ""                                         # SMTP username (optional — omit for unauthenticated relays like MailHog)
     SMTP_PASS: ""                                         # SMTP password (optional — omit for unauthenticated relays)
     SMTP_SECURE: ""                                       # Set to "true" to force TLS on connect; defaults to true when SMTP_PORT=465
+    SMTP_EHLO_NAME: ""                                    # Hostname sent in the SMTP EHLO greeting; defaults to the app's own domain. Set only if the relay expects a different one
     GMAIL_CREDENTIALS_JSON: ""                            # Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider
     GMAIL_SENDER: ""                                      # Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)
 
@@ -151,9 +164,13 @@ app:
     WAND_OPENAI_MODEL_NAME: ""                            # Wand generation model deployment name (works with both regular OpenAI and Azure OpenAI)
 
     # Azure Mistral OCR Configuration (leave empty if not using Azure-hosted OCR for document processing)
+    OCR_PROVIDER: ""                                      # One of: local, mistral, azure-mistral. Empty preserves legacy credential inference
     OCR_AZURE_ENDPOINT: ""                                # Azure Mistral OCR service endpoint
     OCR_AZURE_MODEL_NAME: ""                              # Azure Mistral OCR model name
     OCR_AZURE_API_KEY: ""                                 # Azure Mistral OCR API key
+
+    # Mothership Copilot Configuration
+    MSHIP_SYSPROMPT_OVERRIDE: ""                          # Optional enterprise-only highest-priority system prompt override forwarded to Mothership
 
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
@@ -248,6 +265,8 @@ app:
     NEXT_PUBLIC_WHITELABELING_ENABLED: ""                 # Show whitelabeling settings page ("true" to enable)
     AUDIT_LOGS_ENABLED: ""                                # Enable audit logs on self-hosted ("true" to enable)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: ""                    # Show audit logs settings page ("true" to enable)
+    CUSTOM_BLOCKS_ENABLED: ""                             # Enable custom blocks on self-hosted ("true" to enable)
+    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: ""                 # Show custom blocks settings page ("true" to enable)
     DATA_DRAINS_ENABLED: ""                               # Enable data drains on self-hosted ("true" to enable)
     NEXT_PUBLIC_DATA_DRAINS_ENABLED: ""                   # Show data drains settings page ("true" to enable)
 
@@ -269,8 +288,11 @@ app:
     # hidden in the Knowledge block UI.
     NEXT_PUBLIC_COHERE_CONFIGURED: ""                     # Set to "true" to hide the Cohere API Key field on the Knowledge block
 
+    # Optional file storage override. One of: local, s3, azure, gcs.
+    # Empty preserves legacy Azure → S3 → GCS → local precedence.
+    STORAGE_PROVIDER: ""
+
     # AWS S3 Cloud Storage Configuration (optional - for file storage)
-    # If configured, files will be stored in S3 instead of local storage
     AWS_REGION: ""                                        # AWS region (e.g., "us-east-1")
     AWS_ACCESS_KEY_ID: ""                                 # AWS access key ID
     AWS_SECRET_ACCESS_KEY: ""                             # AWS secret access key
@@ -286,8 +308,6 @@ app:
     S3_FORCE_PATH_STYLE: ""                               # Set to "true" for path-style addressing (MinIO/Ceph RGW). Leave empty for AWS S3 and R2
 
     # Azure Blob Storage Configuration (optional - for file storage)
-    # If configured, files will be stored in Azure Blob instead of local storage
-    # Note: Azure Blob takes precedence over S3 if both are configured
     AZURE_ACCOUNT_NAME: ""                                # Azure storage account name
     AZURE_ACCOUNT_KEY: ""                                 # Azure storage account key
     AZURE_CONNECTION_STRING: ""                           # Azure connection string (alternative to account name/key)
@@ -301,8 +321,6 @@ app:
     AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: ""      # Azure container for workspace logos
 
     # Google Cloud Storage Configuration (optional - for file storage)
-    # If configured, files will be stored in GCS instead of local storage
-    # Note: used when neither Azure Blob nor S3 is configured
     GCS_PROJECT_ID: ""                                    # GCP project ID (optional — inferred from credentials/ADC when unset)
     GCS_CREDENTIALS_JSON: ""                              # Inline service-account JSON. Leave empty to use Workload Identity / Application Default Credentials
     GCS_BUCKET_NAME: ""                                   # GCS bucket for workspace files (all other GCS buckets fall back to it)
@@ -318,6 +336,11 @@ app:
   # app container — NOT written into the chart-managed Secret and NOT required to be mapped
   # when externalSecrets.enabled=true. Override any key by setting `app.envDefaults.KEY` in
   # your values file. Move a key into `app.env` above only if it must be treated as secret.
+  #
+  # To REMOVE a key rather than change it, override it with `null` — Helm deletes a default
+  # key when it is overridden with null (e.g. `FREE_TABLES_LIMIT: null`). Setting it to ""
+  # does NOT remove it: every key under `app.env` ships as a "" placeholder, so the templates
+  # must read "" as "unspecified". See "Removing an inherited env key" in README.md.
   envDefaults:
     # Application URLs (override in app.env or app.envDefaults for production)
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
@@ -352,8 +375,12 @@ app:
 
     # Rate Limiting (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
-    RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
-    RATE_LIMIT_FREE_ASYNC: "200"                          # Async API executions per minute
+    # Free-tier limits are OPT-IN on a billing-disabled (self-hosted) install:
+    # leaving a key unset means unlimited, and setting it opts that limit back in.
+    # They are deliberately NOT preset here — a chart default would silently
+    # impose hosted-plan caps on self-hosters and diverge from Docker Compose.
+    # RATE_LIMIT_FREE_SYNC: "50"                          # Sync API executions per minute
+    # RATE_LIMIT_FREE_ASYNC: "200"                        # Async API executions per minute
 
     # Billing concurrency limits (in-flight executions per billing account)
     BILLING_CONCURRENCY_LIMIT_FREE: "10"
@@ -362,19 +389,19 @@ app:
     BILLING_CONCURRENCY_LIMIT_ENTERPRISE: "1000"          # Default; Enterprise subscription metadata can override
 
     # Execution Timeouts (seconds) — sync timeouts apply to synchronous API calls
-    EXECUTION_TIMEOUT_FREE: "300"                         # Free tier sync timeout (5 minutes)
+    # EXECUTION_TIMEOUT_FREE: "300"                       # Opt-in; unset means untimed on a self-host
     EXECUTION_TIMEOUT_PRO: "3000"                         # Pro tier sync timeout (50 minutes)
     EXECUTION_TIMEOUT_TEAM: "3000"                        # Team tier sync timeout (50 minutes)
     EXECUTION_TIMEOUT_ENTERPRISE: "3000"                  # Enterprise tier sync timeout (50 minutes)
     # Async timeouts apply to async/background job executions
-    EXECUTION_TIMEOUT_ASYNC_FREE: "5400"                  # Free tier async timeout (90 minutes)
+    # EXECUTION_TIMEOUT_ASYNC_FREE: "5400"                # Opt-in; unset means untimed on a self-host
     EXECUTION_TIMEOUT_ASYNC_PRO: "5400"                   # Pro tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
 
     # Table Feature Limits (per workspace, per plan)
-    FREE_TABLES_LIMIT: "3"                                # Max user tables per workspace on free tier
-    FREE_TABLE_ROWS_LIMIT: "1000"                         # Max rows per table on free tier
+    # FREE_TABLES_LIMIT: "3"                              # Opt-in; unset means no cap on a self-host
+    # FREE_TABLE_ROWS_LIMIT: "1000"                       # Opt-in; unset means no cap on a self-host
     PRO_TABLES_LIMIT: "25"                                # Max user tables per workspace on pro tier
     PRO_TABLE_ROWS_LIMIT: "5000"                          # Max rows per table on pro tier
     TEAM_TABLES_LIMIT: "100"                              # Max user tables per workspace on team tier
@@ -550,6 +577,50 @@ realtime:
   # Additional volumes for realtime deployment
   extraVolumes: []
   extraVolumeMounts: []
+
+# Redis — pub/sub, the Socket.IO adapter, and the idempotency/progress stores.
+# Bundled by default so a chart install matches the Docker Compose stack.
+# REQUIRED once app.replicaCount or realtime.replicaCount exceeds 1: without it
+# cross-pod events are silently dropped. For production prefer a managed
+# instance (ElastiCache, Memorystore, Azure Cache) — set enabled: false and put
+# its connection string in app.env.REDIS_URL, which then takes over.
+redis:
+  enabled: true
+
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+
+  # No persistence is configured: Redis holds coordination state and short-lived
+  # keys, so a restart costs in-flight live updates, not committed data.
+  maxmemory: "512mb"
+  maxmemoryPolicy: "noeviction"
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 768Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  nodeSelector: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
 
 # Database migrations configuration (runs as an init container on the app pods)
 migrations:
@@ -851,9 +922,8 @@ ollama:
 
 # Presidio PII redaction service (analyzer + anonymizer combined, port 5001).
 # When enabled, the app's PII_URL is auto-wired to this in-cluster service so the
-# Guardrails PII block and on-demand masking work. To additionally enable automatic
-# log redaction, set app.env.PII_REDACTION="true" AND app.env.INTERNAL_API_BASE_URL
-# to the in-cluster app service URL (the redaction path calls the app's own
+# Guardrails PII block and configured data-retention masking work. Set
+# app.env.INTERNAL_API_BASE_URL to the in-cluster app service URL (the redaction path calls the app's own
 # /api/guardrails/mask-batch, which must be reachable from inside the cluster).
 pii:
   # Enable/disable the PII redaction service
@@ -1028,8 +1098,10 @@ serviceAccount:
 autoscaling:
   enabled: false
   # Also scale the realtime Deployment with the same HPA settings. Multi-replica
-  # realtime REQUIRES REDIS_URL in app.env (Socket.IO Redis adapter) — without
-  # Redis, cross-pod collaboration events are silently dropped. Set false to
+  # realtime REQUIRES Redis past one replica (Socket.IO adapter) — without it,
+  # cross-pod collaboration events are silently dropped. The chart bundles Redis
+  # by default, so this is satisfied unless you set redis.enabled=false without
+  # supplying app.env.REDIS_URL. Set false to
   # keep realtime pinned at realtime.replicaCount while the app still scales.
   realtime:
     enabled: true
@@ -1144,6 +1216,17 @@ networkPolicy:
   egressExceptCidrs:
     - "169.254.169.254/32"
     - "169.254.170.2/32"
+
+  # Allow egress to any destination and port instead of the default
+  # HTTPS-only rule set (cloud metadata endpoints stay blocked either way).
+  #
+  # Off by default: this chart is deliberately stricter than the common chart
+  # default, which permits unrestricted egress. Leave it false and enumerate
+  # what you need under `egress` below. Turn it on when you run managed
+  # datastores on non-443 ports (Redis, Postgres) and would rather not maintain
+  # CIDR lists — the bundled Postgres and Redis are already allowed by pod
+  # selector and do not need it.
+  allowExternalEgress: false
 
 # Shared storage for enterprise workflows requiring data sharing between pods
 sharedStorage:
@@ -1317,6 +1400,15 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    billingCycleClose:
+      enabled: true
+      name: billing-cycle-close
+      schedule: "0 */6 * * *"
+      path: "/api/cron/billing-cycle-close"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     reconcileBillingSeats:
       enabled: true
       name: reconcile-billing-seats
@@ -1374,6 +1466,28 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Deletes table rows whose TTL column contains an expired Unix timestamp.
+    cleanupTableRowTtl:
+      enabled: true
+      name: cleanup-table-row-ttl
+      schedule: "*/15 * * * *"
+      path: "/api/cron/cleanup-table-row-ttl"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    # Deletes prebuilt sandbox images that no workspace sandbox references and that
+    # have gone unused past the retention window, from the provider and locally.
+    # A no-op on deployments whose sandbox provider installs at run time.
+    cleanupSandboxImages:
+      enabled: true
+      name: cleanup-sandbox-images
+      schedule: "30 4 * * *"
+      path: "/api/cron/cleanup-sandbox-images"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     # Processes the transactional outbox (deployment side-effects retry / dead-letter)
     # and reaps stale workspace-fork background-work rows. Both are safety nets behind
     # the immediate post-commit processing, so frequent runs keep retries timely.
@@ -1382,6 +1496,15 @@ cronjobs:
       name: outbox-process
       schedule: "*/1 * * * *"
       path: "/api/webhooks/outbox/process"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    workspaceFileSearchDispatch:
+      enabled: true
+      name: workspace-file-search-dispatch
+      schedule: "*/1 * * * *"
+      path: "/api/cron/workspace-file-search-dispatch"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
@@ -1774,6 +1897,8 @@ externalSecrets:
       CRON_SECRET: ""
       # Path to API_ENCRYPTION_KEY in external store (optional)
       API_ENCRYPTION_KEY: ""
+      # Path to MSHIP_SYSPROMPT_OVERRIDE in external store (optional)
+      MSHIP_SYSPROMPT_OVERRIDE: ""
       # Path to REDIS_URL in external store (optional)
       REDIS_URL: ""
 

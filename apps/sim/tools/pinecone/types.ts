@@ -72,7 +72,7 @@ export interface PineconeUpsertTextRecord {
 }
 
 export interface PineconeUpsertTextParams extends PineconeBaseParams {
-  records: PineconeUpsertTextRecord | PineconeUpsertTextRecord[]
+  records: PineconeUpsertTextRecord | PineconeUpsertTextRecord[] | string
 }
 
 // Upsert Vectors

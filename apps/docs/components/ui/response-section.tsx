@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown } from '@sim/emcn/icons'
 import { cn } from '@/lib/utils'
 
 interface ResponseSectionProps {

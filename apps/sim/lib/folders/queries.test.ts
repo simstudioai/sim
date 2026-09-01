@@ -9,9 +9,16 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+import { FolderCollectionFullError, FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import {
+  assertFolderCollectionHasRoom,
   findActiveFolder,
+  findArchivedFolderIdByPath,
+  listActiveFolderRows,
   listFoldersForWorkspace,
+  loadActiveFolderPathIndex,
+  resolveFolderPathFilter,
   resolveRestoredFolderId,
   toFolderApi,
   wouldCreateFolderCycle,
@@ -181,6 +188,251 @@ describe('folder queries', () => {
         )
       ).toBe(true)
       expect(hasMockCondition(where, (n) => n.type === 'isNull')).toBe(false)
+    })
+  })
+
+  describe('bounded folder reads', () => {
+    it('fails before building an oversized path index', async () => {
+      queueTableRows(schemaMock.folder, [ROW, { ...ROW, id: 'f-2' }, { ...ROW, id: 'f-3' }])
+
+      const rejection = expect(
+        loadActiveFolderPathIndex('ws-1', 'knowledge_base', undefined, { maxRows: 2 })
+      ).rejects
+      await rejection.toBeInstanceOf(FolderCollectionLimitExceededError)
+      await rejection.toMatchObject({
+        code: 'payload_too_large',
+        message: 'Folder path index exceeds the 2 row limit',
+      })
+      expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
+    })
+
+    /**
+     * The bound stays opt-in. Creation now refuses at
+     * `MAX_FOLDERS_PER_WORKSPACE`, but a workspace that crossed the ceiling
+     * before that guard existed — or through a create path that still bypasses
+     * the orchestration engine — must stay readable. Defaulting the bound would
+     * turn every path-index consumer into a hard failure for a state that
+     * already exists in production data.
+     */
+    it('leaves the read unbounded when no maxRows is given', async () => {
+      queueTableRows(schemaMock.folder, [
+        ROW,
+        { ...ROW, id: 'f-2', name: 'Archive' },
+        { ...ROW, id: 'f-3', name: 'Drafts' },
+      ])
+
+      const index = await loadActiveFolderPathIndex('ws-1', 'workflow')
+
+      expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+      expect(index.rowById.size).toBe(3)
+    })
+
+    it('fails before returning an oversized folder list', async () => {
+      queueTableRows(schemaMock.folder, [ROW, { ...ROW, id: 'f-2' }, { ...ROW, id: 'f-3' }])
+
+      const rejection = expect(
+        listActiveFolderRows('ws-1', 'knowledge_base', { maxRows: 2 })
+      ).rejects
+      await rejection.toBeInstanceOf(FolderCollectionLimitExceededError)
+      await rejection.toMatchObject({
+        code: 'payload_too_large',
+        message: 'Folder list exceeds the 2 row limit',
+      })
+      expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
+    })
+  })
+
+  /**
+   * The writer half of the ceiling the bounded readers enforce. Without it a
+   * workspace could be driven past `MAX_FOLDERS_PER_WORKSPACE`, after which
+   * every capped reader fails on a state the product allowed to exist.
+   */
+  describe('assertFolderCollectionHasRoom', () => {
+    it('refuses a create once the active collection is at the ceiling', async () => {
+      queueTableRows(schemaMock.folder, [{ total: MAX_FOLDERS_PER_WORKSPACE }])
+
+      const rejection = expect(assertFolderCollectionHasRoom('ws-1', 'workflow')).rejects
+      await rejection.toBeInstanceOf(FolderCollectionFullError)
+      await rejection.toMatchObject({
+        code: 'conflict',
+        message:
+          'This workspace has reached its limit of 10,000 workflow folders. Delete folders you no longer need before creating another one.',
+      })
+    })
+
+    it('still refuses a workspace that is already past the ceiling', async () => {
+      queueTableRows(schemaMock.folder, [{ total: MAX_FOLDERS_PER_WORKSPACE + 1 }])
+
+      await expect(assertFolderCollectionHasRoom('ws-1', 'table')).rejects.toBeInstanceOf(
+        FolderCollectionFullError
+      )
+    })
+
+    it('allows a create below the ceiling and counts only this resource type', async () => {
+      queueTableRows(schemaMock.folder, [{ total: MAX_FOLDERS_PER_WORKSPACE - 1 }])
+
+      await expect(assertFolderCollectionHasRoom('ws-1', 'knowledge_base')).resolves.toBeUndefined()
+
+      const where = whereAt(0)
+      expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'knowledge_base')).toBe(
+        true
+      )
+      expect(
+        hasMockCondition(
+          where,
+          (n) => n.type === 'isNull' && n.column === schemaMock.folder.deletedAt
+        )
+      ).toBe(true)
+    })
+
+    /**
+     * The bulk writers — recursive duplication, admin import, workspace fork — insert many
+     * folders per call. Charging one row and then writing N is the same overflow the ceiling
+     * exists to prevent, so the caller declares how many rows it is about to add.
+     */
+    it('refuses a bulk create that would cross the ceiling from below it', async () => {
+      queueTableRows(schemaMock.folder, [{ total: MAX_FOLDERS_PER_WORKSPACE - 3 }])
+
+      const rejection = expect(
+        assertFolderCollectionHasRoom('ws-1', 'workflow', undefined, { additionalRows: 4 })
+      ).rejects
+      await rejection.toBeInstanceOf(FolderCollectionFullError)
+      await rejection.toMatchObject({ code: 'conflict' })
+    })
+
+    it('allows a bulk create that exactly fills the ceiling', async () => {
+      queueTableRows(schemaMock.folder, [{ total: MAX_FOLDERS_PER_WORKSPACE - 4 }])
+
+      await expect(
+        assertFolderCollectionHasRoom('ws-1', 'workflow', undefined, { additionalRows: 4 })
+      ).resolves.toBeUndefined()
+    })
+
+    /**
+     * A copy that creates no folders is not a create. An over-cap workspace must still be
+     * able to run one, so the count is not even issued.
+     */
+    it('skips the count entirely when no rows are being added', async () => {
+      await expect(
+        assertFolderCollectionHasRoom('ws-1', 'workflow', undefined, { additionalRows: 0 })
+      ).resolves.toBeUndefined()
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    })
+  })
+
+  /**
+   * The one place the real helper is exercised. Every list use case that filters
+   * by `folderPath` mocks this module out and stands a reimplementation in for
+   * it, so a defect here — a miss widening to unfiltered, a root path that stops
+   * resolving — would leave all of those suites green while every filtered list
+   * answered with the wrong rows.
+   */
+  describe('resolveFolderPathFilter', () => {
+    const index = {
+      pathById: new Map([['f-1', 'Reports']]),
+      idByPath: new Map([['Reports', 'f-1']]),
+    }
+
+    it('treats an omitted path as no filter at all', () => {
+      expect(resolveFolderPathFilter(index, undefined)).toEqual({ kind: 'unfiltered' })
+    })
+
+    it('resolves the root path to the workspace root rather than to a folder id', () => {
+      expect(resolveFolderPathFilter(index, '/')).toEqual({ kind: 'folder', folderId: null })
+    })
+
+    it('resolves a named path to its folder id', () => {
+      expect(resolveFolderPathFilter(index, 'Reports')).toEqual({ kind: 'folder', folderId: 'f-1' })
+    })
+
+    /**
+     * A path naming no active folder narrows the list to nothing. Widening it to
+     * `unfiltered` would answer a scoped read with every row in the workspace.
+     */
+    it('narrows to nothing for a path that names no active folder', () => {
+      expect(resolveFolderPathFilter(index, 'Archive')).toEqual({ kind: 'noMatch' })
+    })
+  })
+
+  /**
+   * The path lookup behind `POST /api/v2/tables/folders/restore`. It deliberately does NOT go
+   * through `buildFolderPathIndex`: the partial unique index on folder names covers ACTIVE
+   * rows only, so an archived `/Reports` and a new active `/Reports` legally coexist and the
+   * lossless index would throw on the duplicate path.
+   */
+  describe('findArchivedFolderIdByPath', () => {
+    const ARCHIVED_AT = new Date('2026-02-01T00:00:00.000Z')
+
+    function archived(overrides: Partial<typeof ROW> & { id: string }) {
+      return { ...ROW, resourceType: 'table' as const, deletedAt: ARCHIVED_AT, ...overrides }
+    }
+
+    it('resolves a root-level archived folder by its canonical path', async () => {
+      queueTableRows(schemaMock.folder, [archived({ id: 'f-1', name: 'Reports' })])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Reports')).toBe('f-1')
+    })
+
+    it('resolves a nested archived folder through its archived ancestors', async () => {
+      queueTableRows(schemaMock.folder, [
+        archived({ id: 'parent', name: 'Sales', parentId: null }),
+        archived({ id: 'child', name: 'Reports', parentId: 'parent' }),
+      ])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Sales/Reports')).toBe('child')
+    })
+
+    it('resolves an archived folder still hanging off an ACTIVE parent', async () => {
+      queueTableRows(schemaMock.folder, [
+        { ...ROW, id: 'parent', name: 'Sales', resourceType: 'table', deletedAt: null },
+        archived({ id: 'child', name: 'Reports', parentId: 'parent' }),
+      ])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Sales/Reports')).toBe('child')
+    })
+
+    /** An active folder standing on the path is not a restore target. */
+    it('ignores an active folder occupying the same path', async () => {
+      queueTableRows(schemaMock.folder, [
+        { ...ROW, id: 'active', name: 'Reports', resourceType: 'table', deletedAt: null },
+      ])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Reports')).toBeNull()
+    })
+
+    /** Archive, recreate, archive again: two archived rows share one path. */
+    it('picks the most recently archived row when a path is ambiguous', async () => {
+      queueTableRows(schemaMock.folder, [
+        archived({ id: 'old', name: 'Reports' }),
+        archived({
+          id: 'new',
+          name: 'Reports',
+          deletedAt: new Date('2026-03-01T00:00:00.000Z'),
+        }),
+      ])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Reports')).toBe('new')
+    })
+
+    it('returns null when no archived folder holds the path', async () => {
+      queueTableRows(schemaMock.folder, [archived({ id: 'f-1', name: 'Other' })])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Reports')).toBeNull()
+    })
+
+    it('refuses to restore the workspace root', async () => {
+      await expect(findArchivedFolderIdByPath('ws-1', 'table', '/')).rejects.toThrow()
+    })
+
+    it('refuses a truncated read rather than resolving against a partial tree', async () => {
+      queueTableRows(schemaMock.folder, [
+        archived({ id: 'a', name: 'A' }),
+        archived({ id: 'b', name: 'B' }),
+      ])
+
+      await expect(
+        findArchivedFolderIdByPath('ws-1', 'table', '/Reports', { maxRows: 1 })
+      ).rejects.toBeInstanceOf(FolderCollectionLimitExceededError)
     })
   })
 

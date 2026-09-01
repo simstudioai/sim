@@ -22,6 +22,33 @@ export type LegalBlock =
   | { kind: 'list'; items: ReactNode[] }
   /** An emphasized callout box (e.g. the arbitration / GDPR notices). */
   | { kind: 'callout'; content: ReactNode }
+  /**
+   * A reference table — the cookie inventory's name / provider / purpose /
+   * retention grid. Rows are positional against `columns`, so every row must
+   * have the same length as the header.
+   */
+  | {
+      kind: 'table'
+      caption?: string
+      columns: string[]
+      /**
+       * Tailwind width fragments applied per column, e.g. `['w-[22%]', …]`. Set
+       * them whenever a page renders sibling tables with the same columns:
+       * without a fixed layout each table sizes itself to its own content and
+       * the group reads as three unaligned grids.
+       */
+      columnWidths?: string[]
+      /**
+       * Indices of columns rendered as inline code — cookie names, config keys.
+       * A marker rather than a `<code>` in the row data, because a row carries
+       * content and the renderer owns chrome. It is also what keeps the rows
+       * plain strings: biome's `useJsxKeyInIterable` fires on JSX inside an
+       * array literal, and the key it wants means nothing to a cell the
+       * renderer already keys by column.
+       */
+      codeColumns?: number[]
+      rows: ReactNode[][]
+    }
 
 /** A numbered (or named) legal section - an `<h2>` plus its ordered blocks. */
 export interface LegalSection {

@@ -1,9 +1,10 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableBulkOperationResponse, TableUpdateByFilterParams } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableUpdateRowsByFilterTool: ToolConfig<
+export const tableUpdateRowsByFilterTool: InternalToolConfig<
   TableUpdateByFilterParams,
   TableBulkOperationResponse
 > = {
@@ -15,8 +16,8 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
 
   toolEnrichment: {
     dependsOn: 'tableId',
-    enrichTool: (tableId, schema, desc) =>
-      enrichTableToolSchema(tableId, 'table_update_rows_by_filter', schema, desc),
+    enrichTool: (tableId, schema, desc, context) =>
+      enrichTableToolSchema(tableId, 'table_update_rows_by_filter', schema, desc, context),
   },
 
   params: {
@@ -47,19 +48,18 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params: TableUpdateByFilterParams) => `/api/table/${params.tableId}/rows`,
-    method: 'PUT',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableUpdateByFilterParams) => {
+  operation: {
+    secretProvenance: {
+      request: (params) => selectTableRowSecretProvenance([params.data]),
+    },
+    input: (params: TableUpdateByFilterParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
         filter: params.filter,
         data: params.data,
         limit: params.limit,

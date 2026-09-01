@@ -6,6 +6,47 @@ import { createVersionedToolSelector } from '@/blocks/utils'
 import type { GitHubResponse } from '@/tools/github/types'
 import { getTrigger } from '@/triggers'
 
+/** Reviewers can be named individually or by team slug; either identifies the request. */
+const REVIEWER_FIELD = ['reviewers', 'team_reviewers'] as const
+
+/**
+ * Block subBlock ids that differ from the tool param they feed, each scoped to
+ * the operations whose tool declares that target. `sort` has two sources and
+ * `title`/`description`/`state` share their names with fields on other
+ * operations, so the scoping is what keeps them from colliding.
+ *
+ * `toBoolean` marks a dropdown feeding a boolean tool param: a dropdown stores
+ * its option id, so the value arrives as the string 'true'/'false' and the
+ * generic handler only JSON-parses `json`/`array` inputs.
+ */
+const GITHUB_PARAM_ALIASES: ReadonlyArray<{
+  from: string
+  to: string
+  operations: readonly string[]
+  toBoolean?: true
+}> = [
+  {
+    from: 'reaction_content',
+    to: 'content',
+    operations: ['github_create_issue_reaction', 'github_create_comment_reaction'],
+  },
+  {
+    from: 'milestone_title',
+    to: 'title',
+    operations: ['github_create_milestone', 'github_update_milestone'],
+  },
+  {
+    from: 'milestone_description',
+    to: 'description',
+    operations: ['github_create_milestone', 'github_update_milestone'],
+  },
+  { from: 'milestone_state', to: 'state', operations: ['github_list_milestones'] },
+  { from: 'milestone_sort', to: 'sort', operations: ['github_list_milestones'] },
+  { from: 'fork_name', to: 'name', operations: ['github_fork_repo'] },
+  { from: 'fork_sort', to: 'sort', operations: ['github_list_forks'] },
+  { from: 'gist_public', to: 'public', operations: ['github_create_gist'], toBoolean: true },
+]
+
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',
   name: 'GitHub (Legacy)',
@@ -18,6 +59,315 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#181C1E',
   icon: GithubIcon,
+  canvasPresentation: {
+    defaultTitle: 'GitHub',
+    sentences: {
+      byOperation: {
+        github_pr: [
+          { text: 'Read pull request', field: 'pullNumber', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_comment: [
+          { text: 'Comment', field: 'body', core: true },
+          { text: 'on pull request', field: 'pullNumber', core: true },
+        ],
+        github_repo_info: [{ text: 'Read details of repository', field: 'repo', core: true }],
+        github_latest_commit: [
+          { text: 'Read the latest commit in', field: 'repo', core: true },
+          { text: 'on branch', field: 'branch' },
+        ],
+        github_issue_comment: [
+          { text: 'Comment', field: 'body', core: true },
+          { text: 'on issue', field: 'issue_number', core: true },
+        ],
+        github_list_issue_comments: [
+          { text: 'List comments on issue', field: 'issue_number', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_update_comment: [
+          { text: 'Rewrite comment', field: 'comment_id', core: true },
+          { text: 'to say', field: 'body' },
+        ],
+        github_delete_comment: [
+          { text: 'Delete comment', field: 'comment_id', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_list_pr_comments: [
+          { text: 'List comments on pull request', field: 'pullNumber', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_create_pr: [
+          { text: 'Open pull request', field: 'title', core: true },
+          { text: 'from', field: 'head' },
+          { text: 'into', field: 'base' },
+        ],
+        github_update_pr: [
+          { text: 'Update pull request', field: 'pullNumber', core: true },
+          { text: ', setting title to', field: 'title' },
+          { text: ', setting state to', field: 'state' },
+        ],
+        github_merge_pr: [
+          { text: 'Merge pull request', field: 'pullNumber', core: true },
+          { text: 'using', field: 'merge_method' },
+          { text: ', titled', field: 'commit_title' },
+        ],
+        github_list_prs: [
+          { text: 'List pull requests in', field: 'repo', core: true },
+          { text: ', filtered to', field: 'state' },
+        ],
+        github_get_pr_files: [
+          { text: 'List files changed in pull request', field: 'pullNumber', core: true },
+        ],
+        github_close_pr: [
+          { text: 'Close pull request', field: 'pullNumber', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_request_reviewers: [
+          { text: 'Request review of pull request', field: 'pullNumber', core: true },
+          { text: 'from', field: REVIEWER_FIELD },
+        ],
+        github_create_pr_review: [
+          { text: 'Review pull request', field: 'pullNumber', core: true },
+          { text: 'with action', field: 'event' },
+        ],
+        github_get_file_content: [
+          { text: 'Read file', field: 'path', core: true },
+          { text: 'at', field: 'ref' },
+        ],
+        github_create_file: [
+          { text: 'Create file', field: 'path', core: true },
+          { text: 'on branch', field: 'branch' },
+        ],
+        github_update_file: [
+          { text: 'Rewrite file', field: 'path', core: true },
+          { text: 'on branch', field: 'branch' },
+        ],
+        github_delete_file: [
+          { text: 'Delete file', field: 'path', core: true },
+          { text: 'on branch', field: 'branch' },
+        ],
+        github_get_tree: [
+          'List the file tree',
+          { text: 'under', field: 'path' },
+          { text: 'in', field: 'repo', core: true },
+        ],
+        github_get_readme: [
+          { text: 'Read the README of', field: 'repo', core: true },
+          { text: 'at', field: 'ref' },
+        ],
+        github_list_tags: [{ text: 'List tags in', field: 'repo', core: true }],
+        github_list_branches: [
+          { text: 'List branches in', field: 'repo', core: true },
+          { text: ', where protection is', field: 'protected' },
+        ],
+        github_get_branch: [
+          { text: 'Read branch', field: 'branch', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_create_branch: [
+          { text: 'Create branch', field: 'branch', core: true },
+          { text: 'from', field: 'sha' },
+        ],
+        github_delete_branch: [
+          { text: 'Delete branch', field: 'branch', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_get_branch_protection: [
+          { text: 'Read protection rules for branch', field: 'branch', core: true },
+        ],
+        github_update_branch_protection: [
+          { text: 'Update protection rules for branch', field: 'branch', core: true },
+          { text: ', requiring checks', field: 'required_status_checks' },
+        ],
+        github_create_issue: [
+          { text: 'Open issue', field: 'title', core: true },
+          { text: 'in', field: 'repo' },
+          { text: ', assigned to', field: 'assignees' },
+        ],
+        github_update_issue: [
+          { text: 'Update issue', field: 'issue_number', core: true },
+          { text: ', setting title to', field: 'title' },
+          { text: ', setting state to', field: 'state' },
+        ],
+        github_list_issues: [
+          { text: 'List issues in', field: 'repo', core: true },
+          { text: ', filtered to', field: 'state' },
+        ],
+        github_get_issue: [
+          { text: 'Read issue', field: 'issue_number', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_close_issue: [
+          { text: 'Close issue', field: 'issue_number', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_add_labels: [
+          { text: 'Add labels', field: 'labels', core: true },
+          { text: 'to issue', field: 'issue_number', core: true },
+        ],
+        github_remove_label: [
+          { text: 'Remove label', field: 'name', core: true },
+          { text: 'from issue', field: 'issue_number' },
+        ],
+        github_add_assignees: [
+          { text: 'Assign', field: 'assignees', core: true },
+          { text: 'to issue', field: 'issue_number', core: true },
+        ],
+        github_create_release: [
+          { text: 'Create release', field: 'tag_name', core: true },
+          { text: ', titled', field: 'name' },
+        ],
+        github_update_release: [
+          { text: 'Update release', field: 'release_id', core: true },
+          { text: ', renaming it to', field: 'name' },
+        ],
+        github_list_releases: [{ text: 'List releases in', field: 'repo', core: true }],
+        github_get_release: [
+          { text: 'Read release', field: 'release_id', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_get_latest_release: [
+          { text: 'Read the latest release in', field: 'repo', core: true },
+        ],
+        github_delete_release: [
+          { text: 'Delete release', field: 'release_id', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_list_workflows: [{ text: 'List workflows in', field: 'repo', core: true }],
+        github_get_workflow: [
+          { text: 'Read workflow', field: 'workflow_id', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_trigger_workflow: [
+          { text: 'Run workflow', field: 'workflow_id', core: true },
+          { text: 'on', field: 'ref' },
+          { text: ', with inputs', field: 'inputs' },
+        ],
+        github_list_workflow_runs: [
+          { text: 'List workflow runs in', field: 'repo', core: true },
+          { text: ', for workflow', field: 'workflow_id' },
+          { text: ', where status is', field: 'status' },
+        ],
+        github_get_workflow_run: [
+          { text: 'Read workflow run', field: 'run_id', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_cancel_workflow_run: [
+          { text: 'Cancel workflow run', field: 'run_id', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_rerun_workflow: [
+          { text: 'Rerun workflow run', field: 'run_id', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_list_projects: [
+          { text: 'List projects owned by', field: 'owner_login', core: true },
+        ],
+        github_get_project: [
+          { text: 'Read project', field: 'project_number', core: true },
+          { text: 'owned by', field: 'owner_login' },
+        ],
+        github_create_project: [
+          { text: 'Create project', field: 'title', core: true },
+          { text: 'under owner', field: 'owner_id' },
+        ],
+        github_update_project: [
+          { text: 'Update project', field: 'project_id', core: true },
+          { text: ', renaming it to', field: 'title' },
+          { text: ', setting visibility to', field: 'project_public' },
+        ],
+        github_delete_project: [{ text: 'Delete project', field: 'project_id', core: true }],
+        github_search_code: [{ text: 'Search code for', field: 'q', core: true }],
+        github_search_commits: [{ text: 'Search commits for', field: 'q', core: true }],
+        github_search_issues: [{ text: 'Search issues for', field: 'q', core: true }],
+        github_search_repos: [
+          { text: 'Search repositories for', field: 'q', core: true },
+          { text: ', sorted by', field: 'sort' },
+        ],
+        github_search_users: [{ text: 'Search users for', field: 'q', core: true }],
+        github_list_commits: [
+          { text: 'List commits in', field: 'repo', core: true },
+          { text: 'on', field: 'sha' },
+          { text: ', by', field: 'author' },
+        ],
+        github_get_commit: [
+          { text: 'Read commit', field: 'ref', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_compare_commits: [
+          { text: 'Compare', field: 'base', core: true },
+          { text: 'with', field: 'head' },
+        ],
+        github_create_gist: ['Create a gist', { text: 'described as', field: 'description' }],
+        github_get_gist: [{ text: 'Read gist', field: 'gist_id', core: true }],
+        github_list_gists: [
+          'List gists',
+          { text: 'for user', field: 'username' },
+          { text: ', since', field: 'since' },
+        ],
+        github_update_gist: [
+          { text: 'Update gist', field: 'gist_id', core: true },
+          { text: ', described as', field: 'description' },
+        ],
+        github_delete_gist: [{ text: 'Delete gist', field: 'gist_id', core: true }],
+        github_fork_gist: [{ text: 'Fork gist', field: 'gist_id', core: true }],
+        github_star_gist: [{ text: 'Star gist', field: 'gist_id', core: true }],
+        github_unstar_gist: [{ text: 'Unstar gist', field: 'gist_id', core: true }],
+        github_fork_repo: [
+          { text: 'Fork repository', field: 'repo', core: true },
+          { text: 'into', field: 'organization' },
+          { text: ', named', field: 'fork_name' },
+        ],
+        github_list_forks: [
+          { text: 'List forks of', field: 'repo', core: true },
+          { text: ', sorted by', field: 'fork_sort' },
+        ],
+        github_create_milestone: [
+          { text: 'Create milestone', field: 'milestone_title', core: true },
+          { text: ', due', field: 'due_on' },
+        ],
+        github_get_milestone: [
+          { text: 'Read milestone', field: 'milestone_number', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_list_milestones: [
+          { text: 'List milestones in', field: 'repo', core: true },
+          { text: ', filtered to', field: 'milestone_state' },
+        ],
+        github_update_milestone: [
+          { text: 'Update milestone', field: 'milestone_number', core: true },
+          { text: ', renaming it to', field: 'milestone_title' },
+          { text: ', due', field: 'due_on' },
+        ],
+        github_delete_milestone: [
+          { text: 'Delete milestone', field: 'milestone_number', core: true },
+          { text: 'in', field: 'repo' },
+        ],
+        github_create_issue_reaction: [
+          { text: 'React with', field: 'reaction_content', core: true },
+          { text: 'to issue', field: 'issue_number', core: true },
+        ],
+        github_delete_issue_reaction: [
+          { text: 'Remove reaction', field: 'reaction_id', core: true },
+          { text: 'from issue', field: 'issue_number', core: true },
+        ],
+        github_create_comment_reaction: [
+          { text: 'React with', field: 'reaction_content', core: true },
+          { text: 'to comment', field: 'comment_id', core: true },
+        ],
+        github_delete_comment_reaction: [
+          { text: 'Remove reaction', field: 'reaction_id', core: true },
+          { text: 'from comment', field: 'comment_id', core: true },
+        ],
+        github_star_repo: [{ text: 'Star repository', field: 'repo', core: true }],
+        github_unstar_repo: [{ text: 'Unstar repository', field: 'repo', core: true }],
+        github_check_star: [
+          { text: 'Check whether', field: 'repo', after: 'is starred', core: true },
+        ],
+        github_list_stargazers: [{ text: 'List users who starred', field: 'repo', core: true }],
+      },
+    },
+  },
   triggerAllowed: true,
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'github_v2' },
@@ -640,6 +990,14 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       title: 'Required PR Reviews',
       type: 'short-input',
       placeholder: 'JSON: {"required_approving_review_count":1}',
+      condition: { field: 'operation', value: 'github_update_branch_protection' },
+      mode: 'advanced',
+    },
+    {
+      id: 'restrictions',
+      title: 'Push Restrictions',
+      type: 'short-input',
+      placeholder: 'JSON: {"users":["octocat"],"teams":["admins"]}',
       condition: { field: 'operation', value: 'github_update_branch_protection' },
       mode: 'advanced',
     },
@@ -1967,6 +2325,58 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_repo_info'
         }
       },
+      /**
+       * Bridges the subBlock ids that do not match their tool's param name.
+       *
+       * A tool param is populated only when a subBlock's `id` equals it — the
+       * serializer keys values by subBlock id, and nothing else renames them.
+       * Each aliased field below renders, accepts input, and then arrives under
+       * a name its tool never reads.
+       *
+       * Every alias is scoped to the operations whose tool actually declares
+       * the target param, and that scoping is load-bearing. Seven of these
+       * sources are `mode: 'advanced'`, and `shouldSerializeSubBlock`
+       * (`serializer/index.ts:91-93`) serializes a non-empty advanced field
+       * WITHOUT evaluating its condition. So a `milestone_title` left over from
+       * an earlier operation is still in `params` after the user switches to,
+       * say, Update PR — and an unscoped alias would rewrite it to `title` and
+       * clobber the PR's own title with stale milestone data.
+       *
+       * Presence is tested rather than truthiness so that a deliberate `false`
+       * or `'false'` is not mistaken for an unset field; only nullish and empty
+       * defer to the tool's own default.
+       *
+       * `generic-handler.ts` merges `{ ...inputs, ...params(inputs) }` and
+       * `providers/utils.ts` installs this as the provider `paramsTransform`,
+       * spreading over the model's tool-call arguments — so emitting a key the
+       * block did not supply would clobber a model-supplied value on the agent
+       * path.
+       *
+       * On the agent tool-calling path `operation` is not part of the params
+       * this receives: `providers/utils.ts` spreads it in for the tool-selection
+       * call (`:736-739`) but builds the transform's input from `block.params`
+       * alone (`:776`). Every alias therefore skips there, which is the same
+       * behaviour as before this mapper existed - the agent path already works
+       * because a model supplies `content`/`title`/`sort` by their real names.
+       * That gap is shared by every block whose mapper branches on
+       * `params.operation`, so closing it belongs in the provider layer rather
+       * than here.
+       */
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+        const operation = typeof params.operation === 'string' ? params.operation : ''
+
+        const isSet = (value: unknown) => value !== undefined && value !== null && value !== ''
+
+        for (const alias of GITHUB_PARAM_ALIASES) {
+          if (!alias.operations.includes(operation)) continue
+          const value = params[alias.from]
+          if (!isSet(value)) continue
+          result[alias.to] = alias.toBoolean ? value === true || value === 'true' : value
+        }
+
+        return result
+      },
     },
   },
   inputs: {
@@ -2005,9 +2415,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     ref: { type: 'string', description: 'Branch, tag, or commit reference' },
     // Branch parameters
     protected: { type: 'string', description: 'Protection status filter' },
-    required_status_checks: { type: 'string', description: 'Required status checks JSON' },
+    required_status_checks: { type: 'json', description: 'Required status checks JSON' },
     enforce_admins: { type: 'boolean', description: 'Enforce for admins' },
-    required_pull_request_reviews: { type: 'string', description: 'Required PR reviews JSON' },
+    required_pull_request_reviews: { type: 'json', description: 'Required PR reviews JSON' },
+    restrictions: { type: 'json', description: 'Push restrictions JSON' },
     // Issue parameters
     labels: { type: 'string', description: 'Comma-separated labels' },
     assignees: { type: 'string', description: 'Comma-separated assignees' },

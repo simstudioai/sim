@@ -2,12 +2,13 @@ import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
-import {
-  createTableColumnBodySchema,
-  deleteTableColumnBodySchema,
-  updateTableColumnBodySchema,
-} from '@/lib/api/contracts/tables'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import {
+  asOrchestrationError,
+  messageForOrchestrationError,
+  type OrchestrationErrorCode,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
@@ -15,18 +16,18 @@ import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { isTablePredicate } from '@/lib/table/query-builder/converters'
 import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
+import type { TableLockKind } from '@/lib/table/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
 
 /**
- * Gate for the v2 tables HTTP API (`tables-v2-api` flag). Returns a 404 response
- * when the flag is off for the caller — the surface behaves as if it doesn't
- * exist — or `null` to proceed. Gated by userId + the workspace's org cohort.
- *
- * **Call this AFTER the authz check, never before.** Ahead of authz it does a
- * primary-DB read keyed on a caller-supplied `workspaceId`, and the 404-vs-403
- * split tells an unauthorized caller whether that workspace's org is in the
- * rollout cohort.
+ * Gate for the internal predicate-grammar table query route (`tables-v2-api`
+ * flag). Runs AFTER authorization, so the caller has already proven read
+ * access to the table — hiding the gate behind a bare 404 at that point
+ * serves nobody and reads as data loss (live incident: the table_v2 block
+ * hard-"Not found"-ing on every query while the copilot gateway, which
+ * bypasses HTTP, found the rows). Authorized callers get an honest 403
+ * naming the gate instead.
  */
 export async function tablesV2GateError(
   userId: string,
@@ -34,15 +35,22 @@ export async function tablesV2GateError(
 ): Promise<NextResponse | null> {
   const orgId = await getWorkspaceOrganizationId(workspaceId)
   if (await isFeatureEnabled('tables-v2-api', { userId, orgId })) return null
-  return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(
+    {
+      error: 'The v2 table query API is not enabled for this workspace',
+      code: 'tables_v2_disabled',
+    },
+    { status: 403 }
+  )
 }
 
 /**
  * Maps a {@link TableLockedError} thrown by the service layer to a 423 response
  * carrying `{ error, lock }`; returns `null` for any other error so the caller
  * falls through to its existing handling. Call this as the FIRST statement of a
- * table route's catch block — otherwise `rowWriteErrorResponse` (and the other
- * substring funnels) turn the lock error into a generic 500.
+ * table route's catch block — `TableLockedError` is an `HttpError`, not an
+ * `OrchestrationError`, so nothing else classifies it and it would otherwise
+ * reach the route's generic 500.
  *
  * The body deliberately omits a `details` array: the client's `isValidationError`
  * treats any `ApiClientError` with array-valued `details` as a field-validation
@@ -105,46 +113,67 @@ export function rootErrorMessage(error: unknown): string {
 }
 
 /**
- * Known user-facing row-write failures (service validation + the best-effort
- * plan row-limit check). Anything outside this list stays a generic 500 —
- * unknown errors can carry SQL/internals that don't belong in a toast.
+ * Maps a classified domain failure to its status, carrying the real message so
+ * client toasts can show the actual reason; `null` when the error carries no
+ * classification and the caller should log it and return its own generic 500 —
+ * an unrecognized error can hold SQL/internals that don't belong in a toast.
+ *
+ * This is the whole classification story for the UI and v1 table routes. It
+ * replaced per-route lists of message substrings, which decided a status by
+ * searching prose and so silently changed one whenever a message was reworded.
  */
-const ROW_WRITE_ERROR_PATTERNS = [
-  'row limit',
-  'Insufficient capacity',
-  'Schema validation',
-  'must be unique',
-  'must be valid',
-  'must be string',
-  'must be number',
-  'must be boolean',
-  'unique column',
-  'Unique constraint violation',
-  'Row size exceeds',
-  'conflictTarget',
-  'Upsert requires',
-  'Rows not found',
-  'Filter is required',
-] as const
-
-/**
- * Maps a known user-facing row-write failure to a 400 carrying the real message
- * (so client toasts can show the actual reason); `null` when the error is
- * unrecognized and the caller should log it and return its generic 500.
- */
-export function rowWriteErrorResponse(error: unknown): NextResponse | null {
-  // A lock violation is a 423, not a 400/500 — check before the pattern match,
-  // which would otherwise let it fall through to the caller's generic 500.
+export function orchestrationErrorResponse(error: unknown): NextResponse | null {
+  // A lock violation is a 423, and `TableLockedError` is an `HttpError` rather
+  // than an `OrchestrationError`, so it needs its own check first.
   const lockResponse = tableLockErrorResponse(error)
   if (lockResponse) return lockResponse
 
-  const message = rootErrorMessage(error)
+  const classified = asOrchestrationError(error)
+  if (!classified) return null
 
-  if (ROW_WRITE_ERROR_PATTERNS.some((p) => message.includes(p)) || /^Row .+?:/.test(message)) {
-    return NextResponse.json({ error: message }, { status: 400 })
-  }
+  return NextResponse.json(
+    { error: classified.message },
+    { status: statusForOrchestrationError(classified.code) }
+  )
+}
 
-  return null
+/**
+ * The failure half of a `lib/table/orchestration` result. Every `perform*`
+ * function returns this shape, so one projection serves all of them.
+ */
+export interface TableOrchestrationFailure {
+  error?: string
+  errorCode?: OrchestrationErrorCode
+  /** Which lock rejected the write. Set only when `errorCode` is `'locked'`. */
+  lock?: TableLockKind
+}
+
+/**
+ * Projects an orchestration failure RESULT onto its HTTP response, the
+ * counterpart of {@link orchestrationErrorResponse} for the functions that
+ * return a failure instead of throwing one.
+ *
+ * Routes go through this rather than reading `outcome.error` themselves, for
+ * two reasons the per-route spellings kept getting wrong:
+ *
+ * - An unclassified failure carries whatever text the fault happened to have —
+ *   a driver's failed SQL and its bound parameters — so it renders `fallback`
+ *   instead. Only a classified, caller-fixable failure keeps its own message.
+ * - A `'locked'` failure answers 423 with `{ error, lock }`. The lock kind is
+ *   the only thing that tells a client which lock to clear, and it is computed
+ *   by every `perform*` function already.
+ */
+export function orchestrationOutcomeErrorResponse(
+  outcome: TableOrchestrationFailure,
+  fallback: string
+): NextResponse {
+  return NextResponse.json(
+    {
+      error: messageForOrchestrationError(outcome, fallback),
+      ...(outcome.lock ? { lock: outcome.lock } : {}),
+    },
+    { status: statusForOrchestrationError(outcome.errorCode) }
+  )
 }
 
 /**
@@ -269,26 +298,6 @@ export function accessError(
   return NextResponse.json({ error: message }, { status: result.status })
 }
 
-/**
- * Converts a TableAccessDenied result to an appropriate HTTP response.
- * Use with checkTableAccess or checkTableWriteAccess.
- */
-export function tableAccessError(
-  result: TableAccessDenied,
-  requestId: string,
-  context?: string
-): NextResponse {
-  const status = result.notFound ? 404 : 403
-  const message = result.notFound ? 'Table not found' : (result.reason ?? 'Access denied')
-  logger.warn(`[${requestId}] ${message}${context ? `: ${context}` : ''}`)
-  return NextResponse.json({ error: message }, { status })
-}
-
-async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
-  const table = await getTableById(tableId)
-  return table?.workspaceId === workspaceId
-}
-
 export function errorResponse(
   message: string,
   status: number,
@@ -315,31 +324,4 @@ export function forbiddenResponse(message = 'Access denied') {
 
 export function notFoundResponse(message = 'Resource not found') {
   return errorResponse(message, 404)
-}
-
-export function serverErrorResponse(message = 'Internal server error') {
-  return errorResponse(message, 500)
-}
-
-/**
- * Re-exports from `lib/api/contracts/tables` so existing routes that import
- * these names keep working while sharing a single source of truth.
- */
-export const CreateColumnSchema = createTableColumnBodySchema
-export const UpdateColumnSchema = updateTableColumnBodySchema
-export const DeleteColumnSchema = deleteTableColumnBodySchema
-
-export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
-  return {
-    // Preserve the stable column id — it's the row-data storage key, so dropping
-    // it makes clients fall back to `name` and miss id-keyed cell values.
-    ...(col.id ? { id: col.id } : {}),
-    name: col.name,
-    type: col.type,
-    required: col.required ?? false,
-    unique: col.unique ?? false,
-    ...(col.workflowGroupId ? { workflowGroupId: col.workflowGroupId } : {}),
-    ...(col.options ? { options: col.options } : {}),
-    ...(col.multiple ? { multiple: true } : {}),
-  }
 }

@@ -1,0 +1,71 @@
+---
+title: Output formats
+description: table, json, yaml, and text — what each is for, and how to select one
+---
+
+Every command renders through the same four formats.
+
+| Format | For |
+| --- | --- |
+| `table` | reading (default) |
+| `json` | piping into `jq` |
+| `yaml` | piping into anything that reads YAML |
+| `text` | shell loops — tab-separated, no header, no colour |
+
+Select one per command, save it to the profile, or set it in the environment:
+
+```bash
+sim tables get tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --output json
+sim configure --set-output json
+SIM_OUTPUT=yaml sim logs list > logs.yaml
+```
+
+`--output` works before or after the command.
+
+## What each format emits
+
+`json` and `yaml` emit the API's raw values, not the table's formatting — a
+duration stays `1500`, not `"1.5s"`.
+
+`table` formats for reading: timestamps without milliseconds, sizes as `4.2 MB`,
+booleans as `yes`/`no`, costs as `$0.0142`. Long cells are clipped to keep rows
+on one line; switch to `json` for the full value.
+
+`text` uses the rendered cells, tab-separated, with no header or colour:
+
+```bash
+SIM_OUTPUT=text sim files list | while IFS=$'\t' read -r id name folder size type uploader uploaded; do
+  echo "$id $name"
+done
+```
+
+An absent value is an em-dash in `table` and an empty field in `text`.
+
+## Reading a run in detail
+
+`sim logs get` prints a concise summary. Add `--trace` for the recursive trace
+with span inputs, outputs, errors, timing, and cost:
+
+```bash
+sim logs get 9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543 --trace
+```
+
+`json` and `yaml` always carry the complete response, so `--trace` is a no-op
+there:
+
+```bash
+sim logs get 9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543 --output json | jq '.traceSpans'
+```
+
+## Exceptions
+
+`sim profiles` and `sim configure` always print for humans — they report local
+configuration, not API data.
+
+`sim workflows export` always emits raw JSON, or YAML when the profile says so,
+so that it round-trips through `import`:
+
+```bash
+sim workflows export 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 > wf.json
+sim workflows import --workflow @wf.json
+```

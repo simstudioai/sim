@@ -8,9 +8,20 @@ const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts')
 const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
+/**
+ * `totalRoutes` is reported, never gated.
+ *
+ * The invariant worth holding is that every route is contract-backed, and
+ * `nonZodRoutes` states exactly that: it is 0, and rises the moment a route ships
+ * without one. Failing on the total as well meant a fully compliant new route
+ * still turned CI red, fixable only by editing the number here. A ratchet
+ * survives on the habit of never bumping it casually, and a gate that must be
+ * bumped to add a compliant route teaches precisely the opposite habit — on a
+ * file whose other seven baselines depend on that habit holding.
+ */
 const BASELINE = {
-  totalRoutes: 999,
-  zodRoutes: 999,
+  totalRoutes: 1201,
+  zodRoutes: 1201,
   nonZodRoutes: 0,
 } as const
 
@@ -24,19 +35,27 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookLocalSchemaConstructors: 0,
   clientHookRawFetches: 0,
   clientSameOriginApiFetches: 0,
-  doubleCasts: 8,
-  rawJsonReads: 6,
+  doubleCasts: 6,
+  rawJsonReads: 5,
   untypedResponses: 0,
   annotationsMissingReason: 0,
 } as const
 
 const INDIRECT_ZOD_ROUTES = new Set([
+  // Catch-all JSON 404 for unknown /api/v2 paths. It has no contract by
+  // construction: it exists precisely for requests that match no operation, so
+  // there is no input to validate and its only response is the fixed v2 error
+  // envelope.
+  'apps/sim/app/api/v2/[[...segments]]/route.ts',
   'apps/sim/app/api/demo-requests/route.ts',
   // Input-less session-bound GET: nothing to validate; response is
   // contract-typed via `satisfies InvitationDetails` in the route.
   // Public updater feed: input-less GET, session-less, returns YAML (not JSON),
   // so it can't be JSON-contract-bound. Wrapped in withRouteHandler.
   'apps/sim/app/api/desktop/update/latest-mac.yml/route.ts',
+  // Public updater download redirect: input-less GET, session-less, whose only
+  // response is a 302 to a GitHub release asset. Wrapped in withRouteHandler.
+  'apps/sim/app/api/desktop/update/download/route.ts',
   'apps/sim/app/api/invitations/route.ts',
   'apps/sim/app/api/logs/export/route.ts',
   'apps/sim/app/api/tools/docusign/route.ts',
@@ -67,11 +86,16 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/settings/allowed-mcp-domains/route.ts',
   'apps/sim/app/api/cron/cleanup-tasks/route.ts',
   'apps/sim/app/api/cron/cleanup-soft-deletes/route.ts',
+  'apps/sim/app/api/cron/cleanup-table-row-ttl/route.ts',
   'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',
+  'apps/sim/app/api/cron/cleanup-sandbox-images/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
+  'apps/sim/app/api/cron/billing-cycle-close/route.ts',
   'apps/sim/app/api/cron/reconcile-billing-seats/route.ts',
   'apps/sim/app/api/cron/reconcile-inbox-entitlement/route.ts',
   'apps/sim/app/api/cron/run-data-drains/route.ts',
+  // Returns immediately after Trigger.dev accepts the asynchronous dispatcher task.
+  'apps/sim/app/api/cron/workspace-file-search-dispatch/route.ts',
   'apps/sim/app/api/logs/cleanup/route.ts',
   'apps/sim/app/api/knowledge/connectors/sync/route.ts',
   'apps/sim/app/api/webhooks/outbox/process/route.ts',
@@ -141,11 +165,14 @@ const RAW_JSON_BASELINE_ROUTES = new Set([
   'apps/sim/app/api/tools/file/manage/route.ts',
   'apps/sim/app/api/workspaces/invitations/batch/route.ts',
   'apps/sim/app/api/workspaces/[id]/route.ts',
-  'apps/sim/app/api/workspaces/[id]/files/[fileId]/route.ts',
   'apps/sim/app/api/workspaces/[id]/files/[fileId]/content/route.ts',
 ])
 
 const CONTRACT_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/contracts(?:\/[^'"]*)?['"]/
+const DECLARATIVE_ROUTE_BUILDER_IMPORT_PATTERN =
+  /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]/
+const DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN =
+  /\b(?:defineInternalJsonRoute|defineV2JsonRoute|defineInternalBinaryRoute|defineV2BinaryRoute)\s*\(/
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
 const SCHEMA_PARSE_PATTERN = /\b\w+Schema\.(?:safeParse|parse)\(/
 const CONTRACT_SERVER_HELPER_PATTERN = /\bparseToolRequest\(/
@@ -713,6 +740,13 @@ function hasZodUsage(relativePath: string, content: string): boolean {
     /\bparseRequest\(/.test(content) &&
     /\bfrom\s+['"]@\/lib\/api\/server['"]/.test(content) &&
     CONTRACT_IMPORT_PATTERN.test(content)
+  ) {
+    return true
+  }
+  if (
+    CONTRACT_IMPORT_PATTERN.test(content) &&
+    DECLARATIVE_ROUTE_BUILDER_IMPORT_PATTERN.test(content) &&
+    DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN.test(content)
   ) {
     return true
   }
@@ -1354,9 +1388,6 @@ async function main() {
   if (!checkOnly) return
 
   const failures: string[] = []
-  if (totalRoutes > BASELINE.totalRoutes) {
-    failures.push(`route count increased from ${BASELINE.totalRoutes} to ${totalRoutes}`)
-  }
   if (nonZodRoutes > BASELINE.nonZodRoutes) {
     failures.push(
       `non-Zod routes increased from ${BASELINE.nonZodRoutes} to ${nonZodRoutes} (${zodRoutes} Zod-backed routes)`

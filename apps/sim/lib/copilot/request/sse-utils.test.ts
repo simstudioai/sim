@@ -36,7 +36,7 @@ describe('shouldSkipToolCallEvent', () => {
   it('keeps non-vfs generating placeholders visible', () => {
     expect(
       shouldSkipToolCallEvent(
-        toolCallEvent('search-generating-placeholder', 'search_online', undefined, true)
+        toolCallEvent('search-generating-placeholder', 'web_search', undefined, true)
       )
     ).toBe(false)
   })

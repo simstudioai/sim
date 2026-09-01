@@ -42,6 +42,10 @@ describe('Pi API Key visibility', () => {
     expect(isApiKeyVisible({ mode: 'cloud', model: 'some-unhosted-model' })).toBe(true)
   })
 
+  it('shows the field in Plan even for a model Sim hosts', () => {
+    expect(isApiKeyVisible({ mode: 'cloud_plan', model: hostedModel })).toBe(true)
+  })
+
   it.each([['local'], ['cloud_review']])(
     'hides the field in %s mode for a model Sim hosts',
     (mode) => {

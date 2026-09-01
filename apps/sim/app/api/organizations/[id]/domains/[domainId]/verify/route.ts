@@ -1,10 +1,10 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, ssoDomain } from '@sim/db/schema'
+import { member, ssoDomain, ssoProvider } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyOrganizationDomainContract } from '@/lib/api/contracts/organization'
 import { parseRequest } from '@/lib/api/server'
@@ -70,8 +70,20 @@ export const POST = withRouteHandler(
       return NextResponse.json({ success: true, data: { domain: toDomainResponse(row) } })
     }
 
-    const recordPresent = await checkDomainTxtRecord(row.domain, row.verificationToken)
-    if (!recordPresent) {
+    const lookup = await checkDomainTxtRecord(row.domain, row.verificationToken)
+    // 503, not 422: we learned nothing about their record, so this must not read
+    // as a missing one. SERVFAIL can mean either a fault of ours or a broken zone
+    // of theirs, so the message states what we know rather than assigning blame.
+    if (lookup === 'unavailable') {
+      return NextResponse.json(
+        {
+          error:
+            "We couldn't complete the DNS lookup, so we can't tell yet whether your record is published. Try again in a few minutes — if it keeps failing, check that your domain's nameservers are responding.",
+        },
+        { status: 503 }
+      )
+    }
+    if (lookup === 'absent') {
       return NextResponse.json(
         {
           error:
@@ -101,19 +113,44 @@ export const POST = withRouteHandler(
     // instead of mapping an undefined row or trusting a superseded challenge. A
     // concurrent cross-org verification trips the partial unique index; surface
     // that as a 409 rather than an unhandled 500.
+    /**
+     * Providers this proof covers. Normalized the way migration 0268 stored these
+     * rows (lower, trimmed, leading `*.` dropped) and identical to the expression
+     * the deletion path revokes with, so granting and revoking can never diverge.
+     */
+    const providersOnDomain = (verifiedDomain: string) =>
+      and(
+        eq(ssoProvider.organizationId, organizationId),
+        sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${verifiedDomain}`
+      )
+
     let updated: (typeof row)[]
     try {
-      updated = await db
-        .update(ssoDomain)
-        .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(ssoDomain.id, domainId),
-            eq(ssoDomain.verificationToken, row.verificationToken),
-            eq(ssoDomain.status, 'pending')
+      updated = await db.transaction(async (tx) => {
+        const flipped = await tx
+          .update(ssoDomain)
+          .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
+          .where(
+            and(
+              eq(ssoDomain.id, domainId),
+              eq(ssoDomain.verificationToken, row.verificationToken),
+              eq(ssoDomain.status, 'pending')
+            )
           )
-        )
-        .returning()
+          .returning()
+
+        // Restore trust this proof covers, mirroring the revocation on delete.
+        // Without it a delete-then-reverify leaves the provider untrusted, and
+        // since that flag gates sign-in the org sits in a silent SSO outage.
+        if (flipped.length > 0) {
+          await tx
+            .update(ssoProvider)
+            .set({ domainVerified: true })
+            .where(providersOnDomain(flipped[0].domain))
+        }
+
+        return flipped
+      })
     } catch (error) {
       if (getPostgresErrorCode(error) === '23505') {
         return NextResponse.json(
@@ -135,6 +172,13 @@ export const POST = withRouteHandler(
         .where(and(eq(ssoDomain.id, domainId), eq(ssoDomain.organizationId, organizationId)))
         .limit(1)
       if (current?.status === 'verified') {
+        // Re-grant rather than returning early: a provider can hold a verified
+        // domain with its own flag off, after an update whose grant was refused
+        // reverted the config. The proof is present, which authorizes this.
+        await db
+          .update(ssoProvider)
+          .set({ domainVerified: true })
+          .where(providersOnDomain(current.domain))
         return NextResponse.json({ success: true, data: { domain: toDomainResponse(current) } })
       }
       return NextResponse.json(

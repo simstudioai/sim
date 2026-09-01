@@ -23,6 +23,8 @@ interface CompactState {
   seen: WeakSet<object>
 }
 
+const BLOCK_LOG_COMPACTION_CONCURRENCY = 4
+
 function getJsonAndSize(value: unknown): { json: string; size: number } | null {
   try {
     const json = JSON.stringify(value)
@@ -260,8 +262,15 @@ export async function compactBlockLogs(
     return logs
   }
 
-  return Promise.all(
-    logs.map(async (log) => {
+  const compactedLogs = new Array<BlockLog>(logs.length)
+  let cursor = 0
+  const worker = async (): Promise<void> => {
+    while (true) {
+      const index = cursor
+      cursor += 1
+      if (index >= logs.length) return
+
+      const log = logs[index]
       const compactedLog = { ...log }
       if ('input' in compactedLog) {
         compactedLog.input = await compactExecutionPayload(compactedLog.input, options)
@@ -275,7 +284,12 @@ export async function compactBlockLogs(
           options
         )
       }
-      return compactedLog
-    })
+      compactedLogs[index] = compactedLog
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(BLOCK_LOG_COMPACTION_CONCURRENCY, logs.length) }, worker)
   )
+  return compactedLogs
 }

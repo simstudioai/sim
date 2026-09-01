@@ -2,17 +2,23 @@ import { asyncJobs, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
+import { omit } from '@sim/utils/object'
+import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import {
   AsyncJobEnqueueError,
   type EnqueueOptions,
+  EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE,
+  type ExecutionJobBinding,
+  type ExecutionJobCancellationScope,
   JOB_STATUS,
   type Job,
   type JobMetadata,
   type JobQueueBackend,
   type JobStatus,
   type JobType,
+  validateMaxDurationSeconds,
 } from '@/lib/core/async-jobs/types'
+import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
 const logger = createLogger('DatabaseJobQueue')
 
@@ -37,6 +43,7 @@ function rowToJob(row: AsyncJobRow): Job {
 }
 
 const inlineAbortControllers = new Map<string, AbortController>()
+const inlineExecutionControllers = new Map<string, Map<AbortController, JobType>>()
 
 /**
  * Per-cancel-key abort controllers for the `batchEnqueueAndWait` direct-call
@@ -45,6 +52,78 @@ const inlineAbortControllers = new Map<string, AbortController>()
  * path skips `async_jobs` entirely and has no jobId to cancel by.
  */
 const inlineCancelKeyControllers = new Map<string, AbortController>()
+
+function getExecutionBinding<TPayload>(
+  payload: TPayload,
+  options?: EnqueueOptions
+): ExecutionJobBinding | undefined {
+  const metadataExecutionId = options?.metadata?.executionId
+  const metadataWorkflowId = options?.metadata?.workflowId
+  const correlation = options?.metadata?.correlation
+  let executionId =
+    typeof metadataExecutionId === 'string' ? metadataExecutionId : correlation?.executionId
+  let workflowId =
+    typeof metadataWorkflowId === 'string' ? metadataWorkflowId : correlation?.workflowId
+
+  if (typeof payload !== 'object' || payload === null) {
+    return executionId && workflowId ? { executionId, workflowId } : undefined
+  }
+
+  const record = payload as Record<string, unknown>
+  const payloadCorrelation =
+    typeof record.correlation === 'object' && record.correlation !== null
+      ? (record.correlation as Record<string, unknown>)
+      : undefined
+  if (typeof record.parentExecutionId === 'string') {
+    executionId = record.parentExecutionId
+  } else if (!executionId) {
+    const payloadExecutionId =
+      record.executionId ??
+      record.parentExecutionId ??
+      record.resumeExecutionId ??
+      payloadCorrelation?.executionId
+    if (typeof payloadExecutionId === 'string') executionId = payloadExecutionId
+  }
+  if (!workflowId) {
+    const payloadWorkflowId = record.workflowId ?? payloadCorrelation?.workflowId
+    if (typeof payloadWorkflowId === 'string') workflowId = payloadWorkflowId
+  }
+  return executionId && workflowId ? { executionId, workflowId } : undefined
+}
+
+function executionBindingKey(binding: ExecutionJobBinding): string {
+  return JSON.stringify([binding.workflowId, binding.executionId])
+}
+
+function trackExecutionController(
+  binding: ExecutionJobBinding,
+  controller: AbortController,
+  type: JobType
+): void {
+  const key = executionBindingKey(binding)
+  const controllers = inlineExecutionControllers.get(key) ?? new Map<AbortController, JobType>()
+  controllers.set(controller, type)
+  inlineExecutionControllers.set(key, controllers)
+}
+
+function untrackExecutionController(
+  binding: ExecutionJobBinding,
+  controller: AbortController
+): void {
+  const key = executionBindingKey(binding)
+  const controllers = inlineExecutionControllers.get(key)
+  if (!controllers) return
+  controllers.delete(controller)
+  if (controllers.size === 0) inlineExecutionControllers.delete(key)
+}
+
+function buildJobMetadata(options?: EnqueueOptions): Record<string, unknown> {
+  const maxDurationSeconds = validateMaxDurationSeconds(options?.maxDurationSeconds)
+  return {
+    ...omit(options?.metadata ?? {}, ['maxDurationSeconds']),
+    ...(maxDurationSeconds !== undefined ? { maxDurationSeconds } : {}),
+  }
+}
 
 interface Semaphore {
   limit: number
@@ -88,6 +167,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
   ): Promise<string> {
     const jobId = options?.jobId ?? `run_${generateShortId(20)}`
     const now = new Date()
+    const metadata = buildJobMetadata(options)
 
     try {
       await db
@@ -104,7 +184,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
               : now,
           attempts: 0,
           maxAttempts: options?.maxAttempts ?? 3,
-          metadata: (options?.metadata ?? {}) as Record<string, unknown>,
+          metadata,
           updatedAt: now,
         })
         .onConflictDoNothing()
@@ -144,6 +224,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
         jobId,
         payload,
         options.runner,
+        getExecutionBinding(payload, options),
         options.concurrencyKey,
         options.concurrencyLimit
       )
@@ -165,7 +246,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
       createdAt: now,
       attempts: 0,
       maxAttempts: options?.maxAttempts ?? 3,
-      metadata: (options?.metadata ?? {}) as Record<string, unknown>,
+      metadata: buildJobMetadata(options),
       updatedAt: now,
     }))
 
@@ -181,6 +262,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
           rows[i].id,
           payload,
           options.runner,
+          getExecutionBinding(payload, options),
           options.concurrencyKey,
           options.concurrencyLimit
         )
@@ -197,7 +279,14 @@ export class DatabaseJobQueue implements JobQueueBackend {
     items: Array<{ payload: TPayload; options?: EnqueueOptions }>
   ): Promise<string[]> {
     if (items.length === 0) return []
+    for (const { options } of items) {
+      validateMaxDurationSeconds(options?.maxDurationSeconds)
+    }
     const tracked: Array<{ key: string; controller: AbortController }> = []
+    const trackedExecutions: Array<{
+      binding: ExecutionJobBinding
+      controller: AbortController
+    }> = []
     const runs = items.map((item) => {
       const runner = item.options?.runner
       if (!runner) return Promise.resolve()
@@ -207,14 +296,21 @@ export class DatabaseJobQueue implements JobQueueBackend {
         inlineCancelKeyControllers.set(cancelKey, controller)
         tracked.push({ key: cancelKey, controller })
       }
+      const binding = getExecutionBinding(item.payload, item.options)
+      if (binding) {
+        trackExecutionController(binding, controller, type)
+        trackedExecutions.push({ binding, controller })
+      }
       // Same shared-key semaphore as `runInline`: without it, overlapping
       // batches on one concurrencyKey (e.g. two dispatches on one table) would
       // each run their full window concurrently instead of sharing the cap.
       const { concurrencyKey, concurrencyLimit } = item.options ?? {}
       const run = async () => {
+        if (controller.signal.aborted) return
         if (concurrencyKey && concurrencyLimit && concurrencyLimit > 0) {
           await acquireSlot(concurrencyKey, concurrencyLimit)
           try {
+            if (controller.signal.aborted) return
             await runner(item.payload, controller.signal)
           } finally {
             releaseSlot(concurrencyKey)
@@ -224,6 +320,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
         await runner(item.payload, controller.signal)
       }
       return run().catch((err) => {
+        if (controller.signal.aborted) return
         logger.error(`[${type}] Inline run failed`, {
           cancelKey,
           error: toError(err).message,
@@ -240,6 +337,9 @@ export class DatabaseJobQueue implements JobQueueBackend {
           inlineCancelKeyControllers.delete(t.key)
         }
       }
+      for (const trackedExecution of trackedExecutions) {
+        untrackExecutionController(trackedExecution.binding, trackedExecution.controller)
+      }
     }
     return items.map(() => '')
   }
@@ -250,10 +350,10 @@ export class DatabaseJobQueue implements JobQueueBackend {
     return row ? rowToJob(row) : null
   }
 
-  async startJob(jobId: string): Promise<void> {
+  async startJob(jobId: string): Promise<boolean> {
     const now = new Date()
 
-    await db
+    const [claimedJob] = await db
       .update(asyncJobs)
       .set({
         status: JOB_STATUS.PROCESSING,
@@ -261,9 +361,16 @@ export class DatabaseJobQueue implements JobQueueBackend {
         attempts: sql`${asyncJobs.attempts} + 1`,
         updatedAt: now,
       })
-      .where(eq(asyncJobs.id, jobId))
+      .where(and(eq(asyncJobs.id, jobId), eq(asyncJobs.status, JOB_STATUS.PENDING)))
+      .returning({ id: asyncJobs.id })
+
+    if (!claimedJob) {
+      logger.debug('Skipped job whose pending claim was lost', { jobId })
+      return false
+    }
 
     logger.debug('Started job', { jobId })
+    return true
   }
 
   async completeJob(jobId: string, output: unknown): Promise<void> {
@@ -277,7 +384,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
         output: output as Record<string, unknown>,
         updatedAt: now,
       })
-      .where(eq(asyncJobs.id, jobId))
+      .where(and(eq(asyncJobs.id, jobId), eq(asyncJobs.status, JOB_STATUS.PROCESSING)))
 
     logger.debug('Completed job', { jobId })
   }
@@ -293,19 +400,24 @@ export class DatabaseJobQueue implements JobQueueBackend {
         error,
         updatedAt: now,
       })
-      .where(eq(asyncJobs.id, jobId))
+      .where(
+        and(
+          eq(asyncJobs.id, jobId),
+          inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING])
+        )
+      )
 
     logger.debug('Marked job as failed', { jobId })
   }
 
   async cancelJob(jobId: string): Promise<void> {
     // Abort any in-process inline execution first so the running workflow
-    // observes the signal and stops mid-flight. Then mark the row failed so
-    // any future poller skips it.
+    // observes the signal and stops mid-flight. Then mark the row cancelled so
+    // any future poller skips it without treating a user action as a failure.
     const controller = inlineAbortControllers.get(jobId)
     let aborted = false
     if (controller) {
-      controller.abort('Cancelled')
+      controller.abort(new DOMException('user', 'AbortError'))
       inlineAbortControllers.delete(jobId)
       aborted = true
     }
@@ -314,20 +426,95 @@ export class DatabaseJobQueue implements JobQueueBackend {
     await db
       .update(asyncJobs)
       .set({
-        status: JOB_STATUS.FAILED,
+        status: JOB_STATUS.CANCELLED,
         completedAt: now,
         error: 'Cancelled',
         updatedAt: now,
       })
-      .where(eq(asyncJobs.id, jobId))
+      .where(
+        and(
+          eq(asyncJobs.id, jobId),
+          inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING])
+        )
+      )
 
     logger.debug('Marked job as cancelled (DB queue)', { jobId, abortedInline: aborted })
+  }
+
+  async cancelByExecution(
+    binding: ExecutionJobBinding,
+    scope: ExecutionJobCancellationScope
+  ): Promise<number> {
+    try {
+      const key = executionBindingKey(binding)
+      const controllers = inlineExecutionControllers.get(key)
+      const allowedJobTypes = EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE[scope]
+      let abortedControllers = 0
+      if (controllers) {
+        for (const [controller, type] of controllers) {
+          if (!(allowedJobTypes as readonly JobType[]).includes(type)) continue
+          controller.abort(new DOMException('user', 'AbortError'))
+          controllers.delete(controller)
+          abortedControllers++
+        }
+        if (controllers.size === 0) inlineExecutionControllers.delete(key)
+      }
+
+      const now = new Date()
+      const cancellationResult = await db
+        .update(asyncJobs)
+        .set({
+          status: JOB_STATUS.CANCELLED,
+          completedAt: now,
+          error: 'Cancelled',
+          updatedAt: now,
+        })
+        .where(
+          and(
+            inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING]),
+            inArray(asyncJobs.type, [...allowedJobTypes]),
+            and(
+              or(
+                sql`${asyncJobs.metadata}->>'executionId' = ${binding.executionId}`,
+                sql`${asyncJobs.metadata}->'correlation'->>'executionId' = ${binding.executionId}`,
+                sql`${asyncJobs.payload}->>'executionId' = ${binding.executionId}`,
+                sql`${asyncJobs.payload}->>'parentExecutionId' = ${binding.executionId}`,
+                sql`${asyncJobs.payload}->>'resumeExecutionId' = ${binding.executionId}`,
+                sql`${asyncJobs.payload}->'correlation'->>'executionId' = ${binding.executionId}`
+              ),
+              or(
+                sql`${asyncJobs.metadata}->>'workflowId' = ${binding.workflowId}`,
+                sql`${asyncJobs.metadata}->'correlation'->>'workflowId' = ${binding.workflowId}`,
+                sql`${asyncJobs.payload}->>'workflowId' = ${binding.workflowId}`,
+                sql`${asyncJobs.payload}->'correlation'->>'workflowId' = ${binding.workflowId}`
+              )
+            )
+          )
+        )
+
+      const cancelledRows = cancellationResult.count
+      const cancelledJobs = Math.max(cancelledRows, abortedControllers)
+      recordExecutionCancellationBackendResult({
+        backend: 'database',
+        result: cancelledJobs > 0 ? 'cancelled' : 'not_found',
+      })
+      logger.info('Cancelled database jobs for execution', {
+        ...binding,
+        scope,
+        cancelledJobs: cancelledRows,
+        abortedControllers,
+      })
+      return cancelledJobs
+    } catch (error) {
+      recordExecutionCancellationBackendResult({ backend: 'database', result: 'error' })
+      throw error
+    }
   }
 
   cancelByKey(cancelKey: string): boolean {
     const controller = inlineCancelKeyControllers.get(cancelKey)
     if (!controller) return false
-    controller.abort('Cancelled')
+    controller.abort(new DOMException('user', 'AbortError'))
     inlineCancelKeyControllers.delete(cancelKey)
     return true
   }
@@ -343,20 +530,31 @@ export class DatabaseJobQueue implements JobQueueBackend {
     jobId: string,
     payload: TPayload,
     runner: Runner,
+    binding?: ExecutionJobBinding,
     concurrencyKey?: string,
     concurrencyLimit?: number
   ): void {
+    if (inlineAbortControllers.has(jobId)) {
+      logger.debug('Inline job is already active', { jobId })
+      return
+    }
     const abortController = new AbortController()
     inlineAbortControllers.set(jobId, abortController)
+    if (binding) trackExecutionController(binding, abortController, type)
     void (async () => {
       if (concurrencyKey && concurrencyLimit && concurrencyLimit > 0) {
         await acquireSlot(concurrencyKey, concurrencyLimit)
       }
       try {
-        await this.startJob(jobId)
-        await runner(payload, abortController.signal)
-        await this.completeJob(jobId, null)
+        if (abortController.signal.aborted) return
+        const claimed = await this.startJob(jobId)
+        if (!claimed) return
+        if (abortController.signal.aborted) return
+        const output = await runner(payload, abortController.signal)
+        if (abortController.signal.aborted) return
+        await this.completeJob(jobId, output ?? null)
       } catch (err) {
+        if (abortController.signal.aborted) return
         const message = toError(err).message
         logger.error(`[${type}] Inline job ${jobId} failed`, { error: message })
         try {
@@ -365,7 +563,10 @@ export class DatabaseJobQueue implements JobQueueBackend {
           logger.error(`[${type}] Failed to mark job ${jobId} as failed`, { markErr })
         }
       } finally {
-        inlineAbortControllers.delete(jobId)
+        if (inlineAbortControllers.get(jobId) === abortController) {
+          inlineAbortControllers.delete(jobId)
+        }
+        if (binding) untrackExecutionController(binding, abortController)
         if (concurrencyKey && concurrencyLimit && concurrencyLimit > 0) {
           releaseSlot(concurrencyKey)
         }

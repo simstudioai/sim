@@ -1,6 +1,6 @@
 import { Link, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -14,17 +14,13 @@ export function WelcomeEmail({ userName }: WelcomeEmailProps) {
 
   return (
     <EmailLayout preview={`Welcome to ${brand.name}`} showUnsubscribe={false}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hey ${userName},` : 'Hey,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hey ${userName},` : 'Hey,'}</Text>
       <Text style={baseStyles.paragraph}>
         Welcome to {brand.name}! Your account is ready. Start building, testing, and deploying AI
         workflows in minutes.
       </Text>
 
-      <Link href={`${baseUrl}/login`} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Get Started</Text>
-      </Link>
+      <EmailButton href={`${baseUrl}/login`}>Get Started</EmailButton>
 
       <Text style={baseStyles.paragraph}>
         If you have any questions or feedback, just reply to this email. I read every message!
@@ -40,10 +36,9 @@ export function WelcomeEmail({ userName }: WelcomeEmailProps) {
 
       <Text style={baseStyles.paragraph}>- Emir, co-founder of {brand.name}</Text>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         You're on the Community plan with 1,000 credits to get started.
       </Text>
     </EmailLayout>

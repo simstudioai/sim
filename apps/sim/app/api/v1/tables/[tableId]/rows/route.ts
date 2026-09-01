@@ -29,9 +29,11 @@ import {
   sortNamesToIds,
 } from '@/lib/table/column-keys'
 import { TableQueryValidationError } from '@/lib/table/errors'
+import { signalTableRowsChanged } from '@/lib/table/events'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { queryRows } from '@/lib/table/rows/service'
 import { resolveFilterSelectValues } from '@/lib/table/select-values'
-import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
+import { accessError, checkAccess, orchestrationErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -85,10 +87,12 @@ async function handleBatchInsert(
         rows,
         workspaceId: validated.workspaceId,
         userId: actorUserId,
+        secretProvenance: rows.map(createExactEmptyTableRowSecretProvenance),
       },
       table,
       requestId
     )
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -105,7 +109,7 @@ async function handleBatchInsert(
       },
     })
   } catch (error) {
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error batch inserting rows:`, error)
@@ -278,10 +282,12 @@ export const POST = withRouteHandler(
           data: rowData,
           workspaceId: validated.workspaceId,
           userId: actorUserId,
+          secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
         },
         table,
         requestId
       )
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -300,7 +306,7 @@ export const POST = withRouteHandler(
       const validationResponse = v1ValidationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error inserting row:`, error)
@@ -364,9 +370,11 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
         data: patchData,
         limit: validated.limit,
         actorUserId,
+        secretProvenance: createExactEmptyTableRowSecretProvenance(patchData),
       },
       requestId
     )
+    if (result.affectedCount > 0) signalTableRowsChanged(tableId)
 
     if (result.affectedCount === 0) {
       return NextResponse.json({
@@ -394,7 +402,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error updating rows by filter:`, error)
@@ -439,6 +447,7 @@ export const DELETE = withRouteHandler(
           { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
           requestId
         )
+        if (result.deletedCount > 0) signalTableRowsChanged(tableId)
 
         return NextResponse.json({
           success: true,
@@ -467,6 +476,7 @@ export const DELETE = withRouteHandler(
         },
         requestId
       )
+      if (result.affectedCount > 0) signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -487,7 +497,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error deleting rows:`, error)

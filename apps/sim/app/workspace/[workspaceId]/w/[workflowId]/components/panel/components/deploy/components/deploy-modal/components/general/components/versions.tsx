@@ -5,6 +5,7 @@ import {
   Button,
   cn,
   Input,
+  OverflowText,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -12,15 +13,15 @@ import {
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
+import { FileText, MoreVertical, Pencil, RefreshCw, SendToBack } from '@sim/emcn/icons'
 import { formatDateTime } from '@sim/utils/formatting'
-import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 import { VersionDescriptionModal } from './version-description-modal'
 
-const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-caption'
-const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-caption'
+const HEADER_TEXT_CLASS = 'text-[var(--text-tertiary)] text-caption'
+const ROW_TEXT_CLASS = 'text-[var(--text-primary)] text-caption'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
 const COLUMN_WIDTHS = {
@@ -282,7 +283,7 @@ export function Versions({
                       onClick={(e) => e.stopPropagation()}
                       onBlur={() => handleSaveRename(v.version)}
                       className={cn(
-                        'h-auto w-full border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-caption leading-5 shadow-none outline-none focus:outline-none focus-visible:ring-0'
+                        'h-auto w-full border-0 bg-transparent p-0 text-[var(--text-primary)] text-caption leading-5 shadow-none outline-none focus:outline-none focus-visible:ring-0'
                       )}
                       maxLength={100}
                       disabled={renameMutation.isPending}
@@ -296,7 +297,7 @@ export function Versions({
                       <span className='shrink-0 text-[var(--text-tertiary)] tabular-nums'>
                         v{v.version}
                       </span>
-                      {v.name && <span className='truncate'>{v.name}</span>}
+                      {v.name && <OverflowText label={v.name} />}
                       {rowLabel && (
                         <span className='shrink-0 text-[var(--text-tertiary)]'>({rowLabel})</span>
                       )}
@@ -374,7 +375,7 @@ export function Versions({
                     </PopoverItem>
                     {!v.isActive && (
                       <PopoverItem onClick={() => handlePromote(v.version)}>
-                        <RotateCcw className='size-3' />
+                        <RefreshCw className='size-3' />
                         <span>Promote to live</span>
                       </PopoverItem>
                     )}

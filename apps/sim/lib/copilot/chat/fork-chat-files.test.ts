@@ -3,7 +3,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateKey, mockDownloadFile, mockUploadFile } = vi.hoisted(() => ({
+const {
+  mockCopyWorkspaceFileSecretProvenanceInTx,
+  mockGenerateKey,
+  mockDownloadFile,
+  mockUploadFile,
+} = vi.hoisted(() => ({
+  mockCopyWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockGenerateKey: vi.fn(),
   mockDownloadFile: vi.fn(),
   mockUploadFile: vi.fn(),
@@ -11,6 +17,10 @@ const { mockGenerateKey, mockDownloadFile, mockUploadFile } = vi.hoisted(() => (
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   generateWorkspaceFileKey: mockGenerateKey,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  copyWorkspaceFileSecretProvenanceInTx: mockCopyWorkspaceFileSecretProvenanceInTx,
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => ({
@@ -41,9 +51,11 @@ function makeRow(overrides: Partial<ForkableChatFileRow> = {}): ForkableChatFile
     displayName: 'cat.png',
     contentType: 'image/png',
     size: 100,
+    sizeBytes: 100,
     deletedAt: null,
     uploadedAt: new Date('2026-06-01T00:00:00.000Z'),
     updatedAt: new Date('2026-06-01T00:00:00.000Z'),
+    contentUpdatedAt: new Date('2026-06-01T00:00:00.000Z'),
     ...overrides,
   } as ForkableChatFileRow
 }

@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { prospeoHosting } from '@/tools/prospeo/hosting'
 import {
   extractProspeoError,
@@ -12,6 +13,7 @@ export const enrichPersonTool: ToolConfig<ProspeoEnrichPersonParams, ProspeoEnri
     name: 'Prospeo Enrich Person',
     description: 'Enrich a person with complete B2B profile data, email address and mobile.',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
     hosting: prospeoHosting<ProspeoEnrichPersonParams>((_params, output) => {
       // No charge on a no-match or a repeat enrichment.

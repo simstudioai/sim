@@ -3,6 +3,9 @@ name: sim-with-ollama
 services:
   # Main Sim Application
   simstudio:
+    env_file:
+      - path: .env
+        required: false
     build:
       context: .
       dockerfile: docker/app.Dockerfile
@@ -19,9 +22,16 @@ services:
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-sim_auth_secret_$(openssl rand -hex 16)}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-$(openssl rand -hex 32)}
       - COPILOT_API_KEY=${COPILOT_API_KEY}
+      - MSHIP_SYSPROMPT_OVERRIDE=${MSHIP_SYSPROMPT_OVERRIDE:-}
+      - NEXT_PUBLIC_CHAT_DISABLED=${NEXT_PUBLIC_CHAT_DISABLED:-}
       - SIM_AGENT_API_URL=${SIM_AGENT_API_URL}
       - OLLAMA_URL=http://ollama:11434
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
+    # Lets a workflow reach a service on the Docker host. Reaching it also
+    # requires naming it in EGRESS_ALLOWED_HOSTS; this only makes the name
+    # resolve, which it does not on Linux by default.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     depends_on:
       db:
         condition: service_healthy

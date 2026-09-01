@@ -1,4 +1,5 @@
 import { env } from '@/lib/core/config/env'
+import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -79,14 +80,12 @@ export async function validateTrelloServiceAccount(
     })
   }
 
-  const storedMetadata: Record<string, string> = { memberId: member.id }
-  if (typeof member.username === 'string' && member.username) {
-    storedMetadata.username = member.username
-  }
+  const username =
+    typeof member.username === 'string' && member.username ? member.username : undefined
 
   return {
     displayName: member.fullName || member.username || `Trello member ${member.id}`,
-    auditMetadata: { trelloMemberId: member.id },
-    storedMetadata,
+    principal: userPrincipal(member.id, username),
+    auditMetadata: {},
   }
 }

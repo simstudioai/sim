@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
-import { PanelLeft } from '@sim/emcn/icons'
+import { ArrowLeft, ArrowRight, PanelLeft } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
 import { applyDesktopTitleBarMode, type DesktopTitleBarMode } from '@/app/_shell/desktop-title-bar'
@@ -16,15 +16,24 @@ const FULLSCREEN_SUFFIXES = ['/upgrade'] as const
 
 /** Slide timing for the fullscreen sidebar collapse and content shift. */
 const SLIDE_TRANSITION =
-  'duration-[175ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none'
+  '[transition-duration:175ms] [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none'
 
 /**
  * The peek card's floating chrome.
  *
  * Every value is an existing token: `rounded-lg` is `--radius`, matching the content
- * pane it floats beside; `--border` is that pane's border; `shadow-overlay` and
- * `--z-modal` are what the app's other edge-anchored panels use. The card's fill is
- * the sidebar's own `--surface-1`, so docked and floating are the same surface.
+ * pane it floats beside; `--border` is that pane's border; `--z-modal` is what the
+ * app's other edge-anchored panels use. The card's fill is the sidebar's own
+ * `--surface-1`, so docked and floating are the same surface.
+ *
+ * Deliberately unshadowed. It separates on the same `--border` hairline the content
+ * pane beside it uses; `--shadow-overlay` reads as too heavy at this size, where the
+ * card abuts the window edge rather than floating over the middle of the page.
+ *
+ * The card hugs its content and caps at the pane height less the lane and the bottom
+ * gutter — pinning both edges left a tall empty slab below short lists. It is a flex
+ * column so the shell can shrink inside that cap and the sidebar's own scroll region
+ * still bounds itself; see the `[data-peek]` rule in `globals.css`.
  *
  * `w-auto` shrink-wraps the inner shell, which `[data-peek]` has already put at the
  * expanded width. It must not be a length: `width` cannot interpolate to or from
@@ -32,7 +41,7 @@ const SLIDE_TRANSITION =
  * card widens as it appears and leaves a shrinking ghost on retract.
  */
 const PEEK_CARD_CHROME =
-  'absolute top-[var(--desktop-title-bar-height)] bottom-2 left-2 z-[var(--z-modal)] w-auto origin-top-left rounded-lg border border-[var(--border)] shadow-overlay'
+  'absolute top-[var(--desktop-title-bar-height)] left-2 z-[var(--z-modal)] flex max-h-[calc(100%-var(--desktop-title-bar-height)-8px)] w-auto flex-col origin-top-left rounded-lg border border-[var(--border)]'
 
 /**
  * Peek card enter/exit — the popper idiom rather than a slide, since the card is
@@ -57,10 +66,87 @@ const PEEK_CARD_EXIT = cn(
 /** The docked rail: in flow, width-animated by the collapse toggle. */
 const SIDEBAR_SHELL_IN_FLOW = cn('transition-[width]', SLIDE_TRANSITION)
 
+/**
+ * The content pane's own chrome, dropped when the pane sits flush to the window.
+ *
+ * Collapsing the sidebar in the desktop shell takes the surrounding padding to `0`,
+ * which puts the pane hard against the window edge — and its border and radius then
+ * draw a hairline outline with rounded corners inset from the square window frame.
+ *
+ * Keyed off the ancestor attributes rather than React state on purpose: the title-bar
+ * attribute is written pre-paint, so a state-driven rule would flash the border on
+ * first paint before hydration settles.
+ */
+const CONTENT_PANE_FLUSH =
+  '[[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:rounded-none [[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:border-0'
+
 interface WorkspaceChromeProps {
   children: React.ReactNode
   /** Cookie-derived collapse state from the server layout; seeds the sidebar's first render. */
   initialSidebarCollapsed?: boolean
+}
+
+/** Chromium Navigation API slice (absent from TS lib.dom). */
+type ChromiumNavigation = EventTarget & { canGoBack: boolean; canGoForward: boolean }
+
+const LANE_NAV_BUTTON =
+  'flex size-[var(--desktop-title-bar-control-size)] items-center justify-center rounded-lg transition-colors disabled:pointer-events-none disabled:opacity-40 hover-hover:bg-[var(--surface-active)]'
+const LANE_NAV_ICON = 'size-[var(--desktop-title-bar-control-icon-size)] text-[var(--text-icon)]'
+
+/**
+ * Back/forward history arrows in the desktop title-bar lane, right of the
+ * sidebar toggle. Only the macOS shell sets the inset attribute, so the web
+ * app never shows them; the shell's renderer is Chromium, so the Navigation
+ * API is always there for the arrow state.
+ */
+function TitleBarHistoryNav() {
+  const [can, setCan] = useState({ back: false, forward: false })
+
+  useEffect(() => {
+    const nav = (window as { navigation?: ChromiumNavigation }).navigation
+    if (!nav) return
+    let disposed = false
+    // currententrychange dispatches SYNCHRONOUSLY from the history mutation
+    // that caused it, which can originate inside another component's
+    // useInsertionEffect (style libraries navigate during commit). Scheduling
+    // state there is forbidden ("useInsertionEffect must not schedule
+    // updates"), so the update defers to a microtask, which flushes after
+    // the commit's synchronous work unwinds.
+    const sync = () => {
+      queueMicrotask(() => {
+        if (!disposed) setCan({ back: nav.canGoBack, forward: nav.canGoForward })
+      })
+    }
+    sync()
+    nav.addEventListener('currententrychange', sync)
+    return () => {
+      disposed = true
+      nav.removeEventListener('currententrychange', sync)
+    }
+  }, [])
+
+  return (
+    <div className='absolute top-[var(--desktop-title-bar-control-offset)] left-[calc(var(--desktop-title-bar-inset-x)+var(--desktop-title-bar-control-size)+4px)] z-30 hidden h-[var(--desktop-title-bar-control-size)] items-center gap-[2px] [-webkit-app-region:no-drag] [[data-sim-desktop-title-bar=inset]_&]:flex'>
+      <button
+        type='button'
+        aria-label='Back'
+        disabled={!can.back}
+        onClick={() => window.history.back()}
+        className={LANE_NAV_BUTTON}
+      >
+        <ArrowLeft className={LANE_NAV_ICON} />
+      </button>
+      <button
+        type='button'
+        aria-label='Forward'
+        disabled={!can.forward}
+        onClick={() => window.history.forward()}
+        className={LANE_NAV_BUTTON}
+      >
+        <ArrowRight className={LANE_NAV_ICON} />
+      </button>
+    </div>
+  )
 }
 
 function isFullscreenPath(pathname: string | null): boolean {
@@ -191,6 +277,13 @@ export function WorkspaceChrome({
     return getDesktopBridge()?.onCommand?.((command) => {
       if (command === 'toggle-sidebar') {
         useSidebarStore.getState().toggleCollapsed()
+        return
+      }
+      // The shell's View > Search claims `Mod+K` before the renderer sees it, so
+      // this must mirror the `open-search` global command — a toggle, not an open.
+      if (command === 'open-search') {
+        const searchModal = useSearchModalStore.getState()
+        searchModal.setOpen(!searchModal.isOpen)
       }
     })
   }, [])
@@ -295,8 +388,16 @@ export function WorkspaceChrome({
           isCollapsed && '[[data-sim-desktop-title-bar=inset]_&]:p-0'
         )}
         data-sidebar-collapsed={isCollapsed || undefined}
+        /* A fullscreen route slides the sidebar away without collapsing it, so the pane
+           inherits the traffic-light lane the same way a collapsed sidebar does. */
+        data-content-fullscreen={isFullscreen || undefined}
       >
-        <div className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
+        <div
+          className={cn(
+            'flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]',
+            CONTENT_PANE_FLUSH
+          )}
+        >
           {children}
         </div>
       </div>
@@ -336,6 +437,7 @@ export function WorkspaceChrome({
           </SidebarTooltip>
         </div>
       )}
+      {!isFullscreen && <TitleBarHistoryNav />}
     </div>
   )
 }

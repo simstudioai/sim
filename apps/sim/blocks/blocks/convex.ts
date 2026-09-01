@@ -2,6 +2,12 @@ import { ConvexIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { ConvexResponse } from '@/tools/convex/types'
 
+/**
+ * A List Documents page is resumed with either the page cursor or the snapshot
+ * it came from, both advanced-mode fields, so the clause takes whichever is set.
+ */
+const PAGE_RESUME_FIELD = ['pageCursor', 'snapshot'] as const
+
 export const ConvexBlock: BlockConfig<ConvexResponse> = {
   type: 'convex',
   name: 'Convex',
@@ -14,6 +20,39 @@ export const ConvexBlock: BlockConfig<ConvexResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: ConvexIcon,
+  canvasPresentation: {
+    defaultTitle: 'Convex',
+    sentences: {
+      byOperation: {
+        query: [
+          { text: 'Run query', field: 'functionPath', core: true },
+          { text: ', with', field: 'args' },
+        ],
+        mutation: [
+          { text: 'Run mutation', field: 'functionPath', core: true },
+          { text: ', with', field: 'args' },
+        ],
+        action: [
+          { text: 'Run action', field: 'functionPath', core: true },
+          { text: ', with', field: 'args' },
+        ],
+        run_function: [
+          { text: 'Run function', field: 'functionPath', core: true },
+          { text: ', with', field: 'args' },
+        ],
+        list_tables: ['List every table and its schema'],
+        list_documents: [
+          'List documents',
+          { text: 'from', field: 'tableName' },
+          { text: ', continuing from', field: PAGE_RESUME_FIELD },
+        ],
+        document_deltas: [
+          { text: 'Read documents changed since', field: 'cursor', core: true },
+          { text: ', in', field: 'tableName' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

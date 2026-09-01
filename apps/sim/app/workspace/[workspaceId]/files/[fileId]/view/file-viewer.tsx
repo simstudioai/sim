@@ -2,6 +2,7 @@
 
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 
 const logger = createLogger('FileViewer')
@@ -20,7 +21,8 @@ export function FileViewer() {
   const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${file.size}`
 
   return (
-    <div className='fixed inset-0 z-50 bg-[var(--bg)]'>
+    <div className='desktop-title-bar-page fixed inset-0 z-50 bg-[var(--bg)]'>
+      <DesktopTitleBarLane />
       <iframe
         src={serveUrl}
         className='h-full w-full border-0'

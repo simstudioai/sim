@@ -17,10 +17,14 @@ import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   type ContentSegment,
+  type CredentialSubmissionPayload,
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import type { ChatContextKind, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  ChatContextKind,
+  WorkspaceResourceRef,
+} from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
 import { ExternalLink, externalLinkHostname } from './external-link'
@@ -40,16 +44,16 @@ const LANG_ALIASES: Record<string, string> = {
 
 const PROSE_CLASSES = cn(
   'prose prose-base dark:prose-invert max-w-none',
-  'font-[family-name:var(--font-inter)] antialiased break-words font-[430] tracking-[0]',
-  'prose-headings:font-[600] prose-headings:tracking-[0] prose-headings:text-[var(--text-primary)]',
+  'font-[family-name:var(--font-inter)] antialiased break-words tracking-[0]',
+  'prose-headings:font-semibold prose-headings:tracking-[0] prose-headings:text-[var(--text-primary)]',
   'prose-headings:mb-3 prose-headings:mt-6 first:prose-headings:mt-0',
   'prose-p:text-base prose-p:leading-[25px] prose-p:text-[var(--text-primary)]',
   'prose-li:text-base prose-li:leading-[25px] prose-li:text-[var(--text-primary)]',
   'prose-li:my-1',
   'prose-ul:my-4 prose-ol:my-4',
-  'prose-strong:font-[600] prose-strong:text-[var(--text-primary)]',
+  'prose-strong:font-semibold prose-strong:text-[var(--text-primary)]',
   'prose-a:text-[var(--text-primary)] prose-a:underline prose-a:decoration-dashed prose-a:underline-offset-4',
-  'prose-hr:border-[var(--divider)] prose-hr:my-6',
+  'prose-hr:border-[var(--border)] prose-hr:my-6',
   'prose-table:my-0'
 )
 
@@ -195,7 +199,7 @@ function highlight(code: string, language: string): string {
 const MARKDOWN_COMPONENTS = {
   table({ children }: { children?: React.ReactNode }) {
     return (
-      <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-[600]'>
+      <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-semibold'>
         <table className='min-w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
           {children}
         </table>
@@ -209,7 +213,7 @@ const MARKDOWN_COMPONENTS = {
     return (
       <th
         style={style}
-        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-left font-[600] text-[var(--text-primary)] text-sm leading-6'
+        className='whitespace-nowrap border-[var(--border)] border-b px-3 py-2 text-left font-semibold text-[var(--text-primary)] text-sm leading-6'
       >
         {children}
       </th>
@@ -219,7 +223,7 @@ const MARKDOWN_COMPONENTS = {
     return (
       <td
         style={style}
-        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-[var(--text-primary)] text-sm leading-6'
+        className='whitespace-nowrap border-[var(--border)] border-b px-3 py-2 text-[var(--text-primary)] text-sm leading-6'
       >
         {children}
       </td>
@@ -232,7 +236,7 @@ const MARKDOWN_COMPONENTS = {
 
     if (!codeString) {
       return (
-        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px] dark:bg-[var(--code-bg)]'>
+        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:bg-[var(--code-bg)]'>
           <code>{children}</code>
         </pre>
       )
@@ -241,8 +245,8 @@ const MARKDOWN_COMPONENTS = {
     const html = highlight(codeString.trimEnd(), language)
 
     return (
-      <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
-        <div className='flex items-center justify-between border-[var(--divider)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
+      <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--border)]'>
+        <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
           <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
           <CopyCodeButton
             code={codeString}
@@ -251,7 +255,7 @@ const MARKDOWN_COMPONENTS = {
         </div>
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
           <pre
-            className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px]'
+            className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[var(--text-primary)] text-small leading-[21px]'
             dangerouslySetInnerHTML={{ __html: html }}
           />
         </div>
@@ -278,6 +282,9 @@ const MARKDOWN_COMPONENTS = {
             e.preventDefault()
             if (!type || !ref) return
             const linkText = label || ref
+            // A file link carries whichever the tag had (`path ?? id`) with no
+            // way to tell them apart here, so it is forwarded as-is and the
+            // resolver tries every interpretation against the real file list.
             window.dispatchEvent(
               new CustomEvent('wsres-click', {
                 detail:
@@ -349,14 +356,14 @@ const MARKDOWN_COMPONENTS = {
   },
   inlineCode({ children }: { children?: React.ReactNode }) {
     return (
-      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-[400] font-mono text-[var(--text-primary)] not-italic before:content-none after:content-none'>
+      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono font-normal text-[var(--text-primary)] not-italic before:content-none after:content-none'>
         {children}
       </code>
     )
   },
   blockquote({ children }: { children?: React.ReactNode }) {
     return (
-      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
+      <blockquote className='my-4 break-words border-[var(--border)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
         {children}
       </blockquote>
     )
@@ -380,7 +387,7 @@ const MARKDOWN_COMPONENTS = {
         src={src}
         alt={alt ?? ''}
         loading='lazy'
-        className='my-4 h-auto max-w-full rounded-lg border border-[var(--divider)]'
+        className='my-4 h-auto max-w-full rounded-lg border border-[var(--border)]'
       />
     )
   },
@@ -388,12 +395,17 @@ const MARKDOWN_COMPONENTS = {
 
 interface ChatContentProps {
   content: string
+  messageId?: string
   isStreaming?: boolean
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
+  /** Transcript-derived status payload for this message's credential card. */
+  credentialSubmission?: CredentialSubmissionPayload
+  /** The user moved on without submitting this message's credential card. */
+  credentialAbandoned?: boolean
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   onRevealStateChange?: (isRevealing: boolean) => void
   /** Reports whether this segment is actively painting text. */
   onStreamActivityChange?: (active: boolean) => void
@@ -406,8 +418,11 @@ interface ChatContentProps {
 
 function ChatContentInner({
   content,
+  messageId,
   isStreaming = false,
   questionAnswers,
+  credentialSubmission,
+  credentialAbandoned,
   onOptionSelect,
   onQuestionDismiss,
   onWorkspaceResourceSelect,
@@ -520,10 +535,12 @@ function ChatContentInner({
   useEffect(() => {
     const handler = (e: Event) => {
       const { type, id, path, title } = (e as CustomEvent).detail
+      // A link built from a path carries no id. Forward what the tag actually
+      // had; the select handler resolves it rather than guessing here.
       onWorkspaceResourceSelectRef.current?.({
         type,
-        id: id ?? '',
-        path,
+        ...(id ? { id } : {}),
+        ...(path ? { path } : {}),
         title: title || id || path || '',
       })
     }
@@ -628,7 +645,10 @@ function ChatContentInner({
           <SpecialTags
             key={`special-${group.index}`}
             segment={group.segment}
+            interactionId={`${messageId ?? 'message'}:${group.index}`}
             questionAnswers={questionAnswers}
+            credentialSubmission={credentialSubmission}
+            credentialAbandoned={credentialAbandoned}
             onOptionSelect={onOptionSelect}
             onQuestionDismiss={onQuestionDismiss}
           />

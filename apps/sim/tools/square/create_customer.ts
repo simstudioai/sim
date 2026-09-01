@@ -1,5 +1,9 @@
-import { generateId } from '@sim/utils/id'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  defineSquareKeyedSite,
+  type SquareDeliveryContextParams,
+  withSquareIdempotencyKey,
+} from '@/tools/square/idempotency'
 import type { CreateCustomerParams, CustomerResponse } from '@/tools/square/types'
 import {
   CUSTOMER_METADATA_OUTPUT_PROPERTIES,
@@ -9,7 +13,15 @@ import {
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const squareCreateCustomerTool: ToolConfig<CreateCustomerParams, CustomerResponse> = {
+const DELIVERY = defineSquareKeyedSite(
+  'square_create_customer',
+  "a second, duplicate customer record would appear in the seller's directory"
+)
+
+export const squareCreateCustomerTool: ToolConfig<
+  CreateCustomerParams & SquareDeliveryContextParams,
+  CustomerResponse
+> = {
   id: 'square_create_customer',
   name: 'Square Create Customer',
   description: 'Create a new customer profile in the Square customer directory',
@@ -96,9 +108,7 @@ export const squareCreateCustomerTool: ToolConfig<CreateCustomerParams, Customer
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {
-      const body: Record<string, unknown> = {
-        idempotency_key: params.idempotencyKey || generateId(),
-      }
+      const body: Record<string, unknown> = {}
       if (params.givenName) body.given_name = params.givenName
       if (params.familyName) body.family_name = params.familyName
       if (params.companyName) body.company_name = params.companyName
@@ -109,7 +119,7 @@ export const squareCreateCustomerTool: ToolConfig<CreateCustomerParams, Customer
       if (params.note) body.note = params.note
       if (params.referenceId) body.reference_id = params.referenceId
       if (params.address) body.address = params.address
-      return body
+      return withSquareIdempotencyKey(DELIVERY, params, body)
     },
   },
 

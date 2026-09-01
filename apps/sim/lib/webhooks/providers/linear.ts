@@ -110,7 +110,7 @@ export const linearHandler: WebhookProviderHandler = {
     const b = isRecordLike(body) ? body : {}
     const rawActor = b.actor
     let actor: unknown = null
-    if (rawActor && typeof rawActor === 'object' && !Array.isArray(rawActor)) {
+    if (isRecordLike(rawActor)) {
       const a = rawActor as Record<string, unknown>
       const { type: linearActorType, ...rest } = a
       actor = {

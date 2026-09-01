@@ -4,14 +4,26 @@ import { useEffect, useState } from 'react'
 import { Button, cn, Input, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { client } from '@/lib/auth/auth-client'
-import { env, isFalsy } from '@/lib/core/config/env'
+import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AuthSubmitButton } from '@/app/(auth)/components'
+import { AuthFormMessage, AuthSubmitButton } from '@/app/(auth)/components'
 
 const logger = createLogger('SSOForm')
+const SSO_SIGN_IN_ERROR = 'Unable to start SSO. Check your email and try again.'
+const SSO_ERROR_MESSAGES = {
+  account_not_found: 'No account found. Please contact your administrator to set up SSO access.',
+  sso_failed: 'SSO authentication failed. Please try again.',
+  invalid_provider: 'SSO provider not configured correctly.',
+  sso_no_seats:
+    'Your organization has no available seat capacity. Ask an administrator to increase capacity or remove an unused member.',
+  sso_account_conflict:
+    'This Sim account is already a member of another organization. Leave that organization before trying again, or ask an administrator for external workspace access.',
+  sso_provisioning_failed:
+    'SSO succeeded, but organization access could not be set up safely. No session was created; please try again or contact your administrator.',
+} as const
 
 const validateEmailField = (emailValue: string): string[] => {
   const errors: string[] = []
@@ -29,50 +41,73 @@ const validateEmailField = (emailValue: string): string[] => {
   return errors
 }
 
-export default function SSOForm() {
-  const router = useRouter()
+interface SSOFormProps {
+  /** DISABLE_REGISTRATION. Hides the signup cross-link, which `/signup` blocks. */
+  registrationDisabled: boolean
+}
+
+export default function SSOForm({ registrationDisabled }: SSOFormProps) {
   const searchParams = useSearchParams()
+  const errorCode = searchParams?.get('error') ?? null
+  const initialError = errorCode
+    ? Object.hasOwn(SSO_ERROR_MESSAGES, errorCode)
+      ? SSO_ERROR_MESSAGES[errorCode as keyof typeof SSO_ERROR_MESSAGES]
+      : 'SSO authentication failed. Please try again.'
+    : null
+
+  return (
+    <SSOFormContent
+      key={searchParams?.toString() ?? ''}
+      registrationDisabled={registrationDisabled}
+      initialEmail={searchParams?.get('email') ?? ''}
+      initialError={initialError}
+      callbackParam={searchParams?.get('callbackUrl') ?? null}
+    />
+  )
+}
+
+interface SSOFormContentProps extends SSOFormProps {
+  initialEmail: string
+  initialError: string | null
+  callbackParam: string | null
+}
+
+function SSOFormContent({
+  registrationDisabled,
+  initialEmail,
+  initialError,
+  callbackParam,
+}: SSOFormContentProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(initialEmail)
+  const [formError, setFormError] = useState(initialError)
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [callbackUrl, setCallbackUrl] = useState('/workspace')
+
+  const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
+
+  /**
+   * Derived during render rather than seeded into state from an effect: the
+   * first painted frame otherwise carries the `/workspace` default, so the
+   * "Sign in with email" and "Sign up" links briefly point at the wrong
+   * destination on any deep link carrying `?callbackUrl=`.
+   */
+  const isCallbackValid = callbackParam !== null && validateCallbackUrl(callbackParam)
+  const callbackUrl = callbackParam !== null && isCallbackValid ? callbackParam : '/workspace'
+  const hasEmailError = showEmailValidationError && emailErrors.length > 0
 
   useEffect(() => {
-    if (searchParams) {
-      const callback = searchParams.get('callbackUrl')
-      if (callback) {
-        if (validateCallbackUrl(callback)) {
-          setCallbackUrl(callback)
-        } else {
-          logger.warn('Invalid callback URL detected and blocked:', { url: callback })
-        }
-      }
-
-      const emailParam = searchParams.get('email')
-      if (emailParam) {
-        setEmail(emailParam)
-      }
-
-      const error = searchParams.get('error')
-      if (error) {
-        const errorMessages: Record<string, string> = {
-          account_not_found:
-            'No account found. Please contact your administrator to set up SSO access.',
-          sso_failed: 'SSO authentication failed. Please try again.',
-          invalid_provider: 'SSO provider not configured correctly.',
-        }
-        setEmailErrors([errorMessages[error] || 'SSO authentication failed. Please try again.'])
-        setShowEmailValidationError(true)
-      }
+    if (callbackParam !== null && !isCallbackValid) {
+      logger.warn('Invalid callback URL detected and blocked:', { url: callbackParam })
     }
-  }, [searchParams])
+  }, [callbackParam, isCallbackValid])
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value
     setEmail(newEmail)
 
     const errors = validateEmailField(newEmail)
+    setFormError(null)
     setEmailErrors(errors)
     setShowEmailValidationError(false)
   }
@@ -80,6 +115,7 @@ export default function SSOForm() {
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setIsLoading(true)
+    setFormError(null)
 
     const formData = new FormData(e.currentTarget)
     const emailRaw = formData.get('email') as string
@@ -97,33 +133,20 @@ export default function SSOForm() {
     try {
       const safeCallbackUrl = callbackUrl
 
-      await client.signIn.sso({
+      const result = await client.signIn.sso({
         email: emailValue,
         callbackURL: safeCallbackUrl,
         errorCallbackURL: `/sso?error=sso_failed&callbackUrl=${encodeURIComponent(safeCallbackUrl)}`,
       })
+
+      if (!result || result.error) {
+        logger.error('SSO sign-in failed', { error: result?.error, email: emailValue })
+        setFormError(SSO_SIGN_IN_ERROR)
+      }
     } catch (err) {
       logger.error('SSO sign-in failed', { error: err, email: emailValue })
-
-      let errorMessage = 'SSO sign-in failed. Please try again.'
-      if (err instanceof Error) {
-        if (err.message.includes('NO_PROVIDER_FOUND')) {
-          errorMessage = 'SSO provider not found. Please check your configuration.'
-        } else if (err.message.includes('INVALID_EMAIL_DOMAIN')) {
-          errorMessage = 'Email domain not configured for SSO. Please contact your administrator.'
-        } else if (err.message.includes('network')) {
-          errorMessage = 'Network error. Please check your connection and try again.'
-        } else if (err.message.includes('rate limit')) {
-          errorMessage = 'Too many requests. Please wait a moment before trying again.'
-        } else if (err.message.includes('SSO_DISABLED')) {
-          errorMessage = 'SSO authentication is disabled. Please use another sign-in method.'
-        } else {
-          errorMessage = err.message
-        }
-      }
-
-      setEmailErrors([errorMessage])
-      setShowEmailValidationError(true)
+      setFormError(SSO_SIGN_IN_ERROR)
+    } finally {
       setIsLoading(false)
     }
   }
@@ -148,6 +171,12 @@ export default function SSOForm() {
       </div>
 
       <form onSubmit={onSubmit} className={'mt-8 space-y-8'}>
+        {formError && (
+          <div role='alert'>
+            <AuthFormMessage type='error'>{formError}</AuthFormMessage>
+          </div>
+        )}
+
         <div className='space-y-6'>
           <div className='space-y-2'>
             <div className='flex items-center justify-between'>
@@ -163,14 +192,18 @@ export default function SSOForm() {
               autoCorrect='off'
               value={email}
               onChange={handleEmailChange}
+              aria-invalid={hasEmailError || undefined}
+              aria-describedby={hasEmailError ? 'sso-email-errors' : undefined}
               className={cn(
-                showEmailValidationError &&
-                  emailErrors.length > 0 &&
-                  'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                hasEmailError && 'border-[var(--text-error)] focus:border-[var(--text-error)]'
               )}
             />
-            {showEmailValidationError && emailErrors.length > 0 && (
-              <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
+            {hasEmailError && (
+              <div
+                id='sso-email-errors'
+                role='alert'
+                className='mt-1 space-y-1 text-[var(--text-error)] text-caption'
+              >
                 {emailErrors.map((error) => (
                   <p key={error}>{error}</p>
                 ))}
@@ -184,8 +217,7 @@ export default function SSOForm() {
         </AuthSubmitButton>
       </form>
 
-      {/* Only show divider and email signin button if email/password is enabled */}
-      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+      {emailEnabled && (
         <>
           <div className='relative my-6 font-light'>
             <div className='absolute inset-0 flex items-center'>
@@ -208,13 +240,12 @@ export default function SSOForm() {
         </>
       )}
 
-      {/* Only show signup link if email/password signup is enabled */}
-      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+      {emailEnabled && !registrationDisabled && (
         <div className='pt-6 text-center font-light text-base'>
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-            className='font-medium text-[var(--text-primary)] underline-offset-4 transition hover:underline'
+            className='text-[var(--text-primary)] underline-offset-4 transition hover:underline'
           >
             Sign up
           </Link>

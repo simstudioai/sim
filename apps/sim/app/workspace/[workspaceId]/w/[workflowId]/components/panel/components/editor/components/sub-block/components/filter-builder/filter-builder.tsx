@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { Button } from '@sim/emcn'
-import { Plus } from 'lucide-react'
+import { Plus } from '@sim/emcn/icons'
 import { useTableColumns } from '@/lib/table/hooks'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'

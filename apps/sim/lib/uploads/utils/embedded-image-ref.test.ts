@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   extractEmbeddedFileRef,
-  extractEmbeddedFileRefs,
+  extractImgSrcs,
+  storedFileId,
 } from '@/lib/uploads/utils/embedded-image-ref'
 
 const KEY = 'workspace/W1/1700000000000-deadbeefdeadbeef-photo.png'
@@ -24,6 +25,15 @@ describe('extractEmbeddedFileRef', () => {
     expect(extractEmbeddedFileRef('/workspace/W1/files/wf_abc')).toEqual({ fileId: 'wf_abc' })
   })
 
+  /**
+   * The export bundler rewrites an embed by searching the document for the id it was handed, so a
+   * decoded id would bundle the asset and leave the markdown pointing at the API URL.
+   */
+  it('returns the id as spelled in the src, so the export can find it again', () => {
+    expect(extractEmbeddedFileRef('/api/files/view/wf%5Fabc')).toEqual({ fileId: 'wf%5Fabc' })
+    expect(extractEmbeddedFileRef('/workspace/W1/files/wf%5Fabc')).toEqual({ fileId: 'wf%5Fabc' })
+  })
+
   it('returns null for external, data, and non-workspace serve urls', () => {
     expect(extractEmbeddedFileRef('https://cdn.example.com/a.png')).toBeNull()
     expect(extractEmbeddedFileRef('data:image/png;base64,AAAA')).toBeNull()
@@ -31,31 +41,28 @@ describe('extractEmbeddedFileRef', () => {
   })
 })
 
-describe('extractEmbeddedFileRefs', () => {
-  it('collects de-duplicated keys and ids from a document via the shared parser', () => {
-    const content = `
-      ![a](/api/files/serve/${ENCODED}?context=workspace)
-      ![b](/api/files/view/wf_abc)
-      ![c](/workspace/W1/files/4bdaf6c4-072e-464e-891d-b6af3b5fe2cc)
-      ![dup](/api/files/serve/s3/${ENCODED})
-      ![ext](https://cdn.example.com/x.png)
-      ![pub](/api/files/serve/profile-pictures%2Fu1%2Favatar.png)
-    `
-    const { keys, ids } = extractEmbeddedFileRefs(content)
-    expect(keys).toEqual([KEY])
-    expect(ids.sort()).toEqual(['4bdaf6c4-072e-464e-891d-b6af3b5fe2cc', 'wf_abc'].sort())
+describe('storedFileId', () => {
+  it('decodes a document-spelled id exactly once', () => {
+    expect(storedFileId('wf%5Fabc')).toBe('wf_abc')
+    expect(storedFileId('wf%255Fabc')).toBe('wf%5Fabc')
   })
 
-  it('caps total references (keys + ids) at 50 combined', () => {
-    const ids = Array.from(
-      { length: 40 },
-      (_, i) => `/api/files/view/wf_${String(i).padStart(6, '0')}`
-    )
-    const keys = Array.from(
-      { length: 40 },
-      (_, i) => `/api/files/serve/${encodeURIComponent(`workspace/W1/k${i}.png`)}`
-    )
-    const { keys: k, ids: d } = extractEmbeddedFileRefs([...ids, ...keys].join(' '))
-    expect(k.length + d.length).toBe(50)
+  it('leaves malformed encodings unchanged', () => {
+    expect(storedFileId('wf%5')).toBe('wf%5')
+  })
+})
+
+describe('extractImgSrcs', () => {
+  it('reads double-quoted, single-quoted, and unquoted srcs in document order', () => {
+    expect(
+      extractImgSrcs(
+        `<img src="/a.png"><p>text</p><img src='/b.png'><img src=/c.png><img src="/a.png">`
+      )
+    ).toEqual(['/a.png', '/b.png', '/c.png', '/a.png'])
+  })
+
+  it('returns nothing for markup without images', () => {
+    expect(extractImgSrcs('<p>hello</p>')).toEqual([])
+    expect(extractImgSrcs('')).toEqual([])
   })
 })

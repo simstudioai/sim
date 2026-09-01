@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   extractProspeoError,
   type ProspeoAccountInformationParams,
@@ -14,6 +15,7 @@ export const accountInformationTool: ToolConfig<
   description:
     'Retrieve the current plan, remaining credits, and renewal date of your Prospeo account.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
   params: {
     apiKey: {

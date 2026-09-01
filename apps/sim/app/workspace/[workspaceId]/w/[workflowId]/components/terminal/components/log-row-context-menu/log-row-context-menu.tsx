@@ -2,6 +2,7 @@
 
 import { memo, type RefObject } from 'react'
 import { Popover, PopoverAnchor, PopoverContent, PopoverDivider, PopoverItem } from '@sim/emcn'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import type {
   ContextMenuPosition,
   TerminalFilters,
@@ -46,13 +47,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   const isStatusFiltered = entry ? filters.statuses.has(entryStatus) : false
 
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-      colorScheme='inverted'
-    >
+    <Popover open={isOpen} onOpenChange={(open) => !open && onClose()} size='sm'>
       <PopoverAnchor
         style={{
           position: 'fixed',
@@ -79,7 +74,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         )}
 
         {/* Fix in Chat - only for error rows */}
-        {entry && !entry.success && (
+        {isChatEnabled && entry && !entry.success && (
           <>
             <PopoverItem
               onClick={() => {

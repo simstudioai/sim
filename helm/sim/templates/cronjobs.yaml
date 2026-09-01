@@ -5,7 +5,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "sim.fullname" $ }}-{{ $jobConfig.name }}
+  name: {{ include "sim.cronjobName" (dict "root" $ "jobName" $jobConfig.name) }}
   namespace: {{ $.Release.Namespace }}
   labels:
     {{- include "sim.labels" $ | nindent 4 }}

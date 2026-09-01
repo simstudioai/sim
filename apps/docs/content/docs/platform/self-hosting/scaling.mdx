@@ -1,0 +1,169 @@
+---
+title: Scaling & High Availability
+description: Replicas, connection pooling, autoscaling, and where the limits actually are
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+## What scales how
+
+| Component | Scaling | Notes |
+|---|---|---|
+| **app** | Horizontal | Stateless. **Requires Redis** past one replica |
+| **realtime** | Horizontal | **Requires Redis** past one replica (Socket.IO adapter) |
+| **postgresql** | Vertical + read replicas | The eventual bottleneck |
+| **redis** | Vertical / HA pair | Coordination only; small |
+| **cronjobs** | Fixed | One call per tick regardless of replica count |
+
+## Prerequisites before scaling past one replica
+
+<Callout type="error">
+  Redis must be reachable before you raise `replicaCount`. Both deployments ship it by default, so this is already satisfied unless you set `redis.enabled: false` (Helm) or removed the `redis` service (Compose) without supplying `REDIS_URL`. Without Redis, pub/sub falls back to a process-local emitter and the Socket.IO adapter has no cross-pod transport — realtime logs one line at startup noting single-pod mode, then drops cross-pod events silently. See [Redis](/platform/self-hosting/redis).
+</Callout>
+
+You also need shared object storage — local-disk storage is per-pod, so a file uploaded through one replica is invisible to the others. See [Object Storage](/platform/self-hosting/object-storage).
+
+## Scaling the app
+
+```yaml
+app:
+  replicaCount: 3
+  resources:
+    limits:
+      memory: 8Gi
+      cpu: 2000m
+    requests:
+      memory: 4Gi
+      cpu: 1000m
+```
+
+**Memory is the constraint, not CPU.** Workflow executions run inside the app process in isolated-vm sandboxes, and file parsing happens in memory. Production telemetry shows 4–8 GB steady with peaks to 12 GB under heavy execution load. Under-provision memory and you get OOMKills that terminate in-flight workflow runs.
+
+A PodDisruptionBudget is created automatically once `replicaCount > 1` (`maxUnavailable: 25%`). Tighten it with `podDisruptionBudget.minAvailable` if you need to.
+
+### Autoscaling
+
+```yaml
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+```
+
+Requires `metrics-server`. When enabled, the chart omits `spec.replicas` so the HPA owns replica count.
+
+<Callout type="warn">
+  Scale-down terminates pods that may be running workflows. Set a conservative `minReplicas`, and consider a `behavior` block with a long `stabilizationWindowSeconds` on scale-down so long executions are not repeatedly interrupted.
+</Callout>
+
+Realtime gets the same HPA unless you disable it — and again, only scale it past one replica with Redis configured:
+
+```yaml
+autoscaling:
+  realtime:
+    enabled: false
+```
+
+## Database
+
+Postgres is where scaling eventually stops being about replicas.
+
+### Connections
+
+Each app replica opens a pool. Total connections grow with replica count, and Postgres has a hard `max_connections`. A deployment that works at 2 replicas can exhaust connections at 6.
+
+Budget it: `replicas × pool size + realtime + cronjobs + migrations + headroom` must stay under `max_connections`.
+
+For anything beyond a handful of replicas, put **PgBouncer** in transaction pooling mode in front of the database and point `DATABASE_URL` at it. This is the single highest-leverage change for a large deployment — it decouples app replica count from database connection count.
+
+### Read replicas
+
+Heavy read paths — log listing, audit logs, dashboard aggregations — can be offloaded:
+
+```bash
+DATABASE_REPLICA_URL=postgresql://user:pass@replica-host:5432/simstudio
+```
+
+Reads fall back to the primary when unset. Per-role overrides exist if different components should use different replicas:
+
+| Variable | Applies to |
+|---|---|
+| `DATABASE_REPLICA_URL` | Default for all roles |
+| `DATABASE_REPLICA_URL_WEB` | The web app |
+| `DATABASE_REPLICA_URL_REALTIME` | The realtime service |
+| `DATABASE_REPLICA_URL_TRIGGER` | Trigger.dev workers |
+
+<Callout type="info">
+  Replicas lag. Sim routes only latency-tolerant reads to them, but if your replica lags badly, recently written logs may briefly not appear. Monitor replication lag.
+</Callout>
+
+### Sizing
+
+| Deployment | Instance | Storage |
+|---|---|---|
+| Small (1–5 users) | 2 vCPU / 8 GB | 50 GB |
+| Standard (5–50 users) | 4 vCPU / 16 GB | 100 GB+ |
+| Large (50+ users) | 8+ vCPU / 32 GB+ | 250 GB+, auto-grow |
+
+Knowledge base embeddings are the main growth driver — vector storage scales with document volume, not user count. Enable storage auto-increase.
+
+## Execution concurrency
+
+`SCHEDULE_EXECUTION_CONCURRENCY_LIMIT` (default `30`) bounds scheduled executions per app instance. The other three `*_EXECUTION_CONCURRENCY_LIMIT` variables apply only to Trigger.dev and are inert on a default self-host — see [Background Jobs](/platform/self-hosting/background-jobs#concurrency).
+
+When executions queue but memory is fine, raise the limit; when memory is the ceiling, add replicas instead.
+
+## Rate limits and quotas
+
+Self-hosted deployments run **without plan limits by default** — no rate limits, execution timeouts, or table and storage caps. Each can be opted back in individually; the variable list and suggested values are in [Environment Variables](/platform/self-hosting/environment-variables#limits).
+
+An execution timeout is worth setting even on an otherwise unlimited deployment — it is what stops a runaway workflow from holding a sandbox indefinitely.
+
+## Reference topology
+
+A production deployment serving ~100 active users:
+
+```yaml
+app:
+  replicaCount: 3
+  resources:
+    limits: { memory: 8Gi, cpu: 2000m }
+    requests: { memory: 4Gi, cpu: 1000m }
+  env:
+    REDIS_URL: "rediss://:<password>@redis.internal:6380"
+
+realtime:
+  replicaCount: 2
+  env:
+    REDIS_URL: "rediss://:<password>@redis.internal:6380"
+
+postgresql:
+  enabled: false
+
+externalDatabase:
+  enabled: true
+  host: "pgbouncer.internal"
+  port: 6432
+  database: simstudio
+  sslMode: require
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+
+podDisruptionBudget:
+  minAvailable: 2
+```
+
+Plus: managed Postgres with PITR, managed Redis in an HA tier, object storage with versioning, and images pinned to an explicit tag.
+
+<FAQ items={[
+  { question: "Should I scale up or scale out?", answer: "Scale out for concurrent users and workflow throughput. Scale up when individual executions are memory-hungry — a single large document parse or execution has to fit in one pod. Memory is almost always the binding constraint."},
+  { question: "When do I need PgBouncer?", answer: "Once replica count times pool size approaches Postgres max_connections — typically past a handful of replicas. Transaction pooling decouples app replicas from database connections and is the highest-leverage change for a large deployment."},
+  { question: "Does the HPA interrupt running workflows?", answer: "Scale-down can terminate a pod mid-execution. Use a conservative minReplicas and a long scale-down stabilization window so long-running executions are not repeatedly interrupted."},
+  { question: "Can I use a read replica?", answer: "Yes. Set DATABASE_REPLICA_URL and latency-tolerant reads — log listing, audit logs, dashboard aggregations — are routed to it. Per-role overrides exist for the web, realtime, and trigger components." },
+]} />

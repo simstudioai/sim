@@ -45,4 +45,9 @@ export const permissionsMock = {
   getWorkspaceMemberProfiles: permissionsMockFns.mockGetWorkspaceMemberProfiles,
   hasWorkspaceAdminAccess: permissionsMockFns.mockHasWorkspaceAdminAccess,
   getManageableWorkspaces: permissionsMockFns.mockGetManageableWorkspaces,
+  // Faithful to the real type guard without importing the class the mock
+  // replaces: the constructor stamps name = 'WorkspaceAccessDeniedError', so a
+  // test exercising the 403 projection throws an Error carrying that name.
+  isWorkspaceAccessDeniedError: (error: unknown): boolean =>
+    error instanceof Error && error.name === 'WorkspaceAccessDeniedError',
 }

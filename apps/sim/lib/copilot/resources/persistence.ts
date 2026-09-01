@@ -3,7 +3,7 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
-import { GENERIC_RESOURCE_TITLES, type MothershipResource } from './types'
+import { GENERIC_RESOURCE_TITLES, type MothershipResource, sanitizeChatResources } from './types'
 
 export {
   extractDeletedResourcesFromToolResult,
@@ -40,14 +40,16 @@ export async function persistChatResources(
 
     if (!chat) return
 
-    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+    const existing = sanitizeChatResources(
+      Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+    )
     const map = new Map<string, ChatResource>()
 
     for (const r of existing) {
       map.set(`${r.type}:${r.id}`, r)
     }
 
-    for (const r of toMerge) {
+    for (const r of sanitizeChatResources(toMerge)) {
       const key = `${r.type}:${r.id}`
       const prev = map.get(key)
       if (
@@ -87,11 +89,14 @@ export async function removeChatResources(chatId: string, toRemove: ChatResource
 
     if (!chat) return
 
-    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
-    const removeKeys = new Set(toRemove.map((r) => `${r.type}:${r.id}`))
+    const stored = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+    const existing = sanitizeChatResources(stored)
+    const removeKeys = new Set(sanitizeChatResources(toRemove).map((r) => `${r.type}:${r.id}`))
     const filtered = existing.filter((r) => !removeKeys.has(`${r.type}:${r.id}`))
 
-    if (filtered.length === existing.length) return
+    const removedSomething = filtered.length !== existing.length
+    const sanitizedSomething = existing.length !== stored.length
+    if (!removedSomething && !sanitizedSomething) return
 
     await db
       .update(copilotChats)

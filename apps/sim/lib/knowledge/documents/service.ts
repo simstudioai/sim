@@ -1,7 +1,9 @@
 import { db } from '@sim/db'
 import {
   document,
+  documentSecretProvenance,
   embedding,
+  embeddingSecretProvenance,
   knowledgeBase,
   knowledgeBaseTagDefinitions,
   knowledgeConnector,
@@ -12,7 +14,23 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
-import { and, asc, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
+import { searchFilter } from '@/lib/api/list-query'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   assertBillingAttributionSnapshot,
@@ -32,6 +50,7 @@ import {
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
   type StorageBillingContext,
+  StorageLimitExceededError,
 } from '@/lib/billing/storage'
 import {
   checkAndBillOverageThreshold,
@@ -41,8 +60,36 @@ import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import {
+  BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
+  EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
+  getEmbeddingAggregateItemLimit,
+  isBYOKEmbeddingCredentialRejection,
+  isEmbeddingQuotaExhaustion,
+} from '@/lib/embeddings'
+import {
+  type DurableSecretProvenance,
+  durableSecretProvenanceFromRegistry,
+  EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
+  mergeDurableSecretProvenance,
+} from '@/lib/execution/durable-secret-provenance'
+import {
+  assertDocumentChunkCountWithinLimit,
+  isPermanentDocumentProcessingError,
+  isUsageLimitDocumentProcessingError,
+  PermanentDocumentProcessingError,
+  toPermanentDocumentProcessingError,
+  UsageLimitDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import {
+  failStaleDocumentProcessingClaim,
+  recordUndispatchedDocumentFailure,
+} from '@/lib/knowledge/documents/processing-claim'
+import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
   createDocumentProcessingPayload,
@@ -52,28 +99,52 @@ import {
   type DocumentProcessingPayload,
   hasDocumentProcessingBillingScope,
 } from '@/lib/knowledge/documents/processing-payload'
+import { scheduleDocumentProcessingQuotaContinuation } from '@/lib/knowledge/documents/processing-quota-continuation'
+import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import {
   buildTagFilterCondition,
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/tag-filter'
-import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
-import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
+import {
+  type DocumentSortField,
+  MAX_PROCESSING_ATTEMPTS,
+  QUEUED_DISPATCH_GRACE_MS,
+  type SortOrder,
+} from '@/lib/knowledge/documents/types'
+import { EMBEDDING_DIMENSIONS, getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
+import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+import {
+  bindKnowledgeDocumentFieldSecretProvenance,
+  createKnowledgeDocumentSourceValue,
+  type KnowledgeDocumentMetadataField,
+  type KnowledgeDocumentWriteSecretProvenance,
+  loadKnowledgeDocumentSecretRegistry,
+  readBoundKnowledgeDocumentSecretProvenance,
+  rebindKnowledgeDocumentSecretProvenance,
+  replaceKnowledgeDocumentSecretProvenanceInTx,
+} from '@/lib/knowledge/secret-provenance'
 import {
   buildUndefinedTagsError,
   parseBooleanValue,
   parseDateValue,
   parseNumberValue,
+  uncompilableTagFilterError,
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
+import {
+  getBoundWorkspaceFileSecretProvenanceByMetadata,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
-  deleteFileMetadata,
+  deleteFileMetadataByIdentity,
   type FileMetadataRecord,
   getFileMetadataByKeys,
 } from '@/lib/uploads/server/metadata'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { processDocument as processDocumentTask } from '@/background/knowledge-processing'
 import { calculateCost } from '@/providers/utils'
@@ -81,20 +152,27 @@ import { calculateCost } from '@/providers/utils'
 const logger = createLogger('DocumentService')
 
 /**
- * Thrown when a knowledge-base document's `fileUrl` references an internal `kb/`
- * storage object that is not owned by the target knowledge base's workspace.
+ * Thrown when a knowledge-base document's `fileUrl` references an internal
+ * knowledge-base storage object not owned by the target knowledge base's workspace.
  * Routes map this to a 403.
+ *
+ * Deliberately carries no `details.code`. It belongs to the cross-tenant class
+ * the closed set in `lib/core/application/forbidden.ts` excludes: it fires
+ * identically for a key bound to another tenant and for a key bound to nothing
+ * at all, so the single fixed message is the whole of what a caller may learn,
+ * and a machine-readable name would only invite a client to read resource
+ * existence into it.
  */
-export class KnowledgeBaseFileOwnershipError extends Error {
+export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
   constructor(public readonly storageKey: string) {
-    super('Document file is not owned by this knowledge base')
+    super('forbidden', 'Document file is not owned by this knowledge base')
     this.name = 'KnowledgeBaseFileOwnershipError'
   }
 }
 
 /**
  * Guard document `fileUrl`s at creation time. When a URL points at an internal
- * `kb/` storage object, require that the target knowledge base owns the object,
+ * knowledge-base storage object, require that the target knowledge base owns the object,
  * resolved from the trusted `workspace_files` binding:
  *
  * - Workspace KB (`kbWorkspaceId` set): the binding's `workspaceId` must match.
@@ -102,13 +180,65 @@ export class KnowledgeBaseFileOwnershipError extends Error {
  *   owner. A key bound to another tenant is rejected; an unbound key (legacy /
  *   never reserved) passes since it carries no cross-tenant ownership.
  *
- * External `http(s)`/`data:` URLs (ingestion sources) and non-`kb/` internal keys
+ * External `http(s)`/`data:` URLs (ingestion sources) and other internal keys
  * pass through unchanged. This blocks a user from asserting ownership of another
- * tenant's `kb/` key via a planted `fileUrl` — including in a personal KB, which
+ * tenant's object via a planted `fileUrl` — including in a personal KB, which
  * otherwise could be moved into a workspace to launder the binding. All
  * referenced bindings are resolved in one query (no N+1 inside the `FOR UPDATE`
  * window). Single-document callers pass a one-element array.
  */
+function isKnowledgeBaseOwnedStorageKey(key: string): boolean {
+  return key.startsWith('kb/') || key.startsWith('knowledge-base/')
+}
+
+function getKnowledgeBaseStorageKeys(fileUrls: readonly string[]): string[] {
+  return [
+    ...new Set(
+      fileUrls
+        .map((url) => getKnowledgeBaseStorageKey(url))
+        .filter(
+          (key): key is string => typeof key === 'string' && isKnowledgeBaseOwnedStorageKey(key)
+        )
+    ),
+  ]
+}
+
+function getWorkspaceSourceStorageKeys(fileUrls: readonly string[]): string[] {
+  return [
+    ...new Set(
+      fileUrls
+        .map((url) => getKnowledgeBaseStorageKey(url))
+        .filter((key): key is string => typeof key === 'string' && key.startsWith('workspace/'))
+    ),
+  ]
+}
+
+async function loadKnowledgeBaseFileBindings(
+  fileUrls: readonly string[],
+  executor: DbExecutor = db
+): Promise<Map<string, FileMetadataRecord>> {
+  const keys = getKnowledgeBaseStorageKeys(fileUrls)
+  const bindings =
+    keys.length > 0 ? await getFileMetadataByKeys(keys, 'knowledge-base', executor) : []
+
+  return new Map(bindings.map((binding) => [binding.key, binding]))
+}
+
+async function loadWorkspaceSourceFileBindings(
+  fileUrls: readonly string[],
+  executor: DbExecutor = db
+): Promise<Map<string, FileMetadataRecord>> {
+  const keys = getWorkspaceSourceStorageKeys(fileUrls)
+  if (keys.length === 0) return new Map()
+
+  const workspaceBindings = await getFileMetadataByKeys(keys, 'workspace', executor)
+  const mothershipBindings = await getFileMetadataByKeys(keys, 'mothership', executor)
+
+  return new Map(
+    [...workspaceBindings, ...mothershipBindings].map((binding) => [binding.key, binding])
+  )
+}
+
 async function assertKnowledgeBaseFileUrlsOwnership(
   fileUrls: string[],
   kbWorkspaceId: string | null,
@@ -116,21 +246,12 @@ async function assertKnowledgeBaseFileUrlsOwnership(
   requestId: string,
   executor: DbExecutor = db
 ): Promise<Map<string, FileMetadataRecord>> {
-  const keys = [
-    ...new Set(
-      fileUrls
-        .map((url) => getKnowledgeBaseStorageKey(url))
-        .filter((key): key is string => typeof key === 'string' && key.startsWith('kb/'))
-    ),
-  ]
+  const keys = getKnowledgeBaseStorageKeys(fileUrls)
   if (keys.length === 0) {
     return new Map()
   }
 
-  // Read bindings on the caller's transaction so the security check shares the
-  // same connection/lock context as the FOR UPDATE'd insert that follows.
-  const bindings = await getFileMetadataByKeys(keys, 'knowledge-base', executor)
-  const bindingByKey = new Map(bindings.map((binding) => [binding.key, binding]))
+  const bindingByKey = await loadKnowledgeBaseFileBindings(fileUrls, executor)
 
   for (const key of keys) {
     const binding = bindingByKey.get(key)
@@ -166,15 +287,32 @@ async function assertKnowledgeBaseFileUrlsOwnership(
   return bindingByKey
 }
 
+async function loadCurrentWorkspaceSourceFileSecretProvenance(options: {
+  fileUrl: string
+}): Promise<DurableSecretProvenance | undefined> {
+  const storageKey = getKnowledgeBaseStorageKey(options.fileUrl)
+  if (!storageKey?.startsWith('workspace/')) return undefined
+
+  const bindingByKey = await loadWorkspaceSourceFileBindings([options.fileUrl])
+  const binding = bindingByKey.get(storageKey)
+  if (!binding) return undefined
+
+  const provenanceById = await getBoundWorkspaceFileSecretProvenanceByMetadata(db, [binding])
+  const provenance = provenanceById.get(binding.id) ?? { status: 'unknown' as const }
+  return durableSecretProvenanceFromWorkspaceFile(provenance, binding)
+}
+
 const TIMEOUTS = {
   OVERALL_PROCESSING: envNumber(env.KB_CONFIG_MAX_DURATION, 600) * 1000,
 } as const
 
 const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500,
-  MAX_EMBEDDING_BATCH: envNumber(env.KB_CONFIG_BATCH_SIZE, 2000),
+  MAX_EMBEDDING_BATCH: Math.min(
+    envNumber(env.KB_CONFIG_BATCH_SIZE, 2000, { min: 1, integer: true }),
+    getEmbeddingAggregateItemLimit(EMBEDDING_DIMENSIONS)
+  ),
   MAX_FILE_SIZE: 100 * 1024 * 1024,
-  MAX_CHUNKS_PER_DOCUMENT: 100000,
 }
 
 const HARD_DELETE_DOCUMENT_BATCH_SIZE = 250
@@ -192,10 +330,19 @@ function withTimeout<T>(
   ])
 }
 
+/**
+ * Limits for the in-process document path.
+ *
+ * Both values used to be derived from variables owned by other subsystems —
+ * documents-at-once from the task-queue depth, documents-per-batch from the
+ * chunks-per-embedding-request size — so tuning either of those silently moved
+ * this one too, by a factor set by the divisor rather than by intent. The
+ * divisors are gone and the previous effective values (4 and 10) are now the
+ * declared defaults.
+ */
 const PROCESSING_CONFIG = {
-  maxConcurrentDocuments:
-    Math.max(1, Math.floor(envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20) / 5)) || 4,
-  batchSize: Math.max(1, Math.floor(envNumber(env.KB_CONFIG_BATCH_SIZE, 20) / 2)) || 10,
+  maxConcurrentDocuments: envNumber(env.KB_CONFIG_DOCUMENT_CONCURRENCY, 4, { min: 1 }),
+  batchSize: envNumber(env.KB_CONFIG_DOCUMENT_BATCH_SIZE, 10, { min: 1 }),
   delayBetweenBatches: envNumber(env.KB_CONFIG_DELAY_BETWEEN_BATCHES, 100) * 2,
   delayBetweenDocuments: envNumber(env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS, 50) * 2,
 }
@@ -402,20 +549,132 @@ function resolveDocumentTags(
       setTagValue(result, targetSlot, stringValue)
     }
 
-    logger.info(`[${requestId}] Set tag ${tagName} (${targetSlot}) = ${stringValue}`)
+    logger.info(`[${requestId}] Set tag ${tagName} (${targetSlot})`, {
+      fieldType: actualFieldType,
+    })
   }
 
   return result
 }
 
+const KNOWLEDGE_DOCUMENT_TAG_FIELDS = new Set<KnowledgeDocumentMetadataField>([
+  'tag1',
+  'tag2',
+  'tag3',
+  'tag4',
+  'tag5',
+  'tag6',
+  'tag7',
+  'number1',
+  'number2',
+  'number3',
+  'number4',
+  'number5',
+  'date1',
+  'date2',
+  'boolean1',
+  'boolean2',
+  'boolean3',
+])
+
+function durableSecretProvenanceFromWorkspaceFile(
+  provenance: WorkspaceFileSecretProvenance,
+  binding: FileMetadataRecord
+): DurableSecretProvenance {
+  /**
+   * `unrecorded` is a more specific `unknown`, and this boundary has not opted into the workspace
+   * file surface's policy, so it keeps refusing exactly as it did.
+   */
+  if (provenance.status !== 'exact') return { status: 'unknown' }
+  return {
+    status: 'exact',
+    entries: provenance.entries.map((entry) => ({
+      ...entry,
+      sourceUserId: binding.userId,
+      ...(binding.workspaceId ? { sourceWorkspaceId: binding.workspaceId } : {}),
+    })),
+  }
+}
+
+function bindKnowledgeDocumentWriteSecretProvenance(options: {
+  source: ReturnType<typeof createKnowledgeDocumentSourceValue>
+  provenance?: KnowledgeDocumentWriteSecretProvenance
+  tagDefinitions: TagDefinitionsByName
+  boundFile?: {
+    binding: FileMetadataRecord
+    provenance: WorkspaceFileSecretProvenance
+  }
+}): DurableSecretProvenance | undefined {
+  const values: DurableSecretProvenance[] = []
+  if (options.provenance) {
+    values.push(
+      bindKnowledgeDocumentFieldSecretProvenance(
+        options.provenance.filename,
+        'filename',
+        options.source.filename
+      ),
+      bindKnowledgeDocumentFieldSecretProvenance(options.provenance.content, 'content', {
+        fileUrl: options.source.fileUrl,
+        contentHash: options.source.contentHash,
+      })
+    )
+    for (const tag of options.provenance.tags) {
+      const tagField = options.tagDefinitions.get(tag.tagName)?.tagSlot
+      if (
+        !tagField ||
+        !KNOWLEDGE_DOCUMENT_TAG_FIELDS.has(tagField as KnowledgeDocumentMetadataField)
+      ) {
+        return { status: 'unknown' }
+      }
+      const field = tagField as KnowledgeDocumentMetadataField
+      values.push(
+        bindKnowledgeDocumentFieldSecretProvenance(tag.provenance, field, options.source[field])
+      )
+    }
+  }
+  if (options.boundFile) {
+    values.push(
+      bindKnowledgeDocumentFieldSecretProvenance(
+        durableSecretProvenanceFromWorkspaceFile(
+          options.boundFile.provenance,
+          options.boundFile.binding
+        ),
+        'content',
+        { fileUrl: options.source.fileUrl, contentHash: options.source.contentHash }
+      )
+    )
+  }
+  return values.length > 0 ? mergeDurableSecretProvenance(...values) : undefined
+}
+
 /** Per-call cap for `tasks.batchTrigger` on Trigger.dev SDK 4.3.1+. */
 const TRIGGER_BATCH_SIZE = 1000
+
+/**
+ * Immediate outcome of handing document work to its execution backend.
+ *
+ * `accepted` means Trigger.dev accepted the child run, the direct fallback
+ * finished the job, or a concurrent caller already installed a live queue
+ * generation for the document. It deliberately does not claim that an
+ * asynchronous child succeeded: that eventual outcome belongs to the document
+ * row and child task run, neither of which the dispatching connector waits for.
+ */
+export interface DocumentProcessingDispatchResult {
+  requested: number
+  accepted: number
+  failed: number
+  /** Deduplicated input IDs whose work this call neither accepted nor found live. */
+  failedDocumentIds: string[]
+}
 
 function buildJobPayload(
   doc: DocumentData,
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
   requestId: string,
+  processingQueueToken: string,
+  processingQueuedAt: Date,
+  chargedAtDispatch: boolean,
   billingContext: DocumentProcessingBillingContext
 ): DocumentProcessingPayload {
   return createDocumentProcessingPayload(
@@ -430,6 +689,9 @@ function buildJobPayload(
       },
       processingOptions,
       requestId,
+      processingQueueToken,
+      chargedAtDispatch,
+      processingQueuedAt: processingQueuedAt.toISOString(),
     },
     billingContext
   )
@@ -473,9 +735,279 @@ async function resolveDocumentProcessingBillingContext(
 }
 
 /**
+ * Records that indexing has just been queued for these documents.
+ *
+ * Every dispatch funnels through {@link processDocumentsWithQueue}, so stamping
+ * here is what makes `processingQueuedAt` mean "queued for the attempt that is
+ * live right now" for every caller — new uploads, connector inserts, connector
+ * content updates, the connector recovery sweep, the user retry, and the
+ * outbox handler alike. Recovery sweeps age a queued document from this column
+ * (`isStuckDocumentSweepEligible`), and a caller that left a previous
+ * dispatch's value in place would be aged from a stamp that belongs to a run
+ * which has already ended — reclaimed inside its grace period, racing the run
+ * that is actually queued.
+ *
+ * `processingStartedAt` is cleared in the same write: a document waiting in the
+ * queue has not started, and a leftover value from a prior run would otherwise
+ * be reported as this attempt's start time.
+ *
+ * Guarded on `pending` and an empty queue timestamp, so concurrent dispatch
+ * callers cannot both charge and enqueue the same document. A retained token
+ * with no timestamp identifies a withdrawn generation and is atomically
+ * replaced here; the old generation can no longer finalize the row afterward.
+ * Returning the rows this write claimed lets the caller dispatch only its own
+ * generation. A worker that already claimed the row or another caller that
+ * already queued it wins cleanly.
+ */
+interface QueuedDocumentGeneration {
+  readonly documentId: string
+  readonly processingQueuedAt: Date
+  readonly chargedAtDispatch: boolean
+}
+
+interface MarkDocumentsQueuedResult {
+  readonly generations: QueuedDocumentGeneration[]
+  readonly acceptedWithoutDispatchIds: string[]
+  readonly unresolvedIds: string[]
+}
+
+function acceptedDocumentStateCondition(observedAt: Date): SQL | undefined {
+  const queuedCutoff = new Date(observedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
+  const processingCutoff = new Date(observedAt.getTime() - DOCUMENT_PROCESSING_STALE_THRESHOLD_MS)
+  return or(
+    eq(document.processingStatus, 'completed'),
+    and(
+      eq(document.processingStatus, 'pending'),
+      isNotNull(document.processingQueuedAt),
+      gte(document.processingQueuedAt, queuedCutoff)
+    ),
+    and(
+      eq(document.processingStatus, 'processing'),
+      isNotNull(document.processingStartedAt),
+      gte(document.processingStartedAt, processingCutoff)
+    )
+  )
+}
+
+async function isDocumentAcceptedWithoutDispatch(
+  documentId: string,
+  knowledgeBaseId: string,
+  observedAt: Date
+): Promise<boolean> {
+  const accepted = await db
+    .select({ id: document.id })
+    .from(document)
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        acceptedDocumentStateCondition(observedAt),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+  return accepted.length > 0
+}
+
+async function markDocumentsQueued(
+  documentIds: string[],
+  knowledgeBaseId: string,
+  queueToken: string,
+  queuedAt: Date
+): Promise<MarkDocumentsQueuedResult> {
+  const legacyAdoptionCutoff = new Date(queuedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
+  return db.transaction(async (tx) => {
+    const claimed = await tx
+      .update(document)
+      .set({
+        processingQueuedAt: queuedAt,
+        processingQueueToken: queueToken,
+        processingStartedAt: null,
+        processingDeferredUntil: null,
+        /**
+         * Spent here because this is the one write every dispatch passes through,
+         * and it is already guarded — so the budget cannot be charged twice for a
+         * single dispatch, nor skipped by a caller that dispatches another way.
+         * Refunded by `clearDocumentsQueued` when the dispatch provably never
+         * happened, so only attempts a worker could have seen are ever spent.
+         */
+        processingAttempts: sql`${document.processingAttempts} + 1`,
+      })
+      .where(
+        and(
+          inArray(document.id, documentIds),
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          eq(document.processingStatus, 'pending'),
+          eq(document.userExcluded, false),
+          isNull(document.processingQueuedAt),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+      .returning({ id: document.id })
+
+    const claimedIds = new Set(claimed.map((row) => row.id))
+    const unclaimedIds = documentIds.filter((documentId) => !claimedIds.has(documentId))
+    const resumed =
+      unclaimedIds.length === 0
+        ? []
+        : await tx
+            .update(document)
+            .set({ processingQueueToken: queueToken })
+            .where(
+              and(
+                inArray(document.id, unclaimedIds),
+                eq(document.knowledgeBaseId, knowledgeBaseId),
+                or(
+                  and(
+                    or(
+                      eq(document.processingStatus, 'pending'),
+                      eq(document.processingStatus, 'failed')
+                    ),
+                    eq(document.processingQueueToken, queueToken)
+                  ),
+                  and(
+                    eq(document.processingStatus, 'pending'),
+                    isNull(document.processingQueueToken),
+                    lt(document.processingQueuedAt, legacyAdoptionCutoff)
+                  )
+                ),
+                isNotNull(document.processingQueuedAt),
+                isNull(document.processingDeferredUntil),
+                eq(document.userExcluded, false),
+                isNull(document.archivedAt),
+                isNull(document.deletedAt)
+              )
+            )
+            .returning({ id: document.id, processingQueuedAt: document.processingQueuedAt })
+
+    const resumedIds = new Set(resumed.map((row) => row.id))
+    const unresolvedIds = unclaimedIds.filter((documentId) => !resumedIds.has(documentId))
+    const acceptedWithoutDispatch =
+      unresolvedIds.length === 0
+        ? []
+        : await tx
+            .select({ id: document.id })
+            .from(document)
+            .where(
+              and(
+                inArray(document.id, unresolvedIds),
+                eq(document.knowledgeBaseId, knowledgeBaseId),
+                acceptedDocumentStateCondition(queuedAt),
+                eq(document.userExcluded, false),
+                isNull(document.archivedAt),
+                isNull(document.deletedAt)
+              )
+            )
+            .for('update')
+
+    const acceptedWithoutDispatchIds = acceptedWithoutDispatch.map((row) => row.id)
+    const acceptedWithoutDispatchIdSet = new Set(acceptedWithoutDispatchIds)
+
+    return {
+      generations: [
+        ...claimed.map((row) => ({
+          documentId: row.id,
+          processingQueuedAt: queuedAt,
+          chargedAtDispatch: true,
+        })),
+        ...resumed.flatMap((row) =>
+          row.processingQueuedAt
+            ? [
+                {
+                  documentId: row.id,
+                  processingQueuedAt: row.processingQueuedAt,
+                  chargedAtDispatch: false,
+                },
+              ]
+            : []
+        ),
+      ],
+      acceptedWithoutDispatchIds,
+      unresolvedIds: unresolvedIds.filter(
+        (documentId) => !acceptedWithoutDispatchIdSet.has(documentId)
+      ),
+    }
+  })
+}
+
+/**
+ * Withdraws a live queue timestamp whose dispatch provably never happened.
+ *
+ * {@link markDocumentsQueued} runs before dispatch on purpose — `batchTrigger`
+ * chunks, so a batch can half-succeed, and stamping afterwards would leave the
+ * runs that did start with no stamp and no grace. The cost of that ordering is
+ * that a batch where *every* dispatch failed still carries a fresh stamp, and
+ * recovery sweeps would honour a grace period the documents did not earn. Total
+ * failure is the one case where nothing was dispatched, so the timestamp can
+ * be taken back and the next sweep is free to reclaim them immediately. The
+ * generation token stays until an exact-token failure recorder finalizes it or
+ * a newer dispatcher adopts the timestamp-less row. That ownership marker
+ * prevents an older recorder from failing a newer blank pending generation.
+ *
+ * The attempt {@link markDocumentsQueued} charged is refunded in the same
+ * statement. The budget exists to stop re-billing a document that keeps failing
+ * the same way *in processing*; an attempt that never reached a worker teaches
+ * it nothing. Leaving it spent let an infrastructure outage — a Trigger.dev
+ * region error, an exhausted quota — burn the allowance without a single run,
+ * and {@link MAX_PROCESSING_ATTEMPTS} such outages dead-letter a document the
+ * connector sweep then permanently excludes (`processingAttempts <
+ * MAX_PROCESSING_ATTEMPTS`), stranding it with no automatic recovery left.
+ * Floored at zero so a refund can never drive the count negative, and scoped by
+ * the same guard as the stamp, so it can only ever give back the charge this
+ * call made.
+ *
+ * Scoped three ways so it can only ever undo its own write: to the ids in this
+ * batch, to rows still `pending` (a worker that has since claimed one keeps its
+ * timestamps — see {@link markDocumentsQueued}), and to the exact stamp this
+ * call wrote, so a concurrent dispatch that has already re-stamped a document
+ * is left alone.
+ */
+async function clearDocumentsQueued(
+  documentIds: string[],
+  queueToken: string,
+  queuedAt: Date
+): Promise<void> {
+  await db
+    .update(document)
+    .set({
+      processingQueuedAt: null,
+      processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)`,
+    })
+    .where(
+      and(
+        inArray(document.id, documentIds),
+        eq(document.processingStatus, 'pending'),
+        eq(document.processingQueueToken, queueToken),
+        eq(document.processingQueuedAt, queuedAt)
+      )
+    )
+}
+
+async function bestEffortWithdrawDocumentsQueued(
+  documentIds: string[],
+  queueToken: string,
+  queuedAt: Date,
+  reason: string
+): Promise<void> {
+  if (documentIds.length === 0) return
+  try {
+    await clearDocumentsQueued(documentIds, queueToken, queuedAt)
+  } catch (error) {
+    logger.warn(`[${queueToken}] Failed to withdraw queue ownership after ${reason}`, {
+      error: getErrorMessage(error),
+    })
+  }
+}
+
+/**
  * Dispatches document processing jobs via Trigger.dev's `batchTrigger` when
  * available, or in-process otherwise. Throws only when every dispatch fails;
- * partial failures are logged and recovered by the next sync's stuck-doc pass.
+ * partial failures are returned and recovered by the next sync's stuck-doc
+ * pass. A successful Trigger.dev hand-off is only an accepted child run, not a
+ * claim about its eventual processing outcome.
  */
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
@@ -483,16 +1015,79 @@ export async function processDocumentsWithQueue(
   processingOptions: ProcessingOptions,
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined
-): Promise<void> {
-  if (createdDocuments.length === 0) return
+): Promise<DocumentProcessingDispatchResult> {
+  const seenDocumentIds = new Set<string>()
+  const uniqueDocuments = createdDocuments.filter((createdDocument) => {
+    if (seenDocumentIds.has(createdDocument.documentId)) return false
+    seenDocumentIds.add(createdDocument.documentId)
+    return true
+  })
+  if (uniqueDocuments.length === 0) {
+    return { requested: 0, accepted: 0, failed: 0, failedDocumentIds: [] }
+  }
 
-  const billingContext = await resolveDocumentProcessingBillingContext(
-    knowledgeBaseId,
-    billingAttribution
+  const requested = uniqueDocuments.length
+  const queuedAt = new Date()
+  const documentIds = uniqueDocuments.map((doc) => doc.documentId)
+  const {
+    generations: queuedGenerations,
+    acceptedWithoutDispatchIds,
+    unresolvedIds,
+  } = await markDocumentsQueued(documentIds, knowledgeBaseId, requestId, queuedAt)
+  const generationByDocumentId = new Map(
+    queuedGenerations.map((generation) => [generation.documentId, generation])
   )
-  const jobPayloads = createdDocuments.map((doc) =>
-    buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId, billingContext)
+  const queuedDocuments = uniqueDocuments.filter((doc) =>
+    generationByDocumentId.has(doc.documentId)
   )
+  const acceptedWithoutDispatch = acceptedWithoutDispatchIds.length
+  const unresolved = unresolvedIds.length
+  const newlyClaimedIds = queuedGenerations
+    .filter((generation) => generation.chargedAtDispatch)
+    .map((generation) => generation.documentId)
+
+  let billingContext: DocumentProcessingBillingContext
+  try {
+    billingContext = await resolveDocumentProcessingBillingContext(
+      knowledgeBaseId,
+      billingAttribution
+    )
+  } catch (error) {
+    await bestEffortWithdrawDocumentsQueued(
+      newlyClaimedIds,
+      requestId,
+      queuedAt,
+      'billing-context resolution failed'
+    )
+    throw error
+  }
+
+  if (queuedDocuments.length === 0) {
+    logger.info(`[${requestId}] No documents were eligible for a new processing dispatch`, {
+      acceptedWithoutDispatch,
+      unresolved,
+    })
+    return {
+      requested,
+      accepted: acceptedWithoutDispatch,
+      failed: unresolved,
+      failedDocumentIds: unresolvedIds,
+    }
+  }
+
+  const jobPayloads = queuedDocuments.map((doc) => {
+    const generation = generationByDocumentId.get(doc.documentId)!
+    return buildJobPayload(
+      doc,
+      knowledgeBaseId,
+      processingOptions,
+      requestId,
+      requestId,
+      generation.processingQueuedAt,
+      generation.chargedAtDispatch,
+      billingContext
+    )
+  })
 
   const useTrigger = isTriggerAvailable()
   logger.info(
@@ -500,25 +1095,68 @@ export async function processDocumentsWithQueue(
     { backend: useTrigger ? 'trigger-dev' : 'direct' }
   )
 
-  const dispatched = useTrigger
-    ? await dispatchViaBatchTrigger(jobPayloads, requestId)
-    : await dispatchInProcess(jobPayloads, requestId)
+  let dispatchedIds: Set<string>
+  try {
+    dispatchedIds = useTrigger
+      ? await dispatchViaBatchTrigger(jobPayloads, requestId)
+      : await dispatchInProcess(jobPayloads, requestId)
+  } catch (error) {
+    await bestEffortWithdrawDocumentsQueued(
+      newlyClaimedIds,
+      requestId,
+      queuedAt,
+      'dispatch setup failed'
+    )
+    throw error
+  }
 
   logger.info(
-    `[${requestId}] Document dispatch complete: ${dispatched}/${jobPayloads.length} succeeded`
+    `[${requestId}] Document dispatch complete: ${dispatchedIds.size}/${jobPayloads.length} accepted`
   )
 
-  if (dispatched === 0) {
-    throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
+  /**
+   * Refund every newly owned generation that provably failed before claiming
+   * processing, including one failed chunk in an otherwise successful batch.
+   */
+  const failedNewlyClaimedIds = newlyClaimedIds.filter(
+    (documentId) => !dispatchedIds.has(documentId)
+  )
+  await bestEffortWithdrawDocumentsQueued(
+    failedNewlyClaimedIds,
+    requestId,
+    queuedAt,
+    'a newly claimed dispatch failed'
+  )
+
+  if (dispatchedIds.size === 0) {
+    if (acceptedWithoutDispatch === 0) {
+      throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
+    }
+  }
+
+  const unresolvedIdSet = new Set(unresolvedIds)
+  const failedDocumentIds = uniqueDocuments.flatMap((doc) =>
+    unresolvedIdSet.has(doc.documentId) ||
+    (generationByDocumentId.has(doc.documentId) && !dispatchedIds.has(doc.documentId))
+      ? [doc.documentId]
+      : []
+  )
+
+  return {
+    requested,
+    accepted: acceptedWithoutDispatch + dispatchedIds.size,
+    failed: failedDocumentIds.length,
+    failedDocumentIds,
   }
 }
 
 async function dispatchViaBatchTrigger(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string
-): Promise<number> {
-  let dispatched = 0
+): Promise<Set<string>> {
+  const dispatchedIds = new Set<string>()
   const batchIds: string[] = []
+  const undispatched: DocumentProcessingPayload[] = []
   const region = await resolveTriggerRegion()
   for (let i = 0; i < jobPayloads.length; i += TRIGGER_BATCH_SIZE) {
     const chunk = jobPayloads.slice(i, i + TRIGGER_BATCH_SIZE)
@@ -540,48 +1178,153 @@ async function dispatchViaBatchTrigger(
         }))
       )
       batchIds.push(result.batchId)
-      dispatched += chunk.length
+      for (const payload of chunk) dispatchedIds.add(payload.documentId)
     } catch (error) {
       logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
         error: getErrorMessage(error),
       })
+      undispatched.push(...chunk)
     }
   }
   if (batchIds.length > 0) {
     logger.info(`[${requestId}] Trigger.dev batches dispatched`, { batchIds })
   }
-  return dispatched
+
+  /**
+   * Only a total dispatch failure raises, so a chunk failing alone would leave its
+   * documents at `pending` with nothing recording why. Processing them here is
+   * slower than the queue but does not drop the work.
+   */
+  if (undispatched.length > 0) {
+    logger.warn(
+      `[${requestId}] Processing ${undispatched.length} documents in-process after failed enqueue`
+    )
+    const directlyDispatchedIds = await dispatchInProcess(undispatched, requestId)
+    for (const documentId of directlyDispatchedIds) dispatchedIds.add(documentId)
+  }
+
+  return dispatchedIds
 }
 
 /** Each in-process job runs chunking + embedding + many DB inserts. */
 const IN_PROCESS_DISPATCH_CONCURRENCY = 5
 
+export interface DocumentProcessingAttemptContext {
+  /** True only when this invocation follows a successful queue-budget charge. */
+  readonly chargedAtDispatch: boolean
+  /** Opaque generation token; absent only for payloads created before token rollout. */
+  readonly processingQueueToken?: string
+  /** Queue generation this invocation is allowed to claim. */
+  readonly processingQueuedAt?: Date
+  /** Durably schedules the next quota attempt and returns its execution time. */
+  readonly scheduleQuotaContinuation?: () => Promise<Date>
+  /** The durable quota retry horizon was exhausted for this indexing pass. */
+  readonly quotaContinuationExhausted?: boolean
+  /** Signals that this invocation owns the persisted processing generation. */
+  readonly onClaimed?: () => void
+}
+
 async function dispatchInProcess(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string
-): Promise<number> {
+): Promise<Set<string>> {
   const results = await mapWithConcurrency(
     jobPayloads,
     IN_PROCESS_DISPATCH_CONCURRENCY,
     async (p) => {
+      let processingClaimed = false
       try {
         await processDocumentAsync(
           p.knowledgeBaseId,
           p.documentId,
           p.docData,
           p.processingOptions,
-          p
+          p,
+          p.requestId,
+          {
+            chargedAtDispatch: p.chargedAtDispatch ?? true,
+            processingQueueToken: p.processingQueueToken,
+            ...(p.processingQueuedAt ? { processingQueuedAt: new Date(p.processingQueuedAt) } : {}),
+            scheduleQuotaContinuation: () => scheduleDocumentProcessingQuotaContinuation(p),
+            onClaimed: () => {
+              processingClaimed = true
+            },
+          }
         )
-        return true
+        if (processingClaimed) return true
+
+        const acceptedByLiveGeneration = await isDocumentAcceptedWithoutDispatch(
+          p.documentId,
+          p.knowledgeBaseId,
+          new Date()
+        )
+        return acceptedByLiveGeneration
       } catch (error) {
-        logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(error) })
-        return false
+        if (isPermanentDocumentProcessingError(error)) {
+          logger.warn(`[${requestId}] Document processing reached an expected terminal state`, {
+            code: error.code,
+          })
+          return true
+        }
+        if (isEmbeddingQuotaExhaustion(error)) {
+          logger.warn(`[${requestId}] Embedding quota is exhausted; continuation scheduled`, {
+            documentId: p.documentId,
+            quotaRetryCount: p.quotaRetryCount ?? 0,
+          })
+          return true
+        }
+        if (isBYOKEmbeddingCredentialRejection(error)) {
+          logger.warn(`[${requestId}] Customer-managed embedding credentials were rejected`, {
+            documentId: p.documentId,
+            status: error.status,
+          })
+          return true
+        }
+        const message = processingClaimed
+          ? 'In-process document processing failed'
+          : 'In-process document dispatch failed before claiming the document'
+        logger.error(`[${requestId}] ${message}`, {
+          documentId: p.documentId,
+          error: getErrorMessage(error),
+        })
+        return processingClaimed
       }
     }
   )
-  return results.filter(Boolean).length
+  return new Set(
+    results.flatMap((succeeded, index) => (succeeded ? [jobPayloads[index].documentId] : []))
+  )
 }
 
+function queueGenerationConditions(
+  attemptContext: DocumentProcessingAttemptContext | undefined
+): SQL[] {
+  if (!attemptContext) return []
+  if (attemptContext.processingQueueToken) {
+    return [eq(document.processingQueueToken, attemptContext.processingQueueToken)]
+  }
+  return attemptContext.processingQueuedAt
+    ? [
+        isNull(document.processingQueueToken),
+        eq(document.processingQueuedAt, attemptContext.processingQueuedAt),
+      ]
+    : [isNull(document.processingQueueToken)]
+}
+
+/**
+ * Parses, embeds, and indexes one document.
+ *
+ * @param indexingPassId - Identifies the indexing pass this call belongs to,
+ * as opposed to the individual attempt. Callers pass the dispatch `requestId`:
+ * it is fixed on the job payload, so every retry of a `knowledge-process-document`
+ * run carries the same value, while a new dispatch (upload, connector sync batch,
+ * user-triggered reprocess) mints a fresh one. It is what makes the embedding
+ * charge bill once per pass — see the `sourceReference` note at the `recordUsage`
+ * call below.
+ * @param attemptContext - Identifies whether queue admission charged this
+ * invocation against the document's retry budget. Direct callers omit it and
+ * therefore cannot refund an attempt they never charged.
+ */
 export async function processDocumentAsync(
   knowledgeBaseId: string,
   documentId: string,
@@ -592,11 +1335,19 @@ export async function processDocumentAsync(
     mimeType: string
   },
   processingOptions: ProcessingOptions = {},
-  providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext
+  providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext,
+  indexingPassId?: string,
+  attemptContext?: DocumentProcessingAttemptContext
 ): Promise<void> {
   const startTime = Date.now()
+  const processingStartedAt = new Date()
+  let processingFilename = docData.filename
   try {
-    logger.info(`[${documentId}] Starting document processing: ${docData.filename}`)
+    logger.info(`[${documentId}] Starting document processing`, {
+      knowledgeBaseId,
+      mimeType: docData.mimeType,
+      fileSize: docData.fileSize,
+    })
 
     // KB config + workspace billing + doc tags in one JOIN (was 3 SELECTs).
     const contextRows = await db
@@ -607,6 +1358,10 @@ export async function processDocumentAsync(
         embeddingModel: knowledgeBase.embeddingModel,
         billedAccountUserId: workspaceTable.billedAccountUserId,
         uploadedBy: document.uploadedBy,
+        filename: document.filename,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
         tag1: document.tag1,
         tag2: document.tag2,
         tag3: document.tag3,
@@ -635,6 +1390,7 @@ export async function processDocumentAsync(
         and(
           eq(document.id, documentId),
           eq(knowledgeBase.id, knowledgeBaseId),
+          eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt),
           isNull(knowledgeBase.deletedAt)
@@ -651,25 +1407,75 @@ export async function processDocumentAsync(
         .set({
           processingStatus: 'failed',
           processingError: 'Document or knowledge base no longer exists',
+          processingDeferredUntil: null,
           processingCompletedAt: new Date(),
         })
-        .where(eq(document.id, documentId))
+        // Never overwrite a finished pass, and never resurrect state on a row
+        // that has since been archived or deleted.
+        .where(
+          and(
+            eq(document.id, documentId),
+            ne(document.processingStatus, 'completed'),
+            ...queueGenerationConditions(attemptContext),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        )
       return
     }
 
     const ctx = contextRows[0]
+    processingFilename = ctx.filename
+    const persistedDocData = {
+      filename: ctx.filename,
+      fileUrl: ctx.fileUrl,
+      fileSize: ctx.fileSize,
+      mimeType: ctx.mimeType,
+    }
 
-    await db
+    /**
+     * Claiming is guarded by both completion status and queue generation.
+     *
+     * Without a status predicate this write was reachable for a finished
+     * document — a late or duplicate dispatch would flip `completed` back to
+     * `processing`, discard the pass that had already indexed and billed, and
+     * index it a second time. `pending`, `failed`, and `processing` remain
+     * claimable so a Trigger retry can recover if an earlier attempt threw
+     * before persisting its failure. Queued workers also match the exact stamp
+     * carried in their payload. A retry or recovery sweep re-stamps the row, so
+     * an older delayed quota continuation becomes a harmless no-op instead of
+     * stealing the newer pass.
+     */
+    const claimed = await db
       .update(document)
       .set({
         processingStatus: 'processing',
-        processingStartedAt: new Date(),
+        processingStartedAt,
+        processingDeferredUntil: null,
         processingCompletedAt: null,
         processingError: null,
       })
       .where(
-        and(eq(document.id, documentId), isNull(document.archivedAt), isNull(document.deletedAt))
+        and(
+          eq(document.id, documentId),
+          ne(document.processingStatus, 'completed'),
+          ...queueGenerationConditions(attemptContext),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
       )
+      .returning({ id: document.id })
+
+    if (claimed.length === 0) {
+      logger.info(
+        `[${documentId}] Skipping document processing: superseded, already active, completed, archived, or deleted`
+      )
+      return
+    }
+
+    attemptContext?.onClaimed?.()
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
@@ -730,194 +1536,294 @@ export async function processDocumentAsync(
       : await checkActorUsageLimits(documentActorUserId)
     if (usageGate.isExceeded) {
       logger.warn(`[${documentId}] Usage limit reached — skipping document indexing`)
-      await db
-        .update(document)
-        .set({
-          processingStatus: 'failed',
-          processingError:
-            usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.',
-          processingCompletedAt: new Date(),
-        })
-        .where(eq(document.id, documentId))
-      return
+      throw new UsageLimitDocumentProcessingError(
+        usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.'
+      )
     }
-    let totalEmbeddingTokens = 0
-    let embeddingIsBYOK = false
+    let billableEmbeddingTokens = 0
     let embeddingModelName = kbEmbeddingModel
     let embeddingPricingId = kbEmbeddingModel
 
+    const currentSourceFileProvenance = await loadCurrentWorkspaceSourceFileSecretProvenance({
+      fileUrl: persistedDocData.fileUrl,
+    })
+    const documentSecretContext = await loadKnowledgeDocumentSecretRegistry(
+      documentId,
+      {
+        userId: documentActorUserId,
+        ...(ctx.workspaceId ? { workspaceId: ctx.workspaceId } : {}),
+      },
+      currentSourceFileProvenance
+    )
+
+    let processingCommitted = false
     await withTimeout(
-      (async () => {
-        const processed = await processDocument(
-          docData.fileUrl,
-          docData.filename,
-          docData.mimeType,
-          kbConfig.maxSize,
-          kbConfig.overlap,
-          kbConfig.minSize,
-          /**
-           * Authorize source-file processing as the actor, not the payer. Using
-           * the KB owner would let a writer ingest an internal file that only the
-           * owner can read.
-           */
-          documentActorUserId,
-          ctx.workspaceId,
-          rawConfig?.strategy,
-          rawConfig?.strategyOptions
-        )
-
-        if (processed.chunks.length > LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT) {
-          throw new Error(
-            `Document has ${processed.chunks.length.toLocaleString()} chunks, exceeding maximum of ${LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT.toLocaleString()}. ` +
-              `This document is unusually large and may need to be split into multiple files or preprocessed to reduce content.`
+      runWithKnowledgeModelInputProvenance(
+        documentSecretContext.registry,
+        async () => {
+          const processed = await processDocument(
+            persistedDocData.fileUrl,
+            persistedDocData.filename,
+            persistedDocData.mimeType,
+            kbConfig.maxSize,
+            kbConfig.overlap,
+            kbConfig.minSize,
+            /**
+             * Authorize source-file processing as the actor, not the payer. Using
+             * the KB owner would let a writer ingest an internal file that only the
+             * owner can read.
+             */
+            documentActorUserId,
+            ctx.workspaceId,
+            rawConfig?.strategy,
+            rawConfig?.strategyOptions
           )
-        }
 
-        const now = new Date()
+          assertDocumentChunkCountWithinLimit(processed.chunks.length)
 
-        logger.info(
-          `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
-        )
+          const now = new Date()
 
-        const chunkTexts = processed.chunks.map((chunk) => chunk.text)
-        const embeddings: number[][] = []
+          logger.info(
+            `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
+          )
 
-        if (chunkTexts.length > 0) {
-          const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
-          const totalBatches = Math.ceil(chunkTexts.length / batchSize)
-
-          logger.info(`[${documentId}] Generating embeddings in ${totalBatches} batches`)
-
-          for (let i = 0; i < chunkTexts.length; i += batchSize) {
-            const batch = chunkTexts.slice(i, i + batchSize)
-            const batchNum = Math.floor(i / batchSize) + 1
-
-            logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
-            const {
-              embeddings: batchEmbeddings,
-              totalTokens: batchTokens,
-              isBYOK,
-              modelName,
-              pricingId,
-            } = await generateEmbeddings(batch, kbEmbeddingModel, ctx.workspaceId)
-            for (const emb of batchEmbeddings) {
-              embeddings.push(emb)
-            }
-            totalEmbeddingTokens += batchTokens
-            if (i === 0) {
-              embeddingIsBYOK = isBYOK
-              embeddingModelName = modelName
-              embeddingPricingId = pricingId
-            }
-          }
-        }
-
-        // Tag values prefetched above; reuse for the embedding rows.
-        const documentTags = ctx
-
-        logger.info(`[${documentId}] Embeddings generated, creating embedding records with tags`)
-
-        const tokenizerProvider = getEmbeddingModelInfo(kbEmbeddingModel).tokenizerProvider
-
-        const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
-          id: generateId(),
-          knowledgeBaseId,
-          documentId,
-          chunkIndex,
-          chunkHash: sha256Hex(chunk.text),
-          content: chunk.text,
-          contentLength: chunk.text.length,
-          tokenCount: estimateTokenCount(chunk.text, tokenizerProvider).count,
-          embedding: embeddings[chunkIndex] || null,
-          embeddingModel: kbEmbeddingModel,
-          startOffset: chunk.metadata.startIndex,
-          endOffset: chunk.metadata.endIndex,
-          tag1: documentTags.tag1,
-          tag2: documentTags.tag2,
-          tag3: documentTags.tag3,
-          tag4: documentTags.tag4,
-          tag5: documentTags.tag5,
-          tag6: documentTags.tag6,
-          tag7: documentTags.tag7,
-          number1: documentTags.number1,
-          number2: documentTags.number2,
-          number3: documentTags.number3,
-          number4: documentTags.number4,
-          number5: documentTags.number5,
-          date1: documentTags.date1,
-          date2: documentTags.date2,
-          boolean1: documentTags.boolean1,
-          boolean2: documentTags.boolean2,
-          boolean3: documentTags.boolean3,
-          createdAt: now,
-          updatedAt: now,
-        }))
-
-        await db.transaction(async (tx) => {
-          const activeDocument = await tx
-            .select({ id: document.id })
-            .from(document)
-            .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-            .where(
-              and(
-                eq(document.id, documentId),
-                isNull(document.archivedAt),
-                isNull(document.deletedAt),
-                isNull(knowledgeBase.deletedAt)
+          const chunkTexts = processed.chunks.map((chunk) => chunk.text)
+          const embeddingModelInfo = getEmbeddingModelInfo(kbEmbeddingModel)
+          for (let chunkIndex = 0; chunkIndex < chunkTexts.length; chunkIndex++) {
+            const tokenCount = estimateTokenCount(
+              chunkTexts[chunkIndex],
+              embeddingModelInfo.tokenizerProvider
+            ).count
+            if (tokenCount > embeddingModelInfo.maxInputTokens) {
+              throw new PermanentDocumentProcessingError(
+                'document_complexity_limit',
+                `Chunk ${chunkIndex + 1} contains ${tokenCount.toLocaleString()} estimated tokens, exceeding the ${embeddingModelInfo.maxInputTokens.toLocaleString()}-token limit for ${kbEmbeddingModel}. Reduce the knowledge-base chunk size and retry.`
               )
-            )
-            .limit(1)
-
-          if (activeDocument.length === 0) {
-            return
-          }
-
-          if (embeddingRecords.length > 0) {
-            await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-
-            const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
-            const batches: (typeof embeddingRecords)[] = []
-            for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
-              batches.push(embeddingRecords.slice(i, i + insertBatchSize))
-            }
-
-            logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
-            for (const batch of batches) {
-              await tx.insert(embedding).values(batch)
             }
           }
+          const embeddings: number[][] = []
 
-          await tx
-            .update(document)
-            .set({
-              chunkCount: processed.metadata.chunkCount,
-              tokenCount: processed.metadata.tokenCount,
-              characterCount: processed.metadata.characterCount,
-              processingStatus: 'completed',
-              processingCompletedAt: now,
-              processingError: null,
-            })
-            .where(eq(document.id, documentId))
-        })
-      })(),
+          if (chunkTexts.length > 0) {
+            const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
+            const totalBatches = Math.ceil(chunkTexts.length / batchSize)
+
+            logger.info(`[${documentId}] Generating embeddings in ${totalBatches} batches`)
+
+            for (let i = 0; i < chunkTexts.length; i += batchSize) {
+              const batch = chunkTexts.slice(i, i + batchSize)
+              const batchNum = Math.floor(i / batchSize) + 1
+
+              logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
+              const {
+                embeddings: batchEmbeddings,
+                billableTokens: batchBillableTokens,
+                modelName,
+                pricingId,
+              } = await generateEmbeddings(batch, kbEmbeddingModel, ctx.workspaceId)
+              for (const emb of batchEmbeddings) {
+                embeddings.push(emb)
+              }
+              billableEmbeddingTokens += batchBillableTokens
+              if (i === 0) {
+                embeddingModelName = modelName
+                embeddingPricingId = pricingId
+              }
+            }
+          }
+
+          // Tag values prefetched above; reuse for the embedding rows.
+          const documentTags = ctx
+
+          logger.info(`[${documentId}] Embeddings generated, creating embedding records with tags`)
+
+          const tokenizerProvider = embeddingModelInfo.tokenizerProvider
+
+          const chunkProvenances = processed.chunks.map((chunk) =>
+            documentSecretContext.tracked
+              ? documentSecretContext.registry
+                ? durableSecretProvenanceFromRegistry(documentSecretContext.registry, chunk.text)
+                : EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
+              : undefined
+          )
+          const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
+            id: generateId(),
+            knowledgeBaseId,
+            documentId,
+            chunkIndex,
+            chunkHash: sha256Hex(chunk.text),
+            content: chunk.text,
+            secretProvenanceVersion: chunkProvenances[chunkIndex] ? 1 : null,
+            contentLength: chunk.text.length,
+            tokenCount: estimateTokenCount(chunk.text, tokenizerProvider).count,
+            embedding: embeddings[chunkIndex] || null,
+            embeddingModel: kbEmbeddingModel,
+            startOffset: chunk.metadata.startIndex,
+            endOffset: chunk.metadata.endIndex,
+            tag1: documentTags.tag1,
+            tag2: documentTags.tag2,
+            tag3: documentTags.tag3,
+            tag4: documentTags.tag4,
+            tag5: documentTags.tag5,
+            tag6: documentTags.tag6,
+            tag7: documentTags.tag7,
+            number1: documentTags.number1,
+            number2: documentTags.number2,
+            number3: documentTags.number3,
+            number4: documentTags.number4,
+            number5: documentTags.number5,
+            date1: documentTags.date1,
+            date2: documentTags.date2,
+            boolean1: documentTags.boolean1,
+            boolean2: documentTags.boolean2,
+            boolean3: documentTags.boolean3,
+            createdAt: now,
+            updatedAt: now,
+          }))
+
+          processingCommitted = await db.transaction(async (tx) => {
+            const activeDocument = await tx
+              .select({ id: document.id })
+              .from(document)
+              .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+              .where(
+                and(
+                  eq(document.id, documentId),
+                  eq(document.processingStatus, 'processing'),
+                  eq(document.processingStartedAt, processingStartedAt),
+                  ...queueGenerationConditions(attemptContext),
+                  eq(document.userExcluded, false),
+                  isNull(document.archivedAt),
+                  isNull(document.deletedAt),
+                  isNull(knowledgeBase.deletedAt)
+                )
+              )
+              .for('update', { of: document })
+              .limit(1)
+
+            if (activeDocument.length === 0) {
+              return false
+            }
+
+            if (embeddingRecords.length > 0) {
+              await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+
+              const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
+              const batches: (typeof embeddingRecords)[] = []
+              for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
+                batches.push(embeddingRecords.slice(i, i + insertBatchSize))
+              }
+
+              logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
+              for (const batch of batches) {
+                await tx.insert(embedding).values(batch)
+              }
+              const provenanceRecords = embeddingRecords.flatMap((record, index) => {
+                const provenance = chunkProvenances[index]
+                if (!provenance) return []
+                return [
+                  {
+                    embeddingId: record.id,
+                    contentHash: record.chunkHash,
+                    status: provenance.status,
+                    entries: provenance.status === 'exact' ? [...provenance.entries] : [],
+                    updatedAt: now,
+                  },
+                ]
+              })
+              for (let i = 0; i < provenanceRecords.length; i += insertBatchSize) {
+                await tx
+                  .insert(embeddingSecretProvenance)
+                  .values(provenanceRecords.slice(i, i + insertBatchSize))
+              }
+            }
+
+            await tx
+              .update(document)
+              .set({
+                chunkCount: processed.metadata.chunkCount,
+                tokenCount: processed.metadata.tokenCount,
+                characterCount: processed.metadata.characterCount,
+                processingStatus: 'completed',
+                processingCompletedAt: now,
+                processingError: null,
+                // A completed pass clears the budget: the next failure starts
+                // from a full allowance rather than inheriting a stale count.
+                processingAttempts: 0,
+                processingQueueToken: null,
+                processingQueuedAt: null,
+                processingDeferredUntil: null,
+              })
+              .where(
+                and(
+                  eq(document.id, documentId),
+                  eq(document.processingStatus, 'processing'),
+                  eq(document.processingStartedAt, processingStartedAt),
+                  ...queueGenerationConditions(attemptContext),
+                  eq(document.userExcluded, false),
+                  isNull(document.archivedAt),
+                  isNull(document.deletedAt)
+                )
+              )
+            return true
+          })
+        },
+        {
+          opaqueInputSafe:
+            documentSecretContext.provenance.status === 'exact' &&
+            documentSecretContext.provenance.entries.length === 0,
+        }
+      ),
       TIMEOUTS.OVERALL_PROCESSING,
       'Document processing'
     )
 
+    if (!processingCommitted) {
+      logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
+      return
+    }
+
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
 
-    if (!embeddingIsBYOK && totalEmbeddingTokens > 0) {
+    if (billableEmbeddingTokens > 0) {
       try {
         const costMultiplier = getCostMultiplier()
         const { total: cost } = calculateCost(
           embeddingPricingId,
-          totalEmbeddingTokens,
+          billableEmbeddingTokens,
           0,
           false,
           costMultiplier
         )
         if (cost > 0) {
+          /**
+           * Dedup identity for this embedding charge. `usage_log.event_key` is
+           * derived from `sourceReference` and guarded by a permanent unique
+           * index — usage_log rows are never pruned, there is no retention job
+           * — so the granularity has to separate two cases for all time:
+           *
+           * - A retry of the same pass must collapse. `knowledge-process-document`
+           *   runs up to `KB_CONFIG_MAX_ATTEMPTS` attempts and the stale-document
+           *   sweep can re-dispatch on top of that, so any per-attempt component
+           *   (a `Date.now()` stamp, `processingStartedAt`) bills one indexing
+           *   pass several times over.
+           * - A genuinely new pass must not collapse. A content change, a
+           *   rehydrate, or a user-triggered reprocess pays a real embedding
+           *   bill, and keying on `documentId` alone would suppress that charge
+           *   permanently.
+           *
+           * `indexingPassId` is exactly that discriminator. Without one, the
+           * resolved pricing id is the safest fallback: it still collapses
+           * attempts and still re-bills a knowledge base whose embedding model
+           * changed. Token counts are deliberately left out — OCR-backed parsing
+           * is not bit-stable across attempts, so they would break the dedup
+           * they appear to sharpen.
+           */
+          const usageSourceReference = [
+            'knowledge-document',
+            documentId,
+            indexingPassId ?? `model:${embeddingPricingId}`,
+          ].join(':')
           await recordUsage({
             userId: documentActorUserId,
             workspaceId: ctx.workspaceId ?? undefined,
@@ -928,8 +1834,8 @@ export async function processDocumentAsync(
                 source: 'knowledge-base',
                 description: embeddingModelName,
                 cost,
-                sourceReference: `knowledge-document:${documentId}:${startTime}`,
-                metadata: { inputTokens: totalEmbeddingTokens, outputTokens: 0 },
+                sourceReference: usageSourceReference,
+                metadata: { inputTokens: billableEmbeddingTokens, outputTokens: 0 },
               },
             ],
           })
@@ -941,7 +1847,7 @@ export async function processDocumentAsync(
         } else {
           logger.warn(
             `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
-            { totalEmbeddingTokens, embeddingModelName }
+            { billableEmbeddingTokens, embeddingModelName }
           )
         }
       } catch (billingError) {
@@ -950,30 +1856,127 @@ export async function processDocumentAsync(
     }
   } catch (error) {
     const processingTime = Date.now() - startTime
-    const errorMessage = getErrorMessage(error, 'Unknown error')
-    logger.error(`[${documentId}] Failed to process document after ${processingTime}ms:`, {
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      filename: docData.filename,
-      fileUrl: docData.fileUrl,
+    const embeddingQuotaExhausted = isEmbeddingQuotaExhaustion(error)
+    const byokCredentialRejected = isBYOKEmbeddingCredentialRejection(error)
+    const usageLimitExceeded = isUsageLimitDocumentProcessingError(error)
+    const permanentError = toPermanentDocumentProcessingError(error, processingFilename)
+    let recordedError = permanentError ?? error
+    let quotaDeferredUntil: Date | null = null
+    let quotaContinuationAttempted = false
+    if (embeddingQuotaExhausted && attemptContext?.scheduleQuotaContinuation) {
+      quotaContinuationAttempted = true
+      try {
+        quotaDeferredUntil = await attemptContext.scheduleQuotaContinuation()
+      } catch (continuationError) {
+        recordedError = continuationError
+      }
+    }
+    const quotaContinuationFailed = quotaContinuationAttempted && !quotaDeferredUntil
+    const errorMessage = byokCredentialRejected
+      ? BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE
+      : embeddingQuotaExhausted
+        ? quotaContinuationFailed
+          ? getErrorMessage(recordedError, 'Embedding quota continuation dispatch failed')
+          : EMBEDDING_QUOTA_EXHAUSTED_MESSAGE
+        : getErrorMessage(recordedError, 'Unknown error')
+    const logContext = {
+      errorType: toError(recordedError).name,
+      knowledgeBaseId,
       mimeType: docData.mimeType,
-    })
+      fileSize: docData.fileSize,
+      ...(byokCredentialRejected
+        ? {
+            code: 'embedding_credentials_rejected',
+            outcome: 'customer_configuration',
+            status: error.status,
+          }
+        : {}),
+    }
+    const logMessage = quotaDeferredUntil
+      ? `[${documentId}] Deferred document processing after ${processingTime}ms:`
+      : `[${documentId}] Failed to process document after ${processingTime}ms:`
+    if (
+      (embeddingQuotaExhausted && !quotaContinuationFailed) ||
+      byokCredentialRejected ||
+      usageLimitExceeded ||
+      permanentError
+    ) {
+      logger.warn(logMessage, logContext)
+    } else {
+      logger.error(logMessage, logContext)
+    }
 
     await db
       .update(document)
       .set({
-        processingStatus: 'failed',
-        processingError: errorMessage,
-        processingCompletedAt: new Date(),
+        processingStatus: quotaDeferredUntil ? 'pending' : 'failed',
+        processingError: quotaDeferredUntil ? null : errorMessage,
+        processingStartedAt: quotaDeferredUntil ? null : processingStartedAt,
+        ...(quotaDeferredUntil && attemptContext?.processingQueueToken
+          ? { processingQueuedAt: quotaDeferredUntil }
+          : {}),
+        processingDeferredUntil: quotaDeferredUntil,
+        processingCompletedAt: quotaDeferredUntil ? null : new Date(),
+        ...(permanentError ||
+        byokCredentialRejected ||
+        (embeddingQuotaExhausted && attemptContext?.quotaContinuationExhausted)
+          ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
+          : (embeddingQuotaExhausted || usageLimitExceeded) && attemptContext?.chargedAtDispatch
+            ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
+            : {}),
       })
-      .where(eq(document.id, documentId))
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.processingStatus, 'processing'),
+          eq(document.processingStartedAt, processingStartedAt),
+          ...queueGenerationConditions(attemptContext),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
 
-    throw error
+    throw recordedError
   }
 }
 
+let triggerAvailabilityLogged = false
+
+/**
+ * Whether background work may be dispatched to Trigger.dev rather than run
+ * in-process.
+ *
+ * Inside a Trigger.dev run the answer is unconditionally yes: the platform is
+ * what is executing this process, so no environment guess can be more reliable
+ * than the run marker. Outside a run the deployment must both enable
+ * Trigger.dev and hold the secret key the SDK authenticates with.
+ *
+ * Resolving `true` inside a run is safe even if the run process turns out not
+ * to expose `TRIGGER_SECRET_KEY`: the SDK would then reject the batch trigger
+ * and `dispatchViaBatchTrigger` falls back to processing in-process, which is
+ * exactly where a `false` predicate lands anyway.
+ *
+ * The first evaluation in a process logs the resolved inputs. That is once per
+ * worker process rather than once per dispatch, and it is the signal that makes
+ * an app-vs-worker asymmetry visible without reading a crashed run's spans.
+ */
 export function isTriggerAvailable(): boolean {
-  return Boolean(env.TRIGGER_SECRET_KEY) && isTriggerDevEnabled
+  const insideRun = isInsideTriggerRun()
+  const hasSecretKey = Boolean(env.TRIGGER_SECRET_KEY)
+  const available = insideRun || (hasSecretKey && isTriggerDevEnabled)
+
+  if (!triggerAvailabilityLogged) {
+    triggerAvailabilityLogged = true
+    logger.info('Resolved Trigger.dev dispatch availability', {
+      available,
+      insideTriggerRun: insideRun,
+      triggerDevEnabled: isTriggerDevEnabled,
+      hasSecretKey,
+    })
+  }
+
+  return available
 }
 
 type DocumentStorageBilling =
@@ -1009,7 +2012,8 @@ function getServerKnownDocumentSize(
   bindingByKey: ReadonlyMap<string, FileMetadataRecord>
 ): number {
   const storageKey = getKnowledgeBaseStorageKey(fileUrl)
-  return storageKey ? (bindingByKey.get(storageKey)?.size ?? fallbackSize) : fallbackSize
+  const binding = storageKey ? bindingByKey.get(storageKey) : undefined
+  return binding ? getWorkspaceFileSize(binding) : fallbackSize
 }
 
 /**
@@ -1018,15 +2022,9 @@ function getServerKnownDocumentSize(
 async function resolveServerKnownDocumentSizes<
   T extends { readonly fileUrl: string; readonly fileSize: number },
 >(documents: readonly T[]): Promise<Array<T & { fileSize: number }>> {
-  const keys = [
-    ...new Set(
-      documents
-        .map((docData) => getKnowledgeBaseStorageKey(docData.fileUrl))
-        .filter((key): key is string => typeof key === 'string' && key.startsWith('kb/'))
-    ),
-  ]
-  const bindings = keys.length > 0 ? await getFileMetadataByKeys(keys, 'knowledge-base') : []
-  const bindingByKey = new Map(bindings.map((binding) => [binding.key, binding]))
+  const bindingByKey = await loadKnowledgeBaseFileBindings(
+    documents.map((document) => document.fileUrl)
+  )
   return documents.map((docData) => ({
     ...docData,
     fileSize: getServerKnownDocumentSize(docData.fileUrl, docData.fileSize, bindingByKey),
@@ -1052,7 +2050,7 @@ async function resolveDocumentStorageAdmission(
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
   if (!kb) {
-    throw new Error('Knowledge base not found')
+    throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
 
   if (bytes <= 0) {
@@ -1064,7 +2062,7 @@ async function resolveDocumentStorageAdmission(
     const context = await resolveStorageBillingContext(kb.workspaceId)
     const quotaCheck = await checkStorageQuotaForBillingContext(context, bytes)
     if (!quotaCheck.allowed) {
-      throw new Error(quotaCheck.error || 'Storage limit exceeded')
+      throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
     }
     return {
       workspaceId: kb.workspaceId,
@@ -1078,7 +2076,7 @@ async function resolveDocumentStorageAdmission(
     getHighestPrioritySubscription(billedUserId),
   ])
   if (!quotaCheck.allowed) {
-    throw new Error(quotaCheck.error || 'Storage limit exceeded')
+    throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
   }
   return {
     workspaceId: null,
@@ -1104,12 +2102,15 @@ export async function createDocumentRecords(
   }>,
   knowledgeBaseId: string,
   requestId: string,
-  uploadedBy: string | null = null
+  uploadedBy: string | null = null,
+  secretProvenances?: readonly KnowledgeDocumentWriteSecretProvenance[]
 ): Promise<DocumentData[]> {
+  if (secretProvenances && secretProvenances.length !== documents.length) {
+    throw new Error('Knowledge document secret provenance count does not match the request')
+  }
   const resolvedDocuments = await resolveServerKnownDocumentSizes(documents)
   const totalBytes = resolvedDocuments.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
   const admission = await resolveDocumentStorageAdmission(knowledgeBaseId, uploadedBy, totalBytes)
-
   const { returnData, storageNotification } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
 
@@ -1126,7 +2127,7 @@ export async function createDocumentRecords(
       .limit(1)
 
     if (kb.length === 0) {
-      throw new Error('Knowledge base not found')
+      throw new OrchestrationError('not_found', 'Knowledge base not found')
     }
 
     if (
@@ -1146,7 +2147,19 @@ export async function createDocumentRecords(
       requestId,
       tx
     )
-    for (const docData of resolvedDocuments) {
+    const sourceBindingByKey = await loadWorkspaceSourceFileBindings(
+      resolvedDocuments.map((docData) => docData.fileUrl),
+      tx
+    )
+    const trackedBindings = [
+      ...[...bindingByKey.values()].filter((binding) => binding.secretProvenanceVersion !== null),
+      ...sourceBindingByKey.values(),
+    ]
+    const boundFileProvenanceById = await getBoundWorkspaceFileSecretProvenanceByMetadata(
+      tx,
+      trackedBindings
+    )
+    for (const [documentIndex, docData] of resolvedDocuments.entries()) {
       const currentSize = getServerKnownDocumentSize(
         docData.fileUrl,
         docData.fileSize,
@@ -1176,7 +2189,7 @@ export async function createDocumentRecords(
           preparedBilling.bytes
         )
         if (!quotaCheck.allowed) {
-          throw new Error(quotaCheck.error || 'Storage limit exceeded')
+          throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
         }
       }
     }
@@ -1189,9 +2202,10 @@ export async function createDocumentRecords(
 
     const now = new Date()
     const documentRecords = []
+    const documentProvenances: (DurableSecretProvenance | undefined)[] = []
     const returnData: DocumentData[] = []
 
-    for (const docData of resolvedDocuments) {
+    for (const [documentIndex, docData] of resolvedDocuments.entries()) {
       const documentId = generateId()
 
       let processedTags: Partial<ProcessedDocumentTags> = {}
@@ -1211,12 +2225,14 @@ export async function createDocumentRecords(
         }
       }
 
-      const newDocument = {
+      const storageKey = getKnowledgeBaseStorageKey(docData.fileUrl)
+      const baseDocument = {
         id: documentId,
         knowledgeBaseId,
         filename: docData.filename,
         fileUrl: docData.fileUrl,
-        storageKey: getKnowledgeBaseStorageKey(docData.fileUrl),
+        storageKey,
+        contentHash: null,
         fileSize: docData.fileSize,
         mimeType: docData.mimeType,
         chunkCount: 0,
@@ -1244,8 +2260,32 @@ export async function createDocumentRecords(
         boolean2: processedTags.boolean2 ?? null,
         boolean3: processedTags.boolean3 ?? null,
       }
+      const source = createKnowledgeDocumentSourceValue(baseDocument)
+      const binding = storageKey
+        ? (bindingByKey.get(storageKey) ?? sourceBindingByKey.get(storageKey))
+        : undefined
+      const provenanceBinding =
+        binding && (binding.secretProvenanceVersion !== null || sourceBindingByKey.has(binding.key))
+          ? binding
+          : undefined
+      const boundFileProvenance = provenanceBinding
+        ? (boundFileProvenanceById.get(provenanceBinding.id) ?? { status: 'unknown' as const })
+        : undefined
+      const provenance = bindKnowledgeDocumentWriteSecretProvenance({
+        source,
+        provenance: secretProvenances?.[documentIndex],
+        tagDefinitions,
+        ...(provenanceBinding && boundFileProvenance
+          ? { boundFile: { binding: provenanceBinding, provenance: boundFileProvenance } }
+          : {}),
+      })
+      const newDocument = {
+        ...baseDocument,
+        secretProvenanceVersion: provenance ? 1 : null,
+      }
 
       documentRecords.push(newDocument)
+      documentProvenances.push(provenance)
       returnData.push({
         documentId,
         filename: docData.filename,
@@ -1257,6 +2297,16 @@ export async function createDocumentRecords(
 
     if (documentRecords.length > 0) {
       await tx.insert(document).values(documentRecords)
+      for (const [documentIndex, record] of documentRecords.entries()) {
+        const provenance = documentProvenances[documentIndex]
+        if (!provenance) continue
+        await replaceKnowledgeDocumentSecretProvenanceInTx(
+          tx,
+          record.id,
+          createKnowledgeDocumentSourceValue(record),
+          provenance
+        )
+      }
       logger.info(
         `[${requestId}] Bulk created ${documentRecords.length} document records in knowledge base ${knowledgeBaseId}`
       )
@@ -1361,15 +2411,14 @@ export async function getDocuments(
   }
 
   if (search) {
-    whereConditions.push(sql`LOWER(${document.filename}) LIKE LOWER(${`%${search}%`})`)
+    whereConditions.push(searchFilter(document.filename, search))
   }
 
   if (tagFilters && tagFilters.length > 0) {
     for (const filter of tagFilters) {
       const condition = buildTagFilterCondition(filter)
-      if (condition) {
-        whereConditions.push(condition)
-      }
+      if (!condition) throw uncompilableTagFilterError(filter)
+      whereConditions.push(condition)
     }
   }
 
@@ -1502,6 +2551,60 @@ export async function getDocuments(
   }
 }
 
+export type ActiveKnowledgeDocument = typeof document.$inferSelect & {
+  connectorType: string | null
+}
+
+/** Loads one visible document and its connector metadata for every API adapter. */
+export async function getKnowledgeDocument(
+  knowledgeBaseId: string,
+  documentId: string
+): Promise<ActiveKnowledgeDocument | null> {
+  const [row] = await db
+    .select({
+      ...getTableColumns(document),
+      connectorType: knowledgeConnector.connectorType,
+    })
+    .from(document)
+    .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+
+  return row ? { ...row, connectorType: row.connectorType ?? null } : null
+}
+
+/** Loads one visible document by its canonical ID before any asserted parent is trusted. */
+export async function getKnowledgeDocumentById(
+  documentId: string
+): Promise<ActiveKnowledgeDocument | null> {
+  const [row] = await db
+    .select({
+      ...getTableColumns(document),
+      connectorType: knowledgeConnector.connectorType,
+    })
+    .from(document)
+    .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+
+  return row ? { ...row, connectorType: row.connectorType ?? null } : null
+}
+
 export async function createSingleDocument(
   documentData: {
     filename: string
@@ -1519,7 +2622,16 @@ export async function createSingleDocument(
   },
   knowledgeBaseId: string,
   requestId: string,
-  uploadedBy: string | null = null
+  uploadedBy: string | null = null,
+  documentId = generateId(),
+  secretProvenance?: KnowledgeDocumentWriteSecretProvenance,
+  options?: {
+    expectedWorkspaceId?: string
+    processing?: {
+      processingOptions: ProcessingOptions
+      billingAttribution: BillingAttributionSnapshot
+    }
+  }
 ): Promise<{
   id: string
   knowledgeBaseId: string
@@ -1530,6 +2642,7 @@ export async function createSingleDocument(
   chunkCount: number
   tokenCount: number
   characterCount: number
+  processingStatus: 'pending'
   enabled: boolean
   uploadedAt: Date
   tag1: string | null
@@ -1540,7 +2653,6 @@ export async function createSingleDocument(
   tag6: string | null
   tag7: string | null
 }> {
-  const documentId = generateId()
   const now = new Date()
   const [resolvedDocumentData] = await resolveServerKnownDocumentSizes([documentData])
   const admission = await resolveDocumentStorageAdmission(
@@ -1548,7 +2660,6 @@ export async function createSingleDocument(
     uploadedBy,
     resolvedDocumentData.fileSize
   )
-
   let processedTags: ProcessedDocumentTags = {
     tag1: documentData.tag1 ?? null,
     tag2: documentData.tag2 ?? null,
@@ -1568,12 +2679,13 @@ export async function createSingleDocument(
     boolean2: null,
     boolean3: null,
   }
+  let tagDefinitions: TagDefinitionsByName = new Map()
 
   if (documentData.documentTagsData) {
     try {
       const tagData = JSON.parse(documentData.documentTagsData)
       if (Array.isArray(tagData)) {
-        const tagDefinitions = await loadTagDefinitions(knowledgeBaseId)
+        tagDefinitions = await loadTagDefinitions(knowledgeBaseId)
         processedTags = resolveDocumentTags(tagData, tagDefinitions, requestId)
       }
     } catch (error) {
@@ -1596,6 +2708,7 @@ export async function createSingleDocument(
     chunkCount: 0,
     tokenCount: 0,
     characterCount: 0,
+    processingStatus: 'pending' as const,
     enabled: true,
     uploadedAt: now,
     uploadedBy,
@@ -1618,7 +2731,14 @@ export async function createSingleDocument(
       .limit(1)
 
     if (kb.length === 0) {
-      throw new Error('Knowledge base not found')
+      throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+
+    if (
+      options?.expectedWorkspaceId !== undefined &&
+      kb[0].workspaceId !== options.expectedWorkspaceId
+    ) {
+      throw new OrchestrationError('not_found', 'Knowledge base not found')
     }
 
     if (
@@ -1636,6 +2756,22 @@ export async function createSingleDocument(
       kb[0].userId,
       requestId,
       tx
+    )
+    const sourceBindingByKey = await loadWorkspaceSourceFileBindings(
+      [resolvedDocumentData.fileUrl],
+      tx
+    )
+    const storageKey = getKnowledgeBaseStorageKey(resolvedDocumentData.fileUrl)
+    const binding = storageKey
+      ? (bindingByKey.get(storageKey) ?? sourceBindingByKey.get(storageKey))
+      : undefined
+    const provenanceBinding =
+      binding && (binding.secretProvenanceVersion !== null || sourceBindingByKey.has(binding.key))
+        ? binding
+        : undefined
+    const boundFileProvenanceById = await getBoundWorkspaceFileSecretProvenanceByMetadata(
+      tx,
+      provenanceBinding ? [provenanceBinding] : []
     )
     const currentSize = getServerKnownDocumentSize(
       resolvedDocumentData.fileUrl,
@@ -1665,17 +2801,44 @@ export async function createSingleDocument(
           preparedBilling.bytes
         )
         if (!quotaCheck.allowed) {
-          throw new Error(quotaCheck.error || 'Storage limit exceeded')
+          throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
         }
       }
     }
 
-    await tx.insert(document).values(newDocument)
+    const source = createKnowledgeDocumentSourceValue(newDocument)
+    const boundFileProvenance = provenanceBinding
+      ? (boundFileProvenanceById.get(provenanceBinding.id) ?? { status: 'unknown' as const })
+      : undefined
+    const documentProvenance = bindKnowledgeDocumentWriteSecretProvenance({
+      source,
+      provenance: secretProvenance,
+      tagDefinitions,
+      ...(provenanceBinding && boundFileProvenance
+        ? { boundFile: { binding: provenanceBinding, provenance: boundFileProvenance } }
+        : {}),
+    })
+    await tx.insert(document).values({
+      ...newDocument,
+      secretProvenanceVersion: documentProvenance ? 1 : null,
+    })
+    if (documentProvenance) {
+      await replaceKnowledgeDocumentSecretProvenanceInTx(tx, documentId, source, documentProvenance)
+    }
 
     await tx
       .update(knowledgeBase)
       .set({ updatedAt: now })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
+
+    if (options?.processing) {
+      await enqueueKnowledgeDocumentProcessing(tx, {
+        knowledgeBaseId,
+        documentId,
+        processingOptions: options.processing.processingOptions,
+        billingAttribution: options.processing.billingAttribution,
+      })
+    }
 
     return storageNotification
   })
@@ -1699,6 +2862,7 @@ export async function createSingleDocument(
     chunkCount: number
     tokenCount: number
     characterCount: number
+    processingStatus: 'pending'
     enabled: boolean
     uploadedAt: Date
     tag1: string | null
@@ -1709,6 +2873,60 @@ export async function createSingleDocument(
     tag6: string | null
     tag7: string | null
   }
+}
+
+/** Returns one active document by its deterministic upload id. */
+export async function getDocumentByUploadId(
+  documentId: string,
+  knowledgeBaseId: string
+): Promise<
+  | (Omit<Awaited<ReturnType<typeof createSingleDocument>>, 'processingStatus'> & {
+      processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+    })
+  | null
+> {
+  const [existing] = await db
+    .select({
+      id: document.id,
+      knowledgeBaseId: document.knowledgeBaseId,
+      filename: document.filename,
+      fileUrl: document.fileUrl,
+      fileSize: document.fileSize,
+      mimeType: document.mimeType,
+      chunkCount: document.chunkCount,
+      tokenCount: document.tokenCount,
+      characterCount: document.characterCount,
+      enabled: document.enabled,
+      uploadedAt: document.uploadedAt,
+      tag1: document.tag1,
+      tag2: document.tag2,
+      tag3: document.tag3,
+      tag4: document.tag4,
+      tag5: document.tag5,
+      tag6: document.tag6,
+      tag7: document.tag7,
+      processingStatus: document.processingStatus,
+    })
+    .from(document)
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+  if (!existing) return null
+  const processingStatus = existing.processingStatus
+  if (
+    processingStatus !== 'pending' &&
+    processingStatus !== 'processing' &&
+    processingStatus !== 'completed' &&
+    processingStatus !== 'failed'
+  ) {
+    throw new Error(`Document ${existing.id} has invalid processing status`)
+  }
+  return { ...existing, processingStatus }
 }
 
 export async function bulkDocumentOperation(
@@ -1747,7 +2965,7 @@ export async function bulkDocumentOperation(
     )
 
   if (documentsToUpdate.length === 0) {
-    throw new Error('No valid documents found to update')
+    throw new OrchestrationError('not_found', 'No valid documents found to update')
   }
 
   if (documentsToUpdate.length !== documentIds.length) {
@@ -1872,35 +3090,26 @@ export async function bulkDocumentOperationByFilter(
 }
 
 export async function markDocumentAsFailedTimeout(
+  knowledgeBaseId: string,
   documentId: string,
   processingStartedAt: Date,
   requestId: string
 ): Promise<{ success: boolean; processingDuration: number }> {
-  const now = new Date()
-  const processingDuration = now.getTime() - processingStartedAt.getTime()
-  const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
+  const result = await failStaleDocumentProcessingClaim({
+    knowledgeBaseId,
+    documentId,
+    processingStartedAt,
+  })
 
-  if (processingDuration <= DEAD_PROCESS_THRESHOLD_MS) {
-    throw new Error('Document has not been processing long enough to be considered dead')
+  if (result.success) {
+    logger.info(
+      `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(result.processingDuration / 1000)}s)`
+    )
+  } else {
+    logger.info(`[${requestId}] Did not time out document ${documentId} because its claim changed`)
   }
 
-  await db
-    .update(document)
-    .set({
-      processingStatus: 'failed',
-      processingError: 'Processing timed out. Please retry or re-sync the connector.',
-      processingCompletedAt: now,
-    })
-    .where(eq(document.id, documentId))
-
-  logger.info(
-    `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(processingDuration / 1000)}s)`
-  )
-
-  return {
-    success: true,
-    processingDuration,
-  }
+  return result
 }
 
 export async function retryDocumentProcessing(
@@ -1915,38 +3124,127 @@ export async function retryDocumentProcessing(
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<{ success: boolean; status: string; message: string }> {
-  await db.transaction(async (tx) => {
-    await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-
-    await tx
+  /**
+   * A document may be retried from a terminal state, or from a `pending` state
+   * old enough that its dispatch is certainly lost.
+   *
+   * Unguarded, a double-click issued two full passes: the second reset a
+   * document that the first had already queued, so both dispatches ran, both
+   * indexed, and both billed. A terminal-only guard closes that, but it also
+   * strands a document that never left `pending` — a worker killed before its
+   * claim UPDATE burns an attempt without changing status, and once the
+   * processing-attempt budget is spent the connector sweep drops it too. The row
+   * then matches nothing anywhere.
+   *
+   * The `pending` arm is admitted only past {@link QUEUED_DISPATCH_GRACE_MS},
+   * which is the same grace the connector sweep waits out, so a second click
+   * still lands inside a live dispatch's window and still matches no rows.
+   *
+   * Age is measured from `COALESCE(processingQueuedAt, uploadedAt)`, exactly as
+   * `isStuckDocumentSweepEligible` measures it. `processingQueuedAt` is NULL
+   * only for a document no dispatch has ever stamped, and falling back to
+   * `uploadedAt` — rather than treating NULL as retryable — keeps the grace
+   * window closed for a document created moments ago whose first dispatch is
+   * still in flight.
+   */
+  const queuedGraceCutoff = new Date(Date.now() - QUEUED_DISPATCH_GRACE_MS)
+  const requeued = await db.transaction(async (tx) => {
+    const reset = await tx
       .update(document)
       .set({
         processingStatus: 'pending',
+        /**
+         * Invalidates the prior dispatch generation in the same write that
+         * reopens the row. The dispatch below installs its fresh generation.
+         */
+        processingQueuedAt: null,
+        processingQueueToken: null,
         processingStartedAt: null,
+        processingDeferredUntil: null,
         processingCompletedAt: null,
         processingError: null,
         chunkCount: 0,
         tokenCount: 0,
         characterCount: 0,
       })
-      .where(eq(document.id, documentId))
+      .where(
+        and(
+          eq(document.id, documentId),
+          or(
+            inArray(document.processingStatus, ['completed', 'failed']),
+            and(
+              eq(document.processingStatus, 'pending'),
+              sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`,
+              or(
+                isNull(document.processingDeferredUntil),
+                lt(document.processingDeferredUntil, queuedGraceCutoff)
+              )
+            )
+          ),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+      .returning({ id: document.id })
+
+    // Embeddings are dropped only for a document this call actually claimed,
+    // so a losing double-click cannot wipe the winner's in-flight work.
+    if (reset.length > 0) {
+      await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+    }
+    return reset.length > 0
   })
 
-  await processDocumentsWithQueue(
-    [
-      {
-        documentId,
-        filename: docData.filename,
-        fileUrl: docData.fileUrl,
-        fileSize: docData.fileSize,
-        mimeType: docData.mimeType,
-      },
-    ],
-    knowledgeBaseId,
-    {},
-    requestId,
-    billingAttribution
-  )
+  if (!requeued) {
+    logger.info(`[${requestId}] Document retry skipped, already queued: ${documentId}`)
+    return {
+      success: true,
+      status: 'pending',
+      message: 'Document is already queued for processing',
+    }
+  }
+
+  /**
+   * The reset committed in its own transaction above, so a throwing dispatch
+   * would leave the row at `pending` with nothing queued behind it — and the
+   * grace window means the same click cannot recover it until that window
+   * elapses again.
+   * Recording the failure returns it to `failed`, which is immediately
+   * retryable and visible in the document list with its reason.
+   */
+  try {
+    const dispatch = await processDocumentsWithQueue(
+      [
+        {
+          documentId,
+          filename: docData.filename,
+          fileUrl: docData.fileUrl,
+          fileSize: docData.fileSize,
+          mimeType: docData.mimeType,
+        },
+      ],
+      knowledgeBaseId,
+      {},
+      requestId,
+      billingAttribution
+    )
+    if (dispatch.failed > 0 || dispatch.accepted !== 1) {
+      throw new Error(`Document processing dispatch was not accepted for ${documentId}`)
+    }
+  } catch (error) {
+    const failureMessage = getErrorMessage(error, 'Document processing dispatch failed')
+    await recordUndispatchedDocumentFailure({
+      documentId,
+      knowledgeBaseId,
+      failureMessage,
+      requestId,
+    })
+    return {
+      success: false,
+      status: 'failed',
+      message: failureMessage,
+    }
+  }
 
   logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
 
@@ -2113,7 +3411,7 @@ export async function updateDocument(
     }
   })
 
-  await db.transaction(async (tx) => {
+  const doc = await db.transaction(async (tx) => {
     const hasTagUpdates = ALL_TAG_SLOTS.some((field) => typedUpdateData[field] !== undefined)
 
     if (hasTagUpdates) {
@@ -2132,22 +3430,54 @@ export async function updateDocument(
         .where(eq(embedding.documentId, documentId))
     }
 
-    await tx.update(document).set(dbUpdateData).where(eq(document.id, documentId))
+    const [current] = await tx
+      .select()
+      .from(document)
+      .where(eq(document.id, documentId))
+      .limit(1)
+      .for('update')
+    if (!current) return undefined
+
+    const [sidecar] =
+      current.secretProvenanceVersion === 1
+        ? await tx
+            .select()
+            .from(documentSecretProvenance)
+            .where(eq(documentSecretProvenance.documentId, documentId))
+            .limit(1)
+        : []
+    const currentSource = createKnowledgeDocumentSourceValue(current)
+    const currentProvenance = readBoundKnowledgeDocumentSecretProvenance({
+      secretProvenanceVersion: current.secretProvenanceVersion,
+      source: currentSource,
+      provenanceSourceHash: sidecar?.sourceHash ?? null,
+      status: sidecar?.status ?? null,
+      entries: sidecar?.entries,
+    })
+
+    const [updated] = await tx
+      .update(document)
+      .set(dbUpdateData)
+      .where(eq(document.id, documentId))
+      .returning()
+    if (updated && current.secretProvenanceVersion === 1) {
+      const updatedSource = createKnowledgeDocumentSourceValue(updated)
+      await replaceKnowledgeDocumentSecretProvenanceInTx(
+        tx,
+        documentId,
+        updatedSource,
+        rebindKnowledgeDocumentSecretProvenance(currentProvenance, currentSource, updatedSource)
+      )
+    }
+    return updated
   })
 
-  const updatedDocument = await db
-    .select()
-    .from(document)
-    .where(eq(document.id, documentId))
-    .limit(1)
-
-  if (updatedDocument.length === 0) {
+  if (!doc) {
     throw new Error(`Document ${documentId} not found`)
   }
 
   logger.info(`[${requestId}] Document updated: ${documentId}`)
 
-  const doc = updatedDocument[0]
   return {
     id: doc.id,
     knowledgeBaseId: doc.knowledgeBaseId,
@@ -2211,20 +3541,20 @@ export async function deleteDocumentStorageFiles(
     storageKey: getKnowledgeBaseStorageKey(doc.fileUrl),
   }))
 
-  // Resolve all kb/ ownership bindings in one query (avoids an N+1 across the
-  // delete fan-out below).
-  const kbKeys = [
+  const storageKeys = [
     ...new Set(
       entries
         .map((entry) => entry.storageKey)
-        .filter((key): key is string => typeof key === 'string' && key.startsWith('kb/'))
+        .filter(
+          (key): key is string => typeof key === 'string' && isKnowledgeBaseOwnedStorageKey(key)
+        )
     ),
   ]
-  const ownerByKey = new Map<string, string | null>()
-  if (kbKeys.length > 0) {
-    const bindings = await getFileMetadataByKeys(kbKeys, 'knowledge-base')
+  const bindingByKey = new Map<string, FileMetadataRecord>()
+  if (storageKeys.length > 0) {
+    const bindings = await getFileMetadataByKeys(storageKeys, 'knowledge-base')
     for (const binding of bindings) {
-      ownerByKey.set(binding.key, binding.workspaceId)
+      bindingByKey.set(binding.key, binding)
     }
   }
 
@@ -2233,32 +3563,43 @@ export async function deleteDocumentStorageFiles(
       return
     }
 
-    // Only delete a kb/ object when its trusted ownership binding confirms the
-    // deleting document's workspace owns it. Prevents deleting another tenant's
-    // object via a document with a planted fileUrl.
-    if (storageKey.startsWith('kb/')) {
-      const bindingWorkspaceId = ownerByKey.get(storageKey)
-      if (!bindingWorkspaceId) {
-        logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
-          documentId: doc.id,
-          storageKey,
-        })
-        return
-      }
-      if (!doc.workspaceId || bindingWorkspaceId !== doc.workspaceId) {
-        logger.warn(`[${requestId}] Skipping storage delete: ownership binding mismatch`, {
-          documentId: doc.id,
-          storageKey,
-          bindingWorkspaceId,
-          documentWorkspaceId: doc.workspaceId ?? null,
-        })
-        return
-      }
+    if (!isKnowledgeBaseOwnedStorageKey(storageKey)) {
+      return
+    }
+
+    const binding = bindingByKey.get(storageKey)
+    if (!binding?.workspaceId || binding.context !== 'knowledge-base') {
+      logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
+        documentId: doc.id,
+        storageKey,
+      })
+      return
+    }
+    if (!doc.workspaceId || binding.workspaceId !== doc.workspaceId) {
+      logger.warn(`[${requestId}] Skipping storage delete: ownership binding mismatch`, {
+        documentId: doc.id,
+        storageKey,
+        bindingWorkspaceId: binding.workspaceId,
+        documentWorkspaceId: doc.workspaceId ?? null,
+      })
+      return
     }
 
     try {
+      const metadataDeleted = await deleteFileMetadataByIdentity({
+        id: binding.id,
+        key: binding.key,
+        context: binding.context,
+        contentUpdatedAt: binding.contentUpdatedAt,
+      })
+      if (!metadataDeleted) {
+        logger.warn(`[${requestId}] Skipping storage delete: ownership binding changed`, {
+          documentId: doc.id,
+          storageKey,
+        })
+        return
+      }
       await deleteFile({ key: storageKey, context: 'knowledge-base' })
-      await deleteFileMetadata(storageKey)
     } catch (error) {
       logger.warn(`[${requestId}] Failed to delete document storage file`, {
         documentId: doc.id,
@@ -2297,7 +3638,8 @@ async function excludeConnectorDocuments(
 
 async function deleteDocumentsByLifecyclePolicy(
   documentIds: string[],
-  requestId: string
+  requestId: string,
+  expectedKnowledgeBaseId?: string
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -2310,17 +3652,42 @@ async function deleteDocumentsByLifecyclePolicy(
       connectorId: document.connectorId,
     })
     .from(document)
-    .where(inArray(document.id, ids))
+    .where(
+      expectedKnowledgeBaseId
+        ? and(
+            inArray(document.id, ids),
+            eq(document.knowledgeBaseId, expectedKnowledgeBaseId),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        : inArray(document.id, ids)
+    )
 
   const connectorBackedIds = docs.filter((doc) => doc.connectorId !== null).map((doc) => doc.id)
   const hardDeleteIds = docs.filter((doc) => doc.connectorId === null).map((doc) => doc.id)
 
   const [excludedCount, hardDeletedCount] = await Promise.all([
-    excludeConnectorDocuments(connectorBackedIds, requestId),
-    hardDeleteDocuments(hardDeleteIds, requestId),
+    expectedKnowledgeBaseId
+      ? excludeConnectorKnowledgeDocuments(expectedKnowledgeBaseId, connectorBackedIds, requestId)
+      : excludeConnectorDocuments(connectorBackedIds, requestId),
+    hardDeleteDocuments(hardDeleteIds, requestId, undefined, expectedKnowledgeBaseId),
   ])
 
   return excludedCount + hardDeletedCount
+}
+
+export class ConnectorSyncDeletionGuardError extends Error {
+  constructor() {
+    super('Connector sync no longer owns the destructive document operation')
+    this.name = 'ConnectorSyncDeletionGuardError'
+  }
+}
+
+export interface ConnectorSyncDeletionGuard {
+  connectorId: string
+  knowledgeBaseId: string
+  syncLockToken: string
 }
 
 export async function hardDeleteDocuments(
@@ -2335,7 +3702,9 @@ export async function hardDeleteDocuments(
    * connector, keep documents") would otherwise still have them purged here
    * despite no longer belonging to the connector the caller reasoned about.
    */
-  expectedConnectorId?: string
+  expectedConnectorId?: string,
+  expectedKnowledgeBaseId?: string,
+  connectorSyncGuard?: ConnectorSyncDeletionGuard
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -2347,7 +3716,9 @@ export async function hardDeleteDocuments(
     deletedCount += await hardDeleteDocumentBatch(
       ids.slice(offset, offset + HARD_DELETE_DOCUMENT_BATCH_SIZE),
       requestId,
-      expectedConnectorId
+      expectedConnectorId,
+      expectedKnowledgeBaseId,
+      connectorSyncGuard
     )
   }
   return deletedCount
@@ -2360,9 +3731,15 @@ export async function hardDeleteDocuments(
 async function hardDeleteDocumentBatch(
   documentIds: string[],
   requestId: string,
-  expectedConnectorId?: string
+  expectedConnectorId?: string,
+  expectedKnowledgeBaseId?: string,
+  connectorSyncGuard?: ConnectorSyncDeletionGuard
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
+  const scopedConnectorId = connectorSyncGuard?.connectorId ?? expectedConnectorId
+  const scopedKnowledgeBaseId = connectorSyncGuard?.knowledgeBaseId ?? expectedKnowledgeBaseId
+  const requireEligibleDocument = Boolean(expectedKnowledgeBaseId || connectorSyncGuard)
+  const requireVisibleDocument = Boolean(expectedKnowledgeBaseId && !connectorSyncGuard)
   const documentsToDelete = await db
     .select({
       id: document.id,
@@ -2377,9 +3754,14 @@ async function hardDeleteDocumentBatch(
     .from(document)
     .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
     .where(
-      expectedConnectorId
-        ? and(inArray(document.id, ids), eq(document.connectorId, expectedConnectorId))
-        : inArray(document.id, ids)
+      and(
+        inArray(document.id, ids),
+        scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
+        scopedKnowledgeBaseId ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId) : undefined,
+        requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
+        requireEligibleDocument ? isNull(document.archivedAt) : undefined,
+        requireVisibleDocument ? isNull(document.deletedAt) : undefined
+      )
     )
 
   if (documentsToDelete.length === 0) {
@@ -2434,12 +3816,20 @@ async function hardDeleteDocumentBatch(
         userId: knowledgeBase.userId,
       })
       .from(knowledgeBase)
-      .where(inArray(knowledgeBase.id, knowledgeBaseIds))
+      .where(
+        and(
+          inArray(knowledgeBase.id, knowledgeBaseIds),
+          connectorSyncGuard ? isNull(knowledgeBase.deletedAt) : undefined
+        )
+      )
       .orderBy(asc(knowledgeBase.id))
       .for('update')
     const lockedKnowledgeBaseById = new Map(lockedKnowledgeBases.map((kb) => [kb.id, kb]))
     for (const doc of documentsToDelete) {
       const lockedKb = lockedKnowledgeBaseById.get(doc.knowledgeBaseId)
+      if (!lockedKb && connectorSyncGuard) {
+        throw new ConnectorSyncDeletionGuardError()
+      }
       if (
         !lockedKb ||
         lockedKb.workspaceId !== doc.workspaceId ||
@@ -2448,6 +3838,27 @@ async function hardDeleteDocumentBatch(
         throw new Error(
           `Knowledge base ${doc.knowledgeBaseId} storage ownership changed; retry document deletion`
         )
+      }
+    }
+
+    if (connectorSyncGuard) {
+      const [heldSyncLock] = await tx
+        .select({ id: knowledgeConnector.id })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            eq(knowledgeConnector.id, connectorSyncGuard.connectorId),
+            eq(knowledgeConnector.knowledgeBaseId, connectorSyncGuard.knowledgeBaseId),
+            eq(knowledgeConnector.status, 'syncing'),
+            eq(knowledgeConnector.syncLockToken, connectorSyncGuard.syncLockToken),
+            isNull(knowledgeConnector.archivedAt),
+            isNull(knowledgeConnector.deletedAt)
+          )
+        )
+        .for('update')
+
+      if (!heldSyncLock) {
+        throw new ConnectorSyncDeletionGuardError()
       }
     }
 
@@ -2461,16 +3872,28 @@ async function hardDeleteDocumentBatch(
      * embedding delete and the document delete are scoped to this re-verified
      * ID set rather than the stale `existingIds`.
      */
-    const stillTargetedIds = expectedConnectorId
-      ? (
-          await tx
-            .select({ id: document.id })
-            .from(document)
-            .where(
-              and(inArray(document.id, existingIds), eq(document.connectorId, expectedConnectorId))
-            )
-        ).map((d) => d.id)
-      : existingIds
+    const stillTargetedIds =
+      scopedConnectorId || scopedKnowledgeBaseId
+        ? (
+            await tx
+              .select({ id: document.id })
+              .from(document)
+              .where(
+                and(
+                  inArray(document.id, existingIds),
+                  scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
+                  scopedKnowledgeBaseId
+                    ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId)
+                    : undefined,
+                  requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
+                  requireEligibleDocument ? isNull(document.archivedAt) : undefined,
+                  requireVisibleDocument ? isNull(document.deletedAt) : undefined
+                )
+              )
+              .orderBy(asc(document.id))
+              .for('update')
+          ).map((d) => d.id)
+        : existingIds
 
     await tx.delete(embedding).where(inArray(embedding.documentId, stillTargetedIds))
     const deletedRows = await tx
@@ -2535,4 +3958,45 @@ export async function deleteDocument(
     success: true,
     message: 'Document deleted successfully',
   }
+}
+
+/** Deletes one currently visible document within its canonical knowledge base. */
+export async function deleteKnowledgeDocumentInKnowledgeBase(
+  knowledgeBaseId: string,
+  documentId: string,
+  requestId: string
+): Promise<void> {
+  const current = await getKnowledgeDocument(knowledgeBaseId, documentId)
+  if (!current) throw new OrchestrationError('not_found', 'Document not found')
+  const affected = await deleteDocumentsByLifecyclePolicy([documentId], requestId, knowledgeBaseId)
+  if (affected !== 1) throw new OrchestrationError('not_found', 'Document not found')
+}
+
+async function excludeConnectorKnowledgeDocuments(
+  knowledgeBaseId: string,
+  documentIds: string[],
+  requestId: string
+): Promise<number> {
+  if (documentIds.length === 0) return 0
+  const updated = await db
+    .update(document)
+    .set({ userExcluded: true, enabled: false })
+    .where(
+      and(
+        inArray(document.id, documentIds),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        isNotNull(document.connectorId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .returning({ id: document.id })
+  if (updated.length > 0) {
+    logger.info(`[${requestId}] Excluded ${updated.length} connector-backed document(s)`, {
+      documentIds: updated.map((row) => row.id),
+      knowledgeBaseId,
+    })
+  }
+  return updated.length
 }

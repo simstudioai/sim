@@ -6,7 +6,7 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
-import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
+import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/accurate'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
 import { useAutosave } from '@/hooks/use-autosave'
 
@@ -22,6 +22,18 @@ const TOKEN_BG_COLORS = [
   'rgba(139, 92, 246, 0.55)',
   'rgba(217, 70, 239, 0.55)',
 ] as const
+
+/**
+ * Collapsing to `auto` is what lets the box shrink, but it also drops the scroll range to zero
+ * across the `scrollHeight` read, clamping the scroller to the top — so the offset is captured
+ * and restored in the same frame.
+ */
+function syncTextareaHeight(textarea: HTMLTextAreaElement, scroller: HTMLElement) {
+  const { scrollTop } = scroller
+  textarea.style.height = 'auto'
+  textarea.style.height = `${textarea.scrollHeight}px`
+  scroller.scrollTop = scrollTop
+}
 
 interface ChunkEditorProps {
   mode?: 'edit' | 'create'
@@ -49,7 +61,7 @@ export function ChunkEditor({
   onCreated,
 }: ChunkEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const tokenizedScrollRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const preservedScrollTopRef = useRef(0)
   const { mutateAsync: updateChunk } = useUpdateChunk()
   const { mutateAsync: createChunk } = useCreateChunk()
@@ -182,22 +194,39 @@ export function ChunkEditor({
     [saveRef]
   )
 
-  const hasToggledTokenizerRef = useRef(false)
+  const handleTokenizerChange = useCallback((value: boolean) => {
+    preservedScrollTopRef.current = scrollRef.current?.scrollTop ?? 0
+    setTokenizerOn(value)
+  }, [])
 
-  const handleTokenizerChange = useCallback(
-    (value: boolean) => {
-      const source = tokenizerOn ? tokenizedScrollRef.current : textareaRef.current
-      preservedScrollTopRef.current = source?.scrollTop ?? 0
-      hasToggledTokenizerRef.current = true
-      setTokenizerOn(value)
-    },
-    [tokenizerOn]
-  )
-
+  /**
+   * The textarea's height is synced to its content so the surrounding container owns the only
+   * scrollbar, as in the rich markdown editor.
+   */
   useLayoutEffect(() => {
-    if (!hasToggledTokenizerRef.current) return
-    const target = tokenizerOn ? tokenizedScrollRef.current : textareaRef.current
-    if (target) target.scrollTop = preservedScrollTopRef.current
+    const textarea = textareaRef.current
+    const scroller = scrollRef.current
+    if (!textarea || !scroller) return
+    syncTextareaHeight(textarea, scroller)
+  }, [editedContent, tokenizerOn])
+
+  /**
+   * The box is `overflow-hidden`, so a width change that re-wraps lines without touching the
+   * content would clip the tail with no scrollbar to reach it. The scroller is observed rather
+   * than the textarea because it supplies the width without being the element the callback resizes.
+   */
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    const scroller = scrollRef.current
+    if (!textarea || !scroller) return
+    const observer = new ResizeObserver(() => syncTextareaHeight(textarea, scroller))
+    observer.observe(scroller)
+    return () => observer.disconnect()
+  }, [tokenizerOn])
+
+  /** Must run after the measure above, which establishes the scroll range this offset needs. */
+  useLayoutEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = preservedScrollTopRef.current
   }, [tokenizerOn])
 
   const tokenStrings = useMemo(() => {
@@ -214,9 +243,10 @@ export function ChunkEditor({
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
       <div
+        ref={scrollRef}
         role='group'
         aria-label='Chunk content editor'
-        className='flex min-h-0 flex-1 cursor-text flex-col overflow-hidden'
+        className='min-h-0 flex-1 cursor-text overflow-y-auto [scrollbar-gutter:stable_both-edges]'
         onClick={(e) => {
           if (e.target === e.currentTarget) textareaRef.current?.focus()
         }}
@@ -226,10 +256,7 @@ export function ChunkEditor({
         }}
       >
         {tokenizerOn ? (
-          <div
-            ref={tokenizedScrollRef}
-            className='mx-auto h-full w-full max-w-[48rem] cursor-default overflow-y-auto whitespace-pre-wrap break-words px-8 py-6 font-sans text-[var(--text-body)] text-sm'
-          >
+          <div className='mx-auto min-h-full w-full max-w-[48rem] cursor-default whitespace-pre-wrap break-words px-8 py-6 font-sans text-[var(--text-body)] text-sm'>
             {tokenStrings.map((token, index) => (
               <span
                 key={index}
@@ -255,14 +282,14 @@ export function ChunkEditor({
                     ? 'This chunk is synced from a connector and cannot be edited'
                     : 'Read-only view'
             }
-            className='mx-auto min-h-0 w-full max-w-[48rem] flex-1 resize-none border-0 bg-transparent px-8 py-6 font-sans text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-subtle)]'
+            className='mx-auto block min-h-full w-full max-w-[48rem] resize-none overflow-hidden border-0 bg-transparent px-8 py-6 font-sans text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-subtle)]'
             disabled={!canEdit}
             readOnly={!canEdit}
             spellCheck={false}
           />
         )}
       </div>
-      <div className='flex items-center justify-between border-[var(--border)] border-t px-6 py-2.5'>
+      <div className='flex shrink-0 items-center justify-between border-[var(--border)] border-t px-6 py-2.5'>
         <TokenizerToggle
           checked={tokenizerOn}
           onCheckedChange={handleTokenizerChange}

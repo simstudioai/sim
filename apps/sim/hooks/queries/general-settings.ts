@@ -1,68 +1,19 @@
+import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  getUserSettingsContract,
-  type MothershipEnvironment,
-  type UserSettingsApi,
-  updateUserSettingsContract,
-} from '@/lib/api/contracts/user'
+import { getUserSettingsContract, updateUserSettingsContract } from '@/lib/api/contracts/user'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
-import { getBrowserTimezone } from '@/lib/core/utils/timezone'
+import { getBrowserTimezone, isValidTimezone } from '@/lib/core/utils/timezone'
+import {
+  GENERAL_SETTINGS_STALE_TIME,
+  type GeneralSettings,
+  generalSettingsKeys,
+  mapGeneralSettingsResponse,
+} from '@/hooks/queries/current-user-data'
 
 const logger = createLogger('GeneralSettingsQuery')
-
-/**
- * Query key factories for general settings
- */
-export const generalSettingsKeys = {
-  all: ['generalSettings'] as const,
-  settings: () => [...generalSettingsKeys.all, 'settings'] as const,
-}
-
-export const GENERAL_SETTINGS_STALE_TIME = 60 * 60 * 1000
-
-/**
- * General settings type
- */
-export interface GeneralSettings {
-  autoConnect: boolean
-  showTrainingControls: boolean
-  superUserModeEnabled: boolean
-  mothershipEnvironment: MothershipEnvironment
-  theme: 'light' | 'dark' | 'system'
-  telemetryEnabled: boolean
-  billingUsageNotificationsEnabled: boolean
-  errorNotificationsEnabled: boolean
-  snapToGridSize: number
-  showActionBar: boolean
-  /** Copilot tool ids the user picked "always allow" for. */
-  copilotAutoAllowedTools: string[]
-  /** Saved IANA timezone, or `null` when unset (the app falls back to the browser zone). */
-  timezone: string | null
-}
-
-/**
- * Map raw API response data to GeneralSettings with defaults.
- * Shared by both client fetch and server prefetch to prevent shape drift.
- */
-export function mapGeneralSettingsResponse(data: UserSettingsApi): GeneralSettings {
-  return {
-    autoConnect: data.autoConnect,
-    showTrainingControls: data.showTrainingControls,
-    superUserModeEnabled: data.superUserModeEnabled,
-    mothershipEnvironment: data.mothershipEnvironment,
-    theme: data.theme,
-    telemetryEnabled: data.telemetryEnabled,
-    billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled,
-    errorNotificationsEnabled: data.errorNotificationsEnabled,
-    snapToGridSize: data.snapToGridSize,
-    showActionBar: data.showActionBar,
-    copilotAutoAllowedTools: data.copilotAutoAllowedTools ?? [],
-    timezone: data.timezone ?? null,
-  }
-}
 
 /**
  * Fetch general settings from API
@@ -77,15 +28,17 @@ async function fetchGeneralSettings(signal?: AbortSignal): Promise<GeneralSettin
  * TanStack Query is now the single source of truth for general settings.
  */
 export function useGeneralSettings() {
-  return useQuery({
+  const query = useQuery({
     queryKey: generalSettingsKeys.settings(),
-    queryFn: async ({ signal }) => {
-      const settings = await fetchGeneralSettings(signal)
-      syncThemeToNextThemes(settings.theme)
-      return settings
-    },
+    queryFn: ({ signal }) => fetchGeneralSettings(signal),
     staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
+
+  useEffect(() => {
+    if (query.data?.theme) syncThemeToNextThemes(query.data.theme)
+  }, [query.data?.theme])
+
+  return query
 }
 
 /**
@@ -95,11 +48,7 @@ export function useGeneralSettings() {
 export function prefetchGeneralSettings(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: generalSettingsKeys.settings(),
-    queryFn: async ({ signal }) => {
-      const settings = await fetchGeneralSettings(signal)
-      syncThemeToNextThemes(settings.theme)
-      return settings
-    },
+    queryFn: ({ signal }) => fetchGeneralSettings(signal),
     staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
 }
@@ -114,11 +63,6 @@ export function useAutoConnect(): boolean {
   return data?.autoConnect ?? true
 }
 
-export function useShowTrainingControls(): boolean {
-  const { data } = useGeneralSettings()
-  return data?.showTrainingControls ?? false
-}
-
 export function useSnapToGridSize(): number {
   const { data } = useGeneralSettings()
   return data?.snapToGridSize ?? 0
@@ -129,24 +73,72 @@ export function useShowActionBar(): boolean {
   return data?.showActionBar ?? true
 }
 
+/**
+ * Whether the canvas camera animates to center a block when it is clicked.
+ *
+ * Scoped to clicks only. Arrow-key navigation and block creation deliberately
+ * keep following the camera regardless — both move selection to a block that
+ * may be off-screen, so suppressing the move would leave the user with no way
+ * to tell where the selection went.
+ */
+export function useAutoFocusOnClick(): boolean {
+  const { data } = useGeneralSettings()
+  return data?.autoFocusOnClick ?? true
+}
+
 export function useBillingUsageNotifications(): boolean {
   const { data } = useGeneralSettings()
   return data?.billingUsageNotificationsEnabled ?? true
 }
 
-export function useErrorNotificationsEnabled(): boolean {
-  const { data } = useGeneralSettings()
-  return data?.errorNotificationsEnabled ?? true
+/**
+ * The user's effective timezone: a valid saved preference, otherwise the browser zone.
+ * Callers that must distinguish Auto from invalid or unavailable settings use
+ * {@link useTimezoneState} instead.
+ */
+export function useTimezone(): string {
+  return useTimezoneState().timezone
+}
+
+export interface TimezoneState {
+  /** Effective, always-valid timezone used by read-only consumers. */
+  timezone: string
+  /** Raw saved preference, or `null` when the browser timezone is intentional. */
+  savedTimezone: string | null
+  status: 'loading' | 'ready' | 'invalid' | 'error'
 }
 
 /**
- * The user's effective scheduling timezone: their saved preference, or the
- * browser-detected zone when unset. Use this wherever a task's timezone is
- * captured so scheduling honors the account preference rather than the device.
+ * The effective timezone together with the raw preference's validity. Time-based
+ * editors use the status so only an intentional Auto preference may write with the
+ * browser fallback; loading, invalid, and unavailable preferences remain read-only.
  */
-export function useTimezone(): string {
-  const { data } = useGeneralSettings()
-  return data?.timezone ?? getBrowserTimezone()
+export function useTimezoneState(): TimezoneState {
+  const { data, isError } = useGeneralSettings()
+  if (!data) {
+    return {
+      timezone: getBrowserTimezone(),
+      savedTimezone: null,
+      status: isError ? 'error' : 'loading',
+    }
+  }
+
+  const savedTimezone = data.timezone
+  if (savedTimezone === null) {
+    return {
+      timezone: getBrowserTimezone(),
+      savedTimezone: null,
+      status: 'ready',
+    }
+  }
+  if (isValidTimezone(savedTimezone)) {
+    return { timezone: savedTimezone, savedTimezone, status: 'ready' }
+  }
+  return {
+    timezone: getBrowserTimezone(),
+    savedTimezone,
+    status: 'invalid',
+  }
 }
 
 /**

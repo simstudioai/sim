@@ -9,12 +9,11 @@ import type { PlaceholderInfo } from '../model/nodes/base-node'
 import type { TextBody } from '../model/nodes/shape-node'
 import { angleToDeg, emuToPx, pctToDecimal } from '../parser/units'
 import { SafeXmlNode } from '../parser/xml-parser'
+import { cssFontStack } from '../utils/font-stack'
 import type { RenderContext } from './render-context'
 import { resolveColor, resolveColorToCss } from './style-resolver'
 
-// ---------------------------------------------------------------------------
 // Style Inheritance Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Find paragraph properties at a specific indent level from a list style node.
@@ -227,9 +226,7 @@ function mergeParagraphProps(target: MergedParagraphStyle, pPr: SafeXmlNode): vo
   }
 }
 
-// ---------------------------------------------------------------------------
 // Run Style Resolution
-// ---------------------------------------------------------------------------
 
 interface MergedRunStyle {
   fontSize?: number
@@ -420,9 +417,7 @@ function resolveGradientForText(gradFill: SafeXmlNode, ctx: RenderContext): stri
   return `linear-gradient(180deg, ${stopsStr})`
 }
 
-// ---------------------------------------------------------------------------
 // Bullet Generation
-// ---------------------------------------------------------------------------
 
 function generateAutoNumber(type: string, index: number): string {
   const num = index + 1
@@ -466,9 +461,7 @@ function toRoman(num: number): string {
   return result
 }
 
-// ---------------------------------------------------------------------------
 // Main Render Function
-// ---------------------------------------------------------------------------
 
 /**
  * Render a text body into the provided container element.
@@ -648,7 +641,7 @@ export function renderTextBody(
       const bulletSpan = document.createElement('span')
       bulletSpan.textContent = `${bulletPrefix} `
       if (merged.bulletFont) {
-        bulletSpan.style.fontFamily = merged.bulletFont
+        bulletSpan.style.fontFamily = cssFontStack(merged.bulletFont)
       }
       // Bullet color: 1) explicit buClr from list style, 2) paragraph defRPr, 3) first run's color (so bullet matches text), 4) cell/fallback
       let bulletColor: string | undefined
@@ -899,12 +892,12 @@ export function renderTextBody(
         ? runStyle.fontFamily
         : (options?.cellTextFontFamily ?? runStyle.fontFamily)
       if (effectiveFont) {
-        element.style.fontFamily = `"${effectiveFont}"`
+        element.style.fontFamily = cssFontStack(effectiveFont)
       } else {
         // Fallback to theme minor font
         const fallback = ctx.theme.minorFont.latin || ctx.theme.minorFont.ea
         if (fallback) {
-          element.style.fontFamily = `"${fallback}"`
+          element.style.fontFamily = cssFontStack(fallback)
         }
       }
 

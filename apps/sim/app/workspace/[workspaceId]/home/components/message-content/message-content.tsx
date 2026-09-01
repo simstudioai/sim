@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
-import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { PrepareFileEdit, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
@@ -21,6 +21,8 @@ import {
   humanizeToolName,
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
@@ -126,7 +128,7 @@ const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
  * group is absorbed so it doesn't render as a separate Mothership entry.
  */
 const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
-  [FILE_SUBAGENT_ID]: WorkspaceFile.id,
+  [FILE_SUBAGENT_ID]: PrepareFileEdit.id,
 }
 
 function isToolResultRead(params?: Record<string, unknown>): boolean {
@@ -188,7 +190,7 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   const overrideDisplayTitle = getOverrideDisplayTitle(tc)
   const resolvedTitle =
     overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
-  const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status)
+  const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status, tc.name)
 
   return {
     id: tc.id,
@@ -379,6 +381,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[block.content]
       if (dispatchToolName) absorbDispatchTool(dispatchToolName, block.parentSpanId)
       const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId)
+      if (block.subagentName) g.agentLabel = block.subagentName
       if (block.endedAt !== undefined) {
         // Persisted backend path: the lane was stamped closed (endedAt) without
         // a separate subagent_end block (the Sim backend stamps endedAt only;
@@ -488,6 +491,23 @@ export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     return parseBlocksWithSpanTree(blocks)
   }
   return parseBlocksLegacy(blocks)
+}
+
+function joinRenderableText(parts: string[]): string {
+  return parts.filter(Boolean).join('\n\n')
+}
+
+/** Returns only top-level orchestrator text, excluding agent groups and other UI segments. */
+export function getOrchestratorMessageText(
+  blocks: ContentBlock[],
+  fallbackContent: string
+): string {
+  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  if (parsed.length === 0) return fallbackContent
+
+  return joinRenderableText(
+    parsed.map((segment) => (segment.type === 'text' ? segment.content : ''))
+  )
 }
 
 function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
@@ -622,6 +642,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       }
       groupsByKey.delete(groupKey('mothership', undefined))
       const { group: g } = ensureGroup(key, block.parentToolCallId)
+      if (block.subagentName) g.agentLabel = block.subagentName
       if (inheritedDelegation) g.isDelegating = true
       g.isOpen = true
       activeGroupKey = resolveGroupKey(key, block.parentToolCallId)
@@ -789,6 +810,7 @@ export function deriveThinkingLabel(blocks: ContentBlock[]): string | null {
 interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
+  messageId?: string
   isStreaming: boolean
   /**
    * True for the last message in the transcript. The last turn keeps a
@@ -798,6 +820,10 @@ interface MessageContentProps {
   isLast?: boolean
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
+  /** Transcript-derived status payload for this message's credential card. */
+  credentialSubmission?: CredentialSubmissionPayload
+  /** The user moved on without submitting this message's credential card. */
+  credentialAbandoned?: boolean
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
   onPhaseChange?: (phase: MessagePhase) => void
@@ -814,16 +840,23 @@ interface MessageContentProps {
 function MessageContentInner({
   blocks,
   fallbackContent,
+  messageId,
   isStreaming = false,
   isLast = false,
   questionAnswers,
+  credentialSubmission,
+  credentialAbandoned,
   onOptionSelect,
   onQuestionDismiss,
   onPhaseChange,
   actions,
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
-  const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
+  const blockOverlayVersion = useCustomBlockOverlayVersion()
+  const parsed = useMemo(
+    () => (blocks.length > 0 ? parseBlocks(blocks) : []),
+    [blocks, blockOverlayVersion]
+  )
 
   const [trailingRevealing, setTrailingRevealing] = useState(false)
   const handleTrailingRevealChange = useCallback((revealing: boolean) => {
@@ -912,12 +945,15 @@ function MessageContentInner({
                 <ChatContent
                   key={segment.id}
                   content={segment.content}
+                  messageId={messageId}
                   isStreaming={shouldSmoothTextSegment({
                     isStreaming,
                     segmentIndex: i,
                     segmentCount: segments.length,
                   })}
                   questionAnswers={questionAnswers}
+                  credentialSubmission={credentialSubmission}
+                  credentialAbandoned={credentialAbandoned}
                   onOptionSelect={onOptionSelect}
                   onQuestionDismiss={onQuestionDismiss}
                   onWorkspaceResourceSelect={onWorkspaceResourceSelect}

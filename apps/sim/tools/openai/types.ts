@@ -17,11 +17,3 @@ export interface DalleResponse extends ToolResponse {
     }
   }
 }
-
-export interface OpenAIEmbeddingsParams {
-  apiKey: string
-  input: string | string[]
-  model?: string
-  encodingFormat?: 'float' | 'base64'
-  user?: string
-}

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_VERTICAL_SPACING } from '@/lib/workflows/autolayout/constants'
 import { getBlockMetrics, resolveNoteOverlaps } from '@/lib/workflows/autolayout/utils'
@@ -313,5 +314,156 @@ describe('getBlockMetrics preview row estimation', () => {
     const advanced = getBlockMetrics(createTableBlock('advanced'))
 
     expect(advanced.height).toBe(basic.height)
+  })
+
+  it('counts a canonical pair once even when a trigger spread duplicates it', () => {
+    /*
+     * The duplicate `tableSelector`/`manualTableId` entries carry trigger-only
+     * modes, so exactly one member of the pair is ever visible. Counting the
+     * spread copies too would reserve a phantom row of height.
+     */
+    const withoutTriggerSpread = {
+      ...tableLikeConfig,
+      subBlocks: (
+        tableLikeConfig as unknown as { subBlocks: { mode?: string }[] }
+      ).subBlocks.filter(
+        (subBlock) => subBlock.mode !== 'trigger' && subBlock.mode !== 'trigger-advanced'
+      ),
+    } as unknown as ReturnType<typeof getBlock>
+
+    mockGetBlock.mockReturnValue(tableLikeConfig)
+    const spread = getBlockMetrics(createTableBlock('basic'))
+
+    mockGetBlock.mockReturnValue(withoutTriggerSpread)
+    const plain = getBlockMetrics(createTableBlock('basic'))
+
+    expect(spread.height).toBe(plain.height)
+  })
+
+  it('never estimates a card shorter than the rows it can actually paint', () => {
+    /*
+     * The estimate only runs for a block that has never mounted, and on the
+     * row path it cannot model `mcp-dynamic-args` row expansion. Erring high
+     * opens a gap; erring low overlaps the next card — so a partially
+     * configured block must still reserve room for every visible field plus
+     * the permanent error row.
+     */
+    mockGetBlock.mockReturnValue(tableLikeConfig)
+
+    const { height } = getBlockMetrics({
+      ...createTableBlock('basic'),
+      height: undefined,
+      layout: undefined,
+    } as unknown as BlockState)
+
+    const visibleRows = 3
+    expect(height).toBeGreaterThanOrEqual(
+      BLOCK_DIMENSIONS.HEADER_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+        visibleRows * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_ERROR_ROW_HEIGHT
+    )
+  })
+})
+
+describe('getBlockMetrics sentence estimation', () => {
+  /**
+   * A block whose card replaces its field rows with one line of prose. The
+   * estimator has to reproduce that exactly rather than counting rows — a
+   * sentence is one section where the rows were four, so the row-counting
+   * slack would reserve most of a card of empty space under every one.
+   */
+  const sentencedConfig = {
+    category: 'blocks',
+    canvasPresentation: {
+      defaultTitle: 'Notify',
+      sentences: {
+        default: [
+          { text: 'Posts', field: 'message', core: true },
+          { text: 'to', field: 'channel' },
+          { text: ', as', field: 'username' },
+        ],
+      },
+    },
+    subBlocks: [
+      { id: 'message', title: 'Message', type: 'long-input' },
+      { id: 'channel', title: 'Channel', type: 'short-input' },
+      { id: 'username', title: 'Username', type: 'short-input' },
+      { id: 'iconEmoji', title: 'Icon', type: 'short-input' },
+    ],
+  } as unknown as ReturnType<typeof getBlock>
+
+  function createUnmountedBlock(values: Record<string, string>): BlockState {
+    return {
+      id: 'notify-1',
+      type: 'notify',
+      name: 'Notify 1',
+      position: { x: 0, y: 0 },
+      subBlocks: Object.fromEntries(
+        Object.entries(values).map(([id, value]) => [id, { id, type: 'short-input', value }])
+      ),
+      outputs: {},
+      enabled: true,
+      height: undefined,
+      layout: undefined,
+    } as unknown as BlockState
+  }
+
+  it('reserves one sentence line, not one row per configured field', () => {
+    mockGetBlock.mockReturnValue(sentencedConfig)
+
+    /* "Posts ⟨Hi⟩ to ⟨#a⟩" — comfortably inside the 234px wrap width. */
+    const { height } = getBlockMetrics(createUnmountedBlock({ message: 'Hi', channel: '#a' }))
+
+    /* Header + padding + one sentence line + gap + the permanent error row. */
+    expect(height).toBe(
+      BLOCK_DIMENSIONS.HEADER_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+        BLOCK_DIMENSIONS.WORKFLOW_SENTENCE_LINE_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_GAP +
+        BLOCK_DIMENSIONS.WORKFLOW_ERROR_ROW_HEIGHT
+    )
+  })
+
+  it('grows by a line when the sentence wraps', () => {
+    mockGetBlock.mockReturnValue(sentencedConfig)
+
+    const oneLine = getBlockMetrics(createUnmountedBlock({ message: 'Hi', channel: '#a' }))
+    const twoLines = getBlockMetrics(
+      createUnmountedBlock({ message: 'Deploy finished', channel: '#eng', username: 'bot' })
+    )
+
+    expect(twoLines.height - oneLine.height).toBe(BLOCK_DIMENSIONS.WORKFLOW_SENTENCE_LINE_HEIGHT)
+  })
+
+  it('estimates a sentenced card shorter than the same card as rows', () => {
+    mockGetBlock.mockReturnValue(sentencedConfig)
+    const withSentence = getBlockMetrics(
+      createUnmountedBlock({ message: 'Deploy finished', channel: '#eng', username: 'bot' })
+    )
+
+    mockGetBlock.mockReturnValue({
+      ...(sentencedConfig as object),
+      canvasPresentation: undefined,
+    } as unknown as ReturnType<typeof getBlock>)
+    const asRows = getBlockMetrics(
+      createUnmountedBlock({ message: 'Deploy finished', channel: '#eng', username: 'bot' })
+    )
+
+    expect(withSentence.height).toBeLessThan(asRows.height)
+  })
+
+  it('falls back to rows when the required anchor has no value', () => {
+    /* A freshly pasted block has nothing filled, so the card paints rows. */
+    mockGetBlock.mockReturnValue(sentencedConfig)
+
+    const { height } = getBlockMetrics(createUnmountedBlock({ channel: '#eng' }))
+
+    expect(height).toBeGreaterThanOrEqual(
+      BLOCK_DIMENSIONS.HEADER_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+        BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_ERROR_ROW_HEIGHT
+    )
   })
 })

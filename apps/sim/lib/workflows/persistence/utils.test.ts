@@ -120,6 +120,7 @@ function toDbBlock(block: ReturnType<typeof createBlock>, workflowId: string) {
     horizontalHandles: block.horizontalHandles,
     advancedMode: block.advancedMode ?? false,
     triggerMode: block.triggerMode ?? false,
+    errorEnabled: block.errorEnabled ?? false,
     height: block.height ?? 150,
     subBlocks: block.subBlocks ?? {},
     outputs: block.outputs ?? {},
@@ -362,6 +363,7 @@ describe('Database Helpers', () => {
         name: 'Start Block',
         position: { x: 100, y: 100 },
         enabled: true,
+        errorEnabled: false,
         horizontalHandles: true,
         height: 150,
         subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
@@ -369,6 +371,7 @@ describe('Database Helpers', () => {
         data: { parentId: undefined, extent: undefined, width: 350 },
         advancedMode: false,
         triggerMode: false,
+        locked: undefined,
       })
 
       expect(result?.edges[0]).toEqual({
@@ -410,10 +413,24 @@ describe('Database Helpers', () => {
       )
     })
 
-    it('should return null when no blocks are found', async () => {
+    it('should return null when the workflow row is not found', async () => {
       const result = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
 
       expect(result).toBeNull()
+    })
+
+    it('should load an existing blockless workflow as an empty graph', async () => {
+      queueLoadFixtures({ blocks: [] })
+
+      const result = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+
+      expect(result).toMatchObject({
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        isFromNormalizedTables: true,
+      })
     })
 
     it('should return null when database query fails', async () => {
@@ -1290,6 +1307,31 @@ describe('Database Helpers', () => {
 
     beforeEach(() => {
       dbHelpers.invalidateDeployedStateCache()
+    })
+
+    /**
+     * Every version before the error toggle drew that port unconditionally, so a
+     * snapshot carrying an error edge was taken from a block that had the output
+     * on. The migration backfilling the flag only reaches the live tables, never
+     * a version's frozen jsonb — so without deriving it here the deployed side
+     * reads `false` against a live `true`, and every workflow deployed before the
+     * toggle asks to be redeployed once.
+     */
+    it('reads an error edge in an old snapshot as the error output being on', async () => {
+      const state = buildDeployedState()
+      state.edges.push({
+        id: 'edge-err',
+        source: 'block-1',
+        target: 'block-2',
+        sourceHandle: 'error',
+        targetHandle: 'input',
+      })
+      queueActiveVersion('dv-error-edge', state)
+
+      const deployed = await dbHelpers.loadDeployedWorkflowState('wf-error-edge', 'workspace-1')
+
+      expect(deployed?.blocks['block-1'].errorEnabled).toBe(true)
+      expect(deployed?.blocks['block-2'].errorEnabled).toBeUndefined()
     })
 
     it('serves a cache HIT, skipping migrations on the second call for the same active version', async () => {

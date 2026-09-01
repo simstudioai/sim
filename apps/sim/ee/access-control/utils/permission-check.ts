@@ -12,6 +12,8 @@ import {
   isPublicApiDisabled,
 } from '@/lib/core/config/env-flags'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -108,29 +110,22 @@ export class ChatDeployAuthNotAllowedError extends Error {
 
 /**
  * Merges the env allowlist into a permission config.
- * If `config` is null and no env allowlist is set, returns null.
- * If `config` is null but env allowlist is set, returns a default config with only allowedIntegrations set.
- * If both are set, intersects the two allowlists.
+ *
+ * Returns null only when neither layer restricts anything. Otherwise the group's
+ * own allowlist is intersected with the env one by
+ * {@link intersectIntegrationAllowlists}, which case-folds both sides — callers
+ * compare against a lowercased block type, and a stored config reaches here
+ * straight off the wire, where the contract permits any casing.
  */
 function mergeEnvAllowlist(config: PermissionGroupConfig | null): PermissionGroupConfig | null {
   const envAllowlist = getAllowedIntegrationsFromEnv()
+  if (config === null && envAllowlist === null) return null
 
-  if (envAllowlist === null) {
-    return config
+  const base = config ?? DEFAULT_PERMISSION_GROUP_CONFIG
+  return {
+    ...base,
+    allowedIntegrations: intersectIntegrationAllowlists(base.allowedIntegrations, envAllowlist),
   }
-
-  if (config === null) {
-    return { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: envAllowlist }
-  }
-
-  const merged =
-    config.allowedIntegrations === null
-      ? envAllowlist
-      : config.allowedIntegrations
-          .map((i) => i.toLowerCase())
-          .filter((i) => envAllowlist.includes(i))
-
-  return { ...config, allowedIntegrations: merged }
 }
 
 /**
@@ -141,7 +136,28 @@ function mergeEnvAllowlist(config: PermissionGroupConfig | null): PermissionGrou
 export interface ResolvedPermissionGroup {
   permissionGroupId: string
   groupName: string
+  resolution: 'explicit-member' | 'all-members' | 'default'
   config: PermissionGroupConfig
+}
+
+export interface UserAccessControlContext {
+  organizationId: string | null
+  entitled: boolean
+  permissionGroup: {
+    id: string
+    name: string
+    resolution: ResolvedPermissionGroup['resolution']
+  } | null
+  config: PermissionGroupConfig | null
+}
+
+function inactiveUserAccessControlContext(organizationId: string | null): UserAccessControlContext {
+  return {
+    organizationId,
+    entitled: false,
+    permissionGroup: null,
+    config: mergeEnvAllowlist(null),
+  }
 }
 
 /** The organization's single default group (`isDefault`), or `null`. */
@@ -167,6 +183,7 @@ async function resolveDefaultGroup(
   return {
     permissionGroupId: defaultGroup.id,
     groupName: defaultGroup.name,
+    resolution: 'default',
     config: parsePermissionGroupConfig(defaultGroup.config),
   }
 }
@@ -222,12 +239,14 @@ export async function resolveWorkspaceGroup(
     )
     .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
 
-  const winner = rows.find((row) => row.isMember) ?? rows.find((row) => !row.hasMembers)
+  const explicitMemberGroup = rows.find((row) => row.isMember)
+  const winner = explicitMemberGroup ?? rows.find((row) => !row.hasMembers)
 
   if (winner) {
     return {
       permissionGroupId: winner.id,
       groupName: winner.name,
+      resolution: explicitMemberGroup ? 'explicit-member' : 'all-members',
       config: parsePermissionGroupConfig(winner.config),
     }
   }
@@ -246,26 +265,70 @@ export async function resolveWorkspaceGroup(
  * The env-level integration allowlist is always merged last so self-hosted
  * deployments can constrain integrations without touching the DB.
  */
+async function resolveUserAccessControlContextForOrganization(
+  userId: string,
+  workspaceId: string,
+  organizationId: string | null
+): Promise<UserAccessControlContext> {
+  if (!organizationId) return inactiveUserAccessControlContext(null)
+
+  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId)
+  if (!isEnterprise) {
+    return inactiveUserAccessControlContext(organizationId)
+  }
+
+  const resolved = await resolveWorkspaceGroup(userId, organizationId, workspaceId)
+  return {
+    organizationId,
+    entitled: true,
+    permissionGroup: resolved
+      ? {
+          id: resolved.permissionGroupId,
+          name: resolved.groupName,
+          resolution: resolved.resolution,
+        }
+      : null,
+    config: mergeEnvAllowlist(resolved?.config ?? null),
+  }
+}
+
+/**
+ * Resolves Access Control from an organization ID obtained from an already
+ * access-checked workspace. This function does not independently authorize the
+ * user for the workspace; callers must establish that boundary first.
+ */
+export async function resolveVerifiedUserAccessControlContext(
+  userId: string,
+  workspaceId: string,
+  organizationId: string | null
+): Promise<UserAccessControlContext> {
+  if (!isHosted && !isAccessControlEnabled) {
+    return inactiveUserAccessControlContext(null)
+  }
+  return resolveUserAccessControlContextForOrganization(userId, workspaceId, organizationId)
+}
+
+export async function resolveUserAccessControlContext(
+  userId: string,
+  workspaceId: string
+): Promise<UserAccessControlContext> {
+  if (!isHosted && !isAccessControlEnabled) {
+    return inactiveUserAccessControlContext(null)
+  }
+
+  const workspace = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+  return resolveUserAccessControlContextForOrganization(
+    userId,
+    workspaceId,
+    workspace?.organizationId ?? null
+  )
+}
+
 export async function getUserPermissionConfig(
   userId: string,
   workspaceId: string
 ): Promise<PermissionGroupConfig | null> {
-  if (!isHosted && !isAccessControlEnabled) {
-    return mergeEnvAllowlist(null)
-  }
-
-  const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-  if (!ws?.organizationId) {
-    return mergeEnvAllowlist(null)
-  }
-
-  const isEnterprise = await isOrganizationOnEnterprisePlan(ws.organizationId)
-  if (!isEnterprise) {
-    return mergeEnvAllowlist(null)
-  }
-
-  const resolved = await resolveWorkspaceGroup(userId, ws.organizationId, workspaceId)
-  return mergeEnvAllowlist(resolved?.config ?? null)
+  return (await resolveUserAccessControlContext(userId, workspaceId)).config
 }
 
 /**
@@ -683,7 +746,7 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
     }
   }
 
-  if (toolId && config?.deniedTools?.includes(toolId)) {
+  if (toolId && !createToolAccessGate(config?.deniedTools)(toolId)) {
     logger.warn('Tool blocked by permission group', { userId, workspaceId, toolId })
     throw new ToolNotAllowedError(toolId)
   }

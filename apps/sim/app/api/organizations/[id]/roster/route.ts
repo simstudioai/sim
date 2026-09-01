@@ -89,12 +89,17 @@ export const GET = withRouteHandler(
       await expireStalePendingInvitationsForOrganization(organizationId)
 
       const orgWorkspaces = await db
-        .select({ id: workspace.id, name: workspace.name })
+        .select({
+          id: workspace.id,
+          name: workspace.name,
+          ownerId: workspace.ownerId,
+          billedAccountUserId: workspace.billedAccountUserId,
+        })
         .from(workspace)
         .where(and(eq(workspace.organizationId, organizationId), isNull(workspace.archivedAt)))
 
       const orgWorkspaceIds = orgWorkspaces.map((ws) => ws.id)
-      const workspaceNameById = new Map(orgWorkspaces.map((ws) => [ws.id, ws.name]))
+      const workspaceById = new Map(orgWorkspaces.map((ws) => [ws.id, ws]))
       const memberUserIds = memberRows.map((row) => row.userId)
 
       const memberPermissions =
@@ -117,11 +122,14 @@ export const GET = withRouteHandler(
 
       const permissionsByUser = new Map<string, RosterWorkspaceAccess[]>()
       for (const row of memberPermissions) {
+        const ws = workspaceById.get(row.workspaceId)
         const list = permissionsByUser.get(row.userId) ?? []
         list.push({
           workspaceId: row.workspaceId,
-          workspaceName: workspaceNameById.get(row.workspaceId) ?? 'Workspace',
+          workspaceName: ws?.name ?? 'Workspace',
           permission: row.permission,
+          roleSource: ws?.ownerId === row.userId ? 'owner' : 'explicit',
+          isBilledAccount: ws?.billedAccountUserId === row.userId,
         })
         permissionsByUser.set(row.userId, list)
       }
@@ -135,6 +143,14 @@ export const GET = withRouteHandler(
                 workspaceId: ws.id,
                 workspaceName: ws.name,
                 permission: 'admin' as const,
+                /**
+                 * Owner wins over the derived organization grant, matching
+                 * `getUsersWithPermissions` — otherwise the same person reads as
+                 * `owner` in the teammates list and `org-admin` here.
+                 */
+                roleSource:
+                  ws.ownerId === rosterMember.userId ? ('owner' as const) : ('org-admin' as const),
+                isBilledAccount: ws.billedAccountUserId === rosterMember.userId,
               }))
             : (permissionsByUser.get(rosterMember.userId) ?? []),
         }
@@ -183,10 +199,13 @@ export const GET = withRouteHandler(
 
       for (const row of externalPermissionRows) {
         const existing = externalMembersByUser.get(row.userId)
+        const externalWorkspace = workspaceById.get(row.workspaceId)
         const workspaceAccess: RosterWorkspaceAccess = {
           workspaceId: row.workspaceId,
-          workspaceName: workspaceNameById.get(row.workspaceId) ?? 'Workspace',
+          workspaceName: externalWorkspace?.name ?? 'Workspace',
           permission: row.permission,
+          roleSource: externalWorkspace?.ownerId === row.userId ? 'owner' : 'explicit',
+          isBilledAccount: externalWorkspace?.billedAccountUserId === row.userId,
         }
 
         if (existing) {
@@ -247,8 +266,11 @@ export const GET = withRouteHandler(
         const list = grantsByInvitation.get(row.invitationId) ?? []
         list.push({
           workspaceId: row.workspaceId,
-          workspaceName: workspaceNameById.get(row.workspaceId) ?? 'Workspace',
+          workspaceName: workspaceById.get(row.workspaceId)?.name ?? 'Workspace',
           permission: row.permission,
+          /** A pending invitee holds no row yet, so nothing is inherited. */
+          roleSource: 'explicit',
+          isBilledAccount: false,
         })
         grantsByInvitation.set(row.invitationId, list)
       }
@@ -269,7 +291,7 @@ export const GET = withRouteHandler(
       const data = {
         members: rosterMembers,
         pendingInvitations,
-        workspaces: orgWorkspaces,
+        workspaces: orgWorkspaces.map((ws) => ({ id: ws.id, name: ws.name })),
       } satisfies OrganizationRoster
       return NextResponse.json({
         success: true,

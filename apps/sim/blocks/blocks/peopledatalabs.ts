@@ -1,7 +1,16 @@
 import { PeopleDataLabsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { PdlPersonEnrichResponse } from '@/tools/peopledatalabs/types'
+import type { PdlPersonEnrichResponse } from '@/tools/pdl/types'
+
+/** Mutually exclusive person identifiers — first one supplied is the match key. */
+const PERSON_MATCH_FIELD = ['email', 'profile', 'phone', 'first_name'] as const
+/** Mutually exclusive company identifiers accepted by Company Enrich. */
+const COMPANY_MATCH_FIELD = ['company_name', 'website', 'company_profile', 'ticker'] as const
+/** The narrower identifier set Company Cleaner accepts. */
+const COMPANY_CLEAN_FIELD = ['company_name', 'website', 'company_profile'] as const
+/** SQL and Elasticsearch DSL are alternate ways to express one search. */
+const SEARCH_QUERY_FIELD = ['sql', 'query'] as const
 
 export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
   type: 'peopledatalabs',
@@ -16,6 +25,56 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
   bgColor: '#4831C3',
   iconColor: '#4831C3',
   icon: PeopleDataLabsIcon,
+  canvasPresentation: {
+    defaultTitle: 'People Data Labs',
+    sentences: {
+      byOperation: {
+        pdl_person_enrich: [
+          { text: 'Enrich person', field: PERSON_MATCH_FIELD, core: true },
+          { text: 'at', field: 'company' },
+        ],
+        pdl_person_identify: [
+          { text: 'Find candidate matches for', field: PERSON_MATCH_FIELD, core: true },
+          { text: 'at', field: 'company' },
+        ],
+        pdl_person_search: [
+          { text: 'Search people with query', field: SEARCH_QUERY_FIELD, core: true },
+          { text: ', up to', field: 'size', after: 'results' },
+        ],
+        pdl_bulk_person_enrich: [
+          'Enrich people in bulk',
+          { text: ', requiring', field: 'bulk_person_required' },
+        ],
+        pdl_company_enrich: [
+          { text: 'Enrich company', field: COMPANY_MATCH_FIELD, core: true },
+          { text: 'in', field: 'company_location' },
+        ],
+        pdl_company_search: [
+          { text: 'Search companies with query', field: SEARCH_QUERY_FIELD, core: true },
+          { text: ', up to', field: 'size', after: 'results' },
+        ],
+        pdl_bulk_company_enrich: [
+          'Enrich companies in bulk',
+          { text: ', requiring', field: 'bulk_company_required' },
+        ],
+        pdl_clean_company: [{ text: 'Normalize company', field: COMPANY_CLEAN_FIELD, core: true }],
+        pdl_clean_location: [
+          { text: 'Normalize location', field: 'clean_location_input', core: true },
+        ],
+        pdl_clean_school: [
+          {
+            text: 'Normalize school',
+            field: ['school_name', 'school_website', 'school_profile'],
+            core: true,
+          },
+        ],
+        pdl_autocomplete: [
+          { text: 'Suggest', field: 'field', after: 'values', core: true },
+          { text: 'matching', field: 'text', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

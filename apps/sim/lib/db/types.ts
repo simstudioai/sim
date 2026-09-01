@@ -8,13 +8,13 @@ import type { PostgresJsQueryResultHKT } from 'drizzle-orm/postgres-js'
  * Type for database or transaction context.
  * Allows functions to work with either the db instance or a transaction.
  */
-export type DbOrTx =
-  | typeof db
-  | PgTransaction<
-      PostgresJsQueryResultHKT,
-      typeof schema,
-      ExtractTablesWithRelations<typeof schema>
-    >
+export type DbTransaction = PgTransaction<
+  PostgresJsQueryResultHKT,
+  typeof schema,
+  ExtractTablesWithRelations<typeof schema>
+>
+
+export type DbOrTx = typeof db | DbTransaction
 
 /**
  * Read-routing client: the primary `db` or the read replica `dbReplica`.

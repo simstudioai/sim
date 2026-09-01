@@ -4,7 +4,12 @@
 Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`. Inside API routes wrapped with `withRouteHandler`, loggers automatically include the request ID.
 
 ## API Route Handlers
-All API route handlers must be wrapped with `withRouteHandler` from `@/lib/core/utils/with-route-handler`. Never export a bare `async function GET/POST/...` — always use `export const METHOD = withRouteHandler(...)`.
+All API route handlers must run inside `withRouteHandler`. Ordinary internal and v2 JSON/binary handlers use the shared route builders, which already apply it; never double-wrap them. Use raw `withRouteHandler` only for documented protocol or lifecycle exceptions. Never export a bare `async function GET/POST/...`.
+
+## Application Operation Boundary
+Every protected read, write, canonical lookup, or authorization-sensitive reference resolution must enter through an authorized application use case. Surfaces authenticate and build a `Principal`, rate-limit, parse, map input, call the use case, and present their own result. They must not query protected data, decide resource authorization, implement business transactions, or record semantic audit.
+
+Define one stable semantic operation with its role, workspace-key policy, principal kinds, and delegated services. Internal, v2, Copilot, and trusted-tool adapters call the same use case when domain behavior is the same. Copilot uses `createCopilotApplicationAdapter`; it is not a separate protected business layer. Protected compound mutations require one top-level semantic application operation. Never substitute billing attribution, an uploader, creator, or key owner for the acting principal. Use the `migrate-application-operation` skill for new or migrated protected operations.
 
 ## Comments
 Use TSDoc for documentation. No `====` separators. No non-TSDoc comments.
@@ -65,3 +70,10 @@ const filtered = filterUndefined(obj)
 
 ## Package Manager
 Use `bun` and `bunx`, not `npm` and `npx`.
+
+## Type-checking
+`tsc` must resolve to the native (Go) TypeScript 7 compiler. Do not remove the `@typescript/native` alias from the root `devDependencies` — nothing imports it, and deleting it looks harmless.
+
+`apps/sim` needs `@typescript/typescript6` for its runtime TypeScript API, and that package depends on `@typescript/old` — an alias of `typescript@6` — which declares its own `tsc` bin. Package managers pick bin winners by lexical sort rather than dependency depth, so `@typescript/old` beats `typescript` and `node_modules/.bin/tsc` silently becomes the JavaScript TypeScript 6 compiler: identical diagnostics, ~10x slower (83s vs 8s on `apps/sim`). The `@typescript/native` alias exists only to sort ahead of `@typescript/old`.
+
+`bun run check:native-typecheck` fails the build if a bare `tsc` stops reporting 7.x — which is also what a newly added package that sorts ahead of `@typescript/native` and ships a `tsc` bin would look like. See [microsoft/typescript-go#4567](https://github.com/microsoft/typescript-go/issues/4567).

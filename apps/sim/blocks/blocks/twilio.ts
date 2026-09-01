@@ -16,6 +16,27 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   bgColor: '#F22F46', // Twilio brand color
   iconColor: '#F22F46',
   icon: TwilioIcon,
+  canvasPresentation: {
+    defaultTitle: 'Twilio SMS',
+    /*
+     * Both triggers configure only the account SID and auth token used to check
+     * the request signature, so there is no scope to name — and the picker's own
+     * labels ("SMS Received", "Message Status") only restate the card header. So
+     * each trigger gets copy that says what arrives instead.
+     */
+    triggerSentences: {
+      byTrigger: {
+        twilio_sms_received: ['Run on an inbound text message'],
+        twilio_sms_status: ['Run on a delivery status update'],
+      },
+    },
+    sentences: {
+      default: [
+        { text: 'Send', field: 'message', core: true },
+        { text: 'to', field: 'phoneNumbers', core: true },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'phoneNumbers',

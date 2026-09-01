@@ -159,8 +159,13 @@ export const sqlLiteral = (value: string): string => `'${value.replace(/'/g, "''
 export const sqlContains = (column: string, value: string): string =>
   `contains(lower(${column}), ${sqlLiteral(value.toLowerCase())})`
 
-/** Matches a trailing UTC designator or numeric offset, e.g. `Z`, `+00:00`, `-0530`. */
-const TIMESTAMP_OFFSET_PATTERN = /(?:[Zz]|[+-]\d{2}:?\d{2})$/
+/**
+ * Matches a trailing UTC designator or numeric offset, e.g. `Z`, `+00:00`,
+ * `-0530`, `+05`. The minute component is optional because ISO 8601 permits an
+ * hour-only offset, and appending `Z` to one would produce `+05Z`, which no
+ * parser accepts.
+ */
+const TIMESTAMP_OFFSET_PATTERN = /(?:[Zz]|[+-]\d{2}(?::?\d{2})?)$/
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 /**
@@ -173,6 +178,21 @@ function normalizeTimestamp(value?: string): string | undefined {
   if (!trimmed) return undefined
   if (DATE_ONLY_PATTERN.test(trimmed)) return `${trimmed}T00:00:00Z`
   return TIMESTAMP_OFFSET_PATTERN.test(trimmed) ? trimmed : `${trimmed}Z`
+}
+
+/**
+ * Coerce a row limit that may arrive as a numeric string. The block already
+ * converts its text input, but tools are also callable directly by agents,
+ * which routinely emit numbers as JSON strings — dropping those silently would
+ * fall back to Logfire's default of 100 rows instead of the requested limit.
+ */
+const toFiniteNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
 }
 
 interface LogfireQueryBodyInput {
@@ -194,8 +214,9 @@ export function buildLogfireQueryBody(input: LogfireQueryBodyInput): Record<stri
   const maxTimestamp = normalizeTimestamp(input.maxTimestamp)
   if (maxTimestamp) body.max_timestamp = maxTimestamp
 
-  if (input.limit !== undefined && Number.isFinite(input.limit)) {
-    body.limit = Math.min(Math.max(Math.trunc(input.limit), LOGFIRE_MIN_LIMIT), LOGFIRE_MAX_LIMIT)
+  const limit = toFiniteNumber(input.limit)
+  if (limit !== undefined) {
+    body.limit = Math.min(Math.max(Math.trunc(limit), LOGFIRE_MIN_LIMIT), LOGFIRE_MAX_LIMIT)
   }
 
   const timezone = cleanOptionalString(input.timezone)

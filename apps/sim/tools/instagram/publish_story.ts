@@ -4,16 +4,16 @@ import {
   PUBLISH_OUTPUTS,
 } from '@/tools/instagram/types'
 import { createPublishTransform } from '@/tools/instagram/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const instagramPublishStoryTool: ToolConfig<
+export const instagramPublishStoryTool: InternalToolConfig<
   InstagramPublishStoryParams,
   InstagramPublishResponse
 > = {
   id: 'instagram_publish_story',
   name: 'Instagram Publish Story',
   description:
-    'Publish an image or video story for an Instagram professional account from an uploaded file or public HTTPS URL',
+    'Publish an image or video story for an Instagram professional account from a Sim file',
   version: '1.0.0',
 
   oauth: {
@@ -38,17 +38,13 @@ export const instagramPublishStoryTool: ToolConfig<
       type: 'file',
       required: true,
       visibility: 'user-or-llm',
-      description: 'JPEG image or MP4/MOV video file, or a public HTTPS URL',
+      description:
+        'JPEG image or MP4/MOV video uploaded to Sim or referenced from a previous block',
     },
   },
 
-  request: {
-    url: '/api/tools/instagram/publish-story',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: InstagramPublishStoryParams) => ({
+  operation: {
+    input: (params: InstagramPublishStoryParams) => ({
       accessToken: params.accessToken,
       igUserId: params.igUserId,
       media: params.media,

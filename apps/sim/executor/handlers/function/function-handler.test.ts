@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
+import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { BlockType } from '@/executor/constants'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import type { ExecutionContext } from '@/executor/types'
+import { readTrustedExecutionCost } from '@/executor/utils/errors'
 import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
@@ -164,6 +167,84 @@ describe('FunctionBlockHandler', () => {
     })
   })
 
+  it('caps the block timeout to the remaining workflow execution budget', async () => {
+    const controller = createTimeoutAbortController(20_000)
+    mockContext.abortSignal = controller.signal
+
+    try {
+      await handler.execute(mockContext, mockBlock, {
+        code: 'return true;',
+        timeout: 60_000,
+      })
+
+      const toolParams = mockExecuteTool.mock.calls[0][1]
+      expect(toolParams.timeout).toBeGreaterThan(0)
+      expect(toolParams.timeout).toBeLessThanOrEqual(20_000)
+    } finally {
+      controller.cleanup()
+    }
+  })
+
+  it('uses the remaining workflow budget when no block timeout is configured', async () => {
+    const controller = createTimeoutAbortController(DEFAULT_EXECUTION_TIMEOUT_MS * 2)
+    mockContext.abortSignal = controller.signal
+
+    try {
+      await handler.execute(mockContext, mockBlock, {
+        code: 'return true;',
+      })
+
+      const timeout = mockExecuteTool.mock.calls[0][1].timeout
+      expect(timeout).toBeGreaterThan(DEFAULT_EXECUTION_TIMEOUT_MS)
+      expect(timeout).toBeLessThanOrEqual(DEFAULT_EXECUTION_TIMEOUT_MS * 2)
+    } finally {
+      controller.cleanup()
+    }
+  })
+
+  it('forwards an explicit selected secret scope without changing legacy unset blocks', async () => {
+    await handler.execute(mockContext, mockBlock, {
+      code: 'return {{API_KEY}}',
+      secretScope: 'selected',
+      mountedSecrets: [' API_KEY ', 42, 'SECOND_KEY', '', 'API_KEY'],
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        secretScope: 'selected',
+        mountedSecrets: ['API_KEY', 'SECOND_KEY'],
+      }),
+      { executionContext: mockContext }
+    )
+
+    vi.clearAllMocks()
+    mockExecuteTool.mockResolvedValue({ success: true, output: { result: 'Success' } })
+
+    await handler.execute(mockContext, mockBlock, { code: 'return {{API_KEY}}' })
+
+    const legacyParams = mockExecuteTool.mock.calls[0][1]
+    expect(legacyParams).not.toHaveProperty('secretScope')
+    expect(legacyParams).not.toHaveProperty('mountedSecrets')
+  })
+
+  it('fails closed for an invalid explicit secret scope', async () => {
+    await handler.execute(mockContext, mockBlock, {
+      code: 'return {{API_KEY}}',
+      secretScope: 'invalid',
+      mountedSecrets: ['API_KEY'],
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        secretScope: 'selected',
+        mountedSecrets: [],
+      }),
+      { executionContext: mockContext }
+    )
+  })
+
   it('should handle execution errors from the tool', async () => {
     const inputs = { code: 'throw new Error("Code failed");' }
     const errorResult = { success: false, error: 'Function execution failed: Code failed' }
@@ -173,6 +254,45 @@ describe('FunctionBlockHandler', () => {
       'Function execution failed: Code failed'
     )
     expect(mockExecuteTool).toHaveBeenCalled()
+  })
+
+  it.each([
+    { retryable: true, nonRetryable: false },
+    { retryable: false, nonRetryable: true },
+  ])(
+    'attaches trusted cost to a failed execution when retryable is $retryable',
+    async ({ retryable, nonRetryable }) => {
+      const cost = { input: 0, output: 0, total: 0.125 }
+      mockExecuteTool.mockResolvedValue({
+        success: false,
+        error: 'Remote Function failed',
+        retryable,
+        output: { result: null, stdout: '', cost },
+      })
+
+      let thrown: unknown
+      try {
+        await handler.execute(mockContext, mockBlock, { code: 'throw new Error("failed")' })
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(Error)
+      expect(thrown instanceof NonRetryableExecutionError).toBe(nonRetryable)
+      expect(readTrustedExecutionCost(thrown)).toEqual(cost)
+    }
+  )
+
+  it('attaches trusted cost to a successful execution for retry aggregation', async () => {
+    const cost = { input: 0, output: 0, total: 0.25 }
+    mockExecuteTool.mockResolvedValue({
+      success: true,
+      output: { result: 42, stdout: '', cost },
+    })
+
+    const output = await handler.execute(mockContext, mockBlock, { code: 'return 42' })
+
+    expect(readTrustedExecutionCost(output)).toEqual(cost)
   })
 
   it('should pass runtime context variables to function_execute', async () => {

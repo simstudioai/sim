@@ -8,8 +8,8 @@ import {
   authMockFns,
   createMockRequest,
   dbChainMockFns,
-  foldersLifecycleMock,
-  foldersLifecycleMockFns,
+  foldersOrchestrationMock,
+  foldersOrchestrationMockFns,
   type MockUser,
   permissionsMock,
   permissionsMockFns,
@@ -34,8 +34,8 @@ const { mockLogger } = vi.hoisted(() => {
   }
 })
 
-const mockDeleteFolder = foldersLifecycleMockFns.mockDeleteFolder
-const mockUpdateFolder = foldersLifecycleMockFns.mockUpdateFolder
+const mockDeleteFolder = foldersOrchestrationMockFns.mockDeleteFolder
+const mockUpdateFolder = foldersOrchestrationMockFns.mockUpdateFolder
 
 /** Parent ids the mocked engine treats as closing a cycle for the folder under test. */
 const cyclicParentIds = new Set<string>()
@@ -49,7 +49,7 @@ vi.mock('@sim/logger', () => ({
   getRequestContext: () => undefined,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/folders/lifecycle', () => foldersLifecycleMock)
+vi.mock('@/lib/folders/orchestration', () => foldersOrchestrationMock)
 
 import { DELETE, PUT } from '@/app/api/folders/[id]/route'
 

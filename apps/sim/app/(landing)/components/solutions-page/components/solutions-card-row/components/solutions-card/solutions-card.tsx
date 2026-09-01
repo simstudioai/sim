@@ -86,10 +86,7 @@ export function SolutionsCard({ card, headingId, tabletSpan = false }: Solutions
               wide && 'sm:max-lg:w-[38%] sm:max-lg:shrink-0 sm:max-lg:self-center'
             )}
           >
-            <h3
-              id={headingId}
-              className={cn('font-medium text-[16px] leading-[1.3]', featureTileTone.title)}
-            >
+            <h3 id={headingId} className={cn('text-[16px] leading-[1.3]', featureTileTone.title)}>
               {card.title}
             </h3>
             <p

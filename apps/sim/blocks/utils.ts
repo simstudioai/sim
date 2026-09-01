@@ -1,4 +1,5 @@
 import { toError } from '@sim/utils/errors'
+import { SimAutoIcon } from '@/components/icons'
 import {
   isAzureConfigured,
   isCohereConfigured,
@@ -6,17 +7,20 @@ import {
   isOllamaConfigured,
 } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
-import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
-import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
+import { containsReference } from '@/lib/workflows/sanitization/references'
+import type { SubBlockConfig } from '@/blocks/types'
 import {
   getBaseModelProviders,
   getHostedModels,
   getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
+  isAutoModel,
   orderModelIdsByReleaseDate,
+  SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import { isPiSupportedModel } from '@/providers/pi-providers'
+import type { ProviderId } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 
@@ -75,12 +79,21 @@ export function getModelOptions() {
     ])
   )
 
-  return allModels
+  const options = allModels
     .filter((model) => getModelSunsetStatus(model) !== 'deprecated')
     .map((model) => {
       const icon = getProviderIcon(model)
       return { label: model, id: model, ...(icon && { icon }) }
     })
+
+  // Hosted-only automatic model. Deliberately LAST in the list (limited
+  // visibility for the initial release): available to anyone who scrolls or
+  // searches for it, but never the first thing the dropdown offers.
+  if (isHosted) {
+    options.push({ label: 'Auto', id: SIM_AUTO_MODEL_ID, icon: SimAutoIcon })
+  }
+
+  return options
 }
 
 /**
@@ -96,57 +109,6 @@ export function getPiModelOptions() {
       return false
     }
   })
-}
-
-/**
- * Gets all dependency fields as a flat array.
- * Handles both simple array format and object format with all/any fields.
- */
-export function getDependsOnFields(dependsOn: SubBlockConfig['dependsOn']): string[] {
-  if (!dependsOn) return []
-  if (Array.isArray(dependsOn)) return dependsOn
-  return [...(dependsOn.all || []), ...(dependsOn.any || [])]
-}
-
-/**
- * Finds subblocks that depend on a changed field, accounting for canonical pairs.
- */
-export function getSubBlocksDependingOnChange(
-  allSubBlocks: SubBlockConfig[],
-  changedSubBlockId: string
-): SubBlockConfig[] {
-  const canonicalIndex = buildCanonicalIndex(allSubBlocks)
-  const canonicalId = canonicalIndex.canonicalIdBySubBlockId[changedSubBlockId]
-  const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
-  const changedFields = new Set<string>([changedSubBlockId])
-
-  if (canonicalId) changedFields.add(canonicalId)
-  if (group?.basicId) changedFields.add(group.basicId)
-  for (const advancedId of group?.advancedIds || []) {
-    changedFields.add(advancedId)
-  }
-
-  return allSubBlocks.filter((subBlock) =>
-    getDependsOnFields(subBlock.dependsOn).some((field) => changedFields.has(field))
-  )
-}
-
-export function resolveOutputType(
-  outputs: Record<string, OutputFieldDefinition>
-): Record<string, BlockOutput> {
-  const resolvedOutputs: Record<string, BlockOutput> = {}
-
-  for (const [key, outputType] of Object.entries(outputs)) {
-    // Handle new format: { type: 'string', description: '...' }
-    if (typeof outputType === 'object' && outputType !== null && 'type' in outputType) {
-      resolvedOutputs[key] = outputType.type as BlockOutput
-    } else {
-      // Handle old format: just the type as string, or other object formats
-      resolvedOutputs[key] = outputType as BlockOutput
-    }
-  }
-
-  return resolvedOutputs
 }
 
 function getProviderFromStore(model: string): string | null {
@@ -183,6 +145,11 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
 
+  // On hosted Sim the auto pseudo-model resolves server-side to a hosted pool
+  // model. On self-hosted it exists only via imported workflows and always
+  // falls back to the default Anthropic model, so the key field must show.
+  if (isAutoModel(normalizedModel)) return !isHosted
+
   if (isHosted) {
     const hostedModels = getHostedModels()
     if (hostedModels.some((m) => m.toLowerCase() === normalizedModel)) return false
@@ -216,6 +183,62 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   }
 
   return true
+}
+
+/** Model whose provider is recorded when a block's own `model` cannot be resolved. */
+const SERIALIZATION_FALLBACK_MODEL = 'gpt-4o'
+
+/** Last-resort provider for when even {@link SERIALIZATION_FALLBACK_MODEL} cannot be resolved. */
+const SERIALIZATION_FALLBACK_PROVIDER: ProviderId = 'openai'
+
+/**
+ * Provider id a model-driven block records for `model` during serialization.
+ *
+ * Serialization runs before variable resolution, and every model block's handler
+ * re-derives the provider from the *resolved* model without ever reading this
+ * value — so it only has to be shape-correct, and it must never throw. Two cases
+ * reach here that {@link getBaseModelProviders} cannot answer: `model` may still
+ * hold a `<variable.x>` reference, and gateway providers (OpenRouter, vLLM,
+ * LiteLLM, Ollama, …) are deliberately absent from that map even when the model
+ * id is perfectly valid. A reference resolves to {@link SERIALIZATION_FALLBACK_MODEL}'s
+ * provider; anything else is left to `getProviderFromModel`, which defaults an
+ * unrecognised id to `ollama` rather than failing serialization with an error the
+ * user cannot act on.
+ *
+ * The remaining throw is a blacklisted provider or model, which is env-driven and
+ * can name the fallback itself — so recovery returns
+ * {@link SERIALIZATION_FALLBACK_PROVIDER} outright rather than resolving a second
+ * time through the function that just threw.
+ */
+export function getSerializedModelProviderId(
+  model: unknown,
+  fallbackModel: string = SERIALIZATION_FALLBACK_MODEL
+): ProviderId {
+  const candidate =
+    typeof model === 'string' && model && !containsReference(model) ? model : fallbackModel
+
+  try {
+    return getProviderFromModel(candidate)
+  } catch {
+    return SERIALIZATION_FALLBACK_PROVIDER
+  }
+}
+
+/**
+ * Visibility condition for a model-tuning field that only some models accept, such as
+ * reasoning effort or verbosity. Gates on the capability list, but keeps the field visible
+ * when `model` itself holds a variable or block reference — the concrete model id is only
+ * known at execution time then, so matching a reference against a static list would hide
+ * the field for every workflow that binds its model dynamically.
+ */
+export function getModelCapabilityCondition(capableModels: string[]) {
+  return (values?: Record<string, unknown>) => {
+    const model = typeof values?.model === 'string' ? values.model : ''
+    if (containsReference(model)) {
+      return buildModelVisibilityCondition(model, true)
+    }
+    return { field: 'model', value: capableModels }
+  }
 }
 
 /**
@@ -623,7 +646,7 @@ export function normalizeFileInput(
  */
 export const BUILT_IN_TOOL_TYPES = new Set([
   'api',
-  'file',
+  'file_v5',
   'function',
   'knowledge',
   'search',

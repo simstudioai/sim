@@ -7,10 +7,10 @@ import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/type
 import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 
 const USER_MESSAGE_CLASSES =
-  'whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-[430] font-[family-name:var(--font-inter)] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
+  'whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-[family-name:var(--font-inter)] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
 
 const COMPACT_CLASSES =
-  'truncate text-small leading-[20px] font-[430] font-[family-name:var(--font-inter)] text-[var(--text-primary)] tracking-[0] antialiased'
+  'truncate text-small leading-[20px] font-[family-name:var(--font-inter)] text-[var(--text-primary)] tracking-[0] antialiased'
 
 interface UserMessageContentProps {
   content: string
@@ -147,10 +147,7 @@ export function UserMessageContent({
 
     if (plainMentions) {
       elements.push(
-        <span
-          key={`mention-${i}-${range.start}`}
-          className='font-medium text-[var(--text-primary)]'
-        >
+        <span key={`mention-${i}-${range.start}`} className='text-[var(--text-primary)]'>
           {content.slice(range.start, range.end)}
         </span>
       )

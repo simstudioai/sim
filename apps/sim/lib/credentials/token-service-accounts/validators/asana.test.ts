@@ -35,8 +35,8 @@ describe('validateAsanaServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'Sim Integration',
-      auditMetadata: { asanaUserGid: '12345' },
-      storedMetadata: { userGid: '12345', email: 'bot@example.com' },
+      principal: { kind: 'user', id: '12345', label: 'bot@example.com' },
+      auditMetadata: {},
     })
     expect(mockFetch).toHaveBeenCalledWith(
       'https://app.asana.com/api/1.0/users/me?opt_fields=gid,name,email',
@@ -62,7 +62,7 @@ describe('validateAsanaServiceAccount', () => {
 
     const gidOnly = await validateAsanaServiceAccount({ apiToken: 'token-2' })
     expect(gidOnly.displayName).toBe('Asana user 999')
-    expect(gidOnly.storedMetadata).toEqual({ userGid: '999' })
+    expect(gidOnly.principal).toEqual({ kind: 'user', id: '999' })
   })
 
   it('maps 401 to invalid_credentials', async () => {

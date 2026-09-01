@@ -12,6 +12,8 @@ export {
   DEFAULT_PUBLIC_IP_ROUTE_LIMIT,
   DEFAULT_USER_ROUTE_LIMIT,
   enforceIpRateLimit,
+  enforceIpRateLimitWithIndependentBackstop,
+  enforceRecipientRateLimit,
   enforceUserOrIpRateLimit,
   enforceUserRateLimit,
 } from './route-helpers'

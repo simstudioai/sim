@@ -8,7 +8,7 @@ import {
   PopoverScrollArea,
   PopoverSection,
 } from '@sim/emcn'
-import { Plus } from 'lucide-react'
+import { Plus } from '@sim/emcn/icons'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
@@ -39,7 +39,7 @@ interface EnvVarDropdownProps {
   /** Maximum height for the dropdown */
   maxHeight?: string
   /** Reference to the input element for caret positioning */
-  inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement>
+  inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>
 }
 
 /**

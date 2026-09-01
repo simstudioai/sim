@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import type OpenAI from 'openai'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -13,6 +14,7 @@ import {
   buildOpenAIUsageTokens,
   createOpenAIUsageAccumulator,
 } from '@/providers/openai/usage'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
@@ -25,7 +27,6 @@ import {
   supportsReasoningEffort,
   trackForcedToolUsage,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 import {
   buildResponsesInputFromMessages,
   convertResponseOutputToInputItems,
@@ -33,11 +34,64 @@ import {
   createReadableStreamFromResponses,
   extractResponseText,
   extractResponseToolCalls,
+  isMaxOutputTokensIncompleteResponse,
   parseResponsesUsage,
   type ResponsesInputItem,
   type ResponsesToolCall,
+  responseContainsFunctionCall,
   toResponsesToolChoice,
 } from './utils'
+
+/**
+ * Rejects a `/v1/responses` body reporting a generation that did not succeed — the
+ * endpoint answers HTTP 200 for both `status: 'failed'` and `status: 'incomplete'`.
+ *
+ * The tolerated case must stay matched to `streamResponsesTurn`: `incomplete` is accepted
+ * only when truncated by `max_output_tokens` AND carrying no function call. Truncated
+ * prose is a usable partial answer, but a truncated `function_call` holds half-written
+ * JSON that makes `parseToolArguments` throw a confusing tool failure.
+ *
+ * An absent `status` is deliberately not treated as a failure: this path is shared with
+ * Azure OpenAI and OpenAI-compatible gateways.
+ */
+function assertUsableResponse(response: OpenAI.Responses.Response, providerLabel: string): void {
+  if (response.error) {
+    const code = response.error.code ? ` (${response.error.code})` : ''
+    throw new Error(`${providerLabel} generation failed${code}: ${response.error.message}`)
+  }
+
+  if (response.status === 'failed') {
+    throw new Error(
+      `${providerLabel} generation failed, and the API returned no error detail explaining why.`
+    )
+  }
+
+  if (response.status === 'incomplete') {
+    const reason = response.incomplete_details?.reason ?? 'unknown'
+    if (responseContainsFunctionCall(response)) {
+      throw new Error(
+        `${providerLabel} generation stopped before completion (${reason}), truncating a tool call mid-argument. Raise the max output tokens or reduce the tool schema size.`
+      )
+    }
+    if (!isMaxOutputTokensIncompleteResponse(response)) {
+      throw new Error(`${providerLabel} generation stopped before completion: ${reason}.`)
+    }
+    return
+  }
+
+  if (response.status && response.status !== 'completed') {
+    throw new Error(
+      `${providerLabel} returned a response with status "${response.status}", which carries no finished generation.`
+    )
+  }
+}
+
+/**
+ * Transport failures annotated once already. The error-body read is annotated where the
+ * phase is known, then rethrown through an outer catch that would otherwise append a
+ * second, wrong phase to the same message.
+ */
+const annotatedTransportFailures = new WeakSet<Error>()
 
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
 type ToolChoice = PreparedTools['toolChoice']
@@ -85,6 +139,9 @@ export async function executeResponsesProviderRequest(
 
   logger.info(`Preparing ${config.providerLabel} request`, {
     model: request.model,
+    workflowId: request.workflowId,
+    blockId: request.blockId,
+    executionId: request.executionId,
     hasSystemPrompt: !!request.systemPrompt,
     hasMessages: !!request.messages?.length,
     hasTools: !!request.tools?.length,
@@ -237,14 +294,97 @@ export async function executeResponsesProviderRequest(
     ...overrides,
   })
 
-  const parseErrorResponse = async (response: Response): Promise<string> => {
-    const text = await response.text()
+  /**
+   * Names the request phase an opaque transport failure died in.
+   *
+   * Bun raises only `TimeoutError: The operation timed out.`, which cannot distinguish
+   * "never answered" from "answered, but the body never arrived" — opposite owners,
+   * opposite fixes. undici splits these as `UND_ERR_HEADERS_TIMEOUT` vs
+   * `UND_ERR_BODY_TIMEOUT`; this records the equivalent for a runtime that reports
+   * neither.
+   *
+   * The phase rides the error message because that reaches the block's trace span, which
+   * survives when a task has stopped shipping logs; `x-request-id` is the only handle the
+   * provider can trace the call by. Self-describing API errors are left untouched.
+   */
+  const annotateTransportFailure = (
+    error: unknown,
+    phase: 'awaiting-response-headers' | 'reading-response-body',
+    startedAt: number,
+    detail?: Record<string, string | number | null>
+  ): unknown => {
+    if (!(error instanceof Error)) return error
+    if (error.name !== 'TimeoutError' && error.name !== 'AbortError') return error
+    if (annotatedTransportFailures.has(error)) return error
+
+    const elapsedMs = Date.now() - startedAt
+    const fields = Object.entries(detail ?? {})
+      .filter(([, value]) => value !== null && value !== undefined)
+      .map(([key, value]) => `${key}=${value}`)
+    const context = [`phase=${phase}`, `elapsedMs=${elapsedMs}`, ...fields].join(' ')
+
+    logger.error(`${config.providerLabel} request failed in transport`, {
+      phase,
+      elapsedMs,
+      errorName: error.name,
+      model: config.modelName,
+      workflowId: request.workflowId,
+      blockId: request.blockId,
+      executionId: request.executionId,
+      ...detail,
+    })
+
+    /**
+     * A new Error rather than a mutation: the runtime raises these as `DOMException`,
+     * whose `message` is a readonly getter, so assigning to it throws a `TypeError` and
+     * destroys the very failure being reported. `name` is copied and the original hangs
+     * off `cause` so the classification survives the `ProviderError` wrapping below,
+     * which overwrites `name`.
+     */
+    const annotated = new Error(`${error.message} [${context}]`, { cause: error })
+    annotated.name = error.name
+    annotatedTransportFailures.add(annotated)
+    return annotated
+  }
+
+  /**
+   * The response-side facts worth carrying on a transport failure. `x-request-id` is the
+   * only handle the provider can trace a failed call by.
+   */
+  const describeResponse = (response: Response): Record<string, string | number | null> => ({
+    status: response.status,
+    requestId: response.headers.get('x-request-id'),
+    contentLength: response.headers.get('content-length'),
+    contentEncoding: response.headers.get('content-encoding'),
+  })
+
+  /**
+   * A non-JSON body is usually a gateway or CDN error page and reaches the user-facing
+   * block error, so it is bounded and falls back to `statusText`. A structured provider
+   * message is returned untruncated on purpose: the reasoning-summary strip-and-retry
+   * fallback matches on its text.
+   *
+   * A failed body read is annotated rather than swallowed: a deadline or a cancellation
+   * here must stay distinguishable from an error response that simply carried no body.
+   * The headers already arrived, so this is the body phase even though the status is 4xx.
+   */
+  const parseErrorResponse = async (response: Response, startedAt: number): Promise<string> => {
+    let text: string
+    try {
+      text = await response.text()
+    } catch (error) {
+      throw annotateTransportFailure(
+        error,
+        'reading-response-body',
+        startedAt,
+        describeResponse(response)
+      )
+    }
     try {
       const payload = JSON.parse(text)
-      return payload?.error?.message || text
-    } catch {
-      return text
-    }
+      if (payload?.error?.message) return payload.error.message
+    } catch {}
+    return truncate(text.trim(), 500) || response.statusText || `HTTP ${response.status}`
   }
 
   /**
@@ -270,22 +410,41 @@ export async function executeResponsesProviderRequest(
 
   let reasoningSummariesUnavailable = false
 
+  /**
+   * The single point every Responses request leaves through, so a stall waiting for
+   * headers is named on the streaming paths too — they call
+   * {@link fetchResponsesWithSummaryFallback} directly and never reach `postResponses`,
+   * which is where the annotation used to live.
+   */
+  const postOnce = async (
+    payload: Record<string, unknown>,
+    abortSignal: AbortSignal | undefined,
+    startedAt: number
+  ): Promise<Response> => {
+    try {
+      return await fetchImpl(config.endpoint, {
+        method: 'POST',
+        headers: config.headers,
+        body: JSON.stringify(payload),
+        signal: abortSignal,
+      })
+    } catch (error) {
+      throw annotateTransportFailure(error, 'awaiting-response-headers', startedAt)
+    }
+  }
+
   const fetchResponsesWithSummaryFallback = async (
     requestedBody: Record<string, unknown>,
+    startedAt: number,
     abortSignal = request.abortSignal
   ): Promise<Response> => {
     const body = reasoningSummariesUnavailable
       ? (stripReasoningSummary(requestedBody) ?? requestedBody)
       : requestedBody
-    const response = await fetchImpl(config.endpoint, {
-      method: 'POST',
-      headers: config.headers,
-      body: JSON.stringify(body),
-      signal: abortSignal,
-    })
+    const response = await postOnce(body, abortSignal, startedAt)
     if (response.ok) return response
 
-    const message = await parseErrorResponse(response)
+    const message = await parseErrorResponse(response, startedAt)
     const strippedBody = isReasoningSummaryVerificationError(response.status, message)
       ? stripReasoningSummary(body)
       : null
@@ -298,14 +457,9 @@ export async function executeResponsesProviderRequest(
       `${config.providerLabel} rejected reasoning summaries (organization not verified); retrying without summary`,
       { model: config.modelName }
     )
-    const retryResponse = await fetchImpl(config.endpoint, {
-      method: 'POST',
-      headers: config.headers,
-      body: JSON.stringify(strippedBody),
-      signal: abortSignal,
-    })
+    const retryResponse = await postOnce(strippedBody, abortSignal, startedAt)
     if (!retryResponse.ok) {
-      const retryMessage = await parseErrorResponse(retryResponse)
+      const retryMessage = await parseErrorResponse(retryResponse, startedAt)
       throw new Error(
         `${config.providerLabel} API error (${retryResponse.status}): ${retryMessage}`
       )
@@ -316,8 +470,25 @@ export async function executeResponsesProviderRequest(
   const postResponses = async (
     body: Record<string, unknown>
   ): Promise<OpenAI.Responses.Response> => {
-    const response = await fetchResponsesWithSummaryFallback(body)
-    return response.json()
+    const startedAt = Date.now()
+
+    const response = await fetchResponsesWithSummaryFallback(body, startedAt)
+
+    const responseMeta = { ...describeResponse(response), ttfbMs: Date.now() - startedAt }
+
+    let parsed: OpenAI.Responses.Response
+    try {
+      parsed = await response.json()
+    } catch (error) {
+      throw annotateTransportFailure(error, 'reading-response-body', startedAt, responseMeta)
+    }
+
+    /**
+     * Placed here so every tool-loop turn is covered, and outside the transport `try` so
+     * a rejected generation is not misreported as a transport failure.
+     */
+    assertUsableResponse(parsed, config.providerLabel)
+    return parsed
   }
 
   const providerStartTime = Date.now()
@@ -355,7 +526,11 @@ export async function executeResponsesProviderRequest(
             initialToolChoice: responsesToolChoice,
             forcedTools: preparedTools?.forcedTools,
             createStream: (input, overrides, abortSignal) =>
-              fetchResponsesWithSummaryFallback(createRequestBody(input, overrides), abortSignal),
+              fetchResponsesWithSummaryFallback(
+                createRequestBody(input, overrides),
+                Date.now(),
+                abortSignal
+              ),
             logger,
             timeSegments,
             onComplete: (result) => {
@@ -379,7 +554,8 @@ export async function executeResponsesProviderRequest(
       logger.info(`Using streaming response for ${config.providerLabel} request`)
 
       const streamResponse = await fetchResponsesWithSummaryFallback(
-        createRequestBody(initialInput, { stream: true })
+        createRequestBody(initialInput, { stream: true }),
+        Date.now()
       )
 
       const streamingResult = createStreamingExecution({
@@ -528,17 +704,27 @@ export async function executeResponsesProviderRequest(
             }
           }
 
-          const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-          const result = await executeTool(toolName, executionParams, {
-            signal: request.abortSignal,
-          })
+          const { toolParams, executionParams } = prepareToolExecution(
+            tool,
+            toolArgs,
+            request,
+            toolCall.id
+          )
+          const { rawResponse, modelResponse } = await executeProviderTool(
+            toolName,
+            executionParams,
+            {
+              signal: request.abortSignal,
+            }
+          )
           const toolCallEndTime = Date.now()
 
           return {
             toolCall,
             toolName,
             toolParams,
-            result,
+            result: rawResponse,
+            modelResult: modelResponse,
             startTime: toolCallStartTime,
             endTime: toolCallEndTime,
             duration: toolCallEndTime - toolCallStartTime,
@@ -571,6 +757,10 @@ export async function executeResponsesProviderRequest(
       for (const executionResult of executionResults) {
         const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
           executionResult
+        const modelResult =
+          'modelResult' in executionResult && executionResult.modelResult
+            ? executionResult.modelResult
+            : result
 
         timeSegments.push({
           type: 'tool',
@@ -594,6 +784,13 @@ export async function executeResponsesProviderRequest(
             tool: toolName,
           }
         }
+        const modelResultContent = modelResult.success
+          ? (modelResult.output ?? null)
+          : {
+              error: true,
+              message: modelResult.error || 'Tool execution failed',
+              tool: toolName,
+            }
 
         toolCalls.push({
           name: toolName,
@@ -608,7 +805,7 @@ export async function executeResponsesProviderRequest(
         currentInput.push({
           type: 'function_call_output',
           call_id: toolCall.id,
-          output: JSON.stringify(resultContent),
+          output: JSON.stringify(modelResultContent),
         })
       }
 
@@ -722,10 +919,14 @@ export async function executeResponsesProviderRequest(
       throw error
     }
 
-    throw new ProviderError(toError(error).message, {
-      startTime: providerStartTimeISO,
-      endTime: providerEndTimeISO,
-      duration: totalDuration,
-    })
+    throw new ProviderError(
+      toError(error).message,
+      {
+        startTime: providerStartTimeISO,
+        endTime: providerEndTimeISO,
+        duration: totalDuration,
+      },
+      { cause: error }
+    )
   }
 }

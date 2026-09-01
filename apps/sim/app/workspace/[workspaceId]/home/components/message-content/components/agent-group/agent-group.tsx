@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui'
+import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { type ToolCallData, ToolCallStatus } from '../../../../types'
 import { getAgentIcon, isToolDone } from '../../utils'
+import { CredentialDisplay } from '../special-tags'
 import { renderInlineMarkdown } from './inline-markdown'
 import { ToolCallItem } from './tool-call-item'
 
@@ -40,6 +43,27 @@ interface AgentGroupProps {
   isLaneOpen?: boolean
 }
 
+function toolStatusTitle(tool: ToolCallData): string {
+  return tool.displayTitle || String(tool.toolName ?? '')
+}
+
+/**
+ * Every tool in a group, in stream order, including those run by nested
+ * agents. A parent's status line speaks for the whole subtree it delegated,
+ * so a grandchild's work is what surfaces while the parent itself waits.
+ */
+function collectGroupTools(items: AgentGroupItem[]): ToolCallData[] {
+  const tools: ToolCallData[] = []
+  const walk = (list: AgentGroupItem[]) => {
+    for (const item of list) {
+      if (item.type === 'tool') tools.push(item.data)
+      else if (item.type === 'agent_group') walk(item.group.items)
+    }
+  }
+  walk(items)
+  return tools
+}
+
 /** True when any row in this group (or a nested one) is waiting on a permission decision. */
 function hasAwaitingApproval(items: AgentGroupItem[]): boolean {
   return items.some((item) => {
@@ -47,6 +71,44 @@ function hasAwaitingApproval(items: AgentGroupItem[]): boolean {
     // Text rows carry no tool calls, so only nested groups need recursing into.
     return item.type === 'agent_group' ? hasAwaitingApproval(item.group.items) : false
   })
+}
+
+interface ActiveBrowserTakeover {
+  id: string
+  reason: string
+}
+
+/** Returns this group's own active browser hand-back, if any. */
+function getActiveBrowserTakeover(items: AgentGroupItem[]): ActiveBrowserTakeover | null {
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]
+    if (item.type !== 'tool') continue
+    if (
+      item.data.toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID &&
+      item.data.status === ToolCallStatus.executing
+    ) {
+      const reason = item.data.params?.reason
+      return {
+        id: item.data.id,
+        reason: typeof reason === 'string' ? reason.trim() : '',
+      }
+    }
+    // Browser-agent tools are serialized. Once a newer tool exists, an older
+    // executing takeover is stale and must not keep a question on screen.
+    return null
+  }
+  return null
+}
+
+/** True when a nested group owns a browser hand-back question. */
+function hasNestedBrowserTakeover(items: AgentGroupItem[]): boolean {
+  return items.some(
+    (item) =>
+      item.type === 'agent_group' &&
+      item.group.isOpen &&
+      (getActiveBrowserTakeover(item.group.items) !== null ||
+        hasNestedBrowserTakeover(item.group.items))
+  )
 }
 
 export function isAgentGroupResolved(items: AgentGroupItem[]): boolean {
@@ -73,66 +135,105 @@ export function AgentGroup({
   isLaneOpen = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
+  const isMainAgent = agentName === 'mothership'
+  // Collapsed status line: the latest tool call, always in its RUNNING
+  // phrasing — it never flips to the completed rewrite (that lives in the
+  // expanded log). Work delegated further down bubbles up, so a group whose
+  // own turn is idle still narrates what its nested agent is doing rather
+  // than freezing on its last own tool. With several tools running at any
+  // depth, the most recently started wins and the rest become "+ n"; between
+  // rounds the last tool's title stays frozen; a closed lane shows the bare
+  // name.
+  const status = useMemo(() => {
+    if (isMainAgent || !isLaneOpen) return undefined
+    const tools = collectGroupTools(items)
+    const running = tools.filter((tool) => tool.status === ToolCallStatus.executing)
+    if (running.length > 0) {
+      const latest = running.reduce((newest, tool) =>
+        (tool.startedAt ?? 0) >= (newest.startedAt ?? 0) ? tool : newest
+      )
+      const title = toolStatusTitle(latest)
+      return running.length > 1 ? `${title} + ${running.length - 1}` : title
+    }
+    const last = tools.at(-1)
+    return last ? toolStatusTitle(last) : undefined
+  }, [isLaneOpen, isMainAgent, items])
+  const headerText = status ? `${agentLabel} — ${status}` : agentLabel
   const hasItems = items.length > 0
   const resolved = isAgentGroupResolved(items)
-  const isWorking = (isDelegating && !resolved) || (isStreaming && isLaneOpen)
+  const browserAgentAvailable = isBrowserAgentAvailable()
+  const activeBrowserTakeover =
+    browserAgentAvailable && isLaneOpen ? getActiveBrowserTakeover(items) : null
+  const nestedBrowserTakeover = browserAgentAvailable && hasNestedBrowserTakeover(items)
+  const isWorking =
+    !activeBrowserTakeover && ((isDelegating && !resolved) || (isStreaming && isLaneOpen))
 
-  // Expand while the turn is live and any of: the lane is open (the subagent is
-  // actively running), this is the current/latest section, or there is unresolved
-  // work. A finished group stays open until the NEXT section starts (it is no
-  // longer the latest), instead of collapsing the instant its own work resolves.
-  // Keying "still running" off the lane-open signal (not `resolved` alone) avoids
-  // a collapse/reopen flicker on parallel siblings: a subagent's tools all
-  // momentarily read "done" in the gap between its last search and its `respond`
-  // ("Gathering thoughts") tool, transiently flipping `resolved` true; the open
-  // lane bridges that gap so the row never collapses mid-run. The turn ending
-  // (isStreaming false) collapses everything; a manual toggle pins the choice.
-  const autoExpanded = isStreaming && (isCurrentSection || isLaneOpen || !resolved)
+  // SUBAGENT groups never auto-expand: the collapsed row IS the live view —
+  // label plus latest running tool title. Expanding is a deliberate user
+  // action; only a pending permission prompt or a browser hand-back forces
+  // one open. The MAIN lane ("Sim") is not a delegation card: its narration
+  // and tool calls are the turn itself, so it keeps the original live-expand
+  // behavior (open while streaming/current, settles when superseded).
+  const autoExpanded = isMainAgent && isStreaming && (isCurrentSection || isLaneOpen || !resolved)
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
+  const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
   // An outstanding permission prompt overrides a manual collapse: the turn
   // cannot proceed until it is answered, so hiding it would deadlock the chat
   // with nothing on screen to explain why.
-  const expanded = hasAwaitingApproval(items) || (manualExpanded ?? autoExpanded)
+  const expanded =
+    hasAwaitingApproval(items) ||
+    nestedBrowserTakeover ||
+    (activeBrowserTakeover
+      ? expandedTakeoverId === activeBrowserTakeover.id
+      : (manualExpanded ?? autoExpanded))
+
+  const toggleExpanded = () => {
+    if (activeBrowserTakeover) {
+      setExpandedTakeoverId(expanded ? null : activeBrowserTakeover.id)
+      return
+    }
+    setManualExpanded(!expanded)
+  }
 
   return (
     <div className='flex flex-col gap-1.5'>
       {hasItems ? (
         <button
           type='button'
-          onClick={() => setManualExpanded(!expanded)}
-          className='group/agent flex cursor-pointer items-center gap-2'
+          onClick={toggleExpanded}
+          className='group/agent flex w-full min-w-0 cursor-pointer items-center gap-2 text-left'
         >
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
             <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
           </div>
           {isWorking ? (
-            <ShimmerText className='text-sm'>{agentLabel}</ShimmerText>
+            <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (
-            <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
+            <OverflowText label={headerText} className='text-[var(--text-body)] text-sm' />
           )}
           <ChevronDown
             className={cn(
-              'h-[7px] w-[9px] text-[var(--text-icon)] opacity-0 transition-[transform,opacity] duration-150 group-hover/agent:opacity-100 group-focus-visible/agent:opacity-100',
+              'size-[14px] flex-shrink-0 text-[var(--text-icon)] opacity-0 transition-[transform,opacity] duration-150 group-hover/agent:opacity-100 group-focus-visible/agent:opacity-100',
               !expanded && '-rotate-90'
             )}
           />
         </button>
       ) : (
-        <div className='flex items-center gap-2'>
+        <div className='flex min-w-0 items-center gap-2'>
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
             <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
           </div>
           {isWorking ? (
-            <ShimmerText className='text-sm'>{agentLabel}</ShimmerText>
+            <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (
-            <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
+            <OverflowText label={headerText} className='text-[var(--text-body)] text-sm' />
           )}
         </div>
       )}
       {hasItems && (
         <Expandable expanded={expanded}>
           <ExpandableContent>
-            <BoundedViewport isStreaming={isStreaming}>
+            <BoundedViewport isStreaming={isStreaming} unbounded={nestedBrowserTakeover}>
               <div className='flex flex-col gap-1.5 py-0.5'>
                 {items.map((item, idx) => {
                   if (item.type === 'tool') {
@@ -144,6 +245,7 @@ export function AgentGroup({
                         displayTitle={item.data.displayTitle}
                         status={item.data.status}
                         params={item.data.params}
+                        result={item.data.result}
                         streamingArgs={item.data.streamingArgs}
                         startedAt={item.data.startedAt}
                       />
@@ -177,6 +279,13 @@ export function AgentGroup({
           </ExpandableContent>
         </Expandable>
       )}
+      {activeBrowserTakeover && (
+        <div key={activeBrowserTakeover.id} className='animate-stream-fade-in'>
+          <CredentialDisplay
+            data={[{ type: 'browser_takeover', name: activeBrowserTakeover.reason }]}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -205,11 +314,13 @@ function NarrationText({ content, isStreaming }: NarrationTextProps) {
 interface BoundedViewportProps {
   children: React.ReactNode
   isStreaming: boolean
+  /** A nested blocking interaction must not be clipped by this ancestor's log viewport. */
+  unbounded?: boolean
 }
 
 const BOTTOM_STICK_THRESHOLD_PX = 8
 
-function BoundedViewport({ children, isStreaming }: BoundedViewportProps) {
+function BoundedViewport({ children, isStreaming, unbounded = false }: BoundedViewportProps) {
   const ref = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   const stickToBottomRef = useRef(true)
@@ -217,6 +328,10 @@ function BoundedViewport({ children, isStreaming }: BoundedViewportProps) {
   const [hasOverflow, setHasOverflow] = useState(false)
 
   useEffect(() => {
+    if (unbounded) {
+      stickToBottomRef.current = true
+      return
+    }
     const el = ref.current
     if (!el) return
     // Upward user input detaches auto-stick; a downward scroll reaching the
@@ -237,17 +352,21 @@ function BoundedViewport({ children, isStreaming }: BoundedViewportProps) {
       el.removeEventListener('wheel', handleWheel)
       el.removeEventListener('scroll', handleScroll)
     }
-  }, [])
+  }, [unbounded])
 
   useLayoutEffect(() => {
     const el = ref.current
-    if (el) {
-      const next = el.scrollHeight > el.clientHeight
-      setHasOverflow((prev) => (prev === next ? prev : next))
-    }
     if (rafRef.current !== null) {
       window.cancelAnimationFrame(rafRef.current)
       rafRef.current = null
+    }
+    if (unbounded) {
+      setHasOverflow(false)
+      return
+    }
+    if (el) {
+      const next = el.scrollHeight > el.clientHeight
+      setHasOverflow((prev) => (prev === next ? prev : next))
     }
     if (!isStreaming) return
     const tick = () => {
@@ -278,11 +397,15 @@ function BoundedViewport({ children, isStreaming }: BoundedViewportProps) {
     <div className='relative'>
       <div
         ref={ref}
-        className={cn('scrollbar-hide max-h-[110px] overflow-y-auto pr-2', hasOverflow && 'py-1')}
+        className={cn(
+          'pr-2',
+          !unbounded && 'scrollbar-hide max-h-[110px] overflow-y-auto',
+          hasOverflow && 'py-1'
+        )}
       >
         {children}
       </div>
-      {hasOverflow && (
+      {!unbounded && hasOverflow && (
         <>
           <div className='pointer-events-none absolute top-0 right-2 left-0 h-3 bg-gradient-to-b from-[var(--bg)] to-transparent' />
           <div className='pointer-events-none absolute right-2 bottom-0 left-0 h-3 bg-gradient-to-t from-[var(--bg)] to-transparent' />

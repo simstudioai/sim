@@ -1,7 +1,9 @@
+import { type ExternalUserSubject, serializePrincipal } from '@sim/auth/principal'
 import { db, webhook, webhookPathClaim, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -15,6 +17,7 @@ import {
 } from '@/lib/core/admission/transient-failure'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { toTriggerMaxDurationSeconds } from '@/lib/core/execution-limits'
 import {
   assertContentLengthWithinLimit,
   isPayloadSizeLimitError,
@@ -24,6 +27,7 @@ import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
+import { createWebhookExecutionPrincipal } from '@/lib/webhooks/execution-principal'
 import {
   getPendingWebhookVerification,
   matchesPendingWebhookVerificationProbe,
@@ -56,10 +60,13 @@ export interface WebhookProcessorOptions {
   billingAttribution?: BillingAttributionSnapshot
   executionId?: string
   correlation?: AsyncExecutionCorrelation
+  executionTimeoutMs?: number
   /** Epoch ms when the webhook HTTP request was first received (for dispatch-latency metrics). */
   receivedAt?: number
   /** Epoch ms of the originating provider interaction (e.g. Slack x-slack-request-timestamp). */
   triggerTimestampMs?: number
+  /** Provider-authenticated external actor. Never derived from workflow input. */
+  subject?: ExternalUserSubject
 }
 
 export interface WebhookPreprocessingResult {
@@ -69,9 +76,36 @@ export interface WebhookPreprocessingResult {
   billingAttribution?: BillingAttributionSnapshot
   executionId?: string
   correlation?: AsyncExecutionCorrelation
+  executionTimeoutMs?: number
 }
 
 const WEBHOOK_BODY_LABEL = 'Webhook request body'
+const MAX_WEBHOOK_TARGETS_PER_LOOKUP = 1_000
+
+/**
+ * Flattens a `multipart/form-data` body into the plain object shape provider handlers
+ * already receive from JSON and urlencoded bodies. Jotform posts submissions this way,
+ * and every field it sends is text.
+ *
+ * Parsing the decoded body rather than the original bytes is safe here because the parts
+ * are delimited by an ASCII boundary and an uploaded part is reduced to its filename —
+ * its bytes are never read, so re-encoding cannot corrupt anything we keep. Discarding
+ * them also stops a stray upload from inflating the execution input.
+ */
+async function parseMultipartBody(
+  rawBody: string,
+  contentType: string
+): Promise<Record<string, unknown>> {
+  const formData = await new Response(rawBody, {
+    headers: { 'content-type': contentType },
+  }).formData()
+
+  const fields: Record<string, unknown> = {}
+  for (const [key, value] of formData.entries()) {
+    fields[key] = typeof value === 'string' ? value : value.name
+  }
+  return fields
+}
 
 export async function parseWebhookBody(
   request: NextRequest,
@@ -117,6 +151,8 @@ export async function parseWebhookBody(
       } else {
         body = Object.fromEntries(formData.entries())
       }
+    } else if (contentType.includes('multipart/form-data')) {
+      body = await parseMultipartBody(rawBody, contentType)
     } else {
       body = JSON.parse(rawBody)
     }
@@ -135,6 +171,8 @@ export async function parseWebhookBody(
 /** Providers that implement challenge/verification handling, checked before webhook lookup. */
 const CHALLENGE_PROVIDERS = ['monday', 'slack', 'microsoft-teams', 'whatsapp', 'zoom'] as const
 
+const DEFAULT_CHALLENGE_METHODS = ['POST'] as const
+
 export async function handleProviderChallenges(
   body: unknown,
   request: NextRequest,
@@ -144,11 +182,19 @@ export async function handleProviderChallenges(
 ): Promise<NextResponse | null> {
   for (const provider of CHALLENGE_PROVIDERS) {
     const handler = getProviderHandler(provider)
-    if (handler.handleChallenge) {
-      const response = await handler.handleChallenge(body, request, requestId, path, rawBody)
-      if (response) {
-        return response
-      }
+    if (!handler.handleChallenge) continue
+
+    /**
+     * Challenge handlers run before the webhook lookup and match on payload shape alone, so one
+     * that answers on a method its provider never uses will intercept another provider's
+     * delivery to the same path. `POST` is the default because every handshake but Meta's is one.
+     */
+    const allowedMethods = handler.challengeMethods ?? DEFAULT_CHALLENGE_METHODS
+    if (!allowedMethods.includes(request.method)) continue
+
+    const response = await handler.handleChallenge(body, request, requestId, path, rawBody)
+    if (response) {
+      return response
     }
   }
   return null
@@ -297,84 +343,6 @@ export function handlePreDeploymentVerification(
   return null
 }
 
-async function findWebhookAndWorkflow(
-  options: WebhookProcessorOptions
-): Promise<WebhookTarget | null> {
-  if (options.webhookId) {
-    const results = await db
-      .select({
-        webhook: webhook,
-        workflow: workflow,
-      })
-      .from(webhook)
-      .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .leftJoin(
-        workflowDeploymentVersion,
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflow.id),
-          eq(workflowDeploymentVersion.isActive, true)
-        )
-      )
-      .where(
-        and(
-          eq(webhook.id, options.webhookId),
-          deliverableWebhookPredicate(webhook),
-          isNull(workflow.archivedAt),
-          or(
-            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
-            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
-          )
-        )
-      )
-      .limit(1)
-
-    if (results.length === 0) {
-      logger.warn(`[${options.requestId}] No active webhook found for id: ${options.webhookId}`)
-      return null
-    }
-
-    return { webhook: results[0].webhook, workflow: results[0].workflow }
-  }
-
-  if (options.path) {
-    const results = await db
-      .select({
-        webhook: webhook,
-        workflow: workflow,
-      })
-      .from(webhook)
-      .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .leftJoin(
-        workflowDeploymentVersion,
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflow.id),
-          eq(workflowDeploymentVersion.isActive, true)
-        )
-      )
-      .where(
-        and(
-          eq(webhook.path, options.path),
-          deliverableWebhookPredicate(webhook),
-          isNull(workflow.archivedAt),
-          or(
-            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
-            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
-          )
-        )
-      )
-      .limit(1)
-
-    if (results.length === 0) {
-      logger.warn(`[${options.requestId}] No active webhook found for path: ${options.path}`)
-      return null
-    }
-
-    return { webhook: results[0].webhook, workflow: results[0].workflow }
-  }
-
-  return null
-}
-
 /**
  * Finds all webhooks matching a path, scoped to a single workflow.
  *
@@ -416,6 +384,13 @@ export async function findAllWebhooksForPath(
         )
       )
     )
+    .limit(MAX_WEBHOOK_TARGETS_PER_LOOKUP + 1)
+
+  if (results.length > MAX_WEBHOOK_TARGETS_PER_LOOKUP) {
+    throw new Error(
+      `Webhook path resolves more than ${MAX_WEBHOOK_TARGETS_PER_LOOKUP} active webhooks`
+    )
+  }
 
   if (results.length === 0) {
     logger.warn(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
@@ -514,6 +489,13 @@ export async function findWebhooksByRoutingKey(
         )
       )
     )
+    .limit(MAX_WEBHOOK_TARGETS_PER_LOOKUP + 1)
+
+  if (results.length > MAX_WEBHOOK_TARGETS_PER_LOOKUP) {
+    throw new Error(
+      `Routing key resolves more than ${MAX_WEBHOOK_TARGETS_PER_LOOKUP} active ${provider} webhooks`
+    )
+  }
 
   if (results.length === 0) {
     logger.warn(`[${requestId}] No active ${provider} webhooks for routing key`)
@@ -637,6 +619,7 @@ export async function checkWebhookPreprocessing(
       checkDeployment: true,
       workspaceId: foundWorkflow.workspaceId ?? undefined,
       workflowRecord: foundWorkflow,
+      executionType: 'async',
     })
 
     if (!preprocessResult.success) {
@@ -663,6 +646,7 @@ export async function checkWebhookPreprocessing(
       billingAttribution: preprocessResult.billingAttribution,
       executionId,
       correlation,
+      executionTimeoutMs: preprocessResult.executionTimeout.async,
     }
   } catch (preprocessError) {
     logger.error(`[${requestId}] Error during webhook preprocessing:`, preprocessError)
@@ -688,9 +672,7 @@ export interface WebhookDispatchResult {
 }
 
 function parseProviderConfig(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
 }
 
 function getCredentialId(providerConfig: Record<string, unknown>): string | undefined {
@@ -728,6 +710,7 @@ async function queueWebhookExecutionWithResult(
     }
 
     const credentialId = getCredentialId(providerConfig)
+    const query = Object.fromEntries(new URL(request.url).searchParams)
 
     const actorUserId = options.actorUserId
     const billingAttribution = options.billingAttribution
@@ -761,6 +744,15 @@ async function queueWebhookExecutionWithResult(
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
+      principal: serializePrincipal(
+        createWebhookExecutionPrincipal({
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id,
+          workspaceId,
+          provider: foundWebhook.provider,
+          ...(options.subject ? { subject: options.subject } : {}),
+        })
+      ),
       userId: actorUserId,
       billingAttribution,
       executionId,
@@ -769,6 +761,8 @@ async function queueWebhookExecutionWithResult(
       provider: foundWebhook.provider,
       body,
       headers,
+      method: request.method,
+      ...(Object.keys(query).length > 0 ? { query } : {}),
       path: options.path || foundWebhook.path || '',
       blockId: foundWebhook.blockId ?? undefined,
       ...(foundWebhook.deploymentVersionId
@@ -780,9 +774,13 @@ async function queueWebhookExecutionWithResult(
       ...(options.triggerTimestampMs !== undefined
         ? { triggerTimestampMs: options.triggerTimestampMs }
         : {}),
+      ...(options.executionTimeoutMs !== undefined
+        ? { executionTimeoutMs: options.executionTimeoutMs }
+        : {}),
     } satisfies WebhookExecutionPayload
 
     const shouldUseQueue = shouldUseDurableQueue(payload.provider, handler)
+    const maxDurationSeconds = toTriggerMaxDurationSeconds(options.executionTimeoutMs)
 
     if (shouldUseQueue && !shouldExecuteInline()) {
       const jobId = await (await getJobQueue()).enqueue('webhook-execution', payload, {
@@ -792,6 +790,7 @@ async function queueWebhookExecutionWithResult(
           userId: actorUserId,
           correlation,
         },
+        maxDurationSeconds,
       })
       reservationTransferred = true
       logger.info(
@@ -806,41 +805,14 @@ async function queueWebhookExecutionWithResult(
           userId: actorUserId,
           correlation,
         },
+        maxDurationSeconds,
+        runner: (_queuedPayload: unknown, signal: AbortSignal) =>
+          executeWebhookJob(payload, signal),
       })
       reservationTransferred = true
       logger.info(
         `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
       )
-
-      void (async () => {
-        let workerOwnsReservation = false
-        try {
-          await jobQueue.startJob(jobId)
-          workerOwnsReservation = true
-          const output = await executeWebhookJob(payload)
-          await jobQueue.completeJob(jobId, output)
-        } catch (error) {
-          const errorMessage = toError(error).message
-          logger.error(`[${options.requestId}] Webhook execution failed`, {
-            jobId,
-            error: errorMessage,
-          })
-          if (!workerOwnsReservation) {
-            await releaseExecutionSlot(executionId)
-          }
-          try {
-            await jobQueue.markJobFailed(jobId, errorMessage)
-          } catch (markFailedError) {
-            logger.error(`[${options.requestId}] Failed to mark job as failed`, {
-              jobId,
-              error:
-                markFailedError instanceof Error
-                  ? markFailedError.message
-                  : String(markFailedError),
-            })
-          }
-        }
-      })()
     }
 
     const successResponse = handler.formatSuccessResponse?.(providerConfig) ?? null
@@ -954,6 +926,7 @@ export async function dispatchResolvedWebhookTarget(
     billingAttribution: preprocessResult.billingAttribution,
     executionId: preprocessResult.executionId,
     correlation: preprocessResult.correlation,
+    executionTimeoutMs: preprocessResult.executionTimeoutMs,
   })
 }
 
@@ -1075,6 +1048,14 @@ export async function processPolledWebhookEvent(
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
+      principal: serializePrincipal(
+        createWebhookExecutionPrincipal({
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id,
+          workspaceId,
+          provider,
+        })
+      ),
       userId: actorUserId,
       billingAttribution,
       executionId,
@@ -1090,9 +1071,13 @@ export async function processPolledWebhookEvent(
         : {}),
       workspaceId,
       ...(credentialId ? { credentialId } : {}),
+      ...(preprocessResult.executionTimeoutMs !== undefined
+        ? { executionTimeoutMs: preprocessResult.executionTimeoutMs }
+        : {}),
     } satisfies WebhookExecutionPayload
 
     const isQueueRoutedProvider = shouldUseDurableQueue(provider, getProviderHandler(provider))
+    const maxDurationSeconds = toTriggerMaxDurationSeconds(preprocessResult.executionTimeoutMs)
     if (isQueueRoutedProvider && !shouldExecuteInline()) {
       const jobId = await (await getJobQueue()).enqueue('webhook-execution', payload, {
         metadata: {
@@ -1101,6 +1086,7 @@ export async function processPolledWebhookEvent(
           userId: actorUserId,
           correlation,
         },
+        maxDurationSeconds,
       })
       reservationTransferred = true
       logger.info(
@@ -1115,39 +1101,12 @@ export async function processPolledWebhookEvent(
           userId: actorUserId,
           correlation,
         },
+        maxDurationSeconds,
+        runner: (_queuedPayload: unknown, signal: AbortSignal) =>
+          executeWebhookJob(payload, signal),
       })
       reservationTransferred = true
       logger.info(`[${requestId}] Queued ${provider} webhook execution ${jobId} via inline backend`)
-
-      void (async () => {
-        let workerOwnsReservation = false
-        try {
-          await jobQueue.startJob(jobId)
-          workerOwnsReservation = true
-          const output = await executeWebhookJob(payload)
-          await jobQueue.completeJob(jobId, output)
-        } catch (error) {
-          const errorMessage = toError(error).message
-          logger.error(`[${requestId}] Webhook execution failed`, {
-            jobId,
-            error: errorMessage,
-          })
-          if (!workerOwnsReservation) {
-            await releaseExecutionSlot(executionId)
-          }
-          try {
-            await jobQueue.markJobFailed(jobId, errorMessage)
-          } catch (markFailedError) {
-            logger.error(`[${requestId}] Failed to mark job as failed`, {
-              jobId,
-              error:
-                markFailedError instanceof Error
-                  ? markFailedError.message
-                  : String(markFailedError),
-            })
-          }
-        }
-      })()
     }
 
     return { success: true, executionId }

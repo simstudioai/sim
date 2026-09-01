@@ -15,6 +15,7 @@ describe('isServiceAccountProviderId', () => {
     expect(isServiceAccountProviderId('slack-custom-bot')).toBe(true)
     expect(isServiceAccountProviderId('notion-service-account')).toBe(true)
     expect(isServiceAccountProviderId('salesforce-service-account')).toBe(true)
+    expect(isServiceAccountProviderId('netsuite-service-account')).toBe(true)
   })
 
   it('is case- and whitespace-insensitive', () => {
@@ -33,7 +34,7 @@ describe('isServiceAccountProviderId', () => {
 })
 
 describe('getServiceAccountGatingBlockType', () => {
-  it('maps the custom Slack bot to slack_v2 and leaves everything else ungated', () => {
+  it('maps the custom Slack bot to its owning block and leaves everything else independent', () => {
     expect(getServiceAccountGatingBlockType('slack-custom-bot')).toBe('slack_v2')
     expect(getServiceAccountGatingBlockType('notion-service-account')).toBeNull()
     expect(getServiceAccountGatingBlockType('google-service-account')).toBeNull()
@@ -50,6 +51,7 @@ describe('getServiceAccountConnectNoun', () => {
 
   it('names the client-credential secret', () => {
     expect(getServiceAccountConnectNoun('zoom-service-account')).toBe('server-to-server app')
+    expect(getServiceAccountConnectNoun('netsuite-service-account')).toBe('OAuth certificate')
   })
 
   it('calls a custom Slack bot a custom bot', () => {

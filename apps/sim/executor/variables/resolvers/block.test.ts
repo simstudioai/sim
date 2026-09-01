@@ -1,8 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { ExecutionState } from '@/executor/execution/state'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import { BlockResolver } from './block'
 import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
+
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  insertFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
+  deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
+}))
 
 /**
  * Minimal block configs providing only the fields needed by getBlockSchema / getEffectiveBlockOutputs.
@@ -612,6 +624,76 @@ describe('BlockResolver', () => {
 
       expect(resolver.resolve('<source>', ctx)).toEqual({ fallback: true })
     })
+
+    it('imports only the provenance attached to the referenced block state', async () => {
+      const workflow = createTestWorkflow([{ id: 'source' }])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext('current')
+      const registry = new ResolvedSecretTraceRegistry()
+      ctx.executionContext.resolvedSecretTraceRegistry = registry
+      ctx.executionState.setBlockOutput('source', { result: 'secret-value' }, 0, {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'API_KEY', encryptedValue: 'secret-value' }],
+      })
+
+      await expect(resolver.resolveAsync('<source.result>', ctx)).resolves.toBe('secret-value')
+      expect(registry.getActiveMatches()).toEqual([
+        { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
+      ])
+    })
+
+    it('filters compacted block candidates against the exact selected leaf', async () => {
+      const workflow = createTestWorkflow([{ id: 'source' }])
+      const resolver = new BlockResolver(workflow, navigatePathAsync)
+      const compacted = await compactExecutionPayload(
+        {
+          result: {
+            huge: 'p'.repeat(9 * 1024 * 1024),
+            public: 'ok',
+            secret: 'secret-value',
+          },
+        },
+        {
+          preserveRoot: true,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
+      )
+      expect(isLargeValueRef(compacted.result.huge)).toBe(true)
+      const candidateProvenance = {
+        version: 1 as const,
+        complete: true,
+        entries: [{ name: 'API_KEY', encryptedValue: 'secret-value' }],
+      }
+
+      const publicRegistry = new ResolvedSecretTraceRegistry()
+      const publicContext = createTestContext('current')
+      publicContext.inputPath = ['prompt']
+      publicContext.executionContext.resolvedSecretTraceRegistry = publicRegistry
+      publicContext.executionState.setBlockOutput('source', compacted, 0, candidateProvenance)
+
+      await expect(resolver.resolveAsync('<source.result.public>', publicContext)).resolves.toBe(
+        'ok'
+      )
+      expect(publicRegistry.isComplete()).toBe(true)
+      expect(publicRegistry.getActiveMatches()).toEqual([])
+
+      const secretRegistry = new ResolvedSecretTraceRegistry()
+      const secretContext = createTestContext('current')
+      secretContext.inputPath = ['prompt']
+      secretContext.executionContext.resolvedSecretTraceRegistry = secretRegistry
+      secretContext.executionState.setBlockOutput('source', compacted, 0, candidateProvenance)
+
+      await expect(resolver.resolveAsync('<source.result.secret>', secretContext)).resolves.toBe(
+        'secret-value'
+      )
+      expect(secretRegistry.isComplete()).toBe(true)
+      expect(secretRegistry.getActiveMatches()).toEqual([
+        { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
+      ])
+    })
   })
 
   describe('formatValueForBlock', () => {
@@ -627,6 +709,17 @@ describe('BlockResolver', () => {
       expect(resolver.formatValueForBlock('quote "test"', 'condition')).toBe('"quote \\"test\\""')
       expect(resolver.formatValueForBlock('backslash \\', 'condition')).toBe('"backslash \\\\"')
       expect(resolver.formatValueForBlock('tab\there', 'condition')).toBe('"tab\there"')
+    })
+
+    it.concurrent('should escape the quotes it does not open for condition block', () => {
+      // The author's quoting decides which literal this lands in, so escaping only the
+      // double quote this wrapper opens leaves the other contexts breakable.
+      const resolver = new BlockResolver(createTestWorkflow())
+      expect(resolver.formatValueForBlock("' + evil() + '", 'condition')).toBe(
+        '"\\\' + evil() + \\\'"'
+      )
+      expect(resolver.formatValueForBlock(`\${evil()}`, 'condition')).toBe(`"\\\${evil()}"`)
+      expect(resolver.formatValueForBlock('`evil()`', 'condition')).toBe('"\\`evil()\\`"')
     })
 
     it.concurrent('should format object for condition block', () => {

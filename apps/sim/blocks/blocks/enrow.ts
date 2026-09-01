@@ -9,11 +9,23 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.',
-  docsLink: 'https://enrow.readme.io',
+  docsLink: 'https://docs.sim.ai/integrations/enrow',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: EnrowIcon,
+  canvasPresentation: {
+    defaultTitle: 'Enrow',
+    sentences: {
+      byOperation: {
+        enrow_find_email: [
+          { text: 'Find email address for', field: 'fullname', core: true },
+          { text: 'at', field: ['company_domain', 'company_name'] },
+        ],
+        enrow_verify_email: [{ text: 'Verify deliverability of', field: 've_email', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -116,9 +128,10 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
     email: { type: 'string', description: 'Email address found or verified' },
     qualification: { type: 'string', description: '"valid" or "invalid"' },
     fullname: { type: 'string', description: 'Full name of the person (find only)' },
+    firstname: { type: 'string', description: 'First name of the person (find only)' },
+    lastname: { type: 'string', description: 'Last name of the person (find only)' },
     company_name: { type: 'string', description: 'Company name (find only)' },
     company_domain: { type: 'string', description: 'Company domain (find only)' },
-    linkedin_url: { type: 'string', description: 'LinkedIn URL of the person (find only)' },
   },
 }
 

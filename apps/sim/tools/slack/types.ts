@@ -238,28 +238,6 @@ export const MESSAGE_OUTPUT: OutputProperty = {
 }
 
 /**
- * Messages array output definition for list/reader tools
- */
-export const MESSAGES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of message objects',
-  items: {
-    type: 'object',
-    properties: MESSAGE_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
- * Output definition for channel topic/purpose nested objects
- * Based on Slack conversation object structure
- */
-export const CHANNEL_TOPIC_OUTPUT_PROPERTIES = {
-  value: { type: 'string', description: 'Topic or purpose text' },
-  creator: { type: 'string', description: 'User ID who set it' },
-  last_set: { type: 'number', description: 'Unix timestamp when last set' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
  * Output definition for channel objects
  * Based on Slack conversation object (https://api.slack.com/types/conversation)
  */
@@ -312,65 +290,6 @@ export const SCHEDULED_MESSAGE_OUTPUT_PROPERTIES = {
   post_at: { type: 'number', description: 'Unix timestamp when the message will post' },
   date_created: { type: 'number', description: 'Unix timestamp when the schedule was created' },
   text: { type: 'string', description: 'Scheduled message text', optional: true },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete channel object output definition
- */
-export const CHANNEL_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Slack channel object',
-  properties: CHANNEL_OUTPUT_PROPERTIES,
-}
-
-/**
- * Channels array output definition
- */
-export const CHANNELS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of channel objects',
-  items: {
-    type: 'object',
-    properties: CHANNEL_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
- * Output definition for user profile objects (nested in user)
- * Based on Slack user profile object
- */
-export const USER_PROFILE_OUTPUT_PROPERTIES = {
-  real_name: { type: 'string', description: 'Full real name' },
-  real_name_normalized: { type: 'string', description: 'Normalized real name', optional: true },
-  display_name: { type: 'string', description: 'Display name shown in Slack' },
-  display_name_normalized: {
-    type: 'string',
-    description: 'Normalized display name',
-    optional: true,
-  },
-  first_name: { type: 'string', description: 'First name', optional: true },
-  last_name: { type: 'string', description: 'Last name', optional: true },
-  title: { type: 'string', description: 'Job title', optional: true },
-  phone: { type: 'string', description: 'Phone number', optional: true },
-  skype: { type: 'string', description: 'Skype handle', optional: true },
-  email: {
-    type: 'string',
-    description: 'Email address (requires users:read.email scope)',
-    optional: true,
-  },
-  status_text: { type: 'string', description: 'Custom status text', optional: true },
-  status_emoji: { type: 'string', description: 'Custom status emoji', optional: true },
-  status_expiration: {
-    type: 'number',
-    description: 'Unix timestamp when status expires',
-    optional: true,
-  },
-  image_24: { type: 'string', description: 'URL to 24px avatar', optional: true },
-  image_32: { type: 'string', description: 'URL to 32px avatar', optional: true },
-  image_48: { type: 'string', description: 'URL to 48px avatar', optional: true },
-  image_72: { type: 'string', description: 'URL to 72px avatar', optional: true },
-  image_192: { type: 'string', description: 'URL to 192px avatar', optional: true },
-  image_512: { type: 'string', description: 'URL to 512px avatar', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -472,18 +391,6 @@ export const USER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Slack user object',
   properties: USER_OUTPUT_PROPERTIES,
-}
-
-/**
- * Users array output definition
- */
-export const USERS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of user objects',
-  items: {
-    type: 'object',
-    properties: USER_SUMMARY_OUTPUT_PROPERTIES,
-  },
 }
 
 /**

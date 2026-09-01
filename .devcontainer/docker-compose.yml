@@ -19,10 +19,17 @@ services:
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-your_auth_secret_here}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-your_encryption_key_here}
       - COPILOT_API_KEY=${COPILOT_API_KEY}
+      - MSHIP_SYSPROMPT_OVERRIDE=${MSHIP_SYSPROMPT_OVERRIDE:-}
+      - NEXT_PUBLIC_CHAT_DISABLED=${NEXT_PUBLIC_CHAT_DISABLED:-}
       - SIM_AGENT_API_URL=${SIM_AGENT_API_URL}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
       - BUN_INSTALL_CACHE_DIR=/home/bun/.bun/cache
+    # Lets a workflow reach a service on the Docker host. Reaching it also
+    # requires naming it in EGRESS_ALLOWED_HOSTS; this only makes the name
+    # resolve, which it does not on Linux by default.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     depends_on:
       db:
         condition: service_healthy

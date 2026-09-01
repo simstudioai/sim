@@ -14,9 +14,9 @@ import {
   cn,
   SecretInput,
 } from '@sim/emcn'
+import { ChevronDown, ChevronRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import {
   checkEnvVarTrigger,
@@ -63,6 +63,8 @@ export interface McpServerFormModalProps {
   workspaceId: string
   availableEnvVars?: Set<string>
   allowedMcpDomains: string[] | null
+  domainPolicyUnavailable?: boolean
+  domainPolicyError?: string
 }
 
 const ENV_VAR_PATTERN = /\{\{[^}]+\}\}/
@@ -149,7 +151,10 @@ function FormattedInput({
   }
 
   return (
-    <div className={cn('relative', className)}>
+    <div
+      className={cn('relative', className)}
+      data-chip-modal-enter-owner={showEnvVars ? '' : undefined}
+    >
       <ChipInput
         ref={ref}
         placeholder={placeholder}
@@ -157,9 +162,9 @@ function FormattedInput({
         onChange={onChange}
         onScroll={handleScroll}
         onInput={handleScroll}
-        inputClassName='font-medium font-sans text-transparent caret-[var(--text-primary)]'
+        inputClassName='font-sans text-transparent caret-[var(--text-primary)]'
       />
-      <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 py-1.5 font-medium font-sans text-sm'>
+      <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 py-1.5 font-sans text-sm'>
         <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>
           {formatDisplayText(value, { availableEnvVars })}
         </div>
@@ -309,6 +314,8 @@ export function McpServerFormModal({
   workspaceId,
   availableEnvVars,
   allowedMcpDomains,
+  domainPolicyUnavailable = false,
+  domainPolicyError,
 }: McpServerFormModalProps) {
   const urlInputRef = useRef<HTMLInputElement>(null)
 
@@ -485,7 +492,7 @@ export function McpServerFormModal({
   }
 
   const handleTestConnection = async () => {
-    if (!isFormValid) return
+    if (!isFormValid || domainPolicyUnavailable) return
 
     await testConnection({
       name: formData.name,
@@ -498,7 +505,7 @@ export function McpServerFormModal({
   }
 
   const handleSubmitForm = async () => {
-    if (!isFormValid || isDomainBlocked) return
+    if (!isFormValid || isDomainBlocked || domainPolicyUnavailable) return
 
     setIsSubmitting(true)
     setSubmitError(null)
@@ -556,6 +563,7 @@ export function McpServerFormModal({
   }
 
   const handleSubmitJson = async () => {
+    if (domainPolicyUnavailable) return
     const config = parseJsonConfig(jsonInput)
     if (!config) return
 
@@ -607,7 +615,11 @@ export function McpServerFormModal({
   }
 
   const isSubmitDisabled =
-    isSubmitting || !isFormValid || isDomainBlocked || (mode === 'edit' && !hasChanges)
+    domainPolicyUnavailable ||
+    isSubmitting ||
+    !isFormValid ||
+    isDomainBlocked ||
+    (mode === 'edit' && !hasChanges)
 
   const title = mode === 'add' ? 'Add MCP server' : 'Edit MCP server'
   const submitLabel = mode === 'add' ? 'Add server' : 'Save'
@@ -629,7 +641,8 @@ export function McpServerFormModal({
         ? {
             label: testButtonLabel,
             onClick: handleTestConnection,
-            disabled: isTestingConnection || !isFormValid || isDomainBlocked,
+            disabled:
+              domainPolicyUnavailable || isTestingConnection || !isFormValid || isDomainBlocked,
           }
         : undefined
 
@@ -638,7 +651,7 @@ export function McpServerFormModal({
       ? {
           label: isSubmitting ? 'Adding...' : submitLabel,
           onClick: handleSubmitJson,
-          disabled: isSubmitting || !jsonInput.trim(),
+          disabled: domainPolicyUnavailable || isSubmitting || !jsonInput.trim(),
         }
       : {
           label: isSubmitting ? (mode === 'add' ? 'Adding...' : 'Saving...') : submitLabel,
@@ -804,7 +817,7 @@ export function McpServerFormModal({
             )}
           </>
         )}
-        <ChipModalError>{submitError}</ChipModalError>
+        <ChipModalError>{submitError ?? domainPolicyError}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}

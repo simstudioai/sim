@@ -8,6 +8,7 @@ const AUTHORS_DIR = path.join(process.cwd(), 'content', 'authors')
 const BLOG_COMPONENT_LOADERS = {
   enterprise: () => import('@/content/blog/enterprise/components'),
   'v0-5': () => import('@/content/blog/v0-5/components'),
+  'agent-as-yjs-peer': () => import('@/content/blog/agent-as-yjs-peer/components'),
 }
 
 const blogRegistry = createContentRegistry({
@@ -20,5 +21,3 @@ export const getAllPostMeta = blogRegistry.getAllPostMeta
 export const getPostBySlug = blogRegistry.getPostBySlug
 export const getAllTags = blogRegistry.getAllTags
 export const getRelatedPosts = blogRegistry.getRelatedPosts
-export const getNavBlogPosts = blogRegistry.getNavPosts
-export const invalidateBlogCaches = blogRegistry.invalidateCaches

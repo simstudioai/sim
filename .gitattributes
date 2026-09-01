@@ -21,6 +21,15 @@ Dockerfile* text eol=lf
 .gitignore text eol=lf
 .gitattributes text eol=lf
 
+# Source files always diff as text. Git otherwise classifies a whole file as
+# binary the moment it contains a NUL byte, hiding every line of it from review.
+*.ts diff
+*.tsx diff
+*.js diff
+*.jsx diff
+*.json diff
+*.md diff
+
 # Denote all files that are truly binary and should not be modified
 *.png binary
 *.jpg binary

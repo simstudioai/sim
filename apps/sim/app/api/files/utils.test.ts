@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createFileResponse, extractFilename, findLocalFile } from '@/app/api/files/utils'
+import {
+  createFileResponse,
+  encodeFilenameForHeader,
+  extractFilename,
+  findLocalFile,
+} from '@/app/api/files/utils'
 
 describe('extractFilename', () => {
   describe('legitimate file paths', () => {
@@ -173,6 +178,26 @@ describe('extractFilename', () => {
         expect(response.headers.get('Content-Security-Policy')).toBeNull()
       })
 
+      it('defaults to a PRIVATE cache so access-verified content is never shared-cached', () => {
+        const response = createFileResponse({
+          buffer: Buffer.from('fake-image-data'),
+          contentType: 'image/png',
+          filename: 'safe-image.png',
+        })
+        // No explicit cacheControl → must NOT be `public` (a shared cache/CDN could re-serve authed bytes).
+        expect(response.headers.get('Cache-Control')).toBe('private, no-cache')
+      })
+
+      it('honors an explicit cacheControl (e.g. public assets opt in)', () => {
+        const response = createFileResponse({
+          buffer: Buffer.from('fake-image-data'),
+          contentType: 'image/png',
+          filename: 'avatar.png',
+          cacheControl: 'public, max-age=31536000',
+        })
+        expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000')
+      })
+
       it('should serve PDFs inline safely', () => {
         const response = createFileResponse({
           buffer: Buffer.from('fake-pdf-data'),
@@ -294,6 +319,62 @@ describe('extractFilename', () => {
         expect(response.headers.get('Content-Disposition')).toBe(
           'attachment; filename="unknown.bin"'
         )
+      })
+    })
+
+    /**
+     * `originalName` is attacker-controlled — it only rejects path separators — so a
+     * quote can reach the header and close the quoted parameter early. RFC 6266 tells
+     * clients to prefer `filename*`, so an injected one decides the name the file
+     * lands under on disk regardless of what the product UI displayed.
+     */
+    describe('encodeFilenameForHeader parameter injection', () => {
+      it('neutralizes a quote that would close the quoted filename parameter', () => {
+        expect(encodeFilenameForHeader(`report.pdf"; filename*=UTF-8''invoice.html`)).toBe(
+          `filename="report.pdf__ filename*=UTF-8''invoice.html"; filename*=UTF-8''report.pdf%22%3B%20filename%2A%3DUTF-8%27%27invoice.html`
+        )
+      })
+
+      it('neutralizes the same injection on the non-ascii branch', () => {
+        expect(encodeFilenameForHeader(`repört.pdf"; filename*=UTF-8''invoice.html`)).toBe(
+          `filename="rep_rt.pdf__ filename*=UTF-8''invoice.html"; filename*=UTF-8''rep%C3%B6rt.pdf%22%3B%20filename%2A%3DUTF-8%27%27invoice.html`
+        )
+      })
+
+      it('emits exactly one filename* parameter, holding the real name', () => {
+        const name = `report.pdf"; filename*=UTF-8''invoice.html`
+        const header = encodeFilenameForHeader(name)
+        // Strip the quoted value: text inside it is inert, so only what follows counts.
+        const parameters = `${header.slice(0, header.indexOf('filename="'))}${header.slice(header.lastIndexOf('"') + 1)}`
+        expect(parameters.match(/filename\*=/g)).toHaveLength(1)
+        // The one surviving filename* is the real name, not the injected one.
+        expect(decodeURIComponent(parameters.split(`filename*=UTF-8''`)[1])).toBe(name)
+      })
+
+      it('percent-encodes an apostrophe so it cannot desync the ext-value delimiter', () => {
+        const header = encodeFilenameForHeader("it's a café.pdf")
+        expect(header.split(`filename*=UTF-8''`)[1]).toBe('it%27s%20a%20caf%C3%A9.pdf')
+      })
+
+      it('encodes control characters that would otherwise be an invalid header value', () => {
+        const header = encodeFilenameForHeader('report\r\nX-Injected: 1.pdf')
+        expect(header).toBe(
+          `filename="report__X-Injected: 1.pdf"; filename*=UTF-8''report%0D%0AX-Injected%3A%201.pdf`
+        )
+        expect(
+          () =>
+            new Response('data', { headers: { 'Content-Disposition': `attachment; ${header}` } })
+        ).not.toThrow()
+      })
+
+      it('leaves an ordinary ascii filename byte-identical', () => {
+        expect(encodeFilenameForHeader('quarterly-report (final).pdf')).toBe(
+          'filename="quarterly-report (final).pdf"'
+        )
+      })
+
+      it('strips the directory prefix before encoding', () => {
+        expect(encodeFilenameForHeader('workspace/abc/report.pdf')).toBe('filename="report.pdf"')
       })
     })
 

@@ -110,17 +110,24 @@ vi.mock('@/lib/knowledge/documents/document-processor', () => ({
   }),
 }))
 
-function createEmbeddingFetchMock() {
-  return vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({
-      data: [
-        { embedding: [0.1, 0.2], index: 0 },
-        { embedding: [0.3, 0.4], index: 1 },
-      ],
-      usage: { prompt_tokens: 2, total_tokens: 2 },
+const TEST_EMBEDDING_DIMENSION = 1536
+
+function createTestEmbedding(value: number): number[] {
+  return Array.from({ length: TEST_EMBEDDING_DIMENSION }, () => value)
+}
+
+function createEmbeddingResponse(values: number[]): Response {
+  return new Response(
+    JSON.stringify({
+      data: values.map((value, index) => ({ embedding: createTestEmbedding(value), index })),
+      usage: { prompt_tokens: values.length, total_tokens: values.length },
     }),
-  })
+    { status: 200, headers: { 'Content-Type': 'application/json' } }
+  )
+}
+
+function createEmbeddingFetchMock() {
+  return vi.fn().mockResolvedValue(createEmbeddingResponse([0.1, 0.3]))
 }
 
 vi.stubGlobal('fetch', createEmbeddingFetchMock())
@@ -137,6 +144,9 @@ describe('Knowledge Utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    // The document claim gates on the row it writes back, so an unstubbed
+    // `returning()` would abort processing before any completion write.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'doc1' }])
     // `unstubGlobals: true` removes the module-scope fetch stub after the
     // first test in the worker; re-stub it per test.
     vi.stubGlobal('fetch', createEmbeddingFetchMock())
@@ -163,6 +173,18 @@ describe('Knowledge Utils', () => {
           embeddingModel: 'text-embedding-3-small',
           billedAccountUserId: 'billing-user-1',
           uploadedBy: null,
+          filename: 'file.txt',
+          fileUrl: 'https://example.com/file.txt',
+          fileSize: 10,
+          mimeType: 'text/plain',
+        },
+      ])
+      /** Legacy untracked documents have exact-empty provenance. */
+      queueTableRows(schemaMock.document, [
+        {
+          filename: 'file.txt',
+          fileUrl: 'https://example.com/file.txt',
+          secretProvenanceVersion: null,
         },
       ])
       /** In-transaction active-document recheck. */
@@ -290,13 +312,7 @@ describe('Knowledge Utils', () => {
       })
 
       const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: [{ embedding: [0.1, 0.2], index: 0 }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        }),
-      } as any)
+      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1]))
 
       await generateEmbeddings(['test text'])
 
@@ -320,13 +336,7 @@ describe('Knowledge Utils', () => {
       })
 
       const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: [{ embedding: [0.1, 0.2], index: 0 }],
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        }),
-      } as any)
+      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1]))
 
       await generateEmbeddings(['test text'])
 

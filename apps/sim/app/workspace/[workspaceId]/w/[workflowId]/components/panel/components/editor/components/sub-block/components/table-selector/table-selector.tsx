@@ -8,7 +8,9 @@ import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useFolderMap } from '@/hooks/queries/folders'
 import { useTablesList } from '@/hooks/queries/tables'
+import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
 
 interface TableSelectorProps {
   blockId: string
@@ -45,15 +47,33 @@ export function TableSelector({
     error,
   } = useTablesList(isPreview || disabled ? undefined : workspaceId)
 
+  const { data: tableFolders = {} } = useFolderMap(
+    isPreview || disabled ? undefined : workspaceId,
+    'table'
+  )
+
   const value = isPreview ? previewValue : storeValue
   const tableId = typeof value === 'string' ? value : null
 
+  /**
+   * Two tables can share a name in different folders, so a colliding name is
+   * suffixed with its folder path. Table names are lowercased for display (the
+   * pre-existing styling here), and collisions are detected on that same
+   * lowercased form so `Leads` and `leads` — identical once displayed — are
+   * disambiguated too. The folder path keeps its authored casing.
+   */
   const options = useMemo<ComboboxOption[]>(() => {
+    const duplicateNames = collectDuplicateNames(tables.map((table) => table.name.toLowerCase()))
     return tables.map((table) => ({
-      label: table.name.toLowerCase(),
+      label: disambiguateLabelByFolder(
+        table.name.toLowerCase(),
+        table.folderId,
+        tableFolders,
+        duplicateNames
+      ),
       value: table.id,
     }))
-  }, [tables])
+  }, [tables, tableFolders])
 
   const handleChange = useCallback(
     (selectedValue: string) => {

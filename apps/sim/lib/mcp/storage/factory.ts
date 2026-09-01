@@ -40,14 +40,3 @@ export function getMcpCacheType(): 'redis' | 'memory' {
   const redis = getRedisClient()
   return redis ? 'redis' : 'memory'
 }
-
-/**
- * Reset the cached adapter.
- * Only use for testing purposes.
- */
-export function resetMcpCacheAdapter(): void {
-  if (cachedAdapter) {
-    cachedAdapter.dispose()
-    cachedAdapter = null
-  }
-}

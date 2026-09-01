@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getCopilotToolDescription } from './descriptions'
 
 describe('getCopilotToolDescription', () => {
@@ -9,9 +10,11 @@ describe('getCopilotToolDescription', () => {
           id: 'brandfetch_search',
           name: 'Brandfetch Search',
           description: 'Search for brands by company name',
-          hosting: { apiKeyParam: 'apiKey' } as never,
         },
-        { isHosted: false }
+        {
+          isHosted: false,
+          hostedApiKey: deriveHostedApiKeySupport({ apiKeyParam: 'apiKey' } as never),
+        }
       )
     ).toBe('Search for brands by company name')
   })
@@ -23,9 +26,11 @@ describe('getCopilotToolDescription', () => {
           id: 'brandfetch_search',
           name: 'Brandfetch Search',
           description: 'Search for brands by company name',
-          hosting: { apiKeyParam: 'apiKey' } as never,
         },
-        { isHosted: true }
+        {
+          isHosted: true,
+          hostedApiKey: deriveHostedApiKeySupport({ apiKeyParam: 'apiKey' } as never),
+        }
       )
     ).toBe('Search for brands by company name <note>API key is hosted by Sim.</note>')
   })
@@ -37,9 +42,14 @@ describe('getCopilotToolDescription', () => {
           id: 'image_generate',
           name: 'Image Generate',
           description: 'Generate an image',
-          hosting: { apiKeyParam: 'apiKey', enabled: () => true } as never,
         },
-        { isHosted: true }
+        {
+          isHosted: true,
+          hostedApiKey: deriveHostedApiKeySupport({
+            apiKeyParam: 'apiKey',
+            enabled: () => true,
+          } as never),
+        }
       )
     ).toBe(
       'Generate an image <note>API key is hosted by Sim when hosted-key support applies to the selected configuration.</note>'
@@ -53,9 +63,12 @@ describe('getCopilotToolDescription', () => {
           id: 'brandfetch_search',
           name: '',
           description: '',
-          hosting: { apiKeyParam: 'apiKey' } as never,
         },
-        { isHosted: true, fallbackName: 'brandfetch_search' }
+        {
+          isHosted: true,
+          hostedApiKey: deriveHostedApiKeySupport({ apiKeyParam: 'apiKey' } as never),
+          fallbackName: 'brandfetch_search',
+        }
       )
     ).toBe('brandfetch_search <note>API key is hosted by Sim.</note>')
   })

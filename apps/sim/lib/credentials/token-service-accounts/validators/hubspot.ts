@@ -1,3 +1,4 @@
+import { tenantPrincipal, userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -41,10 +42,12 @@ async function verifyViaAccountInfo(
     'account_info'
   )
   if (res.status === 403) {
+    // The token is live but the app cannot read account info, so neither the
+    // portal nor the creating user is knowable on this path.
     return {
       displayName: 'HubSpot private app',
+      principal: null,
       auditMetadata: {},
-      storedMetadata: {},
     }
   }
   await throwForProviderResponse(res, 'account_info')
@@ -53,8 +56,10 @@ async function verifyViaAccountInfo(
   const hubId = typeof info?.portalId === 'number' ? String(info.portalId) : undefined
   return {
     displayName: hubId ? `HubSpot portal ${hubId}` : 'HubSpot private app',
-    auditMetadata: hubId ? { hubspotHubId: hubId } : {},
-    storedMetadata: hubId ? { hubId } : {},
+    // This route never reports the private app's creating user, so the portal
+    // is the finest identity available here.
+    principal: hubId ? tenantPrincipal(hubId) : null,
+    auditMetadata: {},
   }
 }
 
@@ -113,10 +118,15 @@ export async function validateHubspotServiceAccount(
 
   const storedMetadata: Record<string, string> = { hubId }
   if (typeof tokenInfo.appId === 'number') storedMetadata.appId = String(tokenInfo.appId)
-  if (typeof tokenInfo.userId === 'number') storedMetadata.userId = String(tokenInfo.userId)
 
   return {
     displayName: `HubSpot portal ${hubId}`,
+    // `userId` is the HubSpot user the private app acts on behalf of; it is the
+    // actor, while `hubId` is only the portal it lives in.
+    principal:
+      typeof tokenInfo.userId === 'number'
+        ? userPrincipal(String(tokenInfo.userId))
+        : tenantPrincipal(hubId),
     auditMetadata: { hubspotHubId: hubId },
     storedMetadata,
   }

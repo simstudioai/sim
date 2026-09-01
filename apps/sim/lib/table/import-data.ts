@@ -8,7 +8,8 @@ import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
@@ -19,6 +20,10 @@ import {
   guardBatch,
   type MutationRevalidator,
 } from '@/lib/table/rows/ordering'
+import {
+  createExactEmptyTableRowSecretProvenance,
+  mutateTableRowsWithSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import { batchInsertRowsWithTx, replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { addTableColumnsWithTx, auditTableColumnsAdded, getTableById } from '@/lib/table/service'
 import type {
@@ -53,7 +58,7 @@ export interface BulkImportBatch {
  * Inserts one batch of rows for an async import in a single committed statement.
  *
  * Differs from {@link batchInsertRowsWithTx} for the bulk-load case: caller-supplied
- * contiguous positions (no `acquireTablePositionLock` / `nextAutoPosition` scan — an
+ * contiguous order keys (no `acquireRowOrderLock` scan — an
  * import owns its hidden table as the sole writer), no `RETURNING`, and **no
  * `fireTableTrigger` / `runWorkflowColumn`** (a 1M-row import must not dispatch a
  * workflow run per row). `row_count` is maintained set-based by the statement-level
@@ -77,11 +82,20 @@ export async function bulkInsertImportBatch(
   for (let i = 0; i < data.rows.length; i++) {
     const sizeValidation = validateRowSize(data.rows[i])
     if (!sizeValidation.valid) {
-      throw new Error(`Row ${i + 1}: ${sizeValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Row ${i + 1}: ${sizeValidation.errors.join(', ')}`
+      )
     }
-    const schemaValidation = coerceRowToSchema(data.rows[i], table.schema)
+    // A CSV cell that does not fit its mapped column blanks that cell rather
+    // than failing the file: the import has no caller waiting on a 400, and one
+    // malformed cell in a 100k-row upload must not reject the other 99,999.
+    const schemaValidation = coerceRowToSchema(data.rows[i], table.schema, 'null')
     if (!schemaValidation.valid) {
-      throw new Error(`Row ${i + 1}: ${schemaValidation.errors.join(', ')}`)
+      throw new OrchestrationError(
+        'validation',
+        `Row ${i + 1}: ${schemaValidation.errors.join(', ')}`
+      )
     }
   }
 
@@ -94,7 +108,8 @@ export async function bulkInsertImportBatch(
       db
     )
     if (!uniqueResult.valid) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         uniqueResult.errors.map((e) => `Row ${e.row + 1}: ${e.errors.join(', ')}`).join('; ')
       )
     }
@@ -116,13 +131,30 @@ export async function bulkInsertImportBatch(
     ...(data.userId ? { createdBy: data.userId } : {}),
   }))
 
-  await db.transaction(async (trx) => {
+  const inserted = await db.transaction(async (trx) => {
     await guardBatch(trx, data.tableId, revalidate)
-    await trx.insert(userTableRows).values(rowsToInsert)
+    return mutateTableRowsWithSecretProvenance(trx, {
+      rows: rowsToInsert.map((row) => ({
+        rowId: row.id,
+        provenance: createExactEmptyTableRowSecretProvenance(row.data),
+      })),
+      rowState: 'new',
+      mode: 'replace',
+      mutate: async () => {
+        const inserted = await trx
+          .insert(userTableRows)
+          .values(rowsToInsert)
+          .returning({ id: userTableRows.id })
+        return { value: inserted.length, affectedRowIds: inserted.map((row) => row.id) }
+      },
+    })
   })
-  logger.info(`[${requestId}] Bulk-imported ${rowsToInsert.length} rows into table ${data.tableId}`)
+  if (inserted !== rowsToInsert.length) {
+    throw new Error('Bulk table import inserted an unexpected row count')
+  }
+  logger.info(`[${requestId}] Bulk-imported ${inserted} rows into table ${data.tableId}`)
   return {
-    inserted: rowsToInsert.length,
+    inserted,
     lastOrderKey: orderKeys[orderKeys.length - 1] ?? data.afterOrderKey ?? null,
   }
 }
@@ -138,7 +170,11 @@ export async function deleteAllTableRows(
   if (!revalidate) assertRowDelete(table)
   await db.transaction(async (trx) => {
     await guardBatch(trx, table.id, revalidate)
-    await trx.delete(userTableRows).where(eq(userTableRows.tableId, table.id))
+    await trx
+      .delete(userTableRows)
+      .where(
+        and(eq(userTableRows.tableId, table.id), eq(userTableRows.workspaceId, table.workspaceId))
+      )
   })
 }
 
@@ -184,7 +220,12 @@ export async function setTableSchemaForImport(
     await trx
       .update(userTableDefinitions)
       .set({ schema, updatedAt: new Date() })
-      .where(eq(userTableDefinitions.id, table.id))
+      .where(
+        and(
+          eq(userTableDefinitions.id, table.id),
+          eq(userTableDefinitions.workspaceId, table.workspaceId)
+        )
+      )
   })
 }
 
@@ -205,9 +246,13 @@ async function refreshUnderLock(
 ): Promise<TableDefinition> {
   const fresh = await guardBatch(trx, table.id, async (tx) => {
     const latest = await getTableById(table.id, { tx, includeArchived: true })
-    return latest ?? undefined
+    if (!latest || latest.workspaceId !== table.workspaceId) {
+      throw new OrchestrationError('not_found', 'Table not found')
+    }
+    return latest
   })
-  return fresh ?? table
+  if (!fresh) throw new Error('Table refresh did not return a canonical table')
+  return fresh
 }
 
 /**
@@ -244,7 +289,13 @@ export async function importAppendRows(
       const batch = rows.slice(i, i + CSV_MAX_BATCH_SIZE)
       const batchInserted = await batchInsertRowsWithTx(
         trx,
-        { tableId: working.id, rows: batch, workspaceId: ctx.workspaceId, userId: ctx.userId },
+        {
+          tableId: working.id,
+          rows: batch,
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          secretProvenance: batch.map(createExactEmptyTableRowSecretProvenance),
+        },
         working,
         generateId().slice(0, 8)
       )
@@ -294,7 +345,13 @@ export async function importReplaceRows(
     }
     return replaceTableRowsWithTx(
       trx,
-      { tableId: working.id, rows: data.rows, workspaceId: data.workspaceId, userId: data.userId },
+      {
+        tableId: working.id,
+        rows: data.rows,
+        workspaceId: data.workspaceId,
+        userId: data.userId,
+        secretProvenance: data.rows.map(createExactEmptyTableRowSecretProvenance),
+      },
       working,
       requestId
     )

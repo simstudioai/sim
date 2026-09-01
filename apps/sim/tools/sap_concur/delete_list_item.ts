@@ -1,16 +1,16 @@
-import type { DeleteListItemParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { DeleteListItemParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteListItemTool: ToolConfig<DeleteListItemParams, SapConcurProxyResponse> = {
+export const deleteListItemTool: InternalToolConfig<DeleteListItemParams, SapConcurResponse> = {
   id: 'sap_concur_delete_list_item',
   name: 'SAP Concur Delete List Item',
-  description: 'Delete a list item (DELETE /list/v4/items/{itemId}).',
+  description:
+    'Delete a list item from all lists that contain it (DELETE /list/v4/items/{itemId}). This is not scoped to a single list, and all children of that list item are also deleted.',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -62,27 +62,23 @@ export const deleteListItemTool: ToolConfig<DeleteListItemParams, SapConcurProxy
       description: 'List item UUID',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const itemId = trimRequired(params.itemId, 'itemId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/list/v4/items/${encodeURIComponent(itemId)}`,
         method: 'DELETE',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
       type: 'json',
       description:
         'Empty body on success (HTTP 204 No Content). Error details when status is non-2xx',
-      properties: {},
     },
   },
 }

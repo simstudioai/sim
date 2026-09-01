@@ -1,43 +1,39 @@
 import { createLogger } from '@sim/logger'
 import {
-  CheckDeploymentStatus,
-  CompleteScheduledTask,
+  ConnectSlackBot,
   Cp as CpTool,
   CreateWorkflow,
   CreateWorkspaceMcpServer,
   DeleteWorkspaceMcpServer,
-  DeployApi,
-  DeployChat,
-  DeployCustomBlock,
-  DeployMcp,
+  DeployAsApi,
+  DeployAsChat,
+  DeployAsMcp,
   DiffWorkflows,
-  FunctionExecute,
   GenerateApiKey,
   GetBlockOutputs,
   GetBlockUpstreamReferences,
   GetDeployedWorkflowState,
-  GetDeploymentLog,
-  GetPlatformActions,
+  GetDeploymentStatus,
   GetWorkflowData,
   GetWorkflowRunOptions,
   Glob as GlobTool,
   Grep as GrepTool,
+  ListDeploymentVersions,
   ListIntegrationTools,
-  ListUserWorkspaces,
   ListWorkspaceMcpServers,
   LoadDeployment,
   ManageCredential,
   ManageCustomTool,
-  ManageMcpTool,
-  ManageScheduledTask,
+  ManageMcpConnection,
+  ManageSandbox,
   ManageSkill,
-  MaterializeFile,
   Mkdir as MkdirTool,
   Mv as MvTool,
   OauthGetAuthLink,
   OauthRequestAccess,
   OpenResource,
   PromoteToLive,
+  PublishCustomBlock,
   Read as ReadTool,
   Redeploy,
   RestoreResource,
@@ -45,12 +41,13 @@ import {
   RunBlock,
   RunCode,
   RunFromBlock,
+  RunFunction,
   RunWorkflow,
   RunWorkflowUntilBlock,
+  SaveUpload,
   SetBlockEnabled,
   SetGlobalWorkflowVariables,
   UpdateDeploymentVersion,
-  UpdateScheduledTaskHistory,
   UpdateWorkspaceMcpServer,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
@@ -76,18 +73,14 @@ import {
 } from '../tools/handlers/deployment/manage'
 import { executeFunctionExecute } from '../tools/handlers/function-execute'
 import { executeListIntegrationTools } from '../tools/handlers/integration-tools'
-import {
-  executeCompleteJob,
-  executeManageJob,
-  executeUpdateJobHistory,
-} from '../tools/handlers/jobs'
+import { executeConnectSlackBot } from '../tools/handlers/management/connect-slack-bot'
 import { executeManageCredential } from '../tools/handlers/management/manage-credential'
 import { executeManageCustomTool } from '../tools/handlers/management/manage-custom-tool'
 import { executeManageMcpTool } from '../tools/handlers/management/manage-mcp-tool'
+import { executeManageSandbox } from '../tools/handlers/management/manage-sandbox'
 import { executeManageSkill } from '../tools/handlers/management/manage-skill'
 import { executeMaterializeFile } from '../tools/handlers/materialize-file'
 import { executeOAuthGetAuthLink, executeOAuthRequestAccess } from '../tools/handlers/oauth'
-import { executeGetPlatformActions } from '../tools/handlers/platform'
 import { executeOpenResource } from '../tools/handlers/resources'
 import { executeRestoreResource } from '../tools/handlers/restore-resource'
 import { executeRunCode } from '../tools/handlers/run-code'
@@ -116,7 +109,6 @@ import {
   executeGetDeployedWorkflowState,
   executeGetWorkflowData,
   executeGetWorkflowRunOptions,
-  executeListUserWorkspaces,
 } from '../tools/handlers/workflow/queries'
 import { registerHandlers } from './executor'
 import type { ToolHandler } from './types'
@@ -141,7 +133,6 @@ function h(fn: (params: any, context: any) => Promise<any>): ToolHandler {
 
 function buildHandlerMap(): Record<string, ToolHandler> {
   return {
-    [ListUserWorkspaces.id]: h((_p, c) => executeListUserWorkspaces(c)),
     [GetWorkflowData.id]: h(executeGetWorkflowData),
     [GetWorkflowRunOptions.id]: h(executeGetWorkflowRunOptions),
     [GetBlockOutputs.id]: h(executeGetBlockOutputs),
@@ -162,25 +153,21 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [GenerateApiKey.id]: h(executeGenerateApiKey),
     [SetGlobalWorkflowVariables.id]: h(executeSetGlobalWorkflowVariables),
 
-    [DeployApi.id]: h(executeDeployApi),
-    [DeployChat.id]: h(executeDeployChat),
-    [DeployMcp.id]: h(executeDeployMcp),
-    [DeployCustomBlock.id]: h(executeDeployCustomBlock),
+    [DeployAsApi.id]: h(executeDeployApi),
+    [DeployAsChat.id]: h(executeDeployChat),
+    [DeployAsMcp.id]: h(executeDeployMcp),
+    [PublishCustomBlock.id]: h(executeDeployCustomBlock),
     [Redeploy.id]: h(executeRedeploy),
-    [CheckDeploymentStatus.id]: h(executeCheckDeploymentStatus),
+    [GetDeploymentStatus.id]: h(executeCheckDeploymentStatus),
     [ListWorkspaceMcpServers.id]: h(executeListWorkspaceMcpServers),
     [CreateWorkspaceMcpServer.id]: h(executeCreateWorkspaceMcpServer),
     [UpdateWorkspaceMcpServer.id]: h(executeUpdateWorkspaceMcpServer),
     [DeleteWorkspaceMcpServer.id]: h(executeDeleteWorkspaceMcpServer),
-    [GetDeploymentLog.id]: h(executeGetDeploymentLog),
+    [ListDeploymentVersions.id]: h(executeGetDeploymentLog),
     [DiffWorkflows.id]: h(executeDiffWorkflows),
     [LoadDeployment.id]: h(executeLoadDeployment),
     [PromoteToLive.id]: h(executePromoteToLive),
     [UpdateDeploymentVersion.id]: h(executeUpdateDeploymentVersion),
-
-    [ManageScheduledTask.id]: h(executeManageJob),
-    [CompleteScheduledTask.id]: h(executeCompleteJob),
-    [UpdateScheduledTaskHistory.id]: h(executeUpdateJobHistory),
 
     [GrepTool.id]: h(executeVfsGrep),
     [GlobTool.id]: h(executeVfsGlob),
@@ -191,17 +178,21 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [RmTool.id]: h(executeVfsRm),
 
     [ManageCustomTool.id]: h(executeManageCustomTool),
-    [ManageMcpTool.id]: h(executeManageMcpTool),
+    [ManageMcpConnection.id]: h(executeManageMcpTool),
+    [ManageSandbox.id]: h(executeManageSandbox),
     [ManageSkill.id]: h(executeManageSkill),
     [ManageCredential.id]: h(executeManageCredential),
+    [ConnectSlackBot.id]: h(executeConnectSlackBot),
     [OauthGetAuthLink.id]: h(executeOAuthGetAuthLink),
+    // Rolling-deploy compatibility for calls/checkpoints created before OAuth
+    // moved into terminal credential cards. New agents no longer receive this
+    // tool, but old calls must remain resumable until both services have soaked.
     [OauthRequestAccess.id]: h(executeOAuthRequestAccess),
     [OpenResource.id]: h(executeOpenResource),
     [RestoreResource.id]: h(executeRestoreResource),
-    [GetPlatformActions.id]: h(executeGetPlatformActions),
     [ListIntegrationTools.id]: h(executeListIntegrationTools),
-    [MaterializeFile.id]: h(executeMaterializeFile),
-    [FunctionExecute.id]: h(executeFunctionExecute),
+    [SaveUpload.id]: h(executeMaterializeFile),
+    [RunFunction.id]: h(executeFunctionExecute),
     [RunCode.id]: h(executeRunCode),
 
     ...buildServerToolHandlers(),

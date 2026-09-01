@@ -1,10 +1,7 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import {
-  getCancellationChannel,
-  isExecutionCancelled,
-  isRedisCancellationEnabled,
-} from '@/lib/execution/cancellation'
+import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
+import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import { BlockType, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
@@ -20,6 +17,7 @@ import type {
   ResumeStatus,
 } from '@/executor/types'
 import { attachExecutionResult, normalizeError } from '@/executor/utils/errors'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('ExecutionEngine')
 
@@ -37,6 +35,8 @@ export class ExecutionEngine {
   private executionError: Error | null = null
   private abortPromise!: Promise<void>
   private abortResolve!: () => void
+  private cancellationController = new AbortController()
+  private abortSignalListener: (() => void) | null = null
   private cancellationUnsubscribe: (() => void) | null = null
   private execLogger: Logger
 
@@ -54,16 +54,19 @@ export class ExecutionEngine {
       userId: this.context.userId,
       requestId: this.context.metadata.requestId,
     })
+    this.context.abortSignal = combineExecutionAbortSignals(
+      this.context.abortSignal
+        ? [this.context.abortSignal, this.cancellationController.signal]
+        : [this.cancellationController.signal]
+    )
     this.initializeAbortHandler()
-    this.subscribeToCancellationChannel()
   }
 
-  private subscribeToCancellationChannel(): void {
+  private async subscribeToCancellationSignal(): Promise<void> {
     if (!this.context.executionId) return
     const executionId = this.context.executionId
-    this.cancellationUnsubscribe = getCancellationChannel().subscribe((event) => {
-      if (event.executionId !== executionId) return
-      this.execLogger.info('Execution cancelled via pub/sub', { executionId })
+    this.cancellationUnsubscribe = await subscribeToExecutionCancellation(executionId, () => {
+      this.execLogger.info('Execution cancelled via Redis signal', { executionId })
       this.signalCancelled()
     })
   }
@@ -75,17 +78,22 @@ export class ExecutionEngine {
 
     if (!this.context.abortSignal) return
 
-    if (this.context.abortSignal.aborted) {
-      this.signalCancelled()
+    const signal = this.context.abortSignal
+    if (signal.aborted) {
+      this.signalCancelled(signal.reason)
       return
     }
 
-    this.context.abortSignal.addEventListener('abort', () => this.signalCancelled(), { once: true })
+    this.abortSignalListener = () => this.signalCancelled(signal.reason)
+    signal.addEventListener('abort', this.abortSignalListener, { once: true })
   }
 
-  private signalCancelled(): void {
+  private signalCancelled(reason: unknown = new DOMException('user', 'AbortError')): void {
     if (this.cancelledFlag) return
     this.cancelledFlag = true
+    if (!this.cancellationController.signal.aborted) {
+      this.cancellationController.abort(reason)
+    }
     this.abortResolve()
   }
 
@@ -93,23 +101,11 @@ export class ExecutionEngine {
     return this.cancelledFlag
   }
 
-  /** Catches cancellations published before this engine subscribed (e.g. resume from snapshot). */
-  private async checkCancellationBackstop(): Promise<void> {
-    if (!this.context.executionId || !isRedisCancellationEnabled()) return
-    const cancelled = await isExecutionCancelled(this.context.executionId)
-    if (cancelled) {
-      this.execLogger.info('Execution already cancelled at engine start (Redis backstop)', {
-        executionId: this.context.executionId,
-      })
-      this.signalCancelled()
-    }
-  }
-
   async run(triggerBlockId?: string): Promise<ExecutionResult> {
     const startTime = performance.now()
     try {
       this.initializeQueue(triggerBlockId)
-      await this.checkCancellationBackstop()
+      await this.subscribeToCancellationSignal()
 
       while (this.hasWork()) {
         if (this.checkCancellation() || this.errorFlag || this.stoppedEarlyFlag) {
@@ -133,6 +129,7 @@ export class ExecutionEngine {
       const endTime = performance.now()
       this.context.metadata.endTime = new Date().toISOString()
       this.context.metadata.duration = endTime - startTime
+      this.ensureFinalOutputProvenance()
 
       if (this.cancelledFlag) {
         this.finalizeIncompleteLogs()
@@ -157,6 +154,7 @@ export class ExecutionEngine {
       const endTime = performance.now()
       this.context.metadata.endTime = new Date().toISOString()
       this.context.metadata.duration = endTime - startTime
+      this.ensureFinalOutputProvenance()
 
       if (this.cancelledFlag) {
         this.finalizeIncompleteLogs()
@@ -173,26 +171,41 @@ export class ExecutionEngine {
       this.finalizeIncompleteLogs()
 
       const errorMessage = normalizeError(error)
-      this.execLogger.error('Execution failed', { error: errorMessage })
+      this.execLogger.error(
+        'Execution failed',
+        projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry)
+      )
 
       const executionResult: ExecutionResult = {
         success: false,
         output: this.finalOutput,
         error: errorMessage,
         logs: this.context.blockLogs,
+        executionState: this.getSerializableExecutionState(),
         metadata: this.context.metadata,
       }
 
-      if (error instanceof Error) {
-        attachExecutionResult(error, executionResult)
-      }
-      throw error
+      /**
+       * Normalized first so the attach is total rather than conditional on the throw already
+       * being an `Error`. A block failure is normalized on the way in, so the old guard held in
+       * practice; what it did not give was a guarantee. The copilot crossing reads a missing
+       * result as proof that no block ran, and that inference has to hold for every throw out of
+       * here, including a non-`Error` raised by this file's own synchronous work. `toError`
+       * returns an `Error` unchanged, so ordinary failures keep their identity and their type.
+       */
+      const thrown = toError(error)
+      attachExecutionResult(thrown, executionResult)
+      throw thrown
     } finally {
       this.cleanup()
     }
   }
 
   private cleanup(): void {
+    if (this.abortSignalListener && this.context.abortSignal) {
+      this.context.abortSignal.removeEventListener('abort', this.abortSignalListener)
+      this.abortSignalListener = null
+    }
     if (this.cancellationUnsubscribe) {
       this.cancellationUnsubscribe()
       this.cancellationUnsubscribe = null
@@ -423,8 +436,10 @@ export class ExecutionEngine {
         })
       }
     } catch (error) {
-      const errorMessage = normalizeError(error)
-      this.execLogger.error('Node execution failed', { nodeId, error: errorMessage })
+      this.execLogger.error('Node execution failed', {
+        nodeId,
+        ...projectResolvedSecretDiagnosticError(error, this.context.resolvedSecretTraceRegistry),
+      })
       throw error
     }
   }
@@ -462,7 +477,7 @@ export class ExecutionEngine {
     const isResponseBlock = node.block.metadata?.id === BlockType.RESPONSE
     if (isResponseBlock) {
       if (!this.responseOutputLocked) {
-        this.finalOutput = output
+        this.setFinalOutput(nodeId, output)
         this.responseOutputLocked = true
       }
       this.stoppedEarlyFlag = true
@@ -470,7 +485,7 @@ export class ExecutionEngine {
     }
 
     if (isFinalOutput && !this.responseOutputLocked) {
-      this.finalOutput = output
+      this.setFinalOutput(nodeId, output)
     }
 
     if (this.context.stopAfterBlockId === nodeId) {
@@ -488,6 +503,40 @@ export class ExecutionEngine {
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
 
     this.addMultipleToQueue(readyNodes)
+  }
+
+  private setFinalOutput(nodeId: string, output: NormalizedBlockOutput): void {
+    this.finalOutput = output
+    const state = this.context.blockStates.get(nodeId)
+    if (state?.resolvedSecretTraceProvenance) {
+      this.context.finalOutputResolvedSecretTraceProvenance = state.resolvedSecretTraceProvenance
+      return
+    }
+    /**
+     * A block state without provenance is an absence of a shortcut, not a verdict. Several state
+     * writers legitimately store an output without one — a subflow sentinel aggregating iteration
+     * results is the common case, and a loop that ran no iterations has nothing to merge — so
+     * stamping an incomplete envelope here declared the run unvouchable whenever the last block
+     * was one of them. Every other consumer of a provenance-less block state falls back to the run
+     * registry; deriving does the same, against the value actually being described.
+     */
+    this.deriveFinalOutputProvenance()
+  }
+
+  /**
+   * Derives the final-output envelope from the run registry. Fails closed on its own terms: a
+   * latched registry exports an incomplete envelope, which is the genuinely unvouchable case.
+   */
+  private deriveFinalOutputProvenance(): void {
+    const registry = this.context.resolvedSecretTraceRegistry
+    if (!registry) return
+    this.context.finalOutputResolvedSecretTraceProvenance =
+      registry.exportCommittedProvenanceForValue(this.finalOutput)
+  }
+
+  private ensureFinalOutputProvenance(): void {
+    if (Object.hasOwn(this.context, 'finalOutputResolvedSecretTraceProvenance')) return
+    this.deriveFinalOutputProvenance()
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {

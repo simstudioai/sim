@@ -1,11 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, queueTableRows, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockComputeDailyRefreshConsumed,
+  mockComputeWeeklyRefreshConsumed,
   mockEnsureUserStatsExists,
   mockGetBillingPeriodUsageCost,
   mockGetBillingPeriodUsageCostWithSourceSubset,
@@ -13,7 +13,7 @@ const {
   mockGetHighestPrioritySubscription,
   mockResolveBillingInterval,
 } = vi.hoisted(() => ({
-  mockComputeDailyRefreshConsumed: vi.fn(),
+  mockComputeWeeklyRefreshConsumed: vi.fn(),
   mockEnsureUserStatsExists: vi.fn(),
   mockGetBillingPeriodUsageCost: vi.fn(),
   mockGetBillingPeriodUsageCostWithSourceSubset: vi.fn(),
@@ -40,20 +40,19 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   getBillingPeriodUsageCostWithSourceSubset: mockGetBillingPeriodUsageCostWithSourceSubset,
 }))
 
-vi.mock('@/lib/billing/credits/daily-refresh', () => ({
-  computeDailyRefreshConsumed: mockComputeDailyRefreshConsumed,
-  getOrgMemberRefreshBounds: vi.fn(),
+vi.mock('@/lib/billing/credits/weekly-refresh', () => ({
+  computeWeeklyRefreshConsumed: mockComputeWeeklyRefreshConsumed,
 }))
 
-import { getPersonalBillingSummary } from '@/lib/billing/core/billing'
+import { calculateSubscriptionOverage, getPersonalBillingSummary } from '@/lib/billing/core/billing'
 
 describe('getPersonalBillingSummary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockEnsureUserStatsExists.mockResolvedValue(undefined)
     mockResolveBillingInterval.mockReturnValue('year')
-    mockComputeDailyRefreshConsumed.mockResolvedValue(3)
-    mockGetBillingPeriodUsageCostWithSourceSubset.mockResolvedValue({ total: 2, subset: 1 })
+    mockComputeWeeklyRefreshConsumed.mockResolvedValue(1)
+    mockGetBillingPeriodUsageCostWithSourceSubset.mockResolvedValue({ total: 4, subset: 1 })
     mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
       id: 'personal-sub',
       referenceId: 'viewer-a',
@@ -74,12 +73,8 @@ describe('getPersonalBillingSummary', () => {
     })
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
-        currentPeriodCost: '10',
         currentUsageLimit: '30',
         lastPeriodCost: '6',
-        proPeriodCostSnapshot: '4',
-        proPeriodCostSnapshotAt: new Date('2026-07-10T00:00:00.000Z'),
-        currentPeriodCopilotCost: '5',
         lastPeriodCopilotCost: '2',
         creditBalance: '7',
         billingBlocked: true,
@@ -115,12 +110,52 @@ describe('getPersonalBillingSummary', () => {
       lastPeriodCost: 6,
       lastPeriodCopilotCost: 2,
     })
-    expect(mockComputeDailyRefreshConsumed).toHaveBeenCalledWith(
+    expect(mockComputeWeeklyRefreshConsumed).toHaveBeenCalledWith(
       expect.objectContaining({
-        periodEnd: new Date('2026-07-10T00:00:00.000Z'),
+        periodEnd: new Date('2026-08-01T00:00:00.000Z'),
         billingEntity: { type: 'user', id: 'viewer-a' },
       }),
       dbChainMock.db
     )
+  })
+})
+
+describe('calculateSubscriptionOverage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockComputeWeeklyRefreshConsumed.mockResolvedValue(0)
+  })
+
+  it('bills the pooled org ledger with entity-scoped refresh — no roster read', async () => {
+    queueTableRows(schemaMock.organization, [{ id: 'org-1' }]) // isSubscriptionOrgScoped
+    // Pooled ledger sum includes departed members' org-stamped rows.
+    mockGetBillingPeriodUsageCost.mockResolvedValue(160)
+
+    const overage = await calculateSubscriptionOverage({
+      id: 'sub-1',
+      plan: 'team',
+      referenceId: 'org-1',
+      seats: 2,
+      periodStart: new Date('2026-07-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-08-01T00:00:00.000Z'),
+    })
+
+    expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledWith(
+      { type: 'organization', id: 'org-1' },
+      {
+        start: new Date('2026-07-01T00:00:00.000Z'),
+        end: new Date('2026-08-01T00:00:00.000Z'),
+      }
+    )
+    // Refresh is scoped by the same entity stamps as the ledger sum — no
+    // actor list, so departed members' rows participate identically.
+    expect(mockComputeWeeklyRefreshConsumed).toHaveBeenCalledWith({
+      billingEntity: { type: 'organization', id: 'org-1' },
+      periodStart: new Date('2026-07-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-08-01T00:00:00.000Z'),
+      weeklyRefreshDollars: 10,
+      seats: 2,
+    })
+    expect(overage).toBe(80)
   })
 })

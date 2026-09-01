@@ -14,6 +14,44 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
   integrationType: IntegrationType.Security,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: SecretsManagerIcon,
+  canvasPresentation: {
+    defaultTitle: 'AWS Secrets Manager',
+    sentences: {
+      byOperation: {
+        get_secret: [
+          { text: 'Read the value of secret', field: 'secretId', core: true },
+          { text: ', at stage', field: 'versionStage' },
+        ],
+        list_secrets: ['List secrets', { text: ', up to', field: 'maxResults' }],
+        create_secret: [
+          { text: 'Create secret', field: 'name', core: true },
+          { text: ', described as', field: 'description' },
+        ],
+        update_secret: [{ text: 'Overwrite the value of secret', field: 'secretId', core: true }],
+        delete_secret: [
+          { text: 'Delete secret', field: 'secretId', core: true },
+          { text: ', after', field: 'recoveryWindowInDays', after: 'days' },
+        ],
+        describe_secret: [{ text: 'Read metadata of secret', field: 'secretId', core: true }],
+        tag_resource: [
+          { text: 'Tag secret', field: 'secretId', core: true },
+          { text: ', with', field: 'tags' },
+        ],
+        untag_resource: [
+          { text: 'Remove tags', field: 'tagKeys', core: true },
+          { text: 'from secret', field: 'secretId', core: true },
+        ],
+        restore_secret: [
+          { text: 'Cancel the scheduled deletion of secret', field: 'secretId', core: true },
+        ],
+        rotate_secret: [
+          { text: 'Rotate secret', field: 'secretId', core: true },
+          { text: ', every', field: 'automaticallyAfterDays', after: 'days' },
+          { text: ', using Lambda', field: 'rotationLambdaARN' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -100,6 +138,7 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
       id: 'secretValue',
       title: 'Secret Value',
       type: 'code',
+      password: true,
       placeholder: '{"username":"admin","password":"secret123"}',
       condition: { field: 'operation', value: ['create_secret', 'update_secret'] },
       required: { field: 'operation', value: ['create_secret', 'update_secret'] },

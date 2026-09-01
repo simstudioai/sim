@@ -72,15 +72,15 @@ export const filesFilterParsers = {
 } as const
 
 /**
- * `sort` / `dir` follow the shared sort convention (two scalar params) in
- * nullable mode (no `defaultSort`) because "no active sort" is behaviorally
- * distinct from explicitly sorting by the fallback column: with no sort, files
- * order by updated/desc but folders by name/asc, while an explicit updated/desc
- * sorts both sections by updatedAt. Collapsing the explicit selection into a
- * clean URL would make that folder ordering unreachable. Clearing the sort
- * writes `null`, which strips both params.
+ * `sort` / `dir` follow the shared sort convention (two scalar params). The
+ * default (most-recently-updated first) matches the list's default ordering, so
+ * a clean URL means the default sort. Folders and files sort as one list, so
+ * there is no folder-only ordering that a clean URL would have to encode.
  */
-export const filesSortParams = createSortParams(FILE_SORT_COLUMNS)
+export const filesSortParams = createSortParams(FILE_SORT_COLUMNS, {
+  column: 'updated',
+  direction: 'desc',
+})
 
 /** Filter/search/sort view-state: clean URLs, no back-stack churn. */
 export const filesFilterUrlKeys = {

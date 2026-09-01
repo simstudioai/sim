@@ -188,11 +188,34 @@ describe('buildLogfireQueryBody', () => {
     })
   })
 
+  it('preserves an hour-only UTC offset instead of appending a second designator', () => {
+    expect(
+      buildLogfireQueryBody({ sql: 'SELECT 1', minTimestamp: '2026-07-01T00:00:00+05' })
+    ).toMatchObject({
+      min_timestamp: '2026-07-01T00:00:00+05',
+    })
+  })
+
   it('clamps limit into the range Logfire accepts', () => {
     expect(buildLogfireQueryBody({ sql: 'SELECT 1', limit: 50 }).limit).toBe(50)
     expect(buildLogfireQueryBody({ sql: 'SELECT 1', limit: 99999 }).limit).toBe(10000)
     expect(buildLogfireQueryBody({ sql: 'SELECT 1', limit: 0 }).limit).toBe(1)
     expect(buildLogfireQueryBody({ sql: 'SELECT 1', limit: 12.7 }).limit).toBe(12)
+  })
+
+  it('accepts a numeric string limit, which agents calling the tool directly emit', () => {
+    expect(buildLogfireQueryBody({ sql: 'SELECT 1', limit: '50' as never }).limit).toBe(50)
+    expect(buildLogfireQueryBody({ sql: 'SELECT 1', limit: '99999' as never }).limit).toBe(10000)
+  })
+
+  it('omits limit entirely when it is absent or not a number', () => {
+    expect(buildLogfireQueryBody({ sql: 'SELECT 1' })).not.toHaveProperty('limit')
+    expect(buildLogfireQueryBody({ sql: 'SELECT 1', limit: '' as never })).not.toHaveProperty(
+      'limit'
+    )
+    expect(buildLogfireQueryBody({ sql: 'SELECT 1', limit: 'fifty' as never })).not.toHaveProperty(
+      'limit'
+    )
   })
 
   it('sends deployment_environment as an array', () => {

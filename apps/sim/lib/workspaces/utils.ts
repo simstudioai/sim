@@ -101,7 +101,16 @@ export async function listAccessibleWorkspaceRowsForUser(
   userId: string,
   scope: WorkspaceScope = 'active'
 ): Promise<
-  Array<{ workspace: typeof workspaceTable.$inferSelect; permissionType: PermissionType }>
+  Array<{
+    workspace: typeof workspaceTable.$inferSelect
+    permissionType: PermissionType
+    /**
+     * The viewer is an admin of this workspace's organization, so their admin
+     * access is derived and cannot be given up — no permission row to delete.
+     * True whether or not they also hold an explicit grant.
+     */
+    viaOrgAdmin: boolean
+  }>
 > {
   const explicit = await db
     .select({ workspace: workspaceTable, permissionType: permissions.permissionType })
@@ -126,18 +135,20 @@ export async function listAccessibleWorkspaceRowsForUser(
 
   const orgRows = await getOrgAdminWorkspaceRows(userId, scope)
   if (orgRows.length === 0) {
-    return explicit
+    return explicit.map((row) => ({ ...row, viaOrgAdmin: false }))
   }
 
   const orgWorkspaceIds = new Set(orgRows.map((ws) => ws.id))
   const seen = new Set(explicit.map((row) => row.workspace.id))
 
   const elevatedExplicit = explicit.map((row) =>
-    orgWorkspaceIds.has(row.workspace.id) ? { ...row, permissionType: 'admin' as const } : row
+    orgWorkspaceIds.has(row.workspace.id)
+      ? { ...row, permissionType: 'admin' as const, viaOrgAdmin: true }
+      : { ...row, viaOrgAdmin: false }
   )
   const derived = orgRows
     .filter((ws) => !seen.has(ws.id))
-    .map((ws) => ({ workspace: ws, permissionType: 'admin' as const }))
+    .map((ws) => ({ workspace: ws, permissionType: 'admin' as const, viaOrgAdmin: true }))
 
   return [...elevatedExplicit, ...derived]
 }
@@ -360,11 +371,18 @@ export async function reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
  *
  * Returns the list of workspaces that could not be reassigned (no owner + no admin). Callers should
  * block user deletion when `unresolved.length > 0` so we never leave an orphaned billing reference.
+ *
+ * Pass `executor` to enroll the handover in a caller-owned transaction — account
+ * deletion does, so a later failure in the same transaction rolls the transfers
+ * back instead of leaving a workspace reassigned for a deletion that never
+ * happened. The per-workspace `transaction` call below becomes a savepoint in
+ * that case, preserving the payer-ledger atomicity it exists for.
  */
 export async function reassignBilledAccountForUser(
-  departingUserId: string
+  departingUserId: string,
+  executor: DbOrTx = db
 ): Promise<ReassignBilledAccountResult> {
-  const billedWorkspaces = await db
+  const billedWorkspaces = await executor
     .select({
       id: workspaceTable.id,
       ownerId: workspaceTable.ownerId,
@@ -384,7 +402,7 @@ export async function reassignBilledAccountForUser(
     let replacement: string | null = ws.ownerId !== departingUserId ? ws.ownerId : null
 
     if (!replacement) {
-      const [admin] = await db
+      const [admin] = await executor
         .select({ userId: permissions.userId })
         .from(permissions)
         .where(
@@ -405,7 +423,7 @@ export async function reassignBilledAccountForUser(
       continue
     }
 
-    await db.transaction(async (tx) => {
+    await executor.transaction(async (tx) => {
       await changeWorkspaceStoragePayerInTx(tx, {
         workspaceId: ws.id,
         organizationId: ws.organizationId,
@@ -452,11 +470,16 @@ export interface ReassignOwnedWorkspacesResult {
  * Returns workspaces that could not be reassigned (no distinct billed account and
  * no other admin). Callers MUST block user deletion when `unresolved.length > 0`
  * so the cascade can never nuke a workspace.
+ *
+ * Takes the same optional `executor` as {@link reassignBilledAccountForUser}, for
+ * the same reason: account deletion runs both inside one transaction so a partial
+ * teardown cannot leave ownership transferred for a deletion that was refused.
  */
 export async function reassignOwnedWorkspacesForUser(
-  departingUserId: string
+  departingUserId: string,
+  executor: DbOrTx = db
 ): Promise<ReassignOwnedWorkspacesResult> {
-  const ownedWorkspaces = await db
+  const ownedWorkspaces = await executor
     .select({
       id: workspaceTable.id,
       billedAccountUserId: workspaceTable.billedAccountUserId,
@@ -476,7 +499,7 @@ export async function reassignOwnedWorkspacesForUser(
       ws.billedAccountUserId !== departingUserId ? ws.billedAccountUserId : null
 
     if (!replacement) {
-      const [admin] = await db
+      const [admin] = await executor
         .select({ userId: permissions.userId })
         .from(permissions)
         .where(
@@ -498,13 +521,13 @@ export async function reassignOwnedWorkspacesForUser(
     }
 
     const now = new Date()
-    await db
+    await executor
       .update(workspaceTable)
       .set({ ownerId: replacement, updatedAt: now })
       .where(eq(workspaceTable.id, ws.id))
 
     // Owners are admins — guarantee the new owner holds an admin permission row.
-    await db
+    await executor
       .insert(permissions)
       .values({
         id: generateId(),

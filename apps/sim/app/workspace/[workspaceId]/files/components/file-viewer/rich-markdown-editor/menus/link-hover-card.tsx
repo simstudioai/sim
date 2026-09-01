@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom'
 import { useCopyToClipboard } from '@sim/emcn'
+import { Check, Duplicate, Pencil, Unlink } from '@sim/emcn/icons'
 import { getMarkRange } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
-import { Check, Copy, Pencil, Unlink } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { normalizeLinkHref } from '../markdown-fidelity'
 import { applyLink, LinkUrlInput } from './link-editing'
@@ -178,7 +178,7 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
             </span>
           )}
           <ToolbarButton
-            icon={copied ? Check : Copy}
+            icon={copied ? Check : Duplicate}
             label={copied ? 'Copied' : 'Copy link'}
             onClick={() => {
               void copy(rawHref)

@@ -24,14 +24,18 @@ import {
   supportsNativeStructuredOutputs,
   supportsTemperature,
 } from '@/providers/models'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { adaptAnthropicToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
-import { prepareToolExecution, prepareToolsWithUsageControl } from '@/providers/utils'
-import { executeTool } from '@/tools'
+import {
+  describeModelLevel,
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+} from '@/providers/utils'
 
 /**
  * Configuration for creating an Anthropic provider instance.
@@ -396,7 +400,7 @@ export async function executeAnthropicProviderRequest(
       )
     } else {
       logger.warn(
-        `Thinking level "${request.thinkingLevel}" not supported for model: ${modelId}, ignoring`
+        `Thinking level "${describeModelLevel(request.thinkingLevel)}" not supported for model: ${modelId}, ignoring`
       )
     }
   }
@@ -652,10 +656,19 @@ export async function executeAnthropicProviderRequest(
               }
             }
 
-            const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
-              signal: request.abortSignal,
-            })
+            const { toolParams, executionParams } = prepareToolExecution(
+              tool,
+              toolArgs,
+              request,
+              toolUse.id
+            )
+            const { rawResponse, modelResponse } = await executeProviderTool(
+              toolName,
+              executionParams,
+              {
+                signal: request.abortSignal,
+              }
+            )
             const toolCallEndTime = Date.now()
 
             return {
@@ -663,7 +676,8 @@ export async function executeAnthropicProviderRequest(
               toolName,
               toolArgs,
               toolParams,
-              result,
+              result: rawResponse,
+              modelResult: modelResponse,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
               duration: toolCallEndTime - toolCallStartTime,
@@ -708,6 +722,10 @@ export async function executeAnthropicProviderRequest(
             endTime,
             duration,
           } = executionResult
+          const modelResult =
+            'modelResult' in executionResult && executionResult.modelResult
+              ? executionResult.modelResult
+              : result
 
           timeSegments.push({
             type: 'tool',
@@ -731,6 +749,13 @@ export async function executeAnthropicProviderRequest(
               tool: toolName,
             }
           }
+          const modelResultContent = modelResult.success
+            ? (modelResult.output ?? null)
+            : {
+                error: true,
+                message: modelResult.error || 'Tool execution failed',
+                tool: toolName,
+              }
 
           toolCalls.push({
             name: toolName,
@@ -745,8 +770,8 @@ export async function executeAnthropicProviderRequest(
           toolResultBlocks.push({
             type: 'tool_result',
             tool_use_id: toolUseId,
-            content: JSON.stringify(resultContent),
-            is_error: !result.success,
+            content: JSON.stringify(modelResultContent),
+            is_error: !modelResult.success,
           })
         }
 
@@ -954,10 +979,7 @@ function enrichLastModelSegmentFromAnthropicResponse(
   const toolCalls: IterationToolCall[] = toolUseBlocks.map((t) => ({
     id: t.id,
     name: t.name,
-    arguments:
-      t.input && typeof t.input === 'object' && !Array.isArray(t.input)
-        ? (t.input as Record<string, unknown>)
-        : {},
+    arguments: isRecordLike(t.input) ? (t.input as Record<string, unknown>) : {},
   }))
 
   const usage = createAnthropicUsageAccumulator()

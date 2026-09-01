@@ -40,6 +40,7 @@ export interface LinearRegex {
    * omitted — RE2 drops it, and every caller here discards empties anyway.
    */
   split(text: string): string[]
+  iterateSplits(text: string): IterableIterator<string>
 }
 
 const METACHARACTERS = /[.*+?^${}()|[\]\\]/
@@ -284,28 +285,26 @@ export function compileLookaroundSplit(
     return { start: matcher.start('mid'), end: matcher.end('mid') }
   }
 
+  const iterateSplits = function* (text: string): Generator<string> {
+    let cursor = 0
+    let searchFrom = 0
+    while (searchFrom <= text.length) {
+      const span = delimiterAt(text, searchFrom)
+      if (!span) break
+      searchFrom = span.end > span.start ? span.end : span.start + 1
+      if (span.start < cursor || span.start >= text.length) continue
+      if (span.start === cursor && span.end === cursor) continue
+      yield text.slice(cursor, span.start)
+      cursor = span.end
+    }
+    if (cursor < text.length || cursor === 0) yield text.slice(cursor)
+  }
+
   return {
     test: (text) => compiled.matcher(text).find(),
     find: (text) => delimiterAt(text, 0)?.start ?? -1,
-    split: (text) => {
-      const segments: string[] = []
-      let cursor = 0
-      let searchFrom = 0
-      while (searchFrom <= text.length) {
-        const span = delimiterAt(text, searchFrom)
-        if (!span) break
-        // Always advance, so a zero-width delimiter cannot spin.
-        searchFrom = span.end > span.start ? span.end : span.start + 1
-        // Skip a boundary behind the cursor, or one that would only emit an
-        // empty leading or trailing segment.
-        if (span.start < cursor || span.start >= text.length) continue
-        if (span.start === cursor && span.end === cursor) continue
-        segments.push(text.slice(cursor, span.start))
-        cursor = span.end
-      }
-      segments.push(text.slice(cursor))
-      return segments
-    },
+    iterateSplits,
+    split: (text) => Array.from(iterateSplits(text)),
   }
 }
 
@@ -329,8 +328,15 @@ export function literalRegex(pattern: string, options: LinearRegexOptions = {}):
       const match = scanner.exec(text)
       return match ? match.index : -1
     },
-    // Built lazily: no caller splits on a literal, so the second compile is
-    // only paid if one ever does.
+    iterateSplits: function* (text) {
+      const splitter = new RegExp(source, `g${caseFlag}`)
+      let cursor = 0
+      for (const match of text.matchAll(splitter)) {
+        yield text.slice(cursor, match.index)
+        cursor = match.index + match[0].length
+      }
+      if (cursor < text.length || cursor === 0) yield text.slice(cursor)
+    },
     split: (text) => text.split(new RegExp(source, `g${caseFlag}`)),
   }
 }
@@ -353,12 +359,25 @@ export function compileLinearRegex(
       translateToRe2(pattern),
       options.ignoreCase ? RE2JS.CASE_INSENSITIVE : 0
     )
+    const iterateSplits = function* (text: string): Generator<string> {
+      const matcher = compiled.matcher(text)
+      let cursor = 0
+      while (matcher.find()) {
+        const start = matcher.start()
+        const end = matcher.end()
+        yield text.slice(cursor, start)
+        cursor = end
+      }
+      if (cursor < text.length || cursor === 0) yield text.slice(cursor)
+    }
+
     return {
       test: (text) => compiled.matcher(text).find(),
       find: (text) => {
         const matcher = compiled.matcher(text)
         return matcher.find() ? matcher.start() : -1
       },
+      iterateSplits,
       split: (text) => compiled.split(text),
     }
   } catch {

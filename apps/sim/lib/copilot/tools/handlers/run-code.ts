@@ -2,7 +2,7 @@ import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/to
 import { executeFunctionExecute } from '@/lib/copilot/tools/handlers/function-execute'
 
 /**
- * Compute-only variant of function_execute for info-gathering agents: same
+ * Compute-only variant of run_function for info-gathering agents: same
  * sandbox and inputs, but it must never create or overwrite workspace
  * resources. The write vectors (outputs.files, outputTable) are rejected here
  * on top of the Go executor's fail-fast guard; run_code is also absent from

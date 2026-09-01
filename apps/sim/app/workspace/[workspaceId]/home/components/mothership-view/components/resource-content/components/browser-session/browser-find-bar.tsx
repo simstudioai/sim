@@ -11,6 +11,7 @@ import {
 } from '@/lib/browser-agent/transport'
 
 interface BrowserFindBarProps {
+  scopeId: string
   /**
    * Owned by the panel so Mod+F can re-focus and select an already-open bar,
    * the way pressing it twice in Chrome does.
@@ -24,20 +25,19 @@ interface BrowserFindBarProps {
  * highlighting, active-match colouring, and wrap-around are the browser's, not
  * a re-implementation.
  *
- * Docked above the page rather than floating over it like Chrome's: a renderer
- * element overlapping the native view trips the occlusion path, which hides
- * the view and would blank the page being searched.
+ * Kept in the browser chrome beside the omnibox: a renderer element floating
+ * over the native page would sit underneath its WebContentsView.
  */
-export function BrowserFindBar({ inputRef, onClose }: BrowserFindBarProps) {
+export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarProps) {
   const [query, setQuery] = useState('')
   const [result, setResult] = useState<BrowserFindResult | null>(null)
 
-  useEffect(() => onBrowserFindResult(setResult), [])
+  useEffect(() => onBrowserFindResult(setResult, scopeId), [scopeId])
 
   // Stopping the find is the only thing that clears the highlights, so it has
   // to survive every unmount path — panel teardown and tab close included.
   // Focus-neutral: an unmount here is the panel going away, not a dismissal.
-  useEffect(() => () => stopBrowserFind(), [])
+  useEffect(() => () => stopBrowserFind(false, scopeId), [scopeId])
 
   /**
    * Dismissal proper. Stops the find with focus handed back to the page before
@@ -45,27 +45,33 @@ export function BrowserFindBar({ inputRef, onClose }: BrowserFindBarProps) {
    * in Chrome. The unmount cleanup then no-ops — the find is already stopped.
    */
   const dismiss = useCallback(() => {
-    stopBrowserFind(true)
+    stopBrowserFind(true, scopeId)
     onClose()
-  }, [onClose])
+  }, [onClose, scopeId])
 
   /**
-   * `findNext: false` restarts the search and re-lights every match, which is
-   * what each keystroke means; stepping passes true so Chromium advances the
-   * active match instead of starting over at the top.
+   * Typing begins a new Chromium find session and re-lights every match;
+   * stepping continues that session so Chromium advances the active match
+   * instead of rescanning the page from the top.
    */
-  const runFind = useCallback((nextQuery: string, step: 'none' | 'forward' | 'back') => {
-    if (nextQuery === '') {
-      setResult(null)
-      stopBrowserFind()
-      return
-    }
-    findInBrowserPage({
-      query: nextQuery,
-      findNext: step !== 'none',
-      forward: step !== 'back',
-    })
-  }, [])
+  const runFind = useCallback(
+    (nextQuery: string, step: 'none' | 'forward' | 'back') => {
+      if (nextQuery === '') {
+        setResult(null)
+        stopBrowserFind(false, scopeId)
+        return
+      }
+      findInBrowserPage(
+        {
+          query: nextQuery,
+          newSession: step === 'none',
+          forward: step !== 'back',
+        },
+        scopeId
+      )
+    },
+    [scopeId]
+  )
 
   const step = useCallback(
     (direction: 'forward' | 'back') => {
@@ -79,17 +85,55 @@ export function BrowserFindBar({ inputRef, onClose }: BrowserFindBarProps) {
   )
 
   return (
-    <div className='flex items-center gap-1 border-[var(--border)] border-t px-2.5 py-1.5'>
+    <div className='w-[clamp(170px,33%,280px)] min-w-0 flex-shrink'>
       <ChipInput
         ref={inputRef}
         type='text'
+        autoFocus
         icon={Search}
         spellCheck={false}
         autoComplete='off'
         aria-label='Find in page'
         placeholder='Find in page'
         value={query}
-        className='min-w-0 flex-1'
+        inputClassName='min-w-0'
+        endAdornment={
+          <div className='-mr-1 flex flex-shrink-0 items-center gap-0.5'>
+            <FindCount query={query} result={result} />
+            <Button
+              type='button'
+              variant='ghost-secondary'
+              size='sm'
+              aria-label='Previous match'
+              disabled={!result?.matches}
+              className='size-[24px] flex-shrink-0 p-0'
+              onClick={() => step('back')}
+            >
+              <ArrowUp className='size-[13px]' />
+            </Button>
+            <Button
+              type='button'
+              variant='ghost-secondary'
+              size='sm'
+              aria-label='Next match'
+              disabled={!result?.matches}
+              className='size-[24px] flex-shrink-0 p-0'
+              onClick={() => step('forward')}
+            >
+              <ArrowDown className='size-[13px]' />
+            </Button>
+            <Button
+              type='button'
+              variant='ghost-secondary'
+              size='sm'
+              aria-label='Close find bar'
+              className='size-[24px] flex-shrink-0 p-0'
+              onClick={dismiss}
+            >
+              <X className='size-[13px]' />
+            </Button>
+          </div>
+        }
         onChange={(event) => {
           setQuery(event.target.value)
           runFind(event.target.value, 'none')
@@ -107,39 +151,6 @@ export function BrowserFindBar({ inputRef, onClose }: BrowserFindBarProps) {
           step(event.shiftKey ? 'back' : 'forward')
         }}
       />
-      <FindCount query={query} result={result} />
-      <Button
-        type='button'
-        variant='ghost-secondary'
-        size='sm'
-        aria-label='Previous match'
-        disabled={!result?.matches}
-        className='size-[30px] flex-shrink-0 p-0'
-        onClick={() => step('back')}
-      >
-        <ArrowUp className='size-[14px]' />
-      </Button>
-      <Button
-        type='button'
-        variant='ghost-secondary'
-        size='sm'
-        aria-label='Next match'
-        disabled={!result?.matches}
-        className='size-[30px] flex-shrink-0 p-0'
-        onClick={() => step('forward')}
-      >
-        <ArrowDown className='size-[14px]' />
-      </Button>
-      <Button
-        type='button'
-        variant='ghost-secondary'
-        size='sm'
-        aria-label='Close find bar'
-        className='size-[30px] flex-shrink-0 p-0'
-        onClick={dismiss}
-      >
-        <X className='size-[14px]' />
-      </Button>
     </div>
   )
 }

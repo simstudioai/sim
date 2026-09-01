@@ -9,6 +9,7 @@ import {
   type VariableOperation,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
+import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { WorkflowOperationSchema } from '@sim/realtime-protocol/schemas'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -16,7 +17,7 @@ import { ZodError } from 'zod'
 import { persistWorkflowOperation } from '@/database/operations'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { checkWorkflowOperationPermission } from '@/middleware/permissions'
-import type { IRoomManager, UserSession } from '@/rooms'
+import { type IRoomManager, type UserSession, workflowRoom as wf } from '@/rooms'
 
 const logger = createLogger('OperationsHandlers')
 
@@ -44,7 +45,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
     let session: UserSession | null = null
 
     try {
-      workflowId = await roomManager.getWorkflowIdForSocket(socket.id)
+      workflowId = (await roomManager.getRoomForSocket(socket.id, ROOM_TYPES.WORKFLOW))?.id ?? null
       session = await roomManager.getUserSession(socket.id)
     } catch (error) {
       logger.error('Error loading session for workflow operation:', error)
@@ -65,7 +66,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
 
     let hasRoom = false
     try {
-      hasRoom = await roomManager.hasWorkflowRoom(workflowId)
+      hasRoom = await roomManager.hasRoom(wf(workflowId))
     } catch (error) {
       logger.error('Error checking workflow room:', error)
       emitOperationError(
@@ -98,14 +99,16 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
       const operationTimestamp = isPositionUpdate ? timestamp : Date.now()
 
       // Get user presence for permission checking
-      const users = await roomManager.getWorkflowUsers(workflowId)
+      const users = await roomManager.getRoomUsers(wf(workflowId))
       const userPresence = users.find((u) => u.socketId === socket.id)
 
       // Skip permission checks for non-committed position updates (broadcasts only, no persistence)
       if (isPositionUpdate && !commitPositionUpdate) {
         // Update last activity
         if (userPresence) {
-          await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
+          await roomManager.updateUserActivity(wf(workflowId), socket.id, {
+            lastActivity: Date.now(),
+          })
         }
       } else {
         // Check permissions from cached role for all other operations
@@ -123,7 +126,9 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           return
         }
 
-        await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
+        await roomManager.updateUserActivity(wf(workflowId), socket.id, {
+          lastActivity: Date.now(),
+        })
 
         // Re-validate the workspace role against the DB (cached per pod for a short
         // window) so revoked or downgraded collaborators lose write access live.
@@ -198,7 +203,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
             timestamp: operationTimestamp,
             userId: session.userId,
           })
-          await roomManager.updateRoomLastModified(workflowId)
+          await roomManager.updateRoomLastModified(wf(workflowId))
 
           if (operationId) {
             socket.emit('operation-confirmed', {
@@ -244,7 +249,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
             timestamp: operationTimestamp,
             userId: session.userId,
           })
-          await roomManager.updateRoomLastModified(workflowId)
+          await roomManager.updateRoomLastModified(wf(workflowId))
 
           if (operationId) {
             socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })
@@ -277,7 +282,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userId: session.userId,
         })
 
-        await roomManager.updateRoomLastModified(workflowId)
+        await roomManager.updateRoomLastModified(wf(workflowId))
 
         const broadcastData = {
           operation,
@@ -317,7 +322,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userId: session.userId,
         })
 
-        await roomManager.updateRoomLastModified(workflowId)
+        await roomManager.updateRoomLastModified(wf(workflowId))
 
         const broadcastData = {
           operation,
@@ -354,7 +359,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userId: session.userId,
         })
 
-        await roomManager.updateRoomLastModified(workflowId)
+        await roomManager.updateRoomLastModified(wf(workflowId))
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -386,7 +391,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userId: session.userId,
         })
 
-        await roomManager.updateRoomLastModified(workflowId)
+        await roomManager.updateRoomLastModified(wf(workflowId))
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -415,7 +420,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userId: session.userId,
         })
 
-        await roomManager.updateRoomLastModified(workflowId)
+        await roomManager.updateRoomLastModified(wf(workflowId))
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -447,7 +452,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userId: session.userId,
         })
 
-        await roomManager.updateRoomLastModified(workflowId)
+        await roomManager.updateRoomLastModified(wf(workflowId))
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -479,7 +484,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userId: session.userId,
         })
 
-        await roomManager.updateRoomLastModified(workflowId)
+        await roomManager.updateRoomLastModified(wf(workflowId))
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -511,7 +516,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userId: session.userId,
         })
 
-        await roomManager.updateRoomLastModified(workflowId)
+        await roomManager.updateRoomLastModified(wf(workflowId))
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -540,7 +545,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userId: session.userId,
         })
 
-        await roomManager.updateRoomLastModified(workflowId)
+        await roomManager.updateRoomLastModified(wf(workflowId))
 
         socket.to(workflowId).emit('workflow-operation', {
           operation,
@@ -569,7 +574,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
         userId: session.userId,
       })
 
-      await roomManager.updateRoomLastModified(workflowId)
+      await roomManager.updateRoomLastModified(wf(workflowId))
 
       const broadcastData = {
         operation,

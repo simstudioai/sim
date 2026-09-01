@@ -131,6 +131,17 @@ describe('compileLookaroundSplit', () => {
     )
   })
 
+  it('keeps split independent of its object receiver', () => {
+    const doc = '# One\nalpha\n# Two\nbeta'
+    const { split } = compileLookaroundSplit('(?=#\\s)')!
+
+    expect(split(doc)).toEqual(doc.split(/(?=#\s)/g).filter(Boolean))
+    expect([doc, doc].map(split)).toEqual([
+      doc.split(/(?=#\s)/g).filter(Boolean),
+      doc.split(/(?=#\s)/g).filter(Boolean),
+    ])
+  })
+
   it('splits after each delimiter for (?<=X)', () => {
     const doc = '<s>one</s><s>two</s><s>three</s>'
     expect(compileLookaroundSplit('(?<=</s>)')?.split(doc)).toEqual([

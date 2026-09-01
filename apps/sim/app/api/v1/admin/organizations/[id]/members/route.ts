@@ -40,7 +40,7 @@ import {
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
+import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { ensureUserInOrganizationTx } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
@@ -118,7 +118,6 @@ export const GET = withRouteHandler(
             createdAt: member.createdAt,
             userName: user.name,
             userEmail: user.email,
-            currentPeriodCost: userStats.currentPeriodCost,
             currentUsageLimit: userStats.currentUsageLimit,
             billingBlocked: userStats.billingBlocked,
           })
@@ -133,9 +132,9 @@ export const GET = withRouteHandler(
 
       const total = countResult[0].count
 
-      // currentPeriodCost is only a baseline; add each member's attributed
-      // usage_log for the org's period so admin shows real current usage.
-      const usageByUser = await getOrgMemberLedgerByUser(organizationId)
+      const { usageByUser } = await getOrganizationMemberUsageSnapshot(organizationId, {
+        userIds: membersData.map((row) => row.userId),
+      })
 
       const data: AdminMemberDetail[] = membersData.map((m) => ({
         id: m.id,
@@ -145,9 +144,7 @@ export const GET = withRouteHandler(
         createdAt: m.createdAt.toISOString(),
         userName: m.userName,
         userEmail: m.userEmail,
-        currentPeriodCost: (
-          Number(m.currentPeriodCost ?? 0) + (usageByUser.get(m.userId) ?? 0)
-        ).toString(),
+        currentPeriodCost: (usageByUser.get(m.userId) ?? 0).toString(),
         currentUsageLimit: m.currentUsageLimit,
         billingBlocked: m.billingBlocked ?? false,
       }))

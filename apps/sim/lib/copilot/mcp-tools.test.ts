@@ -11,7 +11,7 @@ const { discoverServerTools, validateMcpToolsAllowed } = vi.hoisted(() => ({
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
 vi.mock('@/ee/access-control/utils/permission-check', () => ({ validateMcpToolsAllowed }))
 
-import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from './mcp-tools'
+import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
 
 describe('mothership MCP tool schemas', () => {
   beforeEach(() => {
@@ -64,5 +64,25 @@ describe('mothership MCP tool schemas', () => {
       name: 'mcp-server-1-search',
       input_schema: { type: 'object', properties: { query: { type: 'string' } } },
     })
+  })
+
+  it('discovers a selected legacy tool without a cached schema', async () => {
+    discoverServerTools.mockResolvedValueOnce([
+      {
+        serverId: 'mcp-server-1',
+        name: 'search',
+        inputSchema: { type: 'object' },
+      },
+    ])
+
+    const tools = await buildSelectedMcpToolSchemas('user-1', 'ws-1', [
+      {
+        type: 'mcp',
+        params: { serverId: 'mcp-server-1', toolName: 'search' },
+      },
+    ])
+
+    expect(discoverServerTools).toHaveBeenCalledWith('user-1', 'mcp-server-1', 'ws-1')
+    expect(tools[0]).toMatchObject({ name: 'mcp-server-1-search' })
   })
 })

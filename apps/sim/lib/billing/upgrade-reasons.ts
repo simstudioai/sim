@@ -2,10 +2,11 @@
  * Upgrade-reason registry.
  *
  * Single source of truth for the language shown when a user is routed to the
- * upgrade page after hitting a usage limit. The same copy drives both the
- * upgrade-page header and the threshold/limit emails, so the in-app and email
- * journeys never drift apart.
+ * upgrade page after hitting a usage limit, and for where that route points.
+ * The same copy drives both the upgrade-page header and the threshold/limit
+ * emails, so the in-app and email journeys never drift apart.
  */
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 /** The limit categories that can route a user to the upgrade page. */
 export const UPGRADE_REASONS = ['credits', 'storage', 'tables', 'seats'] as const
@@ -86,3 +87,20 @@ export function buildUpgradeHref(workspaceId: string, reason?: UpgradeReason): s
   const base = `/workspace/${workspaceId}/upgrade`
   return reason ? `${base}?${UPGRADE_REASON_PARAM}=${reason}` : base
 }
+
+/**
+ * Absolute upgrade URL on the hosted app.
+ *
+ * Self-hosted deployments talk to Chat through a Chat key issued by the user's
+ * sim.ai account, so their plan and credits live there rather than on the local
+ * instance. A local workspace id is meaningless on the hosted app, so this
+ * points at the account-scoped `/upgrade` entry, which resolves the signed-in
+ * user's own workspace.
+ */
+export function buildHostedUpgradeUrl(reason?: UpgradeReason): string {
+  const base = `${SITE_URL}/upgrade`
+  return reason ? `${base}?${UPGRADE_REASON_PARAM}=${reason}` : base
+}
+
+/** Account billing settings on the hosted app, for raising a usage limit. */
+export const HOSTED_BILLING_SETTINGS_URL = `${SITE_URL}/account/settings/billing` as const

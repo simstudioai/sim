@@ -6,6 +6,7 @@ import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
   type EnterpriseFeature,
   resolveEnterpriseEntitlement,
+  resolveSandboxFeatureAvailability,
 } from '@/lib/core/config/enterprise-entitlements'
 
 describe('resolveEnterpriseEntitlement', () => {
@@ -108,8 +109,52 @@ describe('resolveEnterpriseEntitlement', () => {
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.dataDrains).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.forking).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.accessControl).toBe(false)
+      expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.customBlocks).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.organizations).toBe(false)
       expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.sso).toBe(false)
+      expect(ENTERPRISE_FEATURE_LEGACY_DEFAULTS.sandboxes).toBe(false)
     })
+  })
+})
+
+describe('resolveSandboxFeatureAvailability', () => {
+  it.each([
+    {
+      name: 'hosted billing with a provider',
+      billingEnabled: true,
+      deploymentEntitled: false,
+      remoteProviderEnabled: true,
+      expected: true,
+    },
+    {
+      name: 'hosted billing without a provider',
+      billingEnabled: true,
+      deploymentEntitled: false,
+      remoteProviderEnabled: false,
+      expected: false,
+    },
+    {
+      name: 'billing-free Enterprise or feature entitlement with a provider',
+      billingEnabled: false,
+      deploymentEntitled: true,
+      remoteProviderEnabled: true,
+      expected: true,
+    },
+    {
+      name: 'billing-free provider credentials without an entitlement',
+      billingEnabled: false,
+      deploymentEntitled: false,
+      remoteProviderEnabled: true,
+      expected: false,
+    },
+    {
+      name: 'billing-free entitlement without a provider',
+      billingEnabled: false,
+      deploymentEntitled: true,
+      remoteProviderEnabled: false,
+      expected: false,
+    },
+  ])('$name resolves to $expected', ({ expected, ...input }) => {
+    expect(resolveSandboxFeatureAvailability(input)).toBe(expected)
   })
 })

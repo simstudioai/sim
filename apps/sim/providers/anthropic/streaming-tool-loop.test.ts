@@ -5,13 +5,16 @@
  * text classified by turn_end, abort → cancelled, per-turn usage accumulation.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   anthropicThinkingTextToolExpectedThinking,
   anthropicThinkingTextToolStreamEvents,
 } from '@/providers/__fixtures__/anthropic'
 import { createAnthropicStreamingToolLoopStream } from '@/providers/anthropic/streaming-tool-loop'
 import type { AnthropicUsageLike } from '@/providers/anthropic/usage'
+import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import type { AgentStreamEvent } from '@/providers/stream-events'
+import { registerPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import type { TimeSegment } from '@/providers/types'
 
 const { mockExecuteTool, mockPrepareToolExecution } = vi.hoisted(() => ({
@@ -24,6 +27,11 @@ vi.mock('@/tools', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   prepareToolExecution: mockPrepareToolExecution,
   calculateCost: () => ({ input: 0.01, output: 0.02, total: 0.03 }),
   sumToolCosts: () => 0,
@@ -246,6 +254,138 @@ describe('createAnthropicStreamingToolLoopStream', () => {
     })
     expect(onComplete.mock.calls[0][0].content).toContain('68°F')
     expect(mockExecuteTool).toHaveBeenCalled()
+  })
+
+  it('keeps raw tool results for execution records and projects only the model continuation', async () => {
+    const secret = 'secret-value'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    const sourcePath = ['tools', '0', 'params', 'token'] as const
+    registry.recordResolvedAtInputPath('TOKEN', secret, sourcePath)
+    registry.recordResolvedInputProjection(sourcePath, secret, '{{TOKEN}}')
+    const executionParams = { token: secret }
+    const inputRegistry = registry.forkForInputPaths([['tools', '0', 'params']])
+    inputRegistry.recordTransformedInputProjection(
+      { params: executionParams },
+      { params: { token: '{{TOKEN}}' } }
+    )
+    registerPreparedProviderToolInputProvenance(executionParams, {
+      registry: inputRegistry,
+      inputPaths: [['params']],
+    })
+    mockPrepareToolExecution.mockReturnValue({
+      toolParams: executionParams,
+      executionParams,
+    })
+    mockExecuteTool.mockResolvedValue({
+      success: true,
+      output: { authorization: `Bearer ${secret}` },
+    })
+
+    const toolUse = {
+      type: 'tool_use',
+      id: 'toolu_secret',
+      name: 'get_secret',
+      input: { token: secret },
+    }
+    const toolTurnMessage = makeFinalMessage({
+      content: [toolUse],
+      stop_reason: 'tool_use',
+    })
+    const finalTurnMessage = makeFinalMessage({
+      content: [{ type: 'text', text: 'Done' }],
+      stop_reason: 'end_turn',
+    })
+    const anthropic = {
+      messages: {
+        stream: vi
+          .fn()
+          .mockReturnValueOnce(
+            makeMessageStream(
+              [
+                {
+                  type: 'content_block_start',
+                  index: 0,
+                  content_block: toolUse,
+                },
+                { type: 'content_block_stop', index: 0 },
+                { type: 'message_stop' },
+              ],
+              toolTurnMessage
+            )
+          )
+          .mockReturnValueOnce(
+            makeMessageStream(
+              [
+                {
+                  type: 'content_block_start',
+                  index: 0,
+                  content_block: { type: 'text', text: '' },
+                },
+                {
+                  type: 'content_block_delta',
+                  index: 0,
+                  delta: { type: 'text_delta', text: 'Done' },
+                },
+                { type: 'content_block_stop', index: 0 },
+                { type: 'message_stop' },
+              ],
+              finalTurnMessage
+            )
+          ),
+      },
+    } as any
+    const onComplete = vi.fn()
+
+    const events = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: registry },
+      () =>
+        collectEvents(
+          createAnthropicStreamingToolLoopStream({
+            anthropic,
+            payload: {
+              model: 'claude-sonnet-4-5',
+              max_tokens: 1024,
+              messages: [{ role: 'user', content: 'Use the tool' }],
+              tools: [
+                {
+                  name: 'get_secret',
+                  description: 'Get a value',
+                  input_schema: { type: 'object', properties: {} },
+                },
+              ],
+            } as any,
+            request: {
+              model: 'claude-sonnet-4-5',
+              apiKey: 'test',
+              tools: [{ id: 'get_secret', name: 'get_secret', params: {}, parameters: {} }],
+            } as any,
+            messages: [{ role: 'user', content: 'Use the tool' }],
+            providerId: 'anthropic',
+            logger,
+            timeSegments: [],
+            onComplete,
+          })
+        )
+    )
+
+    expect(events.some((event) => event.type === 'turn_end' && event.turn === 'final')).toBe(true)
+    const continuation = anthropic.messages.stream.mock.calls[1][0]
+    const toolResultMessage = continuation.messages.find(
+      (message: { role?: string; content?: unknown }) =>
+        message.role === 'user' && Array.isArray(message.content)
+    )
+    const modelToolResult = toolResultMessage.content.find(
+      (block: { type?: string }) => block.type === 'tool_result'
+    )
+    expect(modelToolResult.content).toContain('Bearer {{TOKEN}}')
+    expect(modelToolResult.content).not.toContain(secret)
+
+    const completion = onComplete.mock.calls.at(-1)?.[0]
+    expect(completion.toolCalls.list[0].result).toEqual({
+      authorization: `Bearer ${secret}`,
+    })
   })
 
   it('settles in-flight tools as cancelled on abort', async () => {

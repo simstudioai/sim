@@ -2,12 +2,12 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 /**
- * An in-flight client upload, shown optimistically before its server import row exists or the
- * table list has refreshed. Keyed by `uploadId`: a `pending_*` id (creating a new table, no row
- * yet) or the target tableId (append/replace into an existing table).
+ * An in-flight client upload, shown after its signed upload session is created but before the
+ * table list has refreshed. `uploadId` is the import id across upload and processing.
  */
 export interface ImportUpload {
   uploadId: string
+  tableId?: string
   workspaceId: string
   title: string
   /** Byte-based upload percent from the client XHR. */

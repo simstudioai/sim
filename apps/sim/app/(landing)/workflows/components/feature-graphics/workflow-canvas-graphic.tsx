@@ -1,4 +1,5 @@
 import { ChipTag, cn } from '@sim/emcn'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/workflows/components/feature-graphics/workflow-canvas-graphic.module.css'
 
@@ -74,8 +75,11 @@ export function WorkflowCanvasGraphic() {
                 key={path}
                 d={path}
                 pathLength={1}
-                className={cn(styles.edgeDraw, EDGE_DRAW_CLASSES[index])}
-                stroke='color-mix(in srgb, var(--text-muted) 35%, transparent)'
+                className={cn(
+                  styles.edgeDraw,
+                  EDGE_DRAW_CLASSES[index],
+                  colorMixFallbacks.mutedStroke35
+                )}
                 strokeWidth='1'
               />
             ))}
@@ -83,7 +87,7 @@ export function WorkflowCanvasGraphic() {
 
           <div className='-translate-x-1/2 absolute top-[14px] left-[160px] flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-1.5 shadow-sm'>
             <span className='size-2 shrink-0 rounded-full border border-[var(--text-muted)] bg-[var(--surface-3)]' />
-            <span className='whitespace-nowrap font-medium text-[var(--text-secondary)] text-caption'>
+            <span className='whitespace-nowrap text-[var(--text-secondary)] text-caption'>
               New ticket
             </span>
           </div>
@@ -95,7 +99,7 @@ export function WorkflowCanvasGraphic() {
                 styles.agentPulse
               )}
             />
-            <span className='whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+            <span className='whitespace-nowrap text-[var(--text-primary)] text-small'>
               Support agent
             </span>
             <ChipTag variant='solid'>Agent</ChipTag>
@@ -110,7 +114,7 @@ export function WorkflowCanvasGraphic() {
               )}
             >
               <span className='size-2 shrink-0 rounded-full border border-[var(--text-muted)] bg-[var(--surface-3)]' />
-              <span className='whitespace-nowrap font-medium text-[var(--text-secondary)] text-caption'>
+              <span className='whitespace-nowrap text-[var(--text-secondary)] text-caption'>
                 {block.label}
               </span>
             </div>

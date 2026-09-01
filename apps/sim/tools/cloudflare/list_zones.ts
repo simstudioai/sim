@@ -1,7 +1,9 @@
 import type {
   CloudflareListZonesParams,
   CloudflareListZonesResponse,
+  CloudflareRawZone,
 } from '@/tools/cloudflare/types'
+import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareListZonesResponse> = {
@@ -88,7 +90,7 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawZone[]>(response)
 
     if (!data.success) {
       return {
@@ -101,49 +103,48 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
     return {
       success: true,
       output: {
-        zones:
-          data.result?.map((zone: any) => ({
-            id: zone.id ?? '',
-            name: zone.name ?? '',
-            status: zone.status ?? '',
-            paused: zone.paused ?? false,
-            type: zone.type ?? '',
-            name_servers: zone.name_servers ?? [],
-            original_name_servers: zone.original_name_servers ?? [],
-            created_on: zone.created_on ?? '',
-            modified_on: zone.modified_on ?? '',
-            activated_on: zone.activated_on ?? '',
-            development_mode: zone.development_mode ?? 0,
-            plan: {
-              id: zone.plan?.id ?? '',
-              name: zone.plan?.name ?? '',
-              price: zone.plan?.price ?? 0,
-              is_subscribed: zone.plan?.is_subscribed ?? false,
-              frequency: zone.plan?.frequency ?? '',
-              currency: zone.plan?.currency ?? '',
-              legacy_id: zone.plan?.legacy_id ?? '',
-            },
-            account: {
-              id: zone.account?.id ?? '',
-              name: zone.account?.name ?? '',
-            },
-            owner: {
-              id: zone.owner?.id ?? '',
-              name: zone.owner?.name ?? '',
-              type: zone.owner?.type ?? '',
-            },
-            meta: {
-              cdn_only: zone.meta?.cdn_only ?? false,
-              custom_certificate_quota: zone.meta?.custom_certificate_quota ?? 0,
-              dns_only: zone.meta?.dns_only ?? false,
-              foundation_dns: zone.meta?.foundation_dns ?? false,
-              page_rule_quota: zone.meta?.page_rule_quota ?? 0,
-              phishing_detected: zone.meta?.phishing_detected ?? false,
-              step: zone.meta?.step ?? 0,
-            },
-            vanity_name_servers: zone.vanity_name_servers ?? [],
-            permissions: zone.permissions ?? [],
-          })) ?? [],
+        zones: (Array.isArray(data.result) ? data.result : []).map((zone) => ({
+          id: zone.id ?? '',
+          name: zone.name ?? '',
+          status: zone.status ?? '',
+          paused: zone.paused ?? false,
+          type: zone.type ?? '',
+          name_servers: zone.name_servers ?? [],
+          original_name_servers: zone.original_name_servers ?? [],
+          created_on: zone.created_on ?? '',
+          modified_on: zone.modified_on ?? '',
+          activated_on: zone.activated_on ?? '',
+          development_mode: zone.development_mode ?? 0,
+          plan: {
+            id: zone.plan?.id ?? '',
+            name: zone.plan?.name ?? '',
+            price: zone.plan?.price ?? 0,
+            is_subscribed: zone.plan?.is_subscribed ?? false,
+            frequency: zone.plan?.frequency ?? '',
+            currency: zone.plan?.currency ?? '',
+            legacy_id: zone.plan?.legacy_id ?? '',
+          },
+          account: {
+            id: zone.account?.id ?? '',
+            name: zone.account?.name ?? '',
+          },
+          owner: {
+            id: zone.owner?.id ?? '',
+            name: zone.owner?.name ?? '',
+            type: zone.owner?.type ?? '',
+          },
+          meta: {
+            cdn_only: zone.meta?.cdn_only ?? false,
+            custom_certificate_quota: zone.meta?.custom_certificate_quota ?? 0,
+            dns_only: zone.meta?.dns_only ?? false,
+            foundation_dns: zone.meta?.foundation_dns ?? false,
+            page_rule_quota: zone.meta?.page_rule_quota ?? 0,
+            phishing_detected: zone.meta?.phishing_detected ?? false,
+            step: zone.meta?.step ?? 0,
+          },
+          vanity_name_servers: zone.vanity_name_servers ?? [],
+          permissions: zone.permissions ?? [],
+        })),
         total_count: data.result_info?.total_count ?? data.result?.length ?? 0,
       },
     }
@@ -163,7 +164,10 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
             description: 'Zone status (initializing, pending, active, moved)',
           },
           paused: { type: 'boolean', description: 'Whether the zone is paused' },
-          type: { type: 'string', description: 'Zone type (full, partial, or secondary)' },
+          type: {
+            type: 'string',
+            description: 'Zone type (full, partial, secondary, or internal)',
+          },
           name_servers: {
             type: 'array',
             description: 'Assigned Cloudflare name servers',

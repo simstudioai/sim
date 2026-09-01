@@ -28,15 +28,6 @@ export const THREAD_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete thread object output definition.
- */
-export const THREAD_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Zep thread object',
-  properties: THREAD_OUTPUT_PROPERTIES,
-}
-
-/**
  * Threads array output definition for list endpoints.
  * @see https://help.getzep.com/sdk-reference/thread/list-all
  */

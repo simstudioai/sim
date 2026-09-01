@@ -3,12 +3,38 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { hubspotConnectorMeta } from '@/connectors/hubspot/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, looksLikeHtml, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('HubSpotConnector')
 
 const BASE_URL = 'https://api.hubapi.com'
-const PAGE_SIZE = 100
+
+/** Max `limit` for `GET /crm/v3/objects/{objectType}` (list endpoint). */
+const LIST_PAGE_SIZE = 100
+
+/** Max `limit` for `POST /crm/v3/objects/{objectType}/search`. */
+const SEARCH_PAGE_SIZE = 200
+
+/**
+ * The CRM Search API is capped at 10,000 total results per query — HubSpot
+ * documents that "attempting to page beyond 10,000 will result in a 400 error".
+ * No equivalent ceiling is documented for the list endpoint, so search is used
+ * only when the configured record cap provably fits inside the search ceiling
+ * (which buys most-recently-modified-first ordering for capped syncs); every
+ * uncapped sync pages the list endpoint instead.
+ */
+const SEARCH_RESULT_CAP = 10_000
+
+/** Fallback UI host when the account's `uiDomain` cannot be resolved. */
+const DEFAULT_UI_DOMAIN = 'app.hubspot.com'
+
+/** CRM object type IDs used in HubSpot record deep links (`/record/{typeId}/{id}`). */
+const OBJECT_TYPE_IDS: Record<string, string> = {
+  contacts: '0-1',
+  companies: '0-2',
+  deals: '0-3',
+  tickets: '0-5',
+}
 
 /** Properties to fetch per object type. */
 const OBJECT_PROPERTIES: Record<string, string[]> = {
@@ -62,39 +88,68 @@ const OBJECT_PROPERTIES: Record<string, string[]> = {
   ],
 } as const
 
+interface PortalInfo {
+  portalId: string
+  uiDomain: string
+}
+
 /**
- * Fetches the HubSpot portal ID for the authenticated account.
- * Caches the result in syncContext to avoid repeated calls.
+ * Fetches the HubSpot account's portal ID and UI domain (EU portals are served
+ * from `app-eu1.hubspot.com`, not `app.hubspot.com`), caching the result — and
+ * any failure — in syncContext so it is fetched at most once per sync.
+ *
+ * Record deep links are cosmetic, so a failure here degrades to no `sourceUrl`
+ * rather than aborting the whole listing.
  */
-async function getPortalId(
+async function getPortalInfo(
   accessToken: string,
   syncContext?: Record<string, unknown>
-): Promise<string> {
-  if (syncContext?.portalId) {
-    return syncContext.portalId as string
+): Promise<PortalInfo | null> {
+  if (syncContext?.portalInfo) {
+    return syncContext.portalInfo as PortalInfo
+  }
+  if (syncContext?.portalInfoUnavailable) {
+    return null
   }
 
-  const response = await fetchWithRetry(`${BASE_URL}/account-info/v3/details`, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-  })
+  try {
+    const response = await fetchWithRetry(`${BASE_URL}/account-info/v3/details`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Failed to fetch HubSpot portal ID: ${response.status} - ${errorText}`)
+    if (!response.ok) {
+      const errorText = await response.text()
+      logger.warn('Failed to fetch HubSpot account details; record links will be omitted', {
+        status: response.status,
+        error: errorText,
+      })
+      if (syncContext) syncContext.portalInfoUnavailable = true
+      return null
+    }
+
+    const data = (await response.json()) as { portalId?: number | string; uiDomain?: string }
+    if (data.portalId === undefined || data.portalId === null) {
+      if (syncContext) syncContext.portalInfoUnavailable = true
+      return null
+    }
+
+    const portalInfo: PortalInfo = {
+      portalId: String(data.portalId),
+      uiDomain: data.uiDomain || DEFAULT_UI_DOMAIN,
+    }
+    if (syncContext) syncContext.portalInfo = portalInfo
+    return portalInfo
+  } catch (error) {
+    logger.warn('Failed to fetch HubSpot account details; record links will be omitted', {
+      error: getErrorMessage(error),
+    })
+    if (syncContext) syncContext.portalInfoUnavailable = true
+    return null
   }
-
-  const data = await response.json()
-  const portalId = String(data.portalId)
-
-  if (syncContext) {
-    syncContext.portalId = portalId
-  }
-
-  return portalId
 }
 
 /**
@@ -120,6 +175,19 @@ function buildRecordTitle(objectType: string, properties: Record<string, string 
 }
 
 /**
+ * HubSpot rich-text properties (ticket `content`, company `description`, custom
+ * rich-text fields) come back as raw HTML, so they are stripped before indexing.
+ *
+ * The detection is deliberately the shared anchored one: CRM free text regularly
+ * carries angle brackets that are not markup (`Reply from John <john@acme.com>`),
+ * and a false positive here does not pass the value through — `htmlToPlainText`
+ * would delete the bracketed span and collapse the value's line structure.
+ */
+function toPlainTextValue(value: string): string {
+  return looksLikeHtml(value) ? htmlToPlainText(value) : value
+}
+
+/**
  * Builds a plain-text representation of a CRM record's properties for indexing.
  */
 function buildRecordContent(objectType: string, properties: Record<string, string | null>): string {
@@ -131,7 +199,7 @@ function buildRecordContent(objectType: string, properties: Record<string, strin
   for (const [key, value] of Object.entries(properties)) {
     if (value && key !== 'hs_object_id') {
       const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-      parts.push(`${label}: ${value}`)
+      parts.push(`${label}: ${toPlainTextValue(value)}`)
     }
   }
 
@@ -144,7 +212,7 @@ function buildRecordContent(objectType: string, properties: Record<string, strin
 function recordToDocument(
   record: Record<string, unknown>,
   objectType: string,
-  portalId: string
+  portal: PortalInfo | null
 ): ExternalDocument {
   const id = record.id as string
   const properties = (record.properties || {}) as Record<string, string | null>
@@ -155,13 +223,27 @@ function recordToDocument(
   const lastModified =
     properties.lastmodifieddate || properties.hs_lastmodifieddate || properties.createdate
 
+  const objectTypeId = OBJECT_TYPE_IDS[objectType]
+  const sourceUrl =
+    portal && objectTypeId
+      ? `https://${portal.uiDomain}/contacts/${portal.portalId}/record/${objectTypeId}/${id}`
+      : undefined
+
   return {
     externalId: id,
     title,
     content,
     mimeType: 'text/plain',
-    sourceUrl: `https://app.hubspot.com/contacts/${portalId}/record/${objectType}/${id}`,
-    contentHash: `hubspot:${id}:${lastModified ?? ''}`,
+    sourceUrl,
+    /**
+     * The `v2` namespace is a one-time invalidation. The hash is metadata-only
+     * and this connector sets neither `contentDeferred` nor
+     * `rehydrateOnFullSync`, so a stored record whose `lastmodifieddate` has not
+     * moved can never be re-indexed — not even by a forced full resync. Without
+     * the bump, existing documents would keep the raw HTML that rich-text
+     * properties return, since `htmlToPlainText` is only applied on write.
+     */
+    contentHash: `hubspot:v2:${id}:${lastModified ?? ''}`,
     metadata: {
       objectType,
       owner: properties.hubspot_owner_id || undefined,
@@ -181,33 +263,70 @@ export const hubspotConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const objectType = sourceConfig.objectType as string
+    const properties = OBJECT_PROPERTIES[objectType]
+    if (!properties) {
+      throw new Error(`Unsupported HubSpot object type: ${objectType}`)
+    }
+
     const maxRecords = sourceConfig.maxRecords ? Number(sourceConfig.maxRecords) : 0
-    const properties = OBJECT_PROPERTIES[objectType] || []
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    const remaining = maxRecords > 0 ? Math.max(maxRecords - previouslyFetched, 0) : 0
 
-    const portalId = await getPortalId(accessToken, syncContext)
+    const portal = await getPortalInfo(accessToken, syncContext)
 
-    const sortProperty = objectType === 'contacts' ? 'lastmodifieddate' : 'hs_lastmodifieddate'
+    /**
+     * The search endpoint sorts by last-modified (so a capped sync keeps the most
+     * recent records) but cannot page past 10,000 results. An uncapped sync — or a
+     * cap larger than that ceiling — uses the list endpoint, which pages the full
+     * object without a ceiling.
+     */
+    const useSearch = maxRecords > 0 && maxRecords <= SEARCH_RESULT_CAP
+    const pageMax = useSearch ? SEARCH_PAGE_SIZE : LIST_PAGE_SIZE
+    const limit = maxRecords > 0 ? Math.min(pageMax, Math.max(1, remaining)) : pageMax
 
-    const searchBody: Record<string, unknown> = {
-      properties,
-      sorts: [{ propertyName: sortProperty, direction: 'DESCENDING' }],
-      limit: PAGE_SIZE,
+    logger.info(`Listing HubSpot ${objectType}`, { cursor, useSearch, limit })
+
+    let response: Response
+    if (useSearch) {
+      const sortProperty = objectType === 'contacts' ? 'lastmodifieddate' : 'hs_lastmodifieddate'
+      const searchBody: Record<string, unknown> = {
+        properties,
+        sorts: [{ propertyName: sortProperty, direction: 'DESCENDING' }],
+        limit,
+      }
+      if (cursor) searchBody.after = cursor
+
+      response = await fetchWithRetry(
+        `${BASE_URL}/crm/v3/objects/${encodeURIComponent(objectType)}/search`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(searchBody),
+        }
+      )
+    } else {
+      const params = new URLSearchParams({
+        limit: String(limit),
+        properties: properties.join(','),
+        archived: 'false',
+      })
+      if (cursor) params.set('after', cursor)
+
+      response = await fetchWithRetry(
+        `${BASE_URL}/crm/v3/objects/${encodeURIComponent(objectType)}?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      )
     }
-    if (cursor) {
-      searchBody.after = cursor
-    }
-
-    logger.info(`Listing HubSpot ${objectType}`, { cursor })
-
-    const response = await fetchWithRetry(`${BASE_URL}/crm/v3/objects/${objectType}/search`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(searchBody),
-    })
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -223,16 +342,12 @@ export const hubspotConnector: ConnectorConfig = {
     const paging = data.paging as { next?: { after?: string } } | undefined
     const nextCursor = paging?.next?.after
 
-    const documents: ExternalDocument[] = results.map((record) =>
-      recordToDocument(record, objectType, portalId)
+    let documents: ExternalDocument[] = results.map((record) =>
+      recordToDocument(record, objectType, portal)
     )
 
-    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
-    if (maxRecords > 0) {
-      const remaining = maxRecords - previouslyFetched
-      if (documents.length > remaining) {
-        documents.splice(remaining)
-      }
+    if (maxRecords > 0 && documents.length > remaining) {
+      documents = documents.slice(0, remaining)
     }
 
     const totalFetched = previouslyFetched + documents.length
@@ -240,7 +355,27 @@ export const hubspotConnector: ConnectorConfig = {
       syncContext.totalDocsFetched = totalFetched
     }
 
-    const hasMore = Boolean(nextCursor) && (maxRecords <= 0 || totalFetched < maxRecords)
+    const moreAvailable = Boolean(nextCursor)
+    /**
+     * The search path can never reach its own 10,000-result ceiling: `useSearch`
+     * only holds when `maxRecords <= SEARCH_RESULT_CAP`, so the record cap always
+     * stops paging first. The cap is therefore the only stop condition here.
+     */
+    const hasMore = moreAvailable && !(maxRecords > 0 && totalFetched >= maxRecords)
+
+    /**
+     * Stopping while the source still has pages leaves the listing partial. The
+     * sync engine hard-deletes stored documents absent from a full listing, so
+     * the cap must suppress deletion reconciliation. Genuine exhaustion (no
+     * `paging.next.after`) leaves the flag unset so deletions still reconcile.
+     */
+    if (moreAvailable && !hasMore && syncContext) {
+      syncContext.listingCapped = true
+      logger.warn(`HubSpot ${objectType} listing capped before source exhaustion`, {
+        totalFetched,
+        maxRecords,
+      })
+    }
 
     return {
       documents,
@@ -256,20 +391,19 @@ export const hubspotConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const objectType = sourceConfig.objectType as string
-    const properties = OBJECT_PROPERTIES[objectType] || []
-
-    let portalId = syncContext?.portalId as string | undefined
-    if (!portalId) {
-      portalId = await getPortalId(accessToken)
-      if (syncContext) syncContext.portalId = portalId
+    const properties = OBJECT_PROPERTIES[objectType]
+    if (!properties) {
+      throw new Error(`Unsupported HubSpot object type: ${objectType}`)
     }
 
-    const params = new URLSearchParams()
-    for (const prop of properties) {
-      params.append('properties', prop)
-    }
+    const portal = await getPortalInfo(accessToken, syncContext)
 
-    const url = `${BASE_URL}/crm/v3/objects/${objectType}/${externalId}?${params.toString()}`
+    const params = new URLSearchParams({
+      properties: properties.join(','),
+      archived: 'false',
+    })
+
+    const url = `${BASE_URL}/crm/v3/objects/${encodeURIComponent(objectType)}/${encodeURIComponent(externalId)}?${params.toString()}`
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -285,7 +419,7 @@ export const hubspotConnector: ConnectorConfig = {
     }
 
     const record = await response.json()
-    return recordToDocument(record as Record<string, unknown>, objectType, portalId)
+    return recordToDocument(record as Record<string, unknown>, objectType, portal)
   },
 
   validateConfig: async (
@@ -309,7 +443,7 @@ export const hubspotConnector: ConnectorConfig = {
 
     try {
       const response = await fetchWithRetry(
-        `${BASE_URL}/crm/v3/objects/${objectType}?limit=1`,
+        `${BASE_URL}/crm/v3/objects/${encodeURIComponent(objectType)}?limit=1`,
         {
           method: 'GET',
           headers: {

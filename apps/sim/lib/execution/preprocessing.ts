@@ -16,6 +16,7 @@ import {
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
+  type AdmissionErrorDescriptor,
   getReservationDenialDescriptor,
   type ReservationDenialReason,
 } from '@/lib/core/admission/transient-failure'
@@ -23,7 +24,15 @@ import {
   describeRetryableInfrastructureError,
   isRetryableInfrastructureError,
 } from '@/lib/core/errors/retryable-infrastructure'
-import { getExecutionTimeout } from '@/lib/core/execution-limits'
+import {
+  getExecutionTimeout,
+  RESERVATION_TTL_BUFFER_MS,
+  resolveAsyncExecutionTimeout,
+} from '@/lib/core/execution-limits'
+import {
+  type ExecutionTimeoutSource,
+  recordExecutionTimeoutResolution,
+} from '@/lib/core/execution-limits/metrics'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { LoggingSession, type SessionStartParams } from '@/lib/logs/execution/logging-session'
@@ -56,6 +65,12 @@ export interface PreprocessExecutionOptions {
   requestId: string
 
   checkRateLimit?: boolean
+  /**
+   * Which execution token bucket the rate-limit gate debits. Ignored when
+   * `checkRateLimit` is false. Defaults to `'sync'` — the historical behavior
+   * for every surface, including async-queued v1 runs.
+   */
+  rateLimitCounter?: 'sync' | 'async'
   checkDeployment?: boolean
   skipUsageLimits?: boolean
   /**
@@ -68,6 +83,14 @@ export interface PreprocessExecutionOptions {
   skipConcurrencyReservation?: boolean
   /** Skip execution-log error rows when the caller presents the failure itself. */
   logPreprocessingErrors?: boolean
+  /**
+   * Skip execution-log error rows ONLY for retryable infrastructure failures
+   * (`statusCode >= 500 && retryable`). Set by callers that requeue such
+   * failures under the same execution id, so an attempt that will be retried
+   * does not leave a terminal failed row behind; the caller passes `false`
+   * again on its final attempt so an exhausted retry still records the row.
+   */
+  suppressRetryableFailureLogs?: boolean
 
   workspaceId?: string
   loggingSession?: LoggingSession
@@ -84,6 +107,12 @@ export interface PreprocessExecutionOptions {
    * the previously captured snapshot before calling preprocessing.
    */
   billingAttribution?: BillingAttributionSnapshot
+  /** Attempt type used to size its reservation and return the applicable timeout. */
+  executionType?: 'sync' | 'async'
+  /** Async API-only request cap in seconds. */
+  requestedTimeoutSeconds?: number
+  /** Absolute active-attempt deadline, when the caller already started its timeout clock. */
+  executionDeadlineAt?: number
 }
 
 export interface PreprocessExecutionError {
@@ -91,8 +120,31 @@ export interface PreprocessExecutionError {
   statusCode: number
   code?: string
   retryable?: boolean
+  /**
+   * How long the caller should wait before retrying, so surfaces can emit
+   * `Retry-After`. Set by rate-limit denials from the token bucket, and by
+   * admission denials from their descriptor's declared `retryAfterSeconds`.
+   */
+  retryAfterMs?: number
   cause?: Record<string, unknown>
 }
+
+/**
+ * Carries an admission descriptor's declared retry pacing to the transport,
+ * which speaks milliseconds.
+ *
+ * The descriptors in `lib/core/admission/transient-failure` already decide how
+ * long each denial should hold a caller off, but that value used to stop here:
+ * only `statusCode`, `code`, and `retryable` were copied onto the preprocess
+ * error, so a concurrency denial reached the client as a bare `429` with no
+ * `Retry-After` despite the policy layer having named the wait. The transport
+ * is not the right place to re-guess a number the policy already owns.
+ */
+function retryAfterMsFrom(retryAfterSeconds: number | undefined): { retryAfterMs?: number } {
+  return retryAfterSeconds === undefined ? {} : { retryAfterMs: retryAfterSeconds * 1000 }
+}
+
+export const WORKFLOW_NOT_DEPLOYED_CODE = 'WORKFLOW_NOT_DEPLOYED'
 
 export interface PreprocessExecutionSuccess {
   success: true
@@ -127,21 +179,30 @@ export async function preprocessExecution(
     reservationId = executionId,
     requestId,
     checkRateLimit = triggerType !== 'manual' && triggerType !== 'chat',
+    rateLimitCounter = 'sync',
     checkDeployment = triggerType !== 'manual',
     skipUsageLimits = false,
     skipConcurrencyReservation = false,
     logPreprocessingErrors = true,
+    suppressRetryableFailureLogs = false,
     workspaceId: providedWorkspaceId,
     loggingSession: providedLoggingSession,
     triggerData,
     useAuthenticatedUserAsActor = false,
     workflowRecord: prefetchedWorkflowRecord,
     billingAttribution: providedBillingAttribution,
+    executionType = 'sync',
+    requestedTimeoutSeconds,
+    executionDeadlineAt,
   } = options
 
   /** Suppresses log rows when the caller surfaces preprocessing failures itself. */
   const recordPreprocessingError: typeof logPreprocessingError = (args) =>
     logPreprocessingErrors ? logPreprocessingError(args) : Promise.resolve()
+
+  /** True when this failure's log row is deferred to a caller that will requeue it. */
+  const isFailureLogSuppressed = (failure: PreprocessExecutionError): boolean =>
+    suppressRetryableFailureLogs && failure.statusCode >= 500 && failure.retryable === true
 
   logger.info(`[${requestId}] Starting execution preprocessing`, {
     workflowId,
@@ -191,27 +252,27 @@ export async function preprocessExecution(
     } catch (error) {
       logger.error(`[${requestId}] Error fetching workflow`, { error, workflowId })
 
-      await recordPreprocessingError({
-        workflowId,
-        executionId,
-        triggerType,
-        requestId,
-        userId: userId || 'unknown',
-        workspaceId: providedWorkspaceId || '',
-        errorMessage: 'Internal error while fetching workflow',
-        loggingSession: providedLoggingSession,
-        triggerData,
-      })
-
-      return {
-        success: false,
-        error: {
-          message: 'Internal error while fetching workflow',
-          statusCode: 500,
-          retryable: isRetryableInfrastructureError(error),
-          cause: describeRetryableInfrastructureError(error),
-        },
+      const failure: PreprocessExecutionError = {
+        message: 'Internal error while fetching workflow',
+        statusCode: 500,
+        retryable: isRetryableInfrastructureError(error),
+        cause: describeRetryableInfrastructureError(error),
       }
+      if (!isFailureLogSuppressed(failure)) {
+        await recordPreprocessingError({
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: userId || 'unknown',
+          workspaceId: providedWorkspaceId || '',
+          errorMessage: 'Internal error while fetching workflow',
+          loggingSession: providedLoggingSession,
+          triggerData,
+        })
+      }
+
+      return { success: false, error: failure }
     }
   } else if (workflowRecord.archivedAt) {
     logger.warn(`[${requestId}] Prefetched workflow is archived: ${workflowId}`)
@@ -260,6 +321,7 @@ export async function preprocessExecution(
       error: {
         message: 'Workflow is not deployed',
         statusCode: 403,
+        code: WORKFLOW_NOT_DEPLOYED_CODE,
       },
     }
   }
@@ -332,27 +394,38 @@ export async function preprocessExecution(
   } catch (error) {
     logger.error(`[${requestId}] Error resolving billing attribution`, { error, workflowId })
     const errorLogUserId = userId || 'unknown'
-    await recordPreprocessingError({
-      workflowId,
-      executionId,
-      triggerType,
-      requestId,
-      userId: errorLogUserId,
-      workspaceId,
-      errorMessage: BILLING_ERROR_MESSAGES.BILLING_ERROR_GENERIC,
-      loggingSession: providedLoggingSession,
-      triggerData,
-    })
-
-    return {
-      success: false,
-      error: {
-        message: 'Error resolving billing account',
-        statusCode: 500,
-        retryable: isRetryableInfrastructureError(error),
-        cause: describeRetryableInfrastructureError(error),
-      },
+    const failure: PreprocessExecutionError = {
+      message: 'Error resolving billing account',
+      statusCode: 500,
+      retryable: isRetryableInfrastructureError(error),
+      cause: describeRetryableInfrastructureError(error),
     }
+    if (!isFailureLogSuppressed(failure)) {
+      await recordPreprocessingError({
+        workflowId,
+        executionId,
+        triggerType,
+        requestId,
+        userId: errorLogUserId,
+        workspaceId,
+        errorMessage: BILLING_ERROR_MESSAGES.BILLING_ERROR_GENERIC,
+        loggingSession: providedLoggingSession,
+        triggerData,
+      })
+    }
+
+    return { success: false, error: failure }
+  }
+
+  const plan = billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined
+  const policyAsyncTimeout = getExecutionTimeout(
+    plan,
+    'async',
+    billingAttribution.payerSubscription?.enterpriseWorkflowExecutionTimeoutSeconds
+  )
+  const executionTimeout = {
+    sync: getExecutionTimeout(plan, 'sync'),
+    async: resolveAsyncExecutionTimeout(policyAsyncTimeout, requestedTimeoutSeconds),
   }
 
   /**
@@ -569,7 +642,7 @@ export async function preprocessExecution(
         actorUserId,
         actorSubscription,
         triggerType,
-        false
+        rateLimitCounter === 'async'
       )
 
       if (!info.allowed) {
@@ -585,6 +658,13 @@ export async function preprocessExecution(
             error: {
               message: `Rate limit exceeded. Please try again later.`,
               statusCode: 429,
+              /**
+               * Distinguishes quota exhaustion from the concurrency-slot 429
+               * (`EXECUTION_CONCURRENCY_LIMIT`, retryable in seconds) — the two
+               * need different caller behavior.
+               */
+              code: 'RATE_LIMIT_EXCEEDED',
+              retryAfterMs: info.retryAfterMs ?? Math.max(0, info.resetAt.getTime() - Date.now()),
             },
           },
           recordError: {
@@ -633,7 +713,7 @@ export async function preprocessExecution(
 
   const readGateFailure = banFailure ?? usageResult.failure
   if (readGateFailure) {
-    if (readGateFailure.recordError) {
+    if (readGateFailure.recordError && !isFailureLogSuppressed(readGateFailure.response.error)) {
       await recordPreprocessingError(readGateFailure.recordError)
     }
     return readGateFailure.response
@@ -641,7 +721,7 @@ export async function preprocessExecution(
 
   const rateLimitFailure = await runRateLimitGate()
   if (rateLimitFailure) {
-    if (rateLimitFailure.recordError) {
+    if (rateLimitFailure.recordError && !isFailureLogSuppressed(rateLimitFailure.response.error)) {
       await recordPreprocessingError(rateLimitFailure.recordError)
     }
     return rateLimitFailure.response
@@ -662,6 +742,13 @@ export async function preprocessExecution(
           billingAttribution.payerSubscription?.enterpriseConcurrencyLimit,
         currentUsage: usageSnapshot.currentUsage,
         limit: usageSnapshot.limit,
+        ...(executionTimeout[executionType] > 0
+          ? {
+              expiresAt:
+                (executionDeadlineAt ?? Date.now() + executionTimeout[executionType]) +
+                RESERVATION_TTL_BUFFER_MS,
+            }
+          : {}),
         ...(billingAttribution.organizationId && usageSnapshot.memberUsage
           ? {
               member: {
@@ -675,7 +762,14 @@ export async function preprocessExecution(
       })
 
       if (!reservation.reserved) {
-        const descriptor = getReservationDenialDescriptor(reservation.reason)
+        /**
+         * Widened to the declared interface so the optional `retryAfterSeconds`
+         * is readable: the const descriptors narrow to literal shapes where the
+         * non-retryable 402 members simply omit the key.
+         */
+        const descriptor: AdmissionErrorDescriptor = getReservationDenialDescriptor(
+          reservation.reason
+        )
         const message = RESERVATION_DENIAL_MESSAGE[reservation.reason]
         logger.warn(`[${requestId}] Admission reservation full for user ${actorUserId}`, {
           workflowId,
@@ -702,6 +796,7 @@ export async function preprocessExecution(
             statusCode: descriptor.statusCode,
             code: descriptor.code,
             retryable: descriptor.retryable,
+            ...retryAfterMsFrom(descriptor.retryAfterSeconds),
             cause: {
               code: descriptor.code,
               constraint: reservation.reason,
@@ -728,6 +823,7 @@ export async function preprocessExecution(
           statusCode: unavailable.statusCode,
           code: unavailable.code,
           retryable: unavailable.retryable,
+          ...retryAfterMsFrom(unavailable.retryAfterSeconds),
           cause: {
             code: unavailable.code,
           },
@@ -742,17 +838,33 @@ export async function preprocessExecution(
     triggerType,
   })
 
-  const plan = billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined
+  const requestedTimeoutMs = requestedTimeoutSeconds ? requestedTimeoutSeconds * 1000 : undefined
+  const timeoutSource: ExecutionTimeoutSource =
+    executionType === 'async' &&
+    requestedTimeoutMs !== undefined &&
+    (policyAsyncTimeout === 0 || requestedTimeoutMs < policyAsyncTimeout)
+      ? 'async_request_override'
+      : executionType === 'async' &&
+          plan?.toLowerCase() === 'enterprise' &&
+          billingAttribution.payerSubscription?.enterpriseWorkflowExecutionTimeoutSeconds !==
+            undefined
+        ? 'enterprise_metadata'
+        : executionTimeout[executionType] === 0
+          ? 'unbounded'
+          : 'plan_default'
+  recordExecutionTimeoutResolution({
+    source: timeoutSource,
+    executionType,
+    effectiveTimeoutMs: executionTimeout[executionType],
+  })
+
   return {
     success: true,
     actorUserId,
     workflowRecord,
     actorSubscription,
     billingAttribution,
-    executionTimeout: {
-      sync: getExecutionTimeout(plan, 'sync'),
-      async: getExecutionTimeout(plan, 'async'),
-    },
+    executionTimeout,
   }
 }
 

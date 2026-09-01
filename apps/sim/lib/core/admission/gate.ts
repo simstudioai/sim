@@ -57,10 +57,3 @@ export function admissionRejectedResponse(): NextResponse {
     }
   )
 }
-
-/**
- * Returns the current gate metrics for observability.
- */
-export function getAdmissionGateStatus(): { inflight: number; maxInflight: number } {
-  return { inflight, maxInflight: MAX_INFLIGHT }
-}

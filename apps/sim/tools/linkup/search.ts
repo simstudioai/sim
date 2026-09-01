@@ -104,6 +104,10 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => (params.outputType === 'sourcedAnswer' ? { q: params.q } : {}),
+    },
     url: 'https://api.linkup.so/v1/search',
     method: 'POST',
     headers: (params) => ({

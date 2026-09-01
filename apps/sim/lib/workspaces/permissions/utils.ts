@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@sim/db'
 import { member, permissions, user, type WorkspaceMode, workspace } from '@sim/db/schema'
 import {
@@ -25,6 +26,7 @@ export interface WorkspaceWithOwner {
   organizationId: string | null
   workspaceMode: WorkspaceMode
   billedAccountUserId: string
+  allowPersonalApiKeys: boolean
   archivedAt?: Date | null
 }
 
@@ -77,16 +79,18 @@ export async function getWorkspaceById(
 }
 
 /**
- * Get a workspace with owner info by ID
- *
- * @param workspaceId - The workspace ID to look up
- * @returns The workspace with owner info if found, null otherwise
+ * Reads one workspace row, optionally locking it. The lock is `FOR NO KEY
+ * UPDATE`: the workspace row is a foreign-key parent, and `FOR UPDATE` would
+ * both block every concurrent insert into its child tables and deadlock
+ * against callers that write a child row first. See the module header of
+ * `lib/billing/storage/tracking.ts`.
  */
-export async function getWorkspaceWithOwner(
+async function selectWorkspaceWithOwner(
   workspaceId: string,
-  options?: { includeArchived?: boolean; executor?: DbOrTx; forUpdate?: boolean }
+  includeArchived: boolean,
+  executor: DbOrTx,
+  forUpdate: boolean
 ): Promise<WorkspaceWithOwner | null> {
-  const { includeArchived = false, executor = db, forUpdate = false } = options ?? {}
   const query = executor
     .select({
       id: workspace.id,
@@ -95,6 +99,7 @@ export async function getWorkspaceWithOwner(
       organizationId: workspace.organizationId,
       workspaceMode: workspace.workspaceMode,
       billedAccountUserId: workspace.billedAccountUserId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
       archivedAt: workspace.archivedAt,
     })
     .from(workspace)
@@ -103,9 +108,49 @@ export async function getWorkspaceWithOwner(
         ? eq(workspace.id, workspaceId)
         : and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt))
     )
-  const [ws] = forUpdate ? await query.for('update').limit(1) : await query.limit(1)
+  const [ws] = forUpdate ? await query.for('no key update').limit(1) : await query.limit(1)
 
   return ws || null
+}
+
+/**
+ * Request-memoized plain workspace read, keyed by id alone. One render pass resolves the
+ * same row through several independent gates.
+ *
+ * Keyed on the id and NOT on archived visibility: the gates disagree about archived
+ * workspaces, so memoizing that argument would give each answer its own entry and dedupe
+ * nothing.
+ *
+ * The returned row is SHARED by every consumer in the render. Treat it as immutable — an
+ * in-place edit poisons every gate that reads it for the rest of the pass.
+ */
+const readWorkspaceWithOwner = cache(
+  (workspaceId: string): Promise<WorkspaceWithOwner | null> =>
+    selectWorkspaceWithOwner(workspaceId, true, db, false)
+)
+
+/**
+ * Get a workspace with owner info by ID
+ *
+ * Transaction-scoped (`executor`) and lock-acquiring (`forUpdate`) reads
+ * deliberately bypass {@link readWorkspaceWithOwner}: a row read inside one
+ * caller's transaction, or under a row lock only that caller holds, must never
+ * be handed to a later caller that took neither.
+ *
+ * @param workspaceId - The workspace ID to look up
+ * @returns The workspace with owner info if found, null otherwise
+ */
+export async function getWorkspaceWithOwner(
+  workspaceId: string,
+  options?: { includeArchived?: boolean; executor?: DbOrTx; forUpdate?: boolean }
+): Promise<WorkspaceWithOwner | null> {
+  const { includeArchived = false, executor, forUpdate = false } = options ?? {}
+  if (executor || forUpdate) {
+    return selectWorkspaceWithOwner(workspaceId, includeArchived, executor ?? db, forUpdate)
+  }
+  const ws = await readWorkspaceWithOwner(workspaceId)
+  if (!ws) return null
+  return includeArchived || !ws.archivedAt ? ws : null
 }
 
 /**
@@ -123,23 +168,13 @@ export async function getWorkspaceWithOwner(
  */
 export async function getEffectiveWorkspacePermission(
   userId: string,
-  ws: Pick<WorkspaceWithOwner, 'id' | 'organizationId'>
+  ws: Pick<WorkspaceWithOwner, 'id' | 'organizationId'>,
+  executor: DbOrTx = db
 ): Promise<PermissionType | null> {
-  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId)
+  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId, executor)
 }
 
-/**
- * Check workspace access for a user
- *
- * Verifies the workspace exists and the user has access to it.
- * Returns access level (read/write) based on ownership, explicit permissions,
- * and organization-admin inheritance.
- *
- * @param workspaceId - The workspace ID to check
- * @param userId - The user ID to check access for
- * @returns WorkspaceAccess object with exists, hasAccess, canWrite, and workspace data
- */
-export async function checkWorkspaceAccess(
+async function resolveWorkspaceAccessForUser(
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceAccess> {
@@ -163,6 +198,25 @@ export async function checkWorkspaceAccess(
 
   return { exists: true, hasAccess, canWrite, canAdmin, workspace: ws, permission }
 }
+
+/**
+ * Check workspace access for a user
+ *
+ * Verifies the workspace exists and the user has access to it.
+ * Returns access level (read/write) based on ownership, explicit permissions,
+ * and organization-admin inheritance.
+ *
+ * Request-memoized: a Server Component render pass authorizes the same
+ * (workspace, viewer) pair through several gates, and the answer cannot change
+ * mid-render. Outside a render React evaluates the resolver normally, so route
+ * handlers and background work re-read exactly as before. Takes no executor, so
+ * no transaction-scoped or locked read can ever be memoized here.
+ *
+ * @param workspaceId - The workspace ID to check
+ * @param userId - The user ID to check access for
+ * @returns WorkspaceAccess object with exists, hasAccess, canWrite, and workspace data
+ */
+export const checkWorkspaceAccess = cache(resolveWorkspaceAccessForUser)
 
 /**
  * Returns `provided` when it was resolved for this exact workspace, otherwise
@@ -280,6 +334,18 @@ export interface WorkspaceMemberWithRole {
    * derived and cannot be changed through the member UI.
    */
   roleSource: MemberRoleSource
+  /**
+   * Admin of the workspace's organization, and so a workspace admin everywhere
+   * in it. Reported separately from `roleSource` because that field ranks
+   * `owner` first, which would otherwise hide the org-admin standing on a
+   * workspace owner — and removal is refused for the org admin, not the owner.
+   */
+  isOrgAdmin: boolean
+  /**
+   * The account the workspace bills to. Its role is pinned to `admin` by the
+   * workspace-permissions route, so the member UI must not offer to change it.
+   */
+  isBilledAccount: boolean
 }
 
 export async function getUsersWithPermissions(
@@ -317,6 +383,8 @@ export async function getUsersWithPermissions(
       isExternal: !isOwner && row.userOrganizationId !== ws.organizationId,
       joinedAt: row.joinedAt.toISOString(),
       roleSource: isOwner ? 'owner' : 'explicit',
+      isOrgAdmin: false,
+      isBilledAccount: row.userId === ws.billedAccountUserId,
     })
   }
 
@@ -344,6 +412,7 @@ export async function getUsersWithPermissions(
       if (existing) {
         existing.permissionType = 'admin'
         existing.isExternal = false
+        existing.isOrgAdmin = true
         if (existing.roleSource !== 'owner') {
           existing.roleSource = isOwner ? 'owner' : 'org-admin'
         }
@@ -357,6 +426,8 @@ export async function getUsersWithPermissions(
           isExternal: false,
           joinedAt: row.joinedAt.toISOString(),
           roleSource: isOwner ? 'owner' : 'org-admin',
+          isOrgAdmin: true,
+          isBilledAccount: row.userId === ws.billedAccountUserId,
         })
       }
     }

@@ -1,0 +1,4 @@
+-- migration-safe: replaces the status CHECK with a strictly wider one, adding 'unrecorded' to the existing ('exact', 'unknown'). Every stored row and every write the currently-deployed code can make already satisfies the replacement, so dropping it opens no window in which an old write is rejected, and it is re-added in the same transaction below.
+ALTER TABLE "workspace_file_secret_provenance" DROP CONSTRAINT "workspace_file_secret_provenance_status_check";--> statement-breakpoint
+ALTER TABLE "workspace_file_secret_provenance" ADD CONSTRAINT "workspace_file_secret_provenance_status_check" CHECK ("workspace_file_secret_provenance"."status" IN ('exact', 'unknown', 'unrecorded')) NOT VALID;--> statement-breakpoint
+ALTER TABLE "workspace_file_secret_provenance" VALIDATE CONSTRAINT "workspace_file_secret_provenance_status_check";

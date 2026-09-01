@@ -102,13 +102,7 @@ export function PricingCard({
           <p className='text-[var(--text-muted)] text-base'>{priceSubtext ?? ' '}</p>
         </div>
 
-        <ChipLink
-          href={cta.href}
-          variant={cta.variant}
-          fullWidth
-          flush
-          className='w-full justify-center'
-        >
+        <ChipLink href={cta.href} variant={cta.variant} fullWidth className='w-full justify-center'>
           {cta.label}
         </ChipLink>
       </div>

@@ -21,8 +21,8 @@ export interface BrowserProfile {
   source: BrowserSource
   /** That profile's cookie database, or null when it has none. Stays in main. */
   cookiesPath: string | null
-  /** That profile's saved-password database, or null when it has none. */
-  loginDataPath: string | null
+  /** That profile's readable saved-password databases, local store first. */
+  loginDataPaths: string[]
   /** That profile's favicon store, or null when it has none. */
   faviconsPath: string | null
   /** That profile's history, read only for the names sites go by. */

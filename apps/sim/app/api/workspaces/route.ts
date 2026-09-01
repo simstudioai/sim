@@ -1,8 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
+import { type WorkspaceMode, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWorkspacesQuerySchema } from '@/lib/api/contracts'
@@ -10,33 +9,16 @@ import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
-import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
+import { createWorkspace } from '@/lib/workspaces/create'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import {
   getWorkspaceCreationPolicy,
-  getWorkspaceInvitePolicy,
-  resolveInviteFlags,
-  WORKSPACE_MODE,
+  WorkspaceCreationContextChangedError,
 } from '@/lib/workspaces/policy'
 
 const logger = createLogger('Workspaces')
-
-/**
- * Thrown when the creator became an organization member between the
- * creation-policy read and the insert — the workspace must not land personal.
- */
-class PersonalWorkspaceCreationRacedError extends Error {
-  constructor() {
-    super('User joined an organization while creating a personal workspace')
-    this.name = 'PersonalWorkspaceCreationRacedError'
-  }
-}
 
 // Get all workspaces for the current user
 export const GET = withRouteHandler(async (request: Request) => {
@@ -63,11 +45,16 @@ export const GET = withRouteHandler(async (request: Request) => {
     activeOrganizationId,
     scope,
   })
-  const { lastActiveWorkspaceId, creationPolicy } = payload
+  const { lastActiveWorkspaceId, pinnedWorkspaceIds, creationPolicy } = payload
 
   if (scope === 'active' && payload.workspaces.length === 0) {
     if (!creationPolicy.canCreate) {
-      return NextResponse.json({ workspaces: [], lastActiveWorkspaceId, creationPolicy })
+      return NextResponse.json({
+        workspaces: [],
+        lastActiveWorkspaceId,
+        pinnedWorkspaceIds,
+        creationPolicy,
+      })
     }
 
     let defaultWorkspace: Awaited<ReturnType<typeof createDefaultWorkspace>>
@@ -83,10 +70,13 @@ export const GET = withRouteHandler(async (request: Request) => {
        * default-workspace insert. Their workspaces (the join sweep's output)
        * exist now — re-list and return that instead of failing the load.
        */
-      if (error instanceof PersonalWorkspaceCreationRacedError) {
-        logger.info('Default workspace creation raced an organization join; re-listing', {
-          userId: session.user.id,
-        })
+      if (error instanceof WorkspaceCreationContextChangedError) {
+        logger.info(
+          'Default workspace creation raced an organization membership change; re-listing',
+          {
+            userId: session.user.id,
+          }
+        )
         const refreshedPayload = await listWorkspacesForViewer({
           userId: session.user.id,
           activeOrganizationId,
@@ -107,6 +97,7 @@ export const GET = withRouteHandler(async (request: Request) => {
     return NextResponse.json({
       workspaces: [defaultWorkspace],
       lastActiveWorkspaceId,
+      pinnedWorkspaceIds,
       creationPolicy: refreshedCreationPolicy,
     })
   }
@@ -190,11 +181,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {
-    if (error instanceof PersonalWorkspaceCreationRacedError) {
+    if (error instanceof WorkspaceCreationContextChangedError) {
       return NextResponse.json(
         {
           error:
-            'You joined an organization while this workspace was being created. Organization members create organization workspaces — try again.',
+            'Your organization membership changed while this workspace was being created. Please try again.',
         },
         { status: 409 }
       )
@@ -224,170 +215,6 @@ async function createDefaultWorkspace(
     billedAccountUserId: creationPolicy.billedAccountUserId,
     observedOrganizationId: creationPolicy.observedOrganizationId,
   })
-}
-
-interface CreateWorkspaceParams {
-  userId: string
-  /** Membership the creation policy observed; see WorkspaceCreationPolicy. */
-  observedOrganizationId: string | null
-  name: string
-  skipDefaultWorkflow?: boolean
-  explicitColor?: string
-  organizationId: string | null
-  workspaceMode: WorkspaceMode
-  billedAccountUserId: string
-}
-
-async function createWorkspace({
-  userId,
-  observedOrganizationId,
-  name,
-  skipDefaultWorkflow = false,
-  explicitColor,
-  organizationId,
-  workspaceMode,
-  billedAccountUserId,
-}: CreateWorkspaceParams) {
-  const workspaceId = generateId()
-  const workflowId = generateId()
-  const now = new Date()
-  const color = explicitColor || getRandomWorkspaceColor()
-
-  try {
-    await db.transaction(async (tx) => {
-      /**
-       * Personal creation serializes with organization joins on the user's
-       * billing-identity lock: joins hold it while sweeping the joiner's
-       * owned workspaces, so re-checking membership under it here means a
-       * workspace can never be created personal after (or while) its owner
-       * joins an organization — the creation-policy read above this
-       * transaction can be stale by the time the insert runs.
-       */
-      if (!organizationId) {
-        await acquireUserBillingIdentityLock(tx, userId)
-        const [currentMembership] = await tx
-          .select({ organizationId: member.organizationId })
-          .from(member)
-          .where(eq(member.userId, userId))
-          .limit(1)
-        /**
-         * Only a CHANGE since the policy read means the decision is stale. An
-         * unchanged membership is legitimately personal — the policy returns
-         * a personal decision for members whose organization has no usable
-         * Team/Enterprise plan (a dormant org), and those users must still be
-         * able to create workspaces.
-         */
-        if ((currentMembership?.organizationId ?? null) !== observedOrganizationId) {
-          throw new PersonalWorkspaceCreationRacedError()
-        }
-      }
-
-      await tx.insert(workspace).values({
-        id: workspaceId,
-        name,
-        color,
-        ownerId: userId,
-        organizationId,
-        workspaceMode,
-        billedAccountUserId,
-        allowPersonalApiKeys: true,
-        createdAt: now,
-        updatedAt: now,
-      })
-
-      const permissionRows = [
-        {
-          id: generateId(),
-          entityType: 'workspace' as const,
-          entityId: workspaceId,
-          userId,
-          permissionType: 'admin' as const,
-          createdAt: now,
-          updatedAt: now,
-        },
-      ]
-
-      if (
-        workspaceMode === WORKSPACE_MODE.ORGANIZATION &&
-        billedAccountUserId &&
-        billedAccountUserId !== userId
-      ) {
-        permissionRows.push({
-          id: generateId(),
-          entityType: 'workspace' as const,
-          entityId: workspaceId,
-          userId: billedAccountUserId,
-          permissionType: 'admin' as const,
-          createdAt: now,
-          updatedAt: now,
-        })
-      }
-
-      await tx.insert(permissions).values(permissionRows)
-
-      if (!skipDefaultWorkflow) {
-        await tx.insert(workflow).values({
-          id: workflowId,
-          userId,
-          workspaceId,
-          folderId: null,
-          name: 'default-agent',
-          description: 'Your first workflow - start building here!',
-          lastSynced: now,
-          createdAt: now,
-          updatedAt: now,
-          isDeployed: false,
-          runCount: 0,
-          variables: {},
-        })
-
-        const { workflowState } = buildDefaultWorkflowArtifacts()
-        await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
-      }
-
-      logger.info(
-        skipDefaultWorkflow
-          ? `Created ${workspaceMode} workspace ${workspaceId} for user ${userId}`
-          : `Created ${workspaceMode} workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
-      )
-    })
-  } catch (error) {
-    logger.error(`Failed to create workspace ${workspaceId}:`, error)
-    throw error
-  }
-
-  try {
-    PlatformEvents.workspaceCreated({
-      workspaceId,
-      userId,
-      name,
-    })
-  } catch {
-    // Telemetry should not fail the operation
-  }
-
-  const invitePolicy = await getWorkspaceInvitePolicy({
-    organizationId,
-    workspaceMode,
-    billedAccountUserId,
-    ownerId: userId,
-  })
-
-  return {
-    id: workspaceId,
-    name,
-    color,
-    ownerId: userId,
-    organizationId,
-    workspaceMode,
-    billedAccountUserId,
-    allowPersonalApiKeys: true,
-    createdAt: now,
-    updatedAt: now,
-    role: 'owner',
-    permissions: 'admin',
-    ...resolveInviteFlags(invitePolicy, billedAccountUserId === userId),
-  }
 }
 
 async function migrateExistingWorkflows(userId: string, workspaceId: string) {

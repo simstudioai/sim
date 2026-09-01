@@ -1,7 +1,9 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { executeInSandbox } from '@/lib/execution/remote-sandbox'
-import { compileDoc, DocCompileUserError } from './doc-compile'
+import { compileDoc } from './doc-compile'
 
 const logger = createLogger('CopilotDocRecalc')
 
@@ -101,12 +103,14 @@ export async function runE2BCompiledCheck(args: {
   fileName: string
   workspaceId: string
   ext: string
+  principal: Principal
 }): Promise<CompiledCheckResult> {
   try {
     const compiled = await compileDoc({
       source: args.source,
       fileName: args.fileName,
       workspaceId: args.workspaceId,
+      filePrincipal: args.principal,
     })
     if (args.ext === 'xlsx') {
       const recalc = await recalcXlsx({ binary: compiled.buffer, workspaceId: args.workspaceId })

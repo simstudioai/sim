@@ -20,6 +20,7 @@ import {
 } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
 import { selectRowDataPage, updatePageByIds } from '@/lib/table/rows/ordering'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
 import { coerceRowToSchema, coerceRowValues, validateRowSize } from '@/lib/table/validation'
@@ -180,6 +181,7 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
           workspaceId,
           page.map((r) => r.id),
           patchJson,
+          createExactEmptyTableRowSecretProvenance(data),
           pageProof,
           revalidate
         )

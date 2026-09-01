@@ -1,11 +1,12 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { useReactFlow } from 'reactflow'
+import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'
 import {
   calculateContainerDimensions,
   clampPositionToContainer,
-  estimateBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -14,7 +15,7 @@ const logger = createLogger('NodeUtilities')
 /**
  * Hook providing utilities for node position, hierarchy, and dimension calculations
  */
-export function useNodeUtilities(blocks: Record<string, any>) {
+export function useNodeUtilities(blocks: Record<string, BlockState>) {
   const { getNodes } = useReactFlow()
 
   /**
@@ -26,36 +27,57 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
   /**
    * Get the dimensions of a block.
-   * For regular blocks, uses stored height or estimates based on block config.
+   *
+   * Before a card mounts there is no measurement, so the height comes from
+   * {@link getBlockMetrics}, which estimates it from the block's own state —
+   * the sub-blocks its values leave visible, the summary sentence it will draw,
+   * the error row — through the same `calculateWorkflowBlockDimensions` the
+   * card itself calls. It lands on the height the card goes on to render.
+   *
+   * The old estimate read the block's *type* alone and assumed
+   * `ceil(subBlockCount / 2)` rows, which put a 39-field Gmail card at 276px
+   * against the 112px it draws. A container sized from that, painted it, then
+   * got the real height a frame later and visibly resized — on every load,
+   * because measurements are not persisted. Estimating from state removes the
+   * gap rather than waiting it out: both passes now produce the same number.
    */
-  const getBlockDimensions = useCallback(
-    (blockId: string): { width: number; height: number } => {
-      const block = blocks[blockId]
+  const dimensionsOfBlock = useCallback(
+    (block: any): { width: number; height: number } => {
       if (!block) {
         return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: BLOCK_DIMENSIONS.MIN_HEIGHT }
       }
 
       if (isContainerType(block.type)) {
         return {
-          width: block.data?.width
-            ? Math.max(block.data.width, CONTAINER_DIMENSIONS.MIN_WIDTH)
-            : CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-          height: block.data?.height
-            ? Math.max(block.data.height, CONTAINER_DIMENSIONS.MIN_HEIGHT)
-            : CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+          width: Math.max(
+            block.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+            CONTAINER_DIMENSIONS.MIN_WIDTH
+          ),
+          height: Math.max(
+            block.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+            CONTAINER_DIMENSIONS.MIN_HEIGHT
+          ),
         }
       }
 
-      if (block.height) {
+      /* A note is not a card: it has no sub-block rows and no error row, so the
+         card estimate does not describe it. Its own height is what it was
+         measured at, or the height an empty one paints. */
+      if (block.type === 'note') {
         return {
-          width: BLOCK_DIMENSIONS.FIXED_WIDTH,
-          height: Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT),
+          width: BLOCK_DIMENSIONS.NOTE_WIDTH,
+          height: block.height || getNoteBlockHeight(true),
         }
       }
 
-      return estimateBlockDimensions(block.type)
+      return getBlockMetrics(block)
     },
-    [blocks, isContainerType]
+    [isContainerType]
+  )
+
+  const getBlockDimensions = useCallback(
+    (blockId: string): { width: number; height: number } => dimensionsOfBlock(blocks[blockId]),
+    [blocks, dimensionsOfBlock]
   )
 
   /**
@@ -119,8 +141,20 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   )
 
   /**
-   * Gets the absolute position of a node (accounting for nested parents).
-   * For nodes inside containers, accounts for header and padding offsets.
+   * Gets the absolute position of a node, walking up its parent chain.
+   *
+   * A child's position is relative to its container's own origin — React Flow
+   * places it at the parent's origin plus its position, and
+   * `clampPositionToContainer` is what holds it clear of the chrome, flooring it
+   * at `LEFT_PADDING` and `HEADER_HEIGHT + TOP_PADDING`. The container's header
+   * and padding are therefore already inside the child's coordinates, and
+   * adding them again here counted them twice: a nested node reported 16px
+   * right and 66px below where it actually is.
+   *
+   * That is why callers wanting a relative position had to subtract the same
+   * three constants straight back off, and why `positionAbsolute` — React
+   * Flow's own answer, which carries no offset — disagreed with this one.
+   *
    * @param nodeId ID of the node to check
    * @returns Absolute position coordinates {x, y}
    */
@@ -147,9 +181,10 @@ export function useNodeUtilities(blocks: Record<string, any>) {
       }
 
       const visited = new Set<string>()
-      let currentId = nodeId
-      while (currentId && blocks?.[currentId]?.data?.parentId) {
-        const currentParentId = blocks[currentId].data.parentId
+      let currentId: string | undefined = nodeId
+      while (currentId) {
+        const currentParentId: string | undefined = blocks[currentId]?.data?.parentId
+        if (!currentParentId) break
         if (visited.has(currentParentId)) {
           logger.error('Circular parent reference detected', {
             nodeId,
@@ -163,13 +198,9 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
       const parentPos = getNodeAbsolutePosition(parentId)
 
-      const headerHeight = 50
-      const leftPadding = 16
-      const topPadding = 16
-
       return {
-        x: parentPos.x + leftPadding + node.position.x,
-        y: parentPos.y + headerHeight + topPadding + node.position.y,
+        x: parentPos.x + node.position.x,
+        y: parentPos.y + node.position.y,
       }
     },
     [getNodes, blocks]
@@ -267,6 +298,12 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
   /**
    * Calculates appropriate dimensions for a loop or parallel node based on its children
+   *
+   * Child heights come from {@link getBlockDimensions}, which estimates from
+   * block state when a card has not mounted yet and lands on the height it will
+   * render — so the size computed before the cards report matches the one after,
+   * and the container does not resize behind the user.
+   *
    * @param nodeId ID of the container node
    * @returns Calculated width and height for the container
    */
@@ -281,14 +318,21 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         .map((childId) => {
           const child = currentBlocks[childId]
           if (!child?.position) return null
-          const { width, height } = getBlockDimensions(childId)
+          /* Sized from `currentBlocks`, the same snapshot the position came
+             from. Reading dimensions off the hook's render snapshot instead
+             mixed two ages of the same store: `resizeLoopNodes` walks
+             deepest-first, so an inner container resized earlier in the pass
+             was already updated here but still old there, and the parent sized
+             against a stale inner box — leaving nested containers to converge
+             over a second pass. */
+          const { width, height } = dimensionsOfBlock(child)
           return { x: child.position.x, y: child.position.y, width, height }
         })
-        .filter((p): p is NonNullable<typeof p> => p !== null)
+        .filter((position): position is NonNullable<typeof position> => position !== null)
 
       return calculateContainerDimensions(childPositions)
     },
-    [getBlockDimensions]
+    [dimensionsOfBlock]
   )
 
   /**

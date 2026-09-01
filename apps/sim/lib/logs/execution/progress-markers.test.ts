@@ -33,7 +33,7 @@ import {
 
 const EXECUTION_ID = 'exec-1'
 const KEY = `execution:progress:${EXECUTION_ID}`
-const EXPECTED_TTL_MS = '5460000' // getExecutionReservationTtlMs() mock value
+const EXPECTED_EXPIRY_AT = 1_785_000_000_000
 
 const startedMarker: ExecutionLastStartedBlock = {
   blockId: 'b1',
@@ -60,11 +60,11 @@ describe('progress-markers', () => {
   })
 
   describe('setLastStartedBlock', () => {
-    it('evals the monotonic-guard script with key, started field, timestamp, json, and TTL', async () => {
-      await setLastStartedBlock(EXECUTION_ID, startedMarker)
+    it('evals the monotonic-guard script with the exact execution expiry', async () => {
+      await setLastStartedBlock(EXECUTION_ID, startedMarker, EXPECTED_EXPIRY_AT)
 
       expect(mockRedis.eval).toHaveBeenCalledTimes(1)
-      const [, numKeys, key, field, timestampField, timestamp, json, ttl] =
+      const [, numKeys, key, field, timestampField, timestamp, json, expiresAt] =
         mockRedis.eval.mock.calls[0]
       expect(numKeys).toBe(1)
       expect(key).toBe(KEY)
@@ -72,7 +72,7 @@ describe('progress-markers', () => {
       expect(timestampField).toBe('startedAt')
       expect(timestamp).toBe(startedMarker.startedAt)
       expect(JSON.parse(json as string)).toEqual(startedMarker)
-      expect(ttl).toBe(EXPECTED_TTL_MS)
+      expect(expiresAt).toBe(EXPECTED_EXPIRY_AT.toString())
     })
 
     it('returns true when the Redis write succeeds', async () => {

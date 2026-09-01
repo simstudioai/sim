@@ -1,0 +1,9 @@
+{
+  "pages": [
+    "listWorkflowRunsV2",
+    "getWorkflowRunV2",
+    "downloadWorkflowRunFileV2",
+    "resumeWorkflowRunV2",
+    "cancelRunV2"
+  ]
+}

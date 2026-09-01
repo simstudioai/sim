@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   asanaConnector,
   buildProjectsPath,
+  buildTasksPath,
   decideTaskCap,
   isActiveProject,
   isTaskUnderActiveProject,
@@ -36,6 +37,27 @@ describe('buildProjectsPath', () => {
 
   it.concurrent('keeps the archived filter on paginated requests', () => {
     expect(buildProjectsPath('123', 'abc')).toContain('archived=false')
+  })
+})
+
+describe('buildTasksPath', () => {
+  it.concurrent('scopes the listing to the project with a page size', () => {
+    const path = buildTasksPath('p1', 100)
+    expect(path.startsWith('/tasks?')).toBe(true)
+    expect(path).toContain('project=p1')
+    expect(path).toContain('limit=100')
+  })
+
+  it.concurrent('omits the offset param on the first page', () => {
+    expect(buildTasksPath('p1', 100)).not.toContain('offset=')
+  })
+
+  it.concurrent('escapes the opaque offset token instead of interpolating it raw', () => {
+    expect(buildTasksPath('p1', 100, 'abc:def')).toContain('offset=abc%3Adef')
+  })
+
+  it.concurrent('keeps opt_fields separators as literal commas', () => {
+    expect(buildTasksPath('p1', 100)).toContain('opt_fields=name,notes,completed,modified_at')
   })
 })
 
@@ -374,6 +396,71 @@ describe('asanaConnector.listDocuments', () => {
     await asanaConnector.listDocuments('token', { workspace: 'w1' }, undefined, syncContext)
 
     expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('drains several sparse projects in one call instead of one project per page', async () => {
+    mockFetch.mockImplementation(async (url) => {
+      if (url.includes('/projects')) {
+        return jsonResponse({
+          data: [
+            { gid: 'p1', name: 'A' },
+            { gid: 'p2', name: 'B' },
+            { gid: 'p3', name: 'C' },
+          ],
+          next_page: null,
+        })
+      }
+      return jsonResponse({ data: [], next_page: null })
+    })
+
+    const result = await asanaConnector.listDocuments('token', { workspace: 'w1' }, undefined, {})
+
+    expect(requestedUrls().filter((url) => url.includes('/tasks?')).length).toBe(3)
+    expect(result.hasMore).toBe(false)
+    expect(result.nextCursor).toBeUndefined()
+  })
+
+  it('stops after the per-call request budget and hands back a resumable cursor', async () => {
+    mockFetch.mockImplementation(async (url) => {
+      if (url.includes('/projects')) {
+        return jsonResponse({
+          data: Array.from({ length: 40 }, (_, i) => ({ gid: `p${i}`, name: `P${i}` })),
+          next_page: null,
+        })
+      }
+      return jsonResponse({ data: [], next_page: null })
+    })
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await asanaConnector.listDocuments(
+      'token',
+      { workspace: 'w1' },
+      undefined,
+      syncContext
+    )
+
+    expect(requestedUrls().filter((url) => url.includes('/tasks?')).length).toBe(25)
+    expect(result.hasMore).toBe(true)
+    expect(JSON.parse(result.nextCursor as string)).toEqual({ projectIndex: 25 })
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('holds the requested page size constant regardless of how much cap is left', async () => {
+    mockFetch.mockImplementation(async (url) => {
+      if (url.includes('/projects')) {
+        return jsonResponse({ data: [{ gid: 'p1', name: 'Live' }], next_page: null })
+      }
+      return jsonResponse({
+        data: [{ gid: 't9', name: 'Nine', completed: false }],
+        next_page: null,
+      })
+    })
+
+    await asanaConnector.listDocuments('token', { workspace: 'w1', maxTasks: '500' }, undefined, {
+      totalDocsFetched: 497,
+    })
+
+    expect(requestedUrls().find((url) => url.includes('/tasks?'))).toContain('limit=100')
   })
 
   it('keeps syncing an explicitly pinned project without listing workspace projects', async () => {

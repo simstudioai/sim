@@ -4,17 +4,15 @@
  * The web app is served identically to browsers and to the desktop shell; the
  * only difference is the preload bridge the shell injects
  * (`window.simDesktop`, typed in `@sim/desktop-bridge`). Desktop features are
- * progressive enhancements: feature-detect a bridge surface here, never
- * assume it.
+ * progressive enhancements: check for the bridge here, never assume it.
  *
  * Rules for scaling desktop features without scattering gates:
  * - Shared code must not touch `window.simDesktop` directly — add an accessor
  *   here (or a feature-scoped wrapper like `lib/browser-agent/transport.ts`
  *   that builds on {@link getDesktopBridge}) so "everything desktop" stays
  *   greppable from one module.
- * - Gate on the specific bridge surface a feature needs (e.g.
- *   {@link hasLocalFilesystem}), not on "is desktop" — older shells may lack
- *   newer surfaces.
+ * - Gate through a feature-named helper (e.g. {@link hasLocalFilesystem}) so
+ *   callers remain explicit about what they need.
  * - The browser and terminal additionally have a device switch the user can
  *   turn off. `has*` answers whether the shell ships the surface (what the
  *   settings pages need, so the switch can be turned back on); `is*Enabled`
@@ -25,6 +23,11 @@
  */
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import type { DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
+import { truncate } from '@sim/utils/string'
+import {
+  DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
+  DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
+} from '@/lib/copilot/chat/desktop-capabilities'
 
 /** The preload bridge, or undefined outside the desktop app (and on the server). */
 export function getDesktopBridge(): SimDesktopApi | undefined {
@@ -39,29 +42,38 @@ export function isDesktopApp(): boolean {
 
 /** True when the shell can serve read-only local-directory grants. */
 export function hasLocalFilesystem(): boolean {
-  return Boolean(getDesktopBridge()?.localFilesystem)
+  return isDesktopApp()
 }
 
 /** True when the shell hosts the embedded agent browser. */
 export function hasBrowserAgent(): boolean {
-  return Boolean(getDesktopBridge()?.browserAgent)
+  return isDesktopApp()
 }
 
 /** True when the shell can run an interactive local shell for the agent. */
 export function hasTerminal(): boolean {
-  return Boolean(getDesktopBridge()?.terminal)
+  return isDesktopApp()
 }
 
 /** True when the shell exposes device-level desktop preferences. */
 export function hasDesktopSettings(): boolean {
-  return Boolean(getDesktopBridge()?.settings)
+  return isDesktopApp()
+}
+
+/**
+ * True when an internal link must navigate the current view rather than open a
+ * second one. The shell has no tab strip, so its window-open policy routes a
+ * same-origin `window.open` to a full new Sim window — where a browser would
+ * have added a background tab, the desktop app throws up another window.
+ */
+export function prefersInPlaceNavigation(): boolean {
+  return isDesktopApp()
 }
 
 /**
  * The device switches for the browser and terminal, cached because the chat UI
  * reads availability synchronously while the shell only answers over async
- * IPC. An unread or absent value means enabled: both surfaces predate the
- * preference, and both default to on.
+ * IPC. An unread value uses the shell default (enabled).
  *
  * The cache is authoritative at call time, which is what tool execution and
  * capability reporting need. React trees that read it in a memo settle on the
@@ -74,7 +86,7 @@ let devicePreferencesLoad: Promise<void> | null = null
 function loadDevicePreferences(): Promise<void> {
   devicePreferencesLoad ??=
     getDesktopBridge()
-      ?.settings?.getPreferences()
+      ?.settings.getPreferences()
       .then((preferences) => {
         devicePreferences = preferences
       })
@@ -107,16 +119,15 @@ export function isTerminalEnabled(): boolean {
 }
 
 /**
- * The installed shell's semver, or undefined in a browser and on shells that
- * predate version reporting. Input to the minimum-shell-version gate (see
- * `lib/desktop/min-version.ts`).
+ * The installed shell's semver, or undefined in a browser. Input to the
+ * minimum-shell-version gate (see `lib/desktop/min-version.ts`).
  */
 export function getDesktopShellVersion(): string | undefined {
   return getDesktopBridge()?.version
 }
 
 /** The shell updater surface, when the installed shell provides one. */
-export function getDesktopUpdates(): SimDesktopApi['updates'] {
+export function getDesktopUpdates(): SimDesktopApi['updates'] | undefined {
   return getDesktopBridge()?.updates
 }
 
@@ -141,8 +152,6 @@ export interface DesktopChatCapabilities {
     browserSessions?: BrowserKnownSession[]
     terminals?: DesktopTerminalHint[]
   }
-  /** Compatibility for mothership deployments predating desktopCapabilities.browser. */
-  browserCapable?: true
 }
 
 /**
@@ -150,7 +159,9 @@ export interface DesktopChatCapabilities {
  * user-local VFS guidance/routing and the browser subagent on these flags, so
  * in a plain web browser the model never sees the features.
  */
-export async function getDesktopChatCapabilities(): Promise<DesktopChatCapabilities> {
+export async function getDesktopChatCapabilities(
+  scopeId: string
+): Promise<DesktopChatCapabilities> {
   const bridge = getDesktopBridge()
   // Never advertise a surface the user switched off, even on the first
   // request after launch, before the cached preferences have arrived.
@@ -162,22 +173,30 @@ export async function getDesktopChatCapabilities(): Promise<DesktopChatCapabilit
   // spending a tool call to ask — and, more importantly, so it notices a
   // terminal that is occupied instead of launching a second copy into it.
   const terminals: DesktopTerminalHint[] =
-    terminal && bridge?.terminal?.getTabs
+    terminal && bridge
       ? await bridge.terminal
-          .getTabs()
+          .getTabs(scopeId)
           .then((state) =>
-            state.tabs.map((tab) => ({
-              id: tab.terminalId,
-              ...(tab.cwd ? { cwd: tab.cwd } : {}),
-              ...(tab.running ? { running: tab.running } : {}),
-              ...(tab.interactive ? { interactive: true as const } : {}),
-              ...(tab.active ? { active: true as const } : {}),
-            }))
+            state.tabs
+              .filter((tab) => tab.terminalId.length <= DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH)
+              .map((tab) => ({
+                id: tab.terminalId,
+                ...(tab.cwd
+                  ? { cwd: truncate(tab.cwd, DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH, '') }
+                  : {}),
+                ...(tab.running
+                  ? {
+                      running: truncate(tab.running, DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH, ''),
+                    }
+                  : {}),
+                ...(tab.interactive ? { interactive: true as const } : {}),
+                ...(tab.active ? { active: true as const } : {}),
+              }))
           )
           .catch(() => [])
       : []
   const browserSessions =
-    browser && bridge?.browserAgent?.getKnownSessions
+    browser && bridge
       ? await bridge.browserAgent
           .getKnownSessions()
           .then((state) => state.sessions)
@@ -195,6 +214,5 @@ export async function getDesktopChatCapabilities(): Promise<DesktopChatCapabilit
           },
         }
       : {}),
-    ...(browser ? { browserCapable: true } : {}),
   }
 }

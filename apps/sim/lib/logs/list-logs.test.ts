@@ -44,19 +44,9 @@ vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: vi.fn(async (_ws: string, ids: string | undefined) => ids),
 }))
 
-// listLogs gates workspace access at entry; the resolver is tested separately.
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: vi.fn(async () => ({
-    exists: true,
-    hasAccess: true,
-    canWrite: true,
-    canAdmin: true,
-    workspace: { id: 'ws-1', name: 'Test', ownerId: 'user-1', organizationId: null },
-  })),
-}))
-
 import type { ListLogsParams } from './list-logs'
-import { decodeCursor, listLogs } from './list-logs'
+import { readLogs } from './list-logs'
+import { decodeLogSortCursor } from './sort-cursor'
 
 afterAll(resetDbChainMock)
 
@@ -119,7 +109,7 @@ function baseParams(overrides: Partial<ListLogsParams> = {}): ListLogsParams {
   } as ListLogsParams
 }
 
-describe('listLogs', () => {
+describe('readLogs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -129,13 +119,14 @@ describe('listLogs', () => {
     queueTableRows(workflowExecutionLogs, [workflowRow()])
     queueTableRows(jobExecutionLogs, [jobRow()])
 
-    const result = await listLogs(baseParams(), 'user-1')
+    const result = await readLogs(baseParams())
 
     expect(result.data).toHaveLength(2)
     const wf = result.data.find((r) => r.id === 'log-1')!
     expect(wf).toMatchObject({
       executionId: 'exec-1',
       workflowId: 'wf-1',
+      executionOrigin: null,
       cost: { total: 0.1 },
       duration: '1000ms',
       jobTitle: null,
@@ -144,9 +135,25 @@ describe('listLogs', () => {
     expect(job).toMatchObject({
       executionId: 'job-exec-1',
       workflowId: null,
+      executionOrigin: null,
       jobTitle: 'Nightly report',
     })
     expect(result.nextCursor).toBeNull()
+  })
+
+  it('exposes the durable workflow-group origin discriminator', async () => {
+    queueTableRows(workflowExecutionLogs, [
+      workflowRow({ executionOrigin: 'workflow_group', trigger: 'table' }),
+    ])
+    queueTableRows(jobExecutionLogs, [])
+
+    const result = await readLogs(baseParams())
+
+    expect(result.data[0]).toMatchObject({
+      executionId: 'exec-1',
+      trigger: 'table',
+      executionOrigin: 'workflow_group',
+    })
   })
 
   it('returns a decodable nextCursor when results exceed the limit', async () => {
@@ -157,18 +164,18 @@ describe('listLogs', () => {
     ])
     queueTableRows(jobExecutionLogs, [])
 
-    const result = await listLogs(baseParams({ limit: 1 }), 'user-1')
+    const result = await readLogs(baseParams({ limit: 1 }))
 
     expect(result.data).toHaveLength(1)
     expect(result.nextCursor).not.toBeNull()
-    const decoded = decodeCursor(result.nextCursor!)
+    const decoded = decodeLogSortCursor(result.nextCursor!)
     expect(decoded?.id).toBe('log-a')
   })
 
   it('excludes job logs when a workflow-specific filter is present', async () => {
     queueTableRows(workflowExecutionLogs, [workflowRow()])
 
-    const result = await listLogs(baseParams({ workflowIds: 'wf-1' }), 'user-1')
+    const result = await readLogs(baseParams({ workflowIds: 'wf-1' }))
 
     // Only the workflow query runs; the job query is Promise.resolve([]).
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)

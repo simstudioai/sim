@@ -3,6 +3,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockSaveBlob } = vi.hoisted(() => ({
+  mockSaveBlob: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/client/download', () => ({
+  saveBlob: mockSaveBlob,
+}))
+
 vi.unmock('@/stores/terminal')
 vi.unmock('@/stores/terminal/console/store')
 
@@ -10,6 +18,7 @@ import { useTerminalConsoleStore } from '@/stores/terminal/console/store'
 
 describe('terminal console store', () => {
   beforeEach(() => {
+    mockSaveBlob.mockClear()
     useTerminalConsoleStore.setState({
       workflowEntries: {},
       entryIdsByBlockExecution: {},
@@ -17,6 +26,25 @@ describe('terminal console store', () => {
       isOpen: false,
       _hasHydrated: true,
     })
+  })
+
+  it('neutralizes formula-leading text in CSV exports', async () => {
+    useTerminalConsoleStore.getState().addConsole({
+      workflowId: 'wf-1',
+      blockId: 'block-1',
+      blockName: 'Function',
+      blockType: 'function',
+      executionId: 'exec-1',
+      executionOrder: 1,
+      error: '=1+1',
+    })
+
+    useTerminalConsoleStore.getState().exportConsoleCSV('wf-1')
+
+    expect(mockSaveBlob).toHaveBeenCalledOnce()
+    const [blob, filename] = mockSaveBlob.mock.calls[0] as [Blob, string]
+    expect(filename).toMatch(/^terminal-console-wf-1-.*\.csv$/)
+    await expect(blob.text()).resolves.toContain(",'=1+1,")
   })
 
   it('normalizes oversized payloads when adding console entries', () => {
@@ -163,6 +191,7 @@ describe('terminal console store', () => {
 
       const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
       expect(entry.agentStreamActive).toBe(false)
+      expect(entry.agentStreamThinking).toBe('drafting…')
       expect(entry.agentStreamToolCalls?.[0]?.status).toBe('cancelled')
     })
 
@@ -284,7 +313,31 @@ describe('terminal console store', () => {
 
       const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
       expect(entry.agentStreamActive).toBe(false)
+      expect(entry.agentStreamThinking).toBe('working…')
       expect(entry.agentStreamToolCalls?.[0]?.status).toBe('error')
+    })
+
+    it('clears thinking without changing an active block when projection is unavailable', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Agent',
+        blockType: 'agent',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+        agentStreamActive: true,
+        agentStreamThinking: 'projected thinking',
+      })
+
+      useTerminalConsoleStore
+        .getState()
+        .updateConsole('block-1', { clearAgentStreamThinking: true }, 'exec-1')
+
+      const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entry.isRunning).toBe(true)
+      expect(entry.agentStreamActive).toBe(true)
+      expect(entry.agentStreamThinking).toBeUndefined()
     })
   })
 })

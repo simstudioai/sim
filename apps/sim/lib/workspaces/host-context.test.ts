@@ -58,6 +58,7 @@ function accessibleWorkspace(
       organizationId,
       workspaceMode: organizationId ? 'organization' : 'personal',
       billedAccountUserId: 'owner-1',
+      allowPersonalApiKeys: false,
     },
   }
 }
@@ -80,11 +81,13 @@ describe('getWorkspaceHostContextForViewer', () => {
 
     expect(context).toEqual(
       expect.objectContaining({
+        workspace: expect.objectContaining({ allowPersonalApiKeys: false }),
         hostOrganizationId: 'org-host',
         viewer: {
           permission: 'write',
           isHostOrganizationMember: true,
           isHostOrganizationAdmin: false,
+          organizationRole: 'member',
         },
       })
     )
@@ -104,6 +107,7 @@ describe('getWorkspaceHostContextForViewer', () => {
       permission: 'read',
       isHostOrganizationMember: false,
       isHostOrganizationAdmin: false,
+      organizationRole: null,
     })
     expect(context?.hostOrganizationId).toBe('org-host')
   })
@@ -125,6 +129,7 @@ describe('getWorkspaceHostContextForViewer', () => {
           permission: 'admin',
           isHostOrganizationMember: false,
           isHostOrganizationAdmin: false,
+          organizationRole: null,
         },
       })
     )

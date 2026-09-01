@@ -1,10 +1,15 @@
 /**
  * GET /api/v1/admin/folders/[id]/export
  *
- * Export a folder and all its contents (workflows + subfolders) as a ZIP file or JSON (raw, unsanitized for admin backup/restore).
+ * Export a folder and all its contents (workflows + subfolders) as a ZIP file or JSON.
+ *
+ * The two formats are NOT equivalent. `json` emits the raw stored state for admin
+ * backup/restore. `zip` runs every workflow through `sanitizeForExport`, which withholds
+ * credentials and several other classes of sub-block value, so a ZIP does not restore
+ * faithfully — use `json` when the export has to.
  *
  * Query Parameters:
- *   - format: 'zip' (default) or 'json'
+ *   - format: 'zip' (default, sanitized) or 'json' (raw)
  *
  * Response:
  *   - ZIP file download (Content-Type: application/zip)

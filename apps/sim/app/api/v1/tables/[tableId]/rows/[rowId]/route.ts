@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -13,10 +12,19 @@ import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import { deleteRow, updateRow } from '@/lib/table'
+import { updateRow } from '@/lib/table'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
-import { accessError, checkAccess, tableLockErrorResponse } from '@/app/api/table/utils'
+import { signalTableRowsChanged } from '@/lib/table/events'
+import { performDeleteTableRow } from '@/lib/table/orchestration'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import {
+  accessError,
+  checkAccess,
+  orchestrationErrorResponse,
+  orchestrationOutcomeErrorResponse,
+  tableLockErrorResponse,
+} from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -143,17 +151,22 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
 
     const idByName = buildIdByName(table.schema as TableSchema)
     const toNamedRow = namedRowMapper((table.schema as TableSchema).columns)
+    const patchData = rowDataNameToId(validated.data as RowData, idByName)
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: rowDataNameToId(validated.data as RowData, idByName),
+        data: patchData,
         workspaceId: validated.workspaceId,
         actorUserId,
+        secretProvenance: createExactEmptyTableRowSecretProvenance(patchData),
       },
       table,
       requestId
     )
+
+    // Live-collab: tell open viewers the change landed so they refetch.
+    signalTableRowsChanged(tableId)
     // No `cancellationGuard` is passed here, so `updateRow` can't return null
     // from this caller. Defensive narrowing for TypeScript.
     if (!updatedRow) {
@@ -188,21 +201,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
-    const errorMessage = toError(error).message
-
-    if (errorMessage === 'Row not found') {
-      return NextResponse.json({ error: errorMessage }, { status: 404 })
-    }
-
-    if (
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('Cannot set unique column')
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error updating row:`, error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })
@@ -238,9 +238,13 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Route through the service (not a raw `db.delete`) so the delete lock is
-    // enforced — the raw path would return 200 on a locked table.
-    await deleteRow(result.table, rowId, requestId)
+    const outcome = await performDeleteTableRow({ table: result.table, rowId, requestId })
+    if (!outcome.success) {
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to delete row')
+    }
+
+    // Live-collab: tell open viewers the change landed so they refetch.
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -252,9 +256,8 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
   } catch (error) {
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
-    if (error instanceof Error && error.message === 'Row not found') {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
     logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
   }

@@ -98,7 +98,8 @@ interface StageHomeProps {
 }
 
 /** Staggered enter for a chat bubble - translateY + opacity + blur, interruptible. */
-const ENTER_BASE = 'transition-[opacity,transform,filter] ease-[cubic-bezier(0.2,0,0,1)]'
+const ENTER_BASE =
+  'transition-[opacity,transform,filter] [transition-timing-function:cubic-bezier(0.2,0,0,1)]'
 const enterState = (shown: boolean) =>
   shown ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-1.5 opacity-0 blur-[3px]'
 
@@ -220,7 +221,7 @@ export function StageHome({
             morphs to a block. */}
         <div
           className={cn(
-            'overflow-hidden text-center transition-[height,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]',
+            'overflow-hidden text-center transition-[height,opacity] duration-300 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
             mode === 'compose'
               ? 'h-[40px] opacity-100'
               : mode === 'sending' || mode === 'thinking'
@@ -251,8 +252,8 @@ export function StageHome({
             // and read as jitter. Every other beat eases width/height/transform with
             // the shared curve.
             holdCardHeight
-              ? 'transition-[width,transform] duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)]'
-              : 'transition-[width,height,transform] duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+              ? 'transition-[width,transform] [transition-duration:620ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]'
+              : 'transition-[width,height,transform] [transition-duration:620ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
             // Nudge up to cancel the chat column's greeting+gap offset, so the
             // card centers exactly where the focused workflow block lands.
             isBlock && '-translate-y-[10px]'
@@ -282,7 +283,7 @@ export function StageHome({
           <div
             ref={contentRef}
             className={cn(
-              'absolute inset-x-0 flex flex-col gap-2 px-2.5 py-2 transition-opacity duration-[220ms] ease-[cubic-bezier(0.23,1,0.32,1)]',
+              'absolute inset-x-0 flex flex-col gap-2 px-2.5 py-2 transition-opacity [transition-duration:220ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
               holdCardHeight ? 'bottom-0' : 'top-0',
               isBlock && 'pointer-events-none opacity-0'
             )}
@@ -297,15 +298,13 @@ export function StageHome({
               <div
                 ref={inputRef}
                 className={cn(
-                  'min-h-[24px] px-1 py-1 font-body text-[15px] text-[var(--text-primary)] leading-[24px] tracking-[-0.015em] transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]',
+                  'min-h-[24px] px-1 py-1 font-body text-[15px] text-[var(--text-primary)] leading-[24px] tracking-[-0.015em] transition-opacity duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
                   isCompose ? 'opacity-100' : 'opacity-0',
                   !inputInFlow && 'pointer-events-none absolute inset-x-0 top-0'
                 )}
               >
                 {isEmpty ? (
-                  <span className='font-[380] text-[var(--text-subtle)]'>
-                    Ask Sim to build an agent…
-                  </span>
+                  <span className='text-[var(--text-subtle)]'>Ask Sim to build an agent…</span>
                 ) : (
                   <>
                     <PromptAtoms atoms={visible} />
@@ -346,7 +345,7 @@ export function StageHome({
                 ref={sendRef}
                 aria-hidden='true'
                 className={cn(
-                  'flex size-[28px] shrink-0 items-center justify-center rounded-full bg-[#383838] transition-[opacity,transform,background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]',
+                  'flex size-[28px] shrink-0 items-center justify-center rounded-full bg-[#383838] transition-[opacity,transform,background-color] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
                   // Visible only while composing; once send is hit the root loader's
                   // settled orb takes its place (it stays laid out as the loader's
                   // measure + slide-from target).
@@ -370,7 +369,7 @@ export function StageHome({
                     strokeLinecap='round'
                     strokeLinejoin='round'
                     className={cn(
-                      'transition-[stroke-dashoffset] duration-[520ms] ease-[cubic-bezier(0.23,1,0.32,1)] [stroke-dasharray:1]',
+                      'transition-[stroke-dashoffset] [stroke-dasharray:1] [transition-duration:520ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
                       isCompose ? '[stroke-dashoffset:0]' : '[stroke-dashoffset:1]'
                     )}
                   />
@@ -386,7 +385,7 @@ export function StageHome({
           <div
             aria-hidden='true'
             className={cn(
-              'absolute inset-x-0 top-0 transition-opacity duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]',
+              'absolute inset-x-0 top-0 transition-opacity duration-300 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
               // Hold off until the chat content (≈220ms fade) is gone, then fade in.
               isBlock ? 'opacity-100 [transition-delay:280ms]' : 'pointer-events-none opacity-0'
             )}

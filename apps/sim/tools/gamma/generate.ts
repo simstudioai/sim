@@ -126,6 +126,16 @@ export const generateTool: ToolConfig<GammaGenerateParams, GammaGenerateResponse
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        inputText: params.inputText,
+        additionalInstructions: params.additionalInstructions,
+        textTone: params.textTone,
+        textAudience: params.textAudience,
+        imageStyle: params.imageStyle,
+      }),
+    },
     url: 'https://public-api.gamma.app/v1.0/generations',
     method: 'POST',
     headers: (params) => ({

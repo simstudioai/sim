@@ -29,6 +29,8 @@ export const inputValidationMockFns = {
  * ```
  */
 export const inputValidationMock = {
+  DEFAULT_MAX_RESPONSE_BYTES: 100 * 1024 * 1024,
+  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
   validateUrlWithDNS: inputValidationMockFns.mockValidateUrlWithDNS,
   validateAndPinProxyUrl: inputValidationMockFns.mockValidateAndPinProxyUrl,
   validateDatabaseHost: inputValidationMockFns.mockValidateDatabaseHost,

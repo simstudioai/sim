@@ -18,14 +18,17 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
 
   if (payload.kind === MothershipStreamV1SessionKind.chat && payloadChatId) {
     const isNewChat = !deps.chatIdRef.current
-    deps.chatIdRef.current = payloadChatId
     const selected = deps.selectedChatIdRef.current
-    if (selected == null) {
-      if (isNewChat) {
+    if (isNewChat) {
+      // This synchronously migrates provisional browser/terminal ownership
+      // before writing chatIdRef. Assigning the ref here first would make the
+      // adoption path believe there was no provisional scope to move.
+      deps.adoptResolvedChatId(payloadChatId)
+    } else {
+      deps.chatIdRef.current = payloadChatId
+      if (payloadChatId === selected) {
         deps.setResolvedChatId(payloadChatId)
       }
-    } else if (payloadChatId === selected) {
-      deps.setResolvedChatId(payloadChatId)
     }
     deps.queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(deps.workspaceId) })
     if (isNewChat) {

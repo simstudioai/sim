@@ -8,15 +8,18 @@
  * The user and the agent share the same shells, so `cd`, exported variables,
  * and scrollback are common to both.
  *
- * Several terminals can be open at once, each its own shell with its own
- * working directory and scrollback, exactly like tabs in a terminal app. One is
- * active at a time; agent tools act on the active one unless they name another.
+ * Terminal tabs have no fixed app-level limit. Each is its own shell with its
+ * own working directory and scrollback, exactly like tabs in a terminal app.
+ * One is active at a time; agent tools act on the active one unless they name
+ * another.
  *
  * Tool names and parameter shapes mirror the mothership tool catalog
  * (`copilot/internal/tools/catalog/terminal` in the mothership repo) — that
  * catalog is the source of truth for what the model can call; this package is
  * the source of truth for how those calls travel to the desktop main process.
  */
+
+import { truncate } from '@sim/utils/string'
 
 /** The single tool the model calls; what it does is in `operation`. */
 export const TERMINAL_TOOL_NAME = 'terminal'
@@ -74,13 +77,6 @@ export function isTerminalOperation(value: unknown): value is TerminalOperation 
 export function isTerminalToolName(name: string): boolean {
   return name === TERMINAL_TOOL_NAME
 }
-
-/**
- * Ceiling on concurrently open terminals. Each is a live shell process with its
- * own emulator and scrollback, so the cap bounds both memory and the number of
- * things the user has to keep track of.
- */
-export const MAX_TERMINALS = 8
 
 /**
  * Largest command output handed back to the model, in characters. Output past
@@ -298,6 +294,105 @@ export interface TerminalTabState {
   tmuxSession?: string | null
 }
 
+/** Longest program name {@link describeRunningCommand} will return. */
+const MAX_RUNNING_COMMAND_LABEL = 32
+
+/**
+ * Shell words that precede the program rather than being it, so a label reads
+ * `claude` and not `env` or `sudo`.
+ */
+const COMMAND_PREFIX_WORDS = new Set([
+  'command',
+  'doas',
+  'env',
+  'exec',
+  'nice',
+  'nohup',
+  'sudo',
+  'time',
+])
+
+/** `NAME=value`, the other thing that can sit in front of the program. */
+const ENVIRONMENT_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/
+
+/**
+ * The last command in a shell line, ignoring separators inside quotes. A
+ * quote-blind split would cut `claude "a && b"` in half and report `b"` as the
+ * program.
+ */
+function lastCommandSegment(command: string): string {
+  let start = 0
+  let quote: "'" | '"' | null = null
+  for (let index = 0; index < command.length; index++) {
+    const char = command[index]
+    if (quote) {
+      // Only double quotes honor backslash escapes; inside single quotes a
+      // backslash is a literal character and cannot hide the closing quote.
+      if (char === '\\' && quote === '"') index++
+      else if (char === quote) quote = null
+      continue
+    }
+    if (char === "'" || char === '"') {
+      quote = char
+      continue
+    }
+    if (char === '\\') {
+      index++
+      continue
+    }
+    if (char === ';' || char === '&' || char === '|') {
+      if (command[index + 1] === char) index++
+      start = index + 1
+    }
+  }
+  return command.slice(start).trim()
+}
+
+/**
+ * A short name for whatever is holding a terminal's foreground.
+ *
+ * `running` is the literal line the shell was given, and an agent-launched one
+ * runs long: `cd <path> && export PATH=<path> && claude "<the whole prompt>"`
+ * is a single command several hundred characters wide. That is the right thing
+ * to hand an agent and the wrong thing to put in a sentence — a confirmation
+ * built around it stops being a question and becomes a wall of shell. This
+ * keeps the part a person recognizes, the program they are waiting on, and
+ * drops the environment preamble around it.
+ *
+ * Best-effort by construction: the input is a shell line, not a parsed argv,
+ * so a command this cannot read falls back to the line itself, bounded. Use it
+ * for prose about a terminal, never to decide anything.
+ *
+ * @example
+ * describeRunningCommand('cd /repo && export PATH=/bin && claude "fix it"') // 'claude'
+ * describeRunningCommand('sudo /usr/bin/docker compose up')                 // 'docker'
+ */
+export function describeRunningCommand(running: string): string {
+  const line = running.trim()
+  if (!line) return 'a command'
+
+  const segment = lastCommandSegment(line) || line
+  const program = segment
+    .split(/\s+/)
+    .filter(Boolean)
+    .find(
+      (word) =>
+        !ENVIRONMENT_ASSIGNMENT.test(word) &&
+        !COMMAND_PREFIX_WORDS.has(word) &&
+        !word.startsWith('-')
+    )
+
+  const label =
+    (program
+      ? (program
+          .replace(/^['"]|['"]$/g, '')
+          .split('/')
+          .filter(Boolean)
+          .pop() ?? '')
+      : '') || segment
+  return truncate(label, MAX_RUNNING_COMMAND_LABEL, '…')
+}
+
 /** One tmux pane, as reported by the `panes` operation. */
 export interface TerminalPaneState {
   /** tmux target (`session:window.pane`), usable as the `pane` argument. */
@@ -338,6 +433,13 @@ export interface TerminalPanesResult {
 export interface TerminalTabsState {
   tabs: TerminalTabState[]
   activeTerminalId: string | null
+  /** Terminal currently driven by the agent when it differs from the user's visible terminal. */
+  agentActiveTerminalId?: string | null
+}
+
+/** A tab strip crossing the desktop bridge, tagged with its owning chat. */
+export interface ScopedTerminalTabsState extends TerminalTabsState {
+  scopeId: string
 }
 
 /** The result of one terminal tool invocation, as returned over the bridge. */
@@ -359,10 +461,10 @@ export type TerminalErrorCode =
    */
   | 'NO_SHELL_INTEGRATION'
   | 'SPAWN_FAILED'
+  /** Opening another local shell would exceed the desktop resource ceiling. */
+  | 'RESOURCE_LIMIT'
   /** No terminal with that id — the ids come from terminal_list. */
   | 'NO_SUCH_TERMINAL'
-  /** Already at {@link MAX_TERMINALS}. */
-  | 'TOO_MANY_TERMINALS'
   /** The operation needs tmux, and this terminal has no tmux attached. */
   | 'NO_TMUX'
   /** No pane with that target — the targets come from the `panes` operation. */
@@ -393,4 +495,9 @@ export interface TerminalCommandEvent {
   toolCallId?: string
   exitCode?: number
   durationMs?: number
+}
+
+/** A command event crossing the desktop bridge, tagged with its owning chat. */
+export interface ScopedTerminalCommandEvent extends TerminalCommandEvent {
+  scopeId: string
 }

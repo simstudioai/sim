@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  mountedSecretNamesSchema,
+  secretMountScopeSchema,
+} from '@/lib/api/contracts/secret-mount-policy'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const scheduleStatusSchema = z.enum(['active', 'disabled', 'completed'])
@@ -74,6 +78,8 @@ export const workflowScheduleRowSchema = z.object({
   sourceTaskName: z.string().nullable(),
   sourceUserId: z.string().nullable(),
   sourceWorkspaceId: z.string().nullable(),
+  secretScope: secretMountScopeSchema,
+  mountedSecrets: mountedSecretNamesSchema,
   jobHistory: z.array(z.object({ timestamp: z.string(), summary: z.string() })).nullable(),
   contexts: z.array(scheduleContextSchema).nullable(),
   excludedDates: z.array(z.string()).nullable(),
@@ -96,36 +102,6 @@ export const workspaceScheduleRowSchema = workflowScheduleRowSchema.extend({
 
 export type WorkspaceScheduleRow = z.output<typeof workspaceScheduleRowSchema>
 
-export const createScheduleBodySchema = z
-  .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
-    title: z.string().min(1, 'Title is required'),
-    prompt: z.string().min(1, 'Prompt is required'),
-    /** Recurring cadence. Omit (with `time` set) for a one-time task. */
-    cronExpression: z.string().min(1).optional(),
-    /** One-time launch instant (ISO 8601). Omit (with `cronExpression` set) for a recurring task. */
-    time: z.string().min(1).optional(),
-    timezone: z.string().optional().default('UTC'),
-    lifecycle: scheduleLifecycleSchema.optional().default('persistent'),
-    /** Recurrence end after N runs (gcal "ends after N occurrences"). */
-    maxRuns: z.number().int().positive().optional(),
-    /** Recurrence end on a date (ISO 8601; gcal "ends on date"). */
-    endsAt: z.string().optional(),
-    startDate: z.string().optional(),
-    contexts: z.array(scheduleContextSchema).optional(),
-  })
-  .superRefine((body, ctx) => {
-    if (!body.cronExpression && !body.time) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['time'],
-        message: 'Provide a cron expression for a recurring task or a time for a one-time task',
-      })
-    }
-  })
-
-export type CreateScheduleBody = z.input<typeof createScheduleBodySchema>
-
 export const reactivateScheduleBodySchema = z.object({
   action: z.literal('reactivate'),
 })
@@ -138,39 +114,9 @@ export const disableScheduleBodySchema = z.object({
 
 export type DisableScheduleBody = z.input<typeof disableScheduleBodySchema>
 
-export const updateScheduleBodySchema = z.object({
-  action: z.literal('update'),
-  title: z.string().min(1).optional(),
-  prompt: z.string().min(1).optional(),
-  cronExpression: z.string().nullable().optional(),
-  /** One-time launch instant (ISO 8601). Switches a task to one-time when set alongside a null `cronExpression`. */
-  time: z.string().min(1).optional(),
-  timezone: z.string().optional(),
-  lifecycle: scheduleLifecycleSchema.optional(),
-  maxRuns: z.number().int().positive().nullable().optional(),
-  endsAt: z.string().nullable().optional(),
-  contexts: z.array(scheduleContextSchema).optional(),
-})
-
-export type UpdateScheduleBody = z.input<typeof updateScheduleBodySchema>
-
-/**
- * Deletes a single occurrence of a recurring task (gcal "this event"): the
- * occurrence's instant is added to the schedule's exclusion list and the next
- * run advances past it. Deleting the whole series uses {@link deleteScheduleContract}.
- */
-export const excludeOccurrenceBodySchema = z.object({
-  action: z.literal('exclude_occurrence'),
-  occurrence: z.string().min(1, 'Occurrence timestamp is required'),
-})
-
-export type ExcludeOccurrenceBody = z.input<typeof excludeOccurrenceBodySchema>
-
 export const scheduleUpdateSchema = z.discriminatedUnion('action', [
   reactivateScheduleBodySchema,
   disableScheduleBodySchema,
-  updateScheduleBodySchema,
-  excludeOccurrenceBodySchema,
 ])
 
 export type ScheduleUpdate = z.input<typeof scheduleUpdateSchema>
@@ -217,9 +163,8 @@ export const listWorkspaceSchedulesContract = defineRouteContract({
 })
 
 /**
- * Single-schedule read by id. Used by the mothership resource viewer so opening
- * a scheduled-task artifact does a lightweight by-id fetch instead of pulling
- * the entire workspace schedule list (which contended with the chat stream).
+ * Single-schedule read by id: a lightweight fetch for one workflow schedule
+ * instead of pulling the whole workspace list.
  */
 export const getScheduleByIdContract = defineRouteContract({
   method: 'GET',
@@ -234,48 +179,14 @@ export const getScheduleByIdContract = defineRouteContract({
 })
 
 /**
- * Newly-created job schedules emit a partial summary with the canonical fields
- * the route synthesizes server-side; everything else is filled in on
- * subsequent reads.
+ * Re-arms a disabled schedule: the route recomputes `nextRunAt` from the stored
+ * cron expression and clears the failure counters.
  */
-export const createScheduleResponseSchema = z.object({
-  schedule: z.object({
-    id: z.string(),
-    status: scheduleStatusSchema,
-    /** Null for one-time tasks, which carry no recurring cadence. */
-    cronExpression: z.string().nullable(),
-    nextRunAt: z.string(),
-  }),
-})
-
-export type CreateScheduleResponse = z.output<typeof createScheduleResponseSchema>
-
-export const createScheduleContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/schedules',
-  body: createScheduleBodySchema,
-  response: {
-    mode: 'json',
-    schema: createScheduleResponseSchema,
-  },
-})
-
 export const reactivateScheduleContract = defineRouteContract({
   method: 'PUT',
   path: '/api/schedules/[id]',
   params: scheduleIdParamsSchema,
   body: reactivateScheduleBodySchema,
-  response: {
-    mode: 'json',
-    schema: messageResponseSchema,
-  },
-})
-
-export const disableScheduleContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/schedules/[id]',
-  params: scheduleIdParamsSchema,
-  body: disableScheduleBodySchema,
   response: {
     mode: 'json',
     schema: messageResponseSchema,
@@ -290,35 +201,5 @@ export const updateScheduleContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: messageResponseSchema,
-  },
-})
-
-export const excludeOccurrenceContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/schedules/[id]',
-  params: scheduleIdParamsSchema,
-  body: excludeOccurrenceBodySchema,
-  response: {
-    mode: 'json',
-    schema: messageResponseSchema,
-  },
-})
-
-export const deleteScheduleContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/schedules/[id]',
-  params: scheduleIdParamsSchema,
-  response: {
-    mode: 'json',
-    schema: messageResponseSchema,
-  },
-})
-
-export const executeSchedulesContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/schedules/execute',
-  response: {
-    mode: 'json',
-    schema: executeSchedulesResponseSchema,
   },
 })

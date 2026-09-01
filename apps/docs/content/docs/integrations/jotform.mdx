@@ -1,0 +1,1207 @@
+---
+title: Jotform
+description: Read submissions, manage forms, and wire up webhooks in Jotform
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jotform"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jotform](https://www.jotform.com/) is an online form builder used to collect responses through forms, surveys, applications, and registrations.
+
+With the Jotform integration in Sim, you can:
+
+- **Read submissions**: Pull responses from one form or across every form on the account, filtered by date, read/unread state, or full-text search
+- **Work with answers directly**: Every submission comes back keyed by question ID *and* re-keyed by question label, so a response is usable without a second lookup
+- **Manage forms**: List, read, create, clone, and delete forms, and edit their settings — redirect behavior, submission limits, layout, and notification emails
+- **Edit questions**: List, add, update, and delete form fields individually or in bulk, including validation and field-specific properties
+- **Create submissions**: Submit entries through the API, one at a time or in batches, and edit or delete existing responses
+- **Build reports**: Create shareable Excel, CSV, grid, table, calendar, RSS, or visual reports scoped to the fields you choose
+- **Register webhooks**: Push new submissions to a URL the moment they arrive, and list or remove existing webhooks
+- **Organize with labels**: Group forms, workflows, sheets, and apps into labels, and assign or unassign assets in bulk
+- **Retrieve uploads**: List every file submitted through a form with its download URL, size, and originating submission
+- **Check the account**: Read plan details, monthly usage counters, sub-user access grants, settings, and the activity log
+
+In Sim, the Jotform integration lets your agents treat form responses as workflow input. Typical patterns include routing new submissions to the right team, enriching them with an agent before they reach a CRM or ticketing system, syncing responses into tables for reporting, and pushing submissions downstream in real time through webhooks.
+
+### Authentication and regions
+
+The integration authenticates with a Jotform API key, created under **Account Settings → API**. Keys are scoped to read-only or full access, so create the key at the level your operations need — creating submissions, editing forms, and managing webhooks all require full access.
+
+An API key is only valid on the host that issued it. Use the **Region** field to match where the account lives: `us` (default), `eu` for EU data residency accounts, or `hipaa` for HIPAA-compliant accounts. A key used against the wrong host returns an authentication error.
+
+Jotform enforces a daily API call limit that varies by plan. Schedule high-frequency polling with that budget in mind — or prefer a webhook, which costs no API calls at all.
+
+### A note on question IDs
+
+Submissions are keyed by question ID, not by label. Run **List Questions** on a form first to map each label to its `qid`; those IDs are what **Create Submission** and **Update Submission** expect. Multi-field questions such as full name or address accept either a nested object (`{"3": {"first": "Bart", "last": "Simpson"}}`) or the shorthand Jotform documents (`{"3_first": "Bart"}`).
+
+### Folders and labels
+
+Jotform has deprecated its folder endpoints in favor of labels. This integration implements labels only; if you have existing automations built on folder IDs, migrate them to the label operations.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Jotform into your workflow to list and read form submissions with their answers resolved to question labels, build and edit forms and their questions, create shareable reports, register submission webhooks, and check account usage.
+
+
+
+## Actions
+
+### Jotform List Forms
+
+List the forms on a Jotform account with their titles, status, and submission counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `offset` | string | No | Index of the first result to return. Default 0 |
+| `limit` | string | No | Number of forms to return. Default 20, maximum 1000 |
+| `orderby` | string | No | Field to order by: id, username, title, status, created_at, updated_at, new, count, or slug |
+| `direction` | string | No | Sort direction: ASC or DESC |
+| `filter` | json | No | Filter object, e.g. \{"status":"ENABLED"\} or \{"created_at:gt":"2024-01-01 00:00:00"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `forms` | array | Forms on the account |
+|   ↳ `id` | string | Form ID |
+|   ↳ `username` | string | Account that owns the form |
+|   ↳ `title` | string | Form title |
+|   ↳ `height` | string | Form height in pixels |
+|   ↳ `status` | string | ENABLED, DISABLED, or DELETED |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `last_submission` | string | Time of the most recent submission |
+|   ↳ `new` | string | Unread submission count |
+|   ↳ `count` | string | Total submission count |
+|   ↳ `type` | string | LEGACY or CARD |
+|   ↳ `favorite` | string | 1 when the form is favorited, otherwise 0 |
+|   ↳ `archived` | string | 1 when the form is archived, otherwise 0 |
+|   ↳ `url` | string | Public form URL |
+| `pagination` | object | Result window reported by the API |
+|   ↳ `offset` | number | Index of the first returned form |
+|   ↳ `limit` | number | Page size applied |
+|   ↳ `count` | number | Number of forms returned |
+
+### Jotform Get Form
+
+Get the details of a single Jotform form, including its status, URL, and submission counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | Form ID, the numeric segment of the form URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `form` | object | The requested form |
+|   ↳ `id` | string | Form ID |
+|   ↳ `username` | string | Account that owns the form |
+|   ↳ `title` | string | Form title |
+|   ↳ `height` | string | Form height in pixels |
+|   ↳ `status` | string | ENABLED, DISABLED, or DELETED |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `last_submission` | string | Time of the most recent submission |
+|   ↳ `new` | string | Unread submission count |
+|   ↳ `count` | string | Total submission count |
+|   ↳ `type` | string | LEGACY or CARD |
+|   ↳ `favorite` | string | 1 when the form is favorited, otherwise 0 |
+|   ↳ `archived` | string | 1 when the form is archived, otherwise 0 |
+|   ↳ `url` | string | Public form URL |
+
+### Jotform Create Form
+
+Create a new Jotform form from a list of questions, plus optional form properties and notification emails.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `questions` | json | Yes | Array of question objects, each with type, text, order, and name, e.g. \[\{"type":"control_email","text":"Email","order":"1","name":"email"\}\] |
+| `properties` | json | No | Form properties object, e.g. \{"title":"Contact Us","height":"600"\} |
+| `emails` | json | No | Array of email objects, each with type \(notification or autorespond\), from, to, subject, html, and body |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `form` | object | The created form |
+|   ↳ `id` | string | ID of the created form |
+|   ↳ `username` | string | Account that owns the form |
+|   ↳ `title` | string | Form title |
+|   ↳ `height` | string | Form height in pixels |
+|   ↳ `status` | string | ENABLED, DISABLED, or DELETED |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `new` | string | Unread submission count |
+|   ↳ `count` | string | Total submission count |
+|   ↳ `url` | string | Public form URL |
+
+### Jotform Clone Form
+
+Clone an existing Jotform form and return the copy.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form to clone |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `form` | object | The newly created copy |
+|   ↳ `id` | string | ID of the cloned form |
+|   ↳ `username` | string | Account that owns the clone |
+|   ↳ `title` | string | Form title |
+|   ↳ `height` | string | Form height in pixels |
+|   ↳ `status` | string | ENABLED, DISABLED, or DELETED |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `last_submission` | string | Time of the most recent submission |
+|   ↳ `new` | string | Unread submission count |
+|   ↳ `count` | string | Total submission count |
+|   ↳ `type` | string | LEGACY or CARD |
+|   ↳ `favorite` | string | 1 when the form is favorited, otherwise 0 |
+|   ↳ `archived` | string | 1 when the form is archived, otherwise 0 |
+|   ↳ `url` | string | Public URL of the cloned form |
+
+### Jotform Delete Form
+
+Delete a Jotform form. The API returns the form with status DELETED.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `form` | object | The deleted form, as the API reports it after deletion |
+|   ↳ `id` | string | Form ID |
+|   ↳ `username` | string | Account that owned the form |
+|   ↳ `title` | string | Form title |
+|   ↳ `height` | string | Form height in pixels |
+|   ↳ `status` | string | DELETED after a successful delete |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Deletion time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `new` | string | Unread submission count |
+|   ↳ `count` | string | Total submission count |
+
+### Jotform Get Form Properties
+
+Get the settings of a form: layout, limits, redirect behavior, notification emails, and validation strings. Supply a property key to read just one.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form to read properties from |
+| `propertyKey` | string | No | Single property to read instead of the whole set, e.g. formWidth, thankurl, or activeRedirect |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `properties` | json | Form properties keyed by property name. The set varies by form; documented keys include formWidth, labelWidth, activeRedirect, thankurl, expireDate, limitSubmission, styles, emails, and formStrings. |
+
+### Jotform Update Form Properties
+
+Update form settings such as the thank-you redirect, submission limit, width, or styles. Only the supplied keys change.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form to update |
+| `properties` | json | Yes | Properties to set, e.g. \{"thankurl":"https://example.com/thanks","activeRedirect":"thankurl","formWidth":"650"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `properties` | json | The property keys that were edited, with their new values |
+
+### Jotform List Form Files
+
+List every file uploaded through a form, with its download URL, size, type, and the submission it came from.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form whose uploads to list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | array | Files uploaded through the form |
+|   ↳ `name` | string | File name |
+|   ↳ `type` | string | MIME type, e.g. image/png |
+|   ↳ `size` | string | File size in bytes |
+|   ↳ `username` | string | Account that owns the form |
+|   ↳ `form_id` | string | Form the file was uploaded through |
+|   ↳ `submission_id` | string | Submission the file belongs to |
+|   ↳ `date` | string | Upload time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `url` | string | Download URL for the file |
+
+### Jotform List Questions
+
+List every question on a form with its question ID, label, and field type. Question IDs are what submissions are keyed by.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form whose questions to list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `questions` | array | Questions on the form. Each entry also carries the type-specific properties Jotform stores for that field, such as validation, sublabels, or options. |
+|   ↳ `qid` | string | Question ID, used to key submission answers |
+|   ↳ `name` | string | Slug of the question label |
+|   ↳ `order` | string | Position of the question on the form |
+|   ↳ `text` | string | Question label |
+|   ↳ `type` | string | Field type, e.g. control_textbox, control_textarea, control_dropdown, control_fullname, control_email, control_fileupload |
+|   ↳ `required` | string | Yes when the question is required |
+
+### Jotform Get Question
+
+Get every property of a single form question, including its validation rules and field-specific settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form the question belongs to |
+| `questionId` | string | Yes | Question ID, available from the List Questions operation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `question` | object | The requested question. Also carries the type-specific properties Jotform stores for that field. |
+|   ↳ `qid` | string | Question ID |
+|   ↳ `name` | string | Slug of the question label |
+|   ↳ `order` | string | Position of the question on the form |
+|   ↳ `text` | string | Question label |
+|   ↳ `type` | string | Field type, e.g. control_head or control_textbox |
+|   ↳ `required` | string | Yes when the question is required |
+
+### Jotform Create Question
+
+Add a question to an existing Jotform form.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form to add the question to |
+| `questionType` | string | Yes | Field type, e.g. control_textbox, control_textarea, control_dropdown, control_radio, control_checkbox, control_fileupload, control_fullname, control_email, or control_datetime |
+| `text` | string | No | Question label shown on the form |
+| `order` | string | No | Position of the question on the form |
+| `name` | string | No | Slug for the question label |
+| `questionProperties` | json | No | Additional type-specific properties merged into the question, e.g. \{"required":"Yes","validation":"Numeric"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `question` | object | The created question, as stored on the form |
+|   ↳ `qid` | string | ID assigned to the new question |
+|   ↳ `name` | string | Slug of the question label |
+|   ↳ `order` | string | Position of the question on the form |
+|   ↳ `text` | string | Question label |
+|   ↳ `type` | string | Field type of the question |
+|   ↳ `required` | string | Yes when the question is required |
+
+### Jotform Update Question
+
+Edit the properties of a form question, such as its label, order, or validation. Only the supplied properties change.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form the question belongs to |
+| `questionId` | string | Yes | ID of the question to edit |
+| `text` | string | No | New question label |
+| `order` | string | No | New position of the question on the form |
+| `name` | string | No | New slug for the question label |
+| `questionProperties` | json | No | Additional type-specific properties to set, e.g. \{"required":"Yes","validation":"Email"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `question` | json | The question properties that were edited, with their new values. Jotform echoes only the changed keys, such as text, order, and type. |
+
+### Jotform Delete Question
+
+Delete a question from a Jotform form.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form the question belongs to |
+| `questionId` | string | Yes | ID of the question to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True when Jotform accepted the deletion |
+| `message` | string | Confirmation text returned by Jotform |
+
+### Jotform List Form Submissions
+
+List the submissions received by one form, with each answer available both by question ID and by question label.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form whose submissions to list |
+| `offset` | string | No | Index of the first result to return. Default 0 |
+| `limit` | string | No | Number of submissions to return. Default 20, maximum 1000 |
+| `orderby` | string | No | Field to order by: id, form_id, IP, created_at, status, new, flag, or updated_at |
+| `direction` | string | No | Sort direction: ASC or DESC |
+| `filter` | json | No | Filter object, e.g. \{"created_at:gt":"2024-01-01 00:00:00"\}, \{"new":"1"\}, or \{"fullText":"John Brown"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `submissions` | array | Submissions received by the form |
+|   ↳ `id` | string | Submission ID |
+|   ↳ `form_id` | string | Form the submission belongs to |
+|   ↳ `ip` | string | IP address of the submitter |
+|   ↳ `created_at` | string | Submission time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last edit time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `status` | string | ACTIVE or OVERQUOTA |
+|   ↳ `new` | string | 1 when the submission is unread |
+|   ↳ `workflowStatus` | string | Approval state, present only when the form feeds a workflow |
+|   ↳ `answers` | json | Answers keyed by question ID. Each holds text \(the question label\), type, answer, and prettyFormat when Jotform renders one. |
+|   ↳ `values` | json | The same answers re-keyed by question label, each rendered as a single string. A label shared by more than one question is suffixed with its question ID on every occurrence, so no answer is lost. |
+| `pagination` | object | Result window reported by the API |
+|   ↳ `offset` | number | Index of the first returned submission |
+|   ↳ `limit` | number | Page size applied |
+|   ↳ `count` | number | Number of submissions returned |
+
+### Jotform List Submissions
+
+List submissions across every form on the account, optionally narrowed to specific forms or a date range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `offset` | string | No | Index of the first result to return. Default 0 |
+| `limit` | string | No | Number of submissions to return. Default 20, maximum 1000 |
+| `orderby` | string | No | Field to order by: id, form_id, IP, created_at, status, new, flag, or updated_at |
+| `direction` | string | No | Sort direction: ASC or DESC |
+| `filter` | json | No | Filter object, e.g. \{"formIDs":\["231234567890"\]\}, \{"created_at:gt":"2024-01-01 00:00:00"\}, or \{"fullText":"John Brown"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `submissions` | array | Submissions across every form on the account |
+|   ↳ `id` | string | Submission ID |
+|   ↳ `form_id` | string | Form the submission belongs to |
+|   ↳ `ip` | string | IP address of the submitter |
+|   ↳ `created_at` | string | Submission time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last edit time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `status` | string | ACTIVE or OVERQUOTA |
+|   ↳ `new` | string | 1 when the submission is unread |
+|   ↳ `workflowStatus` | string | Approval state, present only when the form feeds a workflow |
+|   ↳ `answers` | json | Answers keyed by question ID. Each holds text \(the question label\), type, answer, and prettyFormat when Jotform renders one. |
+|   ↳ `values` | json | The same answers re-keyed by question label, each rendered as a single string. A label shared by more than one question is suffixed with its question ID on every occurrence, so no answer is lost. |
+| `pagination` | object | Result window reported by the API |
+|   ↳ `offset` | number | Index of the first returned submission |
+|   ↳ `limit` | number | Page size applied |
+|   ↳ `count` | number | Number of submissions returned |
+
+### Jotform Get Submission
+
+Get a single Jotform submission, with its answers available both by question ID and by question label.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `submissionId` | string | Yes | ID of the submission to read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `submission` | object | The requested submission |
+|   ↳ `id` | string | Submission ID |
+|   ↳ `form_id` | string | Form the submission belongs to |
+|   ↳ `ip` | string | IP address of the submitter |
+|   ↳ `created_at` | string | Submission time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last edit time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `status` | string | ACTIVE or OVERQUOTA |
+|   ↳ `new` | string | 1 when the submission is unread |
+|   ↳ `workflowStatus` | string | Approval state, present only when the form feeds a workflow |
+|   ↳ `answers` | json | Answers keyed by question ID. Each holds text \(the question label\), type, answer, and prettyFormat when Jotform renders one. |
+|   ↳ `values` | json | The same answers re-keyed by question label, each rendered as a single string. A label shared by more than one question is suffixed with its question ID on every occurrence, so no answer is lost. |
+
+### Jotform Create Submission
+
+Submit an entry to a Jotform form. Answers are keyed by question ID, which the List Questions operation returns.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form to submit to |
+| `answers` | json | Yes | Answers keyed by question ID. Multi-field questions take either a nested object or the documented shorthand, e.g. \{"3":\{"first":"Bart","last":"Simpson"\},"4":"Hello"\} or \{"3_first":"Bart","3_last":"Simpson"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `submissionId` | string | ID of the submission that was created |
+| `url` | string | API URL of the new submission |
+
+### Jotform Update Submission
+
+Edit an existing Jotform submission. Only the question IDs supplied are changed; the rest keep their stored answers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `submissionId` | string | Yes | ID of the submission to edit |
+| `answers` | json | Yes | Answers to overwrite, keyed by question ID, e.g. \{"4":"Updated message","3":\{"first":"Lisa"\}\} or the shorthand \{"3_first":"Lisa"\}. The control keys new, flag, and status are passed through unchanged. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `submissionId` | string | ID of the submission that was edited |
+| `url` | string | API URL of the submission |
+
+### Jotform Delete Submission
+
+Delete a single Jotform submission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `submissionId` | string | Yes | ID of the submission to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True when Jotform accepted the deletion |
+| `message` | string | Confirmation text returned by Jotform |
+
+### Jotform List Reports
+
+List every report on the account, across all forms, with the shareable URL for each Excel, CSV, grid, table, calendar, RSS, or visual report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reports` | array | Reports across every form on the account |
+|   ↳ `id` | string | Report ID |
+|   ↳ `form_id` | string | Form the report is built from |
+|   ↳ `title` | string | Report title |
+|   ↳ `fields` | string | Comma-separated fields included in the report: ip, dt \(submission date\), and question IDs |
+|   ↳ `list_type` | string | Report type: excel, csv, grid, table, calendar, rss, or visual |
+|   ↳ `status` | string | ENABLED or DELETED |
+|   ↳ `url` | string | Shareable URL of the report |
+|   ↳ `isProtected` | boolean | True when the report is password protected |
+|   ↳ `settings` | string | Report display settings, as a JSON string |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+
+### Jotform List Form Reports
+
+List the reports built from one form, each with its shareable URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form whose reports to list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reports` | array | Reports built from the form |
+|   ↳ `id` | string | Report ID |
+|   ↳ `form_id` | string | Form the report is built from |
+|   ↳ `title` | string | Report title |
+|   ↳ `fields` | string | Comma-separated fields included in the report: ip, dt \(submission date\), and question IDs |
+|   ↳ `list_type` | string | Report type: excel, csv, grid, table, calendar, rss, or visual |
+|   ↳ `status` | string | ENABLED or DELETED |
+|   ↳ `url` | string | Shareable URL of the report |
+|   ↳ `isProtected` | boolean | True when the report is password protected |
+|   ↳ `settings` | string | Report display settings, as a JSON string |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+
+### Jotform Create Report
+
+Create a shareable report of a form, choosing the report type and which submission fields it shows.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form to build the report from |
+| `title` | string | Yes | Title of the report |
+| `listType` | string | Yes | Report type: excel, csv, grid, table, calendar, rss, or visual |
+| `fields` | string | No | Comma-separated fields to include: ip, dt \(submission date\), and question IDs, e.g. "ip,dt,3,4" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `report` | object | The created report |
+|   ↳ `id` | string | Report ID |
+|   ↳ `form_id` | string | Form the report is built from |
+|   ↳ `title` | string | Report title |
+|   ↳ `fields` | string | Comma-separated fields included in the report |
+|   ↳ `list_type` | string | Report type that was created |
+|   ↳ `status` | string | ENABLED or DELETED |
+|   ↳ `url` | string | Shareable URL of the report |
+|   ↳ `isProtected` | boolean | True when the report is password protected |
+
+### Jotform Get Report
+
+Get the details and shareable URL of a single Jotform report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `reportId` | string | Yes | ID of the report to read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `report` | object | The requested report |
+|   ↳ `id` | string | Report ID |
+|   ↳ `form_id` | string | Form the report is built from |
+|   ↳ `title` | string | Report title |
+|   ↳ `fields` | string | Comma-separated fields included in the report |
+|   ↳ `list_type` | string | Report type: excel, csv, grid, table, calendar, rss, or visual |
+|   ↳ `status` | string | ENABLED or DELETED |
+|   ↳ `url` | string | Shareable URL of the report |
+|   ↳ `isProtected` | boolean | True when the report is password protected |
+|   ↳ `settings` | string | Report display settings, as a JSON string |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+
+### Jotform Delete Report
+
+Delete an existing Jotform report.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `reportId` | string | Yes | ID of the report to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True when Jotform accepted the deletion |
+| `message` | string | Confirmation text returned by Jotform |
+
+### Jotform List Webhooks
+
+List the webhooks registered on a form. The returned IDs are what the Delete Webhook operation takes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form whose webhooks to list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhooks` | array | Webhooks registered on the form |
+|   ↳ `id` | string | Webhook ID, used when deleting the webhook |
+|   ↳ `url` | string | URL that receives submission notifications |
+
+### Jotform Create Webhook
+
+Register a webhook on a form so every new submission is posted to the given URL. Returns the full webhook list for the form.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form to add the webhook to |
+| `webhookUrl` | string | Yes | URL that Jotform posts submission data to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhooks` | array | Webhooks registered on the form after the addition |
+|   ↳ `id` | string | Webhook ID, used when deleting the webhook |
+|   ↳ `url` | string | URL that receives submission notifications |
+
+### Jotform Delete Webhook
+
+Remove a webhook from a form. Returns the webhooks that remain registered on the form.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form the webhook belongs to |
+| `webhookId` | string | Yes | Webhook ID, available from the List Webhooks operation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhooks` | array | Webhooks still registered on the form after the deletion |
+|   ↳ `id` | string | Webhook ID |
+|   ↳ `url` | string | URL that receives submission notifications |
+
+### Jotform Get Account
+
+Get the Jotform account behind the API key, including its plan, status, time zone, and contact details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | The account the API key belongs to |
+|   ↳ `username` | string | Jotform username |
+|   ↳ `name` | string | Display name on the account |
+|   ↳ `email` | string | Account email address |
+|   ↳ `website` | string | Website recorded on the account |
+|   ↳ `time_zone` | string | Account time zone, in IANA format |
+|   ↳ `account_type` | string | URL of the plan the account is on |
+|   ↳ `status` | string | ACTIVE, DELETED, or SUSPENDED |
+|   ↳ `created_at` | string | Account creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `is_verified` | string | 1 when the account email is verified |
+|   ↳ `industry` | string | Industry recorded on the account |
+|   ↳ `company` | string | Company recorded on the account |
+|   ↳ `language` | string | Account interface language, e.g. en-US |
+|   ↳ `avatarUrl` | string | Avatar image URL |
+|   ↳ `usage` | string | URL of the monthly usage endpoint |
+
+### Jotform Get Usage
+
+Get this month usage for the account: submissions received, payments, form views, upload space, and API calls made today.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `usage` | object | Usage counters for the current month |
+|   ↳ `submissions` | string | Submissions received this month |
+|   ↳ `ssl_submissions` | string | Secure submissions received this month |
+|   ↳ `payments` | string | Payment submissions received this month |
+|   ↳ `uploads` | string | Disk space used by uploaded files, in bytes |
+|   ↳ `mobile_submissions` | string | Mobile submissions received this month |
+|   ↳ `views` | string | Form views received this month |
+|   ↳ `api` | string | API calls made today |
+
+### Jotform Get History
+
+Read the account activity log: forms created, updated, deleted or purged, and account logins.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `action` | string | No | Activity to filter by: all \(default\), userCreation, userLogin, formCreation, formUpdate, formDelete, or formPurge |
+| `date` | string | No | Named date range to limit results to, e.g. lastWeek. Use startDate and endDate for an explicit range instead |
+| `sortBy` | string | No | Sort order: ASC or DESC |
+| `startDate` | string | No | Only return activity after this date. Format MM/DD/YYYY |
+| `endDate` | string | No | Only return activity before this date. Format MM/DD/YYYY |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `history` | array | Account activity entries |
+|   ↳ `type` | string | Activity type: userCreation, userLogin, formCreation, formUpdate, formDelete, or formPurge |
+|   ↳ `formID` | string | Form the activity applied to |
+|   ↳ `username` | string | Account that performed the activity |
+|   ↳ `formTitle` | string | Title of the affected form |
+|   ↳ `formStatus` | string | Status of the form after the activity |
+|   ↳ `ip` | string | IP address the activity came from |
+|   ↳ `timestamp` | string | Unix timestamp of the activity, in seconds |
+
+### Jotform Create Submissions
+
+Submit several entries to a Jotform form in one call. Each entry is keyed by question ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form to submit to |
+| `submissions` | json | Yes | Array of submissions. Each entry maps a question ID to an object holding its answer, e.g. \[\{"1":\{"text":"Answer 1"\},"2":\{"text":"Answer 2"\}\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `submissions` | array | The submissions that were created |
+|   ↳ `submissionId` | string | ID of the created submission |
+|   ↳ `url` | string | API URL of the created submission |
+| `count` | number | Number of submissions created |
+
+### Jotform Create Questions
+
+Add several questions to an existing Jotform form in one call.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `formId` | string | Yes | ID of the form to add the questions to |
+| `questions` | json | Yes | Array of question objects, each with type, text, order, and name, e.g. \[\{"type":"control_head","text":"Text 1","order":"1","name":"Header1"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `questions` | array | The questions that were added, as stored on the form |
+|   ↳ `qid` | string | ID assigned to the question |
+|   ↳ `name` | string | Slug of the question label |
+|   ↳ `order` | string | Position of the question on the form |
+|   ↳ `text` | string | Question label |
+|   ↳ `type` | string | Field type of the question |
+|   ↳ `required` | string | Yes when the question is required |
+
+### Jotform List Labels
+
+List the labels on the account as a tree. Labels are how Jotform groups forms, workflows, sheets, and apps, replacing the older folder endpoints.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `addResources` | string | No | Set to "true" to include the resources assigned to each label |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `labels` | array | Labels on the account. The API returns a root entry whose sublabels hold the user-visible labels, nested to arbitrary depth. |
+|   ↳ `id` | string | Label ID |
+|   ↳ `name` | string | Label name |
+|   ↳ `order` | string | Position among its siblings |
+|   ↳ `color` | string | Label color, as a hex code |
+|   ↳ `owner` | string | Account that owns the label |
+|   ↳ `parent_label_id` | string | ID of the parent label |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `sublabels` | json | Nested labels beneath this one |
+
+### Jotform Get Label
+
+Get the name, color, and owner of a single Jotform label.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `labelId` | string | Yes | ID of the label to read, available from the List Labels operation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `label` | object | The requested label |
+|   ↳ `id` | string | Label ID |
+|   ↳ `name` | string | Label name |
+|   ↳ `order` | string | Position among its siblings |
+|   ↳ `color` | string | Label color, as a hex code |
+|   ↳ `owner` | string | Account that owns the label |
+|   ↳ `ownerType` | string | Owner kind, e.g. USER |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+
+### Jotform Create Label
+
+Create a Jotform label for grouping forms and other assets, optionally nested under a parent label.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `labelName` | string | Yes | Name of the label, e.g. "IT Operations" |
+| `color` | string | No | Label color as a hex code, e.g. "#FFDC7B" |
+| `parent` | string | No | ID of the parent label to nest this label under |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `label` | object | The created label |
+|   ↳ `id` | string | ID assigned to the new label |
+|   ↳ `name` | string | Label name |
+|   ↳ `color` | string | Label color, as a hex code |
+|   ↳ `owner` | string | Account that owns the label |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+
+### Jotform Update Label
+
+Rename a Jotform label or change its color.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `labelId` | string | Yes | ID of the label to update |
+| `labelName` | string | No | New name for the label |
+| `color` | string | No | New label color as a hex code, e.g. "#23FFDD" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `label` | json | The label fields that were edited, with their new values. Jotform echoes only the changed keys, such as name and color. |
+
+### Jotform Delete Label
+
+Delete a Jotform label along with all of its sublabels.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `labelId` | string | Yes | ID of the label to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True when Jotform accepted the deletion |
+| `message` | string | Confirmation text returned by Jotform |
+
+### Jotform List Label Resources
+
+List the assets assigned to a label — forms, workflows, sheets, and apps — with their status and titles.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `labelId` | string | Yes | ID of the label whose assets to list |
+| `offset` | string | No | Index of the first result to return. Default 0 |
+| `limit` | string | No | Number of assets to return |
+| `orderby` | string | No | Field to order by, e.g. created_at |
+| `status` | string | No | Filter by asset status, e.g. active |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resources` | array | Assets assigned to the label |
+|   ↳ `id` | string | Asset ID |
+|   ↳ `username` | string | Account that owns the asset |
+|   ↳ `title` | string | Asset title |
+|   ↳ `status` | string | Asset status, e.g. ENABLED or AUTODISABLED |
+|   ↳ `assetType` | string | Kind of asset: form, workflow, sheet, or portal |
+|   ↳ `type` | string | Asset subtype, e.g. LEGACY, APP, or default |
+|   ↳ `labels` | string | Label IDs the asset belongs to |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+
+### Jotform Add Label Resources
+
+Assign forms, workflows, sheets, or apps to a Jotform label.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `labelId` | string | Yes | ID of the label to assign the assets to |
+| `resources` | json | Yes | Assets to add, each with an id and a type of form, workflow, sheet, or portal, e.g. \[\{"id":"251464995493876","type":"form"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resources` | array | The assets now assigned to the label |
+|   ↳ `id` | string | Asset ID |
+|   ↳ `type` | string | Asset kind, echoed uppercase: FORM, WORKFLOW, SHEET, or PORTAL |
+
+### Jotform Remove Label Resources
+
+Unassign forms, workflows, sheets, or apps from a Jotform label.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `labelId` | string | Yes | ID of the label to remove the assets from |
+| `resources` | json | Yes | Assets to remove, each with an id and a type of form, workflow, sheet, or portal, e.g. \[\{"id":"251464995493876","type":"form"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resources` | array | The assets reported by the API after the removal |
+|   ↳ `id` | string | Asset ID |
+|   ↳ `type` | string | Asset kind, echoed uppercase: FORM, WORKFLOW, SHEET, or PORTAL |
+
+### Jotform List Sub-Users
+
+List the sub-users on the account with the forms and folders each one can reach, and at what access level.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subusers` | array | Sub-users on the account |
+|   ↳ `username` | string | Sub-user username |
+|   ↳ `email` | string | Sub-user email address |
+|   ↳ `owner` | string | Parent account that created the sub-user |
+|   ↳ `status` | string | LIVE, DELETED, or PENDING while an invitation is unaccepted |
+|   ↳ `created_at` | string | Creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `permissions` | json | What the sub-user can reach: each entry has type \(FORM, FOLDER, or ALL\), resource_id, access_type \(full or readOnly\), and title |
+
+### Jotform Get Settings
+
+Read the account settings behind the API key, including time zone, language, and contact details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `settingsKey` | string | No | Single setting to read instead of the whole set, e.g. time_zone |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | Account settings. Reading a single setting fills only that field and leaves the rest null. |
+|   ↳ `username` | string | Jotform username |
+|   ↳ `name` | string | Display name on the account |
+|   ↳ `email` | string | Account email address |
+|   ↳ `website` | string | Website recorded on the account |
+|   ↳ `time_zone` | string | Account time zone, in IANA format |
+|   ↳ `account_type` | string | URL of the plan the account is on |
+|   ↳ `status` | string | ACTIVE, DELETED, or SUSPENDED |
+|   ↳ `created_at` | string | Account creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `is_verified` | string | 1 when the account email is verified |
+|   ↳ `industry` | string | Industry recorded on the account |
+|   ↳ `company` | string | Company recorded on the account |
+|   ↳ `language` | string | Account interface language, e.g. en-US |
+|   ↳ `avatarUrl` | string | Avatar image URL |
+|   ↳ `usage` | string | URL of the monthly usage endpoint |
+
+### Jotform Update Settings
+
+Update account settings such as name, email, website, company, industry, or time zone. Only the supplied fields change.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Jotform API key |
+| `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
+| `settingsName` | string | No | New display name on the account |
+| `email` | string | No | New account email address |
+| `website` | string | No | New website recorded on the account |
+| `timeZone` | string | No | New account time zone in IANA format, e.g. America/New_York |
+| `company` | string | No | New company recorded on the account |
+| `industry` | string | No | New industry recorded on the account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | The account after the update. Jotform returns null for the fields it did not echo back. |
+|   ↳ `username` | string | Jotform username |
+|   ↳ `name` | string | Display name on the account |
+|   ↳ `email` | string | Account email address |
+|   ↳ `website` | string | Website recorded on the account |
+|   ↳ `time_zone` | string | Account time zone, in IANA format |
+|   ↳ `account_type` | string | URL of the plan the account is on |
+|   ↳ `status` | string | ACTIVE, DELETED, or SUSPENDED |
+|   ↳ `created_at` | string | Account creation time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `updated_at` | string | Last update time, YYYY-MM-DD HH:MM:SS |
+|   ↳ `is_verified` | string | 1 when the account email is verified |
+|   ↳ `industry` | string | Industry recorded on the account |
+|   ↳ `company` | string | Company recorded on the account |
+|   ↳ `language` | string | Account interface language, e.g. en-US |
+|   ↳ `avatarUrl` | string | Avatar image URL |
+|   ↳ `usage` | string | URL of the monthly usage endpoint |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Jotform Webhook
+
+Trigger workflow when a Jotform form receives a new submission
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | The form to watch. It is the numeric segment of the form URL, and the List Forms operation returns it. |
+| `apiKey` | string | Yes | Used to register the webhook on the form automatically. Create one under Account Settings &gt; API. |
+| `apiRegion` | string | No | Data residency region the API key belongs to. A key only works on the host that issued it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `formId` | string | ID of the form that was submitted |
+| `submissionId` | string | ID of the new submission |
+| `formTitle` | string | Title of the form at the time of submission |
+| `username` | string | Jotform account username that owns the form |
+| `ip` | string | IP address the submission came from |
+| `submissionType` | string | How the submission was made, e.g. WEB |
+| `pretty` | string | Human-readable summary of the answers, as comma-separated "Question Label:Answer" pairs. Unanswered questions are left out. |
+| `rawRequest` | json | The submitted form body. Answers are keyed q\{questionId\}_\{slugifiedLabel\} and hold a string, or an object for a multi-part question such as name or address. A file answer instead appears under the plain slugified label as an array of upload URLs, with the chosen filenames under temp_upload. The body also carries form-internal fields such as slug, buildDate, submitSource, and jsExecutionTracker. |
+| `raw` | json | Complete original webhook payload from Jotform |
+

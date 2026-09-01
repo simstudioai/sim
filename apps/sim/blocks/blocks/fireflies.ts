@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { FirefliesIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -5,6 +6,8 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { FirefliesResponse } from '@/tools/fireflies/types'
 import { getTrigger } from '@/triggers'
+
+const AUDIO_FILE_FIELD = ['audioFile', 'audioFileReference'] as const
 
 export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   type: 'fireflies',
@@ -20,6 +23,61 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   icon: FirefliesIcon,
+  canvasPresentation: {
+    defaultTitle: 'Fireflies',
+    /* Only a webhook URL and a signing secret are configurable, so the sentence
+       is pure copy — naming the event the trigger actually fires on. */
+    triggerSentences: {
+      default: ['Run on a completed meeting transcript'],
+    },
+    sentences: {
+      byOperation: {
+        fireflies_list_transcripts: [
+          'List meeting transcripts',
+          { text: ', matching', field: 'keyword' },
+          { text: ', hosted by', field: 'hostEmail' },
+          { text: ', since', field: 'fromDate' },
+        ],
+        fireflies_get_transcript: [
+          {
+            text: 'Fetch transcript',
+            field: 'transcriptId',
+            after: 'with summary and action items',
+            core: true,
+          },
+        ],
+        fireflies_get_user: [{ text: 'Fetch user', field: 'userId', core: true }],
+        fireflies_list_users: ['List everyone on the team'],
+        fireflies_upload_audio: [
+          {
+            text: 'Upload',
+            field: AUDIO_FILE_FIELD,
+            after: 'for transcription',
+            core: true,
+          },
+          { text: ', titled', field: 'title' },
+        ],
+        fireflies_delete_transcript: [
+          { text: 'Delete transcript', field: 'transcriptId', core: true },
+        ],
+        fireflies_add_to_live_meeting: [
+          { text: 'Add the notetaker bot to', field: 'meetingLink', core: true },
+          { text: ', for', field: 'duration', after: 'minutes' },
+        ],
+        fireflies_create_bite: [
+          'Create a soundbite',
+          { text: 'from transcript', field: 'transcriptId', core: true },
+          { text: ', named', field: 'biteName' },
+        ],
+        fireflies_list_bites: [
+          'List soundbites',
+          { text: ', from transcript', field: 'transcriptId' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        fireflies_list_contacts: ['List contacts met in past meetings'],
+      },
+    },
+  },
   bgColor: '#100730',
   subBlocks: [
     {
@@ -641,9 +699,7 @@ Return ONLY the summary text - no quotes, no labels.`,
 const firefliesV2SubBlocks = (FirefliesBlock.subBlocks || []).filter(
   (subBlock) => subBlock.id !== 'audioUrl'
 )
-const firefliesV2Inputs = FirefliesBlock.inputs
-  ? Object.fromEntries(Object.entries(FirefliesBlock.inputs).filter(([key]) => key !== 'audioUrl'))
-  : {}
+const firefliesV2Inputs = FirefliesBlock.inputs ? omit(FirefliesBlock.inputs, ['audioUrl']) : {}
 
 export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
   ...FirefliesBlock,

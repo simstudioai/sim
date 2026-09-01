@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { Checkbox, cn, Input, Label, SecretInput, Tooltip, Wizard } from '@sim/emcn'
-import { Check, ChevronRight, Clipboard, Info } from 'lucide-react'
+import { Check, ChevronRight, CircleInfo, Clipboard } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
@@ -63,9 +63,7 @@ export function SlackSetupWizard({
             : 'cursor-pointer hover-hover:bg-[var(--surface-6)]'
         )}
       >
-        <span className='font-medium font-sans text-[var(--text-primary)] text-sm'>
-          Setup Slack App
-        </span>
+        <span className='font-sans text-[var(--text-primary)] text-sm'>Setup Slack App</span>
         <ChevronRight className='size-[14px] text-[var(--text-muted)]' />
       </button>
 
@@ -190,7 +188,7 @@ interface SubStepProps {
 function SubStep({ n, children }: SubStepProps) {
   return (
     <li className='flex gap-2.5'>
-      <span className='mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-5)] font-medium text-[var(--text-secondary)] text-xs tabular-nums'>
+      <span className='mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-5)] text-[var(--text-secondary)] text-xs tabular-nums'>
         {n}
       </span>
       <div className='flex-1 text-[var(--text-secondary)] text-sm leading-relaxed'>{children}</div>
@@ -222,7 +220,7 @@ function StepConfigure({
       <div className='space-y-1.5'>
         <Label
           htmlFor={`${blockId}-wizard-bot-name`}
-          className='font-medium text-[var(--text-secondary)] text-xs'
+          className='text-[var(--text-secondary)] text-xs'
         >
           Bot name
         </Label>
@@ -292,7 +290,7 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
                 : 'cursor-not-allowed opacity-70'
             )}
           >
-            <span className='font-medium text-[var(--text-secondary)] text-sm'>
+            <span className='text-[var(--text-secondary)] text-sm'>
               {canCopy ? 'Click to copy manifest' : 'Deploy once to lock in the webhook URL'}
             </span>
             {canCopy &&
@@ -413,7 +411,7 @@ interface SecretFieldProps {
 function SecretField({ id, label, value, onChange, disabled, placeholder }: SecretFieldProps) {
   return (
     <div className='space-y-1.5'>
-      <Label htmlFor={id} className='font-medium text-[var(--text-secondary)] text-xs'>
+      <Label htmlFor={id} className='text-[var(--text-secondary)] text-xs'>
         {label}
       </Label>
       <SecretInput
@@ -488,9 +486,7 @@ function CapabilityGroup({
 }: CapabilityGroupProps) {
   return (
     <div className='space-y-2'>
-      <div className='font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
-        {label}
-      </div>
+      <div className='text-[var(--text-muted)] text-xs uppercase tracking-wide'>{label}</div>
       <div className='flex flex-col gap-y-2.5'>
         {capabilities.map((c) => (
           <CapabilityRow
@@ -541,7 +537,7 @@ function CapabilityRow({ blockId, capability, checked, disabled }: CapabilityRow
       </Label>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+          <CircleInfo className='size-[14px] cursor-default text-[var(--text-muted)]' />
         </Tooltip.Trigger>
         <Tooltip.Content side='top' align='start' className='max-w-xs'>
           <p>{capability.description}</p>

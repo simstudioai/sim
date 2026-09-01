@@ -1,6 +1,6 @@
-import { Link, Section, Text } from '@react-email/components'
+import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { UPGRADE_REASON_COPY, type UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -39,9 +39,7 @@ export function LimitThresholdEmail({
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
         {lead} Upgrade your plan for more {copy.noun}.
@@ -54,17 +52,11 @@ export function LimitThresholdEmail({
         </Text>
       </Section>
 
-      {/* Divider */}
+      <EmailButton href={upgradeLink}>Upgrade</EmailButton>
+
       <div style={baseStyles.divider} />
 
-      <Link href={upgradeLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Upgrade</Text>
-      </Link>
-
-      {/* Divider */}
-      <div style={baseStyles.divider} />
-
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         {kind === 'reached'
           ? 'One-time notification at 100% usage.'
           : 'One-time notification at 80% usage.'}

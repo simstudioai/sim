@@ -1,10 +1,8 @@
 import { createElement, Fragment } from 'react'
 import { loader, multiple } from 'fumadocs-core/source'
 import type { DocData, DocMethods } from 'fumadocs-mdx/runtime/types'
-import { openapiSource } from 'fumadocs-openapi/server'
 import { docs } from '@/.source/server'
-import { i18n } from './i18n'
-import { openapi } from './openapi'
+import { createApiReferenceSource } from './openapi-source'
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-green-600 dark:text-green-400',
@@ -80,20 +78,13 @@ function openapiPluginBadgeLeft() {
 export const source = loader(
   multiple({
     docs: docs.toFumadocsSource(),
-    openapi: await openapiSource(openapi, {
-      baseDir: 'en/api-reference/(generated)',
-      groupBy: 'tag',
-    }),
+    openapi: await createApiReferenceSource(),
   }),
   {
     baseUrl: '/',
-    i18n,
     plugins: [openapiPluginBadgeLeft() as never],
   }
 )
-
-/** Diátaxis page type surfaced as a badge near the page title. */
-export type DocsPageType = 'tutorial' | 'guide' | 'reference' | 'concept'
 
 /** Full page data type including MDX content and metadata */
 export type PageData = DocData &
@@ -101,5 +92,4 @@ export type PageData = DocData &
     title: string
     description?: string
     full?: boolean
-    pageType?: DocsPageType
   }

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createVerify, generateKeyPairSync } from 'crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mintSalesforceServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/salesforce'
 
@@ -78,6 +79,7 @@ describe('mintSalesforceServiceAccountToken', () => {
           name: 'Integration User',
           preferred_username: 'integration@yourorg.com',
           organization_id: '00Dxx0000000001EAA',
+          user_id: '005xx000001Sv6DAAS',
         })
       )
 
@@ -90,16 +92,19 @@ describe('mintSalesforceServiceAccountToken', () => {
       grantedScopes: ['api'],
       identity: {
         displayName: 'Integration User',
+        principal: {
+          kind: 'user',
+          id: '005xx000001Sv6DAAS',
+          label: 'integration@yourorg.com',
+        },
         auditMetadata: {
           salesforceMyDomainHost: HOST,
           salesforceOrgId: '00Dxx0000000001EAA',
-          salesforceRunAsUsername: 'integration@yourorg.com',
         },
         storedMetadata: {
           myDomainHost: HOST,
           instanceUrl: INSTANCE_URL,
           orgId: '00Dxx0000000001EAA',
-          runAsUsername: 'integration@yourorg.com',
           grantedScopes: 'api',
         },
       },
@@ -259,7 +264,7 @@ describe('mintSalesforceServiceAccountToken', () => {
     })
   })
 
-  it('falls back to a host-derived identity when the userinfo call fails', async () => {
+  it('marks the principal as lookup_failed when the userinfo call throws', async () => {
     mockFetch
       .mockResolvedValueOnce(
         jsonResponse(200, { access_token: 'sf-access', instance_url: INSTANCE_URL })
@@ -271,9 +276,28 @@ describe('mintSalesforceServiceAccountToken', () => {
     expect(result.accessToken).toBe('sf-access')
     expect(result.identity).toEqual({
       displayName: `Salesforce ${HOST}`,
+      principal: { kind: 'lookup_failed', reason: 'provider_unavailable (HTTP 502)' },
       auditMetadata: { salesforceMyDomainHost: HOST },
       storedMetadata: { myDomainHost: HOST, instanceUrl: INSTANCE_URL },
     })
+  })
+
+  it('marks the principal as lookup_failed when userinfo omits user_id', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse(200, { access_token: 'sf-access', instance_url: INSTANCE_URL })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { name: 'Integration User' }))
+
+    const result = await mintSalesforceServiceAccountToken(FIELDS)
+
+    expect(result.identity?.principal).toEqual({
+      kind: 'lookup_failed',
+      reason: 'response missing user_id',
+    })
+    // Only the principal degrades — a name that did come back still beats the
+    // host fallback, so the credential does not lose its label.
+    expect(result.identity?.displayName).toBe('Integration User')
   })
 
   it('ignores a non-Salesforce instance_url and falls back to the validated host', async () => {
@@ -316,5 +340,248 @@ describe('mintSalesforceServiceAccountToken', () => {
     const result = await mintSalesforceServiceAccountToken(FIELDS)
 
     expect(result.expiresInSeconds).toBe(600)
+  })
+})
+
+describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
+  /**
+   * A real 2048-bit RSA keypair, generated once per run. Signing against a
+   * genuine key is the point: it is the only way to prove the assertion
+   * verifies with `RS256` and that both PEM containers load.
+   */
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  const PKCS8_PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+  const PKCS1_PEM = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+
+  const JWT_FIELDS = {
+    clientId: 'test-consumer-key',
+    orgId: HOST,
+    authMethod: 'jwt_bearer',
+    username: 'integration.user@yourorg.com',
+    privateKey: PKCS8_PEM,
+  }
+
+  /** Pulls the posted assertion apart and verifies its RS256 signature. */
+  function readPostedAssertion(): {
+    header: { alg: string; typ: string }
+    claims: { aud: string; iss: string; sub: string; exp: number; iat: number }
+    verified: boolean
+  } {
+    const [url, init] = mockFetch.mock.calls[0]
+    expect(url).toBe(TOKEN_URL)
+    const body = new URLSearchParams(init.body as string)
+    expect(body.get('grant_type')).toBe('urn:ietf:params:oauth:grant-type:jwt-bearer')
+    expect(body.get('client_secret')).toBeNull()
+    const assertion = body.get('assertion') as string
+    const [header, claims, signature] = assertion.split('.')
+    return {
+      header: JSON.parse(Buffer.from(header, 'base64url').toString()),
+      claims: JSON.parse(Buffer.from(claims, 'base64url').toString()),
+      verified: createVerify('RSA-SHA256')
+        .update(`${header}.${claims}`)
+        .end()
+        .verify(publicKey, Buffer.from(signature, 'base64url')),
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('posts an RS256 assertion whose signature verifies against the public key', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse(200, { access_token: 'sf-jwt-token', instance_url: INSTANCE_URL })
+      )
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken(JWT_FIELDS)
+
+    const { header, verified } = readPostedAssertion()
+    expect(header).toEqual({ alg: 'RS256', typ: 'JWT' })
+    expect(verified).toBe(true)
+  })
+
+  it('audiences the assertion at the My Domain host, never login/test.salesforce.com', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken(JWT_FIELDS)
+
+    const { claims } = readPostedAssertion()
+    // Salesforce Spring '26 ended legacy hostname redirections; an External
+    // Client App rejects the generic hosts with `app_not_found`.
+    expect(claims.aud).toBe(`https://${HOST}`)
+    expect(claims.iss).toBe('test-consumer-key')
+    expect(claims.sub).toBe('integration.user@yourorg.com')
+  })
+
+  it('audiences a Government Cloud org at gs1.salesforce.com, not its My Domain', async () => {
+    // Salesforce's own sfdx-core substitutes this audience for gs1 orgs, whose
+    // hosts are otherwise ordinary *.my.salesforce.com.
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken({ ...JWT_FIELDS, orgId: 'gs1.my.salesforce.com' })
+
+    const [url, init] = mockFetch.mock.calls[0]
+    const assertion = new URLSearchParams(init.body as string).get('assertion') as string
+    const claims = JSON.parse(Buffer.from(assertion.split('.')[1], 'base64url').toString())
+    expect(claims.aud).toBe('https://gs1.salesforce.com')
+    // The token still POSTs to the org's own host — only the audience differs.
+    expect(url).toBe('https://gs1.my.salesforce.com/services/oauth2/token')
+  })
+
+  it('does NOT treat an ordinary org whose name merely starts with gs1 as Government Cloud', async () => {
+    // A prefix test would misroute this org to the GovCloud audience and break
+    // a setup that works today. Only the real GovCloud host may be rewritten.
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken({
+      ...JWT_FIELDS,
+      orgId: 'gs1-widgets.my.salesforce.com',
+    })
+
+    const assertion = new URLSearchParams(mockFetch.mock.calls[0][1].body as string).get(
+      'assertion'
+    ) as string
+    const claims = JSON.parse(Buffer.from(assertion.split('.')[1], 'base64url').toString())
+    expect(claims.aud).toBe('https://gs1-widgets.my.salesforce.com')
+  })
+
+  it('carries an iat claim, matching every mainstream Salesforce implementation', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken(JWT_FIELDS)
+
+    const { claims } = readPostedAssertion()
+    expect(claims.iat).toBeLessThanOrEqual(Math.floor(Date.now() / 1000))
+    expect(claims.exp).toBeGreaterThan(claims.iat)
+  })
+
+  it('maps an unassigned profile to a permission-set hint', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(400, {
+        error: 'invalid_app_access',
+        error_description: 'user is not admin approved to access this app',
+      })
+    )
+
+    await expect(mintSalesforceServiceAccountToken(JWT_FIELDS)).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      logDetail: { hint: expect.stringContaining('profile or permission set is not assigned') },
+    })
+  })
+
+  it('sets a short expiry inside the 5-minute window Salesforce allows', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken(JWT_FIELDS)
+
+    const { claims } = readPostedAssertion()
+    const secondsAhead = claims.exp - Math.floor(Date.now() / 1000)
+    // Salesforce rejects an exp more than 5 minutes out; 180s is the value the
+    // minter uses, so the band is tight enough to catch drift in either direction.
+    expect(secondsAhead).toBeGreaterThan(150)
+    expect(secondsAhead).toBeLessThanOrEqual(180)
+  })
+
+  it('accepts a PKCS#1 key, which is what OpenSSL 1.x emits', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken({ ...JWT_FIELDS, privateKey: PKCS1_PEM })
+
+    expect(readPostedAssertion().verified).toBe(true)
+  })
+
+  it('rejects a passphrase-protected key without calling Salesforce', async () => {
+    const encrypted = privateKey
+      .export({
+        type: 'pkcs8',
+        format: 'pem',
+        cipher: 'aes-256-cbc',
+        passphrase: 'hunter2',
+      })
+      .toString()
+
+    await expect(
+      mintSalesforceServiceAccountToken({ ...JWT_FIELDS, privateKey: encrypted })
+    ).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      // The actionable remediation is the whole point of the branch; asserting
+      // only the code lets the guard be deleted with the test still green.
+      logDetail: { reason: expect.stringContaining('passphrase-protected') },
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unreadable key without calling Salesforce', async () => {
+    await expect(
+      mintSalesforceServiceAccountToken({ ...JWT_FIELDS, privateKey: 'not-a-pem' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects a JWT credential missing its username without calling Salesforce', async () => {
+    await expect(
+      mintSalesforceServiceAccountToken({ ...JWT_FIELDS, username: undefined })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('still uses client credentials when no auth method is stored', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-token' }))
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken(FIELDS)
+
+    const body = new URLSearchParams(mockFetch.mock.calls[0][1].body as string)
+    expect(body.get('grant_type')).toBe('client_credentials')
+  })
+
+  it('maps app_not_found to a hint naming the org/consumer-key mismatch', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(400, {
+        error: 'app_not_found',
+        error_description: 'External client app is not installed in this org',
+      })
+    )
+
+    await expect(mintSalesforceServiceAccountToken(JWT_FIELDS)).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      logDetail: { hint: expect.stringContaining('not installed in this org') },
+    })
+  })
+
+  it.each([
+    ['straight apostrophe', "user hasn't approved this consumer"],
+    // Salesforce's real error text uses a typographic apostrophe. Covering only
+    // the straight form let that branch be deleted without failing CI.
+    ['typographic apostrophe', 'user hasn\u2019t approved this consumer'],
+  ])('maps an unapproved run-as user (%s) to a pre-authorization hint', async (_l, description) => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(400, { error: 'invalid_grant', error_description: description })
+    )
+
+    await expect(mintSalesforceServiceAccountToken(JWT_FIELDS)).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      logDetail: { hint: expect.stringContaining('Admin approved users are pre-authorized') },
+    })
   })
 })

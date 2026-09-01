@@ -60,6 +60,10 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ query: params.query }),
+    },
     url: (params) => {
       // Validate that at least one search parameter is provided
       if (

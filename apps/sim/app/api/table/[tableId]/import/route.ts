@@ -1,7 +1,5 @@
 import type { Readable } from 'node:stream'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   csvExtensionSchema,
@@ -14,37 +12,18 @@ import {
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  buildAutoMapping,
-  CSV_MAX_FILE_SIZE_BYTES,
-  type CsvHeaderMapping,
-  CsvImportValidationError,
-  coerceRowsForTable,
-  createCsvParser,
-  dispatchAfterBatchInsert,
-  generateColumnId,
-  getMaxRowsPerTable,
-  inferColumnType,
-  markTableJobRunning,
-  releaseJobClaim,
-  sanitizeName,
-  type TableDefinition,
-  type TableSchema,
-  validateMapping,
-  wouldExceedRowLimit,
-} from '@/lib/table'
-import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
-import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
+import { CSV_SYNC_MAX_FILE_SIZE_BYTES, type CsvHeaderMapping } from '@/lib/table'
+import { performTableCsvImport } from '@/lib/table/orchestration'
 import { getUserSettings } from '@/lib/users/queries'
 import {
   accessError,
   checkAccess,
   csvProxyBodyCapResponse,
   multipartErrorResponse,
-  tableLockErrorResponse,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSVExisting')
@@ -61,7 +40,6 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   const requestId = generateRequestId()
   const { tableId } = tableIdParamsSchema.parse(await params)
   let fileStream: Readable | undefined
-  let claimedImportId: string | null = null
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -75,7 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     let parsed: Awaited<ReturnType<typeof readMultipart>>
     try {
       parsed = await readMultipart(request, {
-        maxFileBytes: CSV_MAX_FILE_SIZE_BYTES,
+        maxFileBytes: CSV_SYNC_MAX_FILE_SIZE_BYTES,
         requiredFieldsBeforeFile: ['workspaceId'],
         signal: request.signal,
       })
@@ -130,18 +108,6 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    if (table.archivedAt) {
-      return NextResponse.json({ error: 'Cannot import into an archived table' }, { status: 400 })
-    }
-    // Don't run a sync import on top of an in-flight background job — concurrent writers
-    // would insert at colliding row positions.
-    if (table.jobStatus === 'running') {
-      return NextResponse.json(
-        { error: 'A job is already in progress for this table' },
-        { status: 409 }
-      )
-    }
-
     let mapping: CsvHeaderMapping | undefined
     if (fields.mapping) {
       const mappingValidation = csvImportMappingSchema.safeParse(fields.mapping)
@@ -178,262 +144,46 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       timezone = timezoneValidation.data
     }
 
-    // The extension only picks the fallback — the separator is sniffed from the file's
-    // head so semicolon/pipe exports (European-locale Excel) don't land in one column.
-    const { delimiter, stream: csvStream } = await sniffCsvDelimiterFromStream(
-      file.stream,
-      extensionValidation.data === 'tsv' ? '\t' : ','
-    )
-    let headers: string[] = []
-    const parser = createCsvParser(delimiter, (parsedHeaders) => {
-      headers = parsedHeaders
+    const outcome = await performTableCsvImport({
+      table,
+      workspaceId,
+      userId: authResult.userId,
+      fileStream: file.stream,
+      fileName: file.filename,
+      fallbackDelimiter: extensionValidation.data === 'tsv' ? '\t' : ',',
+      mode,
+      mapping,
+      createColumns,
+      timezone,
+      requestId,
     })
-    // `.pipe` doesn't forward source errors; forward them so the iterator throws.
-    csvStream.on('error', (streamErr) => parser.destroy(streamErr))
-    csvStream.pipe(parser)
-    const rows: Record<string, unknown>[] = []
-    for await (const record of parser as AsyncIterable<Record<string, unknown>>) {
-      rows.push(record)
-    }
-    if (rows.length === 0) {
-      return NextResponse.json({ error: 'CSV file has no data rows' }, { status: 400 })
-    }
 
-    let effectiveMapping = mapping ?? buildAutoMapping(headers, table.schema)
-    let prospectiveTable: TableDefinition = table
-    const additions: { id?: string; name: string; type: string }[] = []
-
-    if (createColumns && createColumns.length > 0) {
-      const headerSet = new Set(headers)
-      const unknownHeaders = createColumns.filter((h) => !headerSet.has(h))
-      if (unknownHeaders.length > 0) {
-        return NextResponse.json(
-          {
-            error: `createColumns references unknown CSV headers: ${unknownHeaders.join(', ')}`,
-          },
-          { status: 400 }
-        )
+    if (!outcome.success) {
+      // A lock rejection renders `{ error, lock }` and deliberately carries NO
+      // `details`: the client's `isValidationError` treats any array-valued
+      // `details` as a field-validation error and swallows the toast.
+      if (outcome.errorCode === 'locked') {
+        return NextResponse.json({ error: outcome.error, lock: outcome.lock }, { status: 423 })
       }
-
-      const usedNames = new Set(table.schema.columns.map((c) => c.name.toLowerCase()))
-      const updatedMapping: CsvHeaderMapping = { ...effectiveMapping }
-      const newColumns: TableSchema['columns'] = []
-
-      for (const header of createColumns) {
-        const base = sanitizeName(header)
-        let columnName = base
-        let suffix = 2
-        while (usedNames.has(columnName.toLowerCase())) {
-          columnName = `${base}_${suffix}`
-          suffix++
-        }
-        usedNames.add(columnName.toLowerCase())
-        const inferredType = inferColumnType(rows.map((r) => r[header]))
-        // Pre-assign the id so the prospective schema (used to coerce rows) and
-        // the persisted column (created in importAppendRows) share the same key.
-        const id = generateColumnId()
-        additions.push({ id, name: columnName, type: inferredType })
-        newColumns.push({
-          id,
-          name: columnName,
-          type: inferredType as TableSchema['columns'][number]['type'],
-          required: false,
-          unique: false,
-        })
-        updatedMapping[header] = columnName
-      }
-
-      prospectiveTable = {
-        ...table,
-        schema: { columns: [...table.schema.columns, ...newColumns] },
-      }
-      effectiveMapping = updatedMapping
-    }
-
-    let validation: ReturnType<typeof validateMapping>
-    try {
-      validation = validateMapping({
-        csvHeaders: headers,
-        mapping: effectiveMapping,
-        tableSchema: prospectiveTable.schema,
-      })
-    } catch (err) {
-      if (err instanceof CsvImportValidationError) {
-        return NextResponse.json({ error: err.message, details: err.details }, { status: 400 })
-      }
-      throw err
-    }
-
-    if (validation.mappedHeaders.length === 0) {
       return NextResponse.json(
         {
-          error: `No CSV headers map to columns on the table. CSV headers: ${headers.join(', ')}. Table columns: ${prospectiveTable.schema.columns.map((c) => c.name).join(', ')}`,
+          error: outcome.errorCode === 'internal' ? 'Failed to import CSV' : outcome.error,
+          ...(outcome.details !== undefined ? { details: outcome.details } : {}),
+          // The append dialog reads this to distinguish "nothing landed" from a
+          // partial import; only that mode has ever carried it.
+          ...(mode === 'append' ? { data: { insertedCount: 0 } } : {}),
         },
-        { status: 400 }
+        { status: statusForOrchestrationError(outcome.errorCode) }
       )
     }
 
-    const coerced = coerceRowsForTable(rows, prospectiveTable.schema, validation.effectiveMap, {
-      timezone,
-    })
-
-    // Atomically claim the table before writing. The pre-check above reads a checkAccess snapshot
-    // taken before the parse/validation; a background import could claim the table in that window.
-    // markTableJobRunning is the single atomic gate (same one the async kickoff uses) — released in
-    // the finally so a sync import can't write concurrently with a background one (corrupts replace).
-    const syncImportId = generateId()
-    if (!(await markTableJobRunning(tableId, syncImportId, 'import'))) {
-      return NextResponse.json(
-        { error: 'A job is already in progress for this table' },
-        { status: 409 }
-      )
-    }
-    claimedImportId = syncImportId
-
-    if (mode === 'append') {
-      const maxRows = await getMaxRowsPerTable(workspaceId)
-      if (wouldExceedRowLimit(maxRows, prospectiveTable.rowCount, coerced.length)) {
-        const deficit = prospectiveTable.rowCount + coerced.length - maxRows
-        return NextResponse.json(
-          {
-            error: `Append would exceed table row limit (${maxRows}). Currently ${prospectiveTable.rowCount} rows, ${coerced.length} new rows, ${deficit} over.`,
-          },
-          { status: 400 }
-        )
-      }
-
-      try {
-        const { inserted: insertedRows, table: finalTable } = await importAppendRows(
-          table,
-          additions,
-          coerced,
-          { workspaceId, userId: authResult.userId, requestId }
-        )
-        const inserted = insertedRows.length
-        // Fire trigger + scheduler AFTER the tx commits — both read through the
-        // global db connection and would otherwise see no rows.
-        dispatchAfterBatchInsert(finalTable, insertedRows, requestId, authResult.userId)
-
-        logger.info(`[${requestId}] Append CSV imported`, {
-          tableId: table.id,
-          fileName: file.filename,
-          mode,
-          inserted,
-          createdColumns: additions.length,
-          mappedColumns: validation.mappedHeaders.length,
-          skippedHeaders: validation.skippedHeaders.length,
-        })
-
-        return NextResponse.json({
-          success: true,
-          data: {
-            tableId: table.id,
-            mode,
-            insertedCount: inserted,
-            mappedColumns: validation.mappedHeaders,
-            skippedHeaders: validation.skippedHeaders,
-            unmappedColumns: validation.unmappedColumns,
-            sourceFile: file.filename,
-          },
-        })
-      } catch (err) {
-        // This branch returns rather than rethrowing, so the outer catch's
-        // mapper is unreachable from here — map the lock error first or a 423
-        // degrades into a generic 500 (replace mode rethrows and maps fine).
-        const lockError = tableLockErrorResponse(err)
-        if (lockError) return lockError
-
-        const message = toError(err).message
-        logger.warn(`[${requestId}] Append failed for table ${tableId}`, {
-          total: coerced.length,
-          createdColumns: additions.length,
-          error: message,
-        })
-        const isClientError =
-          message.includes('row limit') ||
-          message.includes('Insufficient capacity') ||
-          message.includes('Schema validation') ||
-          message.includes('must be unique') ||
-          message.includes('Row size exceeds') ||
-          message.includes('already exists') ||
-          message.includes('Invalid column name') ||
-          /^Row \d+:/.test(message)
-        return NextResponse.json(
-          {
-            error: isClientError ? message : 'Failed to import CSV',
-            data: { insertedCount: 0 },
-          },
-          { status: isClientError ? 400 : 500 }
-        )
-      }
-    }
-
-    try {
-      const result = await importReplaceRows(
-        table,
-        additions,
-        { rows: coerced, workspaceId, userId: authResult.userId },
-        requestId
-      )
-
-      logger.info(`[${requestId}] Replace CSV imported`, {
-        tableId: table.id,
-        fileName: file.filename,
-        mode,
-        deleted: result.deletedCount,
-        inserted: result.insertedCount,
-        createdColumns: additions.length,
-        mappedColumns: validation.mappedHeaders.length,
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          tableId: table.id,
-          mode,
-          deletedCount: result.deletedCount,
-          insertedCount: result.insertedCount,
-          mappedColumns: validation.mappedHeaders,
-          skippedHeaders: validation.skippedHeaders,
-          unmappedColumns: validation.unmappedColumns,
-          sourceFile: file.filename,
-        },
-      })
-    } catch (err) {
-      const message = toError(err).message
-      const isClientError =
-        message.includes('row limit') ||
-        message.includes('Schema validation') ||
-        message.includes('must be unique') ||
-        message.includes('Row size exceeds') ||
-        message.includes('already exists') ||
-        message.includes('Invalid column name') ||
-        /^Row \d+:/.test(message)
-      if (isClientError) {
-        return NextResponse.json({ error: message }, { status: 400 })
-      }
-      throw err
-    }
+    return NextResponse.json({ success: true, data: outcome.data })
   } catch (error) {
-    const lockError = tableLockErrorResponse(error)
-    if (lockError) return lockError
     if (isMultipartError(error)) return multipartErrorResponse(error)
 
-    const message = toError(error).message
     logger.error(`[${requestId}] CSV import into existing table failed:`, error)
-
-    const isClientError =
-      message.includes('CSV file has no') ||
-      message.includes('already exists') ||
-      message.includes('Invalid column name')
-
-    return NextResponse.json(
-      { error: isClientError ? message : 'Failed to import CSV' },
-      { status: isClientError ? 400 : 500 }
-    )
+    return NextResponse.json({ error: 'Failed to import CSV' }, { status: 500 })
   } finally {
     fileStream?.destroy()
-    // Release before the response returns, so a client refetch never observes the transient claim.
-    if (claimedImportId) await releaseJobClaim(tableId, claimedImportId).catch(() => {})
   }
 })

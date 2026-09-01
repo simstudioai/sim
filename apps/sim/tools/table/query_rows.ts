@@ -1,9 +1,8 @@
-import { TABLE_LIMITS } from '@/lib/table/constants'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableQueryResponse, TableRowQueryParams } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryResponse> = {
+export const tableQueryRowsTool: InternalToolConfig<TableRowQueryParams, TableQueryResponse> = {
   id: 'table_query_rows',
   name: 'Query Rows',
   description: 'Query rows from a table with filtering, sorting, and pagination',
@@ -11,8 +10,8 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
 
   toolEnrichment: {
     dependsOn: 'tableId',
-    enrichTool: (tableId, schema, desc) =>
-      enrichTableToolSchema(tableId, 'table_query_rows', schema, desc),
+    enrichTool: (tableId, schema, desc, context) =>
+      enrichTableToolSchema(tableId, 'table_query_rows', schema, desc, context),
   },
 
   params: {
@@ -38,7 +37,8 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     limit: {
       type: 'number',
       required: false,
-      description: `Maximum rows to return (default: ${TABLE_LIMITS.DEFAULT_QUERY_LIMIT}, max: ${TABLE_LIMITS.MAX_QUERY_LIMIT})`,
+      description:
+        'Maximum rows to return. Omit to return every matching row; the query fails if the result exceeds the 5MB response budget.',
       visibility: 'user-or-llm',
     },
     offset: {
@@ -49,36 +49,23 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     },
   },
 
-  request: {
-    url: (params: TableRowQueryParams) => {
+  operation: {
+    secretProvenance: { response: { incomplete: 'propagate' } },
+    input: (params: TableRowQueryParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
-      const searchParams = new URLSearchParams({
+      return {
+        tableId: params.tableId,
         workspaceId,
-      })
-
-      if (params.filter) {
-        searchParams.append('filter', JSON.stringify(params.filter))
+        ...(params.filter ? { filter: JSON.stringify(params.filter) } : {}),
+        ...(params.sort ? { sort: JSON.stringify(params.sort) } : {}),
+        ...(params.limit !== undefined ? { limit: String(params.limit) } : {}),
+        ...(params.offset !== undefined ? { offset: String(params.offset) } : {}),
       }
-      if (params.sort) {
-        searchParams.append('sort', JSON.stringify(params.sort))
-      }
-      if (params.limit !== undefined) {
-        searchParams.append('limit', String(params.limit))
-      }
-      if (params.offset !== undefined) {
-        searchParams.append('offset', String(params.offset))
-      }
-
-      return `/api/table/${params.tableId}/rows?${searchParams.toString()}`
     },
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
   },
 
   transformResponse: async (response): Promise<TableQueryResponse> => {
@@ -93,6 +80,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
         totalCount: data.totalCount,
         limit: data.limit,
         offset: data.offset,
+        nextCursor: data.nextCursor ?? null,
       },
     }
   },
@@ -104,5 +92,11 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     totalCount: { type: 'number', description: 'Total rows matching filter' },
     limit: { type: 'number', description: 'Limit used in query' },
     offset: { type: 'number', description: 'Offset used in query' },
+    nextCursor: {
+      type: 'string',
+      nullable: true,
+      description:
+        'Non-null when more rows match past this page. A page can end early at the byte budget, so this — not a short rowCount — is what says whether more remain. To page, advance offset by rowCount and stop when this is null.',
+    },
   },
 }

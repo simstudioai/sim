@@ -1,10 +1,11 @@
 import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
+import { getSession } from '@/lib/auth'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { Files } from '@/app/workspace/[workspaceId]/files/files'
+import FilesLoading from '@/app/workspace/[workspaceId]/files/loading'
 import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
-import { Files } from './files'
-import FilesLoading from './loading'
 
 export const metadata: Metadata = {
   title: 'Files',
@@ -19,10 +20,10 @@ export const metadata: Metadata = {
  * `loading.tsx` covers the navigation/chunk-load transition the same way.
  */
 export default async function FilesPage({ params }: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await params
+  const [{ workspaceId }, session] = await Promise.all([params, getSession()])
 
   const queryClient = getQueryClient()
-  await prefetchFilesBrowser(queryClient, workspaceId)
+  await prefetchFilesBrowser(queryClient, workspaceId, session?.user?.id)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

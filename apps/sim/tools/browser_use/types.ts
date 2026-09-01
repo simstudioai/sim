@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 export interface BrowserUseRunTaskParams {
   task: string
   apiKey: string
-  variables?: Record<string, string> | Array<Record<string, any>>
+  variables?: Record<string, string> | Array<Record<string, unknown>>
   model?: string
   startUrl?: string
   allowedDomains?: string | string[]
@@ -18,7 +18,7 @@ export interface BrowserUseRunTaskParams {
   profile_id?: string
 }
 
-interface BrowserUseTaskStep {
+export interface BrowserUseTaskStep {
   number: number
   memory: string
   evaluationPreviousGoal: string
@@ -32,7 +32,7 @@ interface BrowserUseTaskStep {
 interface BrowserUseTaskOutput {
   id: string
   success: boolean
-  output: string | null
+  output: unknown
   steps: BrowserUseTaskStep[]
   liveUrl: string | null
   shareUrl: string | null

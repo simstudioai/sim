@@ -1,4 +1,5 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type McpTransport = 'streamable-http'
 
@@ -133,6 +134,24 @@ export class McpConnectionError extends McpError {
 }
 
 /**
+ * Thrown when discovery is refused because the server is inside the
+ * negative-cache cooldown that follows a recent failure. No connection was
+ * attempted, so the condition clears on its own.
+ *
+ * It is a distinct class rather than an `McpConnectionError` whose message
+ * happens to contain "cooldown" because `McpConnectionError` interpolates the
+ * server's display name into that message: a server a caller named after the
+ * word matched the substring test and borrowed this case's wording, telling them
+ * to wait out a cooldown that was never entered.
+ */
+export class McpServerCooldownError extends McpConnectionError {
+  constructor(serverName: string) {
+    super('Server recently failed and is in cooldown — try again shortly.', serverName)
+    this.name = 'McpServerCooldownError'
+  }
+}
+
+/**
  * Thrown when an OAuth-protected MCP server is reachable but the current
  * user has not yet authorized Sim. This is a benign "pending" state, not a
  * connection failure — callers should surface a re-auth prompt rather than
@@ -188,6 +207,8 @@ export interface McpClientOptions {
    * server configs.
    */
   authProvider?: import('@modelcontextprotocol/sdk/client/auth.js').OAuthClientProvider
+  /** Encrypted-only provenance for Secrets-tab references resolved into this connection. */
+  resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
 export interface ToolsChangedEvent {

@@ -2,18 +2,19 @@ import { db } from '@sim/db'
 import { account, credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
-import { and, eq, isNotNull } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { oauthCredentialsQuerySchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getCredentialActorContext } from '@/lib/credentials/access'
+import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
   getCanonicalScopesForProvider,
   getServiceAccountProviderForProviderId,
+  providerIdsForService,
 } from '@/lib/oauth/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -154,7 +155,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
           if (!workflowId) {
             const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
-            if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
+            if (!canUseCredential(access)) {
               return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
             }
           }
@@ -186,7 +187,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           }
         } else {
           const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
-          if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
+          if (!canUseCredential(access)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
           }
         }
@@ -241,7 +242,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           and(
             eq(credential.workspaceId, effectiveWorkspaceId),
             eq(credential.type, 'oauth'),
-            eq(account.providerId, providerParam),
+            inArray(account.providerId, providerIdsForService(providerParam)),
             requesterCanAdmin ? undefined : isNotNull(credentialMember.id)
           )
         )

@@ -235,4 +235,82 @@ describe('Error Extractors', () => {
       )
     })
   })
+
+  describe('smartlead-errors', () => {
+    it('should extract the domain error string', () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        data: { error: 'Invalid value for status. Allowed values are - START,STOPPED,PAUSED' },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.SMARTLEAD_ERRORS)).toBe(
+        'Invalid value for status. Allowed values are - START,STOPPED,PAUSED'
+      )
+    })
+
+    it('should prefer message over the generic "Bad Request" on validation payloads', () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        data: {
+          statusCode: 400,
+          error: 'Bad Request',
+          message: '"email_status" must be one of [null, opened, clicked, replied]',
+          validation: { source: 'query', keys: ['email_status'] },
+        },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.SMARTLEAD_ERRORS)).toBe(
+        '"email_status" must be one of [null, opened, clicked, replied]'
+      )
+    })
+
+    it('should extract the auth failure message', () => {
+      const errorInfo: ErrorInfo = {
+        status: 401,
+        data: { message: 'Invalid API Key' },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.SMARTLEAD_ERRORS)).toBe(
+        'Invalid API Key'
+      )
+    })
+
+    it('should fall back to the status message when no error fields are present', () => {
+      const errorInfo: ErrorInfo = {
+        status: 500,
+        data: {},
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.SMARTLEAD_ERRORS)).toBe(
+        'Request failed with status 500'
+      )
+    })
+  })
+
+  describe('prospeo-errors', () => {
+    it('extracts the machine-readable no-match code from a 400 response', () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        statusText: 'Bad Request',
+        data: { error: true, error_code: 'NO_MATCH' },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.PROSPEO_ERRORS)).toBe('NO_MATCH')
+    })
+
+    it('preserves genuine Prospeo failure details', () => {
+      const errorInfo: ErrorInfo = {
+        status: 400,
+        data: {
+          error: true,
+          error_code: 'INVALID_DATAPOINTS',
+          filter_error: 'full_name and company_website are required',
+        },
+      }
+
+      expect(extractErrorMessage(errorInfo, ErrorExtractorId.PROSPEO_ERRORS)).toBe(
+        'INVALID_DATAPOINTS: full_name and company_website are required'
+      )
+    })
+  })
 })

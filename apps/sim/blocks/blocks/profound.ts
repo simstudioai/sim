@@ -70,6 +70,86 @@ export const ProfoundBlock: BlockConfig = {
   bgColor: '#000000',
   icon: ProfoundIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Profound',
+    sentences: {
+      byOperation: {
+        list_categories: ['List all categories'],
+        list_regions: ['List all regions'],
+        list_models: ['List all tracked AI models'],
+        list_domains: ['List all domains'],
+        list_assets: ['List all assets across categories'],
+        list_personas: ['List all personas across categories'],
+        category_topics: [{ text: 'List topics in category', field: 'categoryId', core: true }],
+        category_tags: [{ text: 'List tags in category', field: 'categoryId', core: true }],
+        category_prompts: [
+          { text: 'List prompts in category', field: 'categoryId', core: true },
+          { text: ', of type', field: 'promptType' },
+          { text: ', up to', field: 'limit', after: 'prompts' },
+        ],
+        category_assets: [{ text: 'List assets in category', field: 'categoryId', core: true }],
+        category_personas: [{ text: 'List personas in category', field: 'categoryId', core: true }],
+        visibility_report: [
+          { text: 'Report AI visibility for category', field: 'categoryId', core: true },
+          { text: ', measuring', field: 'visibilityMetrics' },
+          { text: ', since', field: 'startDate' },
+        ],
+        sentiment_report: [
+          { text: 'Report sentiment for category', field: 'categoryId', core: true },
+          { text: ', measuring', field: 'sentimentMetrics' },
+          { text: ', since', field: 'startDate' },
+        ],
+        citations_report: [
+          { text: 'Report citations for category', field: 'categoryId', core: true },
+          { text: ', measuring', field: 'citationsMetrics' },
+          { text: ', since', field: 'startDate' },
+        ],
+        query_fanouts: [
+          { text: 'Report prompt fanouts for category', field: 'categoryId', core: true },
+          { text: ', measuring', field: 'fanoutsMetrics' },
+          { text: ', since', field: 'startDate' },
+        ],
+        prompt_answers: [
+          { text: 'Fetch raw prompt answers for category', field: 'categoryId', core: true },
+          { text: ', since', field: 'startDate' },
+          { text: ', where', field: 'filters' },
+        ],
+        bots_report: [
+          { text: 'Report bot traffic for', field: 'domain', core: true },
+          { text: ', measuring', field: 'botsMetrics' },
+          { text: ', since', field: 'startDate' },
+        ],
+        referrals_report: [
+          { text: 'Report human referral traffic for', field: 'domain', core: true },
+          { text: ', measuring', field: 'referralsMetrics' },
+          { text: ', since', field: 'startDate' },
+        ],
+        raw_logs: [
+          { text: 'Fetch raw traffic logs for', field: 'domain', core: true },
+          { text: ', since', field: 'startDate' },
+          { text: ', where', field: 'filters' },
+        ],
+        bot_logs: [
+          { text: 'Fetch bot visit logs for', field: 'domain', core: true },
+          { text: ', since', field: 'startDate' },
+          { text: ', where', field: 'filters' },
+        ],
+        list_optimizations: [
+          { text: 'List content optimizations for asset', field: 'assetId', core: true },
+          { text: ', up to', field: 'limit', after: 'entries' },
+        ],
+        optimization_analysis: [
+          { text: 'Read optimization analysis for content', field: 'contentId', core: true },
+        ],
+        prompt_volume: [
+          'Report prompt volume',
+          { text: ', measuring', field: 'volumeMetrics' },
+          { text: ', since', field: 'startDate' },
+        ],
+        citation_prompts: [{ text: 'List prompts citing', field: 'inputDomain', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {

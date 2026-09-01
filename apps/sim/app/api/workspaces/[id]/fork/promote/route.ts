@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { promoteForkContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { recordBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
@@ -25,21 +26,49 @@ export const POST = withRouteHandler(
     const parsed = await parseRequest(promoteForkContract, req, context)
     if (!parsed.success) return parsed.response
     const { id } = parsed.data.params
-    const { otherWorkspaceId, direction, dependentValues, copyResources } = parsed.data.body
+    const {
+      otherWorkspaceId,
+      direction,
+      dependentValues,
+      copyResources,
+      dropReferences,
+      triggerMappings,
+    } = parsed.data.body
 
     const auth = await assertCanPromote(id, otherWorkspaceId, direction, session.user.id)
 
-    const result = await promoteFork({
-      edge: auth.edge,
-      sourceWorkspaceId: auth.sourceWorkspaceId,
-      targetWorkspaceId: auth.targetWorkspaceId,
-      direction,
-      userId: session.user.id,
-      actorName: session.user.name ?? undefined,
-      dependentValues,
-      copyResources,
-      requestId,
-    })
+    let result: Awaited<ReturnType<typeof promoteFork>>
+    try {
+      result = await promoteFork({
+        edge: auth.edge,
+        sourceWorkspaceId: auth.sourceWorkspaceId,
+        targetWorkspaceId: auth.targetWorkspaceId,
+        direction,
+        userId: session.user.id,
+        actorName: session.user.name ?? undefined,
+        dependentValues,
+        copyResources,
+        dropReferences,
+        triggerMappings,
+        requestId,
+      })
+    } catch (error) {
+      /**
+       * `promoteFork` returns its deliberate refusals as a `blocked` result, but a
+       * classified failure raised deeper in the copy — the target workspace's folder
+       * ceiling being full, for one — throws instead. Without this branch it reaches
+       * `withRouteHandler`, which only understands `HttpError` and renders everything else
+       * as an opaque `Internal server error` 500. Unwrapped from the cause chain because
+       * drizzle re-wraps anything thrown inside a transaction callback.
+       */
+      const classified = asOrchestrationError(error)
+      if (!classified) throw error
+      logger.warn(`[${requestId}] Fork sync refused: ${classified.message}`)
+      return NextResponse.json(
+        { error: classified.message },
+        { status: statusForOrchestrationError(classified.code) }
+      )
+    }
 
     const body = {
       promoteRunId: result.promoteRunId,
@@ -52,6 +81,8 @@ export const POST = withRouteHandler(
       blockers: result.blockers,
       needsConfiguration: result.needsConfiguration,
       clearedOptional: result.clearedOptional,
+      droppedReferences: result.droppedReferences,
+      triggerUrlChanges: result.triggerUrlChanges,
     }
 
     if (result.blocked) {
@@ -91,7 +122,9 @@ export const POST = withRouteHandler(
       status:
         result.deployFailed > 0 ||
         result.needsConfiguration.length > 0 ||
-        result.clearedOptional.length > 0
+        result.clearedOptional.length > 0 ||
+        result.droppedReferences.length > 0 ||
+        result.triggerUrlChanges.length > 0
           ? 'completed_with_warnings'
           : 'completed',
       message: direction === 'pull' ? `Pulled from "${otherName}"` : `Pushed to "${otherName}"`,
@@ -110,6 +143,8 @@ export const POST = withRouteHandler(
         archivedNames: result.archivedNames,
         needsConfiguration: result.needsConfiguration,
         clearedOptional: result.clearedOptional,
+        droppedReferences: result.droppedReferences.length,
+        triggerUrlChanges: result.triggerUrlChanges.length,
       },
     }).catch((error) =>
       logger.error(`[${requestId}] Failed to record sync activity`, {

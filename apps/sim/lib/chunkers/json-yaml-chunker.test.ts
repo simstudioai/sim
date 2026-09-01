@@ -14,6 +14,29 @@ vi.mock('@/lib/tokenization/estimators', () => ({
 }))
 
 describe('JsonYamlChunker', () => {
+  it.each([
+    0,
+    -1,
+    0.5,
+    Number.NaN,
+    Number.NEGATIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+    Number.MAX_SAFE_INTEGER,
+  ])('rejects an invalid chunk size at construction: %s', (chunkSize) => {
+    expect(() => new JsonYamlChunker({ chunkSize })).toThrow(
+      'JSON/YAML chunk size must be a finite number between 1'
+    )
+  })
+
+  it('normalizes a fractional legacy chunk size to its integer token ceiling', async () => {
+    const chunks = await new JsonYamlChunker({ chunkSize: 100.5, minCharactersPerChunk: 1 }).chunk(
+      JSON.stringify({ value: 'x'.repeat(1_000) })
+    )
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.every((chunk) => chunk.tokenCount <= 100)).toBe(true)
+  })
+
   describe('isStructuredData', () => {
     it('should detect valid JSON', () => {
       expect(JsonYamlChunker.isStructuredData('{"key": "value"}')).toBe(true)
@@ -269,6 +292,17 @@ server:
 
       expect(chunks.length).toBeGreaterThan(0)
     })
+
+    it('should fall back to bounded text chunking when YAML traversal fails', async () => {
+      const chunker = new JsonYamlChunker({ chunkSize: 1000, minCharactersPerChunk: 1 })
+      const cyclicYaml = ['root: &root', '  value: readable', '  self: *root'].join('\n')
+
+      const chunks = await chunker.chunk(cyclicYaml)
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0].text).toContain('&root')
+      expect(chunks[0].text).toContain('readable')
+    })
   })
 
   describe('large inputs', () => {
@@ -293,6 +327,32 @@ server:
       const chunks = await chunker.chunk(json)
 
       expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 100)).toBe(true)
+    })
+
+    it('splits a long single-line scalar to the configured chunk size', async () => {
+      const chunker = new JsonYamlChunker({ chunkSize: 1024, minCharactersPerChunk: 1 })
+      const json = JSON.stringify({ value: `START-${'x'.repeat(32_755)}-END` })
+
+      const chunks = await chunker.chunk(json)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 1024)).toBe(true)
+      expect(chunks.some((chunk) => chunk.text.includes('START-'))).toBe(true)
+      expect(chunks.some((chunk) => chunk.text.includes('-END'))).toBe(true)
+    })
+
+    it('splits a long scalar nested beyond the structured traversal depth', async () => {
+      const chunker = new JsonYamlChunker({ chunkSize: 1024, minCharactersPerChunk: 1 })
+      let nested: unknown = `START-${'x'.repeat(40_000)}-END`
+      for (let depth = 0; depth < 6; depth++) nested = [nested]
+
+      const chunks = await chunker.chunk(JSON.stringify(nested))
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 1024)).toBe(true)
+      expect(chunks.some((chunk) => chunk.text.includes('START-'))).toBe(true)
+      expect(chunks.some((chunk) => chunk.text.includes('-END'))).toBe(true)
     })
 
     it.concurrent('should handle deeply nested structure up to depth limit', async () => {
@@ -331,6 +391,82 @@ server:
   })
 
   describe('chunk metadata', () => {
+    it('preserves every source character and offset when bounding oversized chunks', async () => {
+      const key = 'p'.repeat(80)
+      const value = { value: 'alpha beta gamma' }
+      const expectedText = `// ${key}\n${JSON.stringify(value, null, 2)}`
+      const chunker = new JsonYamlChunker({ chunkSize: 10, minCharactersPerChunk: 1 })
+
+      const chunks = await chunker.chunk(JSON.stringify({ [key]: value }))
+
+      expect(chunks.length).toBeGreaterThan(1)
+      for (const chunk of chunks) {
+        expect(expectedText.slice(chunk.metadata.startIndex, chunk.metadata.endIndex)).toBe(
+          chunk.text
+        )
+      }
+      expect(chunks.map((chunk) => chunk.text).join('')).toBe(expectedText)
+    })
+
+    it('preserves spaces inside an oversized scalar line', async () => {
+      const content = JSON.stringify('AAAAAA   BBBBBB')
+      const chunker = new JsonYamlChunker({ chunkSize: 2, minCharactersPerChunk: 1 })
+
+      const chunks = await chunker.chunk(content)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 2)).toBe(true)
+      expect(chunks.map((chunk) => chunk.text).join('')).toBe(content)
+      for (const chunk of chunks) {
+        expect(content.slice(chunk.metadata.startIndex, chunk.metadata.endIndex)).toBe(chunk.text)
+      }
+    })
+
+    it('preserves array item ranges when batch formatting requires bounded splits', async () => {
+      const values = ['x0', 'x1', 'x2', 'x3']
+      const chunker = new JsonYamlChunker({ chunkSize: 2, minCharactersPerChunk: 1 })
+
+      const chunks = await chunker.chunk(JSON.stringify(values))
+
+      expect(new Set(chunks.map((chunk) => JSON.stringify(chunk.metadata)))).toEqual(
+        new Set([
+          JSON.stringify({ startIndex: 0, endIndex: 1 }),
+          JSON.stringify({ startIndex: 2, endIndex: 3 }),
+        ])
+      )
+      for (const chunk of chunks) {
+        expect(chunk.tokenCount).toBeLessThanOrEqual(2)
+      }
+      expect(
+        chunks
+          .filter((chunk) => chunk.metadata.startIndex === 0)
+          .map((chunk) => chunk.text)
+          .join(' ')
+      ).toContain('x0')
+      expect(
+        chunks
+          .filter((chunk) => chunk.metadata.startIndex === 2)
+          .map((chunk) => chunk.text)
+          .join(' ')
+      ).toContain('x2')
+    })
+
+    it('preserves the item range when an oversized array item is split', async () => {
+      const oversizedItem = 'alpha beta gamma delta epsilon zeta eta theta'
+      const chunker = new JsonYamlChunker({ chunkSize: 5, minCharactersPerChunk: 1 })
+
+      const chunks = await chunker.chunk(JSON.stringify([oversizedItem, 'short']))
+
+      expect(chunks.filter((chunk) => chunk.metadata.startIndex === 0).length).toBeGreaterThan(1)
+      expect(chunks.every((chunk) => chunk.tokenCount <= 5)).toBe(true)
+      expect(new Set(chunks.map((chunk) => JSON.stringify(chunk.metadata)))).toEqual(
+        new Set([
+          JSON.stringify({ startIndex: 0, endIndex: 0 }),
+          JSON.stringify({ startIndex: 1, endIndex: 1 }),
+        ])
+      )
+    })
+
     it.concurrent('should include startIndex and endIndex in metadata', async () => {
       const chunker = new JsonYamlChunker({ chunkSize: 100 })
       const json = JSON.stringify({ key: 'value' })

@@ -17,6 +17,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { buildBedrockMessageContent } from '@/providers/attachments'
@@ -34,6 +35,7 @@ import {
   getProviderModels,
   supportsNativeStructuredOutputs,
 } from '@/providers/models'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -52,7 +54,6 @@ import {
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('BedrockProvider')
 
@@ -76,10 +77,7 @@ function enrichLastModelSegmentFromBedrockResponse(
       return {
         id: b.toolUse.toolUseId ?? '',
         name: b.toolUse.name ?? '',
-        arguments:
-          input && typeof input === 'object' && !Array.isArray(input)
-            ? (input as Record<string, unknown>)
-            : {},
+        arguments: isRecordLike(input) ? (input as Record<string, unknown>) : {},
       }
     })
 
@@ -124,6 +122,15 @@ export const bedrockProvider: ProviderConfig = {
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     const region = request.bedrockRegion || 'us-east-1'
+
+    // The AWS SDK interpolates the region into the Bedrock endpoint hostname, so an
+    // unvalidated value can redirect the signed request to an attacker-chosen host.
+    const regionValidation = validateAwsRegion(region, 'bedrockRegion')
+    if (!regionValidation.isValid) {
+      logger.warn('Blocked invalid Bedrock region', { error: regionValidation.error })
+      throw new Error(`Invalid Bedrock region: ${regionValidation.error}`)
+    }
+
     const bedrockModelId = getBedrockInferenceProfileId(request.model, region)
 
     logger.info('Bedrock request', {
@@ -623,10 +630,9 @@ export const bedrockProvider: ProviderConfig = {
         const toolExecutionPromises = currentToolUses.map(async (toolUse: ToolUseBlock) => {
           const toolCallStartTime = Date.now()
           const toolName = toolUse.name || ''
-          const toolArgs =
-            toolUse.input && typeof toolUse.input === 'object' && !Array.isArray(toolUse.input)
-              ? (toolUse.input as Record<string, unknown>)
-              : undefined
+          const toolArgs = isRecordLike(toolUse.input)
+            ? (toolUse.input as Record<string, unknown>)
+            : undefined
           const toolUseId = toolUse.toolUseId || generateToolUseId(toolName)
 
           try {
@@ -653,10 +659,19 @@ export const bedrockProvider: ProviderConfig = {
               }
             }
 
-            const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
-              signal: request.abortSignal,
-            })
+            const { toolParams, executionParams } = prepareToolExecution(
+              tool,
+              toolArgs,
+              request,
+              toolUse.toolUseId
+            )
+            const { rawResponse, modelResponse } = await executeProviderTool(
+              toolName,
+              executionParams,
+              {
+                signal: request.abortSignal,
+              }
+            )
             const toolCallEndTime = Date.now()
 
             return {
@@ -664,7 +679,8 @@ export const bedrockProvider: ProviderConfig = {
               toolName,
               toolArgs: toolArgs ?? {},
               toolParams,
-              result,
+              result: rawResponse,
+              modelResult: modelResponse,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
               duration: toolCallEndTime - toolCallStartTime,
@@ -718,6 +734,10 @@ export const bedrockProvider: ProviderConfig = {
             endTime,
             duration,
           } = executionResult
+          const modelResult =
+            'modelResult' in executionResult && executionResult.modelResult
+              ? executionResult.modelResult
+              : result
 
           timeSegments.push({
             type: 'tool',
@@ -740,6 +760,13 @@ export const bedrockProvider: ProviderConfig = {
               tool: toolName,
             }
           }
+          const modelResultContent = modelResult.success
+            ? (modelResult.output ?? null)
+            : {
+                error: true,
+                message: modelResult.error || 'Tool execution failed',
+                tool: toolName,
+              }
 
           toolCalls.push({
             name: toolName,
@@ -753,9 +780,9 @@ export const bedrockProvider: ProviderConfig = {
 
           const toolResultBlock: ToolResultBlock = {
             toolUseId,
-            content: [{ text: JSON.stringify(resultContent) }],
+            content: [{ text: JSON.stringify(modelResultContent) }],
             ...(supportsToolResultStatus(bedrockModelId)
-              ? { status: result.success ? 'success' : 'error' }
+              ? { status: modelResult.success ? 'success' : 'error' }
               : {}),
           }
           toolResultContent.push({ toolResult: toolResultBlock })

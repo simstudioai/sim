@@ -6,6 +6,7 @@ import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
 import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
   return {
@@ -13,6 +14,7 @@ function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionCont
     workspaceId: 'workspace-1',
     executionId: 'execution-1',
     userId: 'user-1',
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
     blockStates: new Map(),
     executedBlocks: new Set(),
     blockLogs: [],
@@ -22,6 +24,7 @@ function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionCont
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       triggerType: 'manual',
       useDraftState: true,
       startTime: '2026-01-01T00:00:00.000Z',
@@ -38,6 +41,123 @@ function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionCont
 }
 
 describe('serializePauseSnapshot', () => {
+  it('persists encrypted resolved-secret provenance and the source execution id', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'raw-secret', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'raw-secret')
+    const context = createContext({ resolvedSecretTraceRegistry: registry })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.state.sourceExecutionId).toBe('execution-1')
+    expect(serialized.state.resolvedSecretTraceCheckpointVersion).toBe(1)
+    expect(serialized.state.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+    })
+    expect(snapshot.snapshot).not.toContain('raw-secret')
+  })
+
+  it('persists a complete zero-entry provenance state for a fresh execution', () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+
+    const snapshot = serializePauseSnapshot(
+      createContext({ resolvedSecretTraceRegistry: registry }),
+      ['next-block']
+    )
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.state.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+  })
+
+  it('persists only encrypted value-adjacent provenance across pause and resume', () => {
+    const provenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+    }
+    const context = createContext({
+      blockStates: new Map([
+        [
+          'function-1',
+          {
+            output: { result: '{{TOKEN}}' },
+            executed: true,
+            executionTime: 1,
+            resolvedSecretTraceProvenance: provenance,
+          },
+        ],
+      ]),
+      blockLogs: [
+        {
+          blockId: 'function-1',
+          startedAt: '2026-01-01T00:00:00.000Z',
+          endedAt: '2026-01-01T00:00:00.001Z',
+          durationMs: 1,
+          success: true,
+          output: { result: '{{TOKEN}}' },
+          executionOrder: 1,
+          displayResolvedSecretTraceProvenance: provenance,
+        },
+      ],
+      workflowVariables: {
+        secretResult: { type: 'string', value: '{{TOKEN}}' },
+      },
+      workflowVariableResolvedSecretTraceProvenance: {
+        secretResult: provenance,
+      },
+      workflowInputResolvedSecretTraceProvenance: provenance,
+      finalOutputResolvedSecretTraceProvenance: provenance,
+    })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.state.blockStates['function-1'].resolvedSecretTraceProvenance).toEqual(
+      provenance
+    )
+    expect(serialized.state.blockLogs[0].displayResolvedSecretTraceProvenance).toEqual(provenance)
+    expect(serialized.state.workflowVariableResolvedSecretTraceProvenance.secretResult).toEqual(
+      provenance
+    )
+    expect(serialized.state.workflowInputResolvedSecretTraceProvenance).toEqual(provenance)
+    expect(serialized.state.finalOutputResolvedSecretTraceProvenance).toEqual(provenance)
+    expect(snapshot.snapshot).not.toContain('raw-secret')
+  })
+
+  it('does not persist a temporary activation guard as permanent incompleteness', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'raw-secret', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'raw-secret')
+    const completePendingActivation = registry.beginPendingActivation()
+
+    const snapshot = serializePauseSnapshot(
+      createContext({ resolvedSecretTraceRegistry: registry }),
+      ['next-block']
+    )
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.state.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+    })
+    expect(snapshot.snapshot).not.toContain('raw-secret')
+    completePendingActivation()
+  })
+
   it('serializes batched parallel accumulated outputs for cross-process resume', () => {
     const context = createContext({
       parallelExecutions: new Map([

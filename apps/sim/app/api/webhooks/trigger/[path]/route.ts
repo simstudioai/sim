@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { webhookTriggerGetContract, webhookTriggerPostContract } from '@/lib/api/contracts/webhooks'
+import {
+  webhookTriggerDeleteContract,
+  webhookTriggerGetContract,
+  webhookTriggerPatchContract,
+  webhookTriggerPostContract,
+  webhookTriggerPutContract,
+} from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -13,54 +19,124 @@ import {
   handleProviderReachabilityTest,
   parseWebhookBody,
   verifyProviderAuth,
+  type WebhookDispatchResult,
 } from '@/lib/webhooks/processor'
-import { acceptsPathWebhookDelivery } from '@/lib/webhooks/providers'
-import { isInternalTriggerProvider } from '@/triggers/constants'
+import { acceptsPathWebhookDelivery, acceptsWebhookDeliveryMethod } from '@/lib/webhooks/providers'
+import {
+  dispatchSlackCustomBotCredential,
+  getLegacySlackCustomBotCredentialId,
+  verifySlackCustomBotCredentialRequest,
+} from '@/lib/webhooks/slack-custom-ingress'
+import { getSlackDispatchFailureResponse } from '@/lib/webhooks/slack-dispatch'
 
 const logger = createLogger('WebhookTriggerAPI')
+const MAX_LEGACY_SLACK_CREDENTIALS_PER_PATH = 25
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-export const GET = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ path: string }> }) => {
+type RouteContext = { params: Promise<{ path: string }> }
+
+type WebhookTriggerContract =
+  | typeof webhookTriggerGetContract
+  | typeof webhookTriggerPostContract
+  | typeof webhookTriggerPutContract
+  | typeof webhookTriggerPatchContract
+  | typeof webhookTriggerDeleteContract
+
+/**
+ * Shared delivery entry point, running the steps that need no body — and therefore no load-shed
+ * ticket — before admission, in the order the `GET` route has always run them:
+ *
+ * 1. resolve the path,
+ * 2. offer the request to the provider challenge handlers,
+ * 3. on `GET`, answer a setup-time verification probe for a path that has no webhook row yet,
+ * 4. take a ticket and hand off to the delivery path.
+ *
+ * Steps 2 and 3 keep their relative order because a challenge is the more specific answer: a
+ * provider echoing a token it chose beats a generic "reachable" 200 when a path somehow has both
+ * pending at once.
+ */
+function defineDeliveryRoute(
+  contract: WebhookTriggerContract,
+  options: { probeBeforeLookup?: boolean } = {}
+) {
+  return withRouteHandler(async (request: NextRequest, context: RouteContext) => {
     const requestId = generateRequestId()
-    const parsed = await parseRequest(webhookTriggerGetContract, request, context)
+    const parsed = await parseRequest(contract, request, context)
     if (!parsed.success) return parsed.response
     const { path } = parsed.data.params
 
-    // Handle provider-specific GET verifications (Microsoft Graph, WhatsApp, etc.)
-    const challengeResponse = await handleProviderChallenges({}, request, requestId, path)
-    if (challengeResponse) {
-      return challengeResponse
+    const challenge = await handleProviderChallenges({}, request, requestId, path)
+    if (challenge) return challenge
+
+    if (options.probeBeforeLookup) {
+      const verification = await handlePreLookupWebhookVerification(
+        request.method,
+        undefined,
+        requestId,
+        path
+      )
+      if (verification) return verification
     }
 
-    return (
-      (await handlePreLookupWebhookVerification(request.method, undefined, requestId, path)) ||
-      new NextResponse('Method not allowed', { status: 405 })
-    )
-  }
-)
-
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ path: string }> }) => {
     const ticket = tryAdmit()
     if (!ticket) {
       return admissionRejectedResponse()
     }
 
     try {
-      return await handleWebhookPost(request, context)
+      return await handleWebhookDelivery(request, requestId, path)
     } finally {
       ticket.release()
     }
-  }
-)
+  })
+}
 
-async function handleWebhookPost(
+/**
+ * `GET` alone probes before the lookup, because a provider validating a URL it has not been given
+ * a webhook for can only be answered there. `handleWebhookDelivery` runs the same check for every
+ * method once the lookup comes back empty.
+ */
+export const GET = defineDeliveryRoute(webhookTriggerGetContract, { probeBeforeLookup: true })
+
+export const POST = defineDeliveryRoute(webhookTriggerPostContract)
+
+/**
+ * Accepted only by a webhook whose provider declares the method AND whose owner has opted in.
+ * Everything else gets a 405 from `handleWebhookDelivery`.
+ */
+export const PUT = defineDeliveryRoute(webhookTriggerPutContract)
+export const PATCH = defineDeliveryRoute(webhookTriggerPatchContract)
+export const DELETE = defineDeliveryRoute(webhookTriggerDeleteContract)
+
+/**
+ * A 405 response carries `Allow` per RFC 9110. Every rejection here allows exactly `POST`: a
+ * webhook
+ * that accepts more never reaches this branch, so the header cannot be used to tell an unknown
+ * path from a configured one.
+ */
+function methodNotAllowedResponse(): NextResponse {
+  return new NextResponse('Method not allowed', { status: 405, headers: { Allow: 'POST' } })
+}
+
+/**
+ * The answer for a path that will not accept this delivery. `POST` keeps its historical 404 so
+ * existing callers see no change; anything else answers 405 uniformly, whether the path is
+ * unknown, holds only non-path triggers, or holds a trigger that has not opted into the method —
+ * so a probe cannot tell those apart.
+ */
+function notDeliverableResponse(method: string): NextResponse {
+  return method === 'POST'
+    ? new NextResponse('Not Found', { status: 404 })
+    : methodNotAllowedResponse()
+}
+
+async function handleWebhookDelivery(
   request: NextRequest,
-  context: { params: Promise<{ path: string }> }
+  requestId: string,
+  path: string
 ): Promise<NextResponse> {
   const receivedAt = Date.now()
   /**
@@ -73,16 +149,6 @@ async function handleWebhookPost(
     ? Number(slackRequestTimestamp) * 1000
     : undefined
 
-  const requestId = generateRequestId()
-  const parsed = await parseRequest(webhookTriggerPostContract, request, context)
-  if (!parsed.success) return parsed.response
-  const { path } = parsed.data.params
-
-  const earlyChallenge = await handleProviderChallenges({}, request, requestId, path)
-  if (earlyChallenge) {
-    return earlyChallenge
-  }
-
   const parseResult = await parseWebhookBody(request, requestId)
 
   // Check if parseWebhookBody returned an error response
@@ -92,6 +158,10 @@ async function handleWebhookPost(
 
   const { body, rawBody } = parseResult
 
+  /**
+   * Offered a second time, now with the parsed body: the pre-admission pass answers only the
+   * handshakes readable from the URL, and the rest match on body shape.
+   */
   const challengeResponse = await handleProviderChallenges(body, request, requestId, path, rawBody)
   if (challengeResponse) {
     return challengeResponse
@@ -100,16 +170,24 @@ async function handleWebhookPost(
   // Find all webhooks for this path (multiple webhooks in one workflow may share a path)
   const allWebhooksForPath = await findAllWebhooksForPath({ requestId, path })
 
-  /** Exclude in-process triggers and providers that own an app-level ingress route. */
-  const webhooksForPath = allWebhooksForPath.filter(
-    ({ webhook: foundWebhook }) =>
-      !isInternalTriggerProvider(foundWebhook.provider) &&
-      acceptsPathWebhookDelivery(foundWebhook.provider)
+  const pathWebhooks = allWebhooksForPath.filter(({ webhook: foundWebhook }) =>
+    acceptsPathWebhookDelivery(foundWebhook.provider)
   )
 
-  if (allWebhooksForPath.length > 0 && webhooksForPath.length === 0) {
+  if (allWebhooksForPath.length > 0 && pathWebhooks.length === 0) {
     logger.warn(`[${requestId}] Rejected HTTP delivery to non-path trigger: ${path}`)
-    return new NextResponse('Not Found', { status: 404 })
+    return notDeliverableResponse(request.method)
+  }
+
+  const webhooksForPath = pathWebhooks.filter(({ webhook: foundWebhook }) =>
+    acceptsWebhookDeliveryMethod(foundWebhook.provider, request.method, foundWebhook.providerConfig)
+  )
+
+  if (pathWebhooks.length > 0 && webhooksForPath.length === 0) {
+    logger.warn(
+      `[${requestId}] Rejected ${request.method} delivery to path ${path}: no trigger on this path accepts that method`
+    )
+    return methodNotAllowedResponse()
   }
 
   if (webhooksForPath.length === 0) {
@@ -124,21 +202,87 @@ async function handleWebhookPost(
     }
 
     logger.warn(`[${requestId}] Webhook or workflow not found for path: ${path}`)
-    return new NextResponse('Not Found', { status: 404 })
+    return notDeliverableResponse(request.method)
   }
 
-  // Process each webhook matched on this path
+  const legacySlackCredentialIds = new Set<string>()
+  const directWebhooksForPath = webhooksForPath.filter(({ webhook: foundWebhook }) => {
+    const credentialId = getLegacySlackCustomBotCredentialId(foundWebhook)
+    if (!credentialId) return true
+    legacySlackCredentialIds.add(credentialId)
+    return false
+  })
+  if (legacySlackCredentialIds.size > MAX_LEGACY_SLACK_CREDENTIALS_PER_PATH) {
+    throw new Error(
+      `Webhook path resolves more than ${MAX_LEGACY_SLACK_CREDENTIALS_PER_PATH} legacy Slack credentials`
+    )
+  }
+
+  let authenticatedLegacySlackAlias = false
+  let firstLegacySlackAuthError: NextResponse | null = null
+  const legacySlackDispatchResults: WebhookDispatchResult[] = []
+  for (const credentialId of legacySlackCredentialIds) {
+    const authError = await verifySlackCustomBotCredentialRequest({
+      credentialId,
+      request,
+      rawBody,
+      requestId,
+    })
+    if (authError) {
+      firstLegacySlackAuthError ??= authError
+      continue
+    }
+
+    const dispatchResults = await dispatchSlackCustomBotCredential({
+      credentialId,
+      body,
+      request,
+      requestId,
+      receivedAt,
+    })
+    authenticatedLegacySlackAlias = true
+    legacySlackDispatchResults.push(...dispatchResults)
+  }
+
+  if (
+    legacySlackCredentialIds.size > 0 &&
+    !authenticatedLegacySlackAlias &&
+    directWebhooksForPath.length === 0
+  ) {
+    return (
+      firstLegacySlackAuthError ??
+      new NextResponse('Unauthorized - Invalid Slack signature', { status: 401 })
+    )
+  }
+
+  /**
+   * Process each unmarked webhook matched on this path. Marked Slack rows were
+   * already included in the routing-key fan-out and must not run twice.
+   */
   const responses: NextResponse[] = []
   const failures: NextResponse[] = []
+  let hasPermanentlyIgnoredLegacyTarget = false
+  for (const dispatchResult of legacySlackDispatchResults) {
+    if (dispatchResult.outcome === 'failed') {
+      failures.push(getSlackDispatchFailureResponse(dispatchResult))
+      continue
+    }
+    if (dispatchResult.reason === 'block-missing') {
+      hasPermanentlyIgnoredLegacyTarget = true
+      continue
+    }
+    responses.push(dispatchResult.response)
+  }
+  const dispatchTargetCount = directWebhooksForPath.length + legacySlackDispatchResults.length
 
-  for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
+  for (const { webhook: foundWebhook, workflow: foundWorkflow } of directWebhooksForPath) {
     const provider = foundWebhook.provider
     if (!provider) {
       const missingProviderResponse = NextResponse.json(
         { error: 'Webhook provider is missing' },
         { status: 500 }
       )
-      if (webhooksForPath.length > 1) {
+      if (dispatchTargetCount > 1) {
         logger.error(
           `[${requestId}] Webhook ${foundWebhook.id} has no provider, continuing to next`
         )
@@ -155,7 +299,7 @@ async function handleWebhookPost(
       requestId
     )
     if (authError) {
-      if (webhooksForPath.length > 1) {
+      if (dispatchTargetCount > 1) {
         logger.warn(`[${requestId}] Auth failed for webhook ${foundWebhook.id}, continuing to next`)
         continue
       }
@@ -185,7 +329,7 @@ async function handleWebhookPost(
     }
 
     if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
-      if (webhooksForPath.length > 1) {
+      if (dispatchTargetCount > 1) {
         logger.warn(
           `[${requestId}] Webhook dispatch failed for ${foundWebhook.id}, continuing to next`,
           { reason: dispatchResult.reason, status: dispatchResult.response.status }
@@ -202,6 +346,9 @@ async function handleWebhookPost(
   if (responses.length === 0) {
     if (failures.length > 0) {
       return failures[0]
+    }
+    if (hasPermanentlyIgnoredLegacyTarget) {
+      return new NextResponse(null, { status: 200 })
     }
     return new NextResponse('No webhooks processed successfully', { status: 500 })
   }

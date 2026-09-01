@@ -6,9 +6,9 @@ import {
   type FAQItem,
   INTEGRATIONS,
   type Integration,
-  POPULAR_WORKFLOWS,
   toIntegrationSummary,
 } from '@/lib/integrations'
+import { POPULAR_WORKFLOWS } from '@/lib/integrations/popular-workflows'
 import { withFilteredNoindex } from '@/lib/landing/seo'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'

@@ -8,10 +8,14 @@ import {
   useState,
 } from 'react'
 import { cn, Textarea } from '@sim/emcn'
+import { ChevronsUpDown, Wand } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { ChevronsUpDown, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -46,6 +50,8 @@ const MIN_HEIGHT_PX = 80
 interface LongInputProps {
   /** Placeholder text to display when empty */
   placeholder?: string
+  /** Whether to conceal the value except while the textarea is focused */
+  password?: boolean
   /** Unique identifier for the block */
   blockId: string
   /** Unique identifier for the sub-block */
@@ -79,10 +85,12 @@ interface LongInputProps {
  * - Handles drag-and-drop for connections and variable references
  * - Provides environment variable and tag autocomplete
  * - Resizable with custom drag handle
+ * - Password masking, revealed only while focused
  * - Integrates with ReactFlow for zoom control
  */
 export function LongInput({
   placeholder,
+  password,
   blockId,
   subBlockId,
   config,
@@ -99,6 +107,7 @@ export function LongInput({
   const activeSearchTarget = useActiveSearchTarget()
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
+  const [isFocused, setIsFocused] = useState(false)
   const persistSubBlockValueRef = useRef<(value: string) => void>(() => {})
 
   // Wand functionality - always call the hook unconditionally
@@ -190,6 +199,13 @@ export function LongInput({
 
   // During streaming, use local content; otherwise use the controller value
   const value = wandHook.isStreaming ? localContent : ctrl.valueString
+
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
+  const displayValue = shouldMask ? maskSecretText(value) : value
+
+  const handleBlur = useCallback(() => {
+    setIsFocused(false)
+  }, [])
 
   // Base value for syncing (not including streaming)
   const baseValue = isPreview
@@ -333,18 +349,22 @@ export function LongInput({
               <Textarea
                 ref={setRefs}
                 className={cn(
-                  'allow-scroll box-border min-h-full w-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50',
+                  'allow-scroll box-border min-h-full w-full resize-none text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50',
                   wandHook.isStreaming && 'pointer-events-none cursor-not-allowed opacity-50'
                 )}
                 rows={rows ?? DEFAULT_ROWS}
                 placeholder={placeholder ?? ''}
-                value={value}
+                value={displayValue}
                 onChange={handleChange as (e: React.ChangeEvent<HTMLTextAreaElement>) => void}
                 onDrop={onDrop as (e: React.DragEvent<HTMLTextAreaElement>) => void}
                 onDragOver={onDragOver as (e: React.DragEvent<HTMLTextAreaElement>) => void}
                 onScroll={handleScroll}
                 onKeyDown={onKeyDown as (e: React.KeyboardEvent<HTMLTextAreaElement>) => void}
-                onFocus={onFocus}
+                onFocus={(e) => {
+                  setIsFocused(true)
+                  onFocus(e)
+                }}
+                onBlur={handleBlur}
                 disabled={isPreview || disabled}
                 style={{
                   fontFamily: 'inherit',
@@ -357,7 +377,7 @@ export function LongInput({
               <div
                 ref={overlayRef}
                 className={cn(
-                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-medium font-sans text-sm',
+                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-sans text-sm',
                   (isPreview || disabled) && 'opacity-50',
                   !(isPreview || disabled) && 'pointer-events-none'
                 )}
@@ -368,11 +388,13 @@ export function LongInput({
                   height: `${height}px`,
                 }}
               >
-                {formatDisplayText(value, {
-                  accessiblePrefixes,
-                  highlightAll: !accessiblePrefixes,
-                  workflowSearchHighlight,
-                })}
+                {shouldMask
+                  ? displayValue
+                  : formatDisplayText(value, {
+                      accessiblePrefixes,
+                      highlightAll: !accessiblePrefixes,
+                      workflowSearchHighlight,
+                    })}
               </div>
 
               {/* Wand Button - only show if not hidden by parent */}
@@ -390,7 +412,7 @@ export function LongInput({
                     aria-label='Generate content with AI'
                     className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
                   >
-                    <Wand2 className='size-4' />
+                    <Wand className='size-4' />
                   </Button>
                 </div>
               )}

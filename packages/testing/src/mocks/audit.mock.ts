@@ -28,6 +28,12 @@ export const auditMockFns = {
 export const auditMock = {
   recordAudit: auditMockFns.mockRecordAudit,
   recordAuditBatch: auditMockFns.mockRecordAuditBatch,
+  /**
+   * Real implementation, not a stub: callers under test derive their audit
+   * metadata through it, so stubbing it would erase what the test asserts.
+   */
+  auditUpdatedFields: (updateValues: object): string[] =>
+    Object.keys(updateValues).filter((key) => key !== 'updatedAt'),
   AuditAction: {
     API_KEY_CREATED: 'api_key.created',
     API_KEY_UPDATED: 'api_key.updated',
@@ -40,6 +46,7 @@ export const auditMock = {
     CHAT_DEPLOYED: 'chat.deployed',
     CHAT_UPDATED: 'chat.updated',
     CHAT_DELETED: 'chat.deleted',
+    CHAT_PASSWORD_VIEWED: 'chat.password_viewed',
     CREDENTIAL_CREATED: 'credential.created',
     CREDENTIAL_UPDATED: 'credential.updated',
     CREDENTIAL_RENAMED: 'credential.renamed',
@@ -48,6 +55,7 @@ export const auditMock = {
     CREDENTIAL_MEMBER_ADDED: 'credential_member.added',
     CREDENTIAL_MEMBER_REMOVED: 'credential_member.removed',
     CREDENTIAL_MEMBER_ROLE_CHANGED: 'credential_member.role_changed',
+    CREDENTIAL_GROUP_UPDATED: 'credential_group.updated',
     CREDIT_PURCHASED: 'credit.purchased',
     CUSTOM_BLOCK_PUBLISHED: 'custom_block.published',
     CUSTOM_BLOCK_UPDATED: 'custom_block.updated',
@@ -67,6 +75,7 @@ export const auditMock = {
     DOCUMENT_DELETED: 'document.deleted',
     ENVIRONMENT_UPDATED: 'environment.updated',
     ENVIRONMENT_DELETED: 'environment.deleted',
+    SECRET_PROVENANCE_UNRECORDED: 'secret_provenance.unrecorded',
     FILE_UPLOADED: 'file.uploaded',
     FILE_UPDATED: 'file.updated',
     FILE_DELETED: 'file.deleted',
@@ -144,6 +153,7 @@ export const auditMock = {
     WEBHOOK_CREATED: 'webhook.created',
     WEBHOOK_DELETED: 'webhook.deleted',
     WORKFLOW_CREATED: 'workflow.created',
+    WORKFLOW_UPDATED: 'workflow.updated',
     WORKFLOW_DELETED: 'workflow.deleted',
     WORKFLOW_RESTORED: 'workflow.restored',
     WORKFLOW_DEPLOYED: 'workflow.deployed',
@@ -173,6 +183,7 @@ export const auditMock = {
     CHARGE_DISPUTE_CLOSED: 'charge.dispute_closed',
     SUBSCRIPTION_CREATED: 'subscription.created',
     SUBSCRIPTION_CANCELLED: 'subscription.cancelled',
+    SUBSCRIPTION_REFUNDED: 'subscription.refunded',
     SUBSCRIPTION_TRANSFERRED: 'subscription.transferred',
     ENTERPRISE_SUBSCRIPTION_PROVISIONED: 'subscription.enterprise_provisioned',
     CREDENTIAL_ACCESSED: 'credential.accessed',
@@ -181,14 +192,17 @@ export const auditMock = {
     TABLE_EXPORTED: 'table.exported',
     WORKFLOW_PUBLIC_API_TOGGLED: 'workflow.public_api_toggled',
     WORKFLOW_EXPORTED: 'workflow.exported',
+    ACCOUNT_DELETED: 'account.deleted',
   },
   AuditResourceType: {
+    ACCOUNT: 'account',
     API_KEY: 'api_key',
     BILLING: 'billing',
     BYOK_KEY: 'byok_key',
     CHAT: 'chat',
     CONNECTOR: 'connector',
     CREDENTIAL: 'credential',
+    CREDENTIAL_GROUP: 'credential_group',
     CUSTOM_BLOCK: 'custom_block',
     CUSTOM_TOOL: 'custom_tool',
     DATA_DRAIN: 'data_drain',
@@ -203,6 +217,7 @@ export const auditMock = {
     PASSWORD: 'password',
     PERMISSION_GROUP: 'permission_group',
     SCHEDULE: 'schedule',
+    SECRET_PROVENANCE: 'secret_provenance',
     SKILL: 'skill',
     SUBSCRIPTION: 'subscription',
     TABLE: 'table',

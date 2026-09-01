@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
-import integrationsJson from '@/lib/integrations/integrations.json'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
@@ -84,7 +84,7 @@ export interface ServiceAccountIntegrationMatch {
  * both arbitrary and a poor landing page. A caller that names a specific
  * integration still gets that integration.
  */
-const CANONICAL_SERVICE_ACCOUNT_SLUGS: Readonly<Record<string, string>> = {
+export const CANONICAL_SERVICE_ACCOUNT_SLUGS: Readonly<Record<string, string>> = {
   'google-service-account': 'google-drive',
   google: 'google-drive',
   'atlassian-service-account': 'jira',

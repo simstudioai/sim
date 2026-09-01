@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
+import { generateMockPayloadFromOutputsDefinition } from '@/lib/workflows/triggers/mock-payload'
 import { type StartBlockCandidate, StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
@@ -23,180 +24,6 @@ export function hasValidStartBlockInState(state: WorkflowState | null | undefine
   })
 
   return !!startBlock
-}
-
-/**
- * Generates mock data based on the output type definition
- */
-function generateMockValue(type: string, _description?: string, fieldName?: string): unknown {
-  const name = fieldName || 'value'
-
-  switch (type) {
-    case 'string':
-      return `mock_${name}`
-
-    case 'number':
-      return 42
-
-    case 'boolean':
-      return true
-
-    case 'array':
-      return [
-        {
-          id: 'item_1',
-          name: 'Sample Item',
-          value: 'Sample Value',
-        },
-      ]
-
-    case 'json':
-    case 'object':
-      return {
-        id: 'sample_id',
-        name: 'Sample Object',
-        status: 'active',
-      }
-
-    default:
-      return null
-  }
-}
-
-/**
- * Recursively processes nested output structures, expanding JSON-Schema-style
- * objects/arrays that define `properties` or `items` instead of returning
- * a generic placeholder.
- */
-function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 10): unknown {
-  if (depth > maxDepth) {
-    return null
-  }
-
-  if (
-    field &&
-    typeof field === 'object' &&
-    'type' in field &&
-    typeof (field as Record<string, unknown>).type === 'string'
-  ) {
-    const typedField = field as {
-      type: string
-      description?: string
-      properties?: Record<string, unknown>
-      items?: unknown
-    }
-
-    if (
-      (typedField.type === 'object' || typedField.type === 'json') &&
-      typedField.properties &&
-      typeof typedField.properties === 'object'
-    ) {
-      const nestedObject: Record<string, unknown> = {}
-      for (const [nestedKey, nestedField] of Object.entries(typedField.properties)) {
-        nestedObject[nestedKey] = processOutputField(nestedKey, nestedField, depth + 1, maxDepth)
-      }
-      return nestedObject
-    }
-
-    if (typedField.type === 'array' && typedField.items && typeof typedField.items === 'object') {
-      const itemValue = processOutputField(`${key}_item`, typedField.items, depth + 1, maxDepth)
-      return [itemValue]
-    }
-
-    return generateMockValue(typedField.type, typedField.description, key)
-  }
-
-  if (field && typeof field === 'object' && !Array.isArray(field)) {
-    const nestedObject: Record<string, unknown> = {}
-    for (const [nestedKey, nestedField] of Object.entries(field)) {
-      nestedObject[nestedKey] = processOutputField(nestedKey, nestedField, depth + 1, maxDepth)
-    }
-    return nestedObject
-  }
-
-  return null
-}
-
-/**
- * Generates mock payload from outputs object
- */
-function generateMockPayloadFromOutputs(outputs: Record<string, unknown>): Record<string, unknown> {
-  const mockPayload: Record<string, unknown> = {}
-
-  for (const [key, output] of Object.entries(outputs)) {
-    if (key === 'visualization') {
-      continue
-    }
-    mockPayload[key] = processOutputField(key, output)
-  }
-
-  return mockPayload
-}
-
-/**
- * Generates a mock payload based on outputs definition
- */
-export function generateMockPayloadFromOutputsDefinition(
-  outputs: Record<string, unknown>
-): Record<string, unknown> {
-  return generateMockPayloadFromOutputs(outputs)
-}
-
-interface TriggerInfo {
-  id: string
-  name: string
-  description: string
-  icon: React.ComponentType<{ className?: string }>
-  color: string
-  category: 'core' | 'integration'
-  enableTriggerMode?: boolean
-}
-
-/**
- * Get all blocks that can act as triggers
- * This includes both dedicated trigger blocks and tools with trigger capabilities
- */
-export function getAllTriggerBlocks(): TriggerInfo[] {
-  const allBlocks = getAllBlocks()
-  const triggers: TriggerInfo[] = []
-
-  for (const block of allBlocks) {
-    // Skip hidden blocks
-    if (block.hideFromToolbar) continue
-
-    // Check if it's a core trigger block (category: 'triggers')
-    if (block.category === 'triggers') {
-      triggers.push({
-        id: block.type,
-        name: block.name,
-        description: block.description,
-        icon: block.icon,
-        color: block.bgColor,
-        category: 'core',
-        enableTriggerMode: hasTriggerCapability(block),
-      })
-    }
-    // Check if it's a tool with trigger capability (has trigger-config subblock)
-    else if (hasTriggerCapability(block)) {
-      triggers.push({
-        id: block.type,
-        name: block.name,
-        description: block.description.replace(' or trigger workflows from ', ', trigger from '),
-        icon: block.icon,
-        color: block.bgColor,
-        category: 'integration',
-        enableTriggerMode: true,
-      })
-    }
-  }
-
-  // Sort: core triggers first, then integration triggers, alphabetically within each category
-  return triggers.sort((a, b) => {
-    if (a.category !== b.category) {
-      return a.category === 'core' ? -1 : 1
-    }
-    return a.name.localeCompare(b.name)
-  })
 }
 
 /**
@@ -226,16 +53,6 @@ export function getTriggersForSidebar(): BlockConfig[] {
     // Include blocks with triggers category or trigger-config subblock
     return block.category === 'triggers' || hasTriggerCapability(block)
   })
-}
-
-/**
- * Get the proper display name for a trigger block in the UI
- */
-export function getTriggerDisplayName(blockType: string): string {
-  const block = getBlock(blockType)
-  if (!block) return blockType
-
-  return block.name
 }
 
 /**

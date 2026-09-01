@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { invitation, member, organization, subscription } from '@sim/db/schema'
+import { invitation, member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, gt, ne } from 'drizzle-orm'
+import { and, count, eq, gt, ne, sql } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { resolveEnterpriseMetadataIntent } from '@/lib/billing/enterprise-outbox'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
@@ -33,14 +33,18 @@ interface OrganizationSeatInfo {
 
 interface ValidateSeatOptions {
   excludePendingInvitationId?: string
+  executor?: DbOrTx
 }
 
 /**
  * Counts the pending invitations that stand to become seats.
  *
- * The single definition of that predicate: still `pending`, not yet expired, and
- * internal — external collaborators never take a seat. Every seat number in the
- * product derives from this one count so no two surfaces can drift.
+ * The single definition of that predicate: still `pending`, not yet expired,
+ * internal, and addressed to somebody who is not already a member of any
+ * organization. Existing organization members cannot consume a destination
+ * seat: workspace invitations remain external and organization invitations are
+ * rejected. Every seat number in the product derives from this one count so no
+ * two surfaces can drift.
  */
 export async function countPendingSeatInvitations(
   organizationId: string,
@@ -52,6 +56,15 @@ export async function countPendingSeatInvitations(
     eq(invitation.status, 'pending'),
     ne(invitation.membershipIntent, 'external'),
     gt(invitation.expiresAt, new Date()),
+    // Membership is intentionally not scoped to the invitation's destination.
+    // A user who belongs to any organization cannot consume this seat under the
+    // acceptance semantics, so reserving one would overstate Enterprise usage.
+    sql<boolean>`NOT EXISTS (
+      SELECT 1
+      FROM ${member}
+      INNER JOIN ${user} ON ${user.id} = ${member.userId}
+      WHERE LOWER(BTRIM(${user.email})) = LOWER(BTRIM(${invitation.email}))
+    )`,
   ]
   if (excludePendingInvitationId) {
     filters.push(ne(invitation.id, excludePendingInvitationId))
@@ -67,7 +80,7 @@ export async function countPendingSeatInvitations(
  * Resolves the organization's seat capacity, honouring an Enterprise seat
  * change that is still in flight to Stripe.
  */
-async function resolveSeatCapacity(
+export async function resolveSeatCapacity(
   organizationSubscription: { id: string; plan: string; metadata?: unknown } & Record<
     string,
     unknown
@@ -140,10 +153,14 @@ export async function validateSeatAvailability(
   options: ValidateSeatOptions = {}
 ): Promise<SeatValidationResult> {
   try {
+    const executor = options.executor ?? db
     if (!isBillingEnabled) {
       const [memberCount, pendingSeats] = await Promise.all([
-        db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
-        countPendingSeatInvitations(organizationId),
+        executor
+          .select({ count: count() })
+          .from(member)
+          .where(eq(member.organizationId, organizationId)),
+        countPendingSeatInvitations(organizationId, executor),
       ])
       return {
         canInvite: true,
@@ -153,7 +170,7 @@ export async function validateSeatAvailability(
       }
     }
 
-    const subscription = await getOrganizationSubscription(organizationId)
+    const subscription = await getOrganizationSubscription(organizationId, { executor })
 
     if (!subscription) {
       return {
@@ -176,9 +193,12 @@ export async function validateSeatAvailability(
     }
 
     const [memberCount, pendingSeats, maxSeats] = await Promise.all([
-      db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
-      countPendingSeatInvitations(organizationId, db, options.excludePendingInvitationId),
-      resolveSeatCapacity(subscription),
+      executor
+        .select({ count: count() })
+        .from(member)
+        .where(eq(member.organizationId, organizationId)),
+      countPendingSeatInvitations(organizationId, executor, options.excludePendingInvitationId),
+      resolveSeatCapacity(subscription, executor),
     ])
 
     const {

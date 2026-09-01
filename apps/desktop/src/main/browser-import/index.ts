@@ -5,6 +5,10 @@ import type {
   BrowserImportResult,
   BrowserPasswordImportResult,
 } from '@sim/desktop-bridge'
+import {
+  captureAccountDataGeneration,
+  runAccountDataMutation,
+} from '@/main/account-data-generation'
 import { importAgentCookies } from '@/main/browser-agent/session'
 import { credentialsAvailable, importCredentials } from '@/main/browser-credentials'
 import { readBrowserCookies } from '@/main/browser-import/chromium-cookies'
@@ -28,6 +32,7 @@ import { rememberSites } from '@/main/browser-sites'
  * `import-service`. The IPC layer talks to this module and nothing deeper.
  */
 function deps(): ImportServiceDeps {
+  const generation = captureAccountDataGeneration()
   return {
     platform: process.platform,
     listProfiles: () => listAllBrowserProfiles(),
@@ -38,6 +43,7 @@ function deps(): ImportServiceDeps {
     readFavicons: (faviconsPath, origins) => readBrowserFavicons(faviconsPath, origins),
     readSites: (historyPath, domains) => readBrowserSites(historyPath, domains),
     rememberSites: (records) => rememberSites(records),
+    commit: (operation) => runAccountDataMutation(generation, operation),
     vault: {
       isAvailable: () => credentialsAvailable(),
       importCredentials: (candidates, policy) => importCredentials(candidates, policy),

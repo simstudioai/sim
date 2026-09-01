@@ -3,13 +3,8 @@ import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblock
 import { filterUniqueWorkflowEdges } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
-import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
-import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { getBlock } from '@/blocks'
 import { escapeRegExp, normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -70,6 +65,11 @@ export function getUniqueBlockName(baseName: string, existingBlocks: Record<stri
 
   const normalizedBase = normalizeName(namePrefix)
 
+  /*
+   * A bare name counts as the first of its kind, so `Send Email` and
+   * `Send Email 2` are consecutive rather than colliding — the same series a
+   * legacy `Gmail 1` / `Gmail 2` pair already forms.
+   */
   const existingNumbers = Object.values(existingBlocks)
     .filter((block) => {
       const blockNameMatch = block.name?.match(/^(.*?)(\s+\d+)?$/)
@@ -78,116 +78,13 @@ export function getUniqueBlockName(baseName: string, existingBlocks: Record<stri
     })
     .map((block) => {
       const match = block.name?.match(/(\d+)$/)
-      return match ? Number.parseInt(match[1], 10) : 0
+      return match ? Number.parseInt(match[1], 10) : 1
     })
 
-  const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0
+  /* The first of a kind carries no suffix — "Send Email", not "Send Email 1". */
+  if (existingNumbers.length === 0) return namePrefix
 
-  if (maxNumber === 0 && existingNumbers.length === 0) {
-    return `${namePrefix} 1`
-  }
-
-  return `${namePrefix} ${maxNumber + 1}`
-}
-
-export interface PrepareBlockStateOptions {
-  id: string
-  type: string
-  name: string
-  position: Position
-  data?: Record<string, unknown>
-  parentId?: string
-  extent?: 'parent'
-  triggerMode?: boolean
-}
-
-/**
- * Prepares a BlockState object from block type and configuration.
- * Generates subBlocks and outputs from the block registry.
- */
-export function prepareBlockState(options: PrepareBlockStateOptions): BlockState {
-  const { id, type, name, position, data, parentId, extent, triggerMode = false } = options
-
-  const blockConfig = getBlock(type)
-
-  const blockData: Record<string, unknown> = { ...(data || {}) }
-  if (parentId) blockData.parentId = parentId
-  if (extent) blockData.extent = extent
-
-  if (!blockConfig) {
-    return {
-      id,
-      type,
-      name,
-      position,
-      data: blockData,
-      subBlocks: {},
-      outputs: {},
-      enabled: true,
-      horizontalHandles: true,
-      advancedMode: false,
-      triggerMode,
-      height: 0,
-    }
-  }
-
-  const subBlocks: Record<string, SubBlockState> = {}
-
-  if (blockConfig.subBlocks) {
-    blockConfig.subBlocks.forEach((subBlock) => {
-      let initialValue: unknown = null
-
-      if (typeof subBlock.value === 'function') {
-        try {
-          initialValue = subBlock.value({})
-        } catch {
-          initialValue = null
-        }
-      } else if (subBlock.defaultValue !== undefined) {
-        initialValue = subBlock.defaultValue
-      } else if (subBlock.type === 'input-format' || subBlock.type === 'response-format') {
-        initialValue = [createDefaultInputFormatField()]
-      } else if (subBlock.type === 'table') {
-        initialValue = []
-      }
-
-      subBlocks[subBlock.id] = {
-        id: subBlock.id,
-        type: subBlock.type,
-        value: initialValue as SubBlockState['value'],
-      }
-    })
-  }
-
-  const isTriggerCapable = hasTriggerCapability(blockConfig)
-  const effectiveTriggerMode = Boolean(triggerMode && isTriggerCapable)
-  const outputs = getEffectiveBlockOutputs(type, subBlocks, {
-    triggerMode: effectiveTriggerMode,
-    preferToolOutputs: !effectiveTriggerMode,
-  })
-
-  if (blockConfig.subBlocks) {
-    const canonicalModes = buildDefaultCanonicalModes(blockConfig.subBlocks)
-    if (Object.keys(canonicalModes).length > 0) {
-      blockData.canonicalModes = canonicalModes
-    }
-  }
-
-  return {
-    id,
-    type,
-    name,
-    position,
-    data: blockData,
-    subBlocks,
-    outputs,
-    enabled: true,
-    horizontalHandles: true,
-    advancedMode: false,
-    triggerMode,
-    height: 0,
-    locked: false,
-  }
+  return `${namePrefix} ${Math.max(...existingNumbers) + 1}`
 }
 
 /**

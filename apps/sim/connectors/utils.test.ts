@@ -61,9 +61,21 @@ import { s3Connector } from '@/connectors/s3/s3'
 import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
+  appendPendingMicrosoftGraphFolders,
+  assertMicrosoftGraphNextLink,
   ConnectorFileTooLargeError,
+  decodeMicrosoftGraphTraversalCursor,
+  encodeMicrosoftGraphTraversalCursor,
+  extractConnectorText,
+  hasIndexablePayload,
+  htmlToPlainText,
+  isIndexableConnectorFile,
   isSkippedDocument,
+  MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES,
+  MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES,
+  MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
   markSkipped,
+  pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
   takeIndexableWithinCap,
@@ -1175,30 +1187,104 @@ describe('readBodyWithLimit', () => {
     expect(result?.byteLength).toBe(2048)
   })
 
-  it('returns null and cancels the stream once the cap is exceeded', async () => {
-    const onCancel = vi.fn()
+  it('returns null as soon as the streamed cap is exceeded', async () => {
     const chunk = new Uint8Array(1024).fill(65)
-    // Cap is 2048; the third 1KB chunk pushes the total to 3072 and trips the cap,
-    // so the remaining body is never buffered into memory.
-    const result = await readBodyWithLimit(streamResponse([chunk, chunk, chunk], onCancel), 2048)
+    const onCancel = vi.fn()
+    const result = await readBodyWithLimit(
+      streamResponse([chunk, chunk, chunk, chunk], onCancel),
+      2048
+    )
     expect(result).toBeNull()
-    expect(onCancel).toHaveBeenCalled()
+    expect(onCancel).toHaveBeenCalledOnce()
   })
 
-  it('enforces the cap on bodyless responses via the arrayBuffer fallback', async () => {
+  it('does not materialize a bodyless response whose size is unknown', async () => {
+    const arrayBuffer = vi.fn(async () => new Uint8Array(5000).buffer)
     // double-cast-allowed: minimal response stub exercising the no-stream branch
-    const oversized = {
+    const unknownSize = {
       body: null,
-      arrayBuffer: async () => new Uint8Array(5000).buffer,
+      arrayBuffer,
     } as unknown as Response
-    expect(await readBodyWithLimit(oversized, 4096)).toBeNull()
+    expect(await readBodyWithLimit(unknownSize, 4096)).toBeNull()
+    expect(arrayBuffer).not.toHaveBeenCalled()
+  })
 
+  it('uses a trusted content length to bound a bodyless response fallback', async () => {
     // double-cast-allowed: minimal response stub exercising the no-stream branch
     const within = {
       body: null,
+      headers: new Headers({ 'content-length': '100' }),
       arrayBuffer: async () => new Uint8Array(100).buffer,
     } as unknown as Response
     expect((await readBodyWithLimit(within, 4096))?.byteLength).toBe(100)
+  })
+})
+
+describe('Microsoft Graph traversal cursors', () => {
+  it('round-trips canonical cursors and accepts the former OneDrive JSON shape', () => {
+    const state = {
+      folderStack: ['folder-a', 'folder-b'],
+      currentFolder: 'folder-current',
+      nextLink: 'https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=abc',
+    }
+
+    expect(
+      decodeMicrosoftGraphTraversalCursor(
+        encodeMicrosoftGraphTraversalCursor(state, 'OneDrive'),
+        'OneDrive'
+      )
+    ).toEqual(state)
+    expect(decodeMicrosoftGraphTraversalCursor(JSON.stringify(state), 'OneDrive')).toEqual(state)
+  })
+
+  it('rejects off-origin continuation URLs before they can receive a bearer token', () => {
+    expect(() => assertMicrosoftGraphNextLink('https://evil.example/steal')).toThrow(
+      /non-Microsoft Graph/
+    )
+    expect(() =>
+      decodeMicrosoftGraphTraversalCursor(
+        Buffer.from(
+          JSON.stringify({
+            folderStack: [],
+            nextLink: 'https://evil.example/steal',
+          })
+        ).toString('base64'),
+        'SharePoint'
+      )
+    ).toThrow(/non-Microsoft Graph/)
+  })
+
+  it('rejects invalid and oversized cursor members', () => {
+    const encode = (state: unknown) => Buffer.from(JSON.stringify(state)).toString('base64')
+
+    expect(() =>
+      decodeMicrosoftGraphTraversalCursor(encode({ folderStack: [42] }), 'OneDrive')
+    ).toThrow(/must be a string/)
+    expect(() =>
+      decodeMicrosoftGraphTraversalCursor(
+        encode({ folderStack: ['x'.repeat(MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES + 1)] }),
+        'OneDrive'
+      )
+    ).toThrow(/size limit/)
+    expect(() =>
+      decodeMicrosoftGraphTraversalCursor(
+        'x'.repeat(MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES + 1),
+        'OneDrive'
+      )
+    ).toThrow(/encoded state exceeds/)
+  })
+
+  it('enforces the pending-folder cap before mutating traversal state', () => {
+    const pending = Array.from(
+      { length: MICROSOFT_GRAPH_MAX_PENDING_FOLDERS },
+      (_, index) => `folder-${index}`
+    )
+
+    expect(() => appendPendingMicrosoftGraphFolders(pending, ['overflow'], 'OneDrive')).toThrow(
+      /Narrow the connector/
+    )
+    expect(pending).toHaveLength(MICROSOFT_GRAPH_MAX_PENDING_FOLDERS)
+    expect(pending).not.toContain('overflow')
   })
 })
 
@@ -1308,5 +1394,203 @@ describe('takeIndexableWithinCap', () => {
     expect(res.documents).toHaveLength(0)
     expect(res.indexableCount).toBe(0)
     expect(res.capReached).toBe(true)
+  })
+})
+
+describe('htmlToPlainText entity decoding', () => {
+  it('decodes decimal numeric references', () => {
+    expect(htmlToPlainText('<p>Sim&#8217;s docs &#8211; part &#8230;</p>')).toBe(
+      'Sim’s docs – part …'
+    )
+  })
+
+  it('decodes hex numeric references, case-insensitively', () => {
+    expect(htmlToPlainText('<p>&#x2019;&#X2013;</p>')).toBe('’–')
+  })
+
+  it('decodes astral-plane code points as a surrogate pair', () => {
+    expect(htmlToPlainText('<p>&#128512;</p>')).toBe('\u{1F600}')
+  })
+
+  it('still decodes the named entities it always handled', () => {
+    expect(htmlToPlainText('<p>&lt;a&gt; &quot;b&quot; &#39;c&#39; d&amp;e&nbsp;f</p>')).toBe(
+      '<a> "b" \'c\' d&e f'
+    )
+  })
+
+  it('does not double-decode an escaped entity', () => {
+    expect(htmlToPlainText('<p>&amp;#8217;</p>')).toBe('&#8217;')
+  })
+
+  it('does not double-decode a numerically escaped ampersand into a named entity', () => {
+    expect(htmlToPlainText('<p>&#38;amp; &#x26;lt;</p>')).toBe('&amp; &lt;')
+  })
+
+  it('remaps windows-1252 C1 references the way a browser renders them', () => {
+    expect(htmlToPlainText('<p>Sim&#146;s &#147;docs&#148; &#151; part &#133;</p>')).toBe(
+      'Sim’s “docs” — part …'
+    )
+  })
+
+  it('leaves NUL and other control references as literal text', () => {
+    expect(htmlToPlainText('<p>a&#0;b&#1;c&#x7f;d</p>')).toBe('a&#0;b&#1;c&#x7f;d')
+  })
+
+  it('decodes whitespace references and folds them into the whitespace collapse', () => {
+    expect(htmlToPlainText('<p>a&#10;&#9;b</p>')).toBe('a b')
+  })
+
+  it('leaves malformed and out-of-range references as literal text', () => {
+    expect(htmlToPlainText('<p>&#1114112; &#xD800; &#; &#x;</p>')).toBe(
+      '&#1114112; &#xD800; &#; &#x;'
+    )
+  })
+
+  it('leaves an unknown named entity untouched', () => {
+    expect(htmlToPlainText('<p>&copy; &notreal;</p>')).toBe('&copy; &notreal;')
+  })
+})
+
+describe('isIndexableConnectorFile', () => {
+  it('accepts the Office and PDF formats the knowledge base can parse', () => {
+    for (const name of [
+      'sop.pdf',
+      'sop.doc',
+      'sop.docx',
+      'sheet.xls',
+      'sheet.xlsx',
+      'deck.ppt',
+      'deck.pptx',
+    ]) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  it('still accepts the plain-text formats connectors already synced', () => {
+    for (const name of ['a.txt', 'a.md', 'a.html', 'a.htm', 'a.csv', 'a.log', 'a.tsv', 'a.rst']) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  /**
+   * A document library holds the whole family, not just the headline extension:
+   * macro-enabled and template variants are the same OOXML packages, `xlsb` is the
+   * binary workbook, and the OpenDocument trio covers LibreOffice/Google exports.
+   */
+  it('accepts macro-enabled, template, binary and OpenDocument variants', () => {
+    for (const name of [
+      'report.docm',
+      'letterhead.dotx',
+      'model.xlsm',
+      'model.xlsb',
+      'budget.xltx',
+      'deck.pptm',
+      'brand.potx',
+      'notes.odt',
+      'sheet.ods',
+      'slides.odp',
+    ]) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  it('rejects formats with no text to extract', () => {
+    for (const name of ['logo.png', 'clip.mp4', 'archive.zip', 'binary.exe']) {
+      expect(isIndexableConnectorFile(name)).toBe(false)
+    }
+  })
+
+  /**
+   * No bundled library extracts RTF. `DocParser`'s plaintext branch would accept
+   * it and pass its control words through as prose, so it stays out of the set and
+   * is reported as an unsupported extension instead.
+   */
+  it('rejects rtf rather than indexing its control words as prose', () => {
+    expect(isIndexableConnectorFile('policy.rtf')).toBe(false)
+  })
+
+  it('rejects a name with no extension, and one ending in a bare dot', () => {
+    expect(isIndexableConnectorFile('README')).toBe(false)
+    expect(isIndexableConnectorFile('trailing.')).toBe(false)
+  })
+
+  it('ignores extension case', () => {
+    expect(isIndexableConnectorFile('SOP.DOCX')).toBe(true)
+  })
+})
+
+describe('extractConnectorText', () => {
+  it('decodes a text format as UTF-8', () => {
+    expect(extractConnectorText(Buffer.from('a,b'), 'data.csv')).toBe('a,b')
+  })
+
+  it('reduces HTML to plain text', () => {
+    expect(extractConnectorText(Buffer.from('<p>Hello&nbsp;world</p>'), 'page.htm')).toBe(
+      'Hello world'
+    )
+  })
+
+  it('leaves whitespace-only content alone for the caller to reject', () => {
+    expect(extractConnectorText(Buffer.from('   '), 'blank.txt')).toBe('   ')
+  })
+})
+
+describe('pipelineParsedMimeType', () => {
+  /**
+   * A format the shared parsers handle is delivered to them verbatim. Extracting
+   * it here would strand the document on a weaker parser — notably skipping the
+   * OCR the pipeline routes PDFs through — and discard the original bytes.
+   */
+  it.each([
+    ['Report.pdf', 'application/pdf'],
+    ['Deck.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    ['Book.xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
+    ['Notes.odt', 'application/vnd.oasis.opendocument.text'],
+    ['Legacy.doc', 'application/msword'],
+  ])('hands %s to the pipeline as %s', (fileName, mimeType) => {
+    expect(pipelineParsedMimeType(fileName)).toBe(mimeType)
+  })
+
+  it('leaves text formats to the connector', () => {
+    for (const name of ['notes.txt', 'data.csv', 'page.htm', 'feed.xml', 'rows.tsv']) {
+      expect(pipelineParsedMimeType(name)).toBeUndefined()
+    }
+  })
+
+  /** Derived from the extension, so a mislabelled source cannot misroute a PDF. */
+  it('is case-insensitive and ignores unknown formats', () => {
+    expect(pipelineParsedMimeType('REPORT.PDF')).toBe('application/pdf')
+    expect(pipelineParsedMimeType('archive.zip')).toBeUndefined()
+    expect(pipelineParsedMimeType('README')).toBeUndefined()
+  })
+})
+
+describe('hasIndexablePayload', () => {
+  const bytes = (value: string) => ({
+    bytes: Buffer.from(value),
+    fileName: 'Report.pdf',
+    mimeType: 'application/pdf',
+  })
+
+  it('accepts a source file with bytes', () => {
+    expect(hasIndexablePayload({ content: '', sourceFile: bytes('%PDF') })).toBe(true)
+  })
+
+  it('accepts extracted text', () => {
+    expect(hasIndexablePayload({ content: 'notes' })).toBe(true)
+  })
+
+  /**
+   * Observed in production: a zero-byte PDF was stored and shipped to OCR, which
+   * answered `400 Bad Request` — an external call billed to discover the file was
+   * empty, reported as an API fault rather than as an empty file. Before source
+   * files existed this was dropped at the empty-content check.
+   */
+  it('rejects a zero-byte source file rather than sending it to OCR', () => {
+    expect(hasIndexablePayload({ content: '', sourceFile: bytes('') })).toBe(false)
+  })
+
+  it('rejects blank text', () => {
+    expect(hasIndexablePayload({ content: '   ' })).toBe(false)
   })
 })

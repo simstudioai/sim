@@ -1,18 +1,37 @@
 'use client'
 
-import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, type ErrorInfo, memo, type ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilePreview')
+
+/**
+ * Terminal fallback for a file this app cannot render — either the format has no
+ * viewer at all, or a viewer that was expected to work failed (e.g. a HEIC whose
+ * server-side derivative could not be produced).
+ */
+export const UnsupportedPreview = memo(function UnsupportedPreview({ name }: { name: string }) {
+  const ext = getFileExtension(name)
+
+  return (
+    <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
+      <p className='text-[14px] text-[var(--text-primary)]'>
+        Preview not available{ext ? ` for .${ext} files` : ' for this file'}
+      </p>
+      <p className='text-[13px] text-[var(--text-muted)]'>
+        Use the download button to view this file
+      </p>
+    </div>
+  )
+})
 
 export function PreviewError({ label, error }: { label: string; error: string }) {
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[14px] text-[var(--text-primary)]'>
-        Failed to preview {label}
-      </p>
+      <p className='text-[14px] text-[var(--text-primary)]'>Failed to preview {label}</p>
       <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
     </div>
   )

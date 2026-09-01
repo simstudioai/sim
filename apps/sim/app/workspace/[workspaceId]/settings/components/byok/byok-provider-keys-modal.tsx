@@ -1,7 +1,15 @@
 'use client'
 
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@sim/emcn'
+import {
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+  OverflowText,
+} from '@sim/emcn'
 import type {
+  BYOKManagerCapabilities,
   BYOKManagerKey,
   BYOKManagerProvider,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
@@ -14,7 +22,7 @@ interface BYOKProviderKeysModalProps {
   keys: BYOKManagerKey[]
   /** Maximum keys allowed per provider; disables adding once reached. */
   maxKeys: number
-  readOnly?: boolean
+  capabilities: BYOKManagerCapabilities
   onAddKey: () => void
   onUpdateKey: (key: BYOKManagerKey) => void
   onDeleteKey: (key: BYOKManagerKey) => void
@@ -32,7 +40,7 @@ export function BYOKProviderKeysModal({
   provider,
   keys,
   maxKeys,
-  readOnly = false,
+  capabilities,
   onAddKey,
   onUpdateKey,
   onDeleteKey,
@@ -52,23 +60,25 @@ export function BYOKProviderKeysModal({
           {keys.map((key) => (
             <div key={key.id} className='flex items-center justify-between gap-2.5'>
               <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                <span className='truncate text-[var(--text-body)] text-sm'>
-                  {key.name ?? 'Unnamed key'}
-                </span>
-                <span className='truncate font-mono text-[var(--text-muted)] text-caption'>
-                  {key.maskedKey}
-                </span>
+                <OverflowText
+                  label={key.name ?? 'Unnamed key'}
+                  className='text-[var(--text-body)] text-sm'
+                />
+                <OverflowText
+                  label={key.maskedKey}
+                  className='font-mono text-[var(--text-muted)] text-caption'
+                />
               </div>
-              {!readOnly && (
+              {(capabilities.update || capabilities.delete) && (
                 <div className='flex flex-shrink-0 items-center gap-2'>
-                  <Chip onClick={() => onUpdateKey(key)}>Update</Chip>
-                  <Chip onClick={() => onDeleteKey(key)}>Delete</Chip>
+                  {capabilities.update && <Chip onClick={() => onUpdateKey(key)}>Update</Chip>}
+                  {capabilities.delete && <Chip onClick={() => onDeleteKey(key)}>Delete</Chip>}
                 </div>
               )}
             </div>
           ))}
         </div>
-        {atCapacity && (
+        {capabilities.add && atCapacity && (
           <p className='px-2 text-[var(--text-muted)] text-caption'>
             Key limit reached ({maxKeys} keys per provider).
           </p>
@@ -76,14 +86,17 @@ export function BYOKProviderKeysModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={close}
-        hideCancel={readOnly}
+        hideCancel={!capabilities.add}
         primaryAction={
-          readOnly
-            ? { label: 'Close', onClick: close }
-            : {
+          capabilities.add
+            ? {
                 label: 'Add Key',
                 onClick: onAddKey,
                 disabled: atCapacity,
+              }
+            : {
+                label: 'Close',
+                onClick: close,
               }
         }
       />

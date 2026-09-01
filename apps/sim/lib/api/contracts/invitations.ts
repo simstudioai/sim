@@ -2,6 +2,9 @@ import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
+import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
+
+export { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 
 /**
  * Shared cap for the disclosure token: the preview's id list and the accept
@@ -9,10 +12,6 @@ import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
  * preview the accept endpoint rejects as over-long.
  */
 export const DISCLOSED_WORKSPACE_ID_LIMIT = 500
-
-/** One invitation authorizes and stamps each workspace, so the fan-out is bounded. */
-export const MAX_INVITE_WORKSPACES = 50
-export const MAX_INVITE_EMAILS = 100
 
 export const invitationParamsSchema = z.object({
   id: z.string({ error: 'Invitation ID is required' }).min(1, 'Invitation ID is required'),
@@ -230,13 +229,6 @@ export const getInvitationContract = defineRouteContract({
       invitation: invitationDetailsSchema,
       /** Invitee-only preview of what accepting will do; null for other viewers. */
       joinPreview: invitationJoinPreviewSchema.nullable(),
-      /**
-       * True when the preview could not be computed for a pending
-       * invitee-viewed invitation. Accepting may still move owned workspaces,
-       * so the client must fall back to a generic migration notice rather
-       * than treating the missing preview as "nothing moves".
-       */
-      joinPreviewUnavailable: z.boolean().optional(),
     }),
   },
 })
@@ -338,4 +330,3 @@ export const removeWorkspaceMemberContract = defineRouteContract({
 export type PendingInvitationRow = z.infer<typeof pendingWorkspaceInvitationSchema>
 export type BatchInvitationResult = z.infer<typeof batchInvitationResultSchema>
 export type InvitationDetails = z.infer<typeof invitationDetailsSchema>
-export type InvitationJoinPreview = z.infer<typeof invitationJoinPreviewSchema>

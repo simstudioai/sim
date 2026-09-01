@@ -16,10 +16,9 @@ import {
 } from '@/ee/workspace-forking/lib/copy/copy-resources'
 import type { ForkEdge } from '@/ee/workspace-forking/lib/lineage/lineage'
 import {
-  deleteEdgeMappingsByChildResources,
   type ForkMappingUpsert,
+  persistCopiedResourceMappings,
   resourceTypeToForkKind,
-  upsertEdgeMappings,
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import type {
@@ -174,7 +173,11 @@ export async function copyPromoteUnmappedResources(params: {
   now: Date
   selection: PromoteCopySelection
   workflowIdMap: Map<string, string>
-  /** source folder id -> target folder id, so copied skill/markdown bodies rewrite `sim:folder/<id>`. */
+  /**
+   * source workflow-folder id -> target folder id, so copied skill/markdown bodies rewrite
+   * `sim:folder/<id>`. The file / table / knowledge-base trees are mirrored by the copies run
+   * here and unioned onto this map before the content rewrite.
+   */
   folderIdMap: Map<string, string>
   /** Base resolver (persisted mappings + env identity), used to detect already-mapped KBs (U-docs). */
   resolver: ForkReferenceResolver
@@ -230,6 +233,10 @@ export async function copyPromoteUnmappedResources(params: {
     // rewritten through the same plan resolver that remaps subblock-value env refs.
     resolveEnvName: (key) => resolver('env-var', key),
     resolveBlockId,
+    documentMappingContext: {
+      edgeChildWorkspaceId: edge.childWorkspaceId,
+      sourceIsParent: direction === 'pull',
+    },
   })
 
   // Copy the selected workspace files (keyed by storage key) - metadata inserts in the tx, blob
@@ -248,6 +255,7 @@ export async function copyPromoteUnmappedResources(params: {
           keyMap: new Map<string, string>(),
           idMap: new Map<string, string>(),
           blobTasks: [] as BlobCopyTask[],
+          folderIdMap: new Map<string, string>(),
         }
 
   // U-docs: documents referenced under an already-mapped (not copied this sync) KB. Skip any doc
@@ -259,6 +267,7 @@ export async function copyPromoteUnmappedResources(params: {
     resolver,
     referencedDocumentIds,
     alreadyCopiedSourceDocIds: new Set(containerDocMap.keys()),
+    now,
   })
   result.contentPlan.documents.push(...mappedKbDocs.documents)
 
@@ -272,11 +281,13 @@ export async function copyPromoteUnmappedResources(params: {
       childResourceId: child,
     })
   )
-  await persistPromoteCopiedMappings(tx, edge.childWorkspaceId, userId, direction, [
-    ...result.mappingEntries,
-    ...fileMappingEntries,
-    ...mappedKbDocs.mappingEntries,
-  ])
+  await persistCopiedResourceMappings({
+    executor: tx,
+    edgeChildWorkspaceId: edge.childWorkspaceId,
+    userId,
+    sourceIsParent: direction === 'pull',
+    entries: [...result.mappingEntries, ...fileMappingEntries, ...mappedKbDocs.mappingEntries],
+  })
 
   const copyIdMapByKind = new Map<ForkRemapKind, Map<string, string>>()
   for (const [resourceType, sourceToTarget] of result.idMap) {
@@ -298,7 +309,9 @@ export async function copyPromoteUnmappedResources(params: {
   const contentRefMaps = serializeContentRefMaps({
     workspaceId: { from: sourceWorkspaceId, to: targetWorkspaceId },
     workflows: workflowIdMap,
-    folders: folderIdMap,
+    // Workflow folders (mapped by the caller) unioned with the file / table / knowledge-base
+    // folders this copy mirrored, so a `sim:folder/<id>` ref resolves whichever tree it names.
+    folders: new Map([...folderIdMap, ...fileResult.folderIdMap, ...result.folderIdMap]),
     fileKeys: fileResult.keyMap,
     fileIds: fileResult.idMap,
     skills: result.idMap.get('skill'),
@@ -312,45 +325,4 @@ export async function copyPromoteUnmappedResources(params: {
     contentRefMaps,
     blobTasks: fileResult.blobTasks,
   }
-}
-
-/**
- * Persist the copied resources' id mappings for the edge. The copy returns entries oriented
- * source(parent)->target(child); a pull matches that orientation directly (fill-null upsert), a
- * push swaps it (the parent side is the new TARGET) and first drops any prior row keyed on the
- * source child resource so a changed target can't leak a second mapping.
- */
-export async function persistPromoteCopiedMappings(
-  tx: DbOrTx,
-  childWorkspaceId: string,
-  userId: string,
-  direction: 'push' | 'pull',
-  entries: ForkMappingUpsert[]
-): Promise<void> {
-  if (entries.length === 0) return
-  if (direction === 'pull') {
-    await upsertEdgeMappings(tx, childWorkspaceId, userId, entries)
-    return
-  }
-  // Push: re-key on the source child resource. Skip any entry with a null child id (copy entries
-  // always carry one; the guard narrows the type so neither the swap nor the delete needs a cast).
-  // After the swap every childResourceId is the original (non-null) parent id, keyed for the
-  // delete-then-insert that prevents a changed target from leaking a second mapping.
-  const swapped: ForkMappingUpsert[] = []
-  const deleteKeys: Array<{
-    resourceType: ForkMappingUpsert['resourceType']
-    childResourceId: string
-  }> = []
-  for (const entry of entries) {
-    if (entry.childResourceId == null) continue
-    swapped.push({
-      resourceType: entry.resourceType,
-      parentResourceId: entry.childResourceId,
-      childResourceId: entry.parentResourceId,
-    })
-    deleteKeys.push({ resourceType: entry.resourceType, childResourceId: entry.parentResourceId })
-  }
-  if (swapped.length === 0) return
-  await deleteEdgeMappingsByChildResources(tx, childWorkspaceId, deleteKeys)
-  await upsertEdgeMappings(tx, childWorkspaceId, userId, swapped)
 }

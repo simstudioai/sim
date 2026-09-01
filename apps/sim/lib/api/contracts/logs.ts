@@ -12,11 +12,6 @@ export const executionIdParamsSchema = z.object({
   executionId: z.string().min(1),
 })
 
-export const cancelWorkflowExecutionParamsSchema = z.object({
-  id: z.string().min(1, 'Invalid workflow ID'),
-  executionId: z.string().min(1, 'Invalid execution ID'),
-})
-
 const logFilterQuerySchema = z.object({
   workspaceId: z.string(),
   level: z.string().optional(),
@@ -43,14 +38,47 @@ export const listLogsQuerySchema = logFilterQuerySchema.extend({
   limit: z.coerce.number().int().min(1).max(200).optional().default(100),
   sortBy: logSortBySchema,
   sortOrder: logSortOrderSchema,
+  /** Also run a COUNT(*) under the same filters and return it as `total`. */
+  includeTotal: z.coerce.boolean().optional(),
 })
 
 export const logDetailQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
 
+/**
+ * Largest number of time buckets the dashboard stats read will build.
+ *
+ * The bound is load-bearing, not cosmetic. `segmentCount` reaches
+ * `buildDashboardStats` as the length of two densely materialized arrays — one
+ * per workflow, one for the workspace aggregate — so an unbounded value
+ * allocates without limit: `1e9` is a genuine 500. The lower bound is the
+ * quieter half — `0` does not throw, it makes `segmentMs` `Infinity` and every
+ * segment array empty, which serializes as `null` and hands the dashboard a
+ * shaped response with nothing in it. Both were reachable from the query
+ * string.
+ */
+export const MAX_STATS_SEGMENT_COUNT = 500
+
+/**
+ * Largest number of per-workflow series the dashboard stats read will return.
+ *
+ * `workflows` carries one entry per workflow that ran in the window, each with
+ * `segmentCount` segments, so the response grows with the workspace rather than
+ * with anything the caller asked for. Entries past the cap are dropped from
+ * `workflows` only — the workspace aggregates are computed from every row first,
+ * so the totals stay exact — and the truncation is reported rather than silent.
+ */
+export const MAX_STATS_WORKFLOWS = 200
+
 export const statsQueryParamsSchema = logFilterQuerySchema.extend({
-  segmentCount: z.coerce.number().optional().default(72),
+  segmentCount: z.coerce
+    .number()
+    .int('segmentCount must be a whole number')
+    .min(1, 'segmentCount must be at least 1')
+    .max(MAX_STATS_SEGMENT_COUNT, `segmentCount cannot exceed ${MAX_STATS_SEGMENT_COUNT}`)
+    .optional()
+    .default(72),
 })
 
 const workflowSummarySchema = z
@@ -149,18 +177,19 @@ const blockExecutionSchema = z.object({
 
 const toolCallSchema = z
   .object({
-    id: z.string().optional(),
-    name: z.string().optional(),
-    arguments: z.unknown().optional(),
-    result: z.unknown().optional(),
-    error: z.string().optional(),
-    startTime: z.string().optional(),
-    endTime: z.string().optional(),
-    duration: z.number().optional(),
+    id: z.string().describe('Tool-call identifier.').optional(),
+    name: z.string().describe('Invoked tool name.').optional(),
+    arguments: z.unknown().describe('Arguments supplied to the tool call.').optional(),
+    result: z.unknown().describe('Value returned by the tool call.').optional(),
+    error: z.string().describe('Tool-call error message.').optional(),
+    startTime: z.string().describe('ISO 8601 tool-call start timestamp.').optional(),
+    endTime: z.string().describe('ISO 8601 tool-call end timestamp.').optional(),
+    duration: z.number().describe('Tool-call duration in milliseconds.').optional(),
   })
-  .passthrough()
+  .describe('Tool invocation captured inside a trace span.')
+  .catchall(z.unknown().describe('Additional provider-specific tool-call metadata.'))
 
-type TraceSpan = {
+export type LogTraceSpan = {
   id: string
   name: string
   type: string
@@ -169,53 +198,83 @@ type TraceSpan = {
   startTime?: string
   endTime?: string
   status?: string
+  errorHandled?: boolean
+  errorType?: string
+  errorMessage?: string
   blockId?: string
   input?: unknown
   output?: unknown
   tokens?: number | { total?: number; input?: number; output?: number }
+  cost?: { total?: number; input?: number; output?: number; toolCost?: number }
   relativeStartMs?: number
   toolCalls?: Array<z.output<typeof toolCallSchema>>
-  children?: TraceSpan[]
+  children?: LogTraceSpan[]
 }
 
-const traceSpanSchema: z.ZodType<TraceSpan> = z.lazy(() =>
-  z
-    .object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      duration: z.number().optional(),
-      durationMs: z.number().optional(),
-      startTime: z.string().optional(),
-      endTime: z.string().optional(),
-      status: z.string().optional(),
-      blockId: z.string().optional(),
-      input: z.unknown().optional(),
-      output: z.unknown().optional(),
-      tokens: z
-        .union([
-          z.number(),
-          z
-            .object({
-              total: z.number().optional(),
-              input: z.number().optional(),
-              output: z.number().optional(),
-            })
-            .partial(),
-        ])
-        .optional(),
-      relativeStartMs: z.number().optional(),
-      toolCalls: z.array(toolCallSchema).optional(),
-      children: z.array(traceSpanSchema).optional(),
-    })
-    .passthrough()
-)
+export const traceSpanSchema: z.ZodType<LogTraceSpan> = z
+  .lazy(() =>
+    z
+      .object({
+        id: z.string().describe('Trace-span identifier.'),
+        name: z.string().describe('Trace-span name.'),
+        type: z.string().describe('Trace-span category.'),
+        duration: z.number().describe('Legacy span duration in milliseconds.').optional(),
+        durationMs: z.number().describe('Span duration in milliseconds.').optional(),
+        startTime: z.string().describe('ISO 8601 span start timestamp.').optional(),
+        endTime: z.string().describe('ISO 8601 span end timestamp.').optional(),
+        status: z.string().describe('Trace-span status.').optional(),
+        errorHandled: z.boolean().describe('Whether the recorded error was handled.').optional(),
+        errorType: z.string().describe('Recorded error type.').optional(),
+        errorMessage: z.string().describe('Recorded error message.').optional(),
+        blockId: z.string().describe('Workflow block associated with the span.').optional(),
+        input: z.unknown().describe('Input captured for the traced operation.').optional(),
+        output: z.unknown().describe('Output captured for the traced operation.').optional(),
+        tokens: z
+          .union([
+            z.number().describe('Total tokens attributed to the span.'),
+            z
+              .object({
+                total: z.number().describe('Total tokens.').optional(),
+                input: z.number().describe('Input tokens.').optional(),
+                output: z.number().describe('Output tokens.').optional(),
+              })
+              .describe('Token usage attributed to the span.')
+              .partial(),
+          ])
+          .describe('Token usage attributed to the span.')
+          .optional(),
+        cost: z
+          .object({
+            total: z.number().describe('Total span cost in USD.').optional(),
+            input: z.number().describe('Input-token cost in USD.').optional(),
+            output: z.number().describe('Output-token cost in USD.').optional(),
+            toolCost: z.number().describe('Tool cost in USD.').optional(),
+          })
+          .partial()
+          .describe('Cost attributed to the span.')
+          .optional(),
+        relativeStartMs: z
+          .number()
+          .describe('Offset from the root span in milliseconds.')
+          .optional(),
+        toolCalls: z.array(toolCallSchema).describe('Tool calls recorded by the span.').optional(),
+        children: z.array(traceSpanSchema).describe('Nested child trace spans.').optional(),
+      })
+      .catchall(z.unknown().describe('Additional provider-specific trace-span metadata.'))
+  )
+  .meta({
+    id: 'LogTraceSpan',
+    title: 'Log trace span',
+    description: 'One recursive operation span in a workflow execution trace.',
+  })
+
+export const traceSpansSchema = z.array(traceSpanSchema)
 
 const executionDataDetailSchema = z
   .object({
     totalDuration: z.number().nullable().optional(),
     enhanced: z.literal(true).optional(),
-    traceSpans: z.array(traceSpanSchema).optional(),
+    traceSpans: traceSpansSchema.optional(),
     blockExecutions: z.array(blockExecutionSchema).optional(),
     finalOutput: z.unknown().optional(),
     workflowInput: z.unknown().optional(),
@@ -231,6 +290,7 @@ export const workflowLogSummarySchema = z.object({
   deploymentVersionId: z.string().nullable(),
   deploymentVersion: z.number().nullable(),
   deploymentVersionName: z.string().nullable(),
+  executionOrigin: z.enum(['workflow_group']).nullable(),
   level: z.string(),
   status: z.string().nullable(),
   duration: z.string().nullable(),
@@ -267,6 +327,8 @@ export type WorkflowLogRow = WorkflowLogSummary &
 export const listLogsResponseSchema = z.object({
   data: z.array(workflowLogSummarySchema),
   nextCursor: z.string().nullable(),
+  /** Total rows matching the filters; present only when `includeTotal` was set. */
+  total: z.number().optional(),
 })
 
 export type ListLogsResponse = z.output<typeof listLogsResponseSchema>
@@ -320,21 +382,10 @@ export const triggersQuerySchema = z.object({
 })
 export type TriggersQuery = z.output<typeof triggersQuerySchema>
 
-export const cancelWorkflowExecutionResponseSchema = z.object({
-  success: z.boolean(),
-  executionId: z.string(),
-  redisAvailable: z.boolean(),
-  durablyRecorded: z.boolean(),
-  locallyAborted: z.boolean(),
-  pausedCancelled: z.boolean(),
-  reason: z.enum(['recorded', 'redis_unavailable', 'redis_write_failed']),
-})
-
 export type SegmentStats = z.output<typeof segmentStatsSchema>
 export type WorkflowStats = z.output<typeof workflowStatsSchema>
 export type DashboardStatsResponse = z.output<typeof dashboardStatsResponseSchema>
 export type ExecutionSnapshotData = z.output<typeof executionSnapshotDataSchema>
-export type CancelWorkflowExecutionResponse = z.output<typeof cancelWorkflowExecutionResponseSchema>
 
 export const listLogsContract = defineRouteContract({
   method: 'GET',
@@ -389,15 +440,5 @@ export const getExecutionSnapshotContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: executionSnapshotDataSchema,
-  },
-})
-
-export const cancelWorkflowExecutionContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workflows/[id]/executions/[executionId]/cancel',
-  params: cancelWorkflowExecutionParamsSchema,
-  response: {
-    mode: 'json',
-    schema: cancelWorkflowExecutionResponseSchema,
   },
 })

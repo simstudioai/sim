@@ -5,6 +5,16 @@ import {
   getServiceAccountConnectNoun,
   getServiceAccountGatingBlockType,
 } from '@/lib/credentials/service-account-provider-ids'
+/**
+ * Imported from the module rather than the `@/lib/integrations` barrel: the
+ * barrel builds `POPULAR_WORKFLOWS` by calling `getAllBlockMeta()` at module
+ * load, so importing it from a leaf component drags the whole block registry
+ * into that component's graph.
+ */
+import {
+  getServiceAccountFamilyIcon,
+  getServiceAccountFamilyName,
+} from '@/lib/integrations/credential-display'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/connect-service-account-modal'
 import { getBlock } from '@/blocks'
@@ -17,6 +27,10 @@ import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
  */
 export interface ServiceAccountConnectTarget {
   serviceAccountProviderId: ServiceAccountProviderId
+  /**
+   * Name the setup surface is titled with — the vendor ("Atlassian") for a
+   * family service account, not the product page you opened it from.
+   */
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
   /**
@@ -27,9 +41,8 @@ export interface ServiceAccountConnectTarget {
   label: string
   /**
    * True when the provider's setup surface must stay hidden for this viewer.
-   * Custom Slack bots ride the `slack_v2` preview flag, so any surface that
-   * offers one — the integrations page or the chat — has to honour it or the
-   * flag is trivially bypassed.
+   * Custom Slack bots follow the released `slack_v2` block's visibility, so a
+   * hosted kill switch applies consistently across integrations and chat.
    */
   hidden: boolean
 }
@@ -41,7 +54,7 @@ interface UseServiceAccountConnectTargetArgs {
 }
 
 /**
- * Derives the connect-control label and preview gating for a service-account
+ * Derives the connect-control label and block visibility for a service-account
  * provider. Shared by the integrations detail page and the chat's inline
  * connect button so the two can't drift on either the wording or the gate.
  */
@@ -71,6 +84,15 @@ export function useServiceAccountConnectTarget({
       ? 'Set up a custom bot'
       : `Add ${getServiceAccountConnectNoun(serviceAccountProviderId)}`
 
-    return { serviceAccountProviderId, serviceName, serviceIcon, label, hidden }
+    const familyName = getServiceAccountFamilyName(serviceAccountProviderId)
+    const familyIcon = getServiceAccountFamilyIcon(serviceAccountProviderId)
+
+    return {
+      serviceAccountProviderId,
+      serviceName: familyName ?? serviceName,
+      serviceIcon: familyIcon ?? serviceIcon,
+      label,
+      hidden,
+    }
   }, [serviceAccountProviderId, serviceName, serviceIcon, isSlackBot, hidden])
 }

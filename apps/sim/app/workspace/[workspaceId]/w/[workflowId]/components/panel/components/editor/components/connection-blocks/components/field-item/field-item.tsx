@@ -2,9 +2,9 @@
 
 import { useCallback } from 'react'
 import { Badge, handleKeyboardActivation } from '@sim/emcn'
+import { ChevronDown } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { ChevronDown } from 'lucide-react'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { normalizeName } from '@/executor/constants'
 
@@ -24,7 +24,6 @@ interface FieldItemProps {
   connection: ConnectedBlock
   field: SchemaField
   path: string
-  level: number
   hasChildren?: boolean
   isExpanded?: boolean
   onToggleExpand?: (path: string) => void
@@ -37,7 +36,6 @@ export function FieldItem({
   connection,
   field,
   path,
-  level,
   hasChildren,
   isExpanded,
   onToggleExpand,
@@ -92,7 +90,7 @@ export function FieldItem({
     >
       <span
         className={clsx(
-          'min-w-0 flex-1 truncate font-medium',
+          'min-w-0 flex-1 truncate',
           'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
         )}
       >
@@ -104,7 +102,7 @@ export function FieldItem({
       {hasChildren && (
         <ChevronDown
           className={clsx(
-            'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-100',
+            'size-[14px] flex-shrink-0 transition-transform duration-100',
             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
             isExpanded && 'rotate-180'
           )}

@@ -1,5 +1,5 @@
 import { SPACE_DESCRIPTION_OUTPUT_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceUpdateSpaceParams {
   accessToken: string
@@ -24,7 +24,7 @@ export interface ConfluenceUpdateSpaceResponse {
   }
 }
 
-export const confluenceUpdateSpaceTool: ToolConfig<
+export const confluenceUpdateSpaceTool: InternalToolConfig<
   ConfluenceUpdateSpaceParams,
   ConfluenceUpdateSpaceResponse
 > = {
@@ -72,21 +72,14 @@ export const confluenceUpdateSpaceTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    url: () => '/api/tools/confluence/space',
-    method: 'PUT',
-    headers: (params: ConfluenceUpdateSpaceParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceUpdateSpaceParams) => ({
+  operation: {
+    input: (params: ConfluenceUpdateSpaceParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

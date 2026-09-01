@@ -1,46 +1,17 @@
 'use client'
 
-import type React from 'react'
 import { useMemo } from 'react'
-import { Combobox, type ComboboxOptionGroup, cn } from '@sim/emcn'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { ChipCombobox, Combobox, type ComboboxOptionGroup, cn } from '@sim/emcn'
 import { useShallow } from 'zustand/react/shallow'
 import {
   type FlattenOutputsBlockInput,
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
-import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { BlockTile } from '@/blocks/block-tile'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-
-/**
- * Renders a tag icon with background color for block section headers.
- *
- * @param icon - Either a letter string or a Lucide icon component
- * @param color - Background color for the icon container
- * @returns A styled icon element
- */
-const TagIcon: React.FC<{
-  icon: string | React.ComponentType<{ className?: string }>
-  color: string
-}> = ({ icon, color }) => (
-  <div
-    className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded [&_img]:size-full'
-    style={{ background: color }}
-  >
-    {typeof icon === 'string' ? (
-      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
-    ) : (
-      (() => {
-        const IconComponent = icon
-        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
-      })()
-    )}
-  </div>
-)
 
 const EMPTY_OUTPUTS: string[] = []
 
@@ -64,6 +35,12 @@ interface OutputSelectProps {
   align?: 'start' | 'end' | 'center'
   /** Maximum height of the dropdown content in pixels */
   maxHeight?: number
+  /**
+   * Trigger chrome. `'sm'` is the compact pill used in inline toolbars;
+   * `'md'` is the 30px chip field, for stacking with `ChipInput` in a form.
+   * @default 'sm'
+   */
+  size?: 'sm' | 'md'
   /** Additional class names to apply to the combobox trigger */
   className?: string
 }
@@ -87,6 +64,7 @@ export function OutputSelect({
   valueMode = 'id',
   align = 'start',
   maxHeight = 200,
+  size = 'sm',
   className,
 }: OutputSelectProps) {
   const blocks = useWorkflowStore((state) => state.blocks)
@@ -194,16 +172,6 @@ export function OutputSelect({
   }, [selectedOutputs, workflowOutputs, placeholder])
 
   /**
-   * Gets the background color for a block output based on its type
-   * @param blockType - The type of the block
-   * @returns The hex color code for the block
-   */
-  const getOutputColor = (blockType: string) => {
-    const blockConfig = getBlock(blockType)
-    return blockConfig?.bgColor || '#2F55FF'
-  }
-
-  /**
    * Groups outputs by block and sorts by distance from starter block.
    * Returns ComboboxOptionGroup[] for use with Combobox.
    */
@@ -254,26 +222,16 @@ export function OutputSelect({
 
     return sortedGroups.map(({ blockName, outputs }) => {
       const firstOutput = outputs[0]
-      const blockConfig = getBlock(firstOutput.blockType)
-      const blockColor = getOutputColor(firstOutput.blockType)
-
-      let blockIcon: string | React.ComponentType<{ className?: string }> = blockName
-        .charAt(0)
-        .toUpperCase()
-
-      if (blockConfig?.icon) {
-        blockIcon = blockConfig.icon
-      } else if (firstOutput.blockType === 'loop') {
-        blockIcon = RepeatIcon
-      } else if (firstOutput.blockType === 'parallel') {
-        blockIcon = SplitIcon
-      }
 
       return {
         sectionElement: (
           <div className='flex items-center gap-1.5 px-1.5 py-1'>
-            <TagIcon icon={blockIcon} color={blockColor} />
-            <span className='font-medium text-small'>{blockName}</span>
+            <BlockTile
+              blockType={firstOutput.blockType}
+              fallbackLabel={blockName.charAt(0).toUpperCase()}
+              size='sm'
+            />
+            <span className='text-small'>{blockName}</span>
           </div>
         ),
         items: outputs.map((output) => ({
@@ -299,19 +257,20 @@ export function OutputSelect({
       .filter((v): v is string => v !== null)
   }, [selectedOutputs, workflowOutputs, valueMode])
 
+  const Trigger = size === 'md' ? ChipCombobox : Combobox
+
   return (
-    <Combobox
-      size='sm'
-      className={cn('!py-0.5 w-fit min-w-[100px] rounded-md px-2.5', className)}
+    <Trigger
+      size={size}
+      className={cn('min-w-[100px]', size === 'sm' && '!py-0.5 w-fit rounded-md px-2.5', className)}
       groups={comboboxGroups}
       options={[]}
       multiSelect
       multiSelectValues={normalizedSelectedValues}
       onMultiSelectChange={onOutputSelect}
       placeholder={selectedDisplayText}
-      overlayContent={
-        <span className='truncate text-[var(--text-primary)]'>{selectedDisplayText}</span>
-      }
+      overlayLabel={selectedDisplayText}
+      overlayContent={selectedDisplayText}
       disabled={disabled || workflowOutputs.length === 0}
       align={align}
       maxHeight={maxHeight}

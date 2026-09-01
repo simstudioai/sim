@@ -1,5 +1,5 @@
 import type { OAuthService } from '@/lib/oauth/types'
-import type { SelectorKey } from '@/hooks/selectors/types'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 
 /**
  * Authentication configuration for a connector.
@@ -8,7 +8,18 @@ import type { SelectorKey } from '@/hooks/selectors/types'
  */
 export type ConnectorAuthConfig =
   | { mode: 'oauth'; provider: OAuthService; requiredScopes?: string[] }
-  | { mode: 'apiKey'; label?: string; placeholder?: string }
+  | {
+      mode: 'apiKey'
+      label?: string
+      placeholder?: string
+      /**
+       * When true, the key may be left blank — the source is reachable without
+       * authentication (e.g. a public documentation site). A blank key is
+       * stored as `null` rather than an encrypted empty string, and the
+       * connector receives an empty access token.
+       */
+      optional?: boolean
+    }
 
 /**
  * A single document fetched from an external source.
@@ -18,14 +29,38 @@ export interface ExternalDocument {
   externalId: string
   /** Document title / filename */
   title: string
-  /** Extracted text content */
+  /** Extracted text content. Empty when {@link ExternalDocument.sourceFile} carries the document instead. */
   content: string
   /** MIME type of the content */
   mimeType: string
+  /**
+   * The source file itself, for connectors that hand over the original document
+   * rather than text they extracted from it.
+   *
+   * Preferred for any format the knowledge base can parse. Extracting inside a
+   * connector strands the document on a second, weaker parser: the shared
+   * pipeline routes PDFs to OCR (so scanned pages are readable at all) and owns
+   * every other format's parser, while a connector doing its own extraction
+   * stores plain text that no longer declares what it came from.
+   *
+   * Carried as one object so the bytes can never disagree with the name and type
+   * that describe them.
+   */
+  sourceFile?: {
+    bytes: Buffer
+    /** Name whose extension names the format, e.g. `Report.pdf`. */
+    fileName: string
+    mimeType: string
+  }
   /** Link back to the original document */
   sourceUrl?: string
   /** Hash of content for change detection (format varies by connector) */
   contentHash: string
+  /**
+   * Connector-owned hash to persist for a skipped hydration that must be retried
+   * even when the source's listing metadata is unchanged.
+   */
+  skippedRetryContentHash?: string
   /** When true, content is empty and will be fetched via getDocument for new/changed docs only */
   contentDeferred?: boolean
   /**
@@ -35,6 +70,12 @@ export interface ExternalDocument {
    * being silently dropped.
    */
   skippedReason?: string
+  /**
+   * Controls what happens when a previously indexed document is intentionally
+   * skipped. The default retains its last-known-good content; `replace` removes
+   * stale indexed content and persists the skipped state as authoritative.
+   */
+  skippedExistingDisposition?: 'replace'
   /** Additional source-specific metadata */
   metadata?: Record<string, unknown>
 }
@@ -46,7 +87,25 @@ export interface ExternalDocumentList {
   documents: ExternalDocument[]
   nextCursor?: string
   hasMore: boolean
+  /**
+   * Whether absence from this listing is authoritative enough for deletion
+   * reconciliation. Defaults to true. Offset-based or otherwise unstable
+   * provider pagination must set this to false.
+   */
+  reconciliationSafe?: boolean
 }
+
+export const SYNC_SKIP_REASONS = [
+  'connector_unavailable',
+  'knowledge_base_deleted',
+  'connector_not_syncable',
+  'dispatch_superseded',
+  'sync_in_progress',
+  'sync_superseded',
+  'connector_deleted_during_sync',
+] as const
+
+export type SyncSkipReason = (typeof SYNC_SKIP_REASONS)[number]
 
 /**
  * Result of a sync operation.
@@ -56,7 +115,19 @@ export interface SyncResult {
   docsUpdated: number
   docsDeleted: number
   docsUnchanged: number
+  /** Source documents intentionally recorded without indexing, such as oversized files. */
+  docsSkipped: number
+  /** Source documents that failed during listing, hydration, or persistence. */
   docsFailed: number
+  /** Immediate hand-off outcome; eventual child results live on document rows and child runs. */
+  processingDispatch: {
+    requested: number
+    accepted: number
+    failed: number
+  }
+  /** Expected queue, lifecycle, or lock no-op. Never derived from error text. */
+  skipReason?: SyncSkipReason
+  /** Diagnostic for an actual failed sync. */
   error?: string
 }
 

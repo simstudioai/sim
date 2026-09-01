@@ -1,391 +1,160 @@
 /**
  * @vitest-environment node
- *
- * Function Execute Tool Unit Tests
- *
- * This file contains unit tests for the Function Execute tool,
- * which runs JavaScript code in a secure sandbox.
  */
-
-import { ToolTester } from '@sim/testing/builders'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
-import { functionExecuteTool } from '@/tools/function/execute'
+import {
+  MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+  PRIVATE_SECRET_PROVENANCE_FIELD,
+} from '@/lib/execution/private-tool-metadata'
+import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 
 describe('Function Execute Tool', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let tester: ToolTester<any, any>
-
-  beforeEach(() => {
-    tester = new ToolTester(functionExecuteTool as any)
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+  it('declares an in-process operation without HTTP-shaped configuration', () => {
+    expect(functionExecuteTool.operation).toBeDefined()
+    expect('request' in functionExecuteTool).toBe(false)
   })
 
-  afterEach(() => {
-    tester.cleanup()
-    vi.resetAllMocks()
-    process.env.NEXT_PUBLIC_APP_URL = undefined
-  })
-
-  describe('Request Construction', () => {
-    it.concurrent('should set correct URL for code execution', () => {
-      expect(tester.getRequestUrl({})).toBe('/api/function/execute')
-    })
-
-    it.concurrent('should include correct headers for JSON payload', () => {
-      const headers = tester.getRequestHeaders({
+  it('materializes the canonical operation input', () => {
+    expect(
+      functionExecuteTool.operation.input({
         code: 'return 42',
-      })
-
-      expect(headers['Content-Type']).toBe('application/json')
-    })
-
-    it.concurrent('should format single string code correctly', () => {
-      const body = tester.getRequestBody({
-        code: 'return 42',
-        envVars: {},
-        isCustomTool: false,
         timeout: 5000,
-        workflowId: undefined,
       })
-
-      expect(body).toEqual({
-        code: 'return 42',
-        envVars: {},
-        workflowVariables: {},
-        blockData: {},
-        blockNameMapping: {},
-        blockOutputSchemas: {},
-        contextVariables: {},
-        isCustomTool: false,
-        language: 'javascript',
-        outputFormat: undefined,
-        outputMimeType: undefined,
-        overwriteFileId: undefined,
-        outputPath: undefined,
-        outputSandboxPath: undefined,
-        outputTable: undefined,
-        title: undefined,
-        timeout: 5000,
-        workflowId: undefined,
-        executionId: undefined,
-        workspaceId: undefined,
-        userId: undefined,
-      })
-    })
-
-    it.concurrent('should format array of code blocks correctly', () => {
-      const body = tester.getRequestBody({
-        code: [
-          { content: 'const x = 40;', id: 'block1' },
-          { content: 'const y = 2;', id: 'block2' },
-          { content: 'return x + y;', id: 'block3' },
-        ],
-        envVars: {},
-        isCustomTool: false,
-        timeout: 10000,
-        workflowId: undefined,
-      })
-
-      expect(body).toEqual({
-        code: 'const x = 40;\nconst y = 2;\nreturn x + y;',
-        timeout: 10000,
-        envVars: {},
-        workflowVariables: {},
-        blockData: {},
-        blockNameMapping: {},
-        blockOutputSchemas: {},
-        contextVariables: {},
-        isCustomTool: false,
-        language: 'javascript',
-        outputFormat: undefined,
-        outputMimeType: undefined,
-        overwriteFileId: undefined,
-        outputPath: undefined,
-        outputSandboxPath: undefined,
-        outputTable: undefined,
-        title: undefined,
-        workflowId: undefined,
-        executionId: undefined,
-        workspaceId: undefined,
-        userId: undefined,
-      })
-    })
-
-    it.concurrent('should use default timeout and memory limit when not provided', () => {
-      const body = tester.getRequestBody({
-        code: 'return 42',
-      })
-
-      expect(body).toEqual({
-        code: 'return 42',
-        timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
-        envVars: {},
-        workflowVariables: {},
-        blockData: {},
-        blockNameMapping: {},
-        blockOutputSchemas: {},
-        contextVariables: {},
-        isCustomTool: false,
-        language: 'javascript',
-        outputFormat: undefined,
-        outputMimeType: undefined,
-        overwriteFileId: undefined,
-        outputPath: undefined,
-        outputSandboxPath: undefined,
-        outputTable: undefined,
-        title: undefined,
-        workflowId: undefined,
-        executionId: undefined,
-        workspaceId: undefined,
-        userId: undefined,
-      })
+    ).toEqual({
+      code: 'return 42',
+      language: 'javascript',
+      timeout: 5000,
+      title: undefined,
+      outputPath: undefined,
+      outputFormat: undefined,
+      outputTable: undefined,
+      outputSandboxPath: undefined,
+      outputMimeType: undefined,
+      sandboxId: undefined,
+      secretScope: undefined,
+      mountedSecrets: undefined,
+      unredactedSecretNames: undefined,
+      overwriteFileId: undefined,
+      inputs: undefined,
+      outputs: undefined,
+      envVars: {},
+      workflowVariables: {},
+      blockData: {},
+      blockNameMapping: {},
+      blockOutputSchemas: {},
+      contextVariables: {},
+      workflowId: undefined,
+      executionId: undefined,
+      largeValueExecutionIds: undefined,
+      largeValueKeys: undefined,
+      fileKeys: undefined,
+      allowLargeValueWorkflowScope: undefined,
+      userId: undefined,
+      workspaceId: undefined,
+      isCustomTool: false,
     })
   })
 
-  describe('Response Handling', () => {
-    it.concurrent('should process successful code execution response', async () => {
-      tester.setup({
+  it('joins serialized code blocks and applies the default timeout', () => {
+    const body = buildFunctionExecuteBody({
+      code: [
+        { content: 'const x = 40;', id: 'block1' },
+        { content: 'return x + 2;', id: 'block2' },
+      ],
+    })
+
+    expect(body.code).toBe('const x = 40;\nreturn x + 2;')
+    expect(body.timeout).toBe(DEFAULT_EXECUTION_TIMEOUT_MS)
+  })
+
+  it('preserves reference context and large-value authorization', () => {
+    const body = buildFunctionExecuteBody({
+      code: 'return contextVariables.previous.result',
+      contextVariables: { previous: { result: 42 } },
+      _context: {
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        largeValueExecutionIds: ['execution-parent'],
+        largeValueKeys: ['large-value-key'],
+        fileKeys: ['file-key'],
+        allowLargeValueWorkflowScope: true,
+      },
+    })
+
+    expect(body).toMatchObject({
+      contextVariables: { previous: { result: 42 } },
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      largeValueExecutionIds: ['execution-parent'],
+      largeValueKeys: ['large-value-key'],
+      fileKeys: ['file-key'],
+      allowLargeValueWorkflowScope: true,
+    })
+  })
+
+  it('keeps mounted-file provenance inside the private operation envelope', () => {
+    const bundle = {
+      version: 1 as const,
+      complete: true,
+      selections: [
+        {
+          key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+          provenance: {
+            version: 1 as const,
+            complete: true,
+            entries: [{ encryptedValue: 'encrypted-secret' }],
+          },
+        },
+      ],
+    }
+    const body = buildFunctionExecuteBody({
+      code: 'return 42',
+      [PRIVATE_SECRET_PROVENANCE_FIELD]: bundle,
+    })
+
+    expect(body[PRIVATE_SECRET_PROVENANCE_FIELD]).toEqual(bundle)
+    expect(JSON.stringify(body)).not.toContain('plaintext')
+  })
+
+  it('preserves sandbox cost in a successful Function result', async () => {
+    const cost = { input: 0, output: 0, total: 0.00012345 }
+    const result = await functionExecuteTool.transformResponse?.(
+      Response.json({
         success: true,
-        output: {
-          result: 42,
-          stdout: 'console.log output',
-        },
-      })
+        output: { result: 42, stdout: 'done', cost },
+      }),
+      { code: 'return 42' }
+    )
 
-      const result = await tester.execute({
-        code: 'console.log("output"); return 42;',
-      })
-
-      expect(result.success).toBe(true)
-      expect(result.output.result).toBe(42)
-      expect(result.output.stdout).toBe('console.log output')
-    })
-
-    it.concurrent('should handle execution errors', async () => {
-      tester.setup(
-        {
-          success: false,
-          error: 'Syntax error in code',
-        },
-        { ok: false, status: 400 }
-      )
-
-      const result = await tester.execute({
-        code: 'invalid javascript code!!!',
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBeDefined()
-      expect(result.error).toBe('Syntax error in code')
-    })
-
-    it.concurrent('should handle timeout errors', async () => {
-      tester.setup(
-        {
-          success: false,
-          error: 'Code execution timed out',
-        },
-        { ok: false, status: 408 }
-      )
-
-      const result = await tester.execute({
-        code: 'while(true) {}',
-        timeout: 1000,
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('Code execution timed out')
+    expect(result).toMatchObject({
+      success: true,
+      output: { result: 42, stdout: 'done', cost },
     })
   })
 
-  describe('Error Handling', () => {
-    it.concurrent('should handle syntax error with line content', async () => {
-      tester.setup(
+  it('preserves sandbox cost in a failed Function result', async () => {
+    const cost = { input: 0, output: 0, total: 0.00012345 }
+    const result = await functionExecuteTool.transformResponse?.(
+      Response.json(
         {
           success: false,
-          error:
-            'Syntax Error: Line 3: `description: "This has a missing closing quote` - Invalid or unexpected token (Check for missing quotes, brackets, or semicolons)',
-          output: {
-            result: null,
-            stdout: '',
-            executionTime: 5,
-          },
-          debug: {
-            line: 3,
-            column: undefined,
-            errorType: 'SyntaxError',
-            lineContent: 'description: "This has a missing closing quote',
-            stack: 'user-function.js:5\n      description: "This has a missing closing quote\n...',
-          },
+          error: 'boom',
+          output: { result: null, stdout: 'trace', cost },
         },
-        { ok: false, status: 500 }
-      )
+        { status: 422 }
+      ),
+      { code: 'throw new Error("boom")' }
+    )
 
-      const result = await tester.execute({
-        code: 'const obj = {\n  name: "test",\n  description: "This has a missing closing quote\n};\nreturn obj;',
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('Syntax Error')
-      expect(result.error).toContain('Line 3')
-      expect(result.error).toContain('description: "This has a missing closing quote')
-      expect(result.error).toContain('Invalid or unexpected token')
-      expect(result.error).toContain('(Check for missing quotes, brackets, or semicolons)')
-    })
-
-    it.concurrent('should handle runtime error with line and column', async () => {
-      tester.setup(
-        {
-          success: false,
-          error:
-            "Type Error: Line 2:16: `return obj.someMethod();` - Cannot read properties of null (reading 'someMethod')",
-          output: {
-            result: null,
-            stdout: 'ERROR: {}\n',
-            executionTime: 12,
-          },
-          debug: {
-            line: 2,
-            column: 16,
-            errorType: 'TypeError',
-            lineContent: 'return obj.someMethod();',
-            stack: 'TypeError: Cannot read properties of null...',
-          },
-        },
-        { ok: false, status: 500 }
-      )
-
-      const result = await tester.execute({
-        code: 'const obj = null;\nreturn obj.someMethod();',
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('Type Error')
-      expect(result.error).toContain('Line 2:16')
-      expect(result.error).toContain('return obj.someMethod();')
-      expect(result.error).toContain('Cannot read properties of null')
-    })
-
-    it.concurrent('should handle error information in tool response', async () => {
-      tester.setup(
-        {
-          success: false,
-          error: 'Reference Error: Line 1: `return undefinedVar` - undefinedVar is not defined',
-          output: {
-            result: null,
-            stdout: '',
-            executionTime: 3,
-          },
-          debug: {
-            line: 1,
-            column: 7,
-            errorType: 'ReferenceError',
-            lineContent: 'return undefinedVar',
-            stack: 'ReferenceError: undefinedVar is not defined...',
-          },
-        },
-        { ok: false, status: 500 }
-      )
-
-      const result = await tester.execute({
-        code: 'return undefinedVar',
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe(
-        'Reference Error: Line 1: `return undefinedVar` - undefinedVar is not defined'
-      )
-    })
-
-    it.concurrent('should preserve debug information in error object', async () => {
-      tester.setup(
-        {
-          success: false,
-          error: 'Syntax Error: Line 2 - Invalid syntax',
-          debug: {
-            line: 2,
-            column: 5,
-            errorType: 'SyntaxError',
-            lineContent: 'invalid syntax here',
-            stack: 'SyntaxError: Invalid syntax...',
-          },
-        },
-        { ok: false, status: 500 }
-      )
-
-      const result = await tester.execute({
-        code: 'valid line\ninvalid syntax here',
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('Syntax Error: Line 2 - Invalid syntax')
-    })
-
-    it.concurrent('should handle enhanced error without line information', async () => {
-      tester.setup(
-        {
-          success: false,
-          error: 'Generic error message',
-          debug: {
-            errorType: 'Error',
-            stack: 'Error: Generic error message...',
-          },
-        },
-        { ok: false, status: 500 }
-      )
-
-      const result = await tester.execute({
-        code: 'return "test";',
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('Generic error message')
-    })
-
-    it.concurrent('should provide line-specific error message when available', async () => {
-      tester.setup(
-        {
-          success: false,
-          error:
-            'Type Error: Line 5:20: `obj.nonExistentMethod()` - obj.nonExistentMethod is not a function',
-          debug: {
-            line: 5,
-            column: 20,
-            errorType: 'TypeError',
-            lineContent: 'obj.nonExistentMethod()',
-          },
-        },
-        { ok: false, status: 500 }
-      )
-
-      const result = await tester.execute({
-        code: 'const obj = {};\nobj.nonExistentMethod();',
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('Line 5:20')
-      expect(result.error).toContain('obj.nonExistentMethod()')
-    })
-  })
-
-  describe('Edge Cases', () => {
-    it.concurrent('should handle empty code input', async () => {
-      await tester.execute({
-        code: '',
-      })
-
-      const body = tester.getRequestBody({ code: '' }) as { code: string }
-      expect(body.code).toBe('')
-    })
-
-    it.concurrent('should handle extremely short timeout', async () => {
-      const body = tester.getRequestBody({
-        code: 'return 42',
-        timeout: 1,
-      }) as { timeout: number }
-
-      expect(body.timeout).toBe(1)
+    expect(result).toMatchObject({
+      success: false,
+      output: { result: null, stdout: 'trace', cost },
+      error: 'boom',
     })
   })
 })

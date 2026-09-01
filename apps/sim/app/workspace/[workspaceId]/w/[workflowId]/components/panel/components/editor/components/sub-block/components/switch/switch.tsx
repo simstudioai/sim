@@ -22,7 +22,7 @@ export function Switch({
 }: SwitchProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<boolean>(blockId, subBlockId)
 
-  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+  const value = isPreview ? previewValue : (storeValue ?? propValue)
 
   const handleChange = (checked: boolean) => {
     if (!isPreview && !disabled) {
@@ -40,7 +40,7 @@ export function Switch({
       />
       <Label
         htmlFor={`${blockId}-${subBlockId}`}
-        className='cursor-pointer font-medium font-sans text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
+        className='cursor-pointer font-sans text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
       >
         {title}
       </Label>

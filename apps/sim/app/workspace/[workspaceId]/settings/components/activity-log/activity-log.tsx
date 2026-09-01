@@ -2,7 +2,7 @@
 
 import { type ReactNode, useState } from 'react'
 import { cn } from '@sim/emcn'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown } from '@sim/emcn/icons'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
 
 /**
@@ -17,6 +17,12 @@ export interface ActivityLogEntry {
   description: ReactNode
   actor: ReactNode
   details?: ReactNode
+  /**
+   * Row action (typically a `Chip`/`ChipLink`) in a trailing column after every
+   * data column. The column appears as soon as any entry supplies one, and the
+   * header reserves the same width so the Actor column stays aligned.
+   */
+  trailing?: ReactNode
 }
 
 /**
@@ -32,14 +38,19 @@ const EVENT_COLUMN_WIDTH_CLASS = {
 
 type EventColumnWidth = keyof typeof EVENT_COLUMN_WIDTH_CLASS
 
+/** Trailing row-action column, wide enough for a chip without wrapping its label. */
+const TRAILING_COLUMN_WIDTH_CLASS = 'w-[100px]'
+
 const ROW_CLASS = 'flex w-full items-center gap-3 px-3 py-2 text-left'
 
 function ActivityLogRow({
   entry,
   eventColumn,
+  hasTrailingColumn,
 }: {
   entry: ActivityLogEntry
   eventColumn: EventColumnWidth
+  hasTrailingColumn: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const expandable = entry.details != null
@@ -54,14 +65,14 @@ function ActivityLogRow({
       </span>
       <span className='min-w-0 flex-1 text-[var(--text-primary)] text-small'>
         {typeof entry.description === 'string' ? (
-          <FloatingOverflowText label={entry.description} className='block truncate' />
+          <FloatingOverflowText label={entry.description} className='block' />
         ) : (
           entry.description
         )}
       </span>
       <span className='flex w-[160px] flex-shrink-0 items-center justify-end gap-1.5 text-[var(--text-secondary)] text-small'>
         {typeof entry.actor === 'string' ? (
-          <FloatingOverflowText label={entry.actor} className='block min-w-0 truncate' />
+          <FloatingOverflowText label={entry.actor} className='block' />
         ) : (
           <span className='min-w-0 truncate'>{entry.actor}</span>
         )}
@@ -85,21 +96,40 @@ function ActivityLogRow({
         expanded && 'bg-[var(--surface-2)]'
       )}
     >
-      {expandable ? (
-        <button
-          type='button'
-          aria-expanded={expanded}
-          className={ROW_CLASS}
-          onClick={() => setExpanded(!expanded)}
-        >
-          {cells}
-        </button>
-      ) : (
-        // A row with nothing to expand is inert content, not a disabled control:
-        // browsers suppress pointer events over a disabled button AND its
-        // descendants, which would swallow the hover tooltips inside the cells.
-        <div className={ROW_CLASS}>{cells}</div>
-      )}
+      {/*
+        The trailing action is a SIBLING of the expand button, never a child: a link
+        or button nested inside another button is invalid, and the inner control's
+        click would toggle the row on its way up.
+      */}
+      <div className={cn('flex items-center', hasTrailingColumn && 'gap-3 pr-3')}>
+        {expandable ? (
+          <button
+            type='button'
+            aria-expanded={expanded}
+            className={cn(ROW_CLASS, 'min-w-0 flex-1', hasTrailingColumn && 'pr-0')}
+            onClick={() => setExpanded(!expanded)}
+          >
+            {cells}
+          </button>
+        ) : (
+          // A row with nothing to expand is inert content, not a disabled control:
+          // browsers suppress pointer events over a disabled button AND its
+          // descendants, which would swallow the hover tooltips inside the cells.
+          <div className={cn(ROW_CLASS, 'min-w-0 flex-1', hasTrailingColumn && 'pr-0')}>
+            {cells}
+          </div>
+        )}
+        {hasTrailingColumn && (
+          <span
+            className={cn(
+              TRAILING_COLUMN_WIDTH_CLASS,
+              'flex flex-shrink-0 items-center justify-end'
+            )}
+          >
+            {entry.trailing}
+          </span>
+        )}
+      </div>
       {expandable && expanded && (
         <div className='px-3 pb-2'>
           <div className='flex flex-col gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)] p-3 text-small'>
@@ -140,6 +170,8 @@ export function ActivityLog({
   emptyState,
   footer,
 }: ActivityLogProps) {
+  const hasTrailingColumn = entries.some((entry) => entry.trailing != null)
+
   return (
     <div className='flex flex-col'>
       <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
@@ -149,6 +181,11 @@ export function ActivityLog({
         </span>
         <span className='min-w-0 flex-1'>{descriptionLabel}</span>
         <span className='w-[160px] flex-shrink-0 text-right'>Actor</span>
+        {/* Row actions carry no header, but the column must still be reserved
+            here or every label above would sit left of the data below it. */}
+        {hasTrailingColumn && (
+          <span className={cn(TRAILING_COLUMN_WIDTH_CLASS, 'flex-shrink-0')} aria-hidden />
+        )}
       </div>
 
       {entries.length === 0 ? (
@@ -156,7 +193,12 @@ export function ActivityLog({
       ) : (
         <div className='flex flex-col gap-0.5'>
           {entries.map((entry) => (
-            <ActivityLogRow key={entry.id} entry={entry} eventColumn={eventColumn} />
+            <ActivityLogRow
+              key={entry.id}
+              entry={entry}
+              eventColumn={eventColumn}
+              hasTrailingColumn={hasTrailingColumn}
+            />
           ))}
           {footer}
         </div>

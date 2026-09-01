@@ -107,13 +107,13 @@ describe('domain-verification helpers', () => {
 
     it('verifies when the exact value is published', async () => {
       mockResolveTxt.mockResolvedValue([[EXPECTED]])
-      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe(true)
+      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe('present')
     })
 
     it('joins a value split across 255-char chunks before comparing', async () => {
       const midpoint = Math.floor(EXPECTED.length / 2)
       mockResolveTxt.mockResolvedValue([[EXPECTED.slice(0, midpoint), EXPECTED.slice(midpoint)]])
-      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe(true)
+      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe('present')
     })
 
     it('finds the match among unrelated TXT records on the same host', async () => {
@@ -122,37 +122,41 @@ describe('domain-verification helpers', () => {
         ['facebook-domain-verification=abc123'],
         [EXPECTED],
       ])
-      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe(true)
+      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe('present')
     })
 
     it('tolerates padding a DNS panel added around the value', async () => {
       mockResolveTxt.mockResolvedValue([[`  ${EXPECTED}  `]])
-      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe(true)
+      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe('present')
     })
 
     it('rejects a near-miss value (no partial or prefix match)', async () => {
       mockResolveTxt.mockResolvedValue([[`${EXPECTED}extra`], [EXPECTED.slice(0, -1)]])
-      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe(false)
+      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe('absent')
     })
 
     it('rejects another org token published on the same host', async () => {
       mockResolveTxt.mockResolvedValue([[buildTxtRecordValue('someone-elses-token')]])
-      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe(false)
+      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe('absent')
     })
 
-    it('returns false (never throws) when the record is absent', async () => {
+    it('reports absent (never throws) when the record is not published', async () => {
       mockResolveTxt.mockRejectedValue(Object.assign(new Error('no data'), { code: 'ENODATA' }))
-      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe(false)
+      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe('absent')
     })
 
-    it('returns false (never throws) when resolution fails for an infrastructure reason', async () => {
+    /**
+     * Distinct from `absent`: our resolver failed, so we learned nothing about the
+     * admin's DNS and must not tell them their record is missing.
+     */
+    it('reports unavailable when resolution fails for an infrastructure reason', async () => {
       mockResolveTxt.mockRejectedValue(Object.assign(new Error('timeout'), { code: 'ETIMEOUT' }))
-      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe(false)
+      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe('unavailable')
     })
 
-    it('returns false when the host has no TXT records at all', async () => {
+    it('reports absent when the host has no TXT records at all', async () => {
       mockResolveTxt.mockResolvedValue([])
-      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe(false)
+      await expect(checkDomainTxtRecord('acme.com', TOKEN)).resolves.toBe('absent')
     })
   })
 })

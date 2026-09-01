@@ -1,331 +1,275 @@
 /**
  * @vitest-environment node
  */
-import {
-  createMockRequest,
-  dbChainMockFns,
-  resetDbChainMock,
-  resetEnvMock,
-  setEnv,
-} from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { InsufficientWorkspacePermissionsError } from '@/lib/core/application/workspace-authorization'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
 
-const {
-  mockGetSession,
-  mockOAuth2LinkAccount,
-  mockCheckWorkspaceAccess,
-  mockGetCredentialActorContext,
-} = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockOAuth2LinkAccount: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockGetCredentialActorContext: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  linkAccount: vi.fn(),
+  getBaseUrl: vi.fn(),
+  requireClient: vi.fn(),
+  createConnection: vi.fn(),
+  getPerRequestScopes: vi.fn(),
+  launchConnection: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/auth', () => ({
-  auth: { api: { oAuth2LinkAccount: mockOAuth2LinkAccount } },
-  getSession: mockGetSession,
+  getSession: mocks.getSession,
+  auth: { api: { oAuth2LinkAccount: mocks.linkAccount } },
 }))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
+vi.mock('@/lib/core/utils/urls', () => ({
+  SITE_URL: 'https://www.sim.ai',
+  getBaseUrl: mocks.getBaseUrl,
 }))
-
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mockGetCredentialActorContext,
+vi.mock('@/lib/core/config/env-capabilities.server', () => ({
+  requireConfiguredOAuthClient: mocks.requireClient,
+  wireServerFallback: () => ({
+    configured: false,
+    providerIds: [],
+    providers: [],
+    execute: vi.fn(),
+  }),
 }))
-
+vi.mock('@/lib/credentials/application/create-credential-connection', () => ({
+  createCredentialConnection: {
+    operation: { id: 'credentials.connections.create' },
+    execute: mocks.createConnection,
+  },
+}))
+vi.mock('@/lib/credentials/application/launch-credential-connection', () => ({
+  launchCredentialConnection: {
+    operation: { id: 'credentials.connections.launch' },
+    execute: mocks.launchConnection,
+  },
+}))
 vi.mock('@/lib/oauth/utils', () => ({
-  getAllOAuthServices: vi.fn(() => [{ providerId: 'google-email', name: 'Gmail' }]),
+  getPerRequestOAuthLinkScopes: mocks.getPerRequestScopes,
 }))
 
 import { GET } from '@/app/api/auth/oauth2/authorize/route'
 
 const BASE_URL = 'https://sim.test'
-const WORKSPACE_ID = 'ws-1'
-const USER_ID = 'user-1'
-const CREDENTIAL_ID = 'cred-1'
-const LINK_URL = 'https://provider.example/authorize?state=abc'
+const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 
-function authorizeRequest(query: Record<string, string>) {
-  const url = new URL(`${BASE_URL}/api/auth/oauth2/authorize`)
-  for (const [key, value] of Object.entries(query)) {
-    url.searchParams.set(key, value)
-  }
+function request(query: Record<string, string>) {
+  const url = new URL('/api/auth/oauth2/authorize', BASE_URL)
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
   return createMockRequest('GET', undefined, {}, url.toString())
 }
 
-function oauthCredentialActor(overrides: Record<string, unknown> = {}) {
-  return {
-    credential: {
-      id: CREDENTIAL_ID,
-      workspaceId: WORKSPACE_ID,
-      type: 'oauth',
-      providerId: 'google-email',
-      displayName: 'Work Gmail',
-      ...((overrides.credential as Record<string, unknown>) ?? {}),
-    },
-    member: null,
-    hasWorkspaceAccess: true,
-    canWriteWorkspace: true,
-    isAdmin: true,
-    ...Object.fromEntries(Object.entries(overrides).filter(([key]) => key !== 'credential')),
-  }
+function linkResponse(url = 'https://provider.example/authorize') {
+  return new Response(JSON.stringify({ url }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
 }
 
 describe('OAuth2 authorize route', () => {
-  afterAll(() => {
-    resetEnvMock()
-  })
-
   beforeEach(() => {
     vi.clearAllMocks()
-    resetDbChainMock()
-    setEnv({ NEXT_PUBLIC_APP_URL: BASE_URL })
-    mockGetSession.mockResolvedValue({ user: { id: USER_ID } })
-    mockCheckWorkspaceAccess.mockResolvedValue({
-      hasAccess: true,
-      canWrite: true,
-      canAdmin: false,
-      workspace: { id: WORKSPACE_ID },
+    mocks.getBaseUrl.mockReturnValue(BASE_URL)
+    mocks.getSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
     })
-    mockOAuth2LinkAccount.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ url: LINK_URL }),
-      headers: { getSetCookie: () => ['better-auth.state=xyz; Path=/'] },
+    mocks.createConnection.mockResolvedValue({
+      providerId: 'google-email',
+      workspaceId: WORKSPACE_ID,
+      draftId: 'draft-1',
+      expiresAt: new Date('2026-08-14T12:00:00.000Z'),
+      authorizationUrl: `${BASE_URL}/api/auth/oauth2/authorize?draftId=draft-1`,
     })
+    mocks.launchConnection.mockResolvedValue({
+      draft: {
+        id: 'draft-1',
+        providerId: 'google-email',
+        workspaceId: WORKSPACE_ID,
+        credentialId: null,
+      },
+    })
+    mocks.linkAccount.mockResolvedValue(linkResponse())
+    mocks.getPerRequestScopes.mockReturnValue(undefined)
   })
 
-  describe('plain connect (no credentialId)', () => {
-    it('creates a draft with credentialId null and redirects to the provider', async () => {
-      const response = await GET(
-        authorizeRequest({ providerId: 'google-email', workspaceId: WORKSPACE_ID })
-      )
+  it('creates a canonical application draft for a legacy connect URL', async () => {
+    const response = await GET(request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
 
-      expect(response.headers.get('location')).toBe(LINK_URL)
-      expect(mockGetCredentialActorContext).not.toHaveBeenCalled()
-      expect(dbChainMockFns.values).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: USER_ID,
-          workspaceId: WORKSPACE_ID,
-          providerId: 'google-email',
-          credentialId: null,
-        })
-      )
-      expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          set: expect.objectContaining({ credentialId: null }),
-        })
-      )
-    })
-
-    it('numbers the draft display name when the default collides with an existing credential', async () => {
-      dbChainMockFns.where
-        .mockImplementationOnce(() => Promise.resolve([{ name: 'Justin' }]))
-        .mockImplementationOnce(() => Promise.resolve([{ displayName: "Justin's Gmail" }]))
-
-      await GET(authorizeRequest({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
-
-      expect(dbChainMockFns.values).toHaveBeenCalledWith(
-        expect.objectContaining({ displayName: "Justin's Gmail 2" })
-      )
-    })
-
-    it('nulls out credentialId in the upsert set so a stale reconnect draft cannot leak into a plain connect', async () => {
-      await GET(authorizeRequest({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
-
-      const [{ set }] = dbChainMockFns.onConflictDoUpdate.mock.calls[0]
-      expect(set).toHaveProperty('credentialId', null)
-    })
-
-    it('redirects to login when unauthenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
-
-      const response = await GET(
-        authorizeRequest({ providerId: 'google-email', workspaceId: WORKSPACE_ID })
-      )
-
-      expect(response.headers.get('location')).toContain('/login')
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
-    })
-
-    it('rejects without workspace write access', async () => {
-      mockCheckWorkspaceAccess.mockResolvedValue({
-        hasAccess: true,
-        canWrite: false,
-        canAdmin: false,
-        workspace: { id: WORKSPACE_ID },
+    expect(response.headers.get('location')).toBe('https://provider.example/authorize')
+    expect(mocks.createConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: WORKSPACE_ID, providerId: 'google-email' },
       })
-
-      const response = await GET(
-        authorizeRequest({ providerId: 'google-email', workspaceId: WORKSPACE_ID })
-      )
-
-      expect(response.headers.get('location')).toBe(
-        `${BASE_URL}/workspace?error=workspace_access_denied`
-      )
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
-      expect(mockOAuth2LinkAccount).not.toHaveBeenCalled()
-    })
+    )
+    expect(mocks.linkAccount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          providerId: 'google-email',
+          callbackURL: expect.stringContaining('credentialDraftId=draft-1'),
+        }),
+      })
+    )
   })
 
-  describe('reconnect (credentialId present)', () => {
-    it('creates a reconnect draft carrying credentialId in values and upsert set', async () => {
-      mockGetCredentialActorContext.mockResolvedValue(oauthCredentialActor())
-
-      const response = await GET(
-        authorizeRequest({
-          providerId: 'google-email',
-          workspaceId: WORKSPACE_ID,
-          credentialId: CREDENTIAL_ID,
-        })
-      )
-
-      expect(response.headers.get('location')).toBe(LINK_URL)
-      expect(mockGetCredentialActorContext).toHaveBeenCalledWith(
-        CREDENTIAL_ID,
-        USER_ID,
-        expect.objectContaining({ workspaceAccess: expect.anything() })
-      )
-      expect(dbChainMockFns.values).toHaveBeenCalledWith(
-        expect.objectContaining({ credentialId: CREDENTIAL_ID })
-      )
-      expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          set: expect.objectContaining({ credentialId: CREDENTIAL_ID }),
-        })
-      )
+  it('requires a configured OAuth client before creating a legacy draft', async () => {
+    mocks.requireClient.mockImplementationOnce(() => {
+      throw new Error('OAuth client is not configured')
     })
 
-    it("uses the credential's actual display name for the reconnect draft (audit accuracy)", async () => {
-      mockGetCredentialActorContext.mockResolvedValue(
-        oauthCredentialActor({ credential: { displayName: 'Renamed By User' } })
-      )
+    const response = await GET(request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
 
-      await GET(
-        authorizeRequest({
-          providerId: 'google-email',
-          workspaceId: WORKSPACE_ID,
-          credentialId: CREDENTIAL_ID,
-        })
-      )
+    expect(response.headers.get('location')).toBe(`${BASE_URL}/workspace?error=oauth_link_failed`)
+    expect(mocks.requireClient).toHaveBeenCalledWith('google-email')
+    expect(mocks.createConnection).not.toHaveBeenCalled()
+  })
 
-      expect(dbChainMockFns.values).toHaveBeenCalledWith(
-        expect.objectContaining({ displayName: 'Renamed By User' })
-      )
+  it('passes per-request scopes to providers that cannot inherit static connector scopes', async () => {
+    const scopes = ['openid', 'https://dynamics.microsoft.com/user_impersonation']
+    mocks.getPerRequestScopes.mockReturnValue(scopes)
+    mocks.createConnection.mockResolvedValue({
+      providerId: 'microsoft-dataverse',
+      workspaceId: WORKSPACE_ID,
+      draftId: 'draft-1',
+      expiresAt: new Date(),
+      authorizationUrl: '',
     })
 
-    it('rejects reconnect for custom-flow providers (trello/shopify) and writes no draft', async () => {
-      for (const providerId of ['trello', 'shopify']) {
-        const response = await GET(
-          authorizeRequest({ providerId, workspaceId: WORKSPACE_ID, credentialId: CREDENTIAL_ID })
-        )
+    await GET(request({ providerId: 'microsoft-dataverse', workspaceId: WORKSPACE_ID }))
 
-        expect(response.headers.get('location')).toBe(
-          `${BASE_URL}/workspace?error=credential_reconnect_unsupported`
-        )
-      }
-      expect(mockGetCredentialActorContext).not.toHaveBeenCalled()
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
-      expect(mockOAuth2LinkAccount).not.toHaveBeenCalled()
-    })
-
-    it('rejects when the caller is not a credential admin and writes no draft', async () => {
-      mockGetCredentialActorContext.mockResolvedValue(oauthCredentialActor({ isAdmin: false }))
-
-      const response = await GET(
-        authorizeRequest({
-          providerId: 'google-email',
-          workspaceId: WORKSPACE_ID,
-          credentialId: CREDENTIAL_ID,
-        })
-      )
-
-      expect(response.headers.get('location')).toBe(
-        `${BASE_URL}/workspace?error=credential_access_denied`
-      )
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
-      expect(mockOAuth2LinkAccount).not.toHaveBeenCalled()
-    })
-
-    it('rejects when the credential belongs to a different workspace', async () => {
-      mockGetCredentialActorContext.mockResolvedValue(
-        oauthCredentialActor({ credential: { workspaceId: 'ws-other' } })
-      )
-
-      const response = await GET(
-        authorizeRequest({
-          providerId: 'google-email',
-          workspaceId: WORKSPACE_ID,
-          credentialId: CREDENTIAL_ID,
-        })
-      )
-
-      expect(response.headers.get('location')).toBe(
-        `${BASE_URL}/workspace?error=credential_access_denied`
-      )
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
-    })
-
-    it('rejects when the credential does not exist', async () => {
-      mockGetCredentialActorContext.mockResolvedValue({
-        credential: null,
-        member: null,
-        hasWorkspaceAccess: false,
-        canWriteWorkspace: false,
-        isAdmin: false,
+    expect(mocks.linkAccount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          providerId: 'microsoft-dataverse',
+          scopes,
+        }),
       })
+    )
+  })
 
-      const response = await GET(
-        authorizeRequest({
-          providerId: 'google-email',
-          workspaceId: WORKSPACE_ID,
-          credentialId: 'cred-missing',
-        })
-      )
+  it('launches an exact draft without creating another one', async () => {
+    const response = await GET(request({ draftId: 'draft-1' }))
 
-      expect(response.headers.get('location')).toBe(
-        `${BASE_URL}/workspace?error=credential_access_denied`
-      )
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    expect(response.headers.get('location')).toBe('https://provider.example/authorize')
+    expect(mocks.launchConnection).toHaveBeenCalledWith(
+      expect.objectContaining({ input: { draftId: 'draft-1' } })
+    )
+    expect(mocks.createConnection).not.toHaveBeenCalled()
+  })
+
+  it('passes reconnect provider assertions through the application use case', async () => {
+    mocks.createConnection.mockResolvedValue({
+      providerId: 'google-email',
+      workspaceId: WORKSPACE_ID,
+      credentialId: 'credential-1',
+      draftId: 'draft-1',
+      expiresAt: new Date(),
+      authorizationUrl: '',
     })
 
-    it('rejects a non-oauth credential', async () => {
-      mockGetCredentialActorContext.mockResolvedValue(
-        oauthCredentialActor({ credential: { type: 'env_workspace' } })
-      )
+    await GET(
+      request({
+        providerId: 'google-email',
+        workspaceId: WORKSPACE_ID,
+        credentialId: 'credential-1',
+      })
+    )
 
-      const response = await GET(
-        authorizeRequest({
-          providerId: 'google-email',
+    expect(mocks.createConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: {
           workspaceId: WORKSPACE_ID,
-          credentialId: CREDENTIAL_ID,
-        })
-      )
+          credentialId: 'credential-1',
+          assertedProviderId: 'google-email',
+        },
+      })
+    )
+  })
 
-      expect(response.headers.get('location')).toBe(
-        `${BASE_URL}/workspace?error=credential_access_denied`
+  it('maps a provider mismatch without exposing the credential', async () => {
+    mocks.createConnection.mockRejectedValue(
+      new CredentialConnectionProviderMismatchError('google-email', 'slack')
+    )
+
+    const response = await GET(
+      request({
+        providerId: 'slack',
+        workspaceId: WORKSPACE_ID,
+        credentialId: 'credential-1',
+      })
+    )
+
+    expect(response.headers.get('location')).toBe(
+      `${BASE_URL}/workspace?error=credential_provider_mismatch`
+    )
+  })
+
+  it('maps credential and workspace authorization failures separately', async () => {
+    mocks.createConnection.mockRejectedValueOnce(
+      new ForbiddenOperationError(
+        'CREDENTIAL_ADMIN_ACCESS_REQUIRED',
+        'Credential admin permission required'
       )
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    )
+    const credentialResponse = await GET(
+      request({
+        providerId: 'google-email',
+        workspaceId: WORKSPACE_ID,
+        credentialId: 'credential-1',
+      })
+    )
+    mocks.createConnection.mockRejectedValueOnce(
+      new OrchestrationError('forbidden', 'Write permission required')
+    )
+    const workspaceResponse = await GET(
+      request({ providerId: 'google-email', workspaceId: WORKSPACE_ID })
+    )
+
+    expect(credentialResponse.headers.get('location')).toContain('credential_access_denied')
+    expect(workspaceResponse.headers.get('location')).toContain('workspace_access_denied')
+  })
+
+  it('keeps a reconnect workspace-role denial classified as workspace access', async () => {
+    mocks.createConnection.mockRejectedValue(new InsufficientWorkspacePermissionsError())
+
+    const response = await GET(
+      request({
+        providerId: 'google-email',
+        workspaceId: WORKSPACE_ID,
+        credentialId: 'credential-1',
+      })
+    )
+
+    expect(response.headers.get('location')).toBe(
+      `${BASE_URL}/workspace?error=workspace_access_denied`
+    )
+  })
+
+  it('redirects a draft launch infrastructure failure through the browser error contract', async () => {
+    mocks.launchConnection.mockRejectedValue(new Error('Database unavailable'))
+
+    const response = await GET(request({ draftId: 'draft-1' }))
+
+    expect(response.headers.get('location')).toBe(`${BASE_URL}/workspace?error=oauth_link_failed`)
+  })
+
+  it('routes custom providers through the exact application draft', async () => {
+    mocks.createConnection.mockResolvedValue({
+      providerId: 'trello',
+      workspaceId: WORKSPACE_ID,
+      draftId: 'draft-1',
+      expiresAt: new Date(),
+      authorizationUrl: '',
     })
 
-    it('rejects when the query providerId does not match the credential provider', async () => {
-      mockGetCredentialActorContext.mockResolvedValue(oauthCredentialActor())
+    const response = await GET(request({ providerId: 'trello', workspaceId: WORKSPACE_ID }))
+    const location = new URL(response.headers.get('location') ?? '')
 
-      const response = await GET(
-        authorizeRequest({
-          providerId: 'slack',
-          workspaceId: WORKSPACE_ID,
-          credentialId: CREDENTIAL_ID,
-        })
-      )
-
-      expect(response.headers.get('location')).toBe(
-        `${BASE_URL}/workspace?error=credential_provider_mismatch`
-      )
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
-      expect(mockOAuth2LinkAccount).not.toHaveBeenCalled()
-    })
+    expect(location.pathname).toBe('/api/auth/trello/authorize')
+    expect(location.searchParams.get('draftId')).toBe('draft-1')
   })
 })

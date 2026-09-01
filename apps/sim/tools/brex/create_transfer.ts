@@ -1,11 +1,20 @@
-import { generateId } from '@sim/utils/id'
+import {
+  type BrexDeliveryContextParams,
+  brexIdempotencyHeader,
+  defineBrexKeyedSite,
+} from '@/tools/brex/idempotency'
 import type { BrexCreateTransferParams, BrexCreateTransferResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
 
+const DELIVERY = defineBrexKeyedSite(
+  'brex_create_transfer',
+  'the vendor would be paid twice and the money would leave the cash account again'
+)
+
 export const brexCreateTransferTool: ToolConfig<
-  BrexCreateTransferParams,
+  BrexCreateTransferParams & BrexDeliveryContextParams,
   BrexCreateTransferResponse
 > = {
   id: 'brex_create_transfer',
@@ -77,10 +86,16 @@ export const brexCreateTransferTool: ToolConfig<
   request: {
     url: () => `${BREX_API_BASE}/v1/transfers`,
     method: 'POST',
+    /**
+     * The `Idempotency-Key` must be the *same* on every delivery of one
+     * instruction, not fresh per attempt — it is what lets Brex recognize a
+     * resend and collapse it. A fresh value per request build is the inverse of
+     * the header's purpose: it makes each of the three retry layers above the
+     * transport look like a brand-new transfer.
+     */
     headers: (params) => ({
       ...buildBrexHeaders(params.apiKey),
-      // Brex requires a fresh Idempotency-Key per transfer creation to prevent duplicate money movement.
-      'Idempotency-Key': generateId(),
+      ...brexIdempotencyHeader(DELIVERY, params),
     }),
     body: (params) => {
       const body: Record<string, unknown> = {

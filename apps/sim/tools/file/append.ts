@@ -1,13 +1,12 @@
-import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileAppendParams {
   fileName: string
   content: string
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
-export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
+export const fileAppendTool: InternalToolConfig<FileAppendParams, ToolResponse> = {
   id: 'file_append',
   name: 'File Append',
   description:
@@ -29,16 +28,16 @@ export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'append',
       fileName: params.fileName,
       content: params.content,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
+    secretProvenance: {
+      request: () => [{ key: 'content', inputPaths: [['content']] }],
+    },
   },
 
   transformResponse: async (response) => {

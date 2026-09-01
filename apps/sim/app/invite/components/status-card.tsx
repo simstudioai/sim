@@ -34,10 +34,8 @@ export function InviteStatusCard({
     return (
       <>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'>
-            Loading
-          </h1>
-          <p className='font-[380] text-[var(--text-muted)]'>{description}</p>
+          <h1 className='text-[32px] text-[var(--text-primary)] tracking-tight'>Loading</h1>
+          <p className='text-[var(--text-muted)]'>{description}</p>
         </div>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
           <Loader className='size-8 text-[var(--text-muted)]' animate />
@@ -49,10 +47,8 @@ export function InviteStatusCard({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'>
-          {title}
-        </h1>
-        <p className='font-[380] text-[var(--text-muted)]'>{description}</p>
+        <h1 className='text-[32px] text-[var(--text-primary)] tracking-tight'>{title}</h1>
+        <p className='text-[var(--text-muted)]'>{description}</p>
       </div>
 
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
@@ -78,7 +74,6 @@ export function InviteStatusCard({
             <Chip
               key={action.label}
               fullWidth
-              flush
               onClick={action.onClick}
               disabled={action.disabled || action.loading}
               className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}

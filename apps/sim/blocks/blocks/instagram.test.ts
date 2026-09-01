@@ -8,8 +8,12 @@ describe('InstagramBlock', () => {
   const buildParams = InstagramBlock.tools.config.params!
   const selectTool = InstagramBlock.tools.config.tool!
 
-  it('stays hidden from discovery until the Instagram integration is approved', () => {
-    expect(InstagramBlock.hideFromToolbar).toBe(true)
+  it('keeps all 24 dropdown operations aligned with tool access', () => {
+    const operation = InstagramBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
+    const optionIds = operation?.options?.map((option) => option.id)
+
+    expect(optionIds).toHaveLength(24)
+    expect(new Set(optionIds)).toEqual(new Set(InstagramBlock.tools.access))
   })
 
   it('clears stale operation parameters from the runtime input merge', () => {
@@ -42,18 +46,26 @@ describe('InstagramBlock', () => {
     )
   })
 
-  it('offers only current account insight periods and requires a demographic timeframe', () => {
-    const period = InstagramBlock.subBlocks.find((subBlock) => subBlock.id === 'period')
-    const timeframe = InstagramBlock.subBlocks.find((subBlock) => subBlock.id === 'timeframe')
+  it('normalizes publishing files without accepting public URL strings', () => {
+    const file = {
+      id: 'file-1',
+      key: 'execution/workflow/execution/photo.jpg',
+      name: 'photo.jpg',
+      size: 1024,
+      type: 'image/jpeg',
+    }
 
-    expect(period?.options?.map((option) => option.id)).toEqual(['day', 'lifetime'])
-    expect(timeframe?.options?.map((option) => option.id)).toEqual(['this_week', 'this_month'])
-    expect(timeframe?.value?.()).toBe('this_month')
-    expect(timeframe?.required).toEqual({
-      field: 'operation',
-      value: 'instagram_get_account_insights',
-      and: { field: 'period', value: 'lifetime' },
-    })
+    expect(buildParams({ operation: 'instagram_publish_image', image: file }).image).toEqual(file)
+    expect(
+      buildParams({
+        operation: 'instagram_publish_carousel',
+        carouselMedia: JSON.stringify([file, { ...file, id: 'file-2', name: 'photo-2.jpg' }]),
+      }).media
+    ).toHaveLength(2)
+    expect(
+      buildParams({ operation: 'instagram_publish_image', image: 'https://example.com/photo.jpg' })
+        .image
+    ).toBeUndefined()
   })
 
   it('clears account insight parameters that do not apply to the selected period', () => {
@@ -81,5 +93,20 @@ describe('InstagramBlock', () => {
     expect(() =>
       buildParams({ operation: 'instagram_get_account_insights', period: 'week' })
     ).toThrow('Instagram account insights period must be day or lifetime')
+  })
+
+  it('maps the provider-local insight field to the tool metrics parameter', () => {
+    const metricsSubBlock = InstagramBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'insightMetrics'
+    )
+
+    expect(metricsSubBlock?.type).toBe('short-input')
+    expect(InstagramBlock.subBlocks.some((subBlock) => subBlock.id === 'metrics')).toBe(false)
+    expect(
+      buildParams({
+        operation: 'instagram_get_media_insights',
+        insightMetrics: 'reach,views',
+      })
+    ).toMatchObject({ metrics: 'reach,views', insightMetrics: undefined })
   })
 })

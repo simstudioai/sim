@@ -1,6 +1,7 @@
 import dynamic from 'next/dynamic'
 import type { EdgeTypes, NodeTypes } from 'reactflow'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
+import { ConnectionBlockSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/connection-block-selector/connection-block-selector'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 
@@ -22,6 +23,7 @@ const NoteBlock = dynamic(
 
 /** Custom node types for ReactFlow. */
 export const nodeTypes: NodeTypes = {
+  connectionBlockSelector: ConnectionBlockSelector,
   workflowBlock: WorkflowBlock,
   noteBlock: NoteBlock,
   subflowNode: SubflowNodeComponent,
@@ -38,9 +40,10 @@ export const defaultEdgeOptions = { type: 'custom' } as const
 
 export const reactFlowStyles = [
   '[&_.react-flow__handle]:!z-[30]',
-  '[&_.react-flow__edge-labels]:!z-[1001]',
   '[&_.react-flow__pane]:select-none',
   '[&_.react-flow__selectionpane]:select-none',
+  String.raw`[&_.react-flow\_\_selection]:!border-[var(--text-secondary)]`,
+  String.raw`[&_.react-flow\_\_selection]:!bg-[color-mix(in_oklch,var(--text-secondary)_8%,transparent)]`,
   '[&_.react-flow__background]:hidden',
   '[&_.react-flow__node-subflowNode.selected]:!shadow-none',
 ].join(' ')

@@ -1,6 +1,6 @@
 import { Link, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -19,17 +19,13 @@ export function PlanWelcomeEmail({ planName, userName, loginLink }: PlanWelcomeE
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
       <Text style={baseStyles.paragraph}>
-        Welcome to <strong>{planName}</strong>! You're all set to build, test, and scale your
-        workflows.
+        Welcome to <EmailStrong>{planName}</EmailStrong>! You're all set to build, test, and scale
+        your workflows.
       </Text>
 
-      <Link href={cta} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Open {brand.name}</Text>
-      </Link>
+      <EmailButton href={cta}>Open {brand.name}</EmailButton>
 
       <Text style={baseStyles.paragraph}>
         Want help getting started?{' '}
@@ -39,12 +35,9 @@ export function PlanWelcomeEmail({ planName, userName, loginLink }: PlanWelcomeE
         with our team.
       </Text>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-        Manage your subscription in Settings → Subscription.
-      </Text>
+      <Text style={baseStyles.footnote}>Manage your subscription in Settings → Subscription.</Text>
     </EmailLayout>
   )
 }

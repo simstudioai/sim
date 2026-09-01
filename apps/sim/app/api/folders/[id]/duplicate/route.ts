@@ -10,12 +10,15 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { duplicateFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { DbOrTx } from '@/lib/db/types'
-import { nextFolderSortOrder } from '@/lib/folders/lifecycle'
 import { deduplicateFolderName } from '@/lib/folders/naming'
-import { toFolderApi } from '@/lib/folders/queries'
+import { nextFolderSortOrder } from '@/lib/folders/orchestration'
+import { assertFolderCollectionHasRoom, toFolderApi } from '@/lib/folders/queries'
+import { folderMutationStatus } from '@/lib/folders/status'
+import { collectDescendantFolderIds } from '@/lib/folders/subtree'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -105,6 +108,32 @@ export const POST = withRouteHandler(
         const now = new Date()
         const targetParentId = parentId ?? sourceFolder.parentId
         await assertTargetParentFolderMutable(tx, targetParentId, targetWorkspaceId, sourceFolderId)
+
+        /**
+         * Duplication is recursive, so it is the create path that can add the most rows
+         * at once. The whole subtree is measured up front and charged against the
+         * ceiling in one check: a per-insert check inside the recursion would both see
+         * room for one more each time and cost a query per folder.
+         *
+         * Deliberately NOT under `acquireFolderMutationLock`, unlike `createFolder`. That
+         * lock is transaction-scoped (`pg_advisory_xact_lock`) and cannot be released
+         * early, and this transaction goes on to copy every workflow in the subtree — an
+         * unbounded loop of per-workflow round trips. Holding a workspace-wide folder lock
+         * for that long would make an ordinary concurrent folder create fail on the lock
+         * timeout the helper installs, which is a certain contention regression on every
+         * large duplicate. Unlocked, the cost is instead a rare overshoot of a few rows
+         * when a concurrent create lands between this count and the inserts below, and
+         * only when the workspace is already within a handful of folders of the ceiling —
+         * the same bounded slack the readers already tolerate, and the same trade the
+         * workspace-fork copy makes. A certain regression is worse than a rare one.
+         */
+        await assertFolderCollectionHasRoom(targetWorkspaceId, FOLDER_RESOURCE_TYPE, tx, {
+          additionalRows: await countDuplicatedFolderRows(
+            tx,
+            sourceFolder.workspaceId,
+            sourceFolderId
+          ),
+        })
 
         // Placement is the engine's rule (folders and workflows share one ordering space),
         // so it is read from there rather than recomputed here.
@@ -229,6 +258,24 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: error.publicMessage }, { status: error.status })
       }
 
+      /**
+       * The workspace folder ceiling refuses this copy as a classified `conflict`, which
+       * must reach the caller as an actionable 409 rather than the generic 500 below.
+       * Unwrapped from the cause chain because drizzle re-wraps anything thrown inside the
+       * transaction callback in a `DrizzleQueryError`.
+       */
+      const orchestrationError = asOrchestrationError(error)
+      if (orchestrationError) {
+        logger.warn(`[${requestId}] Folder duplication rejected: ${orchestrationError.message}`, {
+          sourceFolderId,
+          userId: session.user.id,
+        })
+        return NextResponse.json(
+          { error: orchestrationError.message },
+          { status: folderMutationStatus(orchestrationError.code) }
+        )
+      }
+
       const elapsed = Date.now() - startTime
       logger.error(
         `[${requestId}] Error duplicating folder ${sourceFolderId} after ${elapsed}ms:`,
@@ -238,6 +285,34 @@ export const POST = withRouteHandler(
     }
   }
 )
+
+/**
+ * How many folder rows this duplication will insert: the copy of the source folder plus one
+ * per active descendant. Reads the workspace's folder skeleton once and walks it in memory —
+ * the recursion below rediscovers the same tree level by level, but the ceiling has to be
+ * charged before the first insert, not during it.
+ *
+ * Deliberately unbounded: a workspace already over the ceiling must still be able to READ,
+ * and the count is what refuses the write.
+ */
+async function countDuplicatedFolderRows(
+  tx: DbOrTx,
+  sourceWorkspaceId: string,
+  sourceFolderId: string
+): Promise<number> {
+  const rows = await tx
+    .select({ id: folderTable.id, parentId: folderTable.parentId })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.workspaceId, sourceWorkspaceId),
+        eq(folderTable.resourceType, FOLDER_RESOURCE_TYPE),
+        isNull(folderTable.deletedAt)
+      )
+    )
+
+  return collectDescendantFolderIds(rows, sourceFolderId).length + 1
+}
 
 async function assertTargetParentFolderMutable(
   tx: DbOrTx,

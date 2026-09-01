@@ -1933,6 +1933,272 @@
       "when": 1785352177983,
       "tag": "0276_drop_legacy_folder_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 277,
+      "version": "7",
+      "when": 1785358812851,
+      "tag": "0277_workspace_sandboxes",
+      "breakpoints": true
+    },
+    {
+      "idx": 278,
+      "version": "7",
+      "when": 1785536864363,
+      "tag": "0278_charming_imperial_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 279,
+      "version": "7",
+      "when": 1785542556609,
+      "tag": "0279_collab_doc_state_and_content_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 280,
+      "version": "7",
+      "when": 1785640502989,
+      "tag": "0280_great_riptide",
+      "breakpoints": true
+    },
+    {
+      "idx": 281,
+      "version": "7",
+      "when": 1785776917545,
+      "tag": "0281_fixed_madame_web",
+      "breakpoints": true
+    },
+    {
+      "idx": 282,
+      "version": "7",
+      "when": 1785968181949,
+      "tag": "0282_chubby_psylocke",
+      "breakpoints": true
+    },
+    {
+      "idx": 283,
+      "version": "7",
+      "when": 1785978020563,
+      "tag": "0283_military_fabian_cortez",
+      "breakpoints": true
+    },
+    {
+      "idx": 284,
+      "version": "7",
+      "when": 1785986974579,
+      "tag": "0284_sso_provider_domain_verified",
+      "breakpoints": true
+    },
+    {
+      "idx": 285,
+      "version": "7",
+      "when": 1786217700133,
+      "tag": "0285_workspace_inbox_provider_id_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 286,
+      "version": "7",
+      "when": 1786226773546,
+      "tag": "0286_tiktok_routing_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 287,
+      "version": "7",
+      "when": 1786238404458,
+      "tag": "0287_workflow_blocks_error_enabled",
+      "breakpoints": true
+    },
+    {
+      "idx": 288,
+      "version": "7",
+      "when": 1786398308428,
+      "tag": "0288_workflow_blocks_retry",
+      "breakpoints": true
+    },
+    {
+      "idx": 289,
+      "version": "7",
+      "when": 1786438204549,
+      "tag": "0289_warm_malice",
+      "breakpoints": true
+    },
+    {
+      "idx": 290,
+      "version": "7",
+      "when": 1786662875077,
+      "tag": "0290_settings_auto_focus_on_click",
+      "breakpoints": true
+    },
+    {
+      "idx": 291,
+      "version": "7",
+      "when": 1786704849273,
+      "tag": "0291_fuzzy_wong",
+      "breakpoints": true
+    },
+    {
+      "idx": 292,
+      "version": "7",
+      "when": 1787098574507,
+      "tag": "0292_yielding_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 293,
+      "version": "7",
+      "when": 1787163744385,
+      "tag": "0293_custom_block_fork_resource",
+      "breakpoints": true
+    },
+    {
+      "idx": 294,
+      "version": "7",
+      "when": 1787178437209,
+      "tag": "0294_workable_jigsaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 295,
+      "version": "7",
+      "when": 1787247269246,
+      "tag": "0295_chilly_franklin_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 296,
+      "version": "7",
+      "when": 1787254479175,
+      "tag": "0296_organization_byok_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 297,
+      "version": "7",
+      "when": 1787276752722,
+      "tag": "0297_eminent_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 298,
+      "version": "7",
+      "when": 1787293309837,
+      "tag": "0298_nosy_ken_ellis",
+      "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1787338729668,
+      "tag": "0299_bright_nemesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1787360221351,
+      "tag": "0300_hesitant_war_machine",
+      "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1787365065919,
+      "tag": "0301_backfill_table_default_views",
+      "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1787432959648,
+      "tag": "0302_fat_sentry",
+      "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1787506599710,
+      "tag": "0303_colorful_gressill",
+      "breakpoints": true
+    },
+    {
+      "idx": 304,
+      "version": "7",
+      "when": 1787598098228,
+      "tag": "0304_slippery_carmella_unuscione",
+      "breakpoints": true
+    },
+    {
+      "idx": 305,
+      "version": "7",
+      "when": 1787687900983,
+      "tag": "0305_add_subscription_last_closed_period_start",
+      "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1787702824793,
+      "tag": "0306_knowledge_pipeline_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1787722270619,
+      "tag": "0307_add_subscription_cycle_close_lagging_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1787770314977,
+      "tag": "0308_workspace_file_size_cutover",
+      "breakpoints": true
+    },
+    {
+      "idx": 309,
+      "version": "7",
+      "when": 1787795555854,
+      "tag": "0309_material_blonde_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 310,
+      "version": "7",
+      "when": 1787878957459,
+      "tag": "0310_drop_orphaned_table_import_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 311,
+      "version": "7",
+      "when": 1787880668706,
+      "tag": "0311_usage_log_model_unbilled_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 312,
+      "version": "7",
+      "when": 1787955244886,
+      "tag": "0312_nappy_leech",
+      "breakpoints": true
+    },
+    {
+      "idx": 313,
+      "version": "7",
+      "when": 1788051242165,
+      "tag": "0313_puzzling_zodiak",
+      "breakpoints": true
+    },
+    {
+      "idx": 314,
+      "version": "7",
+      "when": 1788208209301,
+      "tag": "0314_superb_daimon_hellstrom",
+      "breakpoints": true
     }
   ]
 }

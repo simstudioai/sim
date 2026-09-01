@@ -1,8 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-// ============================================
 // Common Types
-// ============================================
 
 export interface GoogleFormsResponse {
   responseId?: string
@@ -83,9 +81,7 @@ export interface GoogleFormsWatch {
   errorType?: string
 }
 
-// ============================================
 // Get Responses Params
-// ============================================
 
 export interface GoogleFormsGetResponsesParams {
   accessToken: string
@@ -96,9 +92,7 @@ export interface GoogleFormsGetResponsesParams {
   filter?: string
 }
 
-// ============================================
 // Get Form Params & Response
-// ============================================
 
 export interface GoogleFormsGetFormParams {
   accessToken: string
@@ -120,9 +114,7 @@ export interface GoogleFormsGetFormResponse extends ToolResponse {
   }
 }
 
-// ============================================
 // Create Form Params & Response
-// ============================================
 
 export interface GoogleFormsCreateFormParams {
   accessToken: string
@@ -141,9 +133,7 @@ export interface GoogleFormsCreateFormResponse extends ToolResponse {
   }
 }
 
-// ============================================
 // Batch Update Params & Response
-// ============================================
 
 interface GoogleFormsBatchUpdateRequest {
   updateFormInfo?: {
@@ -190,9 +180,7 @@ export interface GoogleFormsBatchUpdateResponse extends ToolResponse {
   }
 }
 
-// ============================================
 // Set Publish Settings Params & Response
-// ============================================
 
 export interface GoogleFormsSetPublishSettingsParams {
   accessToken: string
@@ -208,9 +196,7 @@ export interface GoogleFormsSetPublishSettingsResponse extends ToolResponse {
   }
 }
 
-// ============================================
 // Watch Params & Responses
-// ============================================
 
 export interface GoogleFormsCreateWatchParams {
   accessToken: string

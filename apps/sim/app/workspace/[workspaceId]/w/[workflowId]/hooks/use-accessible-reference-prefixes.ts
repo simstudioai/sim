@@ -1,29 +1,31 @@
 import { useMemo } from 'react'
-import { useShallow } from 'zustand/react/shallow'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/sanitization/references'
+import { useWorkflowReferenceGraph } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/workflow-reference-scope'
 import { normalizeName } from '@/executor/constants'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 export function useAccessibleReferencePrefixes(blockId?: string | null): Set<string> | undefined {
-  const { blocks, edges, loops, parallels } = useWorkflowStore(
-    useShallow((state) => ({
-      blocks: state.blocks,
-      edges: state.edges,
-      loops: state.loops || {},
-      parallels: state.parallels || {},
-    }))
-  )
+  // The GRAPH only — this runs on every keystroke in every reference-aware sub-block editor,
+  // and reachability cannot change with the values being typed.
+  const { blocks, edges, loops, parallels, unrestricted } = useWorkflowReferenceGraph()
 
   return useMemo(() => {
     if (!blockId) {
       return undefined
     }
 
-    const graphEdges = edges.map((edge) => ({ source: edge.source, target: edge.target }))
-    const ancestorIds = BlockPathCalculator.findAllPathNodes(graphEdges, blockId)
-    const accessibleIds = new Set<string>(ancestorIds)
+    const accessibleIds = new Set<string>()
+    if (unrestricted) {
+      // The referencing block is not in this graph, so there is no path to walk. Every block
+      // is offered instead of none — see `WorkflowReferenceScope.unrestricted`.
+      Object.keys(blocks).forEach((id) => accessibleIds.add(id))
+    } else {
+      const graphEdges = edges.map((edge) => ({ source: edge.source, target: edge.target }))
+      BlockPathCalculator.findAllPathNodes(graphEdges, blockId).forEach((id) =>
+        accessibleIds.add(id)
+      )
+    }
     accessibleIds.add(blockId)
 
     Object.values(loops as Record<string, Loop>).forEach((loop) => {
@@ -46,5 +48,5 @@ export function useAccessibleReferencePrefixes(blockId?: string | null): Set<str
     SYSTEM_REFERENCE_PREFIXES.forEach((prefix) => prefixes.add(prefix))
 
     return prefixes
-  }, [blockId, blocks, edges, loops, parallels])
+  }, [blockId, blocks, edges, loops, parallels, unrestricted])
 }

@@ -1,15 +1,16 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1DeleteTableContract, v1GetTableContract } from '@/lib/api/contracts/v1/tables'
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { deleteTable, type TableSchema } from '@/lib/table'
+import type { TableSchema } from '@/lib/table'
+import { performDeleteTable } from '@/lib/table/orchestration'
+import { normalizeColumn } from '@/lib/table/wire'
 import {
   accessError,
   checkAccess,
-  normalizeColumn,
+  orchestrationOutcomeErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 import {
@@ -139,18 +140,10 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    await deleteTable(tableId, requestId)
-
-    recordAudit({
-      workspaceId,
-      actorId: userId,
-      action: AuditAction.TABLE_DELETED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: tableId,
-      resourceName: result.table.name,
-      description: `Archived table "${result.table.name}"`,
-      request,
-    })
+    const outcome = await performDeleteTable({ table: result.table, userId, requestId, request })
+    if (!outcome.success) {
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to delete table')
+    }
 
     return NextResponse.json({
       success: true,

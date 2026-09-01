@@ -607,6 +607,38 @@ export const vellumProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          "Yes: Code Execution Nodes run against a user-configurable environment. Public PyPI and npm packages can be declared as dependencies, package dependencies can be defined once at the Workflow level through the Workflow Settings modal (which generates a reusable container image) instead of per node, private Python and AWS CodeArtifact repositories are supported, and a fully custom Docker image can be built and pushed with the 'vellum image push' CLI command to install system-level dependencies and pre-defined application code.",
+        detail:
+          "Vellum's launch post for the feature describes custom container images as giving 'full control over their runtime, so you can install system-level dependencies, rely on private packages, and reference pre-defined application code'; the documentation itself puts it more narrowly, saying the images let you 'use pre-existing logic from the rest of your repository, or some bespoke binaries', and requires that they inherit from the vellumai/python-workflow-runtime base image. Images must be built for linux/amd64 and each instance is capped at 2048MB (2GB) of memory, with higher limits available by contacting support. The docs do not state a plan-tier restriction and do not address self-hosted availability.",
+        shortValue: 'PyPI/npm deps, private repos, and custom Docker images',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/custom-container-images',
+            label: 'Custom Docker Images - Vellum Documentation',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.vellum.ai/changelog/2025/2025-07',
+            label:
+              'Vellum Changelog, July 2025 (workflow-level package dependencies, private package repositories)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://www.vellum.ai/blog/introducing-custom-docker-images-custom-nodes',
+            label: 'Introducing Custom Docker Images & Custom Nodes - Vellum Blog',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://www.vellum.ai/blog/running-arbitrary-code-in-workflows-evals',
+            label:
+              'Running Arbitrary Code in Workflows & Evals - Vellum Blog (PyPI and npm support)',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Deploying a Workflow from the Vellum UI produces a code snippet to call it in production as an API. Vellum handles execution server-side and callers just supply input variables; each execution is also viewable/shareable via an execution URL.',
@@ -872,6 +904,31 @@ export const vellumProfile: CompetitorProfile = {
         shortValue: 'Claimed by third parties, undocumented directly',
         confidence: 'unknown',
         sources: [],
+      },
+      sessionPolicy: {
+        value:
+          'Not publicly documented: no admin-configurable session lifetime cap or idle timeout is documented for Vellum workspaces. The docs index lists four security pages (Data Privacy and Storage, HMAC Authentication, RBAC, Static IPs) and two organization-settings pages (Manage Organization Access, Data Retention Policies), none of which describe session length, inactivity expiry, or forced re-authentication; the only admin-configurable access controls documented are workspace roles and domain-based automatic join.',
+        detail:
+          'The Manage Organization Access page covers only domain-based automatic join and the verified-domain list. The Data Privacy and Storage page references RBAC and HMAC authentication for API access but says nothing about interactive session duration. No first-party SAML/OIDC setup page exists either, so an inherited IdP session policy cannot be confirmed as available.',
+        shortValue: 'No documented session lifetime or idle timeout controls',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.vellum.ai/llms.txt',
+            label: 'Vellum Documentation index (no session or SSO/SAML page listed)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.vellum.ai/product/organizations/manage-access.md',
+            label: 'Manage Organization Access - Vellum Documentation',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage.md',
+            label: 'Data Privacy and Storage - Vellum Documentation',
+            asOf: '2026-08-10',
+          },
+        ],
       },
       thirdPartyVetting: {
         value:

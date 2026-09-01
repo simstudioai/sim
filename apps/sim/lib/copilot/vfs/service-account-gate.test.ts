@@ -8,7 +8,7 @@ vi.mock('@/blocks', () => ({ getBlock: mockGetBlock }))
 
 import { describeServiceAccountForOAuthProvider } from '@/lib/copilot/vfs/serializers'
 
-describe('describeServiceAccountForOAuthProvider — preview gate', () => {
+describe('describeServiceAccountForOAuthProvider — owning block visibility', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -18,13 +18,17 @@ describe('describeServiceAccountForOAuthProvider — preview gate', () => {
     expect(describeServiceAccountForOAuthProvider('slack')).toBeUndefined()
   })
 
-  it('includes it once the gating block GAs and drops preview', () => {
-    // slack_v2's documented GA migration removes `preview`. Discovery must then
-    // surface the custom bot, matching what the UI shows. A hand-rolled
-    // `?.preview ?? true` would keep it omitted forever — the "sticks after GA"
-    // regression; reusing isHiddenUnder(null, block) fixes it.
+  it('includes it for the released owning block', () => {
     mockGetBlock.mockReturnValue({ type: 'slack_v2' })
     expect(describeServiceAccountForOAuthProvider('slack')).toEqual({ connectNoun: 'custom bot' })
+  })
+
+  it('includes it when a preview block owns the serialized tool', () => {
+    mockGetBlock.mockReturnValue({ type: 'slack_v2', preview: true })
+
+    expect(describeServiceAccountForOAuthProvider('slack', 'slack_v2')).toEqual({
+      connectNoun: 'custom bot',
+    })
   })
 
   it('fail-closes (omits) when the gating block is missing entirely', () => {

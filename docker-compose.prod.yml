@@ -3,7 +3,9 @@ services:
     env_file:
       - path: .env
         required: false
-    image: ghcr.io/simstudioai/simstudio:latest
+    # app, realtime and migrations share a database schema and must move together,
+    # so one variable drives all three. Set SIM_VERSION in .env to upgrade.
+    image: ghcr.io/simstudioai/simstudio:${SIM_VERSION:-latest}
     restart: unless-stopped
     ports:
       - '3000:3000'
@@ -21,17 +23,23 @@ services:
       # (apex + www, alias hostnames, reverse-proxy IPs). Empty by default.
       - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
       # AUTH_TRUSTED_PROXIES: comma-separated reverse-proxy IPs or CIDR ranges in
-      # front of the app (ingress, load balancer). Better Auth walks
-      # x-forwarded-for right to left, skips these hops, and uses the first
-      # untrusted address as the client IP. Required for correct session IPs and
-      # rate-limit keying behind a multi-hop proxy chain. Empty by default.
+      # front of the app (ingress, load balancer). Sim and Better Auth walk
+      # x-forwarded-for right to left, skip these hops, and use the first
+      # untrusted address as the client IP. Required to look through known
+      # intermediate proxies in a multi-hop chain. Empty by default.
       - AUTH_TRUSTED_PROXIES=${AUTH_TRUSTED_PROXIES:-}
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      # Required. Compose aborts with this message rather than starting the app
+      # with an empty secret, which would silently corrupt stored credentials.
+      - 'BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?is required. Create a .env file next to docker-compose.prod.yml and set it to the output of: openssl rand -hex 32}'
+      - 'ENCRYPTION_KEY=${ENCRYPTION_KEY:?is required. Set it in .env to the output of: openssl rand -hex 32. It cannot be changed later without losing stored credentials.}'
+      - 'INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?is required. Set it in .env to the output of: openssl rand -hex 32}'
       - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      # Authenticates the cron service against the background job endpoints.
+      - CRON_SECRET=${CRON_SECRET:-}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - COPILOT_API_KEY=${COPILOT_API_KEY:-}
+      - MSHIP_SYSPROMPT_OVERRIDE=${MSHIP_SYSPROMPT_OVERRIDE:-}
+      - NEXT_PUBLIC_CHAT_DISABLED=${NEXT_PUBLIC_CHAT_DISABLED:-}
       - SIM_AGENT_API_URL=${SIM_AGENT_API_URL:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
@@ -42,6 +50,11 @@ services:
       # different host:port (e.g. wss://socket.example.com).
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
       - ADMISSION_GATE_MAX_INFLIGHT=${ADMISSION_GATE_MAX_INFLIGHT:-500}
+    # Lets a workflow reach a service on the Docker host. Reaching it also
+    # requires naming it in EGRESS_ALLOWED_HOSTS; this only makes the name
+    # resolve, which it does not on Linux by default.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     depends_on:
       db:
         condition: service_healthy
@@ -62,7 +75,7 @@ services:
     env_file:
       - path: .env
         required: false
-    image: ghcr.io/simstudioai/realtime:latest
+    image: ghcr.io/simstudioai/realtime:${SIM_VERSION:-latest}
     restart: unless-stopped
     ports:
       - '3002:3002'
@@ -74,9 +87,11 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      # Derived from NEXT_PUBLIC_APP_URL, matching the simstudio service — a
+      # single public-origin variable keeps the two from disagreeing.
+      - BETTER_AUTH_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - 'BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?is required and must match the value used by the simstudio service}'
+      - 'INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?is required and must match the value used by the simstudio service}'
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       db:
@@ -91,7 +106,7 @@ services:
       start_period: 10s
 
   migrations:
-    image: ghcr.io/simstudioai/migrations:latest
+    image: ghcr.io/simstudioai/migrations:${SIM_VERSION:-latest}
     working_dir: /app/packages/db
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
@@ -114,6 +129,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Runs the background jobs the Helm chart schedules as Kubernetes CronJobs:
+  # scheduled workflows, polling triggers, connector syncs, the transactional
+  # outbox, subscription renewal, and data drains. Without it none of those run.
+  # Schedules live in docker/crontab and mirror helm/sim/values.yaml cronjobs.jobs.
+  cron:
+    # Deliberately NOT pinned to SIM_VERSION: the scheduler only makes HTTP calls
+    # and shares no database schema with the app, so it does not need to move in
+    # lockstep — and no cron tag exists for releases that predate it.
+    image: ghcr.io/simstudioai/cron:${SIM_CRON_VERSION:-latest}
+    # on-failure, not unless-stopped: with no CRON_SECRET the container exits 0
+    # after explaining why, and stays stopped instead of crash-looping. Upgrades
+    # from a compose file that predates this service therefore still come up.
+    restart: on-failure
+    environment:
+      - SIM_URL=http://simstudio:3000
+      - CRON_SECRET=${CRON_SECRET:-}
+      - TZ=${TZ:-UTC}
+    depends_on:
+      simstudio:
+        condition: service_healthy
 
   db:
     image: pgvector/pgvector:pg17

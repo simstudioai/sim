@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
 
@@ -217,6 +217,36 @@ describe('microsoftTeamsHandler formatInput (outgoing webhook channelData)', () 
       channel: { id: 'channel-1' },
       teamsTeamId: 'team-1',
       teamsChannelId: 'channel-1',
+    })
+  })
+
+  describe('handleChallenge', () => {
+    function challengeRequest(method: string): NextRequest {
+      return new NextRequest(
+        'https://app.example.com/api/webhooks/trigger/abc?validationToken=token-123',
+        { method }
+      )
+    }
+
+    it('echoes the validation token for the POST Microsoft Graph sends', async () => {
+      const response = microsoftTeamsHandler.handleChallenge!(
+        {},
+        challengeRequest('POST'),
+        'teams-challenge-post',
+        'abc'
+      )
+
+      expect(response?.status).toBe(200)
+      await expect(response?.text()).resolves.toBe('token-123')
+    })
+
+    /**
+     * Non-POST deliveries never reach this handler: `handleProviderChallenges` gates it to the
+     * default `POST`, which is asserted in `lib/webhooks/processor.test.ts`. Declaring no
+     * `challengeMethods` is what buys that, so pin it here.
+     */
+    it('claims no challenge method, so it is gated to POST by default', () => {
+      expect(microsoftTeamsHandler.challengeMethods).toBeUndefined()
     })
   })
 })

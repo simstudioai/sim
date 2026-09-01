@@ -1,24 +1,25 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Combobox, type ComboboxOption, cn } from '@sim/emcn'
-import { getErrorMessage } from '@sim/utils/errors'
-import { isEqual } from 'es-toolkit'
+import { Plus } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
-import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
+import type { SelectorKey } from '@/lib/selectors/manifest'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { SandboxCreateModal } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/sandbox-create-modal'
+import type { SandboxLanguage } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
+import { shouldClearMissingOption } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/combobox/missing-option'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useFetchedOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-fetched-options'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getDependsOnFields } from '@/blocks/utils'
+import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
  * Constants for ComboBox component behavior
@@ -28,6 +29,20 @@ const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
 const ZOOM_DURATION = 0
+
+/** Shared empty list, so a selector-backed field with no static options keeps a stable identity. */
+const EMPTY_OPTIONS: ComboBoxOption[] = []
+
+const CREATE_ACTION_LABEL: Record<NonNullable<SubBlockConfig['createAction']>, string> = {
+  sandbox: 'Create Sandbox',
+}
+
+/**
+ * Reserved value for the pinned create row. It can never collide with a stored
+ * value: emcn short-circuits on the option's `onSelect`, so the row never
+ * reaches `onChange`.
+ */
+const CREATE_ACTION_VALUE = '__sub-block-create-action__'
 
 /**
  * Represents a selectable option in the combobox
@@ -40,8 +55,12 @@ type ComboBoxOption =
  * Props for the ComboBox component
  */
 interface ComboBoxProps {
-  /** Available options for selection - can be static array or function that returns options */
-  options: ComboBoxOption[] | (() => ComboBoxOption[])
+  /**
+   * Static options, or a function deriving them from the block's own values. Absent on a
+   * selector-backed field, whose list comes from `selectorKey` instead — so this must never
+   * be read without a default.
+   */
+  options?: ComboBoxOption[] | ((params?: { values: Record<string, unknown> }) => ComboBoxOption[])
   /** Default value to use when no value is set */
   defaultValue?: string
   /** ID of the parent block */
@@ -60,13 +79,10 @@ interface ComboBoxProps {
   placeholder?: string
   /** Configuration for the sub-block */
   config: SubBlockConfig
-  /** Async function to fetch options dynamically */
-  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
-  /** Async function to fetch a single option's label by ID (for hydration) */
-  fetchOptionById?: (
-    blockId: string,
-    optionId: string
-  ) => Promise<{ label: string; id: string } | null>
+  /** Registered selector supplying the options. The canonical source for a remote list. */
+  selectorKey?: SelectorKey
+  /** Drop the hosting workflow from a `sim.workflows` list. */
+  selectorExcludeSelf?: boolean
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
 }
@@ -82,8 +98,8 @@ export const ComboBox = memo(function ComboBox({
   disabled,
   placeholder = 'Type or select an option...',
   config,
-  fetchOptions,
-  fetchOptionById,
+  selectorKey,
+  selectorExcludeSelf,
   dependsOn,
 }: ComboBoxProps) {
   const activeSearchTarget = useActiveSearchTarget()
@@ -94,85 +110,114 @@ export const ComboBox = memo(function ComboBox({
 
   // Dependency tracking for fetchOptions
   const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
-  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
-  const blockState = useWorkflowStore((state) => state.blocks[blockId])
-  const blockConfig = blockState?.type ? getBlock(blockState.type) : null
-  const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
-  )
-  const canonicalModeOverrides = blockState?.data?.canonicalModes
-  const dependencyValues = useStoreWithEqualityFn(
-    useSubBlockStore,
-    useCallback(
-      (state) => {
-        if (dependsOnFields.length === 0 || !activeWorkflowId) return []
-        const workflowValues = state.workflowValues[activeWorkflowId] || {}
-        const blockValues = workflowValues[blockId] || {}
-        return dependsOnFields.map((depKey) =>
-          resolveDependencyValue(depKey, blockValues, canonicalIndex, canonicalModeOverrides)
-        )
-      },
-      [dependsOnFields, activeWorkflowId, blockId, canonicalIndex, canonicalModeOverrides]
-    ),
-    isEqual
-  )
-
-  // State management
-  const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
-  const [isLoadingOptions, setIsLoadingOptions] = useState(false)
-  const [fetchError, setFetchError] = useState<string | null>(null)
-  const [hydratedOption, setHydratedOption] = useState<{ label: string; id: string } | null>(null)
-  const previousDependencyValuesRef = useRef<string>('')
-
-  /**
-   * Fetches options from the async fetchOptions function if provided
-   */
-  const fetchOptionsIfNeeded = useCallback(async () => {
-    if (!fetchOptions || isPreview || disabled) return
-
-    setIsLoadingOptions(true)
-    setFetchError(null)
-    try {
-      const options = await fetchOptions(blockId)
-      setFetchedOptions(options)
-    } catch (error) {
-      const errorMessage = getErrorMessage(error, 'Failed to fetch options')
-      setFetchError(errorMessage)
-      setFetchedOptions([])
-    } finally {
-      setIsLoadingOptions(false)
-    }
-  }, [fetchOptions, blockId, isPreview, disabled])
 
   // Determine the active value based on mode (preview vs. controlled vs. store)
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Permission-based filtering for model dropdowns
-  const {
-    isProviderAllowed,
-    isModelAllowed,
-    isLoading: isPermissionLoading,
-  } = usePermissionConfig()
+  const { isModelUsable, isLoading: isPermissionLoading } = usePermissionConfig()
 
   // Evaluate static options if provided as a function
+  // Derived option lists read the block's own values (a model's valid reasoning efforts);
+  // `dependsOn` already re-renders this control when one of those siblings changes.
+  const activeWorkflowIdForValues = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const blockValues = useSubBlockStore((state) =>
+    activeWorkflowIdForValues
+      ? state.workflowValues[activeWorkflowIdForValues]?.[blockId]
+      : undefined
+  )
+
   const staticOptions = useMemo(() => {
-    const opts = typeof options === 'function' ? options() : options
+    const opts =
+      typeof options === 'function'
+        ? options({ values: blockValues ?? {} })
+        : (options ?? EMPTY_OPTIONS)
 
     if (subBlockId === 'model') {
-      return opts.filter((opt) => {
-        const modelId = typeof opt === 'string' ? opt : opt.id
-        if (!isModelAllowed(modelId)) return false
-        try {
-          return isProviderAllowed(getProviderFromModel(modelId))
-        } catch {
-          return true
-        }
-      })
+      return opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
     return opts
-  }, [options, subBlockId, isProviderAllowed, isModelAllowed])
+  }, [options, blockValues, subBlockId, isModelUsable])
+
+  const [selectorSearch, setSelectorSearch] = useState('')
+  const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const activeSelectorSearch = selectorSearch.trim() === '' ? '' : debouncedSelectorSearch
+
+  const {
+    fetchedOptions,
+    isLoadingOptions,
+    isFetchingMore,
+    isLoadingAll,
+    hasMore,
+    truncated,
+    fetchError,
+    hydratedOption,
+    missingOptionId,
+    isDynamic,
+    loadMore,
+    loadAll,
+    refetch: refetchOptions,
+  } = useFetchedOptions({
+    blockId,
+    subBlockId,
+    dependsOnFields,
+    selectorKey,
+    selectorExcludeSelf,
+    isPreview: Boolean(isPreview),
+    disabled: Boolean(disabled),
+    search: activeSelectorSearch,
+    valueToHydrate: value as string | null | undefined,
+    localOptions: staticOptions,
+  })
+
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [createLanguage, setCreateLanguage] = useState<SandboxLanguage | undefined>(undefined)
+  const [createdOption, setCreatedOption] = useState<{ label: string; id: string } | null>(null)
+
+  useEffect(() => {
+    const currentValue = useSubBlockStore.getState().getValue(blockId, subBlockId)
+    if (
+      !shouldClearMissingOption({
+        clearOnMissingOption: Boolean(config.clearOnMissingOption),
+        missingOptionId,
+        currentValue,
+        isPreview: Boolean(isPreview),
+        disabled: Boolean(disabled),
+      })
+    ) {
+      return
+    }
+    setStoreValue('')
+  }, [
+    blockId,
+    config.clearOnMissingOption,
+    disabled,
+    isPreview,
+    missingOptionId,
+    setStoreValue,
+    subBlockId,
+  ])
+
+  /**
+   * The pinned "create a new one" row, when the field declares one. Seeded from
+   * the sibling the list is scoped by, so a sandbox created off a JavaScript
+   * block does not land in the Python list and vanish.
+   */
+  const createOption = useMemo((): ComboboxOption | null => {
+    const action = config.createAction
+    if (!action || isPreview || disabled) return null
+    return {
+      label: CREATE_ACTION_LABEL[action],
+      value: CREATE_ACTION_VALUE,
+      icon: Plus,
+      onSelect: () => {
+        const language = useSubBlockStore.getState().getValue(blockId, 'language')
+        setCreateLanguage(language === 'python' || language === 'javascript' ? language : undefined)
+        setIsCreateOpen(true)
+      },
+    }
+  }, [config.createAction, isPreview, disabled, blockId])
 
   // Normalize fetched options to match ComboBoxOption format
   const normalizedFetchedOptions = useMemo((): ComboBoxOption[] => {
@@ -182,18 +227,10 @@ export const ComboBox = memo(function ComboBox({
   // Merge static and fetched options - fetched options take priority when available
   const evaluatedOptions = useMemo((): ComboBoxOption[] => {
     let opts: ComboBoxOption[] =
-      fetchOptions && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
+      isDynamic && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
 
-    if (subBlockId === 'model' && fetchOptions && normalizedFetchedOptions.length > 0) {
-      opts = opts.filter((opt) => {
-        const modelId = typeof opt === 'string' ? opt : opt.id
-        if (!isModelAllowed(modelId)) return false
-        try {
-          return isProviderAllowed(getProviderFromModel(modelId))
-        } catch {
-          return true
-        }
-      })
+    if (subBlockId === 'model' && isDynamic && normalizedFetchedOptions.length > 0) {
+      opts = opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
     // Merge hydrated option if not already present
@@ -206,26 +243,39 @@ export const ComboBox = memo(function ComboBox({
       }
     }
 
+    // Something just created through the pinned create row is selected before any
+    // list has refetched, so without this the field would sit on the raw id until
+    // hydration answered. Dropped again the moment a real fetch carries it.
+    if (createdOption) {
+      const alreadyPresent = opts.some((o) =>
+        typeof o === 'string' ? o === createdOption.id : o.id === createdOption.id
+      )
+      if (!alreadyPresent) {
+        opts = [createdOption, ...opts]
+      }
+    }
+
     return opts
   }, [
-    fetchOptions,
+    isDynamic,
     normalizedFetchedOptions,
     staticOptions,
     hydratedOption,
+    createdOption,
     subBlockId,
-    isProviderAllowed,
-    isModelAllowed,
+    isModelUsable,
   ])
 
   // Convert options to Combobox format
   const comboboxOptions = useMemo((): ComboboxOption[] => {
-    return evaluatedOptions.map((option) => {
+    const mapped = evaluatedOptions.map((option): ComboboxOption => {
       if (typeof option === 'string') {
         return { label: option, value: option }
       }
       return { label: option.label, value: option.id, icon: option.icon }
     })
-  }, [evaluatedOptions])
+    return createOption ? [createOption, ...mapped] : mapped
+  }, [evaluatedOptions, createOption])
 
   /**
    * Extracts the value identifier from an option
@@ -260,12 +310,20 @@ export const ComboBox = memo(function ComboBox({
       }
     }
 
+    // Auto-selecting the first option is only right for a field that must hold
+    // something. When empty is a real, documented choice (`sandboxId` — "no extra
+    // packages"), pre-filling it silently mutates and persists the block the
+    // moment the user opens advanced options.
+    if (config.emptyIsValid) {
+      return undefined
+    }
+
     if (evaluatedOptions.length > 0) {
       return getOptionValue(evaluatedOptions[0])
     }
 
     return undefined
-  }, [defaultValue, evaluatedOptions, subBlockId, getOptionValue])
+  }, [defaultValue, evaluatedOptions, subBlockId, getOptionValue, config.emptyIsValid])
 
   /**
    * Resolve the user-facing text for the current stored value.
@@ -301,93 +359,6 @@ export const ComboBox = memo(function ComboBox({
       setStoreValue(defaultOptionValue)
     }
   }, [value, defaultOptionValue, setStoreValue, isPermissionLoading])
-
-  // Clear fetched options and hydrated option when dependencies change
-  useEffect(() => {
-    if (fetchOptions && dependsOnFields.length > 0) {
-      const currentDependencyValuesStr = JSON.stringify(dependencyValues)
-      const previousDependencyValuesStr = previousDependencyValuesRef.current
-
-      if (
-        previousDependencyValuesStr &&
-        currentDependencyValuesStr !== previousDependencyValuesStr
-      ) {
-        setFetchedOptions([])
-        setHydratedOption(null)
-      }
-
-      previousDependencyValuesRef.current = currentDependencyValuesStr
-    }
-  }, [dependencyValues, fetchOptions, dependsOnFields.length])
-
-  // Fetch options when needed (on mount, when enabled, or when dependencies change)
-  useEffect(() => {
-    if (
-      fetchOptions &&
-      !isPreview &&
-      !disabled &&
-      fetchedOptions.length === 0 &&
-      !isLoadingOptions &&
-      !fetchError
-    ) {
-      fetchOptionsIfNeeded()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchOptionsIfNeeded deps already covered above
-  }, [
-    fetchOptions,
-    isPreview,
-    disabled,
-    fetchedOptions.length,
-    isLoadingOptions,
-    fetchError,
-    dependencyValues,
-  ])
-
-  // Hydrate the stored value's label by fetching it individually
-  useEffect(() => {
-    if (!fetchOptionById || isPreview || disabled) return
-
-    const valueToHydrate = value as string | null | undefined
-    if (!valueToHydrate) return
-
-    // Skip if value is an expression (not a real ID)
-    if (valueToHydrate.startsWith('<') || valueToHydrate.includes('{{')) return
-
-    // Skip if already hydrated with the same value
-    if (hydratedOption?.id === valueToHydrate) return
-
-    // Skip if value is already in fetched options or static options
-    const alreadyInFetchedOptions = fetchedOptions.some((opt) => opt.id === valueToHydrate)
-    const alreadyInStaticOptions = staticOptions.some((opt) =>
-      typeof opt === 'string' ? opt === valueToHydrate : opt.id === valueToHydrate
-    )
-    if (alreadyInFetchedOptions || alreadyInStaticOptions) return
-
-    // Track if effect is still active (cleanup on unmount or value change)
-    let isActive = true
-
-    // Fetch the hydrated option
-    fetchOptionById(blockId, valueToHydrate)
-      .then((option) => {
-        if (isActive) setHydratedOption(option)
-      })
-      .catch(() => {
-        if (isActive) setHydratedOption(null)
-      })
-
-    return () => {
-      isActive = false
-    }
-  }, [
-    fetchOptionById,
-    value,
-    blockId,
-    isPreview,
-    disabled,
-    fetchedOptions,
-    staticOptions,
-    hydratedOption?.id,
-  ])
 
   /**
    * Handles wheel event for ReactFlow zoom control
@@ -434,10 +405,10 @@ export const ComboBox = memo(function ComboBox({
   const handleOpenChange = useCallback(
     (open: boolean) => {
       if (open) {
-        void fetchOptionsIfNeeded()
+        refetchOptions()
       }
     },
-    [fetchOptionsIfNeeded]
+    [refetchOptions]
   )
 
   /**
@@ -493,8 +464,10 @@ export const ComboBox = memo(function ComboBox({
       const matchedComboboxOption = comboboxOptions.find((option) => option.value === newValue)
       if (matchedComboboxOption) {
         setInputValue(matchedComboboxOption.label)
+        setSelectorSearch('')
       } else {
         setInputValue(newValue)
+        setSelectorSearch(newValue)
       }
 
       // Use controller's handler so env vars, tags, and DnD still work
@@ -584,12 +557,32 @@ export const ComboBox = memo(function ComboBox({
               className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-7')}
               inputProps={comboboxInputProps}
               isLoading={isLoadingOptions}
+              isLoadingMore={isFetchingMore}
+              isLoadingAll={isLoadingAll}
+              hasMore={hasMore}
+              truncated={truncated}
+              searchActive={Boolean(debouncedSelectorSearch)}
+              onLoadMore={loadMore}
+              onLoadAll={loadAll}
               error={fetchError}
               onOpenChange={handleOpenChange}
+              onSearchChange={setSelectorSearch}
             />
           )
         }}
       </SubBlockInputController>
+
+      {config.createAction === 'sandbox' && (
+        <SandboxCreateModal
+          open={isCreateOpen}
+          onOpenChange={setIsCreateOpen}
+          defaultLanguage={createLanguage}
+          onCreated={(sandbox) => {
+            setCreatedOption({ label: sandbox.name, id: sandbox.id })
+            setStoreValue(sandbox.id)
+          }}
+        />
+      )}
     </div>
   )
 })

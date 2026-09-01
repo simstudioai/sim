@@ -2,6 +2,7 @@ import type {
   CalendlyListScheduledEventsParams,
   CalendlyListScheduledEventsResponse,
 } from '@/tools/calendly/types'
+import { toResourceUri } from '@/tools/calendly/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listScheduledEventsTool: ToolConfig<
@@ -94,11 +95,13 @@ export const listScheduledEventsTool: ToolConfig<
       }
 
       if (params.user) {
-        queryParams.push(`user=${encodeURIComponent(params.user)}`)
+        queryParams.push(`user=${encodeURIComponent(toResourceUri(params.user, 'users'))}`)
       }
 
       if (params.organization) {
-        queryParams.push(`organization=${encodeURIComponent(params.organization)}`)
+        queryParams.push(
+          `organization=${encodeURIComponent(toResourceUri(params.organization, 'organizations'))}`
+        )
       }
 
       if (params.invitee_email) {

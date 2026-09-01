@@ -12,7 +12,7 @@ describe('deriveEnterpriseCreditLimits', () => {
           invoiceAmountCents: '99900',
           usageLimitCredits: '20000',
         },
-        monthlyPriceUsd: 999,
+        invoiceAmountUsd: 999,
         prepaidBalanceDollars: 10,
       })
     ).toEqual({
@@ -29,17 +29,17 @@ describe('deriveEnterpriseCreditLimits', () => {
         metadata: {
           usageLimitCredits: '8000',
         },
-        monthlyPriceUsd: 999,
+        invoiceAmountUsd: 999,
         prepaidBalanceDollars: 10,
       }).effectiveUsageLimitCredits
     ).toBe(10000)
   })
 
-  it('defaults the usage limit to the monthly price when metadata is absent', () => {
+  it('defaults the usage limit to the invoice amount when metadata is absent', () => {
     expect(
       deriveEnterpriseCreditLimits({
         metadata: {},
-        monthlyPriceUsd: 50,
+        invoiceAmountUsd: 50,
         prepaidBalanceDollars: 0,
       })
     ).toEqual({
@@ -56,7 +56,7 @@ describe('deriveEnterpriseCreditLimits', () => {
         metadata: {
           usageLimitCredits: '20000',
         },
-        monthlyPriceUsd: 100,
+        invoiceAmountUsd: 100,
         prepaidBalanceDollars: '0.001',
       })
     ).toMatchObject({

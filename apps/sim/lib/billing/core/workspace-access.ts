@@ -31,6 +31,10 @@ export interface WorkspaceOwnerSubscriptionAccess {
 /**
  * Resolves the workspace-selected organization or personal payer and returns
  * its exact subscription access fields.
+ *
+ * Block state comes from {@link getBillingEntityBlockStatus}, so a personal
+ * payer who is blocked only through a delinquent organization loses paid access
+ * here too — the same answer the server-side entitlement gates give.
  */
 export async function getWorkspaceOwnerSubscriptionAccess(
   workspaceId: string

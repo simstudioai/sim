@@ -1,3 +1,4 @@
+import { toRecordOrNull } from '@sim/utils/object'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Base URL for the Rocketlane REST API (v1.0). */
@@ -57,10 +58,6 @@ function asBoolean(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
 }
 
-function asObject(value: unknown): Raw | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Raw) : null
-}
-
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
@@ -76,7 +73,7 @@ export interface RocketlaneUserSummary {
 }
 
 export function mapUserSummary(value: unknown): RocketlaneUserSummary | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     userId: asNumber(raw.userId),
@@ -102,7 +99,7 @@ export interface RocketlanePagination {
 }
 
 export function mapPagination(value: unknown): RocketlanePagination {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     pageSize: asNumber(raw.pageSize),
     hasMore: asBoolean(raw.hasMore),
@@ -239,7 +236,7 @@ export interface RocketlaneTask {
 }
 
 function mapTaskProjectRef(value: unknown): RocketlaneTaskProjectRef | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     projectId: asNumber(raw.projectId),
@@ -248,7 +245,7 @@ function mapTaskProjectRef(value: unknown): RocketlaneTaskProjectRef | null {
 }
 
 function mapTaskPhaseRef(value: unknown): RocketlaneTaskPhaseRef | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     phaseId: asNumber(raw.phaseId),
@@ -257,7 +254,7 @@ function mapTaskPhaseRef(value: unknown): RocketlaneTaskPhaseRef | null {
 }
 
 function mapTaskChoice(value: unknown): RocketlaneTaskChoice | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     value: asNumber(raw.value),
@@ -266,7 +263,7 @@ function mapTaskChoice(value: unknown): RocketlaneTaskChoice | null {
 }
 
 function mapTaskRole(value: unknown): RocketlaneTaskRole | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     roleId: asNumber(raw.roleId),
@@ -275,7 +272,7 @@ function mapTaskRole(value: unknown): RocketlaneTaskRole | null {
 }
 
 function mapTaskPlaceholder(value: unknown): RocketlaneTaskPlaceholder {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     placeholderId: asNumber(raw.placeholderId),
     placeholderName: asString(raw.placeholderName),
@@ -284,7 +281,7 @@ function mapTaskPlaceholder(value: unknown): RocketlaneTaskPlaceholder {
 }
 
 function mapTaskAssignees(value: unknown): RocketlaneTaskAssignees | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     members: asArray(raw.members)
@@ -295,7 +292,7 @@ function mapTaskAssignees(value: unknown): RocketlaneTaskAssignees | null {
 }
 
 function mapTaskFollowers(value: unknown): RocketlaneTaskFollowers | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     members: asArray(raw.members)
@@ -305,7 +302,7 @@ function mapTaskFollowers(value: unknown): RocketlaneTaskFollowers | null {
 }
 
 function mapTaskLite(value: unknown): RocketlaneTaskLite {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     taskId: asNumber(raw.taskId),
     taskName: asString(raw.taskName),
@@ -313,7 +310,7 @@ function mapTaskLite(value: unknown): RocketlaneTaskLite {
 }
 
 function mapTaskField(value: unknown): RocketlaneTaskField {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     fieldId: asNumber(raw.fieldId),
     fieldLabel: asString(raw.fieldLabel),
@@ -323,7 +320,7 @@ function mapTaskField(value: unknown): RocketlaneTaskField {
 }
 
 function mapTaskTimeEntryCategory(value: unknown): RocketlaneTaskTimeEntryCategory | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     categoryId: asNumber(raw.categoryId),
@@ -332,7 +329,7 @@ function mapTaskTimeEntryCategory(value: unknown): RocketlaneTaskTimeEntryCatego
 }
 
 function mapTaskBudget(value: unknown): RocketlaneTaskBudget {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     budgetId: asNumber(raw.budgetId),
     budgetName: asString(raw.budgetName),
@@ -340,7 +337,7 @@ function mapTaskBudget(value: unknown): RocketlaneTaskBudget {
 }
 
 export function mapTask(value: unknown): RocketlaneTask {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     taskId: asNumber(raw.taskId),
     taskName: asString(raw.taskName),
@@ -367,7 +364,7 @@ export function mapTask(value: unknown): RocketlaneTask {
     assignees: mapTaskAssignees(raw.assignees),
     followers: mapTaskFollowers(raw.followers),
     dependencies: asArray(raw.dependencies).map(mapTaskLite),
-    parent: asObject(raw.parent) ? mapTaskLite(raw.parent) : null,
+    parent: toRecordOrNull(raw.parent) ? mapTaskLite(raw.parent) : null,
     externalReferenceId: asString(raw.externalReferenceId),
     billable: asBoolean(raw.billable),
     timeEntryCategory: mapTaskTimeEntryCategory(raw.timeEntryCategory),
@@ -765,7 +762,7 @@ export interface RocketlaneProjectCompany {
 }
 
 export function mapProjectCompany(value: unknown): RocketlaneProjectCompany | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     companyId: asNumber(raw.companyId),
@@ -787,7 +784,7 @@ export interface RocketlaneProjectStatus {
 }
 
 export function mapProjectStatus(value: unknown): RocketlaneProjectStatus | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     value: asNumber(raw.value),
@@ -809,7 +806,7 @@ export interface RocketlaneProjectField {
 }
 
 export function mapProjectField(value: unknown): RocketlaneProjectField {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     fieldId: asNumber(raw.fieldId),
     fieldLabel: asString(raw.fieldLabel),
@@ -836,7 +833,7 @@ export interface RocketlaneProjectPhase {
 }
 
 export function mapProjectPhase(value: unknown): RocketlaneProjectPhase {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     phaseId: asNumber(raw.phaseId),
     phaseName: asString(raw.phaseName),
@@ -857,7 +854,7 @@ export interface RocketlaneProjectSource {
 }
 
 export function mapProjectSource(value: unknown): RocketlaneProjectSource {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     prefix: asString(raw.prefix),
     startDate: asString(raw.startDate),
@@ -889,7 +886,7 @@ export interface RocketlaneProjectTeamMembers {
 }
 
 export function mapProjectTeamMembers(value: unknown): RocketlaneProjectTeamMembers {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     members: asArray(raw.members)
       .map(mapUserSummary)
@@ -939,12 +936,12 @@ export interface RocketlaneProjectFinancials {
 }
 
 export function mapProjectFinancials(value: unknown): RocketlaneProjectFinancials | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
-  const fixedFeeContract = asObject(raw.fixedFeeContract) ?? {}
-  const timeAndMaterialContract = asObject(raw.timeAndMaterialContract) ?? {}
-  const rateCard = asObject(timeAndMaterialContract.rateCard) ?? {}
-  const subscriptionContract = asObject(raw.subscriptionContract) ?? {}
+  const fixedFeeContract = toRecordOrNull(raw.fixedFeeContract) ?? {}
+  const timeAndMaterialContract = toRecordOrNull(raw.timeAndMaterialContract) ?? {}
+  const rateCard = toRecordOrNull(timeAndMaterialContract.rateCard) ?? {}
+  const subscriptionContract = toRecordOrNull(raw.subscriptionContract) ?? {}
   return {
     contractType: asString(raw.contractType),
     revenueRecognitionType: asString(raw.revenueRecognitionType),
@@ -1062,7 +1059,7 @@ export interface RocketlaneProject {
 }
 
 export function mapProject(value: unknown): RocketlaneProject {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     projectId: asNumber(raw.projectId),
     projectName: asString(raw.projectName),
@@ -1360,9 +1357,9 @@ export interface RocketlanePlaceholderRole {
 }
 
 export function mapPlaceholder(value: unknown): RocketlanePlaceholder {
-  const raw = asObject(value) ?? {}
-  const project = asObject(raw.project)
-  const role = asObject(raw.role)
+  const raw = toRecordOrNull(value) ?? {}
+  const project = toRecordOrNull(raw.project)
+  const role = toRecordOrNull(raw.role)
   return {
     placeholderId: asNumber(raw.placeholderId),
     placeholderName: asString(raw.placeholderName),
@@ -1449,9 +1446,9 @@ export interface RocketlanePlaceholderRef {
 }
 
 export function mapPlaceholderMapping(value: unknown): RocketlanePlaceholderMapping {
-  const raw = asObject(value) ?? {}
-  const placeholder = asObject(raw.placeholder)
-  const user = asObject(raw.user)
+  const raw = toRecordOrNull(value) ?? {}
+  const placeholder = toRecordOrNull(raw.placeholder)
+  const user = toRecordOrNull(raw.user)
   return {
     placeholder: placeholder
       ? {
@@ -1734,7 +1731,7 @@ export interface RocketlaneFieldOption {
 }
 
 export function mapFieldOption(value: unknown): RocketlaneFieldOption {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     optionValue: asNumber(raw.optionValue),
     optionLabel: asString(raw.optionLabel),
@@ -1775,7 +1772,7 @@ export interface RocketlaneField {
 }
 
 export function mapField(value: unknown): RocketlaneField {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     fieldId: asNumber(raw.fieldId),
     fieldLabel: asString(raw.fieldLabel),
@@ -1970,9 +1967,9 @@ export interface RocketlanePhase {
 }
 
 export function mapPhase(value: unknown): RocketlanePhase {
-  const raw = asObject(value) ?? {}
-  const project = asObject(raw.project)
-  const status = asObject(raw.status)
+  const raw = toRecordOrNull(value) ?? {}
+  const project = toRecordOrNull(raw.project)
+  const status = toRecordOrNull(raw.status)
   return {
     phaseId: asNumber(raw.phaseId),
     phaseName: asString(raw.phaseName),
@@ -2200,7 +2197,7 @@ export interface RocketlaneTimeEntry {
 }
 
 function mapTimeEntryProject(value: unknown): RocketlaneTimeEntryProject | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     projectId: asNumber(raw.projectId),
@@ -2209,7 +2206,7 @@ function mapTimeEntryProject(value: unknown): RocketlaneTimeEntryProject | null 
 }
 
 function mapTimeEntryTask(value: unknown): RocketlaneTimeEntryTask | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     taskId: asNumber(raw.taskId),
@@ -2218,7 +2215,7 @@ function mapTimeEntryTask(value: unknown): RocketlaneTimeEntryTask | null {
 }
 
 function mapTimeEntryPhase(value: unknown): RocketlaneTimeEntryPhase | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     phaseId: asNumber(raw.phaseId),
@@ -2227,7 +2224,7 @@ function mapTimeEntryPhase(value: unknown): RocketlaneTimeEntryPhase | null {
 }
 
 export function mapTimeEntryCategory(value: unknown): RocketlaneTimeEntryCategory | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     categoryId: asNumber(raw.categoryId),
@@ -2236,7 +2233,7 @@ export function mapTimeEntryCategory(value: unknown): RocketlaneTimeEntryCategor
 }
 
 function mapTimeEntryRate(value: unknown): RocketlaneTimeEntryRate | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     rate: asNumber(raw.rate),
@@ -2245,7 +2242,7 @@ function mapTimeEntryRate(value: unknown): RocketlaneTimeEntryRate | null {
 }
 
 function mapTimeEntryField(value: unknown): RocketlaneTimeEntryField {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     fieldId: asNumber(raw.fieldId),
     fieldLabel: asString(raw.fieldLabel),
@@ -2255,7 +2252,7 @@ function mapTimeEntryField(value: unknown): RocketlaneTimeEntryField {
 }
 
 export function mapTimeEntry(value: unknown): RocketlaneTimeEntry {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     timeEntryId: asNumber(raw.timeEntryId),
     date: asString(raw.date),
@@ -2623,8 +2620,8 @@ export interface RocketlaneSpace {
 }
 
 export function mapSpace(value: unknown): RocketlaneSpace {
-  const raw = asObject(value) ?? {}
-  const project = asObject(raw.project)
+  const raw = toRecordOrNull(value) ?? {}
+  const project = toRecordOrNull(raw.project)
   return {
     spaceId: asNumber(raw.spaceId),
     spaceName: asString(raw.spaceName),
@@ -2780,9 +2777,9 @@ export interface RocketlaneSpaceDocument {
 }
 
 export function mapSpaceDocument(value: unknown): RocketlaneSpaceDocument {
-  const raw = asObject(value) ?? {}
-  const space = asObject(raw.space)
-  const source = asObject(raw.source)
+  const raw = toRecordOrNull(value) ?? {}
+  const space = toRecordOrNull(raw.space)
+  const source = toRecordOrNull(raw.source)
   return {
     spaceDocumentId: asNumber(raw.spaceDocumentId),
     spaceDocumentName: asString(raw.spaceDocumentName),
@@ -3003,11 +3000,11 @@ export interface RocketlaneUser {
 }
 
 export function mapUser(value: unknown): RocketlaneUser {
-  const raw = asObject(value) ?? {}
-  const role = asObject(raw.role)
-  const company = asObject(raw.company)
-  const permission = asObject(raw.permission)
-  const holidayCalendar = asObject(raw.holidayCalendar)
+  const raw = toRecordOrNull(value) ?? {}
+  const role = toRecordOrNull(raw.role)
+  const company = toRecordOrNull(raw.company)
+  const permission = toRecordOrNull(raw.permission)
+  const holidayCalendar = toRecordOrNull(raw.holidayCalendar)
   return {
     userId: asNumber(raw.userId),
     email: asString(raw.email),
@@ -3034,7 +3031,7 @@ export function mapUser(value: unknown): RocketlaneUser {
         }
       : null,
     fields: asArray(raw.fields).map((field) => {
-      const fieldRaw = asObject(field) ?? {}
+      const fieldRaw = toRecordOrNull(field) ?? {}
       return {
         fieldId: asNumber(fieldRaw.fieldId),
         fieldLabel: asString(fieldRaw.fieldLabel),
@@ -3330,7 +3327,7 @@ export interface RocketlaneTimeOff {
 }
 
 function mapTimeOffNotifyUsers(value: unknown): RocketlaneTimeOffNotifyUsers | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     projectOwners: asBoolean(raw.projectOwners),
@@ -3344,7 +3341,7 @@ function mapTimeOffNotifyUsers(value: unknown): RocketlaneTimeOffNotifyUsers | n
  * Maps a raw time-off payload to the normalized {@link RocketlaneTimeOff} shape.
  */
 export function mapTimeOff(value: unknown): RocketlaneTimeOff {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     timeOffId: asNumber(raw.timeOffId),
     user: mapUserSummary(raw.user),
@@ -3522,7 +3519,7 @@ export interface RocketlaneResourceAllocation {
 }
 
 function mapResourceAllocationRole(value: unknown): RocketlaneResourceAllocationRole | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     roleId: asNumber(raw.roleId),
@@ -3531,7 +3528,7 @@ function mapResourceAllocationRole(value: unknown): RocketlaneResourceAllocation
 }
 
 function mapResourceAllocationMember(value: unknown): RocketlaneResourceAllocationMember | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   const user = mapUserSummary(raw)
   if (!user) return null
@@ -3544,7 +3541,7 @@ function mapResourceAllocationMember(value: unknown): RocketlaneResourceAllocati
 function mapResourceAllocationPlaceholder(
   value: unknown
 ): RocketlaneResourceAllocationPlaceholder | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     placeholderId: asNumber(raw.placeholderId),
@@ -3556,7 +3553,7 @@ function mapResourceAllocationPlaceholder(
 function mapResourceAllocationDuration(
   value: unknown
 ): RocketlaneResourceAllocationDuration | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     daysConsider: asNumber(raw.daysConsider),
@@ -3567,7 +3564,7 @@ function mapResourceAllocationDuration(
 }
 
 function mapResourceAllocationProject(value: unknown): RocketlaneResourceAllocationProject | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     projectId: asNumber(raw.projectId),
@@ -3576,7 +3573,7 @@ function mapResourceAllocationProject(value: unknown): RocketlaneResourceAllocat
 }
 
 function mapResourceAllocationTask(value: unknown): RocketlaneResourceAllocationTask {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     taskId: asNumber(raw.taskId),
     taskName: asString(raw.taskName),
@@ -3588,7 +3585,7 @@ function mapResourceAllocationTask(value: unknown): RocketlaneResourceAllocation
  * {@link RocketlaneResourceAllocation} shape.
  */
 export function mapResourceAllocation(value: unknown): RocketlaneResourceAllocation {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     startDate: asString(raw.startDate),
     endDate: asString(raw.endDate),
@@ -3919,7 +3916,7 @@ export interface RocketlaneInvoiceLineItem {
 }
 
 function mapInvoiceCompany(value: unknown): RocketlaneInvoiceCompany | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     companyId: asNumber(raw.companyId),
@@ -3929,7 +3926,7 @@ function mapInvoiceCompany(value: unknown): RocketlaneInvoiceCompany | null {
 }
 
 function mapInvoiceProject(value: unknown): RocketlaneInvoiceProject {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     projectId: asNumber(raw.projectId),
     projectName: asString(raw.projectName),
@@ -3937,7 +3934,7 @@ function mapInvoiceProject(value: unknown): RocketlaneInvoiceProject {
 }
 
 function mapInvoiceField(value: unknown): RocketlaneInvoiceField {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     fieldId: asNumber(raw.fieldId),
     fieldLabel: asString(raw.fieldLabel),
@@ -3947,7 +3944,7 @@ function mapInvoiceField(value: unknown): RocketlaneInvoiceField {
 }
 
 function mapInvoiceAttachment(value: unknown): RocketlaneInvoiceAttachment {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     attachmentId: asNumber(raw.attachmentId),
     attachmentName: asString(raw.attachmentName),
@@ -3962,7 +3959,7 @@ function mapInvoiceAttachment(value: unknown): RocketlaneInvoiceAttachment {
  * Maps a raw invoice payload to the normalized {@link RocketlaneInvoice} shape.
  */
 export function mapInvoice(value: unknown): RocketlaneInvoice {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     invoiceId: asNumber(raw.invoiceId),
     invoiceNumber: asString(raw.invoiceNumber),
@@ -3992,7 +3989,7 @@ export function mapInvoice(value: unknown): RocketlaneInvoice {
  * Maps a raw payment-record payload to the normalized {@link RocketlaneInvoicePayment} shape.
  */
 export function mapInvoicePayment(value: unknown): RocketlaneInvoicePayment {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     paymentId: asNumber(raw.paymentId),
     paymentRecordType: asString(raw.paymentRecordType),
@@ -4004,7 +4001,7 @@ export function mapInvoicePayment(value: unknown): RocketlaneInvoicePayment {
 }
 
 function mapInvoiceLineItemTaxCode(value: unknown): RocketlaneInvoiceLineItemTaxCode | null {
-  const raw = asObject(value)
+  const raw = toRecordOrNull(value)
   if (!raw) return null
   return {
     taxCodeId: asNumber(raw.taxCodeId),
@@ -4015,7 +4012,7 @@ function mapInvoiceLineItemTaxCode(value: unknown): RocketlaneInvoiceLineItemTax
 }
 
 function mapInvoiceLineItemTaxComponent(value: unknown): RocketlaneInvoiceLineItemTaxComponent {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     taxComponentId: asNumber(raw.taxComponentId),
     taxComponentName: asString(raw.taxComponentName),
@@ -4029,7 +4026,7 @@ function mapInvoiceLineItemTaxComponent(value: unknown): RocketlaneInvoiceLineIt
  * Maps a raw invoice line-item payload to the normalized {@link RocketlaneInvoiceLineItem} shape.
  */
 export function mapInvoiceLineItem(value: unknown): RocketlaneInvoiceLineItem {
-  const raw = asObject(value) ?? {}
+  const raw = toRecordOrNull(value) ?? {}
   return {
     invoiceLineItemId: asNumber(raw.invoiceLineItemId),
     description: asString(raw.description),

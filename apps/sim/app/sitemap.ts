@@ -72,9 +72,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/logs`,
     },
     {
-      url: `${baseUrl}/scheduled-tasks`,
-    },
-    {
       url: `${baseUrl}/pricing`,
     },
     {
@@ -141,7 +138,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/privacy`,
-      lastModified: new Date('2024-10-14'),
+      lastModified: new Date('2026-08-18'),
+    },
+    {
+      url: `${baseUrl}/cookie-policy`,
+      lastModified: new Date('2026-08-18'),
     },
   ]
 

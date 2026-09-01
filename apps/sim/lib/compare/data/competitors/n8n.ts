@@ -709,6 +709,41 @@ export const n8nProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          "Partial: self-hosted only. On a self-hosted instance an admin sets NODE_FUNCTION_ALLOW_BUILTIN to allowlist Node.js built-in modules (by name, or '*' for all) and NODE_FUNCTION_ALLOW_EXTERNAL to allowlist npm packages by name, with those packages sourced from the instance's n8n/node_modules directory; on n8n Cloud the Code node can't import external npm modules, and n8n makes only the crypto built-in and the moment package available.",
+        detail:
+          "The two allowlist variables are instance-level environment variables, not per-workflow settings, and when the instance runs task runners they must be set on the runners rather than the main n8n process. n8n's docs describe the '*' wildcard for the built-in allowlist; the external allowlist is documented as specific module names. Python follows the same host-level pattern: n8n v2 removes the Pyodide-based Python Code node in favour of a native-Python task-runner implementation, and the task-runner variables N8N_RUNNERS_STDLIB_ALLOW and N8N_RUNNERS_EXTERNAL_ALLOW allowlist Python standard-library and third-party modules respectively, so the available Python environment is likewise a property of the host deployment rather than a per-workflow setting. There is no per-code-step declaration of packages, OS packages, or preinstalled CLI binaries; changing the dependency set means changing the host instance.",
+        shortValue: 'Self-hosted env-var allowlist; Cloud is a fixed image',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.n8n.io/deploy/host-n8n/configure-n8n/basic-configuration/configuration-examples/enable-modules-in-code-node',
+            label: 'Enable modules in Code node | Deploy | n8n Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.code/',
+            label: 'Code | Nodes | n8n Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.n8n.io/deploy/host-n8n/configure-n8n/basic-configuration/use-environment-variables/nodes',
+            label: 'Nodes environment variables | Deploy | n8n Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.n8n.io/changelog/v20-breaking-changes',
+            label: 'v2.0 Breaking changes | Changelog | n8n Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.n8n.io/deploy/host-n8n/configure-n8n/basic-configuration/use-environment-variables/task-runners',
+            label: 'Task runners environment variables | Deploy | n8n Docs',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes: workflows can be triggered/exposed via Webhook trigger as a REST-style endpoint, and via MCP Server Trigger as MCP tools',
@@ -1024,6 +1059,26 @@ export const n8nProfile: CompetitorProfile = {
             url: 'https://blog.n8n.io/introducing-custom-project-roles-and-user-provisioning-via-sso-built-for-enterprise-governance/',
             label: 'User Provisioning via SSO, built for Enterprise governance',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Partial: self-hosted only and env-var driven. N8N_USER_MANAGEMENT_JWT_DURATION_HOURS sets how long a signed-in session JWT lasts (default 168 hours, one week) and N8N_USER_MANAGEMENT_JWT_REFRESH_TIMEOUT_HOURS controls sliding refresh, where 0 means refresh at 25% of the duration and -1 disables refresh so the duration becomes a hard re-login deadline.',
+        detail:
+          'Both are instance-level environment variables set at deploy time rather than an admin console setting, and fractional values (for example 0.5 for 30 minutes) are accepted. The pair was added in n8n 1.26.0 in response to a community request for a session-time limit. Configuring them requires control of the host, so they are not available to n8n Cloud customers, and n8n does not document a Cloud- or Enterprise-tier session-lifetime setting; SAML/OIDC SSO on Business/Enterprise plans handles authentication but n8n does not document inheriting an IdP session lifetime.',
+        shortValue: 'Self-hosted JWT duration env vars, no Cloud setting',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.n8n.io/deploy/host-n8n/configure-n8n/basic-configuration/use-environment-variables/user-management-and-2fa',
+            label: 'User management and 2FA | Deploy | n8n Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://community.n8n.io/t/setting-to-limit-session-time-for-users-logged-into-n8n-management-console-got-created/30227',
+            label: 'Setting to limit session time for users logged into n8n (n8n Community)',
+            asOf: '2026-08-10',
           },
         ],
       },

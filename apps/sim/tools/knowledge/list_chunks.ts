@@ -1,7 +1,7 @@
 import type { KnowledgeListChunksResponse } from '@/tools/knowledge/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeListChunksTool: ToolConfig<any, KnowledgeListChunksResponse> = {
+export const knowledgeListChunksTool: InternalToolConfig<any, KnowledgeListChunksResponse> = {
   id: 'knowledge_list_chunks',
   name: 'Knowledge List Chunks',
   description:
@@ -47,20 +47,15 @@ export const knowledgeListChunksTool: ToolConfig<any, KnowledgeListChunksRespons
     },
   },
 
-  request: {
-    url: (params) => {
-      const queryParams = new URLSearchParams()
-      if (params.search) queryParams.set('search', params.search)
-      if (params.enabled) queryParams.set('enabled', params.enabled)
-      if (params.limit)
-        queryParams.set('limit', String(Math.max(1, Math.min(100, Number(params.limit)))))
-      if (params.offset != null) queryParams.set('offset', String(params.offset))
-      const qs = queryParams.toString()
-      return `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks${qs ? `?${qs}` : ''}`
-    },
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
+  operation: {
+    secretProvenance: { response: { incomplete: 'reject' } },
+    input: (params) => ({
+      knowledgeBaseId: params.knowledgeBaseId,
+      documentId: params.documentId,
+      ...(params.search ? { search: params.search } : {}),
+      ...(params.enabled ? { enabled: params.enabled } : {}),
+      ...(params.limit ? { limit: String(Math.max(1, Math.min(100, Number(params.limit)))) } : {}),
+      ...(params.offset != null ? { offset: String(params.offset) } : {}),
     }),
   },
 

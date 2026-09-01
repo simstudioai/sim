@@ -1,0 +1,149 @@
+---
+title: Authentication
+description: Login providers, SSO, and controlling who can sign up
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+## Required configuration
+
+```bash
+BETTER_AUTH_SECRET=<openssl rand -hex 32>
+BETTER_AUTH_URL=https://sim.yourdomain.com
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+```
+
+<Callout type="warn">
+  `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` must be your exact public origin — correct scheme, no trailing slash. Leaving either as `localhost` in a deployed instance breaks sign-in, and the failure looks like a redirect loop rather than a configuration error.
+
+  `BETTER_AUTH_SECRET` must be **identical** on the app and realtime services. They share sessions through the database; a mismatch means realtime rejects every authenticated socket connection.
+</Callout>
+
+If users reach Sim from more than one origin — an apex and `www`, or an alias domain — list the extras:
+
+```bash
+TRUSTED_ORIGINS=https://www.example.com,https://app.example.com
+```
+
+## Email and password
+
+Enabled by default. Users sign up with an email address and password.
+
+```bash
+EMAIL_VERIFICATION_ENABLED=true
+```
+
+Requires a configured email provider — see [Email](/platform/self-hosting/email). Without one the mailer no-ops silently, so users can never verify and never sign in. Do not enable this before email works.
+
+## Social login
+
+Three providers are supported for signing in to Sim itself.
+
+| Provider | Variables | Callback URL |
+|---|---|---|
+| Google | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `https://<host>/api/auth/callback/google` |
+| GitHub | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | `https://<host>/api/auth/callback/github` |
+| Microsoft | `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | `https://<host>/api/auth/callback/microsoft` |
+
+A provider appears on the login page once its credentials are set. Microsoft additionally requires both variables to be present before it is registered at all.
+
+Turn one off without removing its credentials — useful when the same Google or Microsoft app powers integrations but you do not want it as a login method:
+
+```bash
+DISABLE_GOOGLE_AUTH=true
+DISABLE_GITHUB_AUTH=true
+DISABLE_MICROSOFT_AUTH=true
+```
+
+<Callout type="info">
+  `GOOGLE_CLIENT_ID` and `MICROSOFT_CLIENT_ID` are shared with the integration connectors. One app registration can serve both login and integrations — just register both sets of redirect URIs. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+</Callout>
+
+## SSO (SAML and OIDC)
+
+SAML and OIDC single sign-on is an enterprise feature, available on self-hosted deployments through configuration rather than billing:
+
+```bash
+ENTERPRISE_ENABLED=true
+NEXT_PUBLIC_ENTERPRISE_ENABLED=true
+```
+
+Or enable just SSO:
+
+```bash
+SSO_ENABLED=true
+NEXT_PUBLIC_SSO_ENABLED=true
+```
+
+Providers are then registered in the app under **Settings → Enterprise → Single Sign-On**. A provider can be scoped to an organization or registered without one. Most other enterprise features do read their settings from the organization that owns a workspace, so a deployment using them still needs an organization model — set `INSTANCE_ORG_NAME` to place every user in one shared organization, or provision organizations through the Admin API.
+
+See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the organization patterns.
+
+## Controlling who can sign up
+
+| Variable | Effect |
+|---|---|
+| `DISABLE_REGISTRATION=true` | Blocks all new accounts — email/password, email OTP, and social sign-in. Only existing accounts can sign in, including to accept a workspace invitation. SSO is unaffected |
+| `DISABLE_EMAIL_SIGNUP=true` | Blocks new email/password registrations; existing email login keeps working |
+| `ALLOWED_LOGIN_DOMAINS` | Comma-separated domain allowlist, e.g. `acme.com,acme.co.uk`. Gates email sign-**in** as well as signup |
+| `ALLOWED_LOGIN_EMAILS` | Comma-separated address allowlist, applied the same way |
+| `BLOCKED_SIGNUP_DOMAINS` | Comma-separated domain blocklist |
+| `SIGNUP_MX_VALIDATION_ENABLED=true` | Reject domains with no MX record or a denylisted mail backend |
+| `BLOCKED_EMAIL_MX_HOSTS` | MX-host substrings to block; used only with the above |
+
+<Callout type="warn">
+  `ALLOWED_LOGIN_DOMAINS`, `ALLOWED_LOGIN_EMAILS`, and `SIGNUP_MX_VALIDATION_ENABLED` gate the **email/password** path only. A first-time sign-in through Google, GitHub, or Microsoft creates an account through the social provider and is not filtered by them. To restrict who may sign in through a social provider, disable the ones you have not vetted (`DISABLE_GOOGLE_AUTH`, `DISABLE_GITHUB_AUTH`, `DISABLE_MICROSOFT_AUTH`) or restrict membership at the identity provider and use SSO.
+
+  `DISABLE_REGISTRATION` and `BLOCKED_SIGNUP_DOMAINS` apply to every path, social included.
+</Callout>
+
+For a company deployment, the usual pairing is domain-restricted signup plus SSO:
+
+```bash
+ALLOWED_LOGIN_DOMAINS=acme.com
+DISABLE_EMAIL_SIGNUP=true
+SSO_ENABLED=true
+NEXT_PUBLIC_SSO_ENABLED=true
+```
+
+Both SSO flags are needed: the server-side one grants access, and the `NEXT_PUBLIC_` one makes the login page render the SSO entry point.
+
+## Behind a load balancer
+
+Tell Better Auth which forwarding hops to trust when resolving the client IP:
+
+```bash
+AUTH_TRUSTED_PROXIES=10.0.0.0/24,192.0.2.10
+```
+
+Better Auth walks `X-Forwarded-For` right to left, skips these hops, and uses the first untrusted address as the client IP for session records and its own IP-based checks. Use your proxies' actual addresses — a broad private range that also covers client traffic defeats the purpose. See [Security](/platform/self-hosting/security).
+
+## Disabling authentication entirely
+
+```bash
+DISABLE_AUTH=true
+```
+
+Bypasses authentication and creates an anonymous session for every request.
+
+<Callout type="error">
+  Everyone who can reach the instance becomes a fully privileged user — including anything that can reach it through an SSRF bug elsewhere on your network. Use this only for a single-user instance on a private network, never behind an internet-facing ingress.
+</Callout>
+
+## Other controls
+
+| Variable | Effect |
+|---|---|
+| `DISABLE_INVITATIONS=true` / `NEXT_PUBLIC_DISABLE_INVITATIONS=true` | Disable workspace invitations globally |
+| `DISABLE_PUBLIC_API=true` / `NEXT_PUBLIC_DISABLE_PUBLIC_API=true` | Disable the public API globally |
+| `ADMIN_API_KEY` | Enables the Admin API for GitOps operations and organization provisioning |
+
+The `NEXT_PUBLIC_` twin controls what the UI shows; the server-side variable enforces it. Set both.
+
+<FAQ items={[
+  { question: "Sign-in redirects in a loop. What is wrong?", answer: "BETTER_AUTH_URL or NEXT_PUBLIC_APP_URL does not match the origin users are browsing. Both must be the exact public URL including scheme, with no trailing slash. This is the single most common authentication misconfiguration."},
+  { question: "Realtime rejects my session even though I am logged in.", answer: "BETTER_AUTH_SECRET differs between the app and realtime services. They share sessions through the database, so the secret must be byte-identical on both."},
+  { question: "Can I use one Google app for both login and the Gmail integration?", answer: "Yes. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET power both. Register the login callback (/api/auth/callback/google) alongside the connector callbacks (/api/auth/oauth2/callback/google-email and friends) on the same OAuth client."},
+  { question: "Why do some settings have a NEXT_PUBLIC_ twin?", answer: "The server-side variable enforces the behavior; the NEXT_PUBLIC_ variable tells the browser UI what to render. Setting only one produces a UI that disagrees with the server, so set both." },
+]} />

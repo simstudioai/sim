@@ -1,22 +1,39 @@
 'use client'
 
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import '@sim/emcn/components/code/code.css'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import {
+  SIM_ARTIFACT_SHELL,
+  SIM_ARTIFACT_STYLESHEET,
+  simTokenOverrides,
+  usesSimArtifactStyles,
+} from '@/lib/workspace-files/artifact-stylesheet'
+import { compileSimPage, isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
+import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
+import { ChartPreview } from './chart-preview'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { MermaidDiagram } from './mermaid-diagram'
 import { ZoomablePreview } from './zoomable-preview'
 
-type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | null
+type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | 'chart' | null
 
 const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
+  // Sim pages store an EXTENSIONLESS name — without this mapping the record
+  // type resolves to no preview at all and the viewer renders a blank pane
+  // (including the live compile-as-it-streams view).
+  'text/x-sim-page': 'html',
   'text/markdown': 'markdown',
   'text/html': 'html',
   'text/csv': 'csv',
   'image/svg+xml': 'svg',
   'text/x-mermaid': 'mermaid',
+  'text/x-sim-chart': 'chart',
 }
 
 const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
@@ -26,6 +43,7 @@ const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
   csv: 'csv',
   svg: 'svg',
   mmd: 'mermaid',
+  chart: 'chart',
 }
 
 /** All extensions that have a rich preview renderer. */
@@ -42,6 +60,7 @@ interface PreviewPanelProps {
   mimeType: string | null
   filename: string
   workspaceId: string
+  fileId: string
   fileKey: string
   isStreaming?: boolean
   /**
@@ -57,25 +76,37 @@ export const PreviewPanel = memo(function PreviewPanel({
   mimeType,
   filename,
   workspaceId,
+  fileId,
   fileKey,
   isStreaming,
   readOnly,
 }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
 
-  if (previewType === 'html') return <HtmlPreview content={content} />
+  if (previewType === 'html')
+    return (
+      <HtmlPreview
+        content={content}
+        isStreaming={isStreaming}
+        workspaceId={workspaceId}
+        fileId={fileId}
+        fileKey={fileKey}
+      />
+    )
   if (previewType === 'csv')
     return (
       <CsvPreview
         content={content}
         workspaceId={workspaceId}
-        file={{ key: fileKey, name: filename }}
+        file={{ id: fileId, key: fileKey, name: filename }}
         readOnly={readOnly}
       />
     )
   if (previewType === 'svg') return <SvgPreview content={content} />
   if (previewType === 'mermaid')
     return <MermaidFilePreview content={content} isStreaming={isStreaming} />
+  if (previewType === 'chart')
+    return <ChartPreview content={content} workspaceId={workspaceId} isStreaming={isStreaming} />
 
   return null
 })
@@ -109,6 +140,12 @@ const HTML_PREVIEW_BOOTSTRAP = `<script>
       const href = anchor.getAttribute('href') || ''
       if (allowHref(href)) return
       event.preventDefault()
+      // The sandbox can neither navigate nor open windows, so hand the click
+      // to the host: workspace routes go through the app router, external
+      // http(s) links open a new tab.
+      if (href.startsWith('/workspace/') || /^https?:\\/\\//i.test(href)) {
+        parent.postMessage({ __simPageNav: href }, '*')
+      }
     },
     true
   )
@@ -124,27 +161,218 @@ const HTML_PREVIEW_BOOTSTRAP = `<script>
 })()
 </script>`
 
-function buildHtmlPreviewDocument(content: string): string {
+function stampTheme(html: string, theme: 'dark' | 'light'): string {
+  if (/<html[\s>]/i.test(html)) {
+    return html.replace(/<html(\s[^>]*)?>/i, (match, attrs: string | undefined) =>
+      /\sdata-theme=/i.test(attrs ?? '') ? match : `<html data-theme="${theme}"${attrs ?? ''}>`
+    )
+  }
+  return html
+}
+
+export function buildHtmlPreviewDocument(
+  content: string,
+  theme: 'dark' | 'light' = 'light',
+  workspaceId?: string
+): string {
+  // The pdf model: a page file STORES its source (frontmatter + markdown +
+  // sim: fences) and every rendering surface compiles on demand. Partial
+  // source mid-stream compiles too, so the page builds up live as the agent
+  // appends. Raw HTML (bespoke and legacy stored-compiled pages) skips this.
+  if (isSimPageSource(content)) {
+    content = compileSimPage(content, { workspaceId })
+  } else if (content.trimStart().startsWith('---')) {
+    // Page source that does not compile yet — frontmatter still streaming in,
+    // or a malformed header. Never show a reader raw source: hold the empty
+    // themed shell (the marker pulls the stylesheet in below) until a
+    // compilable snapshot arrives.
+    content =
+      '<!DOCTYPE html><html><head><meta name="sim-artifact"><title>Page</title></head><body></body></html>'
+  }
   const headInjection = [
     '<meta charset="utf-8">',
     `<base href="${HTML_PREVIEW_BASE_URL}">`,
     `<meta http-equiv="Content-Security-Policy" content="${HTML_PREVIEW_CSP}">`,
+    // Ahead of the page's own <style>, so anything it declares still wins. The
+    // token overrides follow the sheet so the app's live values beat its
+    // fallbacks, and the shell follows both.
+    usesSimArtifactStyles(content)
+      ? `<style>${SIM_ARTIFACT_STYLESHEET}</style><style>${simTokenOverrides(theme)}</style>${SIM_ARTIFACT_SHELL}`
+      : '',
     HTML_PREVIEW_BOOTSTRAP,
   ].join('')
 
   if (/<head[\s>]/i.test(content)) {
-    return content.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${headInjection}`)
+    return stampTheme(
+      content.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${headInjection}`),
+      theme
+    )
   }
 
   if (/<html[\s>]/i.test(content)) {
-    return content.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${headInjection}</head>`)
+    return stampTheme(
+      content.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${headInjection}</head>`),
+      theme
+    )
   }
 
-  return `<!DOCTYPE html><html><head>${headInjection}</head><body>${content}</body></html>`
+  return `<!DOCTYPE html><html data-theme="${theme}"><head>${headInjection}</head><body>${content}</body></html>`
 }
 
-const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) {
-  const wrappedContent = buildHtmlPreviewDocument(content)
+/**
+ * Batches iframe content updates while an agent streams. Every content change
+ * replaces the srcDoc (a full document reload), so applying each chunk as it
+ * arrives would reload the page several times a second; ~2s batches keep the
+ * growing page readable. Off-stream, the live value passes straight through.
+ */
+function useStreamBatchedValue(value: string, streaming: boolean, intervalMs: number): string {
+  const [batched, setBatched] = useState(value)
+  const lastAppliedAtRef = useRef(0)
+  useEffect(() => {
+    if (!streaming) {
+      lastAppliedAtRef.current = 0
+      setBatched(value)
+      return
+    }
+    const elapsed = Date.now() - lastAppliedAtRef.current
+    if (elapsed >= intervalMs) {
+      lastAppliedAtRef.current = Date.now()
+      setBatched(value)
+      return
+    }
+    const timer = setTimeout(() => {
+      lastAppliedAtRef.current = Date.now()
+      setBatched(value)
+    }, intervalMs - elapsed)
+    return () => clearTimeout(timer)
+  }, [value, streaming, intervalMs])
+  return streaming ? batched : value
+}
+
+/**
+ * The sandboxed frame carries no cookies, so a workspace image
+ * (`/api/files/view/<id>`, what `![alt](sim:file/<id>)` compiles to) would
+ * 401 inside it. The host fetches the bytes with its own session and hands
+ * the frame blob: URLs, which the preview CSP already allows.
+ */
+function useInlinedWorkspaceImages(content: string): string {
+  const [resolved, setResolved] = useState<Record<string, string>>({})
+  const cacheRef = useRef<Map<string, string> | null>(null)
+  cacheRef.current ??= new Map()
+  useEffect(() => {
+    const cache = cacheRef.current
+    if (!cache) return
+    const urls = [...content.matchAll(/src="(\/api\/files\/view\/[^"]+)"/g)].map((m) => m[1])
+    const missing = [...new Set(urls)].filter((url) => !cache.has(url))
+    if (missing.length === 0) return
+    let cancelled = false
+    for (const url of missing) {
+      // boundary-raw-fetch: binary image bytes for the cookie-less sandboxed preview
+      fetch(url)
+        .then((response) => (response.ok ? response.blob() : null))
+        .then(
+          (blob) =>
+            new Promise<string | null>((resolve) => {
+              if (!blob) return resolve(null)
+              // data: URIs, NOT blob: URLs — blob URLs are origin-bound and
+              // the sandboxed frame's origin is opaque, so Chromium refuses
+              // to render a parent-origin blob inside it. data: is
+              // origin-independent and already allowed by the preview CSP.
+              const reader = new FileReader()
+              reader.onload = () =>
+                resolve(typeof reader.result === 'string' ? reader.result : null)
+              reader.onerror = () => resolve(null)
+              reader.readAsDataURL(blob)
+            })
+        )
+        .then((dataUri) => {
+          if (!dataUri || cancelled) return
+          cache.set(url, dataUri)
+          setResolved((prev) => ({ ...prev, [url]: dataUri }))
+        })
+        .catch(() => {})
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [content])
+  return useMemo(
+    () =>
+      content.replace(/src="(\/api\/files\/view\/[^"]+)"/g, (match, url: string) => {
+        const blobUrl = cacheRef.current?.get(url) ?? resolved[url]
+        return blobUrl ? `src="${blobUrl}"` : match
+      }),
+    [content, resolved]
+  )
+}
+
+const HtmlPreview = memo(function HtmlPreview({
+  content,
+  isStreaming,
+  workspaceId,
+  fileId,
+  fileKey,
+}: {
+  content: string
+  isStreaming?: boolean
+  workspaceId?: string
+  fileId?: string
+  fileKey?: string
+}) {
+  const { resolvedTheme } = useTheme()
+  const router = useRouter()
+  const batchedContent = useStreamBatchedValue(content, isStreaming === true, 2000)
+  // A SAVED sim page prefers the server-compiled document — the pptx/docx
+  // model: the serve route resolves chart references (reading a table's
+  // CURRENT rows under the viewer's authorization) and inlines the chart
+  // runtime, and reopening/refocusing refetches, so the page recompiles on
+  // reload. While it loads — and always while streaming/editing — the client
+  // compile below stands in, with chart figures as placeholders.
+  const isSavedPage =
+    Boolean(fileId && fileKey && workspaceId) && isStreaming !== true && isSimPageSource(content)
+  const served = useWorkspaceFileBinary(workspaceId ?? '', fileId ?? '', fileKey ?? '', {
+    enabled: isSavedPage,
+  })
+  const servedHtml = useMemo(
+    () => (isSavedPage && served.data ? new TextDecoder().decode(served.data) : null),
+    [isSavedPage, served.data]
+  )
+  const builtContent = buildHtmlPreviewDocument(
+    servedHtml ?? batchedContent,
+    resolvedTheme === 'dark' ? 'dark' : 'light',
+    workspaceId
+  )
+  // AFTER the build: workspace image srcs (/api/files/view/…) only exist in
+  // the COMPILED document — the raw source says sim:file/… — so substituting
+  // the host-fetched blob: URLs must run on the built output, or the
+  // sandboxed (cookie-less) frame 401s every image.
+  const wrappedContent = useInlinedWorkspaceImages(builtContent)
+
+  // Receives sim-resource link clicks bridged out of the sandboxed page and
+  // routes them in the app. Only workspace-internal paths are honored.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const href = (event.data as { __simPageNav?: unknown } | null)?.__simPageNav
+      if (typeof href !== 'string') return
+      if (href.startsWith('/workspace/')) {
+        router.push(href)
+      } else if (/^https?:\/\//i.test(href)) {
+        // The server-compiled document absolutizes workspace links (so a
+        // DOWNLOADED copy reaches Sim) — recognize our own origin and route
+        // in-app rather than spawning a new tab of the whole app.
+        try {
+          const url = new URL(href)
+          if (url.origin === window.location.origin && url.pathname.startsWith('/workspace/')) {
+            router.push(`${url.pathname}${url.search}${url.hash}`)
+            return
+          }
+        } catch {}
+        window.open(href, '_blank', 'noopener,noreferrer')
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [router])
   const containerRef = useRef<HTMLDivElement>(null)
   const [isRenderable, setIsRenderable] = useState(false)
   const [resumeNonce, setResumeNonce] = useState(0)
@@ -200,11 +428,16 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
   }, [])
 
   return (
-    <div ref={containerRef} className='h-full overflow-hidden'>
+    <div ref={containerRef} className='flex min-h-0 flex-1 overflow-hidden'>
       {isRenderable && (
         <iframe
           key={resumeNonce}
           srcDoc={wrappedContent}
+          /* No clipboard-write delegation: this frame also renders untrusted
+             raw HTML uploads, and a permissions-policy grant would let their
+             inline scripts replace the viewer's clipboard without a gesture.
+             The shell's copy buttons use the selection-command fallback,
+             which works in the sandbox but only on a real user click. */
           sandbox='allow-scripts'
           referrerPolicy='no-referrer'
           title='HTML Preview'
@@ -225,7 +458,7 @@ function SvgPreview({ content }: { content: string }) {
   }, [content])
 
   return (
-    <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
+    <ZoomablePreview className='min-h-0 flex-1' contentClassName='h-full w-full'>
       {blobUrl && (
         <img
           src={blobUrl}
@@ -240,7 +473,7 @@ function SvgPreview({ content }: { content: string }) {
 
 function MermaidFilePreview({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   return (
-    <div className='h-full overflow-auto p-6'>
+    <div className='min-h-0 flex-1 overflow-auto p-6'>
       <MermaidDiagram
         definition={content}
         isStreaming={isStreaming}
@@ -262,19 +495,20 @@ const CsvPreview = memo(function CsvPreview({
   file: CsvImportFileDescriptor
   readOnly?: boolean
 }) {
+  const scrollRef = useHorizontalWheelScroll()
   const { headers, rows, truncated } = useMemo(() => parseCsv(content), [content])
   useCsvTruncationImport(workspaceId, file, truncated, readOnly)
 
   if (headers.length === 0) {
     return (
-      <div className='flex h-full items-center justify-center p-6'>
+      <div className='flex min-h-0 flex-1 items-center justify-center p-6'>
         <p className='text-[13px] text-[var(--text-muted)]'>No data to display</p>
       </div>
     )
   }
 
   return (
-    <div className='h-full overflow-auto p-6'>
+    <div ref={scrollRef} className='min-h-0 flex-1 overflow-auto p-6'>
       <DataTable headers={headers} rows={rows} />
     </div>
   )

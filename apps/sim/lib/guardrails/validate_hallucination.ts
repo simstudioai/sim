@@ -1,14 +1,22 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
-import { BILLING_ATTRIBUTION_HEADER } from '@/lib/billing/core/billing-attribution'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { searchKnowledgeAsExecutor } from '@/lib/internal/knowledge/search'
+import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import { refreshTokenIfNeeded } from '@/lib/oauth/credential-service'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('HallucinationValidator')
+const HALLUCINATION_INPUT_PATHS = [['input']] as const
 
 export interface HallucinationValidationResult {
   passed: boolean
@@ -38,65 +46,65 @@ export interface HallucinationValidationInput {
   }
   workflowId?: string
   workspaceId?: string
-  authHeaders?: {
-    cookie?: string
-    authorization?: string
-    billingAttribution?: string
-  }
+  actorUserId: string
+  executionContext: InternalToolOperationContext
+  billingAttribution: BillingAttributionSnapshot
   requestId: string
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
+  /**
+   * The caller's cancellation signal, forwarded to the scoring model exactly as the
+   * agent handler forwards `ctx.abortSignal`. Without it the scoring request outlives
+   * a cancelled request and keeps burning a provider slot until the transport gives up.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
- * Query knowledge base to get relevant context chunks using the search API
+ * Queries the authorized Knowledge application operation for relevant chunks.
  */
 async function queryKnowledgeBase(
   knowledgeBaseId: string,
   query: string,
   topK: number,
   requestId: string,
-  workflowId?: string,
-  authHeaders?: { cookie?: string; authorization?: string; billingAttribution?: string }
-): Promise<string[]> {
+  executionContext: InternalToolOperationContext,
+  billingAttribution: BillingAttributionSnapshot,
+  workflowId: string | undefined,
+  workspaceId: string | undefined,
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry,
+  abortSignal: AbortSignal | undefined
+): Promise<{ context: string[]; registry: ResolvedSecretTraceRegistry }> {
+  if (!workflowId) throw new Error('Hallucination validation requires a workflow ID')
+  if (!workspaceId) throw new Error('Hallucination validation requires a workspace ID')
+
   try {
-    // Call the knowledge base search API directly
-    const searchUrl = `${getInternalApiBaseUrl()}/api/knowledge/search`
+    const result = await searchKnowledgeAsExecutor({
+      knowledgeBaseIds: [knowledgeBaseId],
+      query,
+      topK,
+      workspaceId,
+      context: executionContext,
+      billingAttribution,
+      resolvedSecretTraceRegistry,
+      modelInputPaths: HALLUCINATION_INPUT_PATHS,
+      signal: abortSignal,
+    })
 
-    const response = await fetch(searchUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeaders?.cookie ? { Cookie: authHeaders.cookie } : {}),
-        ...(authHeaders?.authorization ? { Authorization: authHeaders.authorization } : {}),
-        ...(authHeaders?.billingAttribution
-          ? { [BILLING_ATTRIBUTION_HEADER]: authHeaders.billingAttribution }
-          : {}),
-      },
-      body: JSON.stringify({
-        knowledgeBaseIds: [knowledgeBaseId],
-        query,
-        topK,
-        workflowId,
+    return {
+      context: result.results.flatMap((item) => {
+        if (!isPlainRecord(item) || typeof item.content !== 'string' || item.content.length === 0) {
+          return []
+        }
+        return [item.content]
       }),
-    })
-
-    if (!response.ok) {
-      logger.error(`[${requestId}] Knowledge base query failed`, {
-        status: response.status,
-      })
-      return []
+      registry: result.registry,
     }
-
-    const result = await response.json()
-    const results = result.data?.results || []
-
-    const chunks = results.map((r: any) => r.content || '').filter((c: string) => c.length > 0)
-
-    return chunks
-  } catch (error: any) {
+  } catch (error) {
+    const message = getErrorMessage(error, 'Unknown Knowledge query error')
     logger.error(`[${requestId}] Error querying knowledge base`, {
-      error: error.message,
+      error: message,
     })
-    return []
+    throw new Error(`Failed to query knowledge base: ${message}`, { cause: error })
   }
 }
 
@@ -113,7 +121,9 @@ async function scoreHallucinationWithLLM(
   apiKey: string | undefined,
   providerCredentials: HallucinationValidationInput['providerCredentials'],
   workspaceId: string | undefined,
-  requestId: string
+  requestId: string,
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry,
+  abortSignal: AbortSignal | undefined
 ): Promise<{ score: number; reasoning: string; cost: number }> {
   try {
     const contextText = ragContext.join('\n\n---\n\n')
@@ -167,26 +177,31 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       }
     }
 
-    const response = await executeProviderRequest(providerId, {
-      model,
-      systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
-      temperature: 0.1, // Low temperature for consistent scoring
-      apiKey: finalApiKey,
-      azureEndpoint: providerCredentials?.azureEndpoint,
-      azureApiVersion: providerCredentials?.azureApiVersion,
-      vertexProject: providerCredentials?.vertexProject,
-      vertexLocation: providerCredentials?.vertexLocation,
-      bedrockAccessKeyId: providerCredentials?.bedrockAccessKeyId,
-      bedrockSecretKey: providerCredentials?.bedrockSecretKey,
-      bedrockRegion: providerCredentials?.bedrockRegion,
-      workspaceId,
-    })
+    const response = await executeProviderRequest(
+      providerId,
+      {
+        model,
+        systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: userPrompt,
+          },
+        ],
+        temperature: 0.1, // Low temperature for consistent scoring
+        apiKey: finalApiKey,
+        azureEndpoint: providerCredentials?.azureEndpoint,
+        azureApiVersion: providerCredentials?.azureApiVersion,
+        vertexProject: providerCredentials?.vertexProject,
+        vertexLocation: providerCredentials?.vertexLocation,
+        bedrockAccessKeyId: providerCredentials?.bedrockAccessKeyId,
+        bedrockSecretKey: providerCredentials?.bedrockSecretKey,
+        bedrockRegion: providerCredentials?.bedrockRegion,
+        workspaceId,
+        abortSignal,
+      },
+      { resolvedSecretTraceRegistry }
+    )
 
     if (response instanceof ReadableStream || ('stream' in response && 'execution' in response)) {
       throw new Error('Unexpected streaming response from LLM')
@@ -223,6 +238,11 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       cost,
     }
   } catch (error: any) {
+    /**
+     * A cancelled run is not a scoring failure. Rewrapping it would erase the
+     * `AbortError` name the outer handler classifies on, so it propagates as-is.
+     */
+    if (isAbortError(error)) throw error
     logger.error(`[${requestId}] Error scoring with LLM`, {
       error: error.message,
     })
@@ -246,8 +266,12 @@ export async function validateHallucination(
     providerCredentials,
     workflowId,
     workspaceId,
-    authHeaders,
+    actorUserId,
+    executionContext,
+    billingAttribution,
     requestId,
+    resolvedSecretTraceRegistry,
+    abortSignal,
   } = input
 
   try {
@@ -264,16 +288,20 @@ export async function validateHallucination(
         error: 'Knowledge base ID is required',
       }
     }
-
     // Step 1: Query knowledge base with RAG
-    const ragContext = await queryKnowledgeBase(
+    const knowledgeResult = await queryKnowledgeBase(
       knowledgeBaseId,
       userInput,
       topK,
       requestId,
+      executionContext,
+      billingAttribution,
       workflowId,
-      authHeaders
+      workspaceId,
+      resolvedSecretTraceRegistry,
+      abortSignal
     )
+    const ragContext = knowledgeResult.context
 
     if (ragContext.length === 0) {
       return {
@@ -282,15 +310,46 @@ export async function validateHallucination(
       }
     }
 
+    const inputRegistry = resolvedSecretTraceRegistry.forkForInputPaths(HALLUCINATION_INPUT_PATHS, {
+      propagated: true,
+    })
+    const inputProjection = projectResolvedSecretModelContent(userInput, inputRegistry)
+    const contextProjection = projectResolvedSecretModelContent(
+      ragContext,
+      knowledgeResult.registry.forkForPropagatedEntries()
+    )
+    if (
+      !inputProjection.safe ||
+      typeof inputProjection.value !== 'string' ||
+      !contextProjection.safe ||
+      !Array.isArray(contextProjection.value) ||
+      !contextProjection.value.every((value) => typeof value === 'string')
+    ) {
+      refuseResolvedSecretProjection({
+        site: 'guardrails.hallucinationModelInput',
+        message: 'Hallucination model input could not be safely projected',
+        registry: inputRegistry,
+        inputPath: 'input',
+      })
+    }
+
+    const providerRegistry = inputRegistry
+    providerRegistry.mergeToolCallRegistry(knowledgeResult.registry)
+    if (!providerRegistry.isComplete()) {
+      throw new Error('Hallucination model input provenance is unavailable')
+    }
+
     // Step 2: Use LLM to score confidence
     const { score, reasoning, cost } = await scoreHallucinationWithLLM(
-      userInput,
-      ragContext,
+      inputProjection.value,
+      contextProjection.value,
       model,
       apiKey,
       providerCredentials,
       workspaceId,
-      requestId
+      requestId,
+      providerRegistry,
+      abortSignal
     )
 
     logger.info(`[${requestId}] Confidence score: ${score}`, {
@@ -311,6 +370,12 @@ export async function validateHallucination(
         : `Low confidence: score ${score}/10 is below threshold ${threshold}`,
     }
   } catch (error: any) {
+    /**
+     * Cancellation is surfaced as cancellation, not as a guardrail verdict. Returning
+     * `passed: false` here would fail content on a run the caller abandoned, which is
+     * indistinguishable to a consumer from the model actually hallucinating.
+     */
+    if (isAbortError(error)) throw error
     logger.error(`[${requestId}] Hallucination validation error`, {
       error: error.message,
     })

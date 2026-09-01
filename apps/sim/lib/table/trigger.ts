@@ -1,7 +1,7 @@
 /**
  * Direct trigger firing for table row events.
  *
- * When rows are inserted or updated in a table, this module looks up any
+ * When rows are inserted, updated, or deleted in a table, this module looks up any
  * active webhook triggers watching that table and fires workflow executions
  * immediately - no polling or cron involved.
  */
@@ -15,7 +15,8 @@ import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 
 const logger = createLogger('TableTrigger')
 
-type EventType = 'insert' | 'update'
+type EventType = 'insert' | 'update' | 'delete'
+type TableTriggerRow = Pick<TableRow, 'id' | 'data'>
 
 interface TableTriggerPayload {
   row: Record<string, unknown> | null
@@ -44,14 +45,17 @@ interface WebhookConfig {
  * This is fire-and-forget - errors are logged but never thrown.
  * Call with `void fireTableTrigger(...)` to avoid blocking the caller.
  *
- * @param eventType - 'insert' for new rows, 'update' for changed rows
- * @param oldRows - Map of row ID to previous data. Pass null for inserts.
+ * @param workspaceId - Canonical workspace that owns the mutated table.
+ * @param eventType - The committed row mutation that should trigger workflows.
+ * @param rows - Committed row snapshots; only the ID and data are needed, including for deletes.
+ * @param oldRows - Map of row ID to previous data. Pass null for inserts and deletes.
  */
 export async function fireTableTrigger(
   tableId: string,
+  workspaceId: string,
   tableName: string,
   eventType: EventType,
-  rows: TableRow[],
+  rows: TableTriggerRow[],
   oldRows: Map<string, RowData> | null,
   schema: TableSchema,
   requestId: string
@@ -73,6 +77,7 @@ export async function fireTableTrigger(
 
     // Filter to webhooks watching this table with a matching event type
     const matching = webhooks.filter((entry) => {
+      if (entry.workflow.workspaceId !== workspaceId) return false
       const config = entry.webhook.providerConfig as WebhookConfig | null
       // Canonical key `tableId` first; `tableSelector`/`manualTableId` are a transitional
       // basic-first fallback for configs deployed before the canonical key was written.
@@ -101,7 +106,7 @@ export async function fireTableTrigger(
       const includeHeaders = config?.includeHeaders !== false
 
       for (const row of rows) {
-        const previousIdData = oldRows?.get(row.id) ?? null
+        const previousIdData = eventType === 'delete' ? row.data : (oldRows?.get(row.id) ?? null)
         const rawRow = toNamedRow(row.data)
         const previousRow = previousIdData ? toNamedRow(previousIdData) : null
         const changedColumns = previousIdData

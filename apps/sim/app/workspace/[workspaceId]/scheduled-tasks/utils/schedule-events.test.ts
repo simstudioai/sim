@@ -15,6 +15,7 @@ function makeTask(overrides: Partial<ScheduledTask>): ScheduledTask {
   return {
     id: 't1',
     scheduleId: 's1',
+    sourceUserId: 'user-1',
     prompt: 'Summarize yesterday',
     runAt: new Date('2026-06-10T14:30:00.000Z'),
     timezone: 'UTC',
@@ -93,13 +94,18 @@ describe('taskToCalendarEvent', () => {
 describe('scheduleToTasks', () => {
   it('renders an active one-time task as a single pending occurrence at its next run', () => {
     const tasks = scheduleToTasks(
-      makeRow({ nextRunAt: '2026-06-11T09:00:00.000Z' }),
+      makeRow({ nextRunAt: '2026-06-11T09:00:00.000Z', sourceUserId: 'creator-1' }),
       RANGE_START,
       RANGE_END,
       NOW
     )
     expect(tasks).toHaveLength(1)
-    expect(tasks[0]).toMatchObject({ scheduleId: 's1', status: 'pending', recurring: false })
+    expect(tasks[0]).toMatchObject({
+      scheduleId: 's1',
+      sourceUserId: 'creator-1',
+      status: 'pending',
+      recurring: false,
+    })
     expect(tasks[0].runAt.toISOString()).toBe('2026-06-11T09:00:00.000Z')
   })
 

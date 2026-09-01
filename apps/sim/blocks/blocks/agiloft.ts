@@ -3,17 +3,120 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 
+/*
+ * Canonical basic/advanced pair for the attachment upload, shared by the card
+ * sentence below. Listing both members is what keeps the sentence working for
+ * an advanced-mode user, who has only the file reference filled.
+ */
+const ATTACH_FILE_FIELD = ['uploadFile', 'fileRef'] as const
+
 export const AgiloftBlock: BlockConfig = {
   type: 'agiloft',
   name: 'Agiloft',
   description: 'Manage records in Agiloft CLM',
   longDescription:
-    'Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.',
+    'Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, record locking, and running action buttons across any table in your knowledge base.',
   docsLink: 'https://docs.sim.ai/integrations/agiloft',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#001028',
   icon: AgiloftIcon,
+  canvasPresentation: {
+    defaultTitle: 'Agiloft',
+    sentences: {
+      byOperation: {
+        list_tables: [
+          { text: 'List tables and fields in', field: 'knowledgeBase', core: true },
+          { text: ', for', field: 'table' },
+        ],
+        create_record: [
+          { text: 'Create a record in', field: 'table', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        read_record: [
+          { text: 'Read record', field: 'recordId', core: true },
+          { text: 'from', field: 'table' },
+          { text: ', returning', field: 'fields' },
+        ],
+        update_record: [
+          { text: 'Update record', field: 'recordId', core: true },
+          { text: 'in', field: 'table' },
+          { text: ', setting', field: 'data' },
+        ],
+        upsert_record: [
+          { text: 'Upsert a record in', field: 'table', core: true },
+          { text: ', matching on', field: 'match' },
+          { text: ', with', field: 'data' },
+        ],
+        delete_record: [
+          { text: 'Delete record', field: 'recordId', core: true },
+          { text: 'from', field: 'table' },
+          { text: ', handling dependents with', field: 'deleteRule' },
+        ],
+        search_records: [
+          { text: 'Search', field: 'table', core: true },
+          { text: 'for', field: 'query' },
+          { text: ', using saved search', field: 'search' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        nlp_search: [
+          { text: 'Search', field: 'knowledgeBase', core: true },
+          { text: 'for', field: 'nlpQuery' },
+          { text: ', returning', field: 'fields' },
+        ],
+        select_records: [
+          { text: 'Select record IDs from', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+        ],
+        attach_file: [
+          { text: 'Attach', field: ATTACH_FILE_FIELD, core: true },
+          { text: 'to record', field: 'recordId', core: true },
+          { text: ', in field', field: 'fieldName' },
+        ],
+        retrieve_attachment: [
+          {
+            text: 'Download the attachment in field',
+            field: 'fieldName',
+            core: true,
+          },
+          { text: 'on record', field: 'recordId', core: true },
+        ],
+        remove_attachment: [
+          {
+            text: 'Remove the attachment in field',
+            field: 'fieldName',
+            core: true,
+          },
+          { text: 'from record', field: 'recordId', core: true },
+        ],
+        attachment_info: [
+          {
+            text: 'Read attachment details for field',
+            field: 'fieldName',
+            core: true,
+          },
+          { text: 'on record', field: 'recordId', core: true },
+        ],
+        lock_record: [
+          { text: 'Run lock action', field: 'lockAction', core: true },
+          { text: 'on record', field: 'recordId', core: true },
+        ],
+        run_action_button: [
+          { text: 'Run action button', field: 'actionButtonField', core: true },
+          { text: 'on record', field: 'recordId', core: true },
+        ],
+        saved_search: [{ text: 'List saved searches on', field: 'table', core: true }],
+        async_status: [
+          { text: 'Check async call', field: 'callbackId', core: true },
+          { text: 'on', field: 'table' },
+        ],
+        get_choice_line_id: [
+          { text: 'Resolve the internal ID of choice', field: 'value', core: true },
+          { text: 'on field', field: 'fieldName' },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [
@@ -22,18 +125,23 @@ export const AgiloftBlock: BlockConfig = {
       title: 'Operation',
       type: 'dropdown',
       options: [
+        { label: 'List Tables & Fields', id: 'list_tables' },
         { label: 'Create Record', id: 'create_record' },
         { label: 'Read Record', id: 'read_record' },
         { label: 'Update Record', id: 'update_record' },
+        { label: 'Upsert Record', id: 'upsert_record' },
         { label: 'Delete Record', id: 'delete_record' },
         { label: 'Search Records', id: 'search_records' },
+        { label: 'Natural Language Search', id: 'nlp_search' },
         { label: 'Select Records', id: 'select_records' },
-        { label: 'Saved Search', id: 'saved_search' },
         { label: 'Attach File', id: 'attach_file' },
         { label: 'Retrieve Attachment', id: 'retrieve_attachment' },
         { label: 'Remove Attachment', id: 'remove_attachment' },
         { label: 'Attachment Info', id: 'attachment_info' },
         { label: 'Lock Record', id: 'lock_record' },
+        { label: 'Run Action Button', id: 'run_action_button' },
+        { label: 'Async Status', id: 'async_status' },
+        { label: 'Saved Search', id: 'saved_search' },
         { label: 'Get Choice Line ID', id: 'get_choice_line_id' },
       ],
       value: () => 'search_records',
@@ -72,7 +180,12 @@ export const AgiloftBlock: BlockConfig = {
       title: 'Table',
       type: 'short-input',
       placeholder: 'e.g., contracts, contacts.employees',
-      required: true,
+      /**
+       * Optional only for List Tables, where an empty value means "describe
+       * every table" — that operation exists precisely for users who do not yet
+       * know the logical names.
+       */
+      required: { field: 'operation', value: ['list_tables', 'nlp_search'], not: true },
     },
     {
       id: 'recordId',
@@ -90,6 +203,7 @@ export const AgiloftBlock: BlockConfig = {
           'remove_attachment',
           'attachment_info',
           'lock_record',
+          'run_action_button',
         ],
       },
       required: {
@@ -103,6 +217,7 @@ export const AgiloftBlock: BlockConfig = {
           'remove_attachment',
           'attachment_info',
           'lock_record',
+          'run_action_button',
         ],
       },
     },
@@ -111,8 +226,8 @@ export const AgiloftBlock: BlockConfig = {
       title: 'Record Data',
       type: 'long-input',
       placeholder: '{"field_name": "value", "another_field": "value"}',
-      condition: { field: 'operation', value: ['create_record', 'update_record'] },
-      required: { field: 'operation', value: ['create_record', 'update_record'] },
+      condition: { field: 'operation', value: ['create_record', 'update_record', 'upsert_record'] },
+      required: { field: 'operation', value: ['create_record', 'update_record', 'upsert_record'] },
       wandConfig: {
         enabled: true,
         prompt:
@@ -121,17 +236,110 @@ export const AgiloftBlock: BlockConfig = {
       },
     },
     {
+      id: 'match',
+      title: 'Match Field',
+      type: 'short-input',
+      placeholder: 'e.g., ext_id',
+      condition: { field: 'operation', value: 'upsert_record' },
+      required: { field: 'operation', value: 'upsert_record' },
+    },
+    {
+      id: 'includeLinkedInfo',
+      title: 'Include Linked Field Details',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_tables' },
+    },
+    {
+      id: 'skipColumnsInfo',
+      title: 'Table Names Only',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_tables' },
+    },
+    {
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      placeholder: "status='Active' AND company_name~='Acme'",
+      placeholder: "status='Active'&&company_name~='Acme'",
       condition: { field: 'operation', value: 'search_records' },
-      required: { field: 'operation', value: 'search_records' },
       wandConfig: {
         enabled: true,
         prompt:
-          "Generate an Agiloft search query. Use field_name='value' for exact match, field_name~='value' for contains, and AND/OR for combining conditions. Return ONLY the query string - no explanations, no extra text.",
+          "Generate an Agiloft EWSearch query. Use field_name='value' for exact match, field_name~='value' for contains, != for not equals, and <, <=, >, >= for comparisons. Combine conditions with && for and, || for or. Quote every value in single quotes, quote field labels that contain spaces, and use null to match an empty field. Return ONLY the query string - no explanations, no extra text.",
       },
+    },
+    {
+      id: 'nlpQuery',
+      title: 'Natural Language Query',
+      type: 'long-input',
+      placeholder: 'Active NDAs submitted last month',
+      condition: { field: 'operation', value: 'nlp_search' },
+      required: { field: 'operation', value: 'nlp_search' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Rewrite the request as a plain-language Agiloft search, e.g. "Show me open, high-priority contracts". Do not use field names or operators. Return ONLY the sentence - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'substituteIds',
+      title: 'Substitute Record IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated IDs that adopt the dependants',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'delete_record',
+        and: { field: 'deleteRule', value: 'REPLACE_WITH_ANOTHER' },
+      },
+      required: {
+        field: 'operation',
+        value: 'delete_record',
+        and: { field: 'deleteRule', value: 'REPLACE_WITH_ANOTHER' },
+      },
+    },
+    {
+      id: 'overwrite',
+      title: 'Replace Existing Files',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'attach_file' },
+    },
+    {
+      id: 'async',
+      title: 'Queue Instead of Waiting',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'upsert_record' },
+    },
+    {
+      id: 'search',
+      title: 'Saved Search',
+      type: 'short-input',
+      placeholder: 'e.g., C: Status is Closed',
+      condition: { field: 'operation', value: 'search_records' },
     },
     {
       id: 'where',
@@ -143,7 +351,7 @@ export const AgiloftBlock: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          "Generate a SQL WHERE clause for an Agiloft EWSelect query using database column names. Use standard SQL syntax (e.g., column='value', column like '%text%'). Return ONLY the WHERE clause - no explanations, no extra text.",
+          "Generate a SQL WHERE clause for an Agiloft EWSelect query using database column names. Use standard SQL syntax (e.g., column='value', column like '%text%'). EWSelect has no page size, so append a database limit such as \"limit 0,200\" to keep the result bounded. Return ONLY the WHERE clause - no explanations, no extra text.",
       },
     },
     {
@@ -171,6 +379,22 @@ export const AgiloftBlock: BlockConfig = {
           'get_choice_line_id',
         ],
       },
+    },
+    {
+      id: 'actionButtonField',
+      title: 'Action Button Field',
+      type: 'short-input',
+      placeholder: 'e.g., ab_send_for_signature',
+      condition: { field: 'operation', value: 'run_action_button' },
+      required: { field: 'operation', value: 'run_action_button' },
+    },
+    {
+      id: 'callbackId',
+      title: 'Callback ID',
+      type: 'short-input',
+      placeholder: 'e.g., 10100_1',
+      condition: { field: 'operation', value: 'async_status' },
+      required: { field: 'operation', value: 'async_status' },
     },
     {
       id: 'value',
@@ -237,16 +461,53 @@ export const AgiloftBlock: BlockConfig = {
       required: { field: 'operation', value: 'lock_record' },
     },
     {
+      id: 'deleteRule',
+      title: 'Dependent Records',
+      type: 'dropdown',
+      options: [
+        { label: 'Fail if dependents exist', id: 'ERROR_IF_DEPENDANTS' },
+        { label: 'Delete dependents where possible', id: 'APPLY_DELETE_WHERE_POSSIBLE' },
+        { label: 'Delete, otherwise unlink', id: 'DELETE_WHERE_POSSIBLE_OTHERWISE_UNLINK' },
+        { label: 'Unlink dependents', id: 'APPLY_UNLINK' },
+        { label: 'Unlink, otherwise delete', id: 'UNLINK_WHERE_POSSIBLE_OTHERWISE_DELETE' },
+        { label: 'Reassign dependents to another record', id: 'REPLACE_WITH_ANOTHER' },
+      ],
+      value: () => 'ERROR_IF_DEPENDANTS',
+      condition: { field: 'operation', value: 'delete_record' },
+    },
+    {
+      id: 'force',
+      title: 'Force Unlock',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'lock_record',
+        and: { field: 'lockAction', value: 'unlock' },
+      },
+    },
+    {
       id: 'fields',
       title: 'Fields',
       type: 'short-input',
-      placeholder: 'Comma-separated field names to return',
+      placeholder: 'e.g., id, contract_title1, company_name',
+      /**
+       * Advanced for the operations where it narrows an existing result, but
+       * Natural Language Search cannot run without it — the endpoint requires
+       * the field list.
+       */
+      condition: { field: 'operation', value: ['read_record', 'search_records', 'nlp_search'] },
+      required: { field: 'operation', value: 'nlp_search' },
       mode: 'advanced',
-      condition: { field: 'operation', value: ['read_record', 'search_records'] },
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a comma-separated list of Agiloft table field names to include in the response. Return ONLY the comma-separated list - no explanations, no extra text.',
+          'Generate a comma-separated list of Agiloft table field names to return. Keeping this short matters — an unfiltered contract record is roughly 184KB. Return ONLY the comma-separated list - no explanations, no extra text.',
       },
     },
     {
@@ -254,6 +515,7 @@ export const AgiloftBlock: BlockConfig = {
       title: 'Page',
       type: 'short-input',
       placeholder: '0',
+      description: 'Zero-based page number',
       mode: 'advanced',
       condition: { field: 'operation', value: 'search_records' },
     },
@@ -262,6 +524,7 @@ export const AgiloftBlock: BlockConfig = {
       title: 'Limit',
       type: 'short-input',
       placeholder: '25',
+      description: 'Records per page. 0 means every record, returned on page 0.',
       mode: 'advanced',
       condition: { field: 'operation', value: 'search_records' },
     },
@@ -269,19 +532,24 @@ export const AgiloftBlock: BlockConfig = {
 
   tools: {
     access: [
+      'agiloft_async_status',
       'agiloft_attach_file',
       'agiloft_attachment_info',
       'agiloft_create_record',
       'agiloft_delete_record',
       'agiloft_get_choice_line_id',
+      'agiloft_list_tables',
       'agiloft_lock_record',
+      'agiloft_nlp_search',
       'agiloft_read_record',
       'agiloft_remove_attachment',
       'agiloft_retrieve_attachment',
+      'agiloft_run_action_button',
       'agiloft_saved_search',
       'agiloft_search_records',
       'agiloft_select_records',
       'agiloft_update_record',
+      'agiloft_upsert_record',
     ],
     config: {
       tool: (params) => `agiloft_${params.operation}`,
@@ -291,6 +559,17 @@ export const AgiloftBlock: BlockConfig = {
         })
         if (normalizedFile) {
           params.file = normalizedFile
+        }
+        for (const flag of [
+          'force',
+          'includeLinkedInfo',
+          'skipColumnsInfo',
+          'overwrite',
+          'async',
+        ] as const) {
+          if (params[flag] !== undefined) {
+            params[flag] = params[flag] === true || params[flag] === 'true'
+          }
         }
         return params
       },
@@ -306,15 +585,45 @@ export const AgiloftBlock: BlockConfig = {
     table: { type: 'string', description: 'Table name' },
     recordId: { type: 'string', description: 'Record ID' },
     data: { type: 'string', description: 'Record data as JSON' },
-    query: { type: 'string', description: 'Search query' },
+    match: { type: 'string', description: 'Field used to match an existing record on upsert' },
+    includeLinkedInfo: {
+      type: 'boolean',
+      description: 'Include the source table and column behind each linked field',
+    },
+    skipColumnsInfo: { type: 'boolean', description: 'Return table names without field details' },
+    query: { type: 'string', description: 'Ad hoc EWSearch query' },
+    search: { type: 'string', description: 'Label of a saved search defined on the table' },
+    nlpQuery: { type: 'string', description: 'Plain-language description of the records to find' },
+    substituteIds: {
+      type: 'string',
+      description: 'Records that adopt dependants when the delete rule reassigns them',
+    },
+    overwrite: {
+      type: 'boolean',
+      description: 'Replace the attachment field instead of appending',
+    },
+    async: { type: 'boolean', description: 'Queue the upsert rather than waiting for it' },
     where: { type: 'string', description: 'SQL WHERE clause for select' },
     fieldName: { type: 'string', description: 'Attachment field name or choice field name' },
     value: { type: 'string', description: 'Choice value to resolve to its line ID' },
+    callbackId: { type: 'string', description: 'Callback ID of an asynchronous Agiloft call' },
+    actionButtonField: {
+      type: 'string',
+      description: 'Logical name of the field holding the action button to run',
+    },
     attachFile: { type: 'file', description: 'File to attach' },
     fileName: { type: 'string', description: 'Name for the attached file' },
     position: { type: 'string', description: 'Attachment position index' },
     lockAction: { type: 'string', description: 'Lock action (lock, unlock, check)' },
-    fields: { type: 'string', description: 'Fields to return' },
+    force: { type: 'boolean', description: 'Force an unlock held by another user' },
+    deleteRule: {
+      type: 'string',
+      description: 'How EWDelete treats records that depend on the one being deleted',
+    },
+    fields: {
+      type: 'string',
+      description: 'Comma-separated fields to return; strongly recommended on large records',
+    },
     page: { type: 'string', description: 'Page number' },
     limit: { type: 'string', description: 'Results per page' },
   },
@@ -325,7 +634,14 @@ export const AgiloftBlock: BlockConfig = {
       description: 'Record ID',
       condition: {
         field: 'operation',
-        value: ['create_record', 'read_record', 'update_record', 'delete_record', 'lock_record'],
+        value: [
+          'create_record',
+          'read_record',
+          'update_record',
+          'upsert_record',
+          'delete_record',
+          'lock_record',
+        ],
       },
     },
     fields: {
@@ -344,35 +660,43 @@ export const AgiloftBlock: BlockConfig = {
     records: {
       type: 'json',
       description: 'Array of matching records',
-      condition: { field: 'operation', value: 'search_records' },
+      condition: { field: 'operation', value: ['search_records', 'nlp_search'] },
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of matching results',
+      description:
+        'Number of items returned by this call, which may be capped — not a total match count',
       condition: {
         field: 'operation',
-        value: ['search_records', 'select_records', 'attachment_info'],
+        value: [
+          'search_records',
+          'select_records',
+          'attachment_info',
+          'saved_search',
+          'list_tables',
+          'nlp_search',
+        ],
       },
     },
     page: {
       type: 'number',
-      description: 'Current page number',
+      description: 'Page number that was requested (0-based)',
       condition: { field: 'operation', value: 'search_records' },
     },
     limit: {
       type: 'number',
-      description: 'Results per page',
-      condition: { field: 'operation', value: 'search_records' },
+      description: 'Page size that was requested; 0 when Agiloft chose the page size',
+      condition: { field: 'operation', value: ['search_records', 'nlp_search'] },
+    },
+    truncated: {
+      type: 'boolean',
+      description: 'True when the result was capped and more records exist upstream',
+      condition: { field: 'operation', value: ['search_records', 'select_records', 'nlp_search'] },
     },
     recordIds: {
       type: 'json',
       description: 'Array of record IDs matching the WHERE clause',
       condition: { field: 'operation', value: 'select_records' },
-    },
-    searches: {
-      type: 'json',
-      description: 'Array of saved search definitions (name, label, id, description)',
-      condition: { field: 'operation', value: 'saved_search' },
     },
     file: {
       type: 'file',
@@ -386,8 +710,11 @@ export const AgiloftBlock: BlockConfig = {
     },
     recordId: {
       type: 'string',
-      description: 'ID of the record the file operation was performed on',
-      condition: { field: 'operation', value: ['attach_file', 'remove_attachment'] },
+      description: 'ID of the record the operation was performed on',
+      condition: {
+        field: 'operation',
+        value: ['attach_file', 'remove_attachment', 'run_action_button'],
+      },
     },
     fieldName: {
       type: 'string',
@@ -409,9 +736,14 @@ export const AgiloftBlock: BlockConfig = {
       description: 'Number of attachments remaining after removal',
       condition: { field: 'operation', value: 'remove_attachment' },
     },
+    tableId: {
+      type: 'number',
+      description: 'Numeric system identifier of the table holding the locked record',
+      condition: { field: 'operation', value: 'lock_record' },
+    },
     lockStatus: {
       type: 'string',
-      description: 'Lock status (e.g., LOCKED, UNLOCKED)',
+      description: 'Lock status: LOCKED when the record is held, NO_LOCK when it is free',
       condition: { field: 'operation', value: 'lock_record' },
     },
     lockedBy: {
@@ -423,6 +755,44 @@ export const AgiloftBlock: BlockConfig = {
       type: 'number',
       description: 'Minutes until the lock expires',
       condition: { field: 'operation', value: 'lock_record' },
+    },
+    tables: {
+      type: 'json',
+      description: 'Tables and their fields (label, logicalName, fields[])',
+      condition: { field: 'operation', value: 'list_tables' },
+    },
+    created: {
+      type: 'boolean',
+      description: 'Whether the upsert created a new record rather than updating one',
+      condition: { field: 'operation', value: 'upsert_record' },
+    },
+    searches: {
+      type: 'json',
+      description: 'Saved searches on the table (name, label, id, description)',
+      condition: { field: 'operation', value: 'saved_search' },
+    },
+    callbackId: {
+      type: 'string',
+      description: 'Callback identifier for an asynchronous call, to pass to Async Status',
+      condition: {
+        field: 'operation',
+        value: ['run_action_button', 'async_status', 'upsert_record'],
+      },
+    },
+    statusCode: {
+      type: 'number',
+      description: 'Raw status code Agiloft returned for the asynchronous call',
+      condition: { field: 'operation', value: 'async_status' },
+    },
+    status: {
+      type: 'string',
+      description: 'completed, queued, in_progress, failed, or unknown_callback',
+      condition: { field: 'operation', value: 'async_status' },
+    },
+    complete: {
+      type: 'boolean',
+      description: 'True when the asynchronous operation has finished',
+      condition: { field: 'operation', value: 'async_status' },
     },
     choiceLineId: {
       type: 'number',
@@ -526,6 +896,20 @@ export const AgiloftBlockMeta = {
         'Read a contract record in Agiloft and produce a plain-language summary of its key obligations and dates.',
       content:
         '# Summarize Contract Terms\n\nTurn an Agiloft contract record into a concise brief.\n\n## Steps\n1. Read the contract record and its key fields and attached terms.\n2. Identify obligations, payment terms, renewal/termination clauses, and critical dates.\n3. Note any unusual or high-risk terms.\n\n## Output\nA short brief: parties, term, value, key obligations, critical dates, and any risk flags. Keep it readable for non-lawyers.',
+    },
+    {
+      name: 'collect-executed-contract-documents',
+      description:
+        'Pull the signed documents attached to Agiloft contract records so they can be archived or reviewed elsewhere.',
+      content:
+        '# Collect Executed Contract Documents\n\nGather the executed files attached to Agiloft contract records.\n\n## Steps\n1. Identify the contract records in scope, by saved search or by an ad hoc query.\n2. For each record, list the attachments on the document field to see what is present and how large each file is.\n3. Download the attachment at the position that holds the executed copy.\n\n## Output\nOne entry per contract: record ID, counterparty, file name, and size. Call out any record where the document field is empty or holds an unexpected number of files.',
+    },
+    {
+      name: 'safely-edit-a-locked-record',
+      description:
+        'Check and manage the record lock on an Agiloft record before and after an automated edit.',
+      content:
+        "# Safely Edit a Locked Record\n\nAvoid clobbering another user's in-progress edit when a workflow updates an Agiloft record.\n\n## Steps\n1. Check the lock status on the record before writing. If it reports LOCKED, report who holds it and stop rather than overwriting.\n2. When the record is free, take the lock, apply the update, then release it.\n3. Locks expire on their own, so keep the locked window as short as the update needs.\n\n## Output\nState what the lock status was, whether the update was applied or deferred, and confirm the lock was released.",
     },
   ],
 } as const satisfies BlockMeta

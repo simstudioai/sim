@@ -1,18 +1,30 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { task } from '@trigger.dev/sdk'
+import { task, timeout } from '@trigger.dev/sdk'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
+  billingAttributionsEqual,
 } from '@/lib/billing/core/billing-attribution'
+import {
+  capExecutionTimeoutMs,
+  createTimeoutAbortController,
+  ExecutionTimeoutError,
+  getAsyncExecutionTimeoutForBillingAttribution,
+  getTimeoutErrorMessage,
+} from '@/lib/core/execution-limits'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { isExecCancelled } from '@/lib/table/deps'
 import type { RowExecutionMetadata } from '@/lib/table/types'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { classifyWorkflowCellTerminalResult } from '@/lib/table/workflow-cell-result'
+import {
+  createResumeAttemptTimeoutController,
+  PauseResumeManager,
+} from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { RESUME_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { SerializedSnapshot } from '@/executor/types'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('TriggerResumeExecution')
 
@@ -25,9 +37,13 @@ export type ResumeExecutionPayload = {
   userId: string
   workflowId: string
   parentExecutionId: string
+  /** Trusted attempt budget resolved before the resume enters the queue. */
+  executionTimeoutMs?: number
+  /** Immutable actor/payer decision captured before the resume enters the queue. */
+  billingAttribution?: BillingAttributionSnapshot
 }
 
-export async function executeResumeJob(payload: ResumeExecutionPayload) {
+export async function executeResumeJob(payload: ResumeExecutionPayload, signal?: AbortSignal) {
   const { resumeExecutionId, pausedExecutionId, contextId, workflowId, parentExecutionId } = payload
 
   logger.info('Starting background resume execution', {
@@ -37,6 +53,20 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
     workflowId,
     parentExecutionId,
   })
+  const payloadBillingAttribution = payload.billingAttribution
+    ? assertBillingAttributionSnapshot(payload.billingAttribution)
+    : undefined
+  let timeoutController = payloadBillingAttribution
+    ? createTimeoutAbortController(
+        capExecutionTimeoutMs(
+          getAsyncExecutionTimeoutForBillingAttribution(payloadBillingAttribution),
+          payload.executionTimeoutMs
+        ),
+        signal
+      )
+    : payload.executionTimeoutMs === undefined
+      ? undefined
+      : createTimeoutAbortController(payload.executionTimeoutMs, signal)
 
   try {
     const pausedExecution = await PauseResumeManager.getPausedExecutionById(pausedExecutionId)
@@ -44,10 +74,25 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
       throw new Error(`Paused execution not found: ${pausedExecutionId}`)
     }
     const serializedSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
+    if (!timeoutController) {
+      timeoutController = createResumeAttemptTimeoutController(
+        serializedSnapshot,
+        signal,
+        pausedExecution.metadata
+      )
+    }
+    const attemptTimeoutController = timeoutController
+    const attemptSignal = attemptTimeoutController.signal
     const persistedSnapshot = ExecutionSnapshot.fromJSON(serializedSnapshot.snapshot)
     const billingAttribution = assertBillingAttributionSnapshot(
       persistedSnapshot.metadata.billingAttribution
     )
+    if (
+      payloadBillingAttribution &&
+      !billingAttributionsEqual(payloadBillingAttribution, billingAttribution)
+    ) {
+      throw new Error('Resume job billing attribution does not match the paused execution snapshot')
+    }
 
     // If this paused execution belongs to a table cell, rehydrate the cell
     // context so post-resume block outputs land on the same row + group as
@@ -100,6 +145,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
         contextId: payload.contextId,
         resumeInput: payload.resumeInput,
         userId: payload.userId,
+        abortSignal: attemptSignal,
       })
       logger.info('Background resume execution completed', {
         resumeExecutionId,
@@ -107,6 +153,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
         success: result.success,
         status: result.status,
       })
+      throwIfResumeAttemptTimedOut(result.status, attemptTimeoutController)
       return {
         success: result.success,
         workflowId,
@@ -127,9 +174,15 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
       cellContext.rowId,
       parentExecutionId,
       async () => {
-        const result = await runResumeAndCellTerminal(payload, pausedExecution, writers)
-        if (result.status === 'paused') return result
-        await continueCascadeAfterResume(cellContext, billingAttribution)
+        const result = await runResumeAndCellTerminal(
+          payload,
+          pausedExecution,
+          writers,
+          attemptSignal,
+          attemptTimeoutController
+        )
+        if (result.status === 'paused' || result.status === 'cancelled') return result
+        await continueCascadeAfterResume(cellContext, billingAttribution, attemptSignal)
         return result
       }
     )
@@ -139,7 +192,13 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
       logger.info(
         `Resume cascade lock held — writing resumed group only (table=${cellContext.tableId} row=${cellContext.rowId} executionId=${parentExecutionId})`
       )
-      result = await runResumeAndCellTerminal(payload, pausedExecution, writers)
+      result = await runResumeAndCellTerminal(
+        payload,
+        pausedExecution,
+        writers,
+        attemptSignal,
+        attemptTimeoutController
+      )
     } else {
       result = outcome.result
     }
@@ -150,6 +209,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
       success: result.success,
       status: result.status,
     })
+    throwIfResumeAttemptTimedOut(result.status, attemptTimeoutController)
 
     return {
       success: result.success,
@@ -161,19 +221,34 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
       executedAt: new Date().toISOString(),
     }
   } catch (error) {
-    logger.error('Background resume execution failed', {
-      resumeExecutionId,
-      workflowId,
-      error: toError(error).message,
-    })
+    logger.error(
+      'Background resume execution failed',
+      projectResolvedSecretDiagnosticError(error, undefined, {
+        resumeExecutionId,
+        workflowId,
+      })
+    )
     throw error
+  } finally {
+    timeoutController?.cleanup()
   }
+}
+
+function throwIfResumeAttemptTimedOut(
+  status: string | undefined,
+  timeoutController: ReturnType<typeof createTimeoutAbortController>
+): void {
+  if (status !== 'cancelled' || !timeoutController.isTimedOut() || !timeoutController.timeoutMs) {
+    return
+  }
+
+  throw new ExecutionTimeoutError(getTimeoutErrorMessage(null, timeoutController.timeoutMs))
 }
 
 type CellWriters = {
   cellOnBlockComplete: (blockId: string, output: unknown) => Promise<void>
   writeCellTerminal: (
-    status: 'completed' | 'error' | 'paused',
+    status: 'completed' | 'error' | 'cancelled' | 'paused',
     error: string | null
   ) => Promise<void>
 }
@@ -189,9 +264,8 @@ async function buildResumeCellWriters(
   parentExecutionId: string
 ): Promise<CellWriters | null> {
   const { getTableById } = await import('@/lib/table/service')
-  const { createWorkflowCellProgressWriter, writeWorkflowGroupState } = await import(
-    '@/lib/table/cell-write'
-  )
+  const { buildCancelledExecution, createWorkflowCellProgressWriter, writeWorkflowGroupState } =
+    await import('@/lib/table/cell-write')
 
   const table = await getTableById(cellContext.tableId)
   const group = table?.schema.workflowGroups?.find((g) => g.id === cellContext.groupId)
@@ -215,7 +289,7 @@ async function buildResumeCellWriters(
   }
   const progressWriter = createWorkflowCellProgressWriter({
     group,
-    writeProgress: ({ dataPatch, eventOutputs, blockErrors }) => {
+    writeProgress: ({ dataPatch, eventOutputs, secretProvenance, blockErrors }) => {
       const partial: RowExecutionMetadata = {
         status: 'running',
         executionId: parentExecutionId,
@@ -228,12 +302,13 @@ async function buildResumeCellWriters(
         executionState: partial,
         dataPatch,
         eventOutputs,
+        secretProvenance,
       })
     },
     onWriteError: (err) => {
       logger.warn(
-        `Resume per-block partial write failed (table=${cellContext.tableId} row=${cellContext.rowId} group=${cellContext.groupId}):`,
-        err
+        `Resume per-block partial write failed (table=${cellContext.tableId} row=${cellContext.rowId} group=${cellContext.groupId})`,
+        projectResolvedSecretDiagnosticError(err, undefined)
       )
     },
   })
@@ -241,7 +316,7 @@ async function buildResumeCellWriters(
   const cellOnBlockComplete = progressWriter.onBlockComplete
 
   const writeCellTerminal = async (
-    status: 'completed' | 'error' | 'paused',
+    status: 'completed' | 'error' | 'cancelled' | 'paused',
     error: string | null
   ) => {
     await progressWriter.finish()
@@ -256,19 +331,26 @@ async function buildResumeCellWriters(
             error: null,
             blockErrors,
           }
-        : {
-            status,
-            executionId: parentExecutionId,
-            jobId: null,
-            workflowId: cellContext.workflowId,
-            error,
-            runningBlockIds: [],
-            blockErrors,
-          }
+        : status === 'cancelled'
+          ? buildCancelledExecution({
+              executionId: parentExecutionId,
+              workflowId: cellContext.workflowId,
+              blockErrors,
+            })
+          : {
+              status,
+              executionId: parentExecutionId,
+              jobId: null,
+              workflowId: cellContext.workflowId,
+              error,
+              runningBlockIds: [],
+              blockErrors,
+            }
     await writeWorkflowGroupState(writeCtx, {
       executionState: terminal,
       dataPatch: progressWriter.getPendingDataPatch(),
       eventOutputs: progressWriter.getEventOutputs(),
+      secretProvenance: progressWriter.getPendingSecretProvenance(),
     })
   }
 
@@ -278,7 +360,9 @@ async function buildResumeCellWriters(
 async function runResumeAndCellTerminal(
   payload: ResumeExecutionPayload,
   pausedExecution: Awaited<ReturnType<typeof PauseResumeManager.getPausedExecutionById>>,
-  writers: CellWriters
+  writers: CellWriters,
+  signal: AbortSignal | undefined,
+  timeoutController: ReturnType<typeof createTimeoutAbortController>
 ): Promise<Awaited<ReturnType<typeof PauseResumeManager.startResumeExecution>>> {
   if (!pausedExecution) throw new Error('Paused execution missing — already nulled by caller')
   const result = await PauseResumeManager.startResumeExecution({
@@ -289,14 +373,17 @@ async function runResumeAndCellTerminal(
     resumeInput: payload.resumeInput,
     userId: payload.userId,
     onBlockComplete: writers.cellOnBlockComplete,
+    abortSignal: signal,
   })
 
   if (result.status === 'paused') {
     await writers.writeCellTerminal('paused', null)
-  } else if (result.success) {
-    await writers.writeCellTerminal('completed', null)
   } else {
-    await writers.writeCellTerminal('error', result.error ?? 'Workflow execution failed')
+    const terminalResult = classifyWorkflowCellTerminalResult(result, {
+      timedOut: timeoutController.isTimedOut(),
+      timeoutMs: timeoutController.timeoutMs,
+    })
+    await writers.writeCellTerminal(terminalResult.status, terminalResult.error)
   }
 
   return result
@@ -309,7 +396,8 @@ async function continueCascadeAfterResume(
     workspaceId: string
     groupId: string
   },
-  billingAttribution: BillingAttributionSnapshot
+  billingAttribution: BillingAttributionSnapshot,
+  signal?: AbortSignal
 ): Promise<void> {
   const { getTableById } = await import('@/lib/table/service')
   const { getRowById } = await import('@/lib/table/rows/service')
@@ -322,20 +410,24 @@ async function continueCascadeAfterResume(
   if (!freshRow) return
   const next = pickNextEligibleGroupForRow(freshTable, freshRow, cellContext.groupId)
   if (!next) return
-  await runRowCascadeLoop({
-    tableId: cellContext.tableId,
-    tableName: freshTable.name,
-    rowId: cellContext.rowId,
-    workspaceId: cellContext.workspaceId,
-    groupId: next.id,
-    workflowId: next.workflowId,
-    executionId: generateId(),
-    billingAttribution,
-  })
+  await runRowCascadeLoop(
+    {
+      tableId: cellContext.tableId,
+      tableName: freshTable.name,
+      rowId: cellContext.rowId,
+      workspaceId: cellContext.workspaceId,
+      groupId: next.id,
+      workflowId: next.workflowId,
+      executionId: generateId(),
+      billingAttribution,
+    },
+    signal
+  )
 }
 
 export const resumeExecutionTask = task({
   id: 'resume-execution',
+  maxDuration: timeout.None,
   machine: 'medium-1x',
   retry: {
     maxAttempts: 1,
@@ -343,5 +435,5 @@ export const resumeExecutionTask = task({
   queue: {
     concurrencyLimit: RESUME_EXECUTION_CONCURRENCY_LIMIT,
   },
-  run: executeResumeJob,
+  run: (payload: ResumeExecutionPayload, { signal }) => executeResumeJob(payload, signal),
 })

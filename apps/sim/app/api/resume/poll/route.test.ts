@@ -385,7 +385,9 @@ describe('time-pause resume admission', () => {
     expect(
       inArrayMock.mock.calls.some(
         ([column, values]) =>
-          column === 'id' && Array.isArray(values) && values.join(',') === 'paused-2,paused-3'
+          column === 'pausedExecutions.id' &&
+          Array.isArray(values) &&
+          values.join(',') === 'paused-2,paused-3'
       )
     ).toBe(true)
     expect(executionSnapshotFromJsonMock).toHaveBeenCalledTimes(2)
@@ -537,7 +539,7 @@ describe('time-pause resume admission', () => {
       [LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE],
     ])
     const snapshotIdBatches = inArrayMock.mock.calls
-      .filter(([column]) => column === 'id')
+      .filter(([column]) => column === 'pausedExecutions.id')
       .map(([, ids]) => ids as string[])
     expect(snapshotIdBatches.map((ids) => ids.length)).toEqual([10, 4, 4, 2])
     expect(

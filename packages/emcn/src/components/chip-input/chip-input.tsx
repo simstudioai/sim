@@ -9,10 +9,11 @@
  *
  * The chrome lives on the wrapper so a leading `icon` and a trailing
  * `endAdornment` (reveal / copy buttons) sit flush next to a transparent inner
- * `<input>`. The leading icon uses the same 1.5 gap as `Chip`. It shares the
- * chip-field chrome with {@link ChipTextarea}, shows no focus ring — keep the
- * surface calm and rely on the caret for focus. Pass `error` to swap the border
- * to the error token.
+ * `<input>`. Matching negative margin and text indent give leading glyphs paint
+ * clearance without moving their visual alignment. The leading icon uses the
+ * same 1.5 gap as `Chip`. It shares the chip-field chrome with
+ * {@link ChipTextarea}, shows no focus ring — keep the surface calm and rely on
+ * the caret for focus. Pass `error` to swap the border to the error token.
  *
  * @example
  * ```tsx
@@ -27,12 +28,12 @@
  */
 import * as React from 'react'
 import { cn } from '../../lib/cn'
-import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chip-chrome'
+import { chipFieldSurfaceClass, chipFieldTextClass, chipGeometryClass } from '../chip/chip-chrome'
 
 type ChipInputIcon = React.ComponentType<{ className?: string }>
 
 export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
-  /** Leading icon component (e.g. lucide `Search`). Rendered at 14px in `--text-icon`, with the chip's 1.5 gap. */
+  /** Leading icon component (e.g. `Search` from `@sim/emcn/icons`). Rendered at 14px in `--text-icon`, with the chip's 1.5 gap. */
   icon?: ChipInputIcon
   /** Trailing content rendered after the input (e.g. reveal / copy buttons). */
   endAdornment?: React.ReactNode
@@ -64,7 +65,8 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
   ) => (
     <div
       className={cn(
-        'flex h-[30px] w-full items-center gap-1.5 px-2',
+        'flex w-full',
+        chipGeometryClass,
         chipFieldSurfaceClass,
         error && 'border-[var(--text-error)]',
         disabled && 'opacity-50',
@@ -77,7 +79,7 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
         type={type}
         disabled={disabled}
         className={cn(
-          'h-full w-full bg-transparent disabled:cursor-not-allowed',
+          '-ml-1 h-full w-full bg-transparent indent-1 disabled:cursor-not-allowed',
           chipFieldTextClass,
           inputClassName
         )}

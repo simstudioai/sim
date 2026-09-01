@@ -1,87 +1,16 @@
-import type { OpenAIEmbeddingsParams } from '@/tools/openai/types'
-import type { ToolConfig } from '@/tools/types'
+import { embeddingsOpenAITool } from '@/tools/embeddings/openai'
+import type { EmbeddingsParams, EmbeddingsResponse } from '@/tools/embeddings/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
+/**
+ * Legacy tool id retained for the sunset `openai` Embeddings block and for
+ * copilot/VFS callers that reference it by name. It is an alias of
+ * `embeddings_openai` so both ids execute the exact same code path; the output
+ * shape only gains fields (`provider`, `dimensions`, and the internal
+ * `__embeddingTokens`) relative to the original.
+ */
+export const embeddingsTool: InternalToolConfig<EmbeddingsParams, EmbeddingsResponse> = {
+  ...embeddingsOpenAITool,
   id: 'openai_embeddings',
   name: 'OpenAI Embeddings',
-  description: "Generate embeddings from text using OpenAI's embedding models",
-  version: '1.0',
-
-  params: {
-    input: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Text to generate embeddings for',
-    },
-    model: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Model to use for embeddings',
-      default: 'text-embedding-3-small',
-    },
-    encodingFormat: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'The format to return the embeddings in',
-      default: 'float',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'OpenAI API key',
-    },
-  },
-
-  request: {
-    method: 'POST',
-    url: () => 'https://api.openai.com/v1/embeddings',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
-      input: params.input,
-      model: params.model || 'text-embedding-3-small',
-      encoding_format: params.encodingFormat || 'float',
-    }),
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        embeddings: data.data.map((item: any) => item.embedding),
-        model: data.model,
-        usage: {
-          prompt_tokens: data.usage.prompt_tokens,
-          total_tokens: data.usage.total_tokens,
-        },
-      },
-    }
-  },
-
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Embeddings generation results',
-      properties: {
-        embeddings: { type: 'array', description: 'Array of embedding vectors' },
-        model: { type: 'string', description: 'Model used for generating embeddings' },
-        usage: {
-          type: 'object',
-          description: 'Token usage information',
-          properties: {
-            prompt_tokens: { type: 'number', description: 'Number of tokens in the prompt' },
-            total_tokens: { type: 'number', description: 'Total number of tokens used' },
-          },
-        },
-      },
-    },
-  },
 }

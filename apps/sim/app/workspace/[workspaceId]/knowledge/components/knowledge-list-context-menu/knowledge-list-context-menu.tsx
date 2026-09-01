@@ -49,16 +49,18 @@ export const KnowledgeListContextMenu = memo(function KnowledgeListContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {onAddKnowledgeBase && (
-          <DropdownMenuItem disabled={disableAdd} onSelect={onAddKnowledgeBase}>
-            <Plus />
-            Add knowledge base
-          </DropdownMenuItem>
-        )}
+        {/* New folder, New base — the order the page header presents them once
+            `orderHeaderActions` has pinned the primary action last. */}
         {onAddFolder && (
           <DropdownMenuItem disabled={disableAddFolder} onSelect={onAddFolder}>
             <FolderPlus />
             New folder
+          </DropdownMenuItem>
+        )}
+        {onAddKnowledgeBase && (
+          <DropdownMenuItem disabled={disableAdd} onSelect={onAddKnowledgeBase}>
+            <Plus />
+            New base
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

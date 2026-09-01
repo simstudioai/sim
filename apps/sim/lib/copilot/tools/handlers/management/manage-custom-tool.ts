@@ -1,14 +1,15 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { toError } from '@sim/utils/errors'
+import { executeCopilotCustomToolUseCase } from '@/lib/copilot/application/execute-custom-tool-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { captureServerEvent } from '@/lib/posthog/server'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  deleteCustomTool,
-  getCustomToolById,
-  listCustomTools,
-  upsertCustomTools,
-} from '@/lib/workflows/custom-tools/operations'
+  deleteAvailableCustomToolUseCase,
+  listAvailableCustomToolsUseCase,
+  saveWorkspaceCustomToolUseCase,
+  updateAvailableCustomToolUseCase,
+} from '@/lib/custom-tools/application/use-cases'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CopilotToolExecutor')
 
@@ -30,7 +31,6 @@ interface ManageCustomToolParams {
   schema?: ManageCustomToolSchema
   code?: string
   title?: string
-  workspaceId?: string
 }
 
 export async function executeManageCustomTool(
@@ -39,31 +39,28 @@ export async function executeManageCustomTool(
 ): Promise<ToolCallResult> {
   const params = rawParams as ManageCustomToolParams
   const operation = String(params.operation || '').toLowerCase() as ManageCustomToolOperation
-  const workspaceId = params.workspaceId || context.workspaceId
+  /**
+   * Server-set context only. A model-supplied `params.workspaceId` used to win
+   * here, while the permission gate above is resolved for the CONTEXT
+   * workspace — so a caller could name another workspace and have it
+   * authorized against their own. `upsertCustomTools` does no authz of its own
+   * (it only scopes queries by the id it is handed), so nothing downstream
+   * caught it. Matches manage_mcp_connection and manage_skill.
+   */
+  const workspaceId = context.workspaceId
 
   if (!operation) {
     return { success: false, error: "Missing required 'operation' argument" }
   }
 
-  const writeOps: string[] = ['add', 'edit', 'delete']
-  if (
-    writeOps.includes(operation) &&
-    context.userPermission &&
-    context.userPermission !== 'write' &&
-    context.userPermission !== 'admin'
-  ) {
-    return {
-      success: false,
-      error: `Permission denied: '${operation}' on manage_custom_tool requires write access. You have '${context.userPermission}' permission.`,
-    }
-  }
-
   try {
     if (operation === 'list') {
-      const toolsForUser = await listCustomTools({
-        userId: context.userId,
-        workspaceId,
-      })
+      if (!workspaceId) return { success: false, error: 'workspaceId is required' }
+      const { tools: toolsForUser } = await executeCopilotCustomToolUseCase(
+        context,
+        listAvailableCustomToolsUseCase,
+        { workspaceId }
+      )
 
       return {
         success: true,
@@ -95,45 +92,37 @@ export async function executeManageCustomTool(
         return { success: false, error: "Missing tool title or schema.function.name for 'add'" }
       }
 
-      const resultTools = await upsertCustomTools({
-        tools: [{ title, schema: params.schema, code: params.code }],
-        workspaceId,
-        userId: context.userId,
-      })
-      const created = resultTools.find((tool) => tool.title === title)
-
-      recordAudit({
-        workspaceId,
-        actorId: context.userId,
-        action: AuditAction.CUSTOM_TOOL_CREATED,
-        resourceType: AuditResourceType.CUSTOM_TOOL,
-        resourceId: created?.id,
-        resourceName: title,
-        description: `Created custom tool "${title}"`,
-        metadata: { source: 'tool_input' },
-      })
-      if (created?.id) {
-        captureServerEvent(
-          context.userId,
-          'custom_tool_saved',
-          {
-            tool_id: created.id,
-            workspace_id: workspaceId,
-            tool_name: title,
-            source: 'tool_input',
-          },
-          { groups: { workspace: workspaceId } }
-        )
-      }
+      const { tool: created } = await executeCopilotCustomToolUseCase(
+        context,
+        saveWorkspaceCustomToolUseCase,
+        {
+          title,
+          schema: params.schema,
+          code: params.code,
+          source: 'tool_input',
+          workspaceId,
+        }
+      )
+      captureServerEvent(
+        context.userId,
+        'custom_tool_saved',
+        {
+          tool_id: created.id,
+          workspace_id: workspaceId,
+          tool_name: created.title,
+          source: 'tool_input',
+        },
+        { groups: { workspace: workspaceId } }
+      )
 
       return {
         success: true,
         output: {
           success: true,
           operation,
-          toolId: created?.id,
-          title,
-          message: `Created custom tool "${title}"`,
+          toolId: created.id,
+          title: created.title,
+          message: `Created custom tool "${created.title}"`,
         },
       }
     }
@@ -155,42 +144,25 @@ export async function executeManageCustomTool(
         }
       }
 
-      const existing = await getCustomToolById({
-        toolId: params.toolId,
-        userId: context.userId,
-        workspaceId,
-      })
-      if (!existing) {
-        return { success: false, error: `Custom tool not found: ${params.toolId}` }
-      }
-
-      const mergedSchema = params.schema || (existing.schema as ManageCustomToolSchema)
-      const mergedCode = params.code || existing.code
-      const title = params.title || mergedSchema.function?.name || existing.title
-
-      await upsertCustomTools({
-        tools: [{ id: params.toolId, title, schema: mergedSchema, code: mergedCode }],
-        workspaceId,
-        userId: context.userId,
-      })
-
-      recordAudit({
-        workspaceId,
-        actorId: context.userId,
-        action: AuditAction.CUSTOM_TOOL_UPDATED,
-        resourceType: AuditResourceType.CUSTOM_TOOL,
-        resourceId: params.toolId,
-        resourceName: title,
-        description: `Updated custom tool "${title}"`,
-        metadata: { source: 'tool_input' },
-      })
+      const { tool } = await executeCopilotCustomToolUseCase(
+        context,
+        updateAvailableCustomToolUseCase,
+        {
+          workspaceId,
+          toolId: params.toolId,
+          title: params.title || params.schema?.function?.name,
+          schema: params.schema,
+          code: params.code,
+          source: 'tool_input',
+        }
+      )
       captureServerEvent(
         context.userId,
         'custom_tool_saved',
         {
-          tool_id: params.toolId,
+          tool_id: tool.id,
           workspace_id: workspaceId,
-          tool_name: title,
+          tool_name: tool.title,
           source: 'tool_input',
         },
         { groups: { workspace: workspaceId } }
@@ -201,9 +173,9 @@ export async function executeManageCustomTool(
         output: {
           success: true,
           operation,
-          toolId: params.toolId,
-          title,
-          message: `Updated custom tool "${title}"`,
+          toolId: tool.id,
+          title: tool.title,
+          message: `Updated custom tool "${tool.title}"`,
         },
       }
     }
@@ -213,41 +185,35 @@ export async function executeManageCustomTool(
       if (toolIds.length === 0) {
         return { success: false, error: "'toolId' or 'toolIds' is required for operation 'delete'" }
       }
-
+      if (!workspaceId) return { success: false, error: 'workspaceId is required' }
       const deleted: string[] = []
       const notFound: string[] = []
 
       for (const toolId of toolIds) {
-        const result = await deleteCustomTool({
-          toolId,
-          userId: context.userId,
-          workspaceId,
-        })
-        if (result) {
+        try {
+          await executeCopilotCustomToolUseCase(context, deleteAvailableCustomToolUseCase, {
+            toolId,
+            workspaceId,
+            source: 'tool_input',
+          })
           deleted.push(toolId)
-        } else {
-          notFound.push(toolId)
+        } catch (error) {
+          const classified = asOrchestrationError(error)
+          if (classified?.code === 'not_found') {
+            notFound.push(toolId)
+            continue
+          }
+          throw error
         }
       }
 
       for (const toolId of deleted) {
-        recordAudit({
-          workspaceId: workspaceId ?? null,
-          actorId: context.userId,
-          action: AuditAction.CUSTOM_TOOL_DELETED,
-          resourceType: AuditResourceType.CUSTOM_TOOL,
-          resourceId: toolId,
-          description: 'Deleted custom tool',
-          metadata: { source: 'tool_input' },
-        })
-        if (workspaceId) {
-          captureServerEvent(
-            context.userId,
-            'custom_tool_deleted',
-            { tool_id: toolId, workspace_id: workspaceId, source: 'tool_input' },
-            { groups: { workspace: workspaceId } }
-          )
-        }
+        captureServerEvent(
+          context.userId,
+          'custom_tool_deleted',
+          { tool_id: toolId, workspace_id: workspaceId, source: 'tool_input' },
+          { groups: { workspace: workspaceId } }
+        )
       }
 
       return {
@@ -278,9 +244,13 @@ export async function executeManageCustomTool(
         error: toError(error).message,
       }
     )
+    const classified = asOrchestrationError(error)
     return {
       success: false,
-      error: getErrorMessage(error, 'Failed to manage custom tool'),
+      error:
+        classified && classified.code !== 'internal'
+          ? classified.message
+          : `The ${operation ?? 'custom tool'} operation failed inside Sim. The write may or may not have landed — run operation "list" to check current state before retrying.`,
     }
   }
 }

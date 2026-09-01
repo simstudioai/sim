@@ -9,6 +9,8 @@ import type {
   ForkDependentReconfig,
   ForkMappingEntry,
   ForkResourceUsage,
+  ForkTriggerMapping,
+  ForkTriggerUrlChange,
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
 import {
@@ -28,11 +30,19 @@ import {
   forkVisibleCopyables,
   isForkRequiredComplete,
 } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
+import { isForkSyncConfigurableField } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 import {
+  type DependentReconfigState,
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
+  isDependentInvalidated,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
+import {
+  forkDyingTriggerUrls,
+  forkTriggerChoices,
+  forkTriggerPathOwners,
+} from '@/ee/workspace-forking/components/fork-sync/trigger-choices'
 import {
   type ForkDirection,
   useForkDiff,
@@ -40,6 +50,7 @@ import {
   usePromoteFork,
   useUpdateForkMapping,
 } from '@/ee/workspace-forking/hooks/workspace-fork'
+import { forkSyncBlockerReasonFor } from '@/ee/workspace-forking/lib/promote/sync-blockers'
 
 /**
  * The mapping kinds that can be a standalone mapping entry. `knowledge-document` is excluded:
@@ -57,7 +68,8 @@ const MAPPING_SECTION: Record<MappableMappingKind, { label: string; order: numbe
   file: { label: 'Files', order: 4 },
   'mcp-server': { label: 'MCP servers', order: 5 },
   'custom-tool': { label: 'Custom tools', order: 6 },
-  skill: { label: 'Skills', order: 7 },
+  'custom-block': { label: 'Custom blocks', order: 7 },
+  skill: { label: 'Skills', order: 8 },
 }
 
 /** Shared empty owners map for the pull direction so the options mapper never re-allocates. */
@@ -92,6 +104,14 @@ export interface ForkKindSummary {
 export interface ForkSyncController {
   direction: ForkDirection
   otherWorkspaceName: string
+  /**
+   * The workspace this sync WRITES, named for user-facing copy: the other workspace on push,
+   * this one on pull. Always a NAME rather than "the target" - the page header shows the OTHER
+   * workspace's name, so an unnamed target reads as that one even on pull. Falls back to
+   * "this workspace" only until the name loads. Derived once here so every surface that names
+   * it - the overwrite confirm, the Trigger URLs heading - says the same thing.
+   */
+  targetWorkspaceName: string
   isLoading: boolean
   isError: boolean
   errorMessage: string | null
@@ -131,8 +151,8 @@ export interface ForkSyncController {
    */
   sourceWorkspaceId: string
   /** In-session dependent re-picks, keyed by `dependentKey`. */
-  reconfig: Record<string, string>
-  setReconfig: Dispatch<SetStateAction<Record<string, string>>>
+  reconfig: DependentReconfigState
+  setReconfig: Dispatch<SetStateAction<DependentReconfigState>>
   /** Keys the backend offers as copy candidates, for the entry rows' "Copy instead" affordance. */
   copyableKeys: ReadonlySet<string>
   /** Copyables actually selected for copy (visible + checked), keyed `${kind}:${sourceId}`. */
@@ -140,6 +160,25 @@ export interface ForkSyncController {
   /** The raw copy selection (visible-ness not applied), for per-kind selected-id derivation. */
   copySelected: ReadonlySet<string>
   toggleCopyKeys: (keys: string[], checked: boolean) => void
+  /**
+   * Source-deleted references the user accepted losing in the target, keyed `${kind}:${sourceId}`.
+   * In-session only - an acknowledgment is a decision about this sync, never a stored mapping.
+   */
+  droppedRefs: ReadonlySet<string>
+  /** Toggle one acknowledgment; the row leaves "Blocking sync" for "Will be cleared". */
+  toggleDroppedRef: (kind: string, sourceId: string, dropped: boolean) => void
+  /** Accept losing every source-deleted blocker at once - the volume is the point. */
+  dropAllDeletedRefs: () => void
+  /** Source-deleted blockers still awaiting a decision, for the bulk affordance. */
+  droppableBlockerCount: number
+  /**
+   * How many blocking rows name each resource, keyed `${kind}:${sourceId}`. A drop is inherently
+   * resource-scoped - the remapper clears by reference, not by field - so the row that offers the
+   * control states how many fields it covers rather than implying a per-field choice.
+   */
+  blockingUsesByResource: ReadonlyMap<string, number>
+  /** Index of the row that owns each resource's Drop control, so it renders exactly once. */
+  firstBlockingRowForResource: ReadonlyMap<string, number>
   /** Visible copy candidates split by referenced-ness, grouped per kind for the section rows. */
   referencedByKind: ReadonlyMap<ForkCopyableUnmapped['kind'], ForkCopyableUnmapped[]>
   unreferencedByKind: ReadonlyMap<ForkCopyableUnmapped['kind'], ForkCopyableUnmapped[]>
@@ -152,6 +191,26 @@ export interface ForkSyncController {
   workflowChanges: ForkWorkflowChange[]
   /** Names of target workflows this sync archives, for the confirm modal. */
   archivedWorkflowNames: string[]
+  /**
+   * Public trigger URLs the CURRENT picks leave unserved. Derived from the retiring set and the
+   * live adoption choices, so the heads-up, the overwrite confirm and the rows always agree.
+   */
+  triggerUrlChanges: ForkTriggerUrlChange[]
+  /** Arriving triggers whose URL is a choice: keep a retiring one, or mint a new one. */
+  triggerMappings: ForkTriggerMapping[]
+  /**
+   * The chosen adoption per source trigger block. A key present with a path adopts it; present
+   * with `''` mints a new URL; absent takes the server's `defaultAdoptPath`.
+   */
+  triggerAdoptions: Readonly<Record<string, string>>
+  setTriggerAdoption: (sourceBlockId: string, path: string) => void
+  /** Paths another trigger row has already claimed, so this row can disable them. */
+  triggerPathOwnersFor: (sourceBlockId: string) => ReadonlyMap<string, string>
+  /**
+   * The path a row will actually serve, resolved the same way the server resolves it. Never
+   * reports a path another row claimed first, so the row's displayed URL is its real outcome.
+   */
+  triggerChoiceFor: (sourceBlockId: string) => string
   /** Names of deployed SOURCE workflows marked "Exclude from sync" - never sent. */
   excludedSourceWorkflows: string[]
   /** Names of mapped TARGET workflows marked "Exclude from sync" - never replaced or archived. */
@@ -178,9 +237,21 @@ const entryKey = (entry: ForkMappingEntry) => forkRefKey(entry)
  * the dependents). Pure over (entry, in-session targets) so the inline render, the Sync
  * gate, and the payload build share one predicate instead of drifting copies.
  */
-function shouldReconfigureEntry(entry: ForkMappingEntry, targets: Record<string, string>): boolean {
+export function shouldReconfigureEntry(
+  entry: ForkMappingEntry,
+  targets: Record<string, string>
+): boolean {
   const next = targets[entryKey(entry)] ?? entry.targetId ?? ''
   if (next === '') return false
+  // A custom block pointed at a DIFFERENT block needs its inputs configured for as long as
+  // that mapping stands, not only in the session where it was picked. Every other kind can
+  // fall through to the in-session test because an unchanged mapping leaves its stored
+  // dependent values valid — a Gmail label picked under the same credential still resolves.
+  // A custom block has no such continuity: its sub-blocks are keyed by the SOURCE block's
+  // Start field ids, so under a different target they describe fields that do not exist and
+  // nothing carries over. Treating it as settled once saved is what left the fields hidden
+  // behind "no changes required" on every sync after the first.
+  if (entry.kind === 'custom-block') return next !== entry.sourceId
   return entry.suggested || next !== (entry.targetId ?? '')
 }
 
@@ -217,12 +288,15 @@ function takenTargetOwners(
  */
 export function useForkSync(params: {
   workspaceId: string
+  /** This workspace's name, for copy that must say which side a pull overwrites. */
+  workspaceName?: string
   otherWorkspaceId?: string
   otherWorkspaceName: string
   direction: ForkDirection
   enabled: boolean
 }): ForkSyncController {
-  const { workspaceId, otherWorkspaceId, otherWorkspaceName, direction, enabled } = params
+  const { workspaceId, workspaceName, otherWorkspaceId, otherWorkspaceName, direction, enabled } =
+    params
 
   // User's IN-SESSION mapping overrides only - NOT the source of truth. The displayed/persisted
   // target falls back to each entry's stored `targetId` (see `targetFor`), so a reopened edge
@@ -233,12 +307,22 @@ export function useForkSync(params: {
   // `dependentKey`. Folded into the full effective set sent on save/sync, which the server
   // persists as the stored mapping - so the selection survives every future sync without
   // re-picking.
-  const [reconfig, setReconfig] = useState<Record<string, string>>({})
+  const [reconfig, setReconfig] = useState<DependentReconfigState>({})
   // Referenced-but-unmapped resources the user chose to copy into the target (keyed by
   // `${kind}:${sourceId}`); default-selected once the diff loads. Selected ones are copied on
   // sync so their references resolve to the copy instead of being cleared.
   const [copySelected, setCopySelected] = useState<Set<string>>(new Set())
   const [copyDefaulted, setCopyDefaulted] = useState(false)
+  // Source-deleted references the user explicitly accepted losing in the target (keyed by
+  // `${kind}:${sourceId}`). In-session only, like `copySelected` - an acknowledgment is a decision
+  // about THIS sync, never a stored mapping. The server re-checks that each source really is gone
+  // before honouring one.
+  const [droppedRefs, setDroppedRefs] = useState<Set<string>>(new Set())
+  // Which retiring public URL each arriving trigger takes over, keyed by SOURCE block id. Session
+  // state like the two above: the choice is about THIS sync, and once it lands the adopted path is
+  // stored in the target block's `triggerPath`, so later syncs preserve it with no input at all.
+  // `''` is the explicit "mint a new URL" choice, distinct from an absent key (take the default).
+  const [triggerAdoptions, setTriggerAdoptions] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
 
   // Drop every in-session choice when the direction (or edge) changes - the mapping set,
@@ -248,6 +332,8 @@ export function useForkSync(params: {
     setReconfig({})
     setCopySelected(new Set())
     setCopyDefaulted(false)
+    setDroppedRefs(new Set())
+    setTriggerAdoptions({})
   }, [direction, otherWorkspaceId])
 
   const mapping = useForkMapping({ workspaceId, otherWorkspaceId, direction, enabled })
@@ -266,6 +352,14 @@ export function useForkSync(params: {
     [diff.data?.copyableUnmapped]
   )
   const clearedRefs = useMemo(() => diff.data?.clearedRefs ?? [], [diff.data?.clearedRefs])
+  const triggerMappings = useMemo(
+    () => diff.data?.triggerMappings ?? [],
+    [diff.data?.triggerMappings]
+  )
+  const retiringTriggerUrls = useMemo(
+    () => diff.data?.retiringTriggerUrls ?? [],
+    [diff.data?.retiringTriggerUrls]
+  )
 
   // Keys the backend offers as copy candidates, so the entry rows show a "Copy instead"
   // affordance only for those - clearing a name-match suggestion returns the ref to the copy
@@ -297,6 +391,16 @@ export function useForkSync(params: {
     () => forkCopyingKeys(visibleCopyables, copySelected),
     [visibleCopyables, copySelected]
   )
+
+  /**
+   * Keys that no longer need a mapping target: selected for copy, or an acknowledged drop. Kept
+   * separate from `copyingKeys` so a dropped reference is never counted as "copied" in the
+   * per-kind badge.
+   */
+  const satisfiedKeys = useMemo(() => {
+    if (droppedRefs.size === 0) return copyingKeys
+    return new Set([...copyingKeys, ...droppedRefs])
+  }, [copyingKeys, droppedRefs])
 
   // Group the visible copy candidates by kind so each renders as its own expandable section
   // (chevron + tri-state select-all + count), matching the fork picker. Referenced and
@@ -448,7 +552,7 @@ export function useForkSync(params: {
 
   // A required reference is satisfied when it has a mapping target OR the user selected it for
   // copy (the server accepts a copy as resolving a required ref). See `isForkRequiredComplete`.
-  const requiredComplete = isForkRequiredComplete(entries, targets, copyingKeys)
+  const requiredComplete = isForkRequiredComplete(entries, targets, satisfiedKeys)
 
   // Every required dependent whose parent is RESOLVED must have a value before sync. Under a
   // mapped parent the user re-picks against the target; under a copy-resolved parent the field
@@ -458,6 +562,9 @@ export function useForkSync(params: {
   // instead, so it's skipped here.
   const reconfigComplete = dependentReconfigs.every((field) => {
     if (!field.required) return true
+    // A field the modal renders no control for can never satisfy this gate — see
+    // `isForkSyncConfigurableField`.
+    if (!isForkSyncConfigurableField(field)) return true
     const parent = entryForDependent(field)
     if (!parent) return true
     const resolution = resolutionFor(parent)
@@ -471,6 +578,9 @@ export function useForkSync(params: {
   const reconfigPendingByKind = new Set<MappableMappingKind>()
   for (const field of dependentReconfigs) {
     if (!field.required) continue
+    // Mirrors the Sync gate above: a field it cannot block on must not make the kind's badge
+    // read "Needs setup" forever either.
+    if (!isForkSyncConfigurableField(field)) continue
     const parent = entryForDependent(field)
     if (!parent) continue
     const resolution = resolutionFor(parent)
@@ -494,8 +604,20 @@ export function useForkSync(params: {
       const mapped = entry ? (targets[key] ?? entry.targetId ?? '') !== '' : false
       return mapped || copyingKeys.has(key)
     }
-    return splitForkClearedRefs(selectVisibleClearedRefs(clearedRefs, isResolved))
-  }, [clearedRefs, entriesByParent, targets, copyingKeys])
+    const { blockers, informational } = splitForkClearedRefs(
+      selectVisibleClearedRefs(clearedRefs, isResolved)
+    )
+    if (droppedRefs.size === 0) return { blockers, informational }
+    // An acknowledged drop stops blocking and moves into the informational "Will be cleared"
+    // list, mirroring the server: it filters the same entries out of its own gate, but only
+    // after re-checking that each source really is gone.
+    const dropped = blockers.filter((ref) => droppedRefs.has(`${ref.kind}:${ref.sourceId}`))
+    if (dropped.length === 0) return { blockers, informational }
+    return {
+      blockers: blockers.filter((ref) => !droppedRefs.has(`${ref.kind}:${ref.sourceId}`)),
+      informational: [...informational, ...dropped],
+    }
+  }, [clearedRefs, entriesByParent, targets, copyingKeys, droppedRefs])
 
   // Per-kind status for the Mappings summary: "Fully mapped" or "n/total mapped", flagged when
   // a REQUIRED target is still missing (which blocks Sync). Reads the effective
@@ -510,7 +632,7 @@ export function useForkSync(params: {
     const copied = group.items.filter((entry) => copyingKeys.has(entryKey(entry))).length
     // Mirror the Sync gate: a required ref selected for copy is satisfied, so it is not
     // "pending".
-    const requiredPending = forkRequiredPending(group.items, targets, copyingKeys)
+    const requiredPending = forkRequiredPending(group.items, targets, satisfiedKeys)
     const reconfigPending = reconfigPendingByKind.has(group.kind)
     return { kind: group.kind, total, mapped, copied, requiredPending, reconfigPending }
   })
@@ -590,8 +712,11 @@ export function useForkSync(params: {
   // effective value: re-pick, stored, or blank-after-change) or copy-selected (re-pick, stored,
   // or the source reference; promote translates a source document id to its copied counterpart
   // at write time). The server persists this verbatim as the stored mapping; fields whose
-  // parent is unresolved are omitted (they can't be configured). This is the whole "what's in
-  // the mapping goes in" contract, shared by Save and Sync so the two persist identically.
+  // parent is unresolved are omitted because they can't be configured. A field invalidated by
+  // an in-block provider re-pick is submitted as `''`: required fields gate Sync until re-picked,
+  // while optional/LLM-fillable fields must land empty rather than retain a source value scoped
+  // to the old provider. This is the whole "what's in the mapping goes in" contract, shared by
+  // Save and Sync so the two persist identically.
   const buildDependentValues = () =>
     dependentReconfigs.flatMap((field) => {
       const parent = entryForDependent(field)
@@ -628,9 +753,12 @@ export function useForkSync(params: {
 
   // A dependent re-pick that differs from its stored value also dirties the editor. A re-pick
   // under a changed parent is covered by `targetsDirty` (the parent override is the change).
+  // An automatically invalidated field is covered by the provider override that caused it; it
+  // must not independently dirty an editor after that provider has been restored to baseline.
   const reconfigDirty = useMemo(
     () =>
       dependentReconfigs.some((field) => {
+        if (isDependentInvalidated(field, reconfig)) return false
         const repicked = reconfig[dependentKey(field)]
         return repicked !== undefined && repicked !== field.currentValue
       }),
@@ -641,6 +769,8 @@ export function useForkSync(params: {
 
   const save = () => {
     if (!otherWorkspaceId || !dirty || updateMapping.isPending) return
+    const submittedTargets = targets
+    const submittedReconfig = reconfig
     updateMapping.mutate(
       {
         workspaceId,
@@ -656,8 +786,8 @@ export function useForkSync(params: {
       },
       {
         onSuccess: () => {
-          setTargets({})
-          setReconfig({})
+          setTargets((current) => (current === submittedTargets ? {} : current))
+          setReconfig((current) => (current === submittedReconfig ? {} : current))
           toast.success('Mapping saved')
         },
         onError: (error) => toast.error(getErrorMessage(error, 'Failed to save mapping')),
@@ -665,14 +795,76 @@ export function useForkSync(params: {
     )
   }
 
+  const toggleDroppedRef = (kind: string, sourceId: string, dropped: boolean) => {
+    const key = `${kind}:${sourceId}`
+    setDroppedRefs((prev) => {
+      const next = new Set(prev)
+      if (dropped) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
+
+  // Only `source-deleted` blockers are droppable: an unmapped-copyable can be copied and a
+  // missing workflow can be deployed, so neither is a dead end the user should be able to accept.
+  const droppableBlockerKeys = useMemo(
+    () =>
+      blockingRefs
+        .filter((ref) => forkSyncBlockerReasonFor(ref) === 'source-deleted')
+        .map((ref) => `${ref.kind}:${ref.sourceId}`),
+    [blockingRefs]
+  )
+
+  const dropAllDeletedRefs = () => {
+    setDroppedRefs((prev) => new Set([...prev, ...droppableBlockerKeys]))
+  }
+
+  // Blocking rows indexed by the resource they name, so the Drop control renders once per resource
+  // and can state how many fields it covers - matching what the sync actually does.
+  const { blockingUsesByResource, firstBlockingRowForResource } = useMemo(() => {
+    const uses = new Map<string, number>()
+    const firstRow = new Map<string, number>()
+    blockingRefs.forEach((ref, index) => {
+      const key = `${ref.kind}:${ref.sourceId}`
+      uses.set(key, (uses.get(key) ?? 0) + 1)
+      if (!firstRow.has(key)) firstRow.set(key, index)
+    })
+    return { blockingUsesByResource: uses, firstBlockingRowForResource: firstRow }
+  }, [blockingRefs])
+
+  const setTriggerAdoption = (sourceBlockId: string, path: string) => {
+    setTriggerAdoptions((prev) => ({ ...prev, [sourceBlockId]: path }))
+  }
+
+  /** Live choices, resolved exactly as the server will resolve them (first claim wins a path). */
+  const chosenTriggerPaths = useMemo(
+    () => forkTriggerChoices(triggerMappings, triggerAdoptions),
+    [triggerMappings, triggerAdoptions]
+  )
+
+  const triggerUrlChanges = useMemo(
+    () => forkDyingTriggerUrls(retiringTriggerUrls, chosenTriggerPaths),
+    [retiringTriggerUrls, chosenTriggerPaths]
+  )
+
+  const triggerPathOwnersFor = (sourceBlockId: string): ReadonlyMap<string, string> =>
+    forkTriggerPathOwners(triggerMappings, chosenTriggerPaths, sourceBlockId)
+
+  /** The path a row will actually serve, or '' for a new URL - never a claim another row won. */
+  const triggerChoiceFor = (sourceBlockId: string): string =>
+    chosenTriggerPaths.get(sourceBlockId) ?? ''
+
   const discard = () => {
     setTargets({})
     setReconfig({})
+    setTriggerAdoptions({})
   }
 
   const sync = async () => {
     if (!otherWorkspaceId) return
     setSubmitting(true)
+    const submittedTargets = targets
+    const submittedReconfig = reconfig
     // Capture every payload from the state at confirm time, before any await - the page's
     // controls stay mounted during the run (unlike the old modal, which blocked its UI), so a
     // mid-flight edit must not leak into the promote body.
@@ -685,6 +877,27 @@ export function useForkSync(params: {
     const selectedCopyables = visibleCopyables.filter((candidate) =>
       copySelected.has(forkRefKey(candidate))
     )
+    // Acknowledged drops, captured at confirm time like every other payload. The server honours
+    // one only after re-checking that the source resource is genuinely gone.
+    const dropReferences = Array.from(droppedRefs).map((key) => {
+      const separator = key.indexOf(':')
+      return {
+        kind: key.slice(0, separator) as ForkMappingEntry['kind'],
+        sourceId: key.slice(separator + 1),
+      }
+    })
+    // Only the choices that DIFFER from the server's default need sending - an untouched row is
+    // already what the server would pick, so an empty list means "the preview, as shown".
+    const triggerMappingOverrides = triggerMappings
+      .filter(
+        (mapping) =>
+          mapping.sourceBlockId in triggerAdoptions &&
+          (triggerAdoptions[mapping.sourceBlockId] || null) !== mapping.defaultAdoptPath
+      )
+      .map((mapping) => ({
+        sourceBlockId: mapping.sourceBlockId,
+        adoptPath: triggerAdoptions[mapping.sourceBlockId] || null,
+      }))
     try {
       await updateMapping.mutateAsync({
         workspaceId,
@@ -716,6 +929,10 @@ export function useForkSync(params: {
           // existing store is left untouched.
           ...(dependentValues !== null ? { dependentValues } : {}),
           ...(selectedCopyables.length > 0 ? { copyResources } : {}),
+          ...(dropReferences.length > 0 ? { dropReferences } : {}),
+          ...(triggerMappingOverrides.length > 0
+            ? { triggerMappings: triggerMappingOverrides }
+            : {}),
         },
       })
 
@@ -742,6 +959,12 @@ export function useForkSync(params: {
         return
       }
 
+      // The run committed the in-session choices: the mapping entries and dependent values are
+      // stored. Drop only the exact snapshots it submitted; edits made while the request was in
+      // flight were not committed by this run and must remain available for the next Save/Sync.
+      setTargets((current) => (current === submittedTargets ? {} : current))
+      setReconfig((current) => (current === submittedReconfig ? {} : current))
+
       const target = otherWorkspaceName || 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
       // A sync only commits once every reference is mapped/copied and every required dependent
@@ -751,11 +974,26 @@ export function useForkSync(params: {
       // Activity entry (needsConfiguration/clearedOptional are recorded there) and a
       // needs-config workflow visibly stays undeployed. Deploy FAILURES remain a real,
       // actionable outcome, so they keep a warning.
+      const dropped = result.droppedReferences.length
+      // Naming the dropped count is the point of making the drop explicit: the fields really are
+      // blank in the target now, and the server reports only the acknowledgments it honoured.
+      const droppedSuffix =
+        dropped > 0 ? ` ${dropped} deleted reference${dropped === 1 ? '' : 's'} dropped.` : ''
+      // A dead webhook URL fails silently and externally - nothing in the app breaks - so the one
+      // moment the user can act on it is right after the sync that killed it.
+      const deadUrls = result.triggerUrlChanges.length
+      const urlSuffix =
+        deadUrls > 0
+          ? ` ${deadUrls} webhook URL${deadUrls === 1 ? '' : 's'} stopped being served — re-register ${deadUrls === 1 ? 'it' : 'them'}.`
+          : ''
+      const suffix = `${droppedSuffix}${urlSuffix}`
       if (result.deployFailed > 0) {
         const n = result.deployFailed
         toast.warning(
-          `${label}, but ${n} workflow${n === 1 ? '' : 's'} failed to deploy — open and redeploy ${n === 1 ? 'it' : 'them'}.`
+          `${label}, but ${n} workflow${n === 1 ? '' : 's'} failed to deploy — open and redeploy ${n === 1 ? 'it' : 'them'}.${suffix}`
         )
+      } else if (suffix !== '') {
+        toast.warning(`${label}.${suffix}`)
       } else {
         toast.success(label)
       }
@@ -769,6 +1007,8 @@ export function useForkSync(params: {
   return {
     direction,
     otherWorkspaceName,
+    targetWorkspaceName:
+      direction === 'push' ? otherWorkspaceName : workspaceName || 'this workspace',
     isLoading: enabled && mapping.isLoading,
     isError: mapping.isError,
     errorMessage: mapping.isError ? getErrorMessage(mapping.error, 'Failed to load mapping') : null,
@@ -793,6 +1033,12 @@ export function useForkSync(params: {
     copyingKeys,
     copySelected,
     toggleCopyKeys,
+    droppedRefs,
+    toggleDroppedRef,
+    dropAllDeletedRefs,
+    droppableBlockerCount: droppableBlockerKeys.length,
+    blockingUsesByResource,
+    firstBlockingRowForResource,
     referencedByKind,
     unreferencedByKind,
     hasVisibleCopyables: visibleCopyables.length > 0,
@@ -800,6 +1046,12 @@ export function useForkSync(params: {
     dependentClears,
     workflowChanges,
     archivedWorkflowNames,
+    triggerUrlChanges,
+    triggerMappings,
+    triggerAdoptions,
+    setTriggerAdoption,
+    triggerPathOwnersFor,
+    triggerChoiceFor,
     excludedSourceWorkflows: diff.data?.excludedSourceWorkflows ?? [],
     excludedTargetWorkflows: diff.data?.excludedTargetWorkflows ?? [],
     mcpReauthCount: diff.data?.mcpReauthServerIds.length ?? 0,

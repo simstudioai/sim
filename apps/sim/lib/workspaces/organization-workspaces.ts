@@ -13,6 +13,7 @@ import {
 import { changeWorkspaceStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('OrganizationWorkspaces')
@@ -94,8 +95,10 @@ export function ownedAttachableWorkspacesWhere({
 }
 
 /**
- * Locks workspace rows before any membership billing path can lock user or
- * organization payer rows.
+ * Locks workspace rows before any payer or membership mutation. `FOR NO KEY
+ * UPDATE` keeps this compatible with the implicit foreign-key `FOR KEY SHARE`
+ * concurrent writers hold; see the module header of
+ * `lib/billing/storage/tracking.ts`.
  */
 async function lockWorkspaceRowsForPayerChanges(tx: DbOrTx, workspaceIds: string[]): Promise<void> {
   if (workspaceIds.length === 0) return
@@ -104,7 +107,7 @@ async function lockWorkspaceRowsForPayerChanges(tx: DbOrTx, workspaceIds: string
     .from(workspace)
     .where(inArray(workspace.id, [...workspaceIds].sort()))
     .orderBy(asc(workspace.id))
-    .for('update')
+    .for('no key update')
 }
 
 interface AttachOwnedWorkspacesToOrganizationParams {
@@ -134,15 +137,18 @@ export async function attachOwnedWorkspacesToOrganization({
   }
 
   const attached = await db.transaction(async (tx) => {
-    await lockWorkspaceRowsForPayerChanges(tx, ownedWorkspaceIds)
-    // Match admin move and invitation acceptance: workspace/invitation scope
-    // first, then organization. Membership and assignment now commit or roll
-    // back together, so a concurrent move cannot leave stray org members.
+    // Shared advisory scope first, then the organization lock, then workspace
+    // rows — the order admin move uses. What makes it mandatory is acceptance:
+    // it holds `workspace-invitations:<id>` while waiting for the workspace
+    // row, so row-locking first here (as this did) deadlocks against it.
+    // Taking the organization lock before the rows also matches ownership
+    // transfer, so those two cannot invert on the org/row pair either.
     await acquireInvitationMutationLocks(tx, {
       invitationIds: [],
       workspaceIds: ownedWorkspaceIds,
     })
     await acquireOrganizationMutationLock(tx, organizationId)
+    await lockWorkspaceRowsForPayerChanges(tx, ownedWorkspaceIds)
     return attachOwnedWorkspacesToOrganizationTx(tx, {
       ownerUserId,
       organizationId,
@@ -153,6 +159,9 @@ export async function attachOwnedWorkspacesToOrganization({
     })
   })
 
+  for (const workspaceId of attached.attachedWorkspaceIds) {
+    invalidateWorkspaceTableLimitsCache(workspaceId)
+  }
   for (const userId of attached.usageLimitUserIds) {
     try {
       await syncUsageLimitsFromSubscription(userId)
@@ -239,7 +248,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
       )
     )
     .orderBy(asc(workspace.id))
-    .for('update')
+    .for('no key update')
 
   if (ownedWorkspaces.length === 0) {
     return {
@@ -417,7 +426,7 @@ export async function detachOrganizationWorkspacesTx(
   tx: DbOrTx,
   organizationId: string
 ): Promise<DetachOrganizationWorkspacesResult> {
-  const organizationOwnerId = await getOrganizationOwnerId(organizationId)
+  const organizationOwnerId = await getOrganizationOwnerId(organizationId, tx)
   if (!organizationOwnerId) {
     logger.warn(
       'Detaching workspaces from an organization without an owner; using workspace owner as billed account',

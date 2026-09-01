@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
-import { FunctionExecute } from '@/lib/copilot/generated/tool-catalog-v1'
+import { RunFunction } from '@/lib/copilot/generated/tool-catalog-v1'
 import { buildToolCallSummaries } from '@/lib/copilot/request/context/result'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 import type { StreamingContext } from '@/lib/copilot/request/types'
@@ -32,7 +32,10 @@ function makeContext(): StreamingContext {
     wasAborted: false,
     errors: [],
     trace: new TraceCollector(),
-    toolPermissions: { enabled: false, autoAllowed: new Set() },
+    toolPermissions: {
+      enabled: false,
+      autoAllowed: new Set(),
+    },
   }
 }
 
@@ -41,7 +44,7 @@ describe('buildToolCallSummaries', () => {
     const context = makeContext()
     context.toolCalls.set('tool-1', {
       id: 'tool-1',
-      name: 'download_to_workspace_file',
+      name: 'download_file',
       status: 'pending',
       startTime: 1,
     })
@@ -56,7 +59,7 @@ describe('buildToolCallSummaries', () => {
     const context = makeContext()
     context.toolCalls.set('tool-2', {
       id: 'tool-2',
-      name: FunctionExecute.id,
+      name: RunFunction.id,
       status: 'executing',
       startTime: 1,
     })
@@ -73,7 +76,7 @@ describe('buildToolCallSummaries', () => {
       const context = makeContext()
       context.toolCalls.set('tool-3', {
         id: 'tool-3',
-        name: 'download_to_workspace_file',
+        name: 'download_file',
         status: MothershipStreamV1ToolOutcome.cancelled,
         result: { success: false },
         error: 'Stopped by user',
@@ -86,7 +89,7 @@ describe('buildToolCallSummaries', () => {
       expect(summaries).toHaveLength(1)
       expect(summaries[0]).toEqual({
         id: 'tool-3',
-        name: 'download_to_workspace_file',
+        name: 'download_file',
         status: MothershipStreamV1ToolOutcome.cancelled,
         params: undefined,
         result: undefined,

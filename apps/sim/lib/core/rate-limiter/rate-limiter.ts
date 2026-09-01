@@ -66,6 +66,40 @@ export class RateLimiter {
     }
   }
 
+  private async consumeWithSubscription(
+    subjectId: string,
+    subscription: SubscriptionInfo | null,
+    triggerType: TriggerType,
+    isAsync: boolean
+  ): Promise<RateLimitResult> {
+    if (triggerType === 'manual') {
+      return this.createUnlimitedResult()
+    }
+
+    const plan = (subscription?.plan || 'free') as SubscriptionPlan
+    const rateLimitKey = this.getRateLimitKey(subjectId, subscription)
+    const counterType = this.getCounterType(triggerType, isAsync)
+    const config = getRateLimit(plan, counterType)
+    const storageKey = this.buildStorageKey(rateLimitKey, counterType)
+    const result = await this.storage.consumeTokens(storageKey, 1, config)
+
+    if (!result.allowed) {
+      logger.info('Rate limit exceeded', {
+        rateLimitKey,
+        counterType,
+        plan,
+        tokensRemaining: result.tokensRemaining,
+      })
+    }
+
+    return {
+      allowed: result.allowed,
+      remaining: result.tokensRemaining,
+      resetAt: result.resetAt,
+      retryAfterMs: result.retryAfterMs,
+    }
+  }
+
   async checkRateLimitWithSubscription(
     userId: string,
     subscription: SubscriptionInfo | null,
@@ -73,33 +107,7 @@ export class RateLimiter {
     isAsync = false
   ): Promise<RateLimitResult> {
     try {
-      if (triggerType === 'manual') {
-        return this.createUnlimitedResult()
-      }
-
-      const plan = (subscription?.plan || 'free') as SubscriptionPlan
-      const rateLimitKey = this.getRateLimitKey(userId, subscription)
-      const counterType = this.getCounterType(triggerType, isAsync)
-      const config = getRateLimit(plan, counterType)
-      const storageKey = this.buildStorageKey(rateLimitKey, counterType)
-
-      const result = await this.storage.consumeTokens(storageKey, 1, config)
-
-      if (!result.allowed) {
-        logger.info('Rate limit exceeded', {
-          rateLimitKey,
-          counterType,
-          plan,
-          tokensRemaining: result.tokensRemaining,
-        })
-      }
-
-      return {
-        allowed: result.allowed,
-        remaining: result.tokensRemaining,
-        resetAt: result.resetAt,
-        retryAfterMs: result.retryAfterMs,
-      }
+      return await this.consumeWithSubscription(userId, subscription, triggerType, isAsync)
     } catch (error) {
       logger.error('Rate limit storage error - failing open (allowing request)', {
         error: toError(error).message,
@@ -113,6 +121,20 @@ export class RateLimiter {
         resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
       }
     }
+  }
+
+  /**
+   * Consumes an authenticated request token and propagates storage failures.
+   * Security-sensitive adapters use this instead of the compatibility method
+   * above so an unavailable limiter cannot silently admit traffic.
+   */
+  async checkRateLimitWithSubscriptionOrThrow(
+    subjectId: string,
+    subscription: SubscriptionInfo | null,
+    triggerType: TriggerType = 'manual',
+    isAsync = false
+  ): Promise<RateLimitResult> {
+    return this.consumeWithSubscription(subjectId, subscription, triggerType, isAsync)
   }
 
   async getRateLimitStatusWithSubscription(
@@ -201,6 +223,27 @@ export class RateLimiter {
         remaining: failClosed ? 0 : 1,
         resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
       }
+    }
+  }
+
+  /**
+   * Consume one token from an already-namespaced bucket and propagate storage
+   * failures. Declarative API adapters use this for credential/workspace
+   * buckets so an unavailable limiter is never mistaken for spare capacity.
+   */
+  async checkRateLimitDirectOrThrow(
+    storageKey: string,
+    config: { maxTokens: number; refillRate: number; refillIntervalMs: number }
+  ): Promise<RateLimitResult> {
+    const result = await this.storage.consumeTokens(storageKey, 1, config)
+    if (!result.allowed) {
+      logger.info('Rate limit exceeded', { storageKey, tokensRemaining: result.tokensRemaining })
+    }
+    return {
+      allowed: result.allowed,
+      remaining: result.tokensRemaining,
+      resetAt: result.resetAt,
+      retryAfterMs: result.retryAfterMs,
     }
   }
 

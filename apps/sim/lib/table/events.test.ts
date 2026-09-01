@@ -11,7 +11,12 @@ beforeAll(() => {
 afterAll(resetEnvMock)
 
 import type { TableEvent } from '@/lib/table/events'
-import { appendTableEvent, getLatestTableEventId, readTableEventsSince } from '@/lib/table/events'
+import {
+  appendTableEvent,
+  getLatestTableEventId,
+  readTableEventsSince,
+  signalTableViewsChanged,
+} from '@/lib/table/events'
 
 /** Module-level memory buffer can't be reset without vi.resetModules — use a
  *  unique tableId per test to avoid cross-test bleed. */
@@ -72,6 +77,26 @@ describe('getLatestTableEventId (memory buffer)', () => {
     if (result.status === 'ok') {
       expect(result.events).toHaveLength(1)
       expect(result.events[0].eventId).toBe(latest + 1)
+    }
+  })
+})
+
+describe('signalTableViewsChanged', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('appends a single views event carrying the tableId', async () => {
+    const tableId = uniqueTableId()
+    // The memory-buffer append is synchronous, so the fire-and-forget signal is
+    // observable immediately without awaiting the (unreturned) append promise.
+    signalTableViewsChanged(tableId)
+
+    const result = await readTableEventsSince(tableId, 0)
+    expect(result.status).toBe('ok')
+    if (result.status === 'ok') {
+      expect(result.events).toHaveLength(1)
+      expect(result.events[0].event).toEqual({ kind: 'views', tableId })
     }
   })
 })

@@ -84,6 +84,15 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
   icon: VideoIcon,
+  canvasPresentation: {
+    defaultTitle: 'Video Generator',
+    sentences: {
+      default: [
+        { text: 'Generate a video from', field: 'prompt', core: true },
+        { text: ', using', field: 'model' },
+      ],
+    },
+  },
 
   subBlocks: [
     // Provider selection

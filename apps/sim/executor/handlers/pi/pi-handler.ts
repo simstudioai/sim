@@ -7,6 +7,8 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
+import type { SandboxCostSink } from '@/lib/execution/remote-sandbox/types'
 import type { BlockOutput } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
 import {
@@ -14,9 +16,13 @@ import {
   ToolNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
+import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud/authoring/backend'
+import { runCloudPlanPi } from '@/executor/handlers/pi/cloud/plan/backend'
+import { runCloudReviewPi } from '@/executor/handlers/pi/cloud/review/backend'
 import type {
   PiBackendRun,
   PiCloudBranchRunParams,
+  PiCloudPlanRunParams,
   PiCloudReviewRunParams,
   PiCloudRunParams,
   PiLocalRunParams,
@@ -24,32 +30,34 @@ import type {
   PiRunParams,
   PiRunResult,
   PiSearchConfig,
-} from '@/executor/handlers/pi/backend'
-import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud-backend'
-import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
+} from '@/executor/handlers/pi/core/backend'
 import {
   appendPiMemory,
   loadPiMemory,
   type PiMemoryConfig,
   resolvePiSkills,
-} from '@/executor/handlers/pi/context'
-import { streamTextForEvent } from '@/executor/handlers/pi/events'
+} from '@/executor/handlers/pi/core/context'
+import type { PiRunTotals } from '@/executor/handlers/pi/core/events'
+import { streamTextForEvent } from '@/executor/handlers/pi/core/events'
 import {
   computePiCost,
   PI_SEARCH_PROVIDERS,
   parsePiSearchProvider,
   resolvePiModelKey,
   resolvePiSearchKey,
-} from '@/executor/handlers/pi/keys'
-import { runLocalPi } from '@/executor/handlers/pi/local-backend'
+} from '@/executor/handlers/pi/core/keys'
+import { runLocalPi } from '@/executor/handlers/pi/local/backend'
+import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
 import { buildPiSearchToolSpec } from '@/executor/handlers/pi/search/tool'
-import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type {
   BlockHandler,
   ExecutionContext,
   NormalizedBlockOutput,
   StreamingExecution,
 } from '@/executor/types'
+import { attachTrustedExecutionCost } from '@/executor/utils/errors'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
+import type { ModelCost } from '@/providers/cost-policy'
 import { isPiSupportedProvider, resolvePiModelId } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -103,6 +111,7 @@ function parsePiMode(value: unknown): PiRunParams['mode'] {
   if (
     value === 'cloud' ||
     value === 'cloud_branch' ||
+    value === 'cloud_plan' ||
     value === 'cloud_review' ||
     value === 'local'
   ) {
@@ -149,6 +158,34 @@ export function parsePiReviewMentions(value: unknown): string[] {
   return mentions
 }
 
+/**
+ * What a Pi block charges: its model tokens plus the Sim-paid sandbox compute.
+ *
+ * Sandbox cost rides in `toolCost` so it survives a BYOK run — the model side is
+ * zero by definition there, and the ledger bills a model row on `total > 0`.
+ * Folding it in is what makes a BYOK Pi session bill for the provider time it
+ * actually consumed instead of nothing at all.
+ *
+ * Shared with the failure path deliberately: an agent that ran and then reported
+ * an error consumed exactly the same tokens and sandbox seconds as one that
+ * succeeded, so both have to arrive at the same number.
+ */
+function buildPiCost(
+  model: string,
+  isBYOK: boolean,
+  totals: PiRunTotals,
+  sandboxCost: number
+): ModelCost {
+  const modelCost = computePiCost(model, totals.inputTokens, totals.outputTokens, isBYOK)
+  if (sandboxCost <= 0) return modelCost
+
+  return {
+    ...modelCost,
+    toolCost: sandboxCost,
+    total: modelCost.total + sandboxCost,
+  }
+}
+
 export class PiBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.PI
@@ -160,8 +197,22 @@ export class PiBlockHandler implements BlockHandler {
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
     const mode = parsePiMode(inputs.mode)
-    const task = asOptString(inputs.task)
-    if (!task) throw new Error('Task is required')
+    const resolvedTask = asOptString(inputs.task)
+    if (!resolvedTask) throw new Error('Task is required')
+    const taskProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { task: resolvedTask },
+      [['task']]
+    )
+    if (!taskProjection.complete || typeof taskProjection.value.task !== 'string') {
+      refuseResolvedSecretProjection({
+        site: 'pi.taskModelInput',
+        message: 'Pi input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'task',
+      })
+    }
+    const task = taskProjection.value.task
     const model = asOptString(inputs.model) ?? DEFAULT_MODEL
 
     const providerId = getProviderFromModel(model)
@@ -248,7 +299,8 @@ export class PiBlockHandler implements BlockHandler {
       }
       const usePrivateKey = inputs.authMethod === 'privateKey'
       const port = parseOptionalNumberInput(inputs.port, 'port', { integer: true, min: 1 }) ?? 22
-      const tools = await buildSimToolSpecs(ctx, inputs.tools)
+      const sandboxCost: SandboxCostSink = { total: 0 }
+      const tools = await buildSimToolSpecs(ctx, inputs.tools, sandboxCost)
       const params: PiLocalRunParams = {
         ...contextualBase,
         mode: 'local',
@@ -263,15 +315,28 @@ export class PiBlockHandler implements BlockHandler {
           passphrase: usePrivateKey ? asRawString(inputs.passphrase) : undefined,
         },
       }
-      return this.runPi(ctx, block, runLocalPi, params, memoryConfig)
+      return this.runPi(ctx, block, runLocalPi, params, memoryConfig, sandboxCost)
     }
 
     const owner = asOptString(inputs.owner)
     const repo = asOptString(inputs.repo)
     const githubToken = asRawString(inputs.githubToken)
     if (!owner || !repo || !githubToken) {
-      const label = mode === 'cloud_branch' ? 'Update PR' : 'Create PR'
+      const label =
+        mode === 'cloud_branch' ? 'Update PR' : mode === 'cloud_plan' ? 'Plan' : 'Create PR'
       throw new Error(`${label} requires repository owner, name, and a GitHub token`)
+    }
+
+    if (mode === 'cloud_plan') {
+      const params: PiCloudPlanRunParams = {
+        ...contextualBase,
+        mode: 'cloud_plan',
+        owner,
+        repo,
+        githubToken,
+        baseBranch: asOptString(inputs.baseBranch),
+      }
+      return this.runPi(ctx, block, runCloudPlanPi, params, memoryConfig)
     }
     // A `switch` subblock reaches a handler as the string 'true' when its value came
     // through a variable reference, an API trigger payload, or a legacy serialized
@@ -357,8 +422,8 @@ export class PiBlockHandler implements BlockHandler {
    *
    * The host-side tool is built here rather than in a backend because it needs the
    * {@link ExecutionContext}, which backends never receive — they see only `{ onEvent, signal }`.
-   * Cloud authoring gets no host tool: it registers a sandbox extension instead, so a spec built
-   * here could never execute.
+   * Sandbox modes get no host tool: they register a sandbox extension instead, so a spec built here
+   * could never execute.
    */
   private async resolveSearch(
     ctx: ExecutionContext,
@@ -391,15 +456,38 @@ export class PiBlockHandler implements BlockHandler {
       throw error
     }
 
+    const rawSearchApiKey = inputs.searchApiKey
     const apiKey = resolvePiSearchKey({
       provider,
-      apiKey: asOptString(inputs.searchApiKey),
+      apiKey: asOptString(rawSearchApiKey),
     })
-
     const credentials = { provider, apiKey }
-    return mode === 'cloud' || mode === 'cloud_branch'
-      ? credentials
-      : { ...credentials, tool: buildPiSearchToolSpec(ctx, credentials, mode) }
+    if (mode === 'cloud' || mode === 'cloud_branch' || mode === 'cloud_plan') return credentials
+
+    const searchInputProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { searchApiKey: rawSearchApiKey },
+      [['searchApiKey']]
+    )
+    if (!searchInputProjection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'pi.searchApiKeyInput',
+        message: 'Pi search input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'searchApiKey',
+      })
+    }
+    const projectedApiKey = Object.is(searchInputProjection.value.searchApiKey, rawSearchApiKey)
+      ? apiKey
+      : resolvePiSearchKey({
+          provider,
+          apiKey: asOptString(searchInputProjection.value.searchApiKey),
+        })
+
+    return {
+      ...credentials,
+      tool: buildPiSearchToolSpec(ctx, credentials, mode, projectedApiKey),
+    }
   }
 
   private isContentSelectedForStreaming(ctx: ExecutionContext, block: SerializedBlock): boolean {
@@ -414,18 +502,25 @@ export class PiBlockHandler implements BlockHandler {
 
   private buildOutput(
     result: PiRunResult,
+    mode: PiRunParams['mode'],
     model: string,
     isBYOK: boolean,
     startTime: number,
-    startTimeISO: string
+    startTimeISO: string,
+    sandboxCost = 0
   ): NormalizedBlockOutput {
     const { totals } = result
     const endTime = Date.now()
+    const cost = buildPiCost(model, isBYOK, totals, sandboxCost)
     return {
       content: totals.finalText,
       model,
-      changedFiles: result.changedFiles ?? [],
-      diff: result.diff ?? '',
+      ...(mode === 'cloud_plan'
+        ? {}
+        : {
+            changedFiles: result.changedFiles ?? [],
+            diff: result.diff ?? '',
+          }),
       ...(result.prUrl ? { prUrl: result.prUrl } : {}),
       ...(result.branch ? { branch: result.branch } : {}),
       ...(result.reviewUrl ? { reviewUrl: result.reviewUrl } : {}),
@@ -445,7 +540,7 @@ export class PiBlockHandler implements BlockHandler {
         output: totals.outputTokens,
         total: totals.inputTokens + totals.outputTokens,
       },
-      cost: computePiCost(model, totals.inputTokens, totals.outputTokens, isBYOK),
+      cost,
       providerTiming: {
         startTime: startTimeISO,
         endTime: new Date(endTime).toISOString(),
@@ -459,7 +554,15 @@ export class PiBlockHandler implements BlockHandler {
     block: SerializedBlock,
     backend: PiBackendRun<P>,
     params: P,
-    memoryConfig?: PiMemoryConfig
+    memoryConfig?: PiMemoryConfig,
+    /**
+     * One sink for every Sim-paid sandbox this block touches. Local mode fills it
+     * from the Function tools it runs host-side; cloud modes fill it from the
+     * sandbox the agent itself runs in. They are mutually exclusive in practice,
+     * and sharing one total means neither can be forgotten at the point the cost
+     * is folded into the block's output.
+     */
+    sandboxCost: SandboxCostSink = { total: 0 }
   ): Promise<BlockOutput | StreamingExecution> {
     const startTime = Date.now()
     const startTimeISO = new Date(startTime).toISOString()
@@ -480,18 +583,36 @@ export class PiBlockHandler implements BlockHandler {
           try {
             const result = await backend(params, {
               onEvent: (event) => {
+                if (params.mode === 'cloud_plan') return
                 const text = streamTextForEvent(event)
                 if (text) controller.enqueue(encoder.encode(text))
               },
               signal: ctx.abortSignal,
+              sandboxCost,
             })
             if (result.totals.errorMessage) {
-              controller.error(new Error(result.totals.errorMessage))
+              const error = new Error(result.totals.errorMessage)
+              attachTrustedExecutionCost(
+                error,
+                buildPiCost(params.model, params.isBYOK, result.totals, sandboxCost.total)
+              )
+              controller.error(error)
               return
+            }
+            if (params.mode === 'cloud_plan' && result.totals.finalText) {
+              controller.enqueue(encoder.encode(result.totals.finalText))
             }
             Object.assign(
               output,
-              this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
+              this.buildOutput(
+                result,
+                params.mode,
+                params.model,
+                params.isBYOK,
+                startTime,
+                startTimeISO,
+                sandboxCost.total
+              )
             )
             if (memoryConfig) {
               await appendPiMemory(
@@ -521,9 +642,25 @@ export class PiBlockHandler implements BlockHandler {
       }
     }
 
-    const result = await backend(params, { onEvent: () => {}, signal: ctx.abortSignal })
+    const result = await backend(params, {
+      onEvent: () => {},
+      signal: ctx.abortSignal,
+      sandboxCost,
+    })
     if (result.totals.errorMessage) {
-      throw new Error(result.totals.errorMessage)
+      /*
+       * The backend returned, so the sandbox was billed and the sink holds the
+       * charge — but this throw skips `buildOutput`, which is what would have
+       * published it. Carrying the cost on the error is what keeps a session
+       * whose agent reported a failure from being run for free, the same way the
+       * Function handler carries its tool cost onto the error it raises.
+       */
+      const error = new Error(result.totals.errorMessage)
+      attachTrustedExecutionCost(
+        error,
+        buildPiCost(params.model, params.isBYOK, result.totals, sandboxCost.total)
+      )
+      throw error
     }
     if (memoryConfig) {
       await appendPiMemory(
@@ -533,6 +670,14 @@ export class PiBlockHandler implements BlockHandler {
         result.memoryText ?? result.totals.finalText
       )
     }
-    return this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
+    return this.buildOutput(
+      result,
+      params.mode,
+      params.model,
+      params.isBYOK,
+      startTime,
+      startTimeISO,
+      sandboxCost.total
+    )
   }
 }

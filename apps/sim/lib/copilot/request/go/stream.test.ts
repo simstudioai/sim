@@ -23,9 +23,40 @@ vi.mock('@/lib/copilot/request/session', async () => {
 })
 
 const resolveWorkspaceFileReferenceMock = vi.hoisted(() => vi.fn())
+const listAllWorkspaceFilesMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
+  findWorkspaceFileRecord: (
+    files: Array<{ name: string; folderPath?: string | null }>,
+    path: string
+  ) =>
+    files.find((file) => {
+      const normalized = path.replace(/^files\//, '').replaceAll('%20', ' ')
+      const filePath = file.folderPath ? `${file.folderPath}/${file.name}` : file.name
+      return filePath === normalized
+    }) ?? null,
+}))
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
+  listAllWorkspaceFiles: { execute: listAllWorkspaceFilesMock },
+}))
+
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  executeCopilotFileUseCase: (
+    context: { userId: string; workspaceId: string; toolCallId: string },
+    useCase: { execute: (args: unknown) => unknown },
+    input: unknown
+  ) =>
+    useCase.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: context.userId,
+        workspaceId: context.workspaceId,
+        delegationId: context.toolCallId,
+      },
+      input,
+    }),
 }))
 
 vi.mock('@/lib/copilot/tools/server/files/file-preview', async () => {
@@ -34,7 +65,10 @@ vi.mock('@/lib/copilot/tools/server/files/file-preview', async () => {
   >('@/lib/copilot/tools/server/files/file-preview')
   return {
     ...actual,
-    loadWorkspaceFileTextForPreview: vi.fn().mockResolvedValue(''),
+    // Returns the file's preview base as a `WorkspaceFilePreviewBase` ({ text }), NOT a bare string —
+    // the adapter reads `previewBase.text` to seed an append/patch base. An empty base ('') is defined,
+    // so a base-less append doesn't fail closed.
+    loadWorkspaceFileTextForPreview: vi.fn().mockResolvedValue({ text: '' }),
   }
 })
 
@@ -106,7 +140,25 @@ function createStreamingContext(): StreamingContext {
     errors: [],
     activeFileIntents: new Map(),
     trace: new TraceCollector(),
-    toolPermissions: { enabled: false, autoAllowed: new Set() },
+    toolPermissions: {
+      enabled: false,
+      autoAllowed: new Set(),
+    },
+  }
+}
+
+/**
+ * The turn-scoped execution context exactly as the chat lifecycle builds it: no
+ * `toolCallId`, because that identity only exists per dispatched tool call. The
+ * file preview adapter has to take it from the frame it is processing.
+ */
+function turnScopedExecContext(): ExecutionContext {
+  return {
+    userId: 'user-1',
+    workflowId: 'workflow-1',
+    workspaceId: 'workspace-1',
+    messageId: 'msg-1',
+    copilotToolExecution: true,
   }
 }
 
@@ -115,6 +167,8 @@ describe('copilot go stream helpers', () => {
     vi.stubGlobal('fetch', vi.fn())
     resolveWorkspaceFileReferenceMock.mockReset()
     resolveWorkspaceFileReferenceMock.mockResolvedValue(null)
+    listAllWorkspaceFilesMock.mockReset()
+    listAllWorkspaceFilesMock.mockResolvedValue({ files: [] })
   })
 
   afterEach(() => {
@@ -127,7 +181,7 @@ describe('copilot go stream helpers', () => {
     expect(decodeJsonStringPrefix('partial \\u26')).toBe('partial ')
   })
 
-  it('extracts the streamed edit_content prefix from partial JSON', () => {
+  it('extracts the streamed apply_file_edit prefix from partial JSON', () => {
     expect(extractEditContent('{"content":"hello\\nwor')).toBe('hello\nwor')
     expect(extractEditContent('{"content":"tab\\tvalue"}')).toBe('tab\tvalue')
   })
@@ -162,10 +216,9 @@ describe('copilot go stream helpers', () => {
     })
   })
 
-  it('hydrates path-based workspace_file edits into file preview events before edit_content streams', async () => {
-    resolveWorkspaceFileReferenceMock.mockResolvedValue({
-      id: 'file-1',
-      name: 'notes.md',
+  it('hydrates path-based prepare_file_edit edits into file preview events before apply_file_edit streams', async () => {
+    listAllWorkspaceFilesMock.mockResolvedValue({
+      files: [{ id: 'file-1', name: 'notes.md', folderPath: null }],
     })
 
     const workspaceFileCall = createEvent({
@@ -176,7 +229,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'workspace-file-path-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.call,
@@ -195,7 +248,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'workspace-file-path-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
@@ -214,7 +267,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'edit-content-path-1',
-        toolName: 'edit_content',
+        toolName: 'apply_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.args_delta,
@@ -229,7 +282,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'edit-content-path-1',
-        toolName: 'edit_content',
+        toolName: 'apply_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
@@ -263,12 +316,7 @@ describe('copilot go stream helpers', () => {
 
     const onEvent = vi.fn()
     const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      messageId: 'msg-1',
-    }
+    const execContext = turnScopedExecContext()
 
     await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
       onEvent,
@@ -302,13 +350,24 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'file-1',
     })
-    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith('workspace-1', 'files/notes.md')
+    expect(listAllWorkspaceFilesMock).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'delegated',
+        workspaceId: 'workspace-1',
+      }),
+      input: { workspaceId: 'workspace-1', scope: 'active' },
+    })
   })
 
   it('resolves workflow alias paths to the backing file before streaming previews', async () => {
-    resolveWorkspaceFileReferenceMock.mockResolvedValue({
-      id: 'changelog-file-1',
-      name: 'workflow-1.md',
+    listAllWorkspaceFilesMock.mockResolvedValue({
+      files: [
+        {
+          id: 'changelog-file-1',
+          name: 'changelog.md',
+          folderPath: 'workflows/My Workflow',
+        },
+      ],
     })
 
     const workspaceFileCall = createEvent({
@@ -319,7 +378,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'workspace-file-alias-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.call,
@@ -338,7 +397,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'edit-content-alias-1',
-        toolName: 'edit_content',
+        toolName: 'apply_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.args_delta,
@@ -353,7 +412,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'edit-content-alias-1',
-        toolName: 'edit_content',
+        toolName: 'apply_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
@@ -381,12 +440,7 @@ describe('copilot go stream helpers', () => {
 
     const onEvent = vi.fn()
     const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      messageId: 'msg-1',
-    }
+    const execContext = turnScopedExecContext()
 
     await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
       onEvent,
@@ -408,7 +462,7 @@ describe('copilot go stream helpers', () => {
     ])
     expect(previewEvents[1].payload).toMatchObject({
       previewPhase: 'file_preview_target',
-      target: { kind: 'file_id', fileId: 'changelog-file-1', fileName: 'workflow-1.md' },
+      target: { kind: 'file_id', fileId: 'changelog-file-1', fileName: 'changelog.md' },
     })
     expect(previewEvents[2].payload).toMatchObject({
       previewPhase: 'file_preview_content',
@@ -420,10 +474,13 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'changelog-file-1',
     })
-    expect(resolveWorkspaceFileReferenceMock).toHaveBeenCalledWith(
-      'workspace-1',
-      'workflows/My%20Workflow/changelog.md'
-    )
+    expect(listAllWorkspaceFilesMock).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'delegated',
+        workspaceId: 'workspace-1',
+      }),
+      input: { workspaceId: 'workspace-1', scope: 'active' },
+    })
   })
 
   it('drops duplicate tool_result events before forwarding them', async () => {
@@ -435,7 +492,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'tool-result-dedupe',
-        toolName: 'search_online',
+        toolName: 'web_search',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
@@ -484,7 +541,7 @@ describe('copilot go stream helpers', () => {
     expect(context.toolCalls.get('tool-result-dedupe')).toEqual(
       expect.objectContaining({
         id: 'tool-result-dedupe',
-        name: 'search_online',
+        name: 'web_search',
         status: MothershipStreamV1ToolOutcome.success,
         result: { success: true, output: { value: 'ok' } },
       })
@@ -878,5 +935,71 @@ describe('copilot go stream helpers', () => {
     expect(subagentBlock?.spanId).toBe('S2')
     expect(subagentBlock?.parentSpanId).toBe('S1')
     expect(subagentBlock?.parentToolCallId).toBe('tc-deploy-inner')
+  })
+
+  it('backfills the display name when only the second subagent start carries it', async () => {
+    const scope = {
+      lane: 'subagent' as const,
+      agentId: 'research',
+      parentToolCallId: 'tc-research',
+      spanId: 'S3',
+      parentSpanId: 'S1',
+    }
+    vi.mocked(fetch).mockResolvedValueOnce(
+      createSseResponse([
+        // Dispatch-time start: fires before the trigger args stream, so no name.
+        createEvent({
+          streamId: 'stream-1',
+          cursor: '1',
+          seq: 1,
+          requestId: 'req-1',
+          type: MothershipStreamV1EventType.span,
+          scope,
+          payload: {
+            kind: 'subagent',
+            event: 'start',
+            agent: 'research',
+            data: { tool_call_id: 'tc-research' },
+          },
+        }),
+        // Phase-3 start re-announces the lane WITH the orchestrator-chosen name.
+        createEvent({
+          streamId: 'stream-1',
+          cursor: '2',
+          seq: 2,
+          requestId: 'req-1',
+          type: MothershipStreamV1EventType.span,
+          scope,
+          payload: {
+            kind: 'subagent',
+            event: 'start',
+            agent: 'research',
+            data: { tool_call_id: 'tc-research', name: 'Pricing research' },
+          },
+        }),
+        createEvent({
+          streamId: 'stream-1',
+          cursor: '3',
+          seq: 3,
+          requestId: 'req-1',
+          type: MothershipStreamV1EventType.complete,
+          payload: { status: MothershipStreamV1CompletionStatus.complete },
+        }),
+      ])
+    )
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+      timeout: 1000,
+    })
+
+    const subagentBlocks = context.contentBlocks.filter((block) => block.type === 'subagent')
+    expect(subagentBlocks).toHaveLength(1)
+    expect(subagentBlocks[0]?.subagentName).toBe('Pricing research')
   })
 })

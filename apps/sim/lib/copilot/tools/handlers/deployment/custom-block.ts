@@ -1,15 +1,16 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isAllowedCustomBlockIconUrl } from '@/lib/api/contracts/custom-blocks'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { canonicalizeVfsPath, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
-  fetchWorkspaceFileBuffer,
-  listWorkspaceFiles,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
+import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
+import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import {
@@ -17,9 +18,13 @@ import {
   type CustomBlockWithInputs,
   deleteCustomBlock,
   getCustomBlockWithInputsByWorkflowId,
+  isCustomBlocksDeploymentEnabled,
+  isCustomBlocksEligibleForOrganization,
   publishCustomBlock,
   updateCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployCustomBlockParams } from '../param-types'
@@ -27,6 +32,7 @@ import type { DeployCustomBlockParams } from '../param-types'
 const MAX_ICON_BYTES = 5 * 1024 * 1024
 const MAX_INPUT_ENTRIES = 50
 const MAX_OUTPUT_ENTRIES = 50
+const logger = createLogger('CopilotCustomBlockDeployment')
 
 /**
  * Resolve the agent-supplied icon reference to a publicly servable URL. A VFS
@@ -38,7 +44,7 @@ const MAX_OUTPUT_ENTRIES = 50
  */
 async function resolveIconUrl(
   raw: string | undefined,
-  userId: string,
+  context: ExecutionContext,
   workspaceId: string
 ): Promise<string | undefined> {
   const value = raw?.trim()
@@ -53,13 +59,12 @@ async function resolveIconUrl(
   }
 
   const canonical = canonicalizeVfsPath(value)
-  const files = await listWorkspaceFiles(workspaceId, { hydrateFolderPaths: true })
-  const record = files.find(
-    (f) => canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === canonical
-  )
-  if (!record) {
+  const record = await resolveCopilotWorkspaceFileReference(context, fileOperations.readContent, {
+    workspaceId,
+    reference: canonical,
+  }).catch(() => {
     throw new CustomBlockValidationError(`Icon file not found in this workspace: ${value}`)
-  }
+  })
   if (!isImageFileType(record.type)) {
     throw new CustomBlockValidationError(
       'Icon file must be an image (PNG, JPEG, GIF, WebP, or SVG)'
@@ -68,17 +73,20 @@ async function resolveIconUrl(
   if (record.size > MAX_ICON_BYTES) {
     throw new CustomBlockValidationError('Icon file must be 5MB or smaller')
   }
-
-  const buffer = await fetchWorkspaceFileBuffer(record)
-  const safeFileName = record.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+  const { content: buffer } = await executeCopilotFileUseCase(
+    context,
+    readWorkspaceFileContent,
+    { fileId: record.id, assertedWorkspaceId: workspaceId, maxBytes: MAX_ICON_BYTES },
+    { fileId: record.id }
+  )
   const uploaded = await uploadFile({
     file: buffer,
     fileName: record.name,
     contentType: record.type,
     context: 'workspace-logos',
-    customKey: `workspace-logos/${Date.now()}-${generateShortId()}-${safeFileName}`,
+    customKey: `workspace-logos/${buildStorageKeySegment(`${Date.now()}-${generateShortId()}-`, record.name)}`,
     preserveKey: true,
-    metadata: { workspaceId, userId, originalName: record.name },
+    metadata: { workspaceId, userId: context.userId, originalName: record.name },
   })
   return uploaded.path
 }
@@ -133,16 +141,21 @@ export async function executeDeployCustomBlock(
     } catch (error) {
       const message = toError(error).message
       if (message.includes('not found')) {
-        return { success: false, error: message }
+        return { success: false, error: 'Workflow not found' }
       }
       return {
         success: false,
         error: "Managing a custom block requires admin permission on the workflow's workspace",
       }
     }
-    const workspaceId = workflowRecord.workspaceId
-    if (!workspaceId) {
+    if (!workflowRecord.workspaceId) {
       return { success: false, error: 'Workflow must belong to a workspace' }
+    }
+    let workspaceId: string
+    try {
+      workspaceId = requireCopilotWorkspace(context, workflowRecord.workspaceId)
+    } catch (error) {
+      return { success: false, error: toError(error).message }
     }
 
     const ws = await getWorkspaceWithOwner(workspaceId)
@@ -153,15 +166,9 @@ export async function executeDeployCustomBlock(
         error: 'Publishing a block requires the workspace to belong to an organization',
       }
     }
-    if (
-      !(await isFeatureEnabled('deploy-as-block', {
-        userId: context.userId,
-        orgId: organizationId,
-      }))
-    ) {
+    if (!isCustomBlocksDeploymentEnabled()) {
       return { success: false, error: 'Custom blocks are not enabled for this organization' }
     }
-
     const existing = await getCustomBlockWithInputsByWorkflowId(workflowId)
 
     if (action === 'undeploy') {
@@ -218,7 +225,7 @@ export async function executeDeployCustomBlock(
     if (params.exposedOutputs?.some((entry) => entry.name.length > 60)) {
       return { success: false, error: 'exposed output names must be 60 characters or fewer' }
     }
-    const iconUrl = await resolveIconUrl(params.iconUrl, context.userId, workspaceId)
+    const iconUrl = await resolveIconUrl(params.iconUrl, context, workspaceId)
 
     if (existing) {
       await updateCustomBlock(existing.id, {
@@ -245,8 +252,8 @@ export async function executeDeployCustomBlock(
       return { success: true, output: { ...customBlockOutput(updated, 'deploy'), updated: true } }
     }
 
-    if (!(await isOrganizationOnEnterprisePlan(organizationId))) {
-      return { success: false, error: 'Custom blocks require an enterprise plan' }
+    if (!(await isCustomBlocksEligibleForOrganization(organizationId))) {
+      return { success: false, error: 'Custom blocks are not enabled for this organization' }
     }
     if (!name) {
       return { success: false, error: 'name is required when publishing a new custom block' }
@@ -255,9 +262,24 @@ export async function executeDeployCustomBlock(
       return {
         success: false,
         error:
-          'Workflow must be deployed before publishing as a custom block. Use deploy_api first.',
+          'Workflow must be deployed before publishing as a custom block. Use deploy_as_api first.',
       }
     }
+    // Curation is required on publish: every consumer-visible field must be one
+    // the publisher chose, since there is no whole-`result` fallback.
+    const exposedOutputs = params.exposedOutputs
+    if (!exposedOutputs || exposedOutputs.length === 0) {
+      return {
+        success: false,
+        error:
+          'exposedOutputs is required: select at least one workflow output to expose to consumers',
+      }
+    }
+
+    // `traceChildRuns` is deliberately not passed and must never become a
+    // parameter here: opening a block's runs to every consumer in the org exposes
+    // the source workflow's internals, and that is a decision for a human
+    // publisher in the settings UI, not one an agent makes on their behalf.
     const block = await publishCustomBlock({
       organizationId,
       workspaceId,
@@ -267,7 +289,7 @@ export async function executeDeployCustomBlock(
       description: description ?? '',
       iconUrl,
       inputs: params.inputs,
-      exposedOutputs: params.exposedOutputs,
+      exposedOutputs,
     })
     recordAudit({
       workspaceId,
@@ -284,6 +306,11 @@ export async function executeDeployCustomBlock(
     if (error instanceof CustomBlockValidationError) {
       return { success: false, error: error.message }
     }
-    return { success: false, error: toError(error).message }
+    logger.error('Custom block deployment failed', { error })
+    return {
+      success: false,
+      error:
+        'Publishing the custom block failed inside Sim; assume it was NOT published. Call get_deployment_status to confirm, retry once, and report the failure if it repeats instead of retrying further.',
+    }
   }
 }

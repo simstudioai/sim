@@ -1,7 +1,7 @@
 import type { SftpMkdirParams, SftpMkdirResult } from '@/tools/sftp/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sftpMkdirTool: ToolConfig<SftpMkdirParams, SftpMkdirResult> = {
+export const sftpMkdirTool: InternalToolConfig<SftpMkdirParams, SftpMkdirResult> = {
   id: 'sftp_mkdir',
   name: 'SFTP Create Directory',
   description: 'Create a directory on a remote SFTP server',
@@ -58,13 +58,8 @@ export const sftpMkdirTool: ToolConfig<SftpMkdirParams, SftpMkdirResult> = {
     },
   },
 
-  request: {
-    url: '/api/tools/sftp/mkdir',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

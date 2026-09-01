@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
@@ -10,11 +11,16 @@ import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { BlockStateController } from '@/executor/execution/types'
 import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const { mockExecuteInIsolatedVM, mockUploadFile } = vi.hoisted(() => ({
   mockExecuteInIsolatedVM: vi.fn(),
   mockUploadFile: vi.fn(),
 }))
+const mockLogger =
+  vi.mocked(createLogger).mock.results[
+    vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'LoopOrchestrator')
+  ].value
 
 vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: mockExecuteInIsolatedVM,
@@ -46,6 +52,7 @@ function createNode(id: string): DAGNode {
 
 function createState(): BlockStateController {
   return {
+    getBlockState: vi.fn(),
     getBlockOutput: vi.fn(),
     hasExecuted: vi.fn(() => false),
     setBlockOutput: vi.fn(),
@@ -184,6 +191,57 @@ describe('LoopOrchestrator', () => {
     expect(scope.maxIterations).toBe(1)
   })
 
+  it('projects forEach resolution failures before logging or persisting them', async () => {
+    const loopId = 'loop-1'
+    const resolvedSecret = 'resolved-foreach-secret'
+    const dag: DAG = {
+      nodes: new Map(),
+      loopConfigs: new Map([
+        [
+          loopId,
+          {
+            id: loopId,
+            nodes: ['task-1'],
+            loopType: 'forEach',
+            forEachItems: `<Producer.${resolvedSecret}>`,
+          },
+        ],
+      ]),
+      parallelConfigs: new Map(),
+    }
+    const resolver = {
+      resolveSingleReference: vi.fn().mockImplementation(async (resolutionContext) => {
+        resolutionContext.resolvedSecretTraceRegistry?.recordResolved(
+          'FOREACH_SECRET',
+          resolvedSecret
+        )
+        throw new Error(`Failed with ${resolvedSecret}`)
+      }),
+    }
+    const orchestrator = new LoopOrchestrator(dag, createState(), resolver as any)
+    const ctx = createContext()
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'FOREACH_SECRET',
+        plaintext: resolvedSecret,
+        encryptedValue: 'encrypted-foreach-secret',
+      },
+    ])
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await expect(orchestrator.initializeLoopScope(ctx, loopId)).rejects.toThrow(
+      '{{FOREACH_SECRET}}'
+    )
+
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).toContain('{{FOREACH_SECRET}}')
+    expect(logged).not.toContain(resolvedSecret)
+    expect(ctx.blockLogs).toHaveLength(1)
+    expect(JSON.stringify(ctx.blockLogs)).toContain('{{FOREACH_SECRET}}')
+    expect(JSON.stringify(ctx.blockLogs)).not.toContain(resolvedSecret)
+    expect(ctx.blockLogs[0].input).toEqual({ loopType: 'forEach', inputType: 'string' })
+  })
+
   it('exits immediately when a loop was skipped at start', async () => {
     const loopId = 'loop-1'
     const state = createState()
@@ -306,6 +364,51 @@ describe('LoopOrchestrator', () => {
         code: 'return Boolean(false)',
       })
     )
+  })
+
+  it('escapes resolved strings without exposing rendered while conditions to logs', async () => {
+    const resolvedSecret = 'quote" slash\\ newline\nresolved-condition-secret'
+    const state = createState()
+    const resolver = { resolveSingleReference: vi.fn().mockResolvedValue(resolvedSecret) }
+    const orchestrator = new LoopOrchestrator(
+      { loopConfigs: new Map(), parallelConfigs: new Map(), nodes: new Map() },
+      state,
+      resolver as any
+    )
+    const scope = {
+      iteration: 0,
+      currentIterationOutputs: new Map(),
+      allIterationOutputs: [],
+      loopType: 'while',
+      condition: '<condition.output>',
+    } as Record<string, unknown>
+    const ctx = createContext(scope)
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'CONDITION_SECRET',
+        plaintext: resolvedSecret,
+        encryptedValue: 'encrypted-condition-secret',
+      },
+    ])
+    registry.recordResolved('CONDITION_SECRET', resolvedSecret)
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await orchestrator.evaluateInitialCondition(ctx, 'loop-1')
+
+    expect(mockExecuteInIsolatedVM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: `return Boolean(${JSON.stringify(resolvedSecret)})`,
+      })
+    )
+    const logged = JSON.stringify([
+      ...mockLogger.debug.mock.calls,
+      ...mockLogger.info.mock.calls,
+      ...mockLogger.warn.mock.calls,
+      ...mockLogger.error.mock.calls,
+    ])
+    expect(logged).not.toContain(resolvedSecret)
+    expect(logged).not.toContain('evaluatedCondition')
+    expect(logged).not.toContain('originalCondition')
   })
 
   it('exits doWhile loops when the configured iteration cap is reached', async () => {

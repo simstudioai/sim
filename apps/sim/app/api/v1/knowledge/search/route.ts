@@ -9,18 +9,15 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
+import {
+  executeKnowledgeSearch,
+  generateSearchEmbedding,
+  getDocumentMetadataByIds,
+  type SearchResult,
+} from '@/lib/knowledge/search/queries'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
-import {
-  generateSearchEmbedding,
-  getDocumentMetadataByIds,
-  getQueryStrategy,
-  handleTagAndVectorSearch,
-  handleTagOnlySearch,
-  handleVectorOnlySearch,
-  type SearchResult,
-} from '@/app/api/knowledge/search/utils'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import { handleError } from '@/app/api/v1/knowledge/utils'
 import {
@@ -49,7 +46,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, topK, query, tagFilters } = parsed.data.body
+    const { workspaceId, topK, query, tagFilters, searchMode } = parsed.data.body
 
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
     if (accessError) return accessError
@@ -190,29 +187,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let queryEmbeddingIsBYOK: boolean | null = null
 
     if (!hasQuery && hasFilters) {
-      results = await handleTagOnlySearch({
+      results = await executeKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
+        searchMode,
         structuredFilters,
-      })
-    } else if (hasQuery && hasFilters) {
-      const strategy = getQueryStrategy(accessibleKbIds.length, topK)
-      const queryEmbeddingResult = await generateSearchEmbedding(
-        query!,
-        queryEmbeddingModel,
-        workspaceId
-      )
-      queryEmbeddingIsBYOK = queryEmbeddingResult.isBYOK
-      const queryVector = JSON.stringify(queryEmbeddingResult.embedding)
-      results = await handleTagAndVectorSearch({
-        knowledgeBaseIds: accessibleKbIds,
-        topK,
-        structuredFilters,
-        queryVector,
-        distanceThreshold: strategy.distanceThreshold,
       })
     } else if (hasQuery) {
-      const strategy = getQueryStrategy(accessibleKbIds.length, topK)
       const queryEmbeddingResult = await generateSearchEmbedding(
         query!,
         queryEmbeddingModel,
@@ -220,11 +201,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
       queryEmbeddingIsBYOK = queryEmbeddingResult.isBYOK
       const queryVector = JSON.stringify(queryEmbeddingResult.embedding)
-      results = await handleVectorOnlySearch({
+      results = await executeKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
+        searchMode,
+        query,
         queryVector,
-        distanceThreshold: strategy.distanceThreshold,
+        structuredFilters: hasFilters ? structuredFilters : undefined,
       })
     } else {
       return NextResponse.json(

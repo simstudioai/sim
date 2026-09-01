@@ -23,6 +23,10 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
     [workflows, workspaceId]
   )
 
+  // `mutate` is stable; the mutation object it hangs off is a new literal every
+  // render, so depending on the object would leave this callback unmemoized.
+  const createWorkflowMutate = createWorkflowMutation.mutate
+
   const handleCreateWorkflow = useCallback((): Promise<string | null> => {
     const { clearDiff } = useWorkflowDiffStore.getState()
     clearDiff()
@@ -30,16 +34,17 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
     const name = generateCreativeWorkflowName()
     const id = generateId()
 
-    createWorkflowMutation.mutate({
+    createWorkflowMutate({
       workspaceId,
       name,
       id,
+      deduplicate: true,
     })
 
     useWorkflowRegistry.getState().markWorkflowCreating(id)
     router.push(`/workspace/${workspaceId}/w/${id}`)
     return Promise.resolve(id)
-  }, [createWorkflowMutation, workspaceId, router])
+  }, [createWorkflowMutate, workspaceId, router])
 
   return {
     workflows,

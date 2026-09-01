@@ -1,8 +1,9 @@
+import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableRowResponse, TableRowUpdateParams } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowResponse> = {
+export const tableUpdateRowTool: InternalToolConfig<TableRowUpdateParams, TableRowResponse> = {
   id: 'table_update_row',
   name: 'Update Row',
   description:
@@ -11,8 +12,8 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
 
   toolEnrichment: {
     dependsOn: 'tableId',
-    enrichTool: (tableId, schema, desc) =>
-      enrichTableToolSchema(tableId, 'table_update_row', schema, desc),
+    enrichTool: (tableId, schema, desc, context) =>
+      enrichTableToolSchema(tableId, 'table_update_row', schema, desc, context),
   },
 
   params: {
@@ -36,19 +37,20 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
     },
   },
 
-  request: {
-    url: (params: TableRowUpdateParams) => `/api/table/${params.tableId}/rows/${params.rowId}`,
-    method: 'PATCH',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableRowUpdateParams) => {
+  operation: {
+    secretProvenance: {
+      request: (params) => selectTableRowSecretProvenance([params.data]),
+      response: { incomplete: 'propagate' },
+    },
+    input: (params: TableRowUpdateParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
+        rowId: params.rowId,
         data: params.data,
         workspaceId,
       }

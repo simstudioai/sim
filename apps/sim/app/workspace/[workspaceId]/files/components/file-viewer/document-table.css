@@ -1,0 +1,71 @@
+/*
+ * Canonical table chrome for the file viewer. Both surfaces that render a table for a file — the
+ * rich markdown editor (`.rich-markdown-prose table`) and the tabular previews CSV/XLSX render
+ * through `DataTable` (`.document-table`) — share this one definition so a table looks the same
+ * whichever file it came from. Chrome is shared; *sizing* is not — prose fits the document width
+ * while a preview sizes to its data and scrolls (see the two rules below). Editor-only concerns
+ * (prose block margin, fixed layout for column resizing, cell paragraph reset) stay in
+ * rich-markdown-editor.css.
+ */
+
+/* `overflow-wrap` matches what `.rich-markdown-prose` sets on its own root: cells hold arbitrary
+   file data, so an unbreakable token (a URL, a hash) must break rather than overflow its cell. */
+.document-table {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.rich-markdown-prose table,
+.document-table table {
+  border-collapse: collapse;
+  overflow: hidden;
+}
+
+.rich-markdown-prose table {
+  width: 100%;
+}
+
+/* A preview table is data, not prose. A CSV can carry dozens of columns, so sizing the table to the
+   frame (`width: 100%`) divides that frame between them and — with `overflow-wrap: anywhere` able to
+   break every column down to one character — renders each header a vertical column of letters.
+   `max-content` sizes columns to their values and lets the table exceed the frame, which the
+   caller's own scroll container then scrolls; `min-width: 100%` keeps a narrow table filling the
+   frame rather than hugging the left edge. */
+.document-table table {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Bounds for a content-sized column: no column collapses to a sliver, and one long value (a URL, a
+   pasted paragraph) wraps at `max-width` instead of pushing every other column off-screen. 80px is
+   the tables grid's own `COL_WIDTH_MIN`; 320px is the capped content width used across the app. */
+.document-table th,
+.document-table td {
+  min-width: 80px;
+  max-width: 320px;
+}
+
+.rich-markdown-prose th,
+.rich-markdown-prose td,
+.document-table th,
+.document-table td {
+  position: relative;
+  border: var(--border-width) solid var(--border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  font-size: 14px;
+  line-height: 1.5rem;
+}
+
+.rich-markdown-prose th,
+.document-table th {
+  background: var(--surface-4);
+  font-weight: 600;
+}
+
+/* Cell editors are invisible until focused: they take the cell's own typography and color. */
+.document-table input {
+  font: inherit;
+  color: inherit;
+}

@@ -1,27 +1,36 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { obsidianConnectorMeta } from '@/connectors/obsidian/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  joinTagArray,
+  markSkipped,
+  parseTagDate,
+  sizeLimitSkipReason,
+} from '@/connectors/utils'
 
 const logger = createLogger('ObsidianConnector')
 
 const DOCS_PER_PAGE = 50
 const DEFAULT_VAULT_URL = 'https://127.0.0.1:27124'
+const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 
 interface NoteJson {
   content: string
-  frontmatter: Record<string, unknown>
+  frontmatter?: Record<string, unknown>
   path: string
-  stat: {
+  /** Optional in practice: a vault served through a proxy may omit it. */
+  stat?: {
     ctime: number
     mtime: number
     size: number
   }
-  tags: string[]
+  tags?: string[]
 }
 
 /**
@@ -36,15 +45,55 @@ interface NoteJson {
  * must be exposed through a public URL.
  */
 function resolveVaultEndpoint(rawUrl: string | undefined): string {
-  let url = (rawUrl || DEFAULT_VAULT_URL).trim().replace(/\/+$/, '')
+  let url = (rawUrl || DEFAULT_VAULT_URL).trim()
   if (url && !url.startsWith('https://') && !url.startsWith('http://')) {
     url = `https://${url}`
   }
-  const validation = validateExternalUrl(url, 'vaultUrl')
+  const validation = validateExternalUrl(url, 'vaultUrl', 'configuredEndpoint')
   if (!validation.isValid) {
     throw new Error(validation.error || 'Invalid vault URL')
   }
-  return url
+
+  /**
+   * Rebuilt from the parsed URL so a pasted value carrying a query string or
+   * fragment (`https://host:27124/?x=1`) cannot end up spliced into the middle
+   * of every endpoint path. A reverse-proxy base path is preserved.
+   */
+  const parsed = new URL(url)
+  return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, '')
+}
+
+/**
+ * Normalizes a vault-relative path and rejects traversal segments.
+ *
+ * `encodeURIComponent` leaves `.` and `..` untouched, and `new URL()` resolves
+ * dot segments before the request is issued — so an unchecked `../..` in a
+ * config value or stored externalId would silently escape the plugin's
+ * `/vault/` prefix and address unrelated endpoints (`/commands/`, `/active/`).
+ */
+function normalizeVaultPath(rawPath: string, fieldName: string): string {
+  const segments = rawPath
+    .trim()
+    .split('/')
+    .filter((segment) => segment.length > 0)
+
+  for (const segment of segments) {
+    if (segment === '.' || segment === '..') {
+      throw new Error(`${fieldName} must not contain path traversal segments`)
+    }
+  }
+
+  return segments.join('/')
+}
+
+/** Percent-encodes each segment of an already-normalized vault-relative path. */
+function encodeVaultPath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/')
+}
+
+/** Absolute URL of a note in the Local REST API vault namespace. */
+function noteUrl(baseUrl: string, filePath: string): string {
+  return `${baseUrl}/vault/${encodeVaultPath(filePath)}`
 }
 
 /**
@@ -57,17 +106,19 @@ async function listDirectory(
   dirPath: string,
   retryOptions?: Parameters<typeof secureFetchWithRetry>[2]
 ): Promise<string[]> {
-  const encodedDir = dirPath ? dirPath.split('/').map(encodeURIComponent).join('/') : ''
+  const encodedDir = dirPath ? encodeVaultPath(dirPath) : ''
   const endpoint = encodedDir ? `${baseUrl}/vault/${encodedDir}/` : `${baseUrl}/vault/`
 
   const response = await secureFetchWithRetry(
     endpoint,
     {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
       },
+      stripAuthOnRedirect: true,
     },
     retryOptions
   )
@@ -82,15 +133,27 @@ async function listDirectory(
 
 const MAX_RECURSION_DEPTH = 20
 
+/**
+ * Tracks whether the recursive walk returned less than the vault actually holds.
+ * The sync engine hard-deletes every stored document absent from a listing, so a
+ * depth cut-off or a failed subdirectory read must surface as `listingCapped`
+ * rather than being read as evidence those notes were deleted.
+ */
+interface WalkState {
+  capped: boolean
+}
+
 async function listVaultFiles(
   baseUrl: string,
   accessToken: string,
+  state: WalkState,
   folderPath?: string,
   retryOptions?: Parameters<typeof secureFetchWithRetry>[2],
   depth = 0
 ): Promise<string[]> {
   if (depth > MAX_RECURSION_DEPTH) {
     logger.warn('Max directory depth reached, skipping further recursion', { folderPath })
+    state.capped = true
     return []
   }
 
@@ -112,9 +175,14 @@ async function listVaultFiles(
 
   for (const dir of subDirs) {
     try {
-      const nested = await listVaultFiles(baseUrl, accessToken, dir, retryOptions, depth + 1)
+      const nested = await listVaultFiles(baseUrl, accessToken, state, dir, retryOptions, depth + 1)
       mdFiles.push(...nested)
     } catch (error) {
+      /**
+       * A transient read failure drops every note under `dir` from this listing
+       * while they still exist in the vault — partial evidence, not deletion.
+       */
+      state.capped = true
       logger.warn('Failed to list subdirectory', {
         dir,
         error: toError(error).message,
@@ -131,20 +199,26 @@ async function listVaultFiles(
 async function fetchNote(
   baseUrl: string,
   accessToken: string,
-  filePath: string,
-  retryOptions?: Parameters<typeof secureFetchWithRetry>[2]
-): Promise<NoteJson> {
-  const response = await secureFetchWithRetry(
-    `${baseUrl}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/vnd.olrapi.note+json',
-      },
+  filePath: string
+): Promise<NoteJson | null> {
+  const response = await secureFetchWithRetry(noteUrl(baseUrl, filePath), {
+    profile: 'configuredEndpoint',
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/vnd.olrapi.note+json',
     },
-    retryOptions
-  )
+    stripAuthOnRedirect: true,
+    /**
+     * Bounds the buffered JSON envelope. The authoritative per-note gate is the
+     * `content` byte check in `getDocument`; this only stops a pathological
+     * body from being materialized in the sync worker's heap.
+     */
+    maxResponseBytes: MAX_FILE_SIZE,
+  })
+
+  /** A note deleted between listing and hydration is an absence, not a failure. */
+  if (response.status === 404) return null
 
   if (!response.ok) {
     throw new Error(`Obsidian API error fetching ${filePath}: ${response.status}`)
@@ -161,6 +235,33 @@ function titleFromPath(filePath: string): string {
   return filename.replace(/\.md$/, '')
 }
 
+/**
+ * Listing-time stub shared by `listDocuments` and `getDocument` so externalId,
+ * title, sourceUrl, and folder metadata are produced in exactly one place.
+ *
+ * `contentHash` is deliberately NOT part of the stub: the directory listing
+ * returns only `{ files: string[] }` (no `stat`, no `Last-Modified`/`ETag`, no
+ * `HEAD` route), so the stub hash cannot encode change-detection state and
+ * never matches the stored, mtime-bearing hash — every note is re-hydrated each
+ * sync. The engine's post-hydration compare
+ * (`priorByExternalId.get(id)?.contentHash === hydratedHash`) then skips the
+ * re-index, so this costs one GET per note but never re-embeds unchanged notes.
+ */
+function noteStub(baseUrl: string, filePath: string): ExternalDocument {
+  return {
+    externalId: filePath,
+    title: titleFromPath(filePath),
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: noteUrl(baseUrl, filePath),
+    contentHash: `obsidian:${filePath}`,
+    metadata: {
+      folder: filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '',
+    },
+  }
+}
+
 export const obsidianConnector: ConnectorConfig = {
   ...obsidianConnectorMeta,
 
@@ -171,40 +272,31 @@ export const obsidianConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const baseUrl = resolveVaultEndpoint(sourceConfig.vaultUrl as string)
-    const folderPath = (sourceConfig.folderPath as string) || ''
+    const folderPath = normalizeVaultPath((sourceConfig.folderPath as string) || '', 'folderPath')
 
     let allFiles = syncContext?.allFiles as string[] | undefined
     if (!allFiles) {
       logger.info('Listing all vault files', { baseUrl, folderPath })
-      allFiles = await listVaultFiles(baseUrl, accessToken, folderPath || undefined)
+      const state: WalkState = { capped: false }
+      allFiles = await listVaultFiles(baseUrl, accessToken, state, folderPath || undefined)
       if (syncContext) {
         syncContext.allFiles = allFiles
+        /**
+         * Only ever set, never cleared: a walk that reached its depth limit or
+         * lost a subdirectory to a transient error returned fewer notes than the
+         * vault holds, and the engine must not read those absences as deletions.
+         * A clean, exhausted walk leaves the flag untouched so genuinely deleted
+         * notes still reconcile.
+         */
+        if (state.capped) {
+          syncContext.listingCapped = true
+        }
       }
     }
     const offset = cursor ? Number(cursor) : 0
     const pageFiles = allFiles.slice(offset, offset + DOCS_PER_PAGE)
 
-    /**
-     * The Obsidian Local REST API directory listing returns just
-     * `{ files: string[] }` — no `stat`/`mtime` and no `HEAD` support to read
-     * `Last-Modified`, so the stub cannot encode change-detection state. Every
-     * file is therefore re-hydrated via `getDocument` on every sync. The
-     * post-hydration hash compare in the sync engine
-     * (`existing.contentHash === hydratedHash`) prevents redundant DB writes
-     * when `mtime` is unchanged.
-     */
-    const documents: ExternalDocument[] = pageFiles.map((filePath) => ({
-      externalId: filePath,
-      title: titleFromPath(filePath),
-      content: '',
-      contentDeferred: true,
-      mimeType: 'text/plain' as const,
-      sourceUrl: `${baseUrl}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`,
-      contentHash: `obsidian:${filePath}`,
-      metadata: {
-        folder: filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '',
-      },
-    }))
+    const documents: ExternalDocument[] = pageFiles.map((filePath) => noteStub(baseUrl, filePath))
 
     const nextOffset = offset + pageFiles.length
     const hasMore = nextOffset < allFiles.length
@@ -224,36 +316,55 @@ export const obsidianConnector: ConnectorConfig = {
   ): Promise<ExternalDocument | null> => {
     const baseUrl = resolveVaultEndpoint(sourceConfig.vaultUrl as string)
 
-    try {
-      const note = await fetchNote(baseUrl, accessToken, externalId)
-      const content = note.content || ''
+    /**
+     * Throws rather than returning `null`: a traversal segment in a stored
+     * externalId is a rejection, not an absence, and `null` would drop the note
+     * from the run with no counter and no error row.
+     */
+    const filePath = normalizeVaultPath(externalId, 'externalId')
+    const stub = noteStub(baseUrl, filePath)
 
-      return {
-        externalId,
-        title: titleFromPath(externalId),
-        content,
-        contentDeferred: false,
-        mimeType: 'text/plain',
-        sourceUrl: `${baseUrl}/vault/${externalId.split('/').map(encodeURIComponent).join('/')}`,
-        contentHash: `obsidian:${externalId}:${note.stat?.mtime ?? ''}`,
-        metadata: {
-          tags: note.tags,
-          frontmatter: note.frontmatter,
-          createdAt: note.stat?.ctime ? new Date(note.stat.ctime).toISOString() : undefined,
-          modifiedAt: note.stat?.mtime ? new Date(note.stat.mtime).toISOString() : undefined,
-          size: note.stat?.size,
-          folder: externalId.includes('/')
-            ? externalId.substring(0, externalId.lastIndexOf('/'))
-            : '',
-        },
-      }
+    let note: NoteJson | null
+    try {
+      note = await fetchNote(baseUrl, accessToken, filePath)
     } catch (error) {
-      logger.warn('Failed to get Obsidian note', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
+      /**
+       * A note only proves oversized while its body streams, so that case becomes
+       * a visible skipped row. Every other failure is a transport or vault-API
+       * fault and is rethrown, letting the sync engine record a failed document
+       * instead of dropping the note from the run with no counter and no error.
+       */
+      if (error instanceof PayloadSizeLimitError) {
+        return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
+      }
+      logger.warn('Failed to get Obsidian note', { externalId, error: toError(error).message })
+      throw toError(error)
     }
+    if (!note) return null
+
+    const content = note.content || ''
+    const hydrated: ExternalDocument = {
+      ...stub,
+      content,
+      contentDeferred: false,
+      contentHash: `obsidian:${filePath}:${note.stat?.mtime ?? ''}`,
+      metadata: {
+        ...stub.metadata,
+        tags: note.tags,
+        frontmatter: note.frontmatter,
+        createdAt: note.stat?.ctime ? new Date(note.stat.ctime).toISOString() : undefined,
+        modifiedAt: note.stat?.mtime ? new Date(note.stat.mtime).toISOString() : undefined,
+        size: note.stat?.size,
+      },
+    }
+
+    const contentBytes = Buffer.byteLength(content, 'utf8')
+    if (contentBytes > MAX_FILE_SIZE) {
+      logger.warn('Obsidian note exceeds size limit', { externalId, contentBytes })
+      return markSkipped(hydrated, sizeLimitSkipReason(MAX_FILE_SIZE))
+    }
+
+    return hydrated
   },
 
   validateConfig: async (
@@ -276,8 +387,10 @@ export const obsidianConnector: ConnectorConfig = {
       const response = await secureFetchWithRetry(
         `${baseUrl}/`,
         {
+          profile: 'configuredEndpoint',
           method: 'GET',
           headers: { Authorization: `Bearer ${accessToken}` },
+          stripAuthOnRedirect: true,
         },
         VALIDATE_RETRY_OPTIONS
       )
@@ -299,17 +412,15 @@ export const obsidianConnector: ConnectorConfig = {
         }
       }
 
-      const folderPath = (sourceConfig.folderPath as string) || ''
-      if (folderPath.trim()) {
-        const entries = await listDirectory(
-          baseUrl,
-          accessToken,
-          folderPath.trim(),
-          VALIDATE_RETRY_OPTIONS
-        )
-        if (entries.length === 0) {
-          logger.info('Folder path returned no entries', { folderPath })
-        }
+      /**
+       * Proves the configured folder exists: the Local REST API answers 404 for
+       * an unknown directory, which `listDirectory` turns into a throw caught
+       * below. An empty-but-present folder is legitimate, so the entries
+       * themselves are not inspected.
+       */
+      const folderPath = normalizeVaultPath((sourceConfig.folderPath as string) || '', 'folderPath')
+      if (folderPath) {
+        await listDirectory(baseUrl, accessToken, folderPath, VALIDATE_RETRY_OPTIONS)
       }
 
       return { valid: true }

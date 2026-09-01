@@ -1,16 +1,12 @@
-// ============================================================================
 // OOXML Color Utilities
 // Full color manipulation for PowerPoint XML color processing
-// ============================================================================
 
 export { hexToRgb, hslToRgb, rgbToHex, rgbToHsl, toCssColor } from '@/lib/colors'
 
 import { hexToRgb, hslToRgb, rgbToHex, rgbToHsl } from '@/lib/colors'
 
-// ---------------------------------------------------------------------------
 // sRGB ↔ Linear RGB conversion (IEC 61966-2-1)
 // PowerPoint applies tint/shade in linear (scene-referred) space.
-// ---------------------------------------------------------------------------
 
 function srgbToLinear(c: number): number {
   const s = c / 255
@@ -22,9 +18,7 @@ function linearToSrgb(c: number): number {
   return Math.max(0, Math.min(255, Math.round(s * 255)))
 }
 
-// ---------------------------------------------------------------------------
 // OOXML Color Modifiers
-// ---------------------------------------------------------------------------
 
 /**
  * Apply tint modifier (mix toward white in linear RGB space).
@@ -145,9 +139,7 @@ export function applyAlpha(alpha: number): number {
   return Math.max(0, Math.min(1, alpha / 100000))
 }
 
-// ---------------------------------------------------------------------------
 // Composite Modifier Application
-// ---------------------------------------------------------------------------
 
 export interface ColorModifier {
   name: string
@@ -217,9 +209,7 @@ export function applyColorModifiers(
   return { color, alpha }
 }
 
-// ---------------------------------------------------------------------------
 // OOXML Preset Color Table
-// ---------------------------------------------------------------------------
 
 const PRESET_COLORS: Record<string, string> = {
   // Basic colors

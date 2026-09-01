@@ -9,7 +9,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { FilterRule, SortRule } from '@/lib/table/types'
-import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 
@@ -191,8 +191,7 @@ export const getDisplayValue = (value: unknown): string => {
   if (isMessagesArray(parsedValue)) {
     const firstMessage = parsedValue[0]
     if (!firstMessage?.content || firstMessage.content.trim() === '') return '-'
-    const content = firstMessage.content.trim()
-    return truncate(content, 50)
+    return firstMessage.content.trim()
   }
 
   if (isVariableAssignmentsArray(parsedValue)) {
@@ -312,6 +311,18 @@ export const getDisplayValue = (value: unknown): string => {
 }
 
 /**
+ * Whether a collapsed-node row has a meaningful value to display.
+ * Rows whose value renders as the empty placeholder are hidden from the
+ * node preview so blocks only surface configured fields.
+ * `webhookUrlDisplay*` rows derive their value from the block id rather than
+ * the stored value, so they always count as displayable.
+ */
+export function hasDisplayableRowValue(subBlock: SubBlockConfig, rawValue: unknown): boolean {
+  if (subBlock.id.startsWith('webhookUrlDisplay')) return true
+  return getDisplayValue(rawValue) !== '-'
+}
+
+/**
  * Workflow id -> metadata lookup for the workflow selector resolvers.
  * `ready` gates resolution so missing entries only render as deleted once
  * the lookup has actually loaded.
@@ -354,17 +365,34 @@ export function resolveDropdownLabel(
   rawValue: unknown
 ): string | null {
   if (!subBlock || (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox')) return null
-  if (!rawValue || typeof rawValue !== 'string') return null
+  if (!rawValue) return null
 
   const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
   if (!options) return null
 
-  const option = options.find((opt) =>
-    typeof opt === 'string' ? opt === rawValue : opt.id === rawValue
-  )
+  const labelFor = (id: string): string | null => {
+    const option = options.find((opt) => (typeof opt === 'string' ? opt === id : opt.id === id))
+    if (!option) return null
+    return typeof option === 'string' ? option : option.label
+  }
 
-  if (!option) return null
-  return typeof option === 'string' ? option : option.label
+  /*
+   * A `multiSelect` dropdown stores an array, which this used to reject outright
+   * — so a card showed the raw stored ids ("chat, updates") where a single-select
+   * showed a label. Summarized with the same helper the other list-valued rows
+   * use, so one selection reads the same however it was stored.
+   */
+  if (Array.isArray(rawValue)) {
+    const ids = rawValue.filter((entry): entry is string => typeof entry === 'string')
+    const labels = ids.map(labelFor)
+    /* Partial resolution would silently drop selections; the caller's raw-value
+       fallback shows all of them instead. */
+    if (labels.length === 0 || labels.some((label) => label === null)) return null
+    return summarizeNames(labels as string[])
+  }
+
+  if (typeof rawValue !== 'string') return null
+  return labelFor(rawValue)
 }
 
 /** Resolves a workflow-selector value to the workflow's name. */
@@ -527,13 +555,15 @@ export function resolveSkillsLabel(
   if (subBlock?.type !== 'skill-input') return null
   if (!Array.isArray(rawValue) || rawValue.length === 0) return null
 
+  const skillsById = new Map(skills.map((skill) => [skill.id, skill]))
+
   const names = rawValue
     .map((skill: unknown) => {
       if (!skill || typeof skill !== 'object') return null
       const s = skill as { skillId?: string; name?: string }
 
       if (s.skillId) {
-        const found = skills.find((candidate) => candidate.id === s.skillId)
+        const found = skillsById.get(s.skillId)
         if (found?.name) return found.name
       }
       if (typeof s.name === 'string' && s.name) return s.name
@@ -543,4 +573,27 @@ export function resolveSkillsLabel(
     .filter((name): name is string => !!name)
 
   return summarizeNames(names)
+}
+
+/**
+ * Resolves the Function block's stored sandbox id to the sandbox name.
+ *
+ * Unlike its siblings there is no dedicated subblock type to match on: the picker
+ * is a plain `combobox` whose options load asynchronously, so its static
+ * `options` array is empty and {@link resolveDropdownLabel} finds nothing —
+ * leaving the block card printing a raw UUID. Matching the field id is what
+ * narrows this to the one picker that needs it.
+ *
+ * An id with no matching sandbox returns `null` rather than a guess, so a deleted
+ * sandbox falls through to the caller's own placeholder.
+ */
+export function resolveSandboxLabel(
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown,
+  sandboxes: Array<{ id: string; name: string }>
+): string | null {
+  if (subBlock?.id !== 'sandboxId' || subBlock.type !== 'combobox') return null
+  if (typeof rawValue !== 'string' || !rawValue) return null
+
+  return sandboxes.find((sandbox) => sandbox.id === rawValue)?.name ?? null
 }

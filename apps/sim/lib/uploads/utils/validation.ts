@@ -78,6 +78,7 @@ export const SUPPORTED_CODE_EXTENSIONS = [
   'prettierrc',
   'eslintrc',
   'mmd',
+  'chart',
 ] as const
 
 export type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]
@@ -97,7 +98,7 @@ export const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'webm'] a
 
 /**
  * Archive formats accepted as chat attachments. A `.zip` is stored once in
- * uploads/; the agent must extract it (materialize_file operation "extract") to
+ * uploads/; the agent must extract it (save_upload operation "extract") to
  * decompress it into workspace files/ before reading its contents.
  */
 export const SUPPORTED_ARCHIVE_EXTENSIONS = ['zip'] as const
@@ -187,14 +188,6 @@ export const SUPPORTED_VIDEO_MIME_TYPES: Record<SupportedVideoExtension, string[
 }
 
 export const ACCEPTED_FILE_TYPES = Object.values(SUPPORTED_MIME_TYPES).flat()
-export const ACCEPTED_AUDIO_TYPES = Object.values(SUPPORTED_AUDIO_MIME_TYPES).flat()
-export const ACCEPTED_VIDEO_TYPES = Object.values(SUPPORTED_VIDEO_MIME_TYPES).flat()
-export const ACCEPTED_MEDIA_TYPES = [
-  ...ACCEPTED_FILE_TYPES,
-  ...ACCEPTED_AUDIO_TYPES,
-  ...ACCEPTED_VIDEO_TYPES,
-]
-
 export const ACCEPTED_FILE_EXTENSIONS = SUPPORTED_DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`)
 
 export const ACCEPT_ATTRIBUTE = [...ACCEPTED_FILE_TYPES, ...ACCEPTED_FILE_EXTENSIONS].join(',')
@@ -229,7 +222,7 @@ export const CHAT_ACCEPT_ATTRIBUTE = [
 /**
  * Accept attribute for the mothership copilot input only. Archives are scoped
  * here — NOT in {@link CHAT_ACCEPT_ATTRIBUTE} — because only the copilot flow
- * has zip handling (materialize_file "extract"); a zip picked in a workflow or
+ * has zip handling (save_upload "extract"); a zip picked in a workflow or
  * deployed chat would flow into execution, where no parser exists.
  */
 export const MOTHERSHIP_ACCEPT_ATTRIBUTE = [
@@ -330,39 +323,6 @@ export function isSupportedExtension(extension: string): extension is SupportedD
   )
 }
 
-/**
- * Get supported MIME types for an extension
- */
-export function getSupportedMimeTypes(extension: string): string[] {
-  if (isSupportedExtension(extension)) {
-    return SUPPORTED_MIME_TYPES[extension as SupportedDocumentExtension]
-  }
-  if (SUPPORTED_AUDIO_EXTENSIONS.includes(extension as SupportedAudioExtension)) {
-    return SUPPORTED_AUDIO_MIME_TYPES[extension as SupportedAudioExtension]
-  }
-  if (SUPPORTED_VIDEO_EXTENSIONS.includes(extension as SupportedVideoExtension)) {
-    return SUPPORTED_VIDEO_MIME_TYPES[extension as SupportedVideoExtension]
-  }
-  return []
-}
-
-/**
- * Check if file extension is a supported audio extension
- */
-export function isSupportedAudioExtension(extension: string): extension is SupportedAudioExtension {
-  return SUPPORTED_AUDIO_EXTENSIONS.includes(extension.toLowerCase() as SupportedAudioExtension)
-}
-
-/**
- * Check if file extension is a supported video extension
- */
-export function isSupportedVideoExtension(extension: string): extension is SupportedVideoExtension {
-  return SUPPORTED_VIDEO_EXTENSIONS.includes(extension.toLowerCase() as SupportedVideoExtension)
-}
-
-/**
- * Validate if an audio/video file type is supported for STT processing
- */
 const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
 /**
@@ -397,39 +357,5 @@ export function sniffImageContentType(buffer: Buffer): string | null {
   ) {
     return 'image/webp'
   }
-  return null
-}
-
-export function validateMediaFileType(
-  fileName: string,
-  mimeType: string
-): FileValidationError | null {
-  const raw = extractExtension(fileName)
-  const extension = isAlphanumericExtension(raw) ? raw : ''
-
-  const isAudio = SUPPORTED_AUDIO_EXTENSIONS.includes(extension as SupportedAudioExtension)
-  const isVideo = SUPPORTED_VIDEO_EXTENSIONS.includes(extension as SupportedVideoExtension)
-
-  if (!isAudio && !isVideo) {
-    return {
-      code: 'UNSUPPORTED_FILE_TYPE',
-      message: `Unsupported media file type${extension ? `: ${extension}` : ` for "${fileName}"`}. Supported audio types: ${SUPPORTED_AUDIO_EXTENSIONS.join(', ')}. Supported video types: ${SUPPORTED_VIDEO_EXTENSIONS.join(', ')}`,
-      supportedTypes: [...SUPPORTED_AUDIO_EXTENSIONS, ...SUPPORTED_VIDEO_EXTENSIONS],
-    }
-  }
-
-  const baseMimeType = mimeType.split(';')[0].trim()
-  const allowedMimeTypes = isAudio
-    ? SUPPORTED_AUDIO_MIME_TYPES[extension as SupportedAudioExtension]
-    : SUPPORTED_VIDEO_MIME_TYPES[extension as SupportedVideoExtension]
-
-  if (!allowedMimeTypes.includes(baseMimeType)) {
-    return {
-      code: 'MIME_TYPE_MISMATCH',
-      message: `MIME type ${baseMimeType} does not match file extension ${extension}. Expected: ${allowedMimeTypes.join(', ')}`,
-      supportedTypes: allowedMimeTypes,
-    }
-  }
-
   return null
 }

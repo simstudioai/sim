@@ -1,11 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
-import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import {
   buildCanonicalIndex,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isCanonicalPair,
+  isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isTriggerModeSubBlock,
   resolveCanonicalMode,
@@ -17,29 +16,22 @@ import type {
   SubBlockConfig as BlockSubBlockConfig,
   GenerationType,
 } from '@/blocks/types'
+import { isNonEmpty } from '@/tools/merge-params'
+import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
 import { safeAssign } from '@/tools/safe-assign'
-import { isEmptyTagValue } from '@/tools/shared/tags'
 import type {
+  ExecutableToolConfig,
   OAuthConfig,
   ParameterVisibility,
   ToolConfig,
   ToolParameterItemSchema,
+  WorkflowToolExecutionContext,
 } from '@/tools/types'
-import { getTool } from '@/tools/utils'
 
 const logger = createLogger('ToolsParams')
 type ToolParamDefinition = ToolConfig['params'][string]
 
-/**
- * Checks if a value is non-empty (not undefined, null, or empty string)
- */
-export function isNonEmpty(value: unknown): boolean {
-  return value !== undefined && value !== null && value !== ''
-}
-
-// ============================================================================
 // Tag/Value Parsing Utilities
-// ============================================================================
 
 interface Option {
   label: string
@@ -152,6 +144,26 @@ export interface UserToolSchemaOptions {
 export interface LLMToolSchemaResult {
   schema: ToolSchema
   enrichedDescription?: string
+  /**
+   * Params the model is never allowed to supply, because the tool declares them
+   * `user-only` or `hidden`. Omitting them from {@link schema} is not enough on
+   * its own — nothing stops a model from emitting an undeclared key, and the
+   * merge downstream seeds from the model's args — so the names travel with the
+   * schema for `prepareToolExecution` to strip.
+   */
+  modelBlockedParams?: string[]
+}
+
+export type WorkflowInputFieldsReader = (
+  workflowId: string,
+  context: WorkflowToolExecutionContext
+) => Promise<Array<{ name: string; type: string; description?: string }>>
+
+export class ToolSchemaEnrichmentError extends Error {
+  constructor(toolId: string, cause: unknown) {
+    super(`Failed to enrich schema for tool "${toolId}"`, { cause })
+    this.name = 'ToolSchemaEnrichmentError'
+  }
 }
 
 export interface ValidationResult {
@@ -172,7 +184,7 @@ export interface ToolParameterConfig {
 }
 
 export interface ToolWithParameters {
-  toolConfig: ToolConfig
+  toolConfig: ToolMetadata
   allParameters: ToolParameterConfig[]
   userInputParameters: ToolParameterConfig[] // Parameters shown to user
   requiredParameters: ToolParameterConfig[] // Must be filled by user or LLM
@@ -300,7 +312,7 @@ export function getToolParametersConfig(
   blockConfigOverride?: Pick<ToolInputBlockConfig, 'subBlocks'>
 ): ToolWithParameters | null {
   try {
-    const toolConfig = getTool(toolId)
+    const toolConfig = getToolMetadata(toolId)
     if (!toolConfig) {
       logger.warn(`Tool not found: ${toolId}`)
       return null
@@ -509,8 +521,10 @@ function buildParameterSchema(
 ): SchemaProperty {
   const surface = options.surface ?? 'default'
 
-  if (surface === 'copilot' && (param.type === 'file' || param.type === 'file[]')) {
-    return buildCopilotFileParameterSchema(param)
+  if (param.type === 'file' || param.type === 'file[]') {
+    return surface === 'copilot'
+      ? buildCopilotFileParameterSchema(param)
+      : buildFileReferenceParameterSchema(param)
   }
 
   let schemaType = param.type
@@ -535,6 +549,38 @@ function buildParameterSchema(
   }
 
   return propertySchema
+}
+
+/**
+ * File schema for model-facing surfaces other than Copilot: a reference string,
+ * not a file object.
+ *
+ * A model has no way to produce the `key`, `url`, and `size` a real file object
+ * carries — those come from a previous tool result or the block's own
+ * configuration — so asking for the object would only invite invented values. An
+ * id it can copy verbatim from what it just saw; the runtime hydrates it into
+ * the full object before the tool runs.
+ *
+ * Without this branch a file param declared `user-or-llm` emitted `{"type":
+ * "file"}`, which is not a JSON Schema type at all.
+ */
+function buildFileReferenceParameterSchema(param: ToolParamDefinition): SchemaProperty {
+  const baseDescription =
+    param.description ||
+    (param.type === 'file' ? 'A file for tool execution.' : 'Files for tool execution.')
+  const resolutionDescription =
+    'Pass the file id from an earlier tool result, or a canonical workspace file id such as "wf_123". The runtime resolves it into the full file object before the tool runs.'
+  const description = `${baseDescription} ${resolutionDescription}`
+
+  if (param.type === 'file') {
+    return { type: 'string', description }
+  }
+
+  return {
+    type: 'array',
+    description,
+    items: { type: 'string', description: 'A file id.' },
+  }
 }
 
 function buildCopilotFileParameterSchema(param: ToolParamDefinition): SchemaProperty {
@@ -578,7 +624,7 @@ function buildCopilotFileParameterSchema(param: ToolParamDefinition): SchemaProp
 }
 
 export function createUserToolSchema(
-  toolConfig: ToolConfig,
+  toolConfig: ExecutableToolConfig,
   options: UserToolSchemaOptions = {}
 ): ToolSchema {
   const surface = options.surface ?? 'default'
@@ -608,6 +654,16 @@ export function createUserToolSchema(
         .filter(Boolean)
         .join(' ')
     }
+    // Copilot agents never see secret values, only names — so tell them the
+    // reference form works here, or they paste placeholders that fail upstream.
+    if (visibility === 'user-only' && surface === 'copilot') {
+      propertySchema.description = [
+        propertySchema.description,
+        'Accepts an environment-variable reference like {{VAR_NAME}} (see environment/variables.json), resolved server-side.',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    }
     schema.properties[paramId] = propertySchema
 
     if (param.required && paramId !== hostedApiKeyParam) {
@@ -628,14 +684,23 @@ export function createUserToolSchema(
 }
 
 export async function createLLMToolSchema(
-  toolConfig: ToolConfig,
-  userProvidedParams: Record<string, unknown>
+  toolConfig: ExecutableToolConfig,
+  userProvidedParams: Record<string, unknown>,
+  enrichmentContext: WorkflowToolExecutionContext = {},
+  readWorkflowInputFields?: WorkflowInputFieldsReader
 ): Promise<LLMToolSchemaResult> {
   const schema: ToolSchema = {
     type: 'object',
     properties: {},
     required: [],
   }
+
+  // Derived from the declarations rather than from which branch below skipped a
+  // param: the loop's `continue`s also skip params the user simply filled in,
+  // and those are not off-limits to the model.
+  const modelBlockedParams = Object.entries(toolConfig.params)
+    .filter(([, param]) => param.visibility === 'user-only' || param.visibility === 'hidden')
+    .map(([paramId]) => paramId)
 
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
     const enrichmentConfig = toolConfig.schemaEnrichment?.[paramId]
@@ -650,7 +715,7 @@ export async function createLLMToolSchema(
       }
 
       const propertySchema = buildParameterSchema(toolConfig.id, paramId, param)
-      const enrichedSchema = await enrichmentConfig.enrichSchema(dependencyValue)
+      const enrichedSchema = await enrichmentConfig.enrichSchema(dependencyValue, enrichmentContext)
 
       if (enrichedSchema) {
         safeAssign(propertySchema, enrichedSchema as Record<string, unknown>)
@@ -682,7 +747,12 @@ export async function createLLMToolSchema(
     if (isWorkflowInputMapping) {
       const workflowId = userProvidedParams.workflowId as string
       if (workflowId) {
-        await applyDynamicSchemaForWorkflow(propertySchema, workflowId)
+        await applyDynamicSchemaForWorkflow(
+          propertySchema,
+          workflowId,
+          enrichmentContext,
+          readWorkflowInputFields
+        )
       }
     }
 
@@ -696,21 +766,28 @@ export async function createLLMToolSchema(
   if (toolConfig.toolEnrichment) {
     const dependencyValue = userProvidedParams[toolConfig.toolEnrichment.dependsOn] as string
     if (dependencyValue) {
-      const enriched = await toolConfig.toolEnrichment.enrichTool(
-        dependencyValue,
-        schema,
-        toolConfig.description
-      )
+      let enriched
+      try {
+        enriched = await toolConfig.toolEnrichment.enrichTool(
+          dependencyValue,
+          schema,
+          toolConfig.description,
+          enrichmentContext
+        )
+      } catch (error) {
+        throw new ToolSchemaEnrichmentError(toolConfig.id, error)
+      }
       if (enriched) {
         return {
           schema: enriched.parameters as ToolSchema,
           enrichedDescription: enriched.description,
+          modelBlockedParams,
         }
       }
     }
   }
 
-  return { schema }
+  return { schema, modelBlockedParams }
 }
 
 /**
@@ -718,10 +795,16 @@ export async function createLLMToolSchema(
  */
 async function applyDynamicSchemaForWorkflow(
   propertySchema: SchemaProperty,
-  workflowId: string
+  workflowId: string,
+  context: WorkflowToolExecutionContext,
+  readWorkflowInputFields?: WorkflowInputFieldsReader
 ): Promise<void> {
   try {
-    const workflowInputFields = await fetchWorkflowInputFields(workflowId)
+    const workflowInputFields = await fetchWorkflowInputFields(
+      workflowId,
+      context,
+      readWorkflowInputFields
+    )
 
     if (workflowInputFields && workflowInputFields.length > 0) {
       propertySchema.type = 'object'
@@ -745,176 +828,33 @@ async function applyDynamicSchemaForWorkflow(
   }
 }
 
-/**
- * Fetches workflow input fields from the API.
- */
+/** Reads workflow inputs through the authorized application operation. */
 async function fetchWorkflowInputFields(
-  workflowId: string
+  workflowId: string,
+  context: WorkflowToolExecutionContext,
+  readWorkflowInputFields?: WorkflowInputFieldsReader
 ): Promise<Array<{ name: string; type: string; description?: string }>> {
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
-
-    const headers = await buildAuthHeaders()
-    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
-
-    const response = await fetch(url.toString(), { headers })
-    if (!response.ok) {
-      throw new Error('Failed to fetch workflow')
+    if (!context.executorDelegationOrigin || !readWorkflowInputFields) {
+      throw new Error('Workflow input enrichment requires trusted execution authority')
     }
-
-    const { data } = await response.json()
-    return extractInputFieldsFromBlocks(data?.state?.blocks)
+    return await readWorkflowInputFields(workflowId, context)
   } catch (error) {
     logger.error('Error fetching workflow input fields:', error)
     return []
   }
 }
 
-/**
- * Creates a complete tool schema for execution with all parameters
- */
-export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
-  const schema: ToolSchema = {
-    type: 'object',
-    properties: {},
-    required: [],
-  }
-
-  Object.entries(toolConfig.params).forEach(([paramId, param]) => {
-    const propertySchema: SchemaProperty = {
-      type: param.type === 'json' ? 'object' : param.type,
-      description: param.description || '',
-    }
-
-    // Include items property for arrays
-    if (param.type === 'array' && param.items) {
-      propertySchema.items = {
-        ...param.items,
-        ...(param.items.properties && {
-          properties: { ...param.items.properties },
-        }),
-      }
-    } else if (param.items) {
-      logger.warn(
-        `items property ignored for non-array param "${paramId}" in tool "${toolConfig.id}"`
-      )
-    }
-
-    schema.properties[paramId] = propertySchema
-
-    if (param.required) {
-      schema.required.push(paramId)
-    }
-  })
-
-  return schema
+interface FilterableToolSchema {
+  properties?: Record<string, unknown>
+  required?: string[]
 }
 
-/**
- * Deep merges inputMapping objects, where LLM values fill in empty/missing user values.
- * User-provided non-empty values take precedence.
- */
-export function deepMergeInputMapping(
-  llmInputMapping: Record<string, unknown> | undefined,
-  userInputMapping: Record<string, unknown> | string | undefined
-): Record<string, unknown> {
-  // Parse user inputMapping if it's a JSON string
-  let parsedUserMapping: Record<string, unknown> = {}
-  if (typeof userInputMapping === 'string') {
-    try {
-      const parsed = JSON.parse(userInputMapping)
-      if (isRecordLike(parsed)) {
-        parsedUserMapping = parsed
-      }
-    } catch {
-      // Invalid JSON, treat as empty
-    }
-  } else if (
-    typeof userInputMapping === 'object' &&
-    userInputMapping !== null &&
-    !Array.isArray(userInputMapping)
-  ) {
-    parsedUserMapping = userInputMapping
-  }
-
-  // If no LLM mapping, return user mapping (or empty)
-  if (!llmInputMapping || typeof llmInputMapping !== 'object') {
-    return parsedUserMapping
-  }
-
-  // Deep merge: LLM values as base, user non-empty values override
-  // If user provides empty object {}, LLM values fill all fields (intentional)
-  const merged: Record<string, unknown> = { ...llmInputMapping }
-
-  for (const [key, userValue] of Object.entries(parsedUserMapping)) {
-    // Only override LLM value if user provided a non-empty value
-    if (isNonEmpty(userValue)) {
-      merged[key] = userValue
-    }
-  }
-
-  return merged
-}
-
-/**
- * Merges user-provided parameters with LLM-generated parameters.
- * User-provided parameters take precedence, but empty strings are skipped
- * so that LLM-generated values are used when user clears a field.
- *
- * Special handling for inputMapping: deep merges so LLM can fill in
- * fields that user left empty in the UI.
- */
-export function mergeToolParameters(
-  userProvidedParams: Record<string, unknown>,
-  llmGeneratedParams: Record<string, unknown>
-): Record<string, unknown> {
-  // Filter out empty and effectively-empty values from user-provided params
-  // so that cleared fields don't override LLM values
-  const filteredUserParams: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(userProvidedParams)) {
-    if (isNonEmpty(value)) {
-      // Skip tag-based params if they're effectively empty (only default/unfilled entries)
-      if ((key === 'documentTags' || key === 'tagFilters') && isEmptyTagValue(value)) {
-        continue
-      }
-      filteredUserParams[key] = value
-    }
-  }
-
-  // Start with LLM params as base
-  const result: Record<string, unknown> = { ...llmGeneratedParams }
-
-  // Apply user params, with special handling for inputMapping
-  for (const [key, userValue] of Object.entries(filteredUserParams)) {
-    if (key === 'inputMapping') {
-      // Deep merge inputMapping so LLM values fill in empty user fields
-      const llmInputMapping = llmGeneratedParams.inputMapping as Record<string, unknown> | undefined
-      const mergedInputMapping = deepMergeInputMapping(
-        llmInputMapping,
-        userValue as Record<string, unknown> | string | undefined
-      )
-      result.inputMapping = mergedInputMapping
-    } else {
-      // Normal override for other params
-      result[key] = userValue
-    }
-  }
-
-  // If LLM provided inputMapping but user didn't, ensure it's included
-  if (llmGeneratedParams.inputMapping && !filteredUserParams.inputMapping) {
-    result.inputMapping = llmGeneratedParams.inputMapping
-  }
-
-  return result
-}
-
-/**
- * Filters out user-provided parameters from tool schema for LLM
- */
-export function filterSchemaForLLM(
-  originalSchema: ToolSchema,
+/** Filters user-provided parameters from any object-shaped tool schema sent to an LLM. */
+export function filterSchemaForLLM<T extends FilterableToolSchema>(
+  originalSchema: T,
   userProvidedParams: Record<string, unknown>
-): ToolSchema {
+): T {
   if (!originalSchema || !originalSchema.properties) {
     return originalSchema
   }
@@ -933,18 +873,17 @@ export function filterSchemaForLLM(
     }
   })
 
-  return {
-    ...originalSchema,
+  return Object.assign({}, originalSchema, {
     properties: filteredProperties,
     required: filteredRequired,
-  }
+  })
 }
 
 /**
  * Validates that all required parameters are provided
  */
 export function validateToolParameters(
-  toolConfig: ToolConfig,
+  toolConfig: ExecutableToolConfig,
   finalParams: Record<string, unknown>
 ): ValidationResult {
   const requiredParams = Object.entries(toolConfig.params)
@@ -1060,7 +999,7 @@ const EXCLUDED_SUBBLOCK_TYPES = new Set([
 ])
 
 export interface SubBlocksForToolInput {
-  toolConfig: ToolConfig
+  toolConfig: ToolMetadata
   subBlocks: BlockSubBlockConfig[]
   oauthConfig?: OAuthConfig
 }
@@ -1081,7 +1020,7 @@ export function getSubBlocksForToolInput(
   blockConfigOverride?: Pick<ToolInputBlockConfig, 'subBlocks'>
 ): SubBlocksForToolInput | null {
   try {
-    const toolConfig = getTool(toolId)
+    const toolConfig = getToolMetadata(toolId)
     if (!toolConfig) {
       logger.warn(`Tool not found: ${toolId}`)
       return null
@@ -1141,6 +1080,11 @@ export function getSubBlocksForToolInput(
 
       // Hide tool API key fields when running on hosted Sim or when env var is set
       if (isSubBlockHidden(sb)) continue
+
+      // A field the deployment has switched off is not offerable here either —
+      // the canvas already hides it, and offering it in tool-input lets an author
+      // pick a value the executor will refuse (e.g. Python with no sandbox provider).
+      if (!isSubBlockFeatureEnabled(sb)) continue
 
       // Determine the effective param ID (canonical or subblock id)
       const effectiveParamId = sb.canonicalParamId || sb.id

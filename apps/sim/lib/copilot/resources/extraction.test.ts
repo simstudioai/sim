@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest'
 import { extractDeletedResourcesFromToolResult, extractResourcesFromToolResult } from './extraction'
 
 describe('extractResourcesFromToolResult', () => {
-  it('extracts file resources from create_file results', () => {
+  it('extracts file resources from create_empty_file results', () => {
     const resources = extractResourcesFromToolResult(
-      'create_file',
+      'create_empty_file',
       {
         fileName: 'notes.md',
       },
@@ -31,9 +31,9 @@ describe('extractResourcesFromToolResult', () => {
     ])
   })
 
-  it('uses the knowledge base id for knowledge_base tag mutations', () => {
+  it('uses the knowledge base id for manage_knowledge_base tag mutations', () => {
     const resources = extractResourcesFromToolResult(
-      'knowledge_base',
+      'manage_knowledge_base',
       {
         operation: 'update_tag',
         args: {
@@ -63,7 +63,7 @@ describe('extractResourcesFromToolResult', () => {
 
   it('uses knowledgeBaseId from the tool result when update_tag args omit it', () => {
     const resources = extractResourcesFromToolResult(
-      'knowledge_base',
+      'manage_knowledge_base',
       {
         operation: 'update_tag',
         args: {
@@ -93,7 +93,7 @@ describe('extractResourcesFromToolResult', () => {
 
   it('does not create resources for read-only knowledge base tag operations', () => {
     const resources = extractResourcesFromToolResult(
-      'knowledge_base',
+      'manage_knowledge_base',
       {
         operation: 'list_tags',
         args: {
@@ -141,43 +141,6 @@ describe('extractResourcesFromToolResult', () => {
 
     expect(resources).toEqual([])
   })
-
-  it('auto-opens a scheduledtask resource from manage_scheduled_task create results', () => {
-    const resources = extractResourcesFromToolResult(
-      'manage_scheduled_task',
-      { operation: 'create', args: { title: 'Daily Report' } },
-      { jobId: 'sched_123', title: 'Daily Report', message: 'Job created successfully.' }
-    )
-
-    expect(resources).toEqual([{ type: 'scheduledtask', id: 'sched_123', title: 'Daily Report' }])
-  })
-
-  it('auto-opens a scheduledtask resource on update, falling back to the args title', () => {
-    const resources = extractResourcesFromToolResult(
-      'manage_scheduled_task',
-      { operation: 'update', args: { jobId: 'sched_123', title: 'Renamed Task' } },
-      { jobId: 'sched_123', updated: ['title'], message: 'Job updated successfully' }
-    )
-
-    expect(resources).toEqual([{ type: 'scheduledtask', id: 'sched_123', title: 'Renamed Task' }])
-  })
-
-  it('does not auto-open for read-only manage_scheduled_task operations', () => {
-    expect(
-      extractResourcesFromToolResult(
-        'manage_scheduled_task',
-        { operation: 'list' },
-        { jobs: [], count: 0 }
-      )
-    ).toEqual([])
-    expect(
-      extractResourcesFromToolResult(
-        'manage_scheduled_task',
-        { operation: 'get', args: { jobId: 'sched_123' } },
-        { id: 'sched_123', title: 'Daily Report' }
-      )
-    ).toEqual([])
-  })
 })
 
 describe('extractDeletedResourcesFromToolResult', () => {
@@ -193,7 +156,7 @@ describe('extractDeletedResourcesFromToolResult', () => {
             { from: 'workflows/Lead%20Router', kind: 'workflow', id: 'wf-1' },
             { from: 'workflows/Old%20Projects', kind: 'workflow_folder', id: 'wfolder-1' },
             { from: 'tables/Leads', kind: 'table', id: 'tbl-1' },
-            { from: 'knowledgebases/support-docs', kind: 'knowledge_base', id: 'kb-1' },
+            { from: 'knowledgebases/support-docs', kind: 'manage_knowledge_base', id: 'kb-1' },
             { from: 'files/missing.md', kind: 'file', error: 'Not found: files/missing.md' },
           ],
         }
@@ -218,10 +181,10 @@ describe('extractDeletedResourcesFromToolResult', () => {
     ).toEqual([{ type: 'table', id: 'table-1', title: 'Table' }])
   })
 
-  it('extracts deleted knowledge bases from knowledge_base result data', () => {
+  it('extracts deleted knowledge bases from manage_knowledge_base result data', () => {
     expect(
       extractDeletedResourcesFromToolResult(
-        'knowledge_base',
+        'manage_knowledge_base',
         { operation: 'delete', args: { knowledgeBaseIds: ['kb-1'] } },
         {
           success: true,
@@ -229,28 +192,5 @@ describe('extractDeletedResourcesFromToolResult', () => {
         }
       )
     ).toEqual([{ type: 'knowledgebase', id: 'kb-1', title: 'Docs' }])
-  })
-
-  it('removes scheduledtask resources on manage_scheduled_task delete', () => {
-    const resources = extractDeletedResourcesFromToolResult(
-      'manage_scheduled_task',
-      { operation: 'delete', args: { jobIds: ['sched_1', 'sched_2'] } },
-      { deleted: ['sched_1', 'sched_2'], notFound: [] }
-    )
-
-    expect(resources).toEqual([
-      { type: 'scheduledtask', id: 'sched_1', title: 'Scheduled Task' },
-      { type: 'scheduledtask', id: 'sched_2', title: 'Scheduled Task' },
-    ])
-  })
-
-  it('does not remove anything for non-delete manage_scheduled_task ops', () => {
-    expect(
-      extractDeletedResourcesFromToolResult(
-        'manage_scheduled_task',
-        { operation: 'update', args: { jobId: 'sched_1' } },
-        { jobId: 'sched_1', updated: ['title'] }
-      )
-    ).toEqual([])
   })
 })

@@ -23,3 +23,13 @@ export const folderNavUrlKeys = {
   history: 'push',
   clearOnDefault: true,
 } as const
+
+/**
+ * Href of a foldered list page opened at `folderId`, or of its workspace root when `null`.
+ *
+ * Lives here so a hand-built link cannot drift from {@link folderNavParsers} on the wire key.
+ */
+export function folderListHref(listPath: string, folderId: string | null): string {
+  if (!folderId) return listPath
+  return `${listPath}?${new URLSearchParams({ folderId })}`
+}

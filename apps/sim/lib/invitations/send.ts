@@ -12,7 +12,7 @@ import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import {
   getEmailSubject,
   renderBatchInvitationEmail,
@@ -22,7 +22,7 @@ import {
 } from '@/components/emails'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
-import { computeInvitationExpiry } from '@/lib/invitations/core'
+import { computeInvitationExpiry, lockInvitationForMutation } from '@/lib/invitations/core'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
@@ -44,6 +44,17 @@ export interface CreatePendingInvitationInput {
   role: 'admin' | 'member'
   grants: WorkspaceGrantInput[]
   expiresAt?: Date
+  /**
+   * Runs after the canonical invitation/workspace advisory locks are held and
+   * the live organization scope has been resolved, but before any invitation
+   * write. Callers use this DB-only hook to acquire organization/user locks
+   * and re-authorize stale preflight decisions.
+   */
+  validateLockedContext?: (context: {
+    tx: DbOrTx
+    organizationId: string | null
+    workspaceIds: string[]
+  }) => Promise<void>
 }
 
 export interface CreatePendingInvitationResult {
@@ -61,6 +72,14 @@ export interface CreatePendingInvitationResult {
   addedWorkspaceIds: string[]
   /** Every workspace the invitation now grants, oldest grant first. */
   grants: WorkspaceGrantInput[]
+  /**
+   * Optimistic revision for failed-send compensation. A workspace move,
+   * acceptance, PATCH, or other later mutation changes this timestamp, causing
+   * compensation to skip rather than undo newer state.
+   */
+  mutationUpdatedAt: Date
+  /** Scope paired with the revision so a migrated pending invite is never undone. */
+  mutationOrganizationId: string | null
 }
 
 /**
@@ -69,7 +88,7 @@ export interface CreatePendingInvitationResult {
  * person per organization, which is what makes coalescing mandatory rather
  * than optional.
  */
-const PENDING_INVITATION_UNIQUE_INDEX = 'invitation_pending_email_org_unique'
+export const PENDING_INVITATION_UNIQUE_INDEX = 'invitation_pending_email_org_unique'
 
 /**
  * Raised when the granted workspaces changed organization between the
@@ -112,7 +131,7 @@ async function resolveInvitationOrganizationId(
   return uniqueScopes.length === 1 ? uniqueScopes[0] : input.organizationId
 }
 
-async function findPendingOrganizationInvitation(
+export async function findPendingOrganizationInvitation(
   executor: DbOrTx,
   organizationId: string,
   email: string
@@ -124,6 +143,8 @@ async function findPendingOrganizationInvitation(
       expiresAt: invitation.expiresAt,
       role: invitation.role,
       membershipIntent: invitation.membershipIntent,
+      updatedAt: invitation.updatedAt,
+      organizationId: invitation.organizationId,
     })
     .from(invitation)
     .where(
@@ -252,6 +273,7 @@ async function createOrExtendPendingInvitation(
     })
 
     const organizationId = await resolveInvitationOrganizationId(tx, input, workspaceIds)
+    await input.validateLockedContext?.({ tx, organizationId, workspaceIds })
     const existing = organizationId
       ? await findPendingOrganizationInvitation(tx, organizationId, email)
       : null
@@ -297,6 +319,8 @@ async function createOrExtendPendingInvitation(
       created: true,
       addedWorkspaceIds: workspaceIds,
       grants: input.grants,
+      mutationUpdatedAt: now,
+      mutationOrganizationId: organizationId,
     }
   })
 }
@@ -318,6 +342,8 @@ async function extendPendingInvitation(
       expiresAt: Date
       role: string
       membershipIntent: InvitationMembershipIntent
+      updatedAt: Date
+      organizationId: string | null
     }
     input: CreatePendingInvitationInput
     expiresAt: Date
@@ -381,6 +407,8 @@ async function extendPendingInvitation(
     created: false,
     addedWorkspaceIds: addedGrants.map((grant) => grant.workspaceId),
     grants: [...existingGrants, ...addedGrants],
+    mutationUpdatedAt: addedGrants.length > 0 ? now : existing.updatedAt,
+    mutationOrganizationId: existing.organizationId,
   }
 }
 
@@ -392,31 +420,49 @@ async function extendPendingInvitation(
 export async function revertPendingInvitationGrants(params: {
   invitationId: string
   workspaceIds: string[]
-}): Promise<void> {
-  if (params.workspaceIds.length === 0) return
+  expectedUpdatedAt: Date
+  expectedOrganizationId: string | null
+}): Promise<boolean> {
+  if (params.workspaceIds.length === 0) return false
 
-  await db
-    .delete(invitationWorkspaceGrant)
-    .where(
-      and(
-        eq(invitationWorkspaceGrant.invitationId, params.invitationId),
-        inArray(invitationWorkspaceGrant.workspaceId, params.workspaceIds)
-      )
-    )
-}
+  return db.transaction(async (tx) => {
+    const locked = await lockInvitationForMutation(tx, params.invitationId)
+    if (
+      !locked ||
+      locked.status !== 'pending' ||
+      locked.organizationId !== params.expectedOrganizationId ||
+      locked.updatedAt.getTime() !== params.expectedUpdatedAt.getTime()
+    ) {
+      return false
+    }
 
-async function countPendingInvitationsForOrganization(organizationId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(invitation)
-    .where(
-      and(
-        eq(invitation.organizationId, organizationId),
-        eq(invitation.status, 'pending'),
-        ne(invitation.membershipIntent, 'external')
+    const now = new Date()
+    const claimed = await tx
+      .update(invitation)
+      .set({ updatedAt: now })
+      .where(
+        and(
+          eq(invitation.id, params.invitationId),
+          eq(invitation.status, 'pending'),
+          eq(invitation.updatedAt, params.expectedUpdatedAt),
+          params.expectedOrganizationId
+            ? eq(invitation.organizationId, params.expectedOrganizationId)
+            : sql`${invitation.organizationId} IS NULL`
+        )
       )
-    )
-  return row?.count ?? 0
+      .returning({ id: invitation.id })
+    if (claimed.length === 0) return false
+
+    await tx
+      .delete(invitationWorkspaceGrant)
+      .where(
+        and(
+          eq(invitationWorkspaceGrant.invitationId, params.invitationId),
+          inArray(invitationWorkspaceGrant.workspaceId, params.workspaceIds)
+        )
+      )
+    return true
+  })
 }
 
 /**
@@ -444,11 +490,44 @@ export async function findPendingGrantWorkspaceIds(params: {
   return new Set(rows.map((row) => row.workspaceId))
 }
 
-export async function cancelPendingInvitation(invitationId: string): Promise<void> {
-  await db
-    .update(invitation)
-    .set({ status: 'cancelled', updatedAt: new Date() })
-    .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending')))
+export async function cancelPendingInvitation(
+  invitationId: string,
+  guard?: {
+    expectedUpdatedAt: Date
+    expectedOrganizationId: string | null
+  }
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const locked = await lockInvitationForMutation(tx, invitationId)
+    if (!locked || locked.status !== 'pending') return false
+    if (
+      guard &&
+      (locked.organizationId !== guard.expectedOrganizationId ||
+        locked.updatedAt.getTime() !== guard.expectedUpdatedAt.getTime())
+    ) {
+      return false
+    }
+
+    const cancelled = await tx
+      .update(invitation)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(
+        and(
+          eq(invitation.id, invitationId),
+          eq(invitation.status, 'pending'),
+          ...(guard
+            ? [
+                eq(invitation.updatedAt, guard.expectedUpdatedAt),
+                guard.expectedOrganizationId
+                  ? eq(invitation.organizationId, guard.expectedOrganizationId)
+                  : sql`${invitation.organizationId} IS NULL`,
+              ]
+            : [])
+        )
+      )
+      .returning({ id: invitation.id })
+    return cancelled.length > 0
+  })
 }
 
 export interface SendInvitationEmailInput {
@@ -584,7 +663,7 @@ export interface SendWorkspaceAddedEmailInput {
 export async function sendWorkspaceAddedEmail(
   input: SendWorkspaceAddedEmailInput
 ): Promise<SendInvitationEmailResult> {
-  const workspaceLink = `${getBaseUrl()}/workspace/${input.workspaceId}/home`
+  const workspaceLink = `${getBaseUrl()}/workspace/${input.workspaceId}`
   const emailHtml = await renderWorkspaceAddedEmail(
     input.inviterName,
     input.workspaceName,

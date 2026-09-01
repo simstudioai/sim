@@ -80,7 +80,16 @@ async function assertAtlassianResponseOk(
 export async function validateAtlassianServiceAccount(
   apiToken: string,
   domain: string
-): Promise<{ accountId: string; displayName: string; cloudId: string }> {
+): Promise<{
+  accountId: string
+  displayName: string
+  cloudId: string
+  /**
+   * Only present when the site's profile-visibility settings expose it to the
+   * calling token; absence is never a validation failure.
+   */
+  emailAddress?: string
+}> {
   assertAtlassianCloudHost(domain)
 
   const tenantInfoRes = await fetch(`https://${domain}/_edge/tenant_info`, {
@@ -123,5 +132,6 @@ export async function validateAtlassianServiceAccount(
     accountId: myself.accountId,
     displayName: myself.displayName || myself.emailAddress || domain,
     cloudId,
+    ...(myself.emailAddress ? { emailAddress: myself.emailAddress } : {}),
   }
 }

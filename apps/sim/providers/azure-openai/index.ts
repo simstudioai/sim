@@ -5,6 +5,7 @@ import { AzureOpenAI } from 'openai'
 import type {
   ChatCompletion,
   ChatCompletionContentPart,
+  ChatCompletionCreateParams,
   ChatCompletionCreateParamsBase,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
@@ -28,6 +29,7 @@ import {
 } from '@/providers/azure-openai/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
@@ -43,11 +45,14 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
+
+/** `verbosity` narrowed from `string` to a literal union in openai v5. */
+type ChatCompletionVerbosity = NonNullable<ChatCompletionCreateParams['verbosity']>
 
 const logger = createLogger('AzureOpenAIProvider')
 
@@ -138,7 +143,7 @@ async function executeChatCompletionsRequest(
   if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto')
     payload.reasoning_effort = request.reasoningEffort as ReasoningEffort
   if (request.verbosity !== undefined && request.verbosity !== 'auto')
-    payload.verbosity = request.verbosity
+    payload.verbosity = request.verbosity as ChatCompletionVerbosity
 
   if (request.responseFormat) {
     payload.response_format = {
@@ -270,7 +275,7 @@ async function executeChatCompletionsRequest(
     enrichLastModelSegmentFromChatCompletions(
       timeSegments,
       currentResponse,
-      currentResponse.choices[0]?.message?.tool_calls,
+      currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
       { model: request.model, provider: 'azure_openai' }
     )
 
@@ -289,7 +294,8 @@ async function executeChatCompletionsRequest(
         content = currentResponse.choices[0].message.content
       }
 
-      const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+      const toolCallsInResponse =
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
       if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
         break
       }
@@ -325,17 +331,27 @@ async function executeChatCompletionsRequest(
             }
           }
 
-          const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-          const result = await executeTool(toolName, executionParams, {
-            signal: request.abortSignal,
-          })
+          const { toolParams, executionParams } = prepareToolExecution(
+            tool,
+            toolArgs,
+            request,
+            toolCall.id
+          )
+          const { rawResponse, modelResponse } = await executeProviderTool(
+            toolName,
+            executionParams,
+            {
+              signal: request.abortSignal,
+            }
+          )
           const toolCallEndTime = Date.now()
 
           return {
             toolCall,
             toolName,
             toolParams,
-            result,
+            result: rawResponse,
+            modelResult: modelResponse,
             startTime: toolCallStartTime,
             endTime: toolCallEndTime,
             duration: toolCallEndTime - toolCallStartTime,
@@ -381,6 +397,8 @@ async function executeChatCompletionsRequest(
       for (const executionResult of executionResults) {
         const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
           executionResult
+        const modelResult =
+          'modelResult' in executionResult ? (executionResult.modelResult ?? result) : result
 
         timeSegments.push({
           type: 'tool',
@@ -403,6 +421,13 @@ async function executeChatCompletionsRequest(
             tool: toolName,
           }
         }
+        const modelResultContent = modelResult.success
+          ? (modelResult.output ?? null)
+          : {
+              error: true,
+              message: modelResult.error || 'Tool execution failed',
+              tool: toolName,
+            }
 
         toolCalls.push({
           name: toolName,
@@ -417,7 +442,7 @@ async function executeChatCompletionsRequest(
         currentMessages.push({
           role: 'tool',
           tool_call_id: toolCall.id,
-          content: JSON.stringify(resultContent),
+          content: JSON.stringify(modelResultContent),
         })
       }
 
@@ -474,7 +499,7 @@ async function executeChatCompletionsRequest(
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
         currentResponse,
-        currentResponse.choices[0]?.message?.tool_calls,
+        currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: 'azure_openai' }
       )
 
@@ -495,7 +520,7 @@ async function executeChatCompletionsRequest(
 
     if (
       iterationCount === MAX_TOOL_ITERATIONS &&
-      currentResponse.choices[0]?.message?.tool_calls?.length
+      currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)?.length
     ) {
       /**
        * The capped turn still requests tools, so make one tool-disabled call to
@@ -531,7 +556,7 @@ async function executeChatCompletionsRequest(
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
         synthesisResponse,
-        synthesisResponse.choices[0]?.message?.tool_calls,
+        synthesisResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
         { model: request.model, provider: 'azure_openai' }
       )
     }
@@ -649,7 +674,11 @@ export const azureOpenAIProvider: ProviderConfig = {
 
     let pinnedFetch: typeof fetch | undefined
     if (userProvidedEndpoint) {
-      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'azureEndpoint')
+      const validation = await validateUrlWithDNS(
+        userProvidedEndpoint,
+        'azureEndpoint',
+        'configuredEndpoint'
+      )
       if (!validation.isValid) {
         logger.warn('Blocked SSRF attempt via azureEndpoint', {
           endpoint: userProvidedEndpoint,
@@ -657,10 +686,7 @@ export const azureOpenAIProvider: ProviderConfig = {
         })
         throw new Error(`Invalid Azure OpenAI endpoint: ${validation.error}`)
       }
-      if (!validation.resolvedIP) {
-        throw new Error('Invalid Azure OpenAI endpoint: could not resolve a pinnable IP address')
-      }
-      pinnedFetch = createPinnedFetch(validation.resolvedIP)
+      pinnedFetch = createPinnedFetch(validation.resolvedIP, { profile: 'configuredEndpoint' })
     }
 
     const apiKey = request.apiKey

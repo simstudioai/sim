@@ -1,33 +1,33 @@
 import { createLogger } from '@sim/logger'
 import { enrichTableToolDescription, enrichTableToolParameters } from '@/lib/table/llm/enrichment'
 import type { TableSummary } from '@/lib/table/types'
+import type { WorkflowToolExecutionContext } from '@/tools/types'
 
 const logger = createLogger('SchemaEnrichers')
 
-async function fetchTableSchema(tableId: string): Promise<TableSummary | null> {
-  try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
-
-    const headers = await buildAuthHeaders()
-    const url = buildAPIUrl(`/api/table/${tableId}/schema`)
-
-    const response = await fetch(url.toString(), { headers })
-    if (!response.ok) {
-      logger.warn(`Failed to fetch table schema for ${tableId}: ${response.status}`)
-      return null
-    }
-
-    const result = await response.json()
-    const data = result.data || result
-
-    return {
-      name: data.name || 'Table',
-      columns: data.columns || [],
-    }
-  } catch (error) {
-    logger.error('Failed to fetch table schema:', error)
-    return null
+/** Reads a table schema through the authorized table application operation. */
+async function fetchTableSchema(
+  tableId: string,
+  context: WorkflowToolExecutionContext
+): Promise<TableSummary> {
+  if (!context.workflowId) {
+    throw new Error(`Workflow ID is required to enrich table tool schema for ${tableId}`)
   }
+  if (!context.executorDelegationOrigin) {
+    throw new Error(`Execution authority is required to enrich table tool schema for ${tableId}`)
+  }
+
+  const { readTableSchemaAsExecutor } = await import('@/lib/internal/table/read-schema')
+  return readTableSchemaAsExecutor({
+    tableId,
+    context: {
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      executionId: context.executionId,
+      userId: context.userId,
+      executorDelegationOrigin: context.executorDelegationOrigin,
+    },
+  })
 }
 
 export async function enrichTableToolSchema(
@@ -38,7 +38,8 @@ export async function enrichTableToolSchema(
     properties: Record<string, unknown>
     required: string[]
   },
-  originalDescription: string
+  originalDescription: string,
+  context: WorkflowToolExecutionContext
 ): Promise<{
   description: string
   parameters: {
@@ -46,12 +47,8 @@ export async function enrichTableToolSchema(
     properties: Record<string, unknown>
     required: string[]
   }
-} | null> {
-  const tableSchema = await fetchTableSchema(tableId)
-
-  if (!tableSchema) {
-    return null
-  }
+}> {
+  const tableSchema = await fetchTableSchema(tableId, context)
 
   const enrichedDescription = enrichTableToolDescription(originalDescription, tableSchema, toolId)
   const enrichedParams = enrichTableToolParameters(
@@ -92,26 +89,39 @@ function mapFieldTypeToSchemaType(fieldType: string): string {
   }
 }
 
-/**
- * Fetches tag definitions from knowledge base
- */
-async function fetchTagDefinitions(knowledgeBaseId: string): Promise<TagDefinition[]> {
+/** Reads tag definitions through the authorized knowledge application operation. */
+async function fetchTagDefinitions(
+  knowledgeBaseId: string,
+  context: WorkflowToolExecutionContext
+): Promise<TagDefinition[]> {
+  if (!context.executorDelegationOrigin) {
+    logger.warn(
+      `Skipping tag definition enrichment for KB ${knowledgeBaseId}: no execution authority`
+    )
+    return []
+  }
+  if (!context.workflowId) {
+    logger.warn(`Skipping tag definition enrichment for KB ${knowledgeBaseId}: no acting workflow`)
+    return []
+  }
+  if (!context.workspaceId) {
+    logger.warn(`Skipping tag definition enrichment for KB ${knowledgeBaseId}: no workspace`)
+    return []
+  }
+
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
-
-    const headers = await buildAuthHeaders()
-    const url = buildAPIUrl(`/api/knowledge/${knowledgeBaseId}/tag-definitions`)
-
-    logger.info(`Fetching tag definitions for KB ${knowledgeBaseId} from ${url.toString()}`)
-
-    const response = await fetch(url.toString(), { headers })
-    if (!response.ok) {
-      logger.warn(`Failed to fetch tag definitions for KB ${knowledgeBaseId}: ${response.status}`)
-      return []
-    }
-
-    const result = await response.json()
-    const tagDefinitions = result.data || []
+    const { listKnowledgeTagsAsExecutor } = await import('@/lib/internal/knowledge/list-tags')
+    const tagDefinitions = await listKnowledgeTagsAsExecutor({
+      knowledgeBaseId,
+      workspaceId: context.workspaceId,
+      context: {
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        executionId: context.executionId,
+        userId: context.userId,
+        executorDelegationOrigin: context.executorDelegationOrigin,
+      },
+    })
     logger.info(`Found ${tagDefinitions.length} tag definitions for KB ${knowledgeBaseId}`)
     return tagDefinitions
   } catch (error) {
@@ -124,13 +134,16 @@ async function fetchTagDefinitions(knowledgeBaseId: string): Promise<TagDefiniti
  * Fetches KB tag definitions and builds a schema for LLM consumption.
  * Returns an object schema where each property is a tag the LLM can set.
  */
-export async function enrichKBTagsSchema(knowledgeBaseId: string): Promise<{
+export async function enrichKBTagsSchema(
+  knowledgeBaseId: string,
+  context: WorkflowToolExecutionContext
+): Promise<{
   type: string
   properties?: Record<string, { type: string; description?: string }>
   description?: string
   required?: string[]
 } | null> {
-  const tagDefinitions = await fetchTagDefinitions(knowledgeBaseId)
+  const tagDefinitions = await fetchTagDefinitions(knowledgeBaseId, context)
 
   if (tagDefinitions.length === 0) {
     return null
@@ -160,12 +173,15 @@ export async function enrichKBTagsSchema(knowledgeBaseId: string): Promise<{
  * Fetches KB tag definitions and builds a schema for tag filters.
  * Returns an array schema where each item is a filter with tagName and tagValue.
  */
-export async function enrichKBTagFiltersSchema(knowledgeBaseId: string): Promise<{
+export async function enrichKBTagFiltersSchema(
+  knowledgeBaseId: string,
+  context: WorkflowToolExecutionContext
+): Promise<{
   type: string
   items?: Record<string, unknown>
   description?: string
 } | null> {
-  const tagDefinitions = await fetchTagDefinitions(knowledgeBaseId)
+  const tagDefinitions = await fetchTagDefinitions(knowledgeBaseId, context)
 
   if (tagDefinitions.length === 0) {
     return null

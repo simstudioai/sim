@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceDeleteBlogPostParams {
   accessToken: string
@@ -17,7 +17,7 @@ export interface ConfluenceDeleteBlogPostResponse {
   }
 }
 
-export const confluenceDeleteBlogPostTool: ToolConfig<
+export const confluenceDeleteBlogPostTool: InternalToolConfig<
   ConfluenceDeleteBlogPostParams,
   ConfluenceDeleteBlogPostResponse
 > = {
@@ -53,21 +53,14 @@ export const confluenceDeleteBlogPostTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    url: () => '/api/tools/confluence/blogposts',
-    method: 'DELETE',
-    headers: (params: ConfluenceDeleteBlogPostParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceDeleteBlogPostParams) => ({
+  operation: {
+    input: (params: ConfluenceDeleteBlogPostParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

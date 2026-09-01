@@ -8,8 +8,8 @@ import {
   clearLargeValueCacheForTests,
   materializeLargeValueRefSync,
 } from '@/lib/execution/payloads/cache'
+import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/limits'
 import {
-  MAX_DURABLE_LARGE_VALUE_BYTES,
   readLargeValueRefFromStorage,
   readUserFileContent,
 } from '@/lib/execution/payloads/materialization.server'

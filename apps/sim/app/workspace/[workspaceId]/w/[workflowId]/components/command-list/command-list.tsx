@@ -2,8 +2,8 @@
 
 import { useCallback } from 'react'
 import { Button, cn, handleKeyboardActivation, Library } from '@sim/emcn'
+import { Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { Search } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { AgentIcon } from '@/components/icons'
@@ -18,7 +18,7 @@ const logger = createLogger('WorkflowCommandList')
 interface CommandItem {
   /** Display label for the command */
   label: string
-  /** Icon component from lucide-react */
+  /** Icon component rendered beside the label */
   icon: React.ComponentType<{ className?: string }>
   /** Keyboard shortcut keys (can be single or array for multiple keys) */
   shortcut: string | string[]
@@ -200,7 +200,7 @@ export function CommandList() {
               {/* Left side: Icon and Label */}
               <div className='flex items-center gap-2'>
                 <Icon className='size-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]' />
-                <span className='font-medium text-[var(--text-tertiary)] text-sm group-hover:text-[var(--text-primary)]'>
+                <span className='text-[var(--text-tertiary)] text-sm group-hover:text-[var(--text-primary)]'>
                   {command.label}
                 </span>
               </div>

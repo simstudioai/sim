@@ -67,6 +67,15 @@ describe('GET /api/files/public/[token]/inline', () => {
     expect(res.headers.get('content-type')).toBe('image/png')
   })
 
+  it('serves an image whose id is percent-encoded in the document', async () => {
+    mockDownloadFile.mockImplementation(downloadByKey('![a](/api/files/view/wf%5Fabc)'))
+
+    const res = await GET(req('fileId=wf%5Fabc'), params)
+
+    expect(res.status).toBe(200)
+    expect(mockResolveImage).toHaveBeenCalledWith('ws-1', { fileId: 'wf_abc' })
+  })
+
   it('serves a key-referenced image', async () => {
     mockDownloadFile.mockImplementation(
       downloadByKey(`![a](/api/files/serve/${encodeURIComponent(IMG_KEY)}?context=workspace)`)

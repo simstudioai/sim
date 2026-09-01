@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { sendToProfound } from './lib/analytics/profound'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
@@ -15,13 +14,48 @@ export interface CorsPolicy {
   credentials: boolean
   methods: string
   headers: string
+  /** Response headers a browser client may read; omitted leaves the CORS default. */
+  exposeHeaders?: string
 }
+
+/**
+ * Every method the `/api` surface actually answers, for the default CORS policy.
+ *
+ * Hand-written rather than derived from the contract registry because this
+ * module is edge middleware: importing `lib/api/contracts` would pull Zod and
+ * the whole contract tree into the middleware bundle. Nothing enforces the
+ * correspondence — the per-route `CORS_RULES` entries below are unenforced the
+ * same way — so a contract that introduces a new method must add it here in the
+ * same change. This list previously omitted `PATCH` while 17 v2 operations used
+ * it, so a browser preflight for any of them failed.
+ *
+ * `HEAD` is included because Next answers it from each route's `GET` handler,
+ * which the route builders permit via `methodMatchesContract`.
+ */
+const DEFAULT_API_ALLOWED_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS'
+
+/**
+ * Response headers the `/api` surface sets that a browser client must be able to read.
+ *
+ * Without `Access-Control-Expose-Headers` a browser can read only the six
+ * CORS-safelisted response headers, so everything here is on the wire but
+ * invisible to `fetch()` — the rate-limit budget, the retry delay a 429 or 503
+ * asks the caller to observe, and the ids needed to correlate a run or a support
+ * report. Server-to-server callers are unaffected, which is why the gap is easy
+ * to miss.
+ */
+const DEFAULT_API_EXPOSED_HEADERS =
+  'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
 
 const DEFAULT_API_ALLOWED_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
 
 const WORKFLOW_EXECUTE_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Execution-Id'
+  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Execution-Id, X-Execution-Mode, X-Execution-Timeout-Seconds'
+
+/** v2 execute: run identity and modes use the v2 wire names while streaming negotiates its protocol. */
+const WORKFLOW_EXECUTE_V2_HEADERS =
+  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Run-Id, X-Sim-Stream-Protocol'
 
 /** Subpaths under /api/chat/* that serve the workspace UI, not embeds. */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
@@ -82,19 +116,44 @@ const CORS_RULES: readonly CorsRule[] = [
       headers: WORKFLOW_EXECUTE_HEADERS,
     }),
   },
+  {
+    // Mirrors the v1 rule: public execute endpoints are wildcard-origin and
+    // credential-free — the default credentialed policy would both block
+    // browser API-key calls and open a cookie-bearing CSRF surface.
+    match: (p) => /^\/api\/v2\/workflows\/[^/]+\/execute$/.test(p),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'POST,OPTIONS',
+      headers: WORKFLOW_EXECUTE_V2_HEADERS,
+    }),
+  },
 ]
 
-/** Single source of truth for /api/* CORS — resolved at request time, not baked at build. */
+/**
+ * Single source of truth for /api/* CORS — resolved at request time, not baked at build.
+ *
+ * The exposed-header list is applied to every policy, matched rule or fallback,
+ * because the headers it names are set by the same shared route machinery on
+ * every route. A rule opts out by spelling `exposeHeaders: undefined`; carrying
+ * the list per rule instead is how `/api/v2/workflows/{workflowId}/execute` — the only
+ * route that emits `X-Run-Id`, and wildcard-origin precisely so browsers can
+ * call it — ended up unable to hand a browser the run id or a 429's
+ * `Retry-After`.
+ */
 export function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
   const { pathname } = request.nextUrl
   for (const rule of CORS_RULES) {
-    if (rule.match(pathname)) return rule.policy(request)
+    if (rule.match(pathname)) {
+      return { exposeHeaders: DEFAULT_API_EXPOSED_HEADERS, ...rule.policy(request) }
+    }
   }
   return {
     origin: getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3001',
     credentials: true,
-    methods: 'GET,POST,OPTIONS,PUT,DELETE',
+    methods: DEFAULT_API_ALLOWED_METHODS,
     headers: DEFAULT_API_ALLOWED_HEADERS,
+    exposeHeaders: DEFAULT_API_EXPOSED_HEADERS,
   }
 }
 
@@ -105,6 +164,9 @@ function applyCorsHeaders(response: NextResponse, policy: CorsPolicy): void {
   response.headers.set('Access-Control-Allow-Credentials', String(policy.credentials))
   response.headers.set('Access-Control-Allow-Methods', policy.methods)
   response.headers.set('Access-Control-Allow-Headers', policy.headers)
+  if (policy.exposeHeaders) {
+    response.headers.set('Access-Control-Expose-Headers', policy.exposeHeaders)
+  }
   if (policy.origin !== '*') {
     response.headers.set('Vary', 'Origin')
   }
@@ -253,40 +315,40 @@ export async function proxy(request: NextRequest) {
   const hasActiveSession = isAuthDisabled || !!sessionCookie
 
   const redirect = handleRootPathRedirects(request, hasActiveSession)
-  if (redirect) return track(request, redirect)
+  if (redirect) return applyIndexingPolicy(request, redirect)
 
   if (url.pathname === '/login' || url.pathname === '/signup') {
     if (hasActiveSession) {
-      return track(request, NextResponse.redirect(new URL('/workspace', request.url)))
+      return applyIndexingPolicy(request, NextResponse.redirect(new URL('/workspace', request.url)))
     }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
-    return track(request, response)
+    return applyIndexingPolicy(request, response)
   }
 
   // Chat pages are publicly accessible embeds — CSP is set in next.config.ts headers
   if (url.pathname.startsWith('/chat/')) {
-    return track(request, NextResponse.next())
+    return applyIndexingPolicy(request, NextResponse.next())
   }
 
   if (url.pathname.startsWith('/workspace')) {
     if (!hasActiveSession) {
-      return track(request, NextResponse.redirect(new URL('/login', request.url)))
+      return applyIndexingPolicy(request, NextResponse.redirect(new URL('/login', request.url)))
     }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
-    return track(request, response)
+    return applyIndexingPolicy(request, response)
   }
 
   const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
-  if (invitationRedirect) return track(request, invitationRedirect)
+  if (invitationRedirect) return applyIndexingPolicy(request, invitationRedirect)
 
   const securityBlock = handleSecurityFiltering(request)
-  if (securityBlock) return track(request, securityBlock)
+  if (securityBlock) return applyIndexingPolicy(request, securityBlock)
 
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
@@ -295,7 +357,7 @@ export async function proxy(request: NextRequest) {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')
 
-  return track(request, response)
+  return applyIndexingPolicy(request, response)
 }
 
 /**
@@ -307,7 +369,7 @@ export async function proxy(request: NextRequest) {
  * the index. robots.txt is excluded from this proxy's matcher so it keeps
  * serving the crawlable rules this header depends on.
  */
-function applyIndexingPolicy(request: NextRequest, response: NextResponse): void {
+function applyIndexingPolicy(request: NextRequest, response: NextResponse): NextResponse {
   const host =
     request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
     request.headers.get('host') ||
@@ -316,14 +378,7 @@ function applyIndexingPolicy(request: NextRequest, response: NextResponse): void
   if (isNonCanonicalSimHost(host)) {
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')
   }
-}
 
-/**
- * Sends request data to Profound analytics (fire-and-forget) and returns the response.
- */
-function track(request: NextRequest, response: NextResponse): NextResponse {
-  applyIndexingPolicy(request, response)
-  sendToProfound(request, response.status)
   return response
 }
 

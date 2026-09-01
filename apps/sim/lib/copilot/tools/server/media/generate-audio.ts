@@ -1,17 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import {
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
 import { GenerateAudio } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/copilot/tools/server/model-input'
+import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type AudioType, generateFalAudio } from '@/lib/media/falai-audio'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
 const logger = createLogger('GenerateAudioTool')
 
@@ -80,20 +85,30 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       }
     }
 
-    // Voice cloning: a reference sample clones that voice into the generated speech.
-    let voiceSampleDataUri: string | undefined
-    const samplePath = params.inputs?.files?.[0]?.path
-    if (samplePath) {
-      const sample = await resolveWorkspaceFileReference(workspaceId, samplePath)
-      if (!sample) {
-        return { success: false, message: `Voice sample not found: ${samplePath}` }
-      }
-      const sampleBuffer = await fetchWorkspaceFileBuffer(sample)
-      const sampleMime = sample.type || 'audio/mpeg'
-      voiceSampleDataUri = `data:${sampleMime};base64,${sampleBuffer.toString('base64')}`
-    }
-
     try {
+      // Voice cloning: a reference sample clones that voice into the generated speech.
+      let voiceSampleDataUri: string | undefined
+      const samplePath = params.inputs?.files?.[0]?.path
+      if (samplePath) {
+        const sample = await resolveCopilotWorkspaceFileReference(
+          context,
+          fileOperations.readContent,
+          {
+            workspaceId,
+            reference: samplePath,
+          }
+        )
+        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: sample })
+        const { content: sampleBuffer } = await executeCopilotFileUseCase(
+          context,
+          readWorkspaceFileContent,
+          { fileId: sample.id, assertedWorkspaceId: workspaceId, maxBytes: MAX_MEDIA_BYTES },
+          { fileId: sample.id }
+        )
+        const sampleMime = sample.type || 'audio/mpeg'
+        voiceSampleDataUri = `data:${sampleMime};base64,${sampleBuffer.toString('base64')}`
+      }
+
       logger.info('Generating audio', {
         type,
         model: params.model,
@@ -118,12 +133,21 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
-      const written = await writeWorkspaceFileByPath({
+      // The prompt is the only secret-bearing input; recording its provenance
+      // keeps the written file model-readable (see generate-image).
+      const promptProvenance = await createWorkspaceFileSecretProvenanceFromRegistry(
+        context.resolvedSecretTraceRegistry,
+        params.prompt,
+        { userId: context.userId, workspaceId }
+      )
+      const written = await writeCopilotWorkspaceFileByPath(context, {
         workspaceId,
-        userId: context.userId,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,
+        secretProvenance: promptProvenance.safe
+          ? promptProvenance.provenance
+          : { status: 'unknown' },
       })
 
       logger.info('Generated audio saved', {

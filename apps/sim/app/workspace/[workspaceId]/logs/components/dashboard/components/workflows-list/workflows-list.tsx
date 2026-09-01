@@ -1,8 +1,8 @@
 import { memo } from 'react'
 import { cn, handleKeyboardActivation } from '@sim/emcn'
 import { Workflow } from '@sim/emcn/icons'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
-import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { StatusBar, type StatusBarSegment } from '..'
 
 export interface WorkflowExecutionItem {
@@ -30,11 +30,11 @@ function WorkflowsListInner({
       {/* Table header */}
       <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-6 py-2.5 dark:bg-[var(--surface-3)]'>
         <div className='flex items-center gap-4'>
-          <span className='w-[160px] flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+          <span className='w-[160px] flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
             Workflow
           </span>
-          <span className='flex-1 font-medium text-[var(--text-tertiary)] text-caption'>Logs</span>
-          <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-[var(--text-tertiary)] text-caption'>
+          <span className='flex-1 text-[var(--text-tertiary)] text-caption'>Logs</span>
+          <span className='w-[100px] flex-shrink-0 pl-4 text-[var(--text-tertiary)] text-caption'>
             Success Rate
           </span>
         </div>
@@ -81,7 +81,7 @@ function WorkflowsListInner({
                     <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                     <FloatingOverflowText
                       label={workflow.workflowName}
-                      className='block truncate font-medium text-[var(--text-primary)] text-caption'
+                      className='block truncate text-[var(--text-primary)] text-caption'
                     />
                   </div>
 
@@ -95,7 +95,7 @@ function WorkflowsListInner({
                   </div>
 
                   {/* Success rate */}
-                  <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-[var(--text-primary)] text-caption'>
+                  <span className='w-[100px] flex-shrink-0 pl-4 text-[var(--text-primary)] text-caption'>
                     {workflow.overallSuccessRate.toFixed(1)}%
                   </span>
                 </div>

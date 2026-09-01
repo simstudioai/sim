@@ -32,7 +32,6 @@ export function AuthSubmitButton({
       onClick={onClick}
       disabled={disabled || loading}
       fullWidth
-      flush
       className={AUTH_BUTTON_CLASS}
     >
       {loading ? (

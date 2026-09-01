@@ -1,14 +1,13 @@
-import type { ListListItemsParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListListItemsParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listListItemsTool: ToolConfig<ListListItemsParams, SapConcurProxyResponse> = {
+export const listListItemsTool: InternalToolConfig<ListListItemsParams, SapConcurResponse> = {
   id: 'sap_concur_list_list_items',
   name: 'SAP Concur List List Items',
   description:
@@ -88,10 +87,11 @@ export const listListItemsTool: ToolConfig<ListListItemsParams, SapConcurProxyRe
       description: 'Include only items that have children',
     },
     isDeleted: {
-      type: 'boolean',
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Include deleted items',
+      description:
+        'Filter by deletion status. Pass "true" or "false" as a string because the filter also accepts the eq operator prefix (eq:true) — eq is the only operator this filter supports.',
     },
     shortCode: {
       type: 'string',
@@ -112,14 +112,11 @@ export const listListItemsTool: ToolConfig<ListListItemsParams, SapConcurProxyRe
       description: 'Filter by short code OR value',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const listId = trimRequired(params.listId, 'listId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/list/v4/lists/${encodeURIComponent(listId)}/children`,
         method: 'GET',
         query: buildListQuery({
@@ -135,7 +132,7 @@ export const listListItemsTool: ToolConfig<ListListItemsParams, SapConcurProxyRe
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
@@ -150,6 +147,11 @@ export const listListItemsTool: ToolConfig<ListListItemsParams, SapConcurProxyRe
             type: 'json',
             properties: {
               id: { type: 'string', description: 'List item UUID', optional: true },
+              listId: {
+                type: 'string',
+                description: 'UUID of the list that contains the list item',
+                optional: true,
+              },
               code: {
                 type: 'string',
                 description: 'Long code format for the item',

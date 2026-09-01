@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import type { Session, WebContents } from 'electron'
 import { BrowserWindow, dialog } from 'electron'
+import {
+  beginAccountDataTeardown,
+  completeAccountDataTeardown,
+  waitForAccountDataMutations,
+} from '@/main/account-data-generation'
 import { isSafeInternalPath } from '@/main/config'
 import { isAuthSurfacePath, openExternalSafe } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
@@ -10,6 +16,7 @@ const logger = createLogger('DesktopSessionLifecycle')
 const SESSION_PROBE_TIMEOUT_MS = 5000
 const START_ROUTE_PROBE_TIMEOUT_MS = 1500
 const TEARDOWN_COOLDOWN_MS = 3000
+const TEARDOWN_WAIT_TIMEOUT_MS = 5000
 
 const CLEARED_STORAGES = [
   'cookies',
@@ -251,22 +258,43 @@ export async function revokeAppSession(win: BrowserWindow, origin: string): Prom
  */
 export async function tearDownSession(
   session: Session,
+  origin: string,
   clearHandoffState: () => void | Promise<void>,
   events: EventRecorder,
   clearBrowserProfile: () => Promise<void>,
   revokeSession: () => Promise<void>
 ): Promise<void> {
+  if (!beginAccountDataTeardown('account', origin)) {
+    throw new Error('Could not persist account-data recovery marker.')
+  }
   events.record('sign_out')
   // Server-side first, while the partition still holds the session cookie the
-  // revoke needs. Every step below is best-effort for the same reason the
-  // browser-profile clear is: failing to clear something is bad, failing to
-  // sign out is worse.
+  // revoke needs. Revocation remains best-effort because offline sign-out must
+  // still erase the device, but every local erasure below is fail-closed.
   await revokeSession().catch((error) => logger.error('Session revoke failed', { error }))
-  await clearHandoffState()
-  await clearBrowserProfile().catch((error) =>
-    logger.error('Browser profile teardown failed', { error })
+  await waitForAccountDataMutations()
+
+  const failures: unknown[] = []
+  const clear = async (label: string, operation: () => void | Promise<void>) => {
+    try {
+      await operation()
+    } catch (error) {
+      failures.push(error)
+      logger.error(label, { error })
+    }
+  }
+
+  await clear('Local account-state teardown failed', clearHandoffState)
+  await clear('Browser profile teardown failed', clearBrowserProfile)
+  await clear('App partition storage teardown failed', () =>
+    session.clearStorageData({ storages: [...CLEARED_STORAGES] })
   )
-  await session.clearStorageData({ storages: [...CLEARED_STORAGES] })
+  await clear('App partition cache teardown failed', () => session.clearCache())
+
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'One or more account-data stores could not be cleared.')
+  }
+  completeAccountDataTeardown()
 }
 
 export interface SessionLifecycleDeps {
@@ -286,7 +314,10 @@ export interface SessionLifecycleCoordinator {
    * the in-progress guard, and its own cookie removal then trips the cookie
    * watcher into a second concurrent teardown.
    */
-  signOut(): void
+  signOut(): Promise<boolean>
+  /** Waits for an active teardown without allowing shutdown to hang indefinitely. */
+  awaitTeardown(timeoutMs?: number): Promise<boolean>
+  isTeardownActive(): boolean
 }
 
 interface SessionLifecycleCoordinatorDeps extends SessionLifecycleDeps {
@@ -310,13 +341,17 @@ interface SessionLifecycleCoordinatorDeps extends SessionLifecycleDeps {
 export function createSessionLifecycleCoordinator(
   deps: SessionLifecycleCoordinatorDeps
 ): SessionLifecycleCoordinator {
-  let tearingDown = false
-  const runTeardown = () => {
-    if (tearingDown) return
-    tearingDown = true
+  let teardownPromise: Promise<boolean> | null = null
+  let teardownSettled = true
+  let lastTeardownSucceeded: boolean | null = null
+  const runTeardown = (): Promise<boolean> => {
+    if (teardownPromise) return teardownPromise
+    teardownSettled = false
+    lastTeardownSucceeded = null
     logger.info('Sign-out detected; clearing partition')
-    void tearDownSession(
+    const pending = tearDownSession(
       deps.appSession,
+      deps.origin(),
       deps.clearHandoffState,
       deps.events,
       deps.clearBrowserProfile,
@@ -331,19 +366,39 @@ export function createSessionLifecycleCoordinator(
         }
       }
     )
-      .catch((error) => logger.error('Session teardown failed', { error }))
-      .finally(() => {
+      .then(() => {
         for (const win of deps.getWindows()) {
           if (!win.isDestroyed()) {
             void win.loadURL(`${deps.origin()}/login`).catch(() => {})
           }
         }
+        lastTeardownSucceeded = true
+        return true
+      })
+      .catch((error) => {
+        logger.error('Session teardown failed; refusing to report a clean sign-out', { error })
+        void dialog.showMessageBox({
+          type: 'error',
+          message: 'Sim could not finish signing out',
+          detail:
+            'Some account data could not be removed from this device. Try signing out again before another account uses the app.',
+          buttons: ['OK'],
+        })
+        lastTeardownSucceeded = false
+        return false
+      })
+      .finally(() => {
+        teardownSettled = true
         // Re-arm after clearStorageData's own cookie-removal events have
         // drained, so self-induced deletions never re-trigger teardown.
         setTimeout(() => {
-          tearingDown = false
+          if (teardownPromise === pending) {
+            teardownPromise = null
+          }
         }, TEARDOWN_COOLDOWN_MS)
       })
+    teardownPromise = pending
+    return pending
   }
 
   // Robust backstop: when the better-auth session cookie is deleted by ANY
@@ -351,7 +406,7 @@ export function createSessionLifecycleCoordinator(
   // gone with a probe — so cookie rotation can't cause a false teardown — then
   // clear the partition. This closes the cross-account residue gap.
   deps.appSession.cookies.on('changed', (_event, cookie, cause, removed) => {
-    if (tearingDown || !removed || cause === 'overwrite') {
+    if (teardownPromise !== null || !removed || cause === 'overwrite') {
       return
     }
     if (!isSessionCookieName(cookie.name)) {
@@ -366,6 +421,14 @@ export function createSessionLifecycleCoordinator(
 
   return {
     signOut: runTeardown,
+    async awaitTeardown(timeoutMs = TEARDOWN_WAIT_TIMEOUT_MS) {
+      const pending = teardownPromise
+      if (!pending) return lastTeardownSucceeded !== false
+      return Promise.race([pending, sleep(timeoutMs).then(() => false)])
+    },
+    isTeardownActive() {
+      return teardownPromise !== null && !teardownSettled
+    },
     attachWindow(win) {
       const onNavigation = (url: string) => {
         if (isLogoutNavigation(url, deps.origin())) {

@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, cn, Download, Loader } from '@sim/emcn'
+import { Button, Download, Loader } from '@sim/emcn'
+import { Music } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
-import { Music } from 'lucide-react'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import type { ChatFile } from '@/app/(interfaces)/chat/components/message/message'
@@ -76,7 +76,6 @@ async function triggerDownload(url: string, filename: string): Promise<void> {
 
 export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false)
-  const [isHovered, setIsHovered] = useState(false)
 
   const handleDownload = async () => {
     if (isDownloading) return
@@ -113,10 +112,8 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
     <Button
       variant='default'
       onClick={handleDownload}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       disabled={isDownloading}
-      className='flex h-auto w-[200px] items-center gap-2 rounded-lg px-3 py-2'
+      className='group flex h-auto w-[200px] items-center gap-2 rounded-lg px-3 py-2'
     >
       <div className='flex size-8 flex-shrink-0 items-center justify-center'>{renderIcon()}</div>
       <div className='min-w-0 flex-1 text-left'>
@@ -127,9 +124,7 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
         {isDownloading ? (
           <Loader className='size-3.5' animate />
         ) : (
-          <Download
-            className={cn('size-3.5 transition-opacity', isHovered ? 'opacity-100' : 'opacity-0')}
-          />
+          <Download className='size-3.5 opacity-0 transition-opacity group-hover:opacity-100' />
         )}
       </div>
     </Button>

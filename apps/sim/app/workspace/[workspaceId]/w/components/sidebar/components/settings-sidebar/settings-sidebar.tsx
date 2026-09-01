@@ -1,14 +1,23 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChipConfirmModal, chipVariants, cn } from '@sim/emcn'
+import {
+  ChipConfirmModal,
+  chipContentIconClass,
+  chipIconSlotClass,
+  chipVariants,
+  cn,
+  OverflowText,
+} from '@sim/emcn'
+import { ChevronLeft } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import type { DesktopSettingsSurface } from '@/components/settings/navigation'
 import { ORGANIZATION_PLANE_UNIFIED_SECTIONS } from '@/components/settings/navigation'
+import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { hasBrowserAgent, hasDesktopSettings, hasTerminal } from '@/lib/desktop'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -19,19 +28,48 @@ import {
   isBillingEnabled,
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { warmSettingsSectionQuery } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-sidebar/settings-query-warmers'
+import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
 import {
+  SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+  SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
   SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-available'
-import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
-import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import { useInboxConfig } from '@/hooks/queries/inbox'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
+
+/**
+ * Sections whose JS chunk is warmed when a row receives navigation intent.
+ *
+ * Deliberately not all of them, and the reason is the boundary audit rather than bundle weight.
+ * Each section is already `dynamic()`-imported by the settings panel, so naming it here adds an
+ * async-chunk reference, not parsed JS — but `check-tool-registry-boundary` counts `import()`
+ * as a graph edge on purpose, and listing all of them measured +126..+172 modules against six of
+ * the app's hottest route baselines. Code-splitting this sidebar does not help: measured, it
+ * moves exactly one module, because the audit follows the dynamic edge either way.
+ *
+ * These six predate this map and are already inside those baselines, so warming them is free.
+ * Widening it means either raising the ratchet on the routes it exists to protect, or teaching
+ * the audit to track async reach separately from initial-chunk weight.
+ *
+ * Every section still gets its route payload warmed through {@link SettingsIntentLink}.
+ */
+const SECTION_CHUNK_WARMERS: Partial<Record<SettingsSection, () => Promise<unknown>>> = {
+  general: () => import('@/app/workspace/[workspaceId]/settings/components/general/general'),
+  secrets: () => import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets'),
+  billing: () => import('@/app/workspace/[workspaceId]/settings/components/billing/billing'),
+  desktop: () => import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop'),
+  browser: () => import('@/app/workspace/[workspaceId]/settings/components/browser/browser'),
+  terminal: () => import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal'),
+}
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
@@ -104,7 +142,7 @@ export function SettingsSidebar({
         return false
       }
 
-      if (item.id === 'billing' && !canManageWorkspaceBilling(hostContext, userId)) {
+      if (item.id === 'billing' && !canViewWorkspaceBillingSettings(hostContext, userId)) {
         return false
       }
 
@@ -128,6 +166,15 @@ export function SettingsSidebar({
         return false
       }
       if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
+        return false
+      }
+      if (
+        item.id === 'credential-groups' &&
+        (!hostContext.features?.credentialGroups || !canAdminWorkspace)
+      ) {
+        return false
+      }
+      if (item.id === 'custom-blocks' && !hostContext.hostOrganizationId) {
         return false
       }
 
@@ -209,39 +256,20 @@ export function SettingsSidebar({
     return 'general'
   }, [pathname])
 
-  const handlePrefetch = useCallback(
-    (itemId: string) => {
-      switch (itemId) {
-        case 'general':
-          prefetchGeneralSettings(queryClient)
-          void import('@/app/workspace/[workspaceId]/settings/components/general/general')
-          break
-        case 'secrets':
-          prefetchWorkspaceCredentials(queryClient, workspaceId)
-          void import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets')
-          break
-        case 'billing':
-          void import('@/app/workspace/[workspaceId]/settings/components/billing/billing')
-          break
-        case 'desktop':
-          void import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop')
-          break
-        case 'browser':
-          void import('@/app/workspace/[workspaceId]/settings/components/browser/browser')
-          break
-        case 'terminal':
-          void import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal')
-          break
-      }
-    },
-    [queryClient, workspaceId]
-  )
-
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
+
+  const handleIntent = (section: SettingsSection) => {
+    void SECTION_CHUNK_WARMERS[section]?.()
+    warmSettingsSectionQuery(
+      queryClient,
+      { workspaceId, billingOrganizationId: hostContext.hostOrganizationId },
+      section
+    )
+  }
 
   const handleBack = useCallback(() => {
     requestLeave(() => {
-      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
+      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}`))
     })
   }, [requestLeave, router, popSettingsReturnUrl, workspaceId])
 
@@ -290,15 +318,21 @@ export function SettingsSidebar({
         className={cn(
           SIDEBAR_SECTION_GAP_CLASS,
           SIDEBAR_ITEM_GAP_CLASS,
-          'flex flex-shrink-0 flex-col px-2 pb-1.5'
+          SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+          'flex flex-shrink-0 flex-col px-2'
         )}
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
-          <button type='button' onClick={handleBack} className={chipVariants({ fullWidth: true })}>
-            <div className='flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
-              <ChevronDown className='size-[10px] rotate-90' />
-            </div>
-            <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>Back</span>
+          <button
+            type='button'
+            onClick={handleBack}
+            className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
+          >
+            {/* The 16px slot every settings row gives its icon, so Back's label starts on their baseline. */}
+            <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
+              <ChevronLeft className='size-[14px]' />
+            </span>
+            <span className='sidebar-collapse-hide text-[var(--text-body)]'>Back</span>
           </button>
         </SidebarTooltip>
       </div>
@@ -307,7 +341,8 @@ export function SettingsSidebar({
       <div
         ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
-          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 transition-colors duration-150',
+          SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
+          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pb-2 transition-colors duration-150',
           !hasOverflowTop && 'border-transparent'
         )}
       >
@@ -316,38 +351,45 @@ export function SettingsSidebar({
             .map(({ key, title }) => ({
               key,
               title,
-              items: navigationItems.filter((item) => item.section === key),
+              items: navigationItems
+                .filter((item) => item.section === key)
+                .sort((left, right) => left.order - right.order),
             }))
             .filter(({ items }) => items.length > 0)
             .map(({ key, title, items: sectionItems }, index) => (
-              <div
+              <SidebarSection
                 key={key}
-                className={cn(
-                  index > 0 && SIDEBAR_SECTION_GAP_CLASS,
-                  'flex flex-shrink-0 flex-col'
-                )}
+                title={title}
+                railCollapsed={isCollapsed}
+                className={cn(index > 0 && SIDEBAR_SECTION_GAP_CLASS, 'flex-shrink-0')}
               >
-                <div className='px-4 pb-2'>
-                  <div className='text-[var(--text-muted)] text-small'>{title}</div>
-                </div>
                 <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
+                    const section = item.id as SettingsSection
+                    const href = getSettingsHref({ section })
+                    const selfHostedUnlocked = Boolean(item.selfHostedOverride && !isHosted)
                     const isLocked =
+                      !selfHostedUnlocked &&
                       item.requiresMax &&
                       (item.id === 'inbox'
                         ? !inboxEntitled
                         : !subscriptionAccess.hasUsableMaxAccess)
-                    const itemClassName = chipVariants({ active, fullWidth: true })
+                    const itemClassName = cn(
+                      chipVariants({ active, fullWidth: true }),
+                      SIDEBAR_RAIL_CHIP_CLASS
+                    )
                     const content = (
                       <>
-                        <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                        <span className='sidebar-collapse-hide min-w-0 truncate text-[var(--text-body)]'>
-                          {item.label}
-                        </span>
+                        <Icon className={chipContentIconClass} />
+                        <OverflowText
+                          label={item.label}
+                          className='sidebar-collapse-hide text-[var(--text-body)]'
+                          tooltipEnabled={!showCollapsedTooltips}
+                        />
                         {isLocked && (
-                          <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                          <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
                             Max
                           </span>
                         )}
@@ -364,21 +406,25 @@ export function SettingsSidebar({
                         {content}
                       </a>
                     ) : (
-                      <button
-                        type='button'
+                      <SettingsIntentLink
+                        href={href}
+                        replace
+                        scroll={false}
+                        aria-current={active ? 'page' : undefined}
                         className={itemClassName}
-                        onMouseEnter={() => handlePrefetch(item.id)}
-                        onFocus={() => handlePrefetch(item.id)}
-                        onClick={() => {
-                          const section = item.id as SettingsSection
-                          if (section === activeSection) return
-                          requestLeave(() => {
-                            router.replace(getSettingsHref({ section }), { scroll: false })
-                          })
+                        onIntent={() => handleIntent(section)}
+                        onNavigate={(event) => {
+                          if (active) {
+                            event.preventDefault()
+                            return
+                          }
+                          if (!useSettingsDirtyStore.getState().isDirty) return
+                          event.preventDefault()
+                          requestLeave(() => router.replace(href, { scroll: false }))
                         }}
                       >
                         {content}
-                      </button>
+                      </SettingsIntentLink>
                     )
 
                     return (
@@ -392,7 +438,7 @@ export function SettingsSidebar({
                     )
                   })}
                 </div>
-              </div>
+              </SidebarSection>
             ))}
         </div>
       </div>

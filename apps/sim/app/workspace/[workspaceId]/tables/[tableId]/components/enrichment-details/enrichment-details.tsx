@@ -7,10 +7,10 @@ import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table
 import {
   adjustBgForContrast,
   getBlockIconAndColor,
-  iconColorClass,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { useEnrichmentDetail } from '@/hooks/queries/tables'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
@@ -98,10 +98,8 @@ interface DetailRowProps {
 function DetailRow({ label, children }: DetailRowProps) {
   return (
     <div className='flex h-10 items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
-        {label}
-      </span>
-      <span className='min-w-0 truncate text-right font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+      <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>{label}</span>
+      <span className='min-w-0 truncate text-right text-[var(--text-secondary)] text-caption tabular-nums'>
         {children}
       </span>
     </div>
@@ -159,11 +157,11 @@ function EnrichmentDetailsContent({
 
       {isLoading ? (
         <div className='flex h-full items-center justify-center px-4 text-center'>
-          <span className='font-medium text-[var(--text-tertiary)] text-sm'>Loading…</span>
+          <span className='text-[var(--text-tertiary)] text-sm'>Loading…</span>
         </div>
       ) : !detail ? (
         <div className='flex h-full items-center justify-center px-4 text-center'>
-          <span className='font-medium text-[var(--text-tertiary)] text-sm'>
+          <span className='text-[var(--text-tertiary)] text-sm'>
             No enrichment details for this run
           </span>
         </div>
@@ -172,18 +170,14 @@ function EnrichmentDetailsContent({
           <div className='flex flex-col gap-2.5 pb-4'>
             <div className='grid grid-cols-2 gap-x-3 pb-0.5'>
               <div className='flex min-w-0 flex-col gap-0.5'>
-                <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                  Timestamp
-                </span>
-                <span className='font-medium text-[var(--text-secondary)] text-sm tabular-nums'>
+                <span className='text-[var(--text-tertiary)] text-caption'>Timestamp</span>
+                <span className='text-[var(--text-secondary)] text-sm tabular-nums'>
                   {timestamp ? `${timestamp.compactDate} ${timestamp.compactTime}` : '—'}
                 </span>
               </div>
               <div className='flex min-w-0 flex-col gap-0.5'>
-                <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                  Enrichment
-                </span>
-                <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
+                <span className='text-[var(--text-tertiary)] text-caption'>Enrichment</span>
+                <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
                   {groupName || 'Enrichment'}
                 </span>
               </div>
@@ -209,7 +203,7 @@ function EnrichmentDetailsContent({
 
             {lastError && (
               <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                <span className='font-medium text-[var(--text-error)] text-caption'>Error</span>
+                <span className='text-[var(--text-error)] text-caption'>Error</span>
                 <p className='break-words text-[var(--text-secondary)] text-caption'>{lastError}</p>
               </div>
             )}
@@ -222,14 +216,14 @@ function EnrichmentDetailsContent({
             <Badge variant={RESULT_STATUS_CONFIG[deriveResultStatus(detail)].variant} dot size='sm'>
               {RESULT_STATUS_CONFIG[deriveResultStatus(detail)].label}
             </Badge>
-            <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+            <span className='text-[var(--text-secondary)] text-caption tabular-nums'>
               {formatDuration(detail.durationMs, { precision: 2 }) || '—'}
             </span>
-            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+            <span className='text-[var(--text-tertiary)] text-caption'>
               {ranCount} {ranCount === 1 ? 'provider' : 'providers'}
             </span>
             {detail.totalCost > 0 && (
-              <span className='font-medium text-[var(--text-tertiary)] text-caption tabular-nums'>
+              <span className='text-[var(--text-tertiary)] text-caption tabular-nums'>
                 {formatCost(detail.totalCost)}
               </span>
             )}
@@ -261,22 +255,24 @@ function EnrichmentDetailsContent({
                       style={{ background: bgColor }}
                     >
                       {ProviderIcon && (
-                        <ProviderIcon className={cn('size-[11px]', iconColorClass(bgColor))} />
+                        <ProviderIcon
+                          className={cn('size-[11px]', getTileIconColorClass(bgColor))}
+                        />
                       )}
                     </div>
-                    <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-secondary)] text-caption'>
+                    <span className='min-w-0 flex-1 truncate text-[var(--text-secondary)] text-caption'>
                       {outcome.label}
                     </span>
-                    <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                    <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
                       {PROVIDER_STATUS_LABEL[outcome.status]}
                     </span>
                     {outcome.cost > 0 && (
-                      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-xs tabular-nums'>
+                      <span className='flex-shrink-0 text-[var(--text-tertiary)] text-xs tabular-nums'>
                         {formatCost(outcome.cost)}
                       </span>
                     )}
                     {ran && (
-                      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption tabular-nums'>
+                      <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
                         {formatDuration(outcome.durationMs, { precision: 2 }) || '—'}
                       </span>
                     )}
@@ -367,7 +363,7 @@ export function EnrichmentDetails({
         {rowId && groupId && (
           <div className='flex h-full flex-col px-3.5 pt-3'>
             <div className='flex items-center justify-between'>
-              <h2 className='font-medium text-[var(--text-primary)] text-sm'>Enrichment Details</h2>
+              <h2 className='text-[var(--text-primary)] text-sm'>Enrichment Details</h2>
               <Button variant='ghost' className='!p-1' onClick={onClose} aria-label='Close'>
                 <X className='size-[14px]' />
               </Button>

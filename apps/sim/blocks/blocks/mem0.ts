@@ -12,6 +12,27 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
   longDescription: 'Integrate Mem0 into the workflow. Can add, search, and retrieve memories.',
   bgColor: '#181C1E',
   icon: Mem0Icon,
+  canvasPresentation: {
+    defaultTitle: 'Mem0',
+    sentences: {
+      byOperation: {
+        add: [
+          { text: 'Add', field: 'messages', after: 'to memory', core: true },
+          { text: 'for user', field: 'userId', core: true },
+        ],
+        search: [
+          { text: 'Search memories for', field: 'query', core: true },
+          { text: ', scoped to user', field: 'userId' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get: [
+          { text: 'Fetch memory', field: 'memoryId', core: true },
+          { text: 'for user', field: 'userId', core: true },
+          { text: ', since', field: 'startDate' },
+        ],
+      },
+    },
+  },
   category: 'tools',
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/integrations/mem0',

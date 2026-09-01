@@ -1,14 +1,15 @@
-import { db } from '@sim/db'
-import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
-import { and, eq, isNull } from 'drizzle-orm'
+import { toError } from '@sim/utils/errors'
+import { executeCopilotMcpServerUseCase } from '@/lib/copilot/application/execute-mcp-server-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  performCreateMcpServer,
-  performDeleteMcpServer,
-  performUpdateMcpServer,
-} from '@/lib/mcp/orchestration'
+  deleteMcpServerUseCase,
+  listMcpServersUseCase,
+  reconfigureMcpServerUseCase,
+  registerMcpServerUseCase,
+} from '@/lib/mcp/application/use-cases'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CopilotToolExecutor')
 
@@ -45,25 +46,11 @@ export async function executeManageMcpTool(
     return { success: false, error: 'workspaceId is required' }
   }
 
-  const writeOps: string[] = ['add', 'edit', 'delete']
-  if (
-    writeOps.includes(operation) &&
-    context.userPermission &&
-    context.userPermission !== 'write' &&
-    context.userPermission !== 'admin'
-  ) {
-    return {
-      success: false,
-      error: `Permission denied: '${operation}' on manage_mcp_tool requires write access. You have '${context.userPermission}' permission.`,
-    }
-  }
-
   try {
     if (operation === 'list') {
-      const servers = await db
-        .select()
-        .from(mcpServers)
-        .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
+      const { servers } = await executeCopilotMcpServerUseCase(context, listMcpServersUseCase, {
+        workspaceId,
+      })
 
       return {
         success: true,
@@ -89,9 +76,8 @@ export async function executeManageMcpTool(
         return { success: false, error: "config.name and config.url are required for 'add'" }
       }
 
-      const result = await performCreateMcpServer({
+      const result = await executeCopilotMcpServerUseCase(context, registerMcpServerUseCase, {
         workspaceId,
-        userId: context.userId,
         name: config.name,
         description: '',
         transport: config.transport || 'streamable-http',
@@ -102,11 +88,21 @@ export async function executeManageMcpTool(
         enabled: config.enabled,
         source: 'tool_input',
       })
-      if (!result.success || !result.serverId) {
-        return {
-          success: false,
-          error: result.error || `Failed to add MCP server "${config.name}"`,
-        }
+      if (!result.updated) {
+        captureServerEvent(
+          context.userId,
+          'mcp_server_connected',
+          {
+            workspace_id: workspaceId,
+            server_name: result.server.name,
+            transport: result.server.transport,
+            source: 'tool_input',
+          },
+          {
+            groups: { workspace: workspaceId },
+            setOnce: { first_mcp_connected_at: new Date().toISOString() },
+          }
+        )
       }
 
       return {
@@ -114,7 +110,7 @@ export async function executeManageMcpTool(
         output: {
           success: true,
           operation,
-          serverId: result.serverId,
+          serverId: result.server.id,
           name: config.name,
           message: result.updated
             ? `Updated existing MCP server "${config.name}"`
@@ -132,9 +128,8 @@ export async function executeManageMcpTool(
         return { success: false, error: "'config' is required for 'edit'" }
       }
 
-      const result = await performUpdateMcpServer({
+      const result = await executeCopilotMcpServerUseCase(context, reconfigureMcpServerUseCase, {
         workspaceId,
-        userId: context.userId,
         serverId: params.serverId,
         name: config.name,
         transport: config.transport,
@@ -142,10 +137,8 @@ export async function executeManageMcpTool(
         headers: config.headers,
         timeout: config.timeout,
         enabled: config.enabled,
+        source: 'tool_input',
       })
-      if (!result.success || !result.server) {
-        return { success: false, error: `MCP server not found: ${params.serverId}` }
-      }
 
       return {
         success: true,
@@ -164,15 +157,21 @@ export async function executeManageMcpTool(
         return { success: false, error: "'serverId' is required for 'delete'" }
       }
 
-      const result = await performDeleteMcpServer({
+      const result = await executeCopilotMcpServerUseCase(context, deleteMcpServerUseCase, {
         workspaceId,
-        userId: context.userId,
         serverId: params.serverId,
         source: 'tool_input',
       })
-      if (!result.success || !result.server) {
-        return { success: false, error: `MCP server not found: ${params.serverId}` }
-      }
+      captureServerEvent(
+        context.userId,
+        'mcp_server_disconnected',
+        {
+          workspace_id: workspaceId,
+          server_name: result.server.name,
+          source: 'tool_input',
+        },
+        { groups: { workspace: workspaceId } }
+      )
 
       return {
         success: true,
@@ -185,21 +184,28 @@ export async function executeManageMcpTool(
       }
     }
 
-    return { success: false, error: `Unsupported operation for manage_mcp_tool: ${operation}` }
+    return {
+      success: false,
+      error: `Unsupported operation for manage_mcp_connection: ${operation}`,
+    }
   } catch (error) {
     logger.error(
       context.messageId
-        ? `manage_mcp_tool execution failed [messageId:${context.messageId}]`
-        : 'manage_mcp_tool execution failed',
+        ? `manage_mcp_connection execution failed [messageId:${context.messageId}]`
+        : 'manage_mcp_connection execution failed',
       {
         operation,
         workspaceId,
         error: toError(error).message,
       }
     )
+    const classified = asOrchestrationError(error)
     return {
       success: false,
-      error: getErrorMessage(error, 'Failed to manage MCP server'),
+      error:
+        classified && classified.code !== 'internal'
+          ? classified.message
+          : `The ${operation ?? 'MCP server'} operation failed inside Sim. The write may or may not have landed — run operation "list" to check current state before retrying.`,
     }
   }
 }

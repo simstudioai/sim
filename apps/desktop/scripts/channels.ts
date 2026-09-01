@@ -23,6 +23,8 @@ export interface ChannelIdentity {
   appId: string
   /** Baked default origin + persisted settings origin. */
   origin: string
+  /** Native Icon Composer source copied into the packager's generated path. */
+  icon: string
   /**
    * Artifact filename stem, and the per-channel scratch directory name.
    * Space-free for the same reason electron-builder.yml's artifactName is:
@@ -36,24 +38,28 @@ export const PROD: ChannelIdentity = {
   name: 'Sim',
   appId: 'ai.sim.desktop',
   origin: PROD_ORIGIN,
+  icon: 'build/icon.icon',
   slug: 'sim',
 }
 export const STAGING: ChannelIdentity = {
   name: 'Sim Staging',
   appId: 'ai.sim.desktop.staging',
   origin: STAGING_ORIGIN,
+  icon: 'build/icon-staging.icon',
   slug: 'sim-staging',
 }
 export const DEV: ChannelIdentity = {
   name: 'Sim Dev',
   appId: 'ai.sim.desktop.dev',
   origin: DEV_ORIGIN,
+  icon: 'build/icon-dev.icon',
   slug: 'sim-dev',
 }
 export const LOCAL: ChannelIdentity = {
   name: 'Sim Local',
   appId: 'ai.sim.desktop.local',
   origin: LOCAL_ORIGIN,
+  icon: 'build/icon-local.icon',
   slug: 'sim-local',
 }
 

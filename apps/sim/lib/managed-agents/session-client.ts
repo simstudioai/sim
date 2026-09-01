@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 /**
  * Provider-neutral HTTP client for the Claude Platform Managed Agents API.
  *
@@ -31,7 +32,14 @@ export interface AnthropicSessionEvent {
   type?: string
   content?: Array<{ type: string; text?: string }>
   name?: string
-  stop_reason?: { type?: string }
+  /** Tool input, present on `agent.*_tool_use` events. */
+  input?: unknown
+  /**
+   * On `session.status_idle`. When `type` is `requires_action`, `event_ids`
+   * lists the blocking tool-use event ids awaiting a `user.tool_confirmation`
+   * or `user.custom_tool_result`.
+   */
+  stop_reason?: { type?: string; event_ids?: string[] }
   error?: { message?: string }
   message?: string
   /** Server-side record time; `null`/absent means still queued (handled after processed events). */
@@ -51,6 +59,14 @@ export interface SessionAuth {
 export interface CreateSessionInput extends SessionAuth {
   agentId: string
   environmentId: string
+  /**
+   * Seeds `initial_events` with a single `user.message`, starting the agent
+   * loop in the same call — the session is created directly in `running`
+   * instead of passing through `idle`. Only `user.message` and
+   * `user.define_outcome` are accepted there, and validation is all-or-nothing.
+   * https://platform.claude.com/docs/en/managed-agents/sessions
+   */
+  initialMessage?: string
   /**
    * Environment execution model. Self-hosted environments reject the
    * `resources` array, so memory is routed via `metadata` and files are
@@ -89,9 +105,21 @@ export type EnvironmentType = 'cloud' | 'self_hosted'
 /** Authoritative session status per `GET /v1/sessions/{id}`. */
 export type SessionStatus = 'idle' | 'running' | 'rescheduling' | 'terminated'
 
+/** Why an idle session stopped, per the session resource / idle event. */
+export interface SessionStopReason {
+  type?: string
+  /** Blocking tool-use event ids when `type` is `requires_action`. */
+  eventIds?: string[]
+}
+
 export interface SessionSnapshot {
   status?: SessionStatus
   usage?: SessionUsage
+  /** Present once the session has stopped at least once. */
+  stopReason?: SessionStopReason
+  /** Session metadata as stored on the Anthropic session. */
+  metadata?: Record<string, string>
+  title?: string
 }
 
 /**
@@ -158,6 +186,15 @@ export function buildSessionCreatePayload(input: CreateSessionInput): Record<str
   if (input.sessionParameters && Object.keys(input.sessionParameters).length > 0) {
     payload.metadata = { ...input.sessionParameters }
   }
+
+  // An empty/whitespace `initial_events` entry would be rejected, and an empty
+  // array is equivalent to omitting the field — so only seed a real message.
+  const initialMessage = input.initialMessage?.trim()
+  if (initialMessage) {
+    payload.initial_events = [
+      { type: 'user.message', content: [{ type: 'text', text: initialMessage }] },
+    ]
+  }
   return payload
 }
 
@@ -200,7 +237,29 @@ interface UserInterruptEvent {
   type: 'user.interrupt'
 }
 
-export type OutboundSessionEvent = UserMessageEvent | UserCustomToolResultEvent | UserInterruptEvent
+/**
+ * Answers one `always_ask` permission gate.
+ *
+ * `tool_use_id` is the *event id* of the blocking `agent.tool_use` /
+ * `agent.mcp_tool_use` event (the ids listed in the idle event's
+ * `stop_reason.event_ids`) — NOT a `toolu_...` id. The denial reason field is
+ * `deny_message`, and it is only meaningful with `result: 'deny'`.
+ * https://platform.claude.com/docs/en/managed-agents/permission-policies
+ */
+interface UserToolConfirmationEvent {
+  type: 'user.tool_confirmation'
+  tool_use_id: string
+  result: ToolConfirmationResult
+  deny_message?: string
+}
+
+export type ToolConfirmationResult = 'allow' | 'deny'
+
+export type OutboundSessionEvent =
+  | UserMessageEvent
+  | UserCustomToolResultEvent
+  | UserInterruptEvent
+  | UserToolConfirmationEvent
 
 /** POST /v1/sessions/{id}/events with a single `user.message`. */
 export async function sendUserMessage(
@@ -253,6 +312,157 @@ export async function interruptSession(input: {
   })
 }
 
+/**
+ * POST /v1/sessions/{id}/events with one `user.tool_confirmation` per blocking
+ * gate. Several confirmations may be sent in a single request, which is why
+ * this takes a list — answering all of a turn's gates at once avoids a partial
+ * resolve that leaves the session parked.
+ */
+export async function sendToolConfirmations(
+  input: SessionAuth & {
+    sessionId: string
+    confirmations: Array<{
+      toolUseId: string
+      result: ToolConfirmationResult
+      denyMessage?: string
+    }>
+  }
+): Promise<void> {
+  const events: OutboundSessionEvent[] = input.confirmations.map((confirmation) => ({
+    type: 'user.tool_confirmation',
+    tool_use_id: confirmation.toolUseId,
+    result: confirmation.result,
+    // `deny_message` is only meaningful on a denial; the API ignores it on an
+    // allow, but sending it would misrepresent the intent in the event history.
+    ...(confirmation.result === 'deny' && confirmation.denyMessage
+      ? { deny_message: confirmation.denyMessage }
+      : {}),
+  }))
+  await sendSessionEvents({
+    apiKey: input.apiKey,
+    ...(input.signal ? { signal: input.signal } : {}),
+    sessionId: input.sessionId,
+    events,
+  })
+}
+
+/**
+ * How a blocking gate must be answered.
+ *
+ * `confirmation` — an `always_ask` permission gate on a server-executed tool;
+ * answered with `user.tool_confirmation` (allow/deny).
+ * `custom_tool_result` — a client-side custom tool the agent invoked; answered
+ * with `user.custom_tool_result` carrying the tool's actual output. Sending a
+ * confirmation for one of these does NOT unblock the session.
+ */
+export type PendingToolGateKind = 'confirmation' | 'custom_tool_result'
+
+/** A tool call blocking a session, resolved to its name/input. */
+export interface PendingToolGate {
+  /** Event id — pass this as `tool_use_id` / `custom_tool_use_id` when answering. */
+  id: string
+  /** `agent.tool_use`, `agent.mcp_tool_use`, or `agent.custom_tool_use`. */
+  eventType?: string
+  /** Which reply event unblocks this gate. Absent when the event could not be resolved. */
+  kind?: PendingToolGateKind
+  name?: string
+  input?: unknown
+}
+
+/** Maps a tool-use event type onto the reply event that unblocks it. */
+function gateKindFor(eventType: string | undefined): PendingToolGateKind | undefined {
+  if (eventType === 'agent.custom_tool_use') return 'custom_tool_result'
+  if (eventType === 'agent.tool_use' || eventType === 'agent.mcp_tool_use') return 'confirmation'
+  return undefined
+}
+
+/** Event types that can block a session pending a client response. */
+const TOOL_USE_EVENT_TYPES = [
+  'agent.tool_use',
+  'agent.mcp_tool_use',
+  'agent.custom_tool_use',
+] as const
+
+/**
+ * Resolves the blocking event ids on an idle `requires_action` session into
+ * named gates by cross-referencing the session's tool-use events.
+ *
+ * The ids alone are enough to answer a gate, so a failure to enrich is NOT an
+ * error — the ids are still returned, just without names. Callers get
+ * something actionable either way.
+ */
+export async function resolvePendingToolGates(
+  input: SessionAuth & { sessionId: string; eventIds: string[] }
+): Promise<PendingToolGate[]> {
+  const wanted = new Set(input.eventIds)
+  if (wanted.size === 0) return []
+  let events: AnthropicSessionEvent[] = []
+  try {
+    events = await listPaginated<AnthropicSessionEvent>({
+      apiKey: input.apiKey,
+      ...(input.signal ? { signal: input.signal } : {}),
+      path: `/v1/sessions/${input.sessionId}/events`,
+      searchParams: TOOL_USE_EVENT_TYPES.map((type): [string, string] => ['types[]', type]),
+      // Keep only the events actually being looked up rather than capping the
+      // read. A cap would retain the OLDEST page-order events, and blocking
+      // gates are by definition the most recent tool calls — exactly the ones a
+      // cap would drop. Filtering instead bounds memory to the id count while
+      // staying correct however the API orders its pages.
+      filter: (event) => Boolean(event.id && wanted.has(event.id)),
+      // Every wanted id is found at most once, so once the count matches there
+      // is nothing left to look for. Without this the filtered total never
+      // reaches any cap and the walk runs to the end of the tool history.
+      stopWhen: (found) => found.length >= wanted.size,
+    })
+  } catch {
+    // Enrichment is best-effort — fall through to bare ids below.
+  }
+  const byId = new Map<string, AnthropicSessionEvent>()
+  for (const event of events) {
+    if (event.id && wanted.has(event.id) && !byId.has(event.id)) byId.set(event.id, event)
+  }
+  // Preserve the API's `event_ids` order so the caller's prompts are stable.
+  return input.eventIds.map((id) => {
+    const event = byId.get(id)
+    const kind = gateKindFor(event?.type)
+    return {
+      id,
+      ...(event?.type ? { eventType: event.type } : {}),
+      ...(kind ? { kind } : {}),
+      ...(event?.name ? { name: event.name } : {}),
+      ...(event?.input !== undefined ? { input: event.input } : {}),
+    }
+  })
+}
+
+/**
+ * POST /v1/sessions/{id}/events with one `user.custom_tool_result` per pending
+ * custom-tool call.
+ *
+ * Custom tools are executed by the caller, not Anthropic, so a permission
+ * confirmation cannot unblock them — the agent is waiting for the tool's actual
+ * output (or an error).
+ */
+export async function sendCustomToolResults(
+  input: SessionAuth & {
+    sessionId: string
+    results: Array<{ customToolUseId: string; content: string; isError?: boolean }>
+  }
+): Promise<void> {
+  const events: OutboundSessionEvent[] = input.results.map((result) => ({
+    type: 'user.custom_tool_result',
+    custom_tool_use_id: result.customToolUseId,
+    content: [{ type: 'text', text: result.content }],
+    is_error: result.isError ?? false,
+  }))
+  await sendSessionEvents({
+    apiKey: input.apiKey,
+    ...(input.signal ? { signal: input.signal } : {}),
+    sessionId: input.sessionId,
+    events,
+  })
+}
+
 /** GET /v1/sessions/{id}/events/stream — opens the SSE response. */
 export async function openSessionStream(
   input: SessionAuth & { sessionId: string }
@@ -284,8 +494,121 @@ interface AnthropicListPage<T> {
  */
 const MAX_LIST_PAGES = 1000
 
+/**
+ * Block-editor collection reads are a separate trust boundary from runtime
+ * session history. Keep their provider egress bounded without changing the
+ * exhaustive event reads used by the run loop.
+ */
+const SELECTOR_LIST_TIMEOUT_MS = 30_000
+const MAX_SELECTOR_LIST_TOTAL_BYTES = 16 * 1024 * 1024
+const MAX_SELECTOR_LIST_PAGES = 100
+
+async function cancelResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel()
+  } catch {
+    // Best effort: cancellation must not replace the concealed provider error.
+  }
+}
+
+async function readBoundedSelectorListJson<T>(
+  response: Response,
+  maxBytes: number
+): Promise<{ value: T; bytesRead: number }> {
+  const declaredLength = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    await cancelResponseBody(response)
+    throw new Error('Managed Agents collection response is unavailable')
+  }
+  if (!response.body) throw new Error('Managed Agents collection response is unavailable')
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      throw new Error('Managed Agents collection response is unavailable')
+    }
+    chunks.push(value)
+  }
+
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return { value: JSON.parse(new TextDecoder().decode(bytes)) as T, bytesRead: total }
+}
+
+async function fetchSelectorListPage<T>(
+  input: SessionAuth & {
+    path: string
+    beta?: string
+    page: string | null
+    maxResponseBytes: number
+  }
+): Promise<{ page: AnthropicListPage<T>; bytesRead: number }> {
+  const url = new URL(`${ANTHROPIC_API_BASE}${input.path}`)
+  url.searchParams.set('limit', '100')
+  if (input.page) url.searchParams.set('page', input.page)
+
+  let response: Response
+  try {
+    response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: managedAgentsHeaders(input.apiKey, { beta: input.beta }),
+      redirect: 'error',
+      signal: input.signal,
+    })
+  } catch (error) {
+    if (input.signal?.aborted) throw error
+    throw new Error('Managed Agents collection request failed')
+  }
+
+  if (!response.ok) {
+    await cancelResponseBody(response)
+    throw new Error('Managed Agents collection request failed')
+  }
+
+  try {
+    const result = await readBoundedSelectorListJson<AnthropicListPage<T>>(
+      response,
+      input.maxResponseBytes
+    )
+    return { page: result.value, bytesRead: result.bytesRead }
+  } catch (error) {
+    if (input.signal?.aborted) throw error
+    throw new Error('Managed Agents collection response is unavailable')
+  }
+}
+
 async function listPaginated<T>(
-  input: SessionAuth & { path: string; beta?: string; maxItems?: number }
+  input: SessionAuth & {
+    path: string
+    beta?: string
+    maxItems?: number
+    /** Extra repeatable query pairs (e.g. `types[]` filters). */
+    searchParams?: Array<[string, string]>
+    /**
+     * Applied per item as pages arrive, so only matches are retained. Use this
+     * instead of `maxItems` when the caller needs specific items rather than a
+     * prefix — a cap keeps whatever the API returned first, which is the oldest
+     * entries on a chronological endpoint.
+     */
+    filter?: (item: T) => boolean
+    /**
+     * Checked after each page against everything collected so far. Lets a
+     * filtered read stop as soon as it has what it came for — otherwise
+     * `maxItems` never trips (the filtered total stays small) and the walk runs
+     * to the end of the history for nothing.
+     */
+    stopWhen?: (collected: T[]) => boolean
+  }
 ): Promise<T[]> {
   const collected: T[] = []
   const maxItems = input.maxItems ?? 2000
@@ -295,10 +618,13 @@ async function listPaginated<T>(
   for (let pageCount = 0; pageCount < MAX_LIST_PAGES && collected.length < maxItems; pageCount++) {
     const url = new URL(`${ANTHROPIC_API_BASE}${input.path}`)
     url.searchParams.set('limit', '100')
+    // `append`, not `set` — `types[]` is repeatable and each value must survive.
+    for (const [key, value] of input.searchParams ?? []) url.searchParams.append(key, value)
     if (page) url.searchParams.set('page', page)
     const resp = await fetch(url.toString(), {
       method: 'GET',
       headers: managedAgentsHeaders(input.apiKey, { beta: input.beta }),
+      redirect: 'error',
       signal: input.signal,
     })
     if (!resp.ok) {
@@ -307,11 +633,17 @@ async function listPaginated<T>(
     }
     const body = (await resp.json()) as AnthropicListPage<T>
     const items = Array.isArray(body.data) ? body.data : []
-    collected.push(...items)
+    collected.push(...(input.filter ? items.filter(input.filter) : items))
+    if (input.stopWhen?.(collected)) break
+    // Paging continues on the RAW page, not the filtered result: a page whose
+    // every item was filtered out is not the end of the list.
     if (!body.next_page || items.length === 0) break
     page = body.next_page
   }
-  return collected
+  // Pages arrive whole, so the last one can overshoot `maxItems` — trim to the
+  // exact cap the caller asked for. (`slice(0, Infinity)` is a no-op, so the
+  // unbounded default is unaffected.)
+  return collected.length > maxItems ? collected.slice(0, maxItems) : collected
 }
 
 /**
@@ -322,12 +654,53 @@ async function listPaginated<T>(
  * by a page cap.
  */
 export async function listSessionEvents(
-  input: SessionAuth & { sessionId: string }
+  input: SessionAuth & {
+    sessionId: string
+    types?: string[]
+    /**
+     * Caps how many events are RETURNED. Defaults to unbounded, which is what
+     * the run loop's catch-up needs — it must reach the tail to see the terminal
+     * event.
+     *
+     * The cap keeps the MOST RECENT events, not the first ones the API happens
+     * to hand back. Capping the fetch instead would return the oldest slice of a
+     * long session and silently omit the agent's latest reply — the exact thing
+     * most callers are reading events for. Paging is therefore still exhaustive;
+     * the bound applies to the returned array.
+     */
+    maxItems?: number
+  }
 ): Promise<AnthropicSessionEvent[]> {
+  return (await listSessionEventsPage(input)).events
+}
+
+/** An event read plus the size of the history it was taken from. */
+export interface SessionEventPage {
+  events: AnthropicSessionEvent[]
+  /**
+   * How many events the session actually has, before any cap. Compare against
+   * `events.length` to tell a capped read from a complete one — a history that
+   * happens to be exactly `maxItems` long has dropped nothing.
+   */
+  total: number
+}
+
+/**
+ * Same read as {@link listSessionEvents}, but also reports the untrimmed
+ * history size so callers can distinguish "this is a tail" from "this is
+ * everything, and it happens to be exactly the cap".
+ */
+export async function listSessionEventsPage(
+  input: SessionAuth & { sessionId: string; types?: string[]; maxItems?: number }
+): Promise<SessionEventPage> {
+  const types = (input.types ?? []).filter((type) => type.trim().length > 0)
   const events = await listPaginated<AnthropicSessionEvent>({
     apiKey: input.apiKey,
     signal: input.signal,
     path: `/v1/sessions/${input.sessionId}/events`,
+    ...(types.length > 0
+      ? { searchParams: types.map((type): [string, string] => ['types[]', type.trim()]) }
+      : {}),
     maxItems: Number.POSITIVE_INFINITY,
   })
   // The list endpoint's page order is not guaranteed chronological, so order by
@@ -335,7 +708,23 @@ export async function listSessionEvents(
   // loop depends on ascending order both to accumulate assistant text in order
   // and to read the latest lifecycle event. Still-queued events (null
   // `processed_at`) are processed after everything else, so they sort last.
-  return events.sort((a, b) => parseProcessedAt(a.processed_at) - parseProcessedAt(b.processed_at))
+  const ordered = events.sort(
+    (a, b) => parseProcessedAt(a.processed_at) - parseProcessedAt(b.processed_at)
+  )
+  const total = ordered.length
+  if (input.maxItems === undefined || Number.isNaN(input.maxItems)) {
+    return { events: ordered, total }
+  }
+  // Floor first: `slice` truncates its index toward zero, so a cap between 0
+  // and 1 would become `slice(-0)` — i.e. `slice(0)` — and hand back the ENTIRE
+  // history for what the caller asked to be the tightest possible bound. Doing
+  // it here means no caller can hit that, whatever it passes.
+  const maxItems = Math.floor(input.maxItems)
+  if (maxItems <= 0) return { events: [], total }
+  if (total <= maxItems) return { events: ordered, total }
+  // Slice AFTER ordering so the cap is "the newest N", independent of the order
+  // the API returned pages in.
+  return { events: ordered.slice(-maxItems), total }
 }
 
 /** Epoch millis for a `processed_at`, or +Infinity when absent/queued/unparseable (sorts last). */
@@ -353,12 +742,31 @@ function parseProcessedAt(value: string | null | undefined): number {
 export async function managedAgentsList<T>(
   input: SessionAuth & { path: string; beta?: string }
 ): Promise<T[]> {
-  return listPaginated<T>({
-    apiKey: input.apiKey,
-    signal: input.signal,
-    path: input.path,
-    beta: input.beta,
-  })
+  const collected: T[] = []
+  let page: string | null = null
+  let remainingBytes = MAX_SELECTOR_LIST_TOTAL_BYTES
+  const timeoutSignal = AbortSignal.timeout(SELECTOR_LIST_TIMEOUT_MS)
+  const signal = input.signal ? AbortSignal.any([input.signal, timeoutSignal]) : timeoutSignal
+  for (
+    let pageCount = 0;
+    pageCount < MAX_SELECTOR_LIST_PAGES && collected.length < 2000;
+    pageCount++
+  ) {
+    const result: { page: AnthropicListPage<T>; bytesRead: number } =
+      await fetchSelectorListPage<T>({
+        ...input,
+        page,
+        signal,
+        maxResponseBytes: remainingBytes,
+      })
+    remainingBytes -= result.bytesRead
+    const pageBody: AnthropicListPage<T> = result.page
+    const items = Array.isArray(pageBody.data) ? pageBody.data : []
+    collected.push(...items)
+    if (!pageBody.next_page || items.length === 0) break
+    page = pageBody.next_page
+  }
+  return collected.length > 2000 ? collected.slice(0, 2000) : collected
 }
 
 /**
@@ -401,25 +809,153 @@ export async function getSession(
       signal: input.signal,
     })
     if (!resp.ok) return null
-    const body = (await resp.json()) as {
-      status?: unknown
-      usage?: { input_tokens?: unknown; output_tokens?: unknown }
-    }
-    const snapshot: SessionSnapshot = {}
-    if (
-      body.status === 'idle' ||
-      body.status === 'running' ||
-      body.status === 'rescheduling' ||
-      body.status === 'terminated'
-    ) {
-      snapshot.status = body.status
-    }
-    const usage: SessionUsage = {}
-    if (typeof body.usage?.input_tokens === 'number') usage.inputTokens = body.usage.input_tokens
-    if (typeof body.usage?.output_tokens === 'number') usage.outputTokens = body.usage.output_tokens
-    if (usage.inputTokens !== undefined || usage.outputTokens !== undefined) snapshot.usage = usage
-    return snapshot
+    return parseSessionSnapshot(await resp.json())
   } catch {
     return null
+  }
+}
+
+/**
+ * Maps a raw `/v1/sessions/{id}` body onto {@link SessionSnapshot}. Split out
+ * so it is directly unit-testable and shared by the best-effort `getSession`
+ * and the strict `retrieveSession`.
+ */
+export function parseSessionSnapshot(raw: unknown): SessionSnapshot {
+  const body = (raw ?? {}) as {
+    status?: unknown
+    title?: unknown
+    metadata?: unknown
+    usage?: { input_tokens?: unknown; output_tokens?: unknown }
+    stop_reason?: { type?: unknown; event_ids?: unknown }
+  }
+  const snapshot: SessionSnapshot = {}
+  if (
+    body.status === 'idle' ||
+    body.status === 'running' ||
+    body.status === 'rescheduling' ||
+    body.status === 'terminated'
+  ) {
+    snapshot.status = body.status
+  }
+  const usage: SessionUsage = {}
+  if (typeof body.usage?.input_tokens === 'number') usage.inputTokens = body.usage.input_tokens
+  if (typeof body.usage?.output_tokens === 'number') usage.outputTokens = body.usage.output_tokens
+  if (usage.inputTokens !== undefined || usage.outputTokens !== undefined) snapshot.usage = usage
+
+  if (body.stop_reason && typeof body.stop_reason === 'object') {
+    const stopReason: SessionStopReason = {}
+    if (typeof body.stop_reason.type === 'string') stopReason.type = body.stop_reason.type
+    if (Array.isArray(body.stop_reason.event_ids)) {
+      const eventIds = body.stop_reason.event_ids.filter(
+        (id): id is string => typeof id === 'string' && id.length > 0
+      )
+      if (eventIds.length > 0) stopReason.eventIds = eventIds
+    }
+    if (stopReason.type !== undefined || stopReason.eventIds !== undefined) {
+      snapshot.stopReason = stopReason
+    }
+  }
+
+  if (typeof body.title === 'string') snapshot.title = body.title
+  if (isRecordLike(body.metadata)) {
+    const metadata: Record<string, string> = {}
+    for (const [key, value] of Object.entries(body.metadata as Record<string, unknown>)) {
+      if (typeof value === 'string') metadata[key] = value
+      else if (typeof value === 'number' || typeof value === 'boolean')
+        metadata[key] = String(value)
+    }
+    if (Object.keys(metadata).length > 0) snapshot.metadata = metadata
+  }
+  return snapshot
+}
+
+/**
+ * GET /v1/sessions/{id}, but STRICT — throws on a non-2xx instead of returning
+ * `null`. The block's Get Session operation reports a missing/unauthorized
+ * session as a block error rather than silently yielding an empty result;
+ * {@link getSession} keeps its best-effort contract for the run loop.
+ */
+export async function retrieveSession(
+  input: SessionAuth & { sessionId: string }
+): Promise<SessionSnapshot> {
+  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
+    method: 'GET',
+    headers: managedAgentsHeaders(input.apiKey),
+    signal: input.signal,
+  })
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => '')
+    throw new Error(`Anthropic sessions.get failed (${resp.status}): ${detail.slice(0, 400)}`)
+  }
+  return parseSessionSnapshot(await resp.json())
+}
+
+/**
+ * POST /v1/sessions/{id} — updates session `title` and/or `metadata`.
+ *
+ * `metadata` is a FULL REPLACEMENT of the stored map, matching the API's
+ * replace semantics; callers that want to merge must read the session first.
+ * The session must be `idle` for agent-config updates; title/metadata updates
+ * are not gated that way.
+ * https://platform.claude.com/docs/en/managed-agents/session-operations
+ */
+export async function updateSession(
+  input: SessionAuth & {
+    sessionId: string
+    title?: string
+    metadata?: Record<string, string>
+  }
+): Promise<SessionSnapshot> {
+  const payload: Record<string, unknown> = {}
+  if (input.title !== undefined) payload.title = input.title
+  if (input.metadata !== undefined) payload.metadata = input.metadata
+  if (Object.keys(payload).length === 0) {
+    throw new Error('Update session requires a title or metadata to change.')
+  }
+  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
+    method: 'POST',
+    headers: managedAgentsHeaders(input.apiKey, { json: true }),
+    body: JSON.stringify(payload),
+    signal: input.signal,
+  })
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => '')
+    throw new Error(`Anthropic sessions.update failed (${resp.status}): ${detail.slice(0, 400)}`)
+  }
+  return parseSessionSnapshot(await resp.json().catch(() => ({})))
+}
+
+/**
+ * POST /v1/sessions/{id}/archive — makes the session read-only while
+ * preserving its history. A `running` session cannot be archived (interrupt
+ * it first), and archiving is NOT reversible.
+ */
+export async function archiveSession(input: SessionAuth & { sessionId: string }): Promise<void> {
+  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}/archive`, {
+    method: 'POST',
+    headers: managedAgentsHeaders(input.apiKey),
+    signal: input.signal,
+  })
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => '')
+    throw new Error(`Anthropic sessions.archive failed (${resp.status}): ${detail.slice(0, 400)}`)
+  }
+}
+
+/**
+ * DELETE /v1/sessions/{id} — permanently removes the session record, its
+ * events, and its sandbox. A `running` session cannot be deleted (interrupt it
+ * first). Files, memory stores, vaults, skills, environments, and agents are
+ * independent resources and are NOT affected.
+ */
+export async function deleteSession(input: SessionAuth & { sessionId: string }): Promise<void> {
+  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
+    method: 'DELETE',
+    headers: managedAgentsHeaders(input.apiKey),
+    signal: input.signal,
+  })
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => '')
+    throw new Error(`Anthropic sessions.delete failed (${resp.status}): ${detail.slice(0, 400)}`)
   }
 }

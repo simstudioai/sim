@@ -10,6 +10,7 @@ import {
   ChipConfirmModal,
   ChipInput,
   cn,
+  OverflowText,
   Search,
   Skeleton,
 } from '@sim/emcn'
@@ -88,6 +89,7 @@ export function TransferOwnershipDialog({
       onOpenChange={handleClose}
       srTitle='Leave organization'
       title='Leave organization'
+      defaultAction='none'
       confirm={{
         label: 'Transfer & leave',
         onClick: handleConfirm,
@@ -130,9 +132,7 @@ export function TransferOwnershipDialog({
                 onAction={onOpenBillingPortal}
                 text={
                   <>
-                    <span className='block font-medium'>
-                      Your payment method stays on this organization
-                    </span>
+                    <span className='block'>Your payment method stays on this organization</span>
                     <span className='block text-[var(--text-secondary)]'>
                       Future charges will keep hitting the card you added. Open the Stripe billing
                       portal to remove it before you leave.
@@ -183,18 +183,20 @@ export function TransferOwnershipDialog({
                           </Avatar>
                           <div className='min-w-0 flex-1'>
                             <div className='flex items-center gap-2'>
-                              <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                                {m.name}
-                              </span>
+                              <OverflowText
+                                label={m.name}
+                                className='text-[var(--text-primary)] text-small'
+                              />
                               {m.role === 'admin' && (
                                 <Badge variant='gray-secondary' size='sm'>
                                   Admin
                                 </Badge>
                               )}
                             </div>
-                            <div className='truncate text-[var(--text-muted)] text-caption'>
-                              {m.email}
-                            </div>
+                            <OverflowText
+                              label={m.email}
+                              className='block text-[var(--text-muted)] text-caption'
+                            />
                           </div>
                         </button>
                       </li>

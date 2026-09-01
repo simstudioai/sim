@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
-import { isLoopbackIp, isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
-import * as ipaddr from 'ipaddr.js'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { evaluateUrl, isLiftableByVouching, policyDefersToAddress } from '@sim/security/egress'
+import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import {
+  describeEgressDenial,
+  type EgressProfile,
+  resolveEgressPolicy,
+} from '@/lib/core/security/egress/profiles'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('InputValidation')
 
@@ -11,7 +16,8 @@ export interface ValidationResult {
   sanitized?: string
 }
 
-export interface PathSegmentOptions {
+/** Options for {@link validatePathSegment}. */
+interface PathSegmentOptions {
   /** Name of the parameter for error messages */
   paramName?: string
   /** Maximum length allowed (default: 255) */
@@ -246,80 +252,6 @@ export function validateNumericId(
 }
 
 /**
- * Validates an integer value (from JSON body or other sources)
- *
- * This is stricter than validateNumericId - it requires:
- * - Value must already be a number type (not string)
- * - Must be an integer (no decimals)
- * - Must be finite (not NaN or Infinity)
- *
- * @param value - The value to validate
- * @param paramName - Name of the parameter for error messages
- * @param options - Additional options (min, max)
- * @returns ValidationResult
- *
- * @example
- * ```typescript
- * const result = validateInteger(failedCount, 'failedCount', { min: 0 })
- * if (!result.isValid) {
- *   return NextResponse.json({ error: result.error }, { status: 400 })
- * }
- * ```
- */
-export function validateInteger(
-  value: unknown,
-  paramName = 'value',
-  options: { min?: number; max?: number } = {}
-): ValidationResult {
-  if (value === null || value === undefined) {
-    return {
-      isValid: false,
-      error: `${paramName} is required`,
-    }
-  }
-
-  if (typeof value !== 'number') {
-    logger.warn('Value is not a number', { paramName, valueType: typeof value })
-    return {
-      isValid: false,
-      error: `${paramName} must be a number`,
-    }
-  }
-
-  if (Number.isNaN(value) || !Number.isFinite(value)) {
-    logger.warn('Invalid number value', { paramName, value })
-    return {
-      isValid: false,
-      error: `${paramName} must be a valid number`,
-    }
-  }
-
-  if (!Number.isInteger(value)) {
-    logger.warn('Value is not an integer', { paramName, value })
-    return {
-      isValid: false,
-      error: `${paramName} must be an integer`,
-    }
-  }
-
-  if (options.min !== undefined && value < options.min) {
-    return {
-      isValid: false,
-      error: `${paramName} must be at least ${options.min}`,
-    }
-  }
-
-  if (options.max !== undefined && value > options.max) {
-    return {
-      isValid: false,
-      error: `${paramName} must be at most ${options.max}`,
-    }
-  }
-
-  return { isValid: true }
-}
-
-/**
  * Validates that a value is in an allowed list (enum validation)
  *
  * @param value - The value to validate
@@ -360,121 +292,6 @@ export function validateEnum<T extends string>(
   }
 
   return { isValid: true, sanitized: value }
-}
-
-/**
- * Validates a hostname to prevent SSRF attacks
- *
- * This function checks that a hostname is not a private IP, localhost, or other reserved address.
- * It complements the validateProxyUrl function by providing hostname-specific validation.
- *
- * @param hostname - The hostname to validate
- * @param paramName - Name of the parameter for error messages
- * @returns ValidationResult
- *
- * @example
- * ```typescript
- * const result = validateHostname(webhookDomain, 'webhook domain')
- * if (!result.isValid) {
- *   return NextResponse.json({ error: result.error }, { status: 400 })
- * }
- * ```
- */
-export function validateHostname(
-  hostname: string | null | undefined,
-  paramName = 'hostname'
-): ValidationResult {
-  if (hostname === null || hostname === undefined || hostname === '') {
-    return {
-      isValid: false,
-      error: `${paramName} is required`,
-    }
-  }
-
-  const lowerHostname = hostname.toLowerCase()
-
-  if (lowerHostname === 'localhost') {
-    logger.warn('Hostname is localhost', { paramName })
-    return {
-      isValid: false,
-      error: `${paramName} cannot be a private IP address or localhost`,
-    }
-  }
-
-  if (ipaddr.isValid(lowerHostname)) {
-    if (isPrivateIp(lowerHostname)) {
-      logger.warn('Hostname matches blocked IP range', {
-        paramName,
-        hostname: hostname.substring(0, 100),
-      })
-      return {
-        isValid: false,
-        error: `${paramName} cannot be a private IP address or localhost`,
-      }
-    }
-  }
-
-  const hostnamePattern =
-    /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i
-
-  if (!hostnamePattern.test(hostname)) {
-    logger.warn('Invalid hostname format', {
-      paramName,
-      hostname: hostname.substring(0, 100),
-    })
-    return {
-      isValid: false,
-      error: `${paramName} is not a valid hostname`,
-    }
-  }
-
-  return { isValid: true, sanitized: hostname }
-}
-
-/**
- * Validates a file extension
- *
- * @param extension - The file extension (with or without leading dot)
- * @param allowedExtensions - Array of allowed extensions (without dots)
- * @param paramName - Name of the parameter for error messages
- * @returns ValidationResult
- *
- * @example
- * ```typescript
- * const result = validateFileExtension(ext, ['jpg', 'png', 'gif'], 'file extension')
- * if (!result.isValid) {
- *   return NextResponse.json({ error: result.error }, { status: 400 })
- * }
- * ```
- */
-export function validateFileExtension(
-  extension: string | null | undefined,
-  allowedExtensions: readonly string[],
-  paramName = 'file extension'
-): ValidationResult {
-  if (extension === null || extension === undefined || extension === '') {
-    return {
-      isValid: false,
-      error: `${paramName} is required`,
-    }
-  }
-
-  const ext = extension.startsWith('.') ? extension.slice(1) : extension
-  const normalizedExt = ext.toLowerCase()
-
-  if (!allowedExtensions.map((e) => e.toLowerCase()).includes(normalizedExt)) {
-    logger.warn('File extension not in allowed list', {
-      paramName,
-      extension: ext,
-      allowedExtensions,
-    })
-    return {
-      isValid: false,
-      error: `${paramName} must be one of: ${allowedExtensions.join(', ')}`,
-    }
-  }
-
-  return { isValid: true, sanitized: normalizedExt }
 }
 
 /**
@@ -597,6 +414,13 @@ export function validateSharePointSiteId(
     }
   }
 
+  if (value === '.' || value === '..') {
+    return {
+      isValid: false,
+      error: `${paramName} cannot be a dot segment`,
+    }
+  }
+
   return { isValid: true, sanitized: value }
 }
 
@@ -618,27 +442,6 @@ export function validateSharePointSiteId(
 export function validateJiraCloudId(
   value: string | null | undefined,
   paramName = 'cloudId'
-): ValidationResult {
-  return validatePathSegment(value, {
-    paramName,
-    allowHyphens: true,
-    allowUnderscores: false,
-    allowDots: false,
-    maxLength: 100,
-  })
-}
-
-/**
- * Validates an Atlassian Assets workspace ID (a UUID-shaped, hyphenated
- * alphanumeric identifier) before it is interpolated into an API path.
- *
- * @param value - The Assets workspace ID to validate
- * @param paramName - Name of the parameter for error messages
- * @returns ValidationResult
- */
-export function validateAssetsWorkspaceId(
-  value: string | null | undefined,
-  paramName = 'workspaceId'
 ): ValidationResult {
   return validatePathSegment(value, {
     paramName,
@@ -678,20 +481,25 @@ export function validateJiraIssueKey(
 }
 
 /**
- * Validates a URL to prevent SSRF attacks
+ * Synchronous, pre-DNS egress check for a URL.
  *
- * This function checks that URLs:
- * - Use https:// protocol only
- * - Do not point to private IP ranges or localhost
- * - Do not use suspicious ports
+ * This is the cheap half of the guard: it rejects a bad scheme, a denied port,
+ * and a disallowed IP literal without a lookup. A hostname it accepts is NOT
+ * cleared to be dialed — only {@link validateUrlWithDNS} can do that, because
+ * only a resolved address can be classified. Use this for form/contract
+ * validation; use the DNS-resolving variant before connecting.
+ *
+ * It also declines to refuse anything the resolved address could permit, so a
+ * destination allowlisted by IP range is still configurable.
  *
  * @param url - The URL to validate
  * @param paramName - Name of the parameter for error messages
+ * @param profile - Where this URL came from; see {@link EgressProfile}
  * @returns ValidationResult
  *
  * @example
  * ```typescript
- * const result = validateExternalUrl(url, 'fileUrl')
+ * const result = validateExternalUrl(url, 'fileUrl', 'configuredEndpoint')
  * if (!result.isValid) {
  *   return NextResponse.json({ error: result.error }, { status: 400 })
  * }
@@ -699,100 +507,41 @@ export function validateJiraIssueKey(
  */
 export function validateExternalUrl(
   url: string | null | undefined,
-  paramName = 'url',
-  options: { allowHttp?: boolean } = {}
+  paramName: string,
+  profile: EgressProfile
 ): ValidationResult {
   if (!url || typeof url !== 'string') {
-    return {
-      isValid: false,
-      error: `${paramName} is required and must be a string`,
-    }
+    return { isValid: false, error: `${paramName} is required and must be a string` }
   }
 
-  let parsedUrl: URL
+  let parsed: URL
   try {
-    parsedUrl = new URL(url)
+    parsed = new URL(url)
   } catch {
-    return {
-      isValid: false,
-      error: `${paramName} must be a valid URL`,
-    }
+    return { isValid: false, error: `${paramName} must be a valid URL` }
   }
 
-  const protocol = parsedUrl.protocol
-  const hostname = parsedUrl.hostname.toLowerCase()
+  const policy = resolveEgressPolicy(profile)
+  const decision = evaluateUrl(parsed, policy)
+  if (decision.allowed) return { isValid: true }
 
-  const cleanHostname = unwrapIpv6Brackets(hostname)
-
-  // The whole loopback range, not just 127.0.0.1: 127.0.0.2 is the same
-  // machine, and matching two literals made this validator disagree with MCP's
-  // domain-check about what "localhost" means. Both directions stay coherent —
-  // hosted rejects the wider set, self-hosted permits http on it.
-  const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
-
-  if (isLocalhost && isHosted) {
-    return {
-      isValid: false,
-      error: `${paramName} cannot point to localhost`,
-    }
+  // A refusal the resolved address could lift is not this check's to make: a
+  // host permitted only by EGRESS_ALLOWED_IP_RANGES cannot be recognised until
+  // DNS runs, and refusing here would stop it being configured at all.
+  // validateUrlWithDNS makes the authoritative call before anything is dialled.
+  //
+  // Only for a hostname. A literal was judged against its own address, so there
+  // is nothing a lookup could add and deferring would accept a literal outside
+  // every configured range.
+  if (
+    !isIpLiteral(unwrapIpv6Brackets(parsed.hostname)) &&
+    policyDefersToAddress(policy) &&
+    isLiftableByVouching(decision.reason)
+  ) {
+    return { isValid: true }
   }
 
-  if (options.allowHttp) {
-    if (protocol !== 'https:' && protocol !== 'http:') {
-      return {
-        isValid: false,
-        error: `${paramName} must use http:// or https:// protocol`,
-      }
-    }
-  } else if (protocol !== 'https:' && !(protocol === 'http:' && isLocalhost && !isHosted)) {
-    return {
-      isValid: false,
-      error: `${paramName} must use https:// protocol`,
-    }
-  }
-
-  if (!isLocalhost && ipaddr.isValid(cleanHostname)) {
-    if (isPrivateIp(cleanHostname)) {
-      return {
-        isValid: false,
-        error: `${paramName} cannot point to private IP addresses`,
-      }
-    }
-  }
-
-  const port = parsedUrl.port
-  const blockedPorts = ['22', '23', '25', '3306', '5432', '6379', '27017', '9200']
-
-  if (port && blockedPorts.includes(port)) {
-    return {
-      isValid: false,
-      error: `${paramName} uses a blocked port`,
-    }
-  }
-
-  return { isValid: true }
-}
-
-/**
- * Validates an image URL to prevent SSRF attacks
- * Alias for validateExternalUrl for backward compatibility
- */
-export function validateImageUrl(
-  url: string | null | undefined,
-  paramName = 'imageUrl'
-): ValidationResult {
-  return validateExternalUrl(url, paramName)
-}
-
-/**
- * Validates a proxy URL to prevent SSRF attacks
- * Alias for validateExternalUrl for backward compatibility
- */
-export function validateProxyUrl(
-  url: string | null | undefined,
-  paramName = 'proxyUrl'
-): ValidationResult {
-  return validateExternalUrl(url, paramName)
+  return { isValid: false, error: describeEgressDenial(decision, paramName, profile) }
 }
 
 /**
@@ -856,6 +605,7 @@ export function validateAirtableId(
  * - ISO partitions: us-iso-east-1, us-iso-west-1, us-isob-east-1
  * - Mexico: mx-central-1
  * - EU Sovereign Cloud: eu-isoe-west-1
+ * - European Sovereign Cloud: eusc-de-east-1
  *
  * @param value - The AWS region to validate
  * @param paramName - Name of the parameter for error messages
@@ -881,7 +631,7 @@ export function validateAwsRegion(
   }
 
   const awsRegionPattern =
-    /^(eu-isoe|us-isob|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
+    /^(eu-isoe|eusc-[a-z]{2}|us-isob|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
 
   if (!awsRegionPattern.test(value)) {
     logger.warn('Invalid AWS region format', {
@@ -891,6 +641,84 @@ export function validateAwsRegion(
     return {
       isValid: false,
       error: `${paramName} must be a valid AWS region (e.g., us-east-1, eu-west-2, us-gov-west-1)`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates a Google Cloud location (region) identifier.
+ *
+ * Google SDKs interpolate this value directly into the API hostname
+ * (`https://{location}-aiplatform.googleapis.com/`), so an unvalidated value
+ * containing `/`, `:`, `@`, or whitespace can terminate the authority component
+ * and relocate the request — along with any attached credential — to an
+ * attacker-controlled host.
+ *
+ * Accepts `global` plus the documented `{geography}-{direction}{index}` region
+ * form (e.g. us-central1, europe-west4, northamerica-northeast1, me-central2).
+ *
+ * @param value - The location to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateGoogleCloudLocation(
+  value: string | null | undefined,
+  paramName = 'location'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+
+  const googleLocationPattern =
+    /^(global|(africa|asia|australia|europe|me|northamerica|southamerica|us)-(central|east|north|northeast|northwest|south|southeast|southwest|west)\d{1,2})$/
+
+  if (!googleLocationPattern.test(value)) {
+    logger.warn('Invalid Google Cloud location format', {
+      paramName,
+      value: value.substring(0, 50),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a valid Google Cloud location (e.g., us-central1, europe-west4, global)`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates a Google Cloud project identifier.
+ *
+ * Accepts either a project ID (6-30 chars, starts with a lowercase letter,
+ * lowercase letters/digits/hyphens, no trailing hyphen) or a numeric project
+ * number. This value is interpolated into the API URL path, so anything that
+ * could introduce path or authority separators is rejected.
+ *
+ * @param value - The project to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateGoogleCloudProject(
+  value: string | null | undefined,
+  paramName = 'project'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+
+  const projectIdPattern = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
+  const projectNumberPattern = /^\d{1,20}$/
+
+  if (!projectIdPattern.test(value) && !projectNumberPattern.test(value)) {
+    logger.warn('Invalid Google Cloud project format', {
+      paramName,
+      value: value.substring(0, 50),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a valid Google Cloud project ID or project number`,
     }
   }
 
@@ -975,115 +803,6 @@ export function validateS3BucketName(
 }
 
 /**
- * Validates a Google Calendar ID
- *
- * Google Calendar IDs can be:
- * - "primary" (literal string for the user's primary calendar)
- * - Email addresses (for user calendars)
- * - Alphanumeric strings with hyphens, underscores, and dots (for other calendars)
- *
- * This validator allows these legitimate formats while blocking path traversal and injection attempts.
- *
- * @param value - The calendar ID to validate
- * @param paramName - Name of the parameter for error messages
- * @returns ValidationResult
- *
- * @example
- * ```typescript
- * const result = validateGoogleCalendarId(calendarId, 'calendarId')
- * if (!result.isValid) {
- *   return NextResponse.json({ error: result.error }, { status: 400 })
- * }
- * ```
- */
-export function validateGoogleCalendarId(
-  value: string | null | undefined,
-  paramName = 'calendarId'
-): ValidationResult {
-  if (value === null || value === undefined || value === '') {
-    return {
-      isValid: false,
-      error: `${paramName} is required`,
-    }
-  }
-
-  if (value === 'primary') {
-    return { isValid: true, sanitized: value }
-  }
-
-  const pathTraversalPatterns = [
-    '../',
-    '..\\',
-    '%2e%2e%2f',
-    '%2e%2e/',
-    '..%2f',
-    '%2e%2e%5c',
-    '%2e%2e\\',
-    '..%5c',
-    '%252e%252e%252f',
-  ]
-
-  const lowerValue = value.toLowerCase()
-  for (const pattern of pathTraversalPatterns) {
-    if (lowerValue.includes(pattern)) {
-      logger.warn('Path traversal attempt in Google Calendar ID', {
-        paramName,
-        value: value.substring(0, 100),
-      })
-      return {
-        isValid: false,
-        error: `${paramName} contains invalid path traversal sequence`,
-      }
-    }
-  }
-
-  if (/[\x00-\x1f\x7f]/.test(value) || value.includes('%00')) {
-    logger.warn('Control characters in Google Calendar ID', { paramName })
-    return {
-      isValid: false,
-      error: `${paramName} contains invalid control characters`,
-    }
-  }
-
-  if (value.includes('\n') || value.includes('\r')) {
-    return {
-      isValid: false,
-      error: `${paramName} contains invalid newline characters`,
-    }
-  }
-
-  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-  if (emailPattern.test(value)) {
-    return { isValid: true, sanitized: value }
-  }
-
-  const calendarIdPattern = /^[a-zA-Z0-9._@%#+-]+$/
-  if (!calendarIdPattern.test(value)) {
-    logger.warn('Invalid Google Calendar ID format', {
-      paramName,
-      value: value.substring(0, 100),
-    })
-    return {
-      isValid: false,
-      error: `${paramName} format is invalid. Must be "primary", an email address, or an alphanumeric ID`,
-    }
-  }
-
-  if (value.length > 255) {
-    logger.warn('Google Calendar ID exceeds maximum length', {
-      paramName,
-      length: value.length,
-    })
-    return {
-      isValid: false,
-      error: `${paramName} exceeds maximum length of 255 characters`,
-    }
-  }
-
-  return { isValid: true, sanitized: value }
-}
-
-/**
  * Validates a pagination cursor token
  *
  * Pagination cursors are opaque tokens returned by APIs (e.g., Confluence, Jira)
@@ -1156,6 +875,31 @@ export function validatePaginationCursor(
 const CALLBACK_URL_SERVER_BASE = 'https://callback-url-validator.invalid'
 
 /**
+ * Origin a callback URL is resolved and compared against.
+ *
+ * The browser uses its own origin. Server-side there is no `window`, so it uses
+ * the deployment's configured origin — which is what the browser will compare
+ * against once it hydrates. Using a sentinel here instead made the server reject
+ * every absolute URL, including the same-origin ones this function documents as
+ * valid, so a component deriving a callback URL during render produced one
+ * destination in the SSR markup and a different one after hydration.
+ *
+ * Falls back to the sentinel when the app URL is unset or unparseable, which
+ * keeps the server fail-closed: every absolute URL is rejected, as before.
+ */
+function getCallbackValidationOrigin(): string {
+  if (typeof window !== 'undefined') {
+    return window.location.origin
+  }
+
+  try {
+    return new URL(getBaseUrl()).origin
+  } catch {
+    return CALLBACK_URL_SERVER_BASE
+  }
+}
+
+/**
  * Validates a callback URL to prevent open redirect attacks.
  *
  * Accepts:
@@ -1184,7 +928,7 @@ export function validateCallbackUrl(url: string): boolean {
   try {
     if (typeof url !== 'string' || url.length === 0) return false
 
-    const base = typeof window === 'undefined' ? CALLBACK_URL_SERVER_BASE : window.location.origin
+    const base = getCallbackValidationOrigin()
     const parsed = new URL(url, base)
     return parsed.origin === base
   } catch (error) {
@@ -1297,125 +1041,6 @@ export function validateMondayNumericId(
 }
 
 /**
- * Validates a Monday.com group ID.
- *
- * Monday.com group IDs are strings that can contain lowercase/uppercase letters,
- * digits, underscores, and spaces. They are user-visible identifiers like
- * "topics", "new_group", or "test group id". Auto-generated IDs may also
- * include "group_title" patterns.
- *
- * @param value - The group ID to validate
- * @param paramName - Name of the parameter for error messages
- * @returns ValidationResult
- *
- * @example
- * ```typescript
- * const result = validateMondayGroupId(groupId, 'groupId')
- * if (!result.isValid) {
- *   return NextResponse.json({ error: result.error }, { status: 400 })
- * }
- * ```
- */
-export function validateMondayGroupId(
-  value: string | null | undefined,
-  paramName = 'groupId'
-): ValidationResult {
-  if (value === null || value === undefined || value === '') {
-    return {
-      isValid: false,
-      error: `${paramName} is required`,
-    }
-  }
-
-  if (value.length > 255) {
-    logger.warn('Monday.com group ID exceeds maximum length', {
-      paramName,
-      length: value.length,
-    })
-    return {
-      isValid: false,
-      error: `${paramName} exceeds maximum length of 255 characters`,
-    }
-  }
-
-  if (/[\x00-\x1f\x7f]/.test(value) || value.includes('%00')) {
-    logger.warn('Monday.com group ID contains control characters', { paramName })
-    return {
-      isValid: false,
-      error: `${paramName} contains invalid control characters`,
-    }
-  }
-
-  if (!/^[a-zA-Z0-9_ ]+$/.test(value)) {
-    logger.warn('Monday.com group ID contains disallowed characters', {
-      paramName,
-      value: value.substring(0, 100),
-    })
-    return {
-      isValid: false,
-      error: `${paramName} can only contain letters, digits, underscores, and spaces`,
-    }
-  }
-
-  return { isValid: true, sanitized: value }
-}
-
-/**
- * Validates a Monday.com column ID.
- *
- * Column IDs are strings containing lowercase letters (a-z), digits (0-9),
- * and underscores. User-specified IDs are 1-20 characters of [a-z_].
- * Auto-generated IDs follow patterns like "status", "date4", "email_mksr9hcd".
- *
- * @param value - The column ID to validate
- * @param paramName - Name of the parameter for error messages
- * @returns ValidationResult
- *
- * @example
- * ```typescript
- * const result = validateMondayColumnId(columnId, 'columnId')
- * if (!result.isValid) {
- *   return NextResponse.json({ error: result.error }, { status: 400 })
- * }
- * ```
- */
-export function validateMondayColumnId(
-  value: string | null | undefined,
-  paramName = 'columnId'
-): ValidationResult {
-  if (value === null || value === undefined || value === '') {
-    return {
-      isValid: false,
-      error: `${paramName} is required`,
-    }
-  }
-
-  if (value.length > 255) {
-    logger.warn('Monday.com column ID exceeds maximum length', {
-      paramName,
-      length: value.length,
-    })
-    return {
-      isValid: false,
-      error: `${paramName} exceeds maximum length of 255 characters`,
-    }
-  }
-
-  if (!/^[a-z0-9_]+$/.test(value)) {
-    logger.warn('Monday.com column ID contains disallowed characters', {
-      paramName,
-      value: value.substring(0, 100),
-    })
-    return {
-      isValid: false,
-      error: `${paramName} can only contain lowercase letters, digits, and underscores`,
-    }
-  }
-
-  return { isValid: true, sanitized: value }
-}
-
-/**
  * Validates a Supabase project ID.
  *
  * Supabase project IDs are 20-character lowercase alphanumeric strings
@@ -1483,6 +1108,82 @@ const SERVICENOW_ALLOWED_HOST_SUFFIXES = [
 ] as const
 
 /**
+ * Validates a vendor-hosted URL: an ordinary egress check, then a hostname
+ * allowlist that pins it to the vendor's own domains.
+ *
+ * The allowlist is what makes these connectors safe to point at a
+ * customer-supplied tenant: egress validation alone would accept any public
+ * host, so a tenant field would otherwise be an open redirect for credentials
+ * scoped to that vendor.
+ *
+ * @param url - The URL or bare host to validate
+ * @param options.suffixes - Permitted host suffixes, each written with a leading dot
+ * @param options.vendor - Vendor name, used in the error message
+ * @param options.paramName - Name of the parameter for error messages
+ * @param options.assumeHttps - Accept a bare host by prepending `https://`
+ * @param options.sanitize - What to return as `sanitized`: the input, or the parsed origin
+ * @param options.allowBareSuffix - Also accept the suffix itself as a hostname
+ */
+function validateVendorHostedUrl(
+  url: string | null | undefined,
+  options: {
+    suffixes: readonly string[]
+    vendor: string
+    paramName: string
+    assumeHttps?: boolean
+    sanitize?: 'input' | 'origin'
+    allowBareSuffix?: boolean
+  }
+): ValidationResult {
+  const {
+    suffixes,
+    vendor,
+    paramName,
+    assumeHttps = false,
+    sanitize = 'input',
+    allowBareSuffix = true,
+  } = options
+
+  const raw = typeof url === 'string' ? url.trim() : ''
+  if (!raw) {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+
+  const candidate = assumeHttps && !/^https?:\/\//i.test(raw) ? `https://${raw}` : raw
+
+  // These vendors are public SaaS reached over TLS. Enforced here rather than
+  // left to the egress policy, which would permit plain HTTP to a host an
+  // operator happened to put in their allowlist.
+  if (/^http:\/\//i.test(candidate)) {
+    return { isValid: false, error: `${paramName} must use https://` }
+  }
+
+  const urlResult = validateExternalUrl(candidate, paramName, 'configuredEndpoint')
+  if (!urlResult.isValid) return urlResult
+
+  const parsed = new URL(candidate)
+  const hostname = parsed.hostname.toLowerCase()
+  const allowed = suffixes.some(
+    (suffix) => (allowBareSuffix && hostname === suffix.slice(1)) || hostname.endsWith(suffix)
+  )
+
+  if (!allowed) {
+    logger.warn(`${vendor} host not on allowlist`, {
+      paramName,
+      hostname: hostname.substring(0, 100),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a ${vendor}-hosted domain (e.g., ${suffixes
+        .map((suffix) => `*${suffix}`)
+        .join(', ')})`,
+    }
+  }
+
+  return { isValid: true, sanitized: sanitize === 'origin' ? parsed.origin : candidate }
+}
+
+/**
  * Validates a ServiceNow instance URL to prevent SSRF attacks.
  *
  * ServiceNow instances are SaaS endpoints hosted on ServiceNow-owned domains.
@@ -1515,26 +1216,11 @@ export function validateServiceNowInstanceUrl(
   url: string | null | undefined,
   paramName = 'instanceUrl'
 ): ValidationResult {
-  const urlResult = validateExternalUrl(url, paramName)
-  if (!urlResult.isValid) return urlResult
-
-  const hostname = new URL(url as string).hostname.toLowerCase()
-  const isAllowedHost = SERVICENOW_ALLOWED_HOST_SUFFIXES.some(
-    (suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix)
-  )
-
-  if (!isAllowedHost) {
-    logger.warn('ServiceNow instance URL hostname not on allowlist', {
-      paramName,
-      hostname: hostname.substring(0, 100),
-    })
-    return {
-      isValid: false,
-      error: `${paramName} must be a ServiceNow-hosted domain (e.g., *.service-now.com, *.servicenow.com, or *.servicenowservices.com)`,
-    }
-  }
-
-  return { isValid: true, sanitized: url as string }
+  return validateVendorHostedUrl(url, {
+    suffixes: SERVICENOW_ALLOWED_HOST_SUFFIXES,
+    vendor: 'ServiceNow',
+    paramName,
+  })
 }
 
 const WORKDAY_ALLOWED_HOST_SUFFIXES = ['.workday.com', '.myworkday.com'] as const
@@ -1568,26 +1254,76 @@ export function validateWorkdayTenantUrl(
   url: string | null | undefined,
   paramName = 'tenantUrl'
 ): ValidationResult {
-  const urlResult = validateExternalUrl(url, paramName)
-  if (!urlResult.isValid) return urlResult
+  return validateVendorHostedUrl(url, {
+    suffixes: WORKDAY_ALLOWED_HOST_SUFFIXES,
+    vendor: 'Workday',
+    paramName,
+  })
+}
 
-  const hostname = new URL(url as string).hostname.toLowerCase()
-  const isAllowedHost = WORKDAY_ALLOWED_HOST_SUFFIXES.some(
-    (suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix)
-  )
+/**
+ * Every production Databricks control-plane DNS zone, mirroring `ALL_ENVS` in the
+ * Databricks SDK (`databricks/sdk/environments.py`). The SDK's `.dev.*`/`.staging.*`
+ * zones are internal and deliberately omitted; the ones that are subdomains of a
+ * zone listed here (e.g. `.staging.cloud.databricks.com`) match by suffix anyway.
+ */
+const DATABRICKS_ALLOWED_HOST_SUFFIXES = [
+  '.cloud.databricks.com',
+  '.cloud.databricks.us',
+  '.gcp.databricks.com',
+  '.azuredatabricks.net',
+  '.databricks.azure.us',
+  '.databricks.azure.cn',
+] as const
 
-  if (!isAllowedHost) {
-    logger.warn('Workday tenant URL hostname not on allowlist', {
-      paramName,
-      hostname: hostname.substring(0, 100),
-    })
-    return {
-      isValid: false,
-      error: `${paramName} must be a Workday-hosted domain (e.g., *.workday.com or *.myworkday.com)`,
-    }
-  }
-
-  return { isValid: true, sanitized: url as string }
+/**
+ * Validates a Databricks workspace host to prevent SSRF attacks.
+ *
+ * Databricks is host-scoped: every workspace has its own per-workspace URL, and
+ * every REST call is made against it. Example valid hosts:
+ * - dbc-1234abcd-5678.cloud.databricks.com (AWS)
+ * - dbc-1234abcd-5678.cloud.databricks.us (AWS GovCloud)
+ * - adb-1234567890123456.7.azuredatabricks.net (Azure)
+ * - adb-1234567890123456.7.databricks.azure.us (Azure US Government)
+ * - adb-1234567890123456.7.databricks.azure.cn (Azure China)
+ * - 1234567890123456.7.gcp.databricks.com (GCP)
+ *
+ * The value is user-supplied and fetched server-side, so it is normalized to an
+ * https origin and then checked against a Databricks-owned domain allowlist.
+ * Users routinely paste a full console URL (a `#notebook/123` deep link, a
+ * trailing slash, a `?o=<workspace-id>` query); every API path is built by
+ * appending `/api/2.0/...`, so any surviving path, query or fragment would
+ * produce a 404. `URL.origin` also lower-cases the host and drops the default
+ * port.
+ *
+ * Note: legacy regional URLs (`https://oregon.cloud.databricks.com`) match the
+ * allowlist but are not recommended by Databricks — point the connector at the
+ * per-workspace URL instead.
+ *
+ * @param host - The workspace host or URL to validate, with or without a scheme
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult whose `sanitized` value is the https origin
+ *
+ * @example
+ * ```typescript
+ * const result = validateDatabricksWorkspaceHost(workspaceHost)
+ * if (!result.isValid) {
+ *   throw new Error(result.error)
+ * }
+ * ```
+ */
+export function validateDatabricksWorkspaceHost(
+  host: string | null | undefined,
+  paramName = 'workspaceHost'
+): ValidationResult {
+  return validateVendorHostedUrl(host, {
+    suffixes: DATABRICKS_ALLOWED_HOST_SUFFIXES,
+    vendor: 'Databricks',
+    paramName,
+    assumeHttps: true,
+    sanitize: 'origin',
+    allowBareSuffix: false,
+  })
 }
 
 /**

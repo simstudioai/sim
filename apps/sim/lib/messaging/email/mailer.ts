@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { processEmailData, shouldSkipForUnsubscribe } from '@/lib/messaging/email/prepare'
-import { activeProviders } from '@/lib/messaging/email/providers'
+import { activeProviders, emailFallback } from '@/lib/messaging/email/providers'
 import type {
   BatchEmailOptions,
   BatchSendEmailResult,
@@ -103,19 +103,14 @@ export async function sendEmail(options: EmailOptions): Promise<SendEmailResult>
 }
 
 async function dispatchWithFallback(data: ProcessedEmailData): Promise<SendEmailResult> {
-  let lastError: unknown
-  for (const provider of activeProviders) {
-    try {
-      return await provider.send(data)
-    } catch (error) {
-      lastError = error
-      logger.warn(`${provider.name} failed, trying next provider`, error)
+  try {
+    return await emailFallback.execute((provider) => provider.send(data))
+  } catch (error) {
+    logger.error('All email providers failed', error)
+    return {
+      success: false,
+      message: getErrorMessage(error, 'All email providers failed'),
     }
-  }
-  logger.error('All email providers failed', lastError)
-  return {
-    success: false,
-    message: `All email providers failed: ${getErrorMessage(lastError, 'unknown error')}`,
   }
 }
 

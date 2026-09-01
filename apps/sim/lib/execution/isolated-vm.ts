@@ -4,14 +4,18 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { filterUndefined } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
+import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
   type SecureFetchOptions,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
-import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeholders'
+import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
+import { MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS } from '@/lib/execution/isolated-vm-limits'
 
 const logger = createLogger('IsolatedVMExecution')
 
@@ -33,6 +37,7 @@ export interface IsolatedVMExecutionRequest {
   params: Record<string, unknown>
   envVars: Record<string, string>
   contextVariables: Record<string, unknown>
+  runtimeBindings?: CodePlaceholderRuntimeBinding[]
   timeoutMs: number
   requestId: string
   ownerKey?: string
@@ -71,6 +76,8 @@ export interface IsolatedVMExecutionResult {
   result: unknown
   stdout: string
   error?: IsolatedVMError
+  /** Host-owned outcome for enforced termination; user code cannot set this field. */
+  termination?: 'timeout' | 'cancelled'
   /** Populated in task mode: the `finalize` result as base64-encoded bytes. */
   bytesBase64?: string
   /**
@@ -131,11 +138,24 @@ const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER =
 const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS) || 120000
 const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WORKER) || 200
 const MAX_BROKER_ARGS_JSON_CHARS = Number.parseInt(env.IVM_MAX_BROKER_ARGS_JSON_CHARS) || 262_144
-const MAX_BROKER_RESULT_JSON_CHARS =
-  Number.parseInt(env.IVM_MAX_BROKER_RESULT_JSON_CHARS) || 16_777_216
 const MAX_BROKERS_PER_EXECUTION = Number.parseInt(env.IVM_MAX_BROKERS_PER_EXECUTION) || 1000
 const DISTRIBUTED_KEY_PREFIX = 'ivm:fair:v1:owner'
-const LEASE_REDIS_DEADLINE_MS = 200
+/**
+ * Deadline for a single lease round trip, kept below the shared Redis client's
+ * `commandTimeout` so this race still resolves first.
+ *
+ * Both this deadline and `commandTimeout` are plain `setTimeout`s, so what they
+ * actually measure is event-loop scheduling, not Redis. A value near normal loop
+ * latency therefore reports a healthy Redis as unreachable whenever a garbage
+ * collection pause lands on the call. Keep it well clear of that floor.
+ *
+ * A non-positive configured value is treated as unconfigured rather than
+ * honored: a timer of zero or less fires immediately, which would leave every
+ * acquisition undetermined and silently drop cross-replica enforcement.
+ */
+const CONFIGURED_LEASE_REDIS_DEADLINE_MS = Number.parseInt(env.IVM_LEASE_REDIS_DEADLINE_MS)
+const LEASE_REDIS_DEADLINE_MS =
+  CONFIGURED_LEASE_REDIS_DEADLINE_MS > 0 ? CONFIGURED_LEASE_REDIS_DEADLINE_MS : 1000
 const QUEUE_RETRY_DELAY_MS = 1000
 const DISTRIBUTED_LEASE_GRACE_MS = 30000
 
@@ -231,9 +251,14 @@ function truncateString(value: string, maxChars: number): { value: string; trunc
 }
 
 function normalizeFetchOptions(options?: IsolatedFetchOptions): SecureFetchOptions {
-  if (!options) return { maxResponseBytes: MAX_FETCH_RESPONSE_BYTES }
+  // The Function block's `fetch()` reaches whatever the workflow author's script
+  // asks for, so it is governed as a request target rather than a configured one.
+  if (!options) {
+    return { profile: 'requestTarget', maxResponseBytes: MAX_FETCH_RESPONSE_BYTES }
+  }
 
   const normalized: SecureFetchOptions = {
+    profile: 'requestTarget',
     maxResponseBytes: MAX_FETCH_RESPONSE_BYTES,
   }
 
@@ -319,9 +344,9 @@ async function secureFetch(
       headers,
     })
   } catch (error: unknown) {
+    const normalizedError = toError(error)
     logger.warn(`[${requestId}] Isolated fetch failed`, {
-      url: sanitizeUrlForLog(url),
-      error: toError(error).message,
+      errorName: normalizedError.name,
     })
     return JSON.stringify({ error: getErrorMessage(error, 'Unknown fetch error') })
   }
@@ -342,22 +367,30 @@ function ownerRedisKey(ownerKey: string): string {
   return `${DISTRIBUTED_KEY_PREFIX}:${ownerKey}`
 }
 
-type LeaseAcquireResult = 'acquired' | 'limit_exceeded' | 'unavailable'
+/**
+ * Outcome of one distributed lease acquisition.
+ *
+ * `limit_exceeded` is an answer from Redis — the owner is genuinely over its
+ * share — and is the only outcome that denies an execution. `undetermined`
+ * means no answer arrived before the deadline, which is not a denial and must
+ * never be projected as one: the local admission limits below still bound the
+ * work, so the caller falls back to them.
+ */
+type LeaseAcquireResult = 'acquired' | 'limit_exceeded' | 'undetermined'
 
 async function tryAcquireDistributedLease(
   ownerKey: string,
   leaseId: string,
   timeoutMs: number
 ): Promise<LeaseAcquireResult> {
-  // Redis not configured: explicit local-mode fallback is allowed.
-  if (!env.REDIS_URL) return 'acquired'
+  if (getConfiguredCacheProvider() === 'database') return 'acquired'
 
   const redis = getRedisClient()
   if (!redis) {
-    logger.error('Redis is configured but unavailable for distributed lease acquisition', {
+    logger.warn('No Redis client for distributed lease acquisition; using local limits', {
       ownerKey,
     })
-    return 'unavailable'
+    return 'undetermined'
   }
 
   const now = Date.now()
@@ -403,11 +436,12 @@ async function tryAcquireDistributedLease(
     ])
     return Number(result) === 1 ? 'acquired' : 'limit_exceeded'
   } catch (error) {
-    logger.warn('Failed to acquire distributed owner lease — falling back to local execution', {
+    logger.warn('Distributed owner lease undetermined; using local limits', {
       ownerKey,
+      deadlineMs: LEASE_REDIS_DEADLINE_MS,
       error,
     })
-    return 'unavailable'
+    return 'undetermined'
   } finally {
     clearTimeout(deadlineTimer)
   }
@@ -710,10 +744,10 @@ function handleBrokerMessage(
         sendResponse({ error: 'Broker result is not JSON-serializable' })
         return
       }
-      if (resultJson.length > MAX_BROKER_RESULT_JSON_CHARS) {
+      if (resultJson.length > MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS) {
         logReject('result_too_large', { resultJsonLength: resultJson.length })
         sendResponse({
-          error: `Broker result exceeds maximum size (${MAX_BROKER_RESULT_JSON_CHARS} chars)`,
+          error: `Broker result exceeds maximum size (${MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS} chars)`,
         })
         return
       }
@@ -890,6 +924,37 @@ function resetWorkerIdleTimeout(workerId: number) {
   }
 }
 
+/**
+ * Environment for the sandbox worker process. The worker runs untrusted user
+ * code, so it must never inherit the app's `process.env` (DB URLs, encryption
+ * keys, provider API keys — see `.claude/rules/sim-sandbox.md`): a V8 isolate
+ * escape would read every inherited secret from the worker's environment.
+ * Only an explicit allowlist is forwarded — `PATH` so `spawn('node', ...)` can
+ * resolve the binary, `NODE_ENV`, the two `IVM_*` limits the worker reads,
+ * timezone/locale vars so `Date`/`Intl` behavior inside isolates matches the
+ * host, and the Windows system vars Node needs to boot (undefined elsewhere
+ * and stripped).
+ * Any new env var the worker reads must be added here and to the allowlist
+ * regression test in `isolated-vm.test.ts`.
+ */
+function buildWorkerEnv(): NodeJS.ProcessEnv {
+  const allowed: Record<string, string | undefined> = {
+    PATH: process.env.PATH,
+    IVM_MAX_STDOUT_CHARS: env.IVM_MAX_STDOUT_CHARS,
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS,
+    TZ: process.env.TZ,
+    LANG: process.env.LANG,
+    LC_ALL: process.env.LC_ALL,
+    SYSTEMROOT: process.env.SYSTEMROOT,
+    WINDIR: process.env.WINDIR,
+    COMSPEC: process.env.COMSPEC,
+    PATHEXT: process.env.PATHEXT,
+    TEMP: process.env.TEMP,
+    TMP: process.env.TMP,
+  }
+  return { ...filterUndefined(allowed), NODE_ENV: process.env.NODE_ENV }
+}
+
 function spawnWorker(): Promise<WorkerInfo> {
   const workerId = nextWorkerId++
   spawnInProgress++
@@ -955,6 +1020,7 @@ function spawnWorker(): Promise<WorkerInfo> {
         const proc = spawn('node', ['--no-node-snapshot', workerPath], {
           stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
           serialization: 'json',
+          env: buildWorkerEnv(),
         })
         childProcess = proc
 
@@ -1090,6 +1156,7 @@ function dispatchToWorker(
       result: null,
       stdout: '',
       error: { message: 'Execution cancelled', name: 'AbortError' },
+      termination: 'cancelled',
     })
     drainQueue()
     return
@@ -1122,6 +1189,7 @@ function dispatchToWorker(
       result: null,
       stdout: '',
       error: { message: `Execution timed out after ${req.timeoutMs}ms`, name: 'TimeoutError' },
+      termination: 'timeout',
     })
     if (workerInfo.retiring && workerInfo.activeExecutions === 0) {
       cleanupWorker(workerInfo.id)
@@ -1144,7 +1212,15 @@ function dispatchToWorker(
   ownerState.activeExecutions++
 
   try {
-    workerInfo.process.send({ type: 'execute', executionId: execId, request: req })
+    const { runtimeBindings, ...wireRequest } = req
+    workerInfo.process.send({
+      type: 'execute',
+      executionId: execId,
+      request: {
+        ...wireRequest,
+        runtimeBindingSource: buildJavaScriptRuntimeBindingsSource(runtimeBindings ?? []),
+      },
+    })
   } catch {
     clearTimeout(timeout)
     workerInfo.pendingExecutions.delete(execId)
@@ -1317,6 +1393,7 @@ export async function executeInIsolatedVM(
       result: null,
       stdout: '',
       error: { message: 'Execution cancelled', name: 'AbortError' },
+      termination: 'cancelled',
     }
   }
 
@@ -1343,12 +1420,44 @@ export async function executeInIsolatedVM(
     distributedLeaseId,
     req.timeoutMs
   )
+  let settled = false
+  /**
+   * Released even when the acquisition was undetermined. The deadline abandons
+   * the local wait but cannot cancel the script, so a late completion still
+   * registers this lease id — and unreleased it would count against the owner
+   * for the whole TTL, denying later executions that do have capacity. The
+   * lease id is unique to this execution, so removing one that was never
+   * registered is a no-op.
+   *
+   * Declared before the early returns below so every exit path that can leave a
+   * registration behind reaches it, not just the ones that run the execution.
+   */
+  const releaseLease = () => {
+    if (settled) return
+    settled = true
+    releaseDistributedLease(ownerKey, distributedLeaseId).catch((error) => {
+      logger.error('Failed to release distributed lease', { ownerKey, error })
+    })
+  }
+
+  if (leaseAcquireResult !== 'acquired' && signal?.aborted) {
+    // Only an undetermined result can have registered; see the over-limit branch below.
+    if (leaseAcquireResult === 'undetermined') releaseLease()
+    maybeCleanupOwner(ownerKey)
+    return {
+      result: null,
+      stdout: '',
+      error: { message: 'Execution cancelled', name: 'AbortError' },
+      termination: 'cancelled',
+    }
+  }
   if (leaseAcquireResult === 'limit_exceeded') {
     logger.warn('Isolated-vm saturation: distributed lease limit exceeded', {
       reason: 'distributed_lease_limit',
       ownerKey,
       max: DISTRIBUTED_MAX_INFLIGHT_PER_OWNER,
     })
+    // No release: the script returns this before its ZADD, so nothing was registered.
     maybeCleanupOwner(ownerKey)
     return {
       result: null,
@@ -1360,19 +1469,8 @@ export async function executeInIsolatedVM(
       },
     }
   }
-  if (leaseAcquireResult === 'unavailable') {
-    logger.warn('Distributed lease unavailable, falling back to local execution', { ownerKey })
-    // Continue execution — local pool still enforces per-process concurrency limits
-  }
-
-  let settled = false
-  const releaseLease = () => {
-    if (settled) return
-    settled = true
-    releaseDistributedLease(ownerKey, distributedLeaseId).catch((error) => {
-      logger.error('Failed to release distributed lease', { ownerKey, error })
-    })
-  }
+  // An undetermined lease cannot reject the execution: the per-process pool and
+  // the per-owner active/queued limits above still bound this work.
 
   const state: ExecutionState = { cancelled: false }
 
@@ -1417,6 +1515,7 @@ export async function executeInIsolatedVM(
           result: null,
           stdout: '',
           error: { message: 'Execution cancelled', name: 'AbortError' },
+          termination: 'cancelled',
         })
       }
       signal.addEventListener('abort', abortListener, { once: true })

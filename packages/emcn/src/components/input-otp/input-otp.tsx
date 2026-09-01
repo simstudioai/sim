@@ -28,7 +28,7 @@
 
 import * as React from 'react'
 import { OTPInput, OTPInputContext } from 'input-otp'
-import { Minus } from 'lucide-react'
+import { Minus } from '../../icons'
 import { cn } from '../../lib/cn'
 
 /**
@@ -77,7 +77,7 @@ const InputOTPSlot = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        'relative flex h-12 w-12 items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] font-medium text-[var(--text-primary)] text-lg transition-colors',
+        'relative flex h-12 w-12 items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-primary)] text-lg transition-colors',
         isActive && 'z-10 border-[var(--text-muted)] ring-1 ring-[var(--text-muted)]',
         className
       )}

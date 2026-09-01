@@ -3,8 +3,10 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import {
   findWorkspaceFileRecord,
+  generateWorkspaceFileKey,
   normalizeWorkspaceFileReference,
   type WorkspaceFileRecord,
 } from './workspace-file-manager'
@@ -74,5 +76,44 @@ describe('workspace file reference normalization', () => {
     expect(findWorkspaceFileRecord([reportsFile, archiveFile], 'files/Archive/q1.csv')).toBe(
       archiveFile
     )
+  })
+
+  it('resolves an encoded slash within one folder segment', () => {
+    const legalFile: WorkspaceFileRecord = {
+      ...makeFileRecord(),
+      id: 'file-legal',
+      name: 'contract.pdf',
+      folderId: 'folder-legal',
+      folderPath: 'Finance\\/Legal',
+    }
+
+    expect(findWorkspaceFileRecord([legalFile], 'files/Finance%2FLegal/contract.pdf/content')).toBe(
+      legalFile
+    )
+  })
+})
+
+/**
+ * The only place the real key builder is measured — the upload-session suites
+ * stand a stub in for it — so the budget is asserted here the way the filesystem
+ * enforces it. Local storage writes a metadata sidecar beside the object under
+ * the object's own name, so `NAME_MAX` bounds the key's last component PLUS that
+ * suffix, not the component alone. Measuring the component alone passes with the
+ * sidecar reservation removed, and the overflow returns as an `ENAMETOOLONG` 500
+ * on a name the contract already admitted.
+ */
+describe('workspace file storage keys', () => {
+  /** POSIX `NAME_MAX`, in bytes, for one path component. */
+  const NAME_MAX = 255
+
+  it('leaves the longest admitted name room for its local sidecar', () => {
+    const key = generateWorkspaceFileKey('ws_123', `${'a'.repeat(251)}.txt`)
+    const lastSegment = key.slice(key.lastIndexOf('/') + 1)
+
+    expect(
+      Buffer.byteLength(`${lastSegment}${LOCAL_UPLOAD_METADATA_SUFFIX}`, 'utf-8')
+    ).toBeLessThanOrEqual(NAME_MAX)
+    expect(key.startsWith('workspace/ws_123/')).toBe(true)
+    expect(lastSegment.endsWith('.txt')).toBe(true)
   })
 })

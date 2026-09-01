@@ -8,24 +8,55 @@ import {
 } from '@/lib/workflows/deployment-lifecycle'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const deployedWorkflowStateSchema = z.custom<WorkflowState>(
-  (value) => typeof value === 'object' && value !== null,
-  'Expected workflow state'
-)
+export const deployedWorkflowStateSchema = z
+  .custom<WorkflowState>(
+    (value) => typeof value === 'object' && value !== null,
+    'Expected workflow state'
+  )
+  .meta({
+    id: 'DeployedWorkflowState',
+    title: 'Deployed workflow state',
+    description: 'Workflow graph snapshot pinned by a deployment version.',
+    type: 'object',
+    additionalProperties: true,
+  })
+
+/**
+ * Upper bound of `workflow_deployment_version.version`, whose column is a
+ * Postgres `integer`. A larger value has no row to address and overflows the
+ * comparison instead of missing, so every schema carrying a deployment version
+ * — path param, request body, or cursor payload — must be bounded by this.
+ */
+export const DEPLOYMENT_VERSION_MAX = 2147483647
+
+/** A deployment version number, bounded to the range its column can hold. */
+export const deploymentVersionNumberSchema = z
+  .number()
+  .int('version must be an integer')
+  .min(1, 'version must be a positive integer')
+  .max(DEPLOYMENT_VERSION_MAX, 'version is out of range')
+
+/**
+ * {@link deploymentVersionNumberSchema} for a path segment, which arrives as a
+ * string. Spelled out rather than piped through the body schema because a
+ * `ZodPipe` publishes none of its constraints to the generated OpenAPI document,
+ * which would leave the documented parameter unbounded even though the runtime
+ * check holds.
+ */
+const deploymentVersionPathSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .max(DEPLOYMENT_VERSION_MAX, 'version is out of range')
 
 export const deploymentVersionParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.coerce.number().int().positive(),
+  version: deploymentVersionPathSchema,
 })
 
 export const deploymentVersionOrActiveParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.union([z.number().int().positive(), z.literal('active')]),
-})
-
-export const deploymentVersionRouteParamsSchema = z.object({
-  id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.string().min(1, 'Invalid version'),
+  version: z.union([deploymentVersionPathSchema, z.literal('active')]),
 })
 
 export const updatePublicApiBodySchema = z.object({
@@ -63,43 +94,86 @@ export type ActivateDeploymentVersionBody = z.input<typeof activateDeploymentVer
 
 export const deploymentOperationStatusSchema = z.enum(DEPLOYMENT_OPERATION_STATUSES)
 
-export const deploymentComponentReadinessSchema = z.enum([
-  ...DEPLOYMENT_COMPONENT_STATUSES,
-  'not_applicable',
-])
+export const deploymentComponentReadinessSchema = z
+  .enum([...DEPLOYMENT_COMPONENT_STATUSES, 'not_applicable'])
+  .describe('Readiness of one deployment side-effect component.')
 
-export const deploymentReadinessSchema = z.object({
-  webhooks: deploymentComponentReadinessSchema,
-  schedules: deploymentComponentReadinessSchema,
-  mcp: deploymentComponentReadinessSchema,
-})
+export const deploymentReadinessSchema = z
+  .object({
+    webhooks: deploymentComponentReadinessSchema.describe('Webhook synchronization readiness.'),
+    schedules: deploymentComponentReadinessSchema.describe('Schedule synchronization readiness.'),
+    mcp: deploymentComponentReadinessSchema.describe('MCP synchronization readiness.'),
+  })
+  .meta({
+    id: 'DeploymentReadiness',
+    title: 'Deployment readiness',
+    description: 'Readiness of the side effects required to activate a deployment.',
+  })
 
-export const deploymentOperationSummarySchema = z.object({
-  id: z.string(),
-  deploymentVersionId: z.string(),
-  version: z.number().int().positive(),
-  action: z.enum(DEPLOYMENT_OPERATION_ACTIONS),
-  status: deploymentOperationStatusSchema,
-  readiness: deploymentReadinessSchema,
-  requestedAt: z.string(),
-  activatedAt: z.string().nullable().optional(),
-  error: z
-    .object({
-      code: z.string(),
-      message: z.string(),
-      retryable: z.boolean(),
-    })
-    .nullable()
-    .optional(),
-})
+export const deploymentOperationErrorSchema = z
+  .object({
+    code: z.string().describe('Stable deployment failure code.'),
+    message: z.string().describe('Human-readable deployment failure message.'),
+    retryable: z.boolean().describe('Whether retrying the deployment may succeed.'),
+  })
+  .meta({
+    id: 'DeploymentOperationError',
+    title: 'Deployment operation error',
+    description: 'Failure details for a deployment lifecycle operation.',
+  })
+
+export const deploymentOperationSummarySchema = z
+  .object({
+    id: z.string().describe('Unique deployment operation identifier.'),
+    deploymentVersionId: z.string().describe('Deployment version targeted by this operation.'),
+    version: z.number().int().positive().describe('Numeric deployment version.'),
+    action: z
+      .enum(DEPLOYMENT_OPERATION_ACTIONS)
+      .describe('Operation being performed on the deployment version.'),
+    status: deploymentOperationStatusSchema.describe('Current deployment lifecycle status.'),
+    isCurrent: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('Whether this operation still describes the current deployment attempt.'),
+    readiness: deploymentReadinessSchema,
+    requestedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the deployment operation was requested.')
+      .meta({ format: 'date-time' }),
+    activatedAt: z
+      .string()
+      .nullable()
+      .optional()
+      .describe('ISO 8601 activation timestamp, or null before activation completes.')
+      .meta({ format: 'date-time' }),
+    error: deploymentOperationErrorSchema
+      .nullable()
+      .optional()
+      .describe('Deployment failure details, or null when no failure occurred.'),
+  })
+  .meta({
+    id: 'DeploymentOperationSummary',
+    title: 'Deployment operation',
+    description: 'Lifecycle state of a deployment or version-activation attempt.',
+  })
 
 export type DeploymentOperationSummary = z.output<typeof deploymentOperationSummarySchema>
 
-export const activeDeploymentSummarySchema = z.object({
-  deploymentVersionId: z.string(),
-  version: z.number().int().positive(),
-  deployedAt: z.string(),
-})
+export const activeDeploymentSummarySchema = z
+  .object({
+    deploymentVersionId: z.string().describe('Identifier of the active deployment version.'),
+    version: z.number().int().positive().describe('Numeric active deployment version.'),
+    deployedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when this version became active.')
+      .meta({ format: 'date-time' }),
+  })
+  .meta({
+    id: 'ActiveDeploymentSummary',
+    title: 'Active deployment',
+    description: 'Summary of the workflow version currently serving API executions.',
+  })
 
 export const deploymentVersionPatchBodySchema = deploymentVersionMetadataFieldsSchema
   .extend({

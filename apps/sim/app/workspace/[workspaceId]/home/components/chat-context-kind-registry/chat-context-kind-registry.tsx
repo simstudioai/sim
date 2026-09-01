@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
 import {
-  Calendar,
-  Cursor,
   Database,
   Folder as FolderIcon,
+  Globe,
   Library,
   Table as TableIcon,
   Task,
@@ -13,7 +12,7 @@ import {
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
-import { getBareIconStyle } from '@/blocks/icon-color'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { getBlockRegistry } from '@/blocks/registry'
 
 interface RenderIconArgs {
@@ -43,8 +42,7 @@ function renderIntegrationTile({ context, className }: RenderIconArgs): ReactNod
   if (!context.blockType) return null
   const block = getBlockRegistry()[context.blockType]
   if (!block) return null
-  const Icon = block.icon
-  return <Icon className={className} style={getBareIconStyle(Icon)} />
+  return <BrandIcon icon={block.icon} className={className} />
 }
 
 /**
@@ -57,7 +55,7 @@ function renderIntegrationTile({ context, className }: RenderIconArgs): ReactNod
 export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKindConfig> = {
   browser_tab: {
     label: 'Browser tab',
-    renderIcon: ({ className }) => <Cursor className={className} />,
+    renderIcon: ({ className }) => <Globe className={className} />,
   },
   terminal_tab: {
     label: 'Terminal',
@@ -75,10 +73,23 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
     label: 'Table',
     renderIcon: ({ className }) => <TableIcon className={className} />,
   },
+  table_selection: {
+    label: 'Table selection',
+    renderIcon: ({ className }) => <TableIcon className={className} />,
+  },
   file: {
     label: 'File',
     renderIcon: ({ context, className }) => {
       const FileDocIcon = getDocumentIcon('', context.label)
+      return <FileDocIcon className={className} />
+    },
+  },
+  file_selection: {
+    label: 'File selection',
+    renderIcon: ({ context, className }) => {
+      // The label carries a `:line` suffix, so read the extension off the file
+      // name the context carries — `getDocumentIcon` needs `md`, not `md:12-40`.
+      const FileDocIcon = getDocumentIcon('', context.fileName ?? context.label)
       return <FileDocIcon className={className} />
     },
   },
@@ -89,10 +100,6 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   filefolder: {
     label: 'File folder',
     renderIcon: ({ className }) => <FolderIcon className={className} />,
-  },
-  scheduledtask: {
-    label: 'Scheduled task',
-    renderIcon: ({ className }) => <Calendar className={className} />,
   },
   past_chat: {
     label: 'Past chat',

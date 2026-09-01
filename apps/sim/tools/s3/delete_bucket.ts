@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const s3DeleteBucketTool: ToolConfig = {
+export const s3DeleteBucketTool: InternalToolConfig = {
   id: 's3_delete_bucket',
   name: 'S3 Delete Bucket',
   description: 'Delete an empty AWS S3 bucket',
@@ -33,13 +33,8 @@ export const s3DeleteBucketTool: ToolConfig = {
     },
   },
 
-  request: {
-    url: '/api/tools/s3/delete-bucket',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
       region: params.region,

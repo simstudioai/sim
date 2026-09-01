@@ -1,7 +1,7 @@
-import { Link, Section, Text } from '@react-email/components'
-import { baseStyles, colors, typography } from '@/components/emails/_styles'
-import { proFeatures } from '@/components/emails/billing/constants'
-import { EmailLayout } from '@/components/emails/components'
+import { Text } from '@react-email/components'
+import { baseStyles } from '@/components/emails/_styles'
+import { ProFeaturesBox } from '@/components/emails/billing/pro-features-box'
+import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -23,76 +23,20 @@ export function CreditsExhaustedEmail({
       preview={`You've used all ${dollarsToCredits(limit).toLocaleString()} of your free ${brand.name} credits`}
       showUnsubscribe={true}
     >
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
-        You&apos;ve used all <strong>{dollarsToCredits(limit).toLocaleString()}</strong> of your
-        free credits on {brand.name}. Your workflows are paused until you upgrade.
+        You&apos;ve used all <EmailStrong>{dollarsToCredits(limit).toLocaleString()}</EmailStrong>{' '}
+        of your free credits on {brand.name}. Your workflows are paused until you upgrade.
       </Text>
 
-      <Section
-        style={{
-          backgroundColor: colors.surfaceSubtle,
-          border: `1px solid ${colors.brandTertiary}20`,
-          borderRadius: '8px',
-          padding: '16px 20px',
-          margin: '16px 0',
-        }}
-      >
-        <Text
-          style={{
-            fontSize: '14px',
-            fontWeight: 600,
-            color: colors.brandTertiary,
-            fontFamily: typography.fontFamily,
-            margin: '0 0 12px 0',
-            textTransform: 'uppercase' as const,
-            letterSpacing: '0.5px',
-          }}
-        >
-          Pro includes
-        </Text>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <tbody>
-            {proFeatures.map((feature, i) => (
-              <tr key={i}>
-                <td
-                  style={{
-                    padding: '6px 0',
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    color: colors.textPrimary,
-                    fontFamily: typography.fontFamily,
-                    width: '45%',
-                  }}
-                >
-                  {feature.label}
-                </td>
-                <td
-                  style={{
-                    padding: '6px 0',
-                    fontSize: '14px',
-                    color: colors.textMuted,
-                    fontFamily: typography.fontFamily,
-                  }}
-                >
-                  {feature.desc}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
+      <ProFeaturesBox />
 
-      <Link href={upgradeLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Upgrade to Pro</Text>
-      </Link>
+      <EmailButton href={upgradeLink}>Upgrade to Pro</EmailButton>
 
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         One-time notification when free credits are exhausted.
       </Text>
     </EmailLayout>

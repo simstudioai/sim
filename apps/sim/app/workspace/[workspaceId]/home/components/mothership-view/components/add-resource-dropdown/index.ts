@@ -1,8 +1,9 @@
 export {
   AddResourceDropdown,
-  buildFileFolderTree,
-  buildWorkflowFolderTree,
-  FileFolderTreeItems,
+  FOLDERED_RESOURCE_TYPES,
+  ResourceFolderTreeItems,
+  ResourceMenuSections,
   useAvailableResources,
-  WorkflowFolderTreeItems,
+  useResourceTreeSections,
 } from './add-resource-dropdown'
+export { resourceFromItem } from './resource-from-item'

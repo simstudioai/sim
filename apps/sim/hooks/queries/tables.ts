@@ -17,7 +17,6 @@ import {
 } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
-  ApiClientError,
   extractValidationIssues,
   isApiClientError,
   isValidationError,
@@ -25,17 +24,28 @@ import {
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
+  cancelTableImportResourceContract,
+  completeTableImportResourceContract,
+  createTableExportResourceContract,
+  createTableImportPartUrlsContract,
+  createTableImportResourceContract,
+  downloadTableExportResourceContract,
+} from '@/lib/api/contracts/table-transfers'
+import {
   type ActiveDispatch,
   type AddWorkflowGroupBodyInput,
   addTableColumnContract,
   addWorkflowGroupContract,
   type BatchInsertTableRowsBodyInput,
   type BatchUpdateTableRowsBodyInput,
+  type BulkDeleteTablesBody,
+  type BulkMoveTablesBody,
   batchCreateTableRowsContract,
   batchUpdateTableRowsContract,
+  bulkDeleteTablesContract,
+  bulkMoveTablesContract,
   type CreateTableBodyInput,
   type CreateTableColumnBodyInput,
-  cancelTableJobContract,
   cancelTableRunsContract,
   createTableContract,
   createTableRowContract,
@@ -48,14 +58,10 @@ import {
   deleteTableRowsContract,
   deleteTableViewContract,
   deleteWorkflowGroupContract,
-  exportDownloadContract,
-  exportTableAsyncContract,
   findTableRowsContract,
   getEnrichmentDetailContract,
   getTableContract,
   type InsertTableRowBodyInput,
-  importIntoTableAsyncContract,
-  importTableAsyncContract,
   listActiveDispatchesContract,
   listTableJobsContract,
   listTableRowsContract,
@@ -84,6 +90,7 @@ import {
   updateTableViewContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
+import type { V2TableImportSource, V2TableImportTarget } from '@/lib/api/contracts/v2/tables'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
   CsvHeaderMapping,
@@ -107,8 +114,11 @@ import {
   isExecInFlight,
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
-import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
+import { sanitizeName } from '@/lib/table/import'
+import type { UploadProgressEvent } from '@/lib/uploads/client/types'
+import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { useTimezone } from '@/hooks/queries/general-settings'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   TABLE_LIST_STALE_TIME,
   TABLE_VIEWS_STALE_TIME,
@@ -124,6 +134,14 @@ const logger = createLogger('TableQueries')
 export const TABLE_DETAIL_STALE_TIME = 30 * 1000
 export const TABLE_RUN_STATE_STALE_TIME = 30 * 1000
 export const TABLE_FIND_STALE_TIME = 30 * 1000
+/**
+ * Shorter than the 5-minute default: the grid searches as the user types, so
+ * each typing pause mints its own cache entry holding up to
+ * `TABLE_LIMITS.MAX_FIND_MATCHES` matches. Long enough that backspacing to a
+ * recent term is still instant, short enough that a typed-through term set
+ * doesn't sit resident.
+ */
+export const TABLE_FIND_GC_TIME = 60 * 1000
 export const TABLE_ROWS_STALE_TIME = 30 * 1000
 export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
 
@@ -135,7 +153,7 @@ type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
 
 export type TableRowsResponse = Pick<
   ContractJsonResponse<typeof listTableRowsContract>['data'],
-  'rows' | 'totalCount'
+  'rows' | 'totalCount' | 'nextCursor'
 >
 
 interface RowMutationContext {
@@ -190,8 +208,13 @@ async function fetchTableRows({
     },
     signal,
   })
-  const { rows, totalCount } = response.data
-  return { rows, totalCount }
+  const { rows, totalCount, nextCursor } = response.data
+  /**
+   * `nextCursor` is kept because it is the only authoritative end-of-table signal: the server
+   * sets it exactly when the drain proved an unreturned witness row, so it covers a page cut by
+   * the byte budget as well as one cut by `limit`. See {@link hasMoreTableRows}.
+   */
+  return { rows, totalCount, nextCursor }
 }
 
 function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
@@ -459,9 +482,11 @@ async function fetchTableRowMatches({
 }
 
 /**
- * Server-side find across all cells. `q` is the *submitted* term (search is
- * Enter-triggered), so React Query caches each submitted term and re-searching
- * a prior one is instant. Disabled while `q` is empty.
+ * Server-side find across all cells. `q` is the term the caller has settled on
+ * — the grid debounces the live input before passing it — so React Query caches
+ * each settled term and backspacing to a prior one is instant. Disabled while
+ * `q` is empty; `keepPreviousData` holds the last result set so the match count
+ * doesn't blank between terms.
  */
 export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: FindTableRowsParams) {
   const paramsKey = JSON.stringify({ q, filter: filter ?? null, sort: sort ?? null })
@@ -471,6 +496,48 @@ export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: Find
       fetchTableRowMatches({ workspaceId, tableId, q, filter, sort, signal }),
     enabled: Boolean(workspaceId && tableId) && q.trim().length > 0,
     staleTime: TABLE_FIND_STALE_TIME,
+    gcTime: TABLE_FIND_GC_TIME,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Bounded single-page row read for chart files (`.chart` previews): one fetch
+ * of up to `limit` rows with the spec's verbatim filter/sort. Charts accept a
+ * truncated page — they visualize a sample, not a drained table.
+ */
+export function useTableRowsSample({
+  workspaceId,
+  tableId,
+  filter,
+  sort,
+  limit,
+  enabled = true,
+}: {
+  workspaceId?: string
+  tableId?: string
+  /** Passed through verbatim from the chart document; the contract validates. */
+  filter?: unknown
+  sort?: unknown
+  limit: number
+  enabled?: boolean
+}) {
+  const paramsKey = JSON.stringify({ filter: filter ?? null, sort: sort ?? null, limit })
+  return useQuery({
+    // rq-lint-allow: tableId is globally unique; workspaceId is only the authz scope
+    queryKey: tableKeys.sample(tableId ?? '', paramsKey),
+    queryFn: ({ signal }) =>
+      fetchTableRows({
+        workspaceId: workspaceId as string,
+        tableId: tableId as string,
+        limit,
+        filter: (filter ?? null) as TablePredicate | null,
+        sort: (sort ?? null) as SortSpec | null,
+        includeTotal: false,
+        signal,
+      }),
+    enabled: Boolean(workspaceId && tableId) && enabled,
+    staleTime: TABLE_ROWS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -827,6 +894,11 @@ function withOptimisticAutoFireExec(groups: WorkflowGroup[], row: TableRow): Tab
 /**
  * Apply a row-level transformation to all cached infinite row queries for this
  * table. Used for cell edits where positions don't change.
+ *
+ * Walks {@link tableKeys.infiniteRowsRoot} rather than `rowsRoot`: the latter is a
+ * shared parent, and handing this updater a `find` entry — a flat
+ * {@link TableFindResult}, not pages — throws on `old.pages` inside `onMutate`, so
+ * the whole cell edit would reject before reaching the server.
  */
 function patchCachedRows(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -834,7 +906,7 @@ function patchCachedRows(
   patchRow: (row: TableRow) => TableRow
 ) {
   queryClient.setQueriesData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(
-    { queryKey: tableKeys.rowsRoot(tableId), exact: false },
+    { queryKey: tableKeys.infiniteRowsRoot(tableId), exact: false },
     (old) => {
       if (!old) return old
       return {
@@ -1005,12 +1077,12 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onMutate: async ({ rowId, data }) => {
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      await queryClient.cancelQueries({ queryKey: tableKeys.infiniteRowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<
         InfiniteData<TableRowsResponse, TableRowsPageParam>
       >({
-        queryKey: tableKeys.rowsRoot(tableId),
+        queryKey: tableKeys.infiniteRowsRoot(tableId),
       })
 
       const groups =
@@ -1056,6 +1128,18 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           updatedAt: serverRow.updatedAt,
         }
       })
+
+      // `patchCachedRows` rewrites values in place, which is the whole answer for the default
+      // view. It cannot be for a filtered or column-sorted one: editing a cell can move a row in
+      // or out of the filter and change its sort position and `totalCount`, none of which a
+      // per-row patch can express. Those views are refetched instead — the same split
+      // `useCreateTableRow` makes, and previously supplied by the broadcast this write no longer
+      // makes the acting tab honor.
+      queryClient.invalidateQueries({
+        queryKey: tableKeys.rowsRoot(tableId),
+        exact: false,
+        predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
+      })
     },
     onError: (error, _vars, context) => {
       if (context?.previousQueries) {
@@ -1095,12 +1179,12 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       })
     },
     onMutate: async ({ updates }) => {
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      await queryClient.cancelQueries({ queryKey: tableKeys.infiniteRowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<
         InfiniteData<TableRowsResponse, TableRowsPageParam>
       >({
-        queryKey: tableKeys.rowsRoot(tableId),
+        queryKey: tableKeys.infiniteRowsRoot(tableId),
       })
 
       const updateMap = new Map(updates.map((u) => [u.rowId, u.data]))
@@ -1285,6 +1369,14 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
                   ...page,
                   rows: page.rows.filter((r) => keep.has(r.id)),
                   ...(page.totalCount != null ? { totalCount: keep.size } : {}),
+                  /**
+                   * The view is being emptied on purpose, so it has no next page — stated
+                   * explicitly because the server's cursor would otherwise say otherwise and
+                   * scrolling would pull back the very rows the job is deleting. Only the
+                   * row-count arithmetic used to carry this, which {@link hasMoreTableRows}
+                   * no longer consults once a cursor is present.
+                   */
+                  nextCursor: null,
                 })),
               }
             : old
@@ -1447,14 +1539,7 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
  * is rendered client-side, so this list contains only user-created views and is
  * legitimately empty for a table nobody has saved a view on.
  */
-export function useTableViews({
-  workspaceId,
-  tableId,
-  enabled = true,
-}: RowMutationContext & {
-  /** Carries the `table-views` flag, so a gated-off table never fetches. */
-  enabled?: boolean
-}) {
+export function useTableViews({ workspaceId, tableId }: RowMutationContext) {
   // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
   return useQuery({
     queryKey: tableKeys.views(tableId),
@@ -1466,7 +1551,7 @@ export function useTableViews({
       })
       return response.data.views
     },
-    enabled: enabled && Boolean(workspaceId && tableId),
+    enabled: Boolean(workspaceId && tableId),
     staleTime: TABLE_VIEWS_STALE_TIME,
   })
 }
@@ -1489,8 +1574,8 @@ export function useCreateTableView({ workspaceId, tableId }: RowMutationContext)
         prev ? [...prev, view] : [view]
       )
     },
-    // Returned so the mutation stays pending until the refetch settles — otherwise
-    // the Save chip re-enables and flashes dirty against a stale cached config.
+    // Keep creation pending until the refetch settles so the newly selected
+    // view does not briefly resolve against an incomplete list.
     onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
   })
 }
@@ -1498,7 +1583,7 @@ export function useCreateTableView({ workspaceId, tableId }: RowMutationContext)
 interface UpdateTableViewParams {
   viewId: string
   name?: string
-  /** Full replace (explicit Save). Mutually exclusive with `configPatch`. */
+  /** Full replacement for API consumers. Mutually exclusive with `configPatch`. */
   config?: TableViewConfigInput
   /** Server-side shallow merge — used for the grid's incremental layout writes. */
   configPatch?: TableViewConfigInput
@@ -1514,6 +1599,10 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
   const queryClient = useQueryClient()
 
   return useMutation({
+    // View config and layout patches can touch the same top-level JSON keys.
+    // Preserve gesture order so rapid visibility toggles cannot finish out of
+    // order and leave an older snapshot stored last.
+    scope: { id: `table-view:${tableId}` },
     mutationFn: async ({ viewId, name, config, configPatch, isDefault }: UpdateTableViewParams) => {
       const response = await requestJson(updateTableViewContract, {
         params: { tableId, viewId },
@@ -1521,21 +1610,43 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
       })
       return response.data.view
     },
-    // Without this the edited view's cached config stays stale until the refetch,
-    // so `isViewDirty` re-reads true and the Save chip flashes back after a save.
+    // Keep the active view's server baseline current immediately; the refetch
+    // remains the authoritative reconciliation for concurrent collaborators.
     onSuccess: (view) => {
-      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
-        prev?.map((existing) => {
-          if (existing.id !== view.id) return existing
-          // Layout auto-saves and an explicit Save fire concurrently, and their
-          // responses can arrive out of order. The DB merge is authoritative, so
-          // only let a row at least as new as the cached one win — otherwise a
-          // slower response rewinds the cache until the refetch lands.
-          return new Date(view.updatedAt) >= new Date(existing.updatedAt) ? view : existing
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) => {
+        if (!prev) return prev
+        // Layout and view controls auto-save concurrently, and their
+        // responses can arrive out of order. The DB merge is authoritative, so
+        // only let a response at least as new as the cached row win — for
+        // installing the row AND for demoting the previous default. A stale
+        // response applies nothing; otherwise it would rewind the cache (or
+        // strip isDefault from a newer default, leaving none) until the
+        // refetch lands.
+        const cached = prev.find((existing) => existing.id === view.id)
+        const currentDefault = view.isDefault
+          ? prev.find((existing) => existing.id !== view.id && existing.isDefault)
+          : undefined
+        const responseTime = new Date(view.updatedAt)
+        if (
+          (cached && responseTime < new Date(cached.updatedAt)) ||
+          (currentDefault && responseTime < new Date(currentDefault.updatedAt))
+        ) {
+          return prev
+        }
+        return prev.map((existing) => {
+          if (view.isDefault && existing.id !== view.id && existing.isDefault) {
+            return { ...existing, isDefault: false }
+          }
+          return existing.id === view.id ? view : existing
         })
-      )
+      })
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+    onSettled: () => {
+      // A scoped mutation only needs the database write ahead of the next
+      // patch. Let reconciliation run alongside the queue instead of making
+      // every rapid visibility toggle wait for a full list refetch.
+      void queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) })
+    },
   })
 }
 
@@ -1722,106 +1833,115 @@ export function useRestoreTable() {
   })
 }
 
-interface UploadCsvParams {
-  workspaceId: string
-  /** Folder to create the imported table in; omitted imports to the workspace root. */
-  folderId?: string | null
-  file: File
-}
-
-/**
- * Upload a CSV file to create a new table with inferred schema.
- */
-export function useUploadCsvToTable() {
-  const queryClient = useQueryClient()
-  const timezone = useTimezone()
-
-  return useMutation({
-    mutationFn: async ({ workspaceId, folderId, file }: UploadCsvParams) => {
-      // Text fields must precede the file part: the server parses the body as a
-      // stream and resolves as soon as it reaches the file, so any field appended
-      // after it is never seen.
-      const formData = new FormData()
-      formData.append('workspaceId', workspaceId)
-      if (folderId) formData.append('folderId', folderId)
-      formData.append('timezone', timezone)
-      formData.append('file', file)
-
-      // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
-      const response = await fetch('/api/table/import-csv', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        // Carry the status: a plain Error drops it, and the 423 self-heal below
-        // keys off `error.status`.
-        throw new ApiClientError({
-          status: response.status,
-          body: data,
-          message: data.error || 'CSV import failed',
-        })
-      }
-
-      return response.json()
-    },
-    onError: (error) => {
-      logger.error('Failed to upload CSV:', error)
-      toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-    },
-  })
-}
-
 interface ImportCsvAsyncParams {
   workspaceId: string
   /** Folder to create the imported table in; omitted imports to the workspace root. */
-  folderId?: string | null
+  folderPath?: string
   file: File
+  onCreated?: (importId: string) => void
   onProgress?: (percent: number) => void
 }
 
-/**
- * Uploads a CSV/TSV straight to workspace storage (bypassing the server's request-body
- * cap) and returns its storage key. Shared by the async-import kickoff hooks.
- */
-async function uploadCsvToWorkspaceStorage(
-  file: File,
-  workspaceId: string,
+async function createAndUploadTableImport(params: {
+  workspaceId: string
+  source: V2TableImportSource
+  target: V2TableImportTarget
+  file?: File
+  mapping?: CsvHeaderMapping
+  createColumns?: string[]
+  timezone: string
+  onCreated?: (importId: string) => void
   onProgress?: (percent: number) => void
-): Promise<string> {
-  const upload = await runUploadStrategy({
-    file,
-    workspaceId,
-    context: 'workspace',
-    presignedEndpoint: `/api/workspaces/${workspaceId}/files/presigned`,
-    onProgress: onProgress ? (event) => onProgress(event.percent) : undefined,
+}) {
+  const created = await requestJson(createTableImportResourceContract, {
+    body: {
+      workspaceId: params.workspaceId,
+      source: params.source,
+      target: params.target,
+      mapping: params.mapping,
+      createColumns: params.createColumns,
+      timezone: params.timezone,
+    },
   })
-  return upload.key
-}
-
-/**
- * Uploads a large CSV/TSV straight to storage, then kicks off a background import into a
- * new table. Resolves with `{ tableId, importId }` immediately — load progress and the
- * terminal state arrive over the table-events SSE stream (see `useTableEventStream`).
- */
-export function useImportCsvAsync() {
-  const queryClient = useQueryClient()
-  const timezone = useTimezone()
-  return useMutation({
-    mutationFn: async ({ workspaceId, folderId, file, onProgress }: ImportCsvAsyncParams) => {
-      const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
-      const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, folderId, fileKey, fileName: file.name, timezone },
+  const { session, uploadToken, transfer } = created.data
+  params.onCreated?.(session.id)
+  if (params.source.type === 'workspace_file') return session
+  if (!params.file || !uploadToken || !transfer) {
+    throw new Error('Upload-backed table import returned no upload session')
+  }
+  const getPartUrls = async (partNumbers: number[]) => {
+    const response = await requestJson(createTableImportPartUrlsContract, {
+      params: { importId: session.id },
+      query: { workspaceId: params.workspaceId },
+      headers: { 'upload-token': uploadToken },
+      body: { partNumbers },
+    })
+    return response.data.parts
+  }
+  const common = {
+    file: params.file,
+    onProgress: params.onProgress
+      ? (event: UploadProgressEvent) => params.onProgress?.(event.percent)
+      : undefined,
+    complete: async () => {
+      const response = await requestJson(completeTableImportResourceContract, {
+        params: { importId: session.id },
+        query: { workspaceId: params.workspaceId },
+        headers: { 'upload-token': uploadToken },
       })
       return response.data
     },
+    abort: async () => {
+      await requestJson(cancelTableImportResourceContract, {
+        params: { importId: session.id },
+        query: { workspaceId: params.workspaceId },
+        headers: { 'upload-token': uploadToken },
+      })
+    },
+  }
+  return transfer.method === 'put'
+    ? uploadFileSession({ ...common, transfer })
+    : uploadFileSession({ ...common, transfer, getPartUrls })
+}
+
+/** Uploads a CSV/TSV through a signed upload session and creates a table from it. */
+export function useImportCsv() {
+  const queryClient = useQueryClient()
+  const timezone = useTimezone()
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      folderPath,
+      file,
+      onCreated,
+      onProgress,
+    }: ImportCsvAsyncParams) => {
+      const imported = await createAndUploadTableImport({
+        workspaceId,
+        source: {
+          type: 'upload',
+          name: file.name,
+          contentType: file.type || 'text/csv',
+          size: file.size,
+        },
+        target: {
+          type: 'new',
+          name: sanitizeName(file.name.replace(/\.[^.]+$/, ''), 'imported_table').slice(
+            0,
+            TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
+          ),
+          folderPath,
+        },
+        file,
+        timezone,
+        onCreated,
+        onProgress,
+      })
+      return { tableId: imported.tableId, importId: imported.id }
+    },
     onError: (error) => {
-      logger.error('Failed to start async CSV import:', error)
-      toast.error(error.message, { duration: 5000 })
+      logger.error('Failed to start CSV import:', error)
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -1831,8 +1951,9 @@ export function useImportCsvAsync() {
 
 interface ImportFileAsTableParams {
   workspaceId: string
-  fileKey: string
+  fileId: string
   fileName: string
+  onCreated?: (importId: string) => void
 }
 
 /**
@@ -1846,15 +1967,25 @@ export function useImportFileAsTable() {
   const queryClient = useQueryClient()
   const timezone = useTimezone()
   return useMutation({
-    mutationFn: async ({ workspaceId, fileKey, fileName }: ImportFileAsTableParams) => {
-      const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, fileKey, fileName, deleteSourceFile: false, timezone },
+    mutationFn: async ({ workspaceId, fileId, fileName, onCreated }: ImportFileAsTableParams) => {
+      const imported = await createAndUploadTableImport({
+        workspaceId,
+        source: { type: 'workspace_file', fileId },
+        target: {
+          type: 'new',
+          name: sanitizeName(fileName.replace(/\.[^.]+$/, ''), 'imported_table').slice(
+            0,
+            TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
+          ),
+        },
+        timezone,
+        onCreated,
       })
-      return response.data
+      return { tableId: imported.tableId, importId: imported.id }
     },
     onError: (error) => {
       logger.error('Failed to start import from file:', error)
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -1871,78 +2002,14 @@ interface ImportCsvIntoTableAsyncParams {
   mode: CsvImportMode
   mapping?: CsvHeaderMapping
   createColumns?: string[]
+  onCreated?: (importId: string) => void
   onProgress?: (percent: number) => void
 }
 
-/**
- * Async append/replace import into an existing table for large files: uploads straight to
- * storage (bypassing the server's request-body cap), then kicks off the background worker.
- * Resolves immediately; progress + completion arrive over the table-events SSE stream.
- */
-export function useImportCsvIntoTableAsync() {
-  const queryClient = useQueryClient()
-  const timezone = useTimezone()
-  return useMutation({
-    mutationFn: async ({
-      workspaceId,
-      tableId,
-      file,
-      mode,
-      mapping,
-      createColumns,
-      onProgress,
-    }: ImportCsvIntoTableAsyncParams) => {
-      const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
-      const response = await requestJson(importIntoTableAsyncContract, {
-        params: { tableId },
-        body: { workspaceId, fileKey, fileName: file.name, mode, mapping, createColumns, timezone },
-      })
-      return response.data
-    },
-    onError: (error, variables) => {
-      if (handleTableLockRejection(error, queryClient, variables.tableId)) return
-      logger.error('Failed to start async CSV import:', error)
-      toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: (_data, _error, variables) => {
-      invalidateRowCount(queryClient, variables.tableId)
-    },
-  })
-}
-
-interface ImportCsvIntoTableParams {
-  workspaceId: string
-  tableId: string
-  file: File
-  mode: CsvImportMode
-  mapping?: CsvHeaderMapping
-  /** CSV headers to auto-create as new columns on the target table. */
-  createColumns?: string[]
-}
-
-interface ImportCsvIntoTableResponse {
-  success: boolean
-  data?: {
-    tableId: string
-    mode: CsvImportMode
-    insertedCount?: number
-    deletedCount?: number
-    mappedColumns?: string[]
-    skippedHeaders?: string[]
-    unmappedColumns?: string[]
-    sourceFile?: string
-  }
-}
-
-/**
- * Upload a CSV file to an existing table in append or replace mode. Supports
- * an optional explicit header-to-column mapping; when omitted the server
- * auto-maps headers by sanitized name.
- */
+/** Imports a CSV/TSV into an existing table through the same durable resource for every size. */
 export function useImportCsvIntoTable() {
   const queryClient = useQueryClient()
   const timezone = useTimezone()
-
   return useMutation({
     mutationFn: async ({
       workspaceId,
@@ -1951,38 +2018,31 @@ export function useImportCsvIntoTable() {
       mode,
       mapping,
       createColumns,
-    }: ImportCsvIntoTableParams): Promise<ImportCsvIntoTableResponse> => {
-      // Text fields must precede the file part: the server parses the body as a
-      // stream and needs these fields before it reaches the (large) file.
-      const formData = new FormData()
-      formData.append('workspaceId', workspaceId)
-      formData.append('mode', mode)
-      formData.append('timezone', timezone)
-      if (mapping) {
-        formData.append('mapping', JSON.stringify(mapping))
-      }
-      if (createColumns && createColumns.length > 0) {
-        formData.append('createColumns', JSON.stringify(createColumns))
-      }
-      formData.append('file', file)
-
-      // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
-      const response = await fetch(`/api/table/${tableId}/import`, {
-        method: 'POST',
-        body: formData,
+      onCreated,
+      onProgress,
+    }: ImportCsvIntoTableAsyncParams) => {
+      const imported = await createAndUploadTableImport({
+        workspaceId,
+        source: {
+          type: 'upload',
+          name: file.name,
+          contentType: file.type || 'text/csv',
+          size: file.size,
+        },
+        target: { type: 'existing', tableId, mode },
+        file,
+        mapping,
+        createColumns,
+        timezone,
+        onCreated,
+        onProgress,
       })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'CSV import failed')
-      }
-
-      return response.json()
+      return { tableId: imported.tableId, importId: imported.id }
     },
     onError: (error, variables) => {
       if (handleTableLockRejection(error, queryClient, variables.tableId)) return
-      logger.error('Failed to import CSV into table:', error)
-      toast.error(error.message, { duration: 5000 })
+      logger.error('Failed to start CSV import:', error)
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       invalidateRowCount(queryClient, variables.tableId)
@@ -1990,19 +2050,12 @@ export function useImportCsvIntoTable() {
   })
 }
 
-/**
- * Cancels an in-flight async table job (import or delete). Plain function (not a hook) because the
- * job tray lists multiple tables and cancels a chosen one by id rather than binding to a single
- * table.
- */
-export async function cancelTableJob(
-  workspaceId: string,
-  tableId: string,
-  jobId: string
-): Promise<void> {
-  await requestJson(cancelTableJobContract, {
-    params: { tableId },
-    body: { workspaceId, jobId },
+/** Cancels an in-flight table import resource. */
+export async function cancelTableImport(workspaceId: string, importId: string): Promise<void> {
+  await requestJson(cancelTableImportResourceContract, {
+    params: { importId },
+    query: { workspaceId },
+    headers: {},
   })
 }
 
@@ -2046,23 +2099,17 @@ export function consumeInitiatedExport(jobId: string): boolean {
 }
 
 /**
- * Kicks off a background export job for large tables (small ones stream synchronously via
- * {@link downloadTableExport}). The SSE job stream auto-downloads the file when the job is ready.
+ * Creates an export resource. The server completes small exports before responding and processes
+ * large exports in the background; the client follows the same path for both.
  */
-export function useExportTableAsync({ workspaceId, tableId }: RowMutationContext) {
+export function useExportTable({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ format }: { format: 'csv' | 'json' }) => {
-      const response = await requestJson(exportTableAsyncContract, {
-        params: { tableId },
-        body: { workspaceId, format },
-      })
-      initiatedExportJobIds.add(response.data.jobId)
-      return response.data
+      return createTableExport(workspaceId, tableId, format)
     },
-    onSuccess: () => {
-      // Surface the new running job in the tray immediately — its poll only
-      // self-sustains once a running job is already in the cache.
+    onSettled: () => {
+      // Reconcile failed creation and seed polling after a successful background export.
       void queryClient.invalidateQueries({ queryKey: tableKeys.exportJobs(workspaceId) })
     },
     onError: (error) => {
@@ -2073,15 +2120,20 @@ export function useExportTableAsync({ workspaceId, tableId }: RowMutationContext
   })
 }
 
-/** Resolves a ready export job to its presigned URL and triggers the browser download. */
-export async function downloadExportResult(
-  workspaceId: string,
-  tableId: string,
-  jobId: string
-): Promise<void> {
-  const response = await requestJson(exportDownloadContract, {
+async function createTableExport(workspaceId: string, tableId: string, format: 'csv' | 'json') {
+  const response = await requestJson(createTableExportResourceContract, {
     params: { tableId },
-    query: { workspaceId, jobId },
+    body: { workspaceId, format },
+  })
+  if (response.data.status !== 'completed') initiatedExportJobIds.add(response.data.id)
+  return response.data
+}
+
+/** Resolves a ready export job to its presigned URL and triggers the browser download. */
+export async function downloadExportResult(workspaceId: string, exportId: string): Promise<void> {
+  const response = await requestJson(downloadTableExportResourceContract, {
+    params: { exportId },
+    query: { workspaceId },
   })
   const a = document.createElement('a')
   a.href = response.data.url
@@ -2091,32 +2143,18 @@ export async function downloadExportResult(
   document.body.removeChild(a)
 }
 
-/**
- * Downloads the full contents of a table to the user's device by streaming
- * `/api/table/[tableId]/export`. Defaults to CSV; pass `'json'` for JSON.
- */
-export async function downloadTableExport(
+/** Creates one export resource and downloads it immediately when the server completed it inline. */
+export async function exportTable(
+  workspaceId: string,
   tableId: string,
-  fileName: string,
   format: 'csv' | 'json' = 'csv'
-): Promise<void> {
-  const url = `/api/table/${tableId}/export?format=${format}&t=${Date.now()}`
-  // boundary-raw-fetch: streaming download to a Blob, requestJson cannot consume non-JSON streams
-  const response = await fetch(url, { cache: 'no-store' })
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}))
-    throw new Error(data.error || `Failed to export table: ${response.statusText}`)
+): Promise<'completed' | 'processing'> {
+  const exported = await createTableExport(workspaceId, tableId, format)
+  if (exported.status === 'completed') {
+    await downloadExportResult(workspaceId, exported.id)
+    return 'completed'
   }
-  const blob = await response.blob()
-  const objectUrl = URL.createObjectURL(blob)
-  const safeName = fileName.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'table'
-  const a = document.createElement('a')
-  a.href = objectUrl
-  a.download = `${safeName}.${format}`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(objectUrl)
+  return 'processing'
 }
 
 export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
@@ -2255,7 +2293,7 @@ export async function snapshotAndMutateRows(
 ): Promise<RowsCacheSnapshots> {
   const scope = options?.onlyKey
     ? ({ queryKey: options.onlyKey, exact: true } as const)
-    : ({ queryKey: tableKeys.rowsRoot(tableId) } as const)
+    : ({ queryKey: tableKeys.infiniteRowsRoot(tableId) } as const)
   if (options?.cancelInFlight !== false) {
     await queryClient.cancelQueries(scope)
   }
@@ -2545,6 +2583,84 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+  })
+}
+
+/**
+ * Move a mixed selection of tables and table folders into one folder, or to the
+ * workspace root with `targetFolderId: null`.
+ *
+ * One request, one authorized operation: the Tables list interleaves folder and
+ * table rows in a single grid, so a selection is routinely mixed and must not be
+ * split into a resource call plus a per-folder fan-out.
+ *
+ * No optimistic patch. A folder move re-parents rows that the list renders at a
+ * different level, and the response reports per-item outcomes (`skipped`,
+ * `notFound`, `failed`) the client cannot predict, so the caller reads the
+ * result rather than guessing it.
+ */
+export function useBulkMoveTables(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tableIds = [],
+      folderIds = [],
+      targetFolderId,
+    }: Omit<BulkMoveTablesBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkMoveTablesContract, {
+        body: { workspaceId, tableIds, folderIds, targetFolderId },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
+      for (const tableId of tableIds) {
+        queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+      }
+    },
+  })
+}
+
+/**
+ * Archive a mixed selection of tables and table folders.
+ *
+ * Deleting a folder cascades to every table and subfolder inside it, so the
+ * response's `deletedItems` totals exceed the explicitly selected count. Cached
+ * detail and row entries are removed only for the tables named in the request —
+ * a cascaded table's detail cache is left to the list invalidation, since the
+ * request never named it.
+ */
+export function useBulkDeleteTables(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tableIds = [],
+      folderIds = [],
+    }: Omit<BulkDeleteTablesBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkDeleteTablesContract, {
+        body: { workspaceId, tableIds, folderIds },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
+      for (const tableId of tableIds) {
+        queryClient.removeQueries({ queryKey: tableKeys.detail(tableId) })
+        queryClient.removeQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      }
     },
   })
 }

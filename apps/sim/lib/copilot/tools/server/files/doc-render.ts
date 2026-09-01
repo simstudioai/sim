@@ -1,3 +1,4 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { executeInSandbox } from '@/lib/execution/remote-sandbox'
 
@@ -37,7 +38,10 @@ export async function renderDocToGrid(args: {
 }): Promise<DocRender> {
   const ext = args.ext.toLowerCase()
   if (!isRenderableDocExt(ext)) {
-    throw new Error(`Cannot render .${ext} to images (supported: pptx, docx, pdf)`)
+    throw new OrchestrationError(
+      'validation',
+      `Cannot render .${ext} to images (supported: pptx, docx, pdf)`
+    )
   }
 
   const script = `
@@ -99,7 +103,7 @@ else:
   })
 
   if (result.error) {
-    throw new Error(`Document render failed: ${result.error}`)
+    throw new OrchestrationError('validation', `Document render failed: ${result.error}`)
   }
   const payload = result.result as { grid?: string | null; pageCount?: number } | null
   if (!payload?.grid) {

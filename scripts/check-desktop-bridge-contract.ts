@@ -35,6 +35,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { formatGeneratedSource } from './format-generated-source'
+import { localBin } from './local-bin'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -173,7 +174,7 @@ function checkCompatibility(): { compatible: boolean; output: string } {
   try {
     writeFileSync(join(dir, 'compat.ts'), compatSource)
     writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2))
-    const result = spawnSync('bunx', ['tsc', '-p', dir, '--pretty', 'false'], {
+    const result = spawnSync(localBin('tsc'), ['-p', dir, '--pretty', 'false'], {
       cwd: ROOT,
       encoding: 'utf8',
     })

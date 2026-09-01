@@ -2,9 +2,9 @@ import type {
   AppConfigStopDeploymentParams,
   AppConfigStopDeploymentResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const stopDeploymentTool: ToolConfig<
+export const stopDeploymentTool: InternalToolConfig<
   AppConfigStopDeploymentParams,
   AppConfigStopDeploymentResponse
 > = {
@@ -52,11 +52,8 @@ export const stopDeploymentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/stop-deployment',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

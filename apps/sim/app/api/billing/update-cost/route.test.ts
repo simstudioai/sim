@@ -88,6 +88,7 @@ const ACCOUNT_BILLING_DECISION = {
   billingPeriod: {
     start: '2026-07-01T00:00:00.000Z',
     end: '2026-08-01T00:00:00.000Z',
+    source: 'reporting' as const,
   },
 }
 
@@ -104,7 +105,7 @@ const ATTRIBUTION = {
   payerSubscription: null,
 }
 
-const OLD_GO_HOSTED_UPDATE_COST_BODY = {
+const SELF_HOSTED_UPDATE_COST_BODY = {
   userId: 'user-1',
   cost: 0.4662453,
   model: 'claude-opus-4.8',
@@ -116,11 +117,11 @@ const OLD_GO_HOSTED_UPDATE_COST_BODY = {
 } as const
 
 const EXPLICIT_LEGACY_HOSTED_UPDATE_COST_BODY = {
-  ...OLD_GO_HOSTED_UPDATE_COST_BODY,
+  ...SELF_HOSTED_UPDATE_COST_BODY,
   idempotencyKey: 'explicit-legacy-billing-id',
 } as const
 
-const OLD_GO_WORKSPACELESS_UPDATE_COST_BODY = {
+const SELF_HOSTED_WORKSPACELESS_UPDATE_COST_BODY = {
   userId: 'user-1',
   cost: 0.5,
   model: 'gpt',
@@ -130,8 +131,8 @@ const OLD_GO_WORKSPACELESS_UPDATE_COST_BODY = {
   idempotencyKey: 'random-old-go-direct-billing-id',
 } as const
 
-const OLD_GO_OPAQUE_WORKSPACE_UPDATE_COST_BODY = {
-  ...OLD_GO_WORKSPACELESS_UPDATE_COST_BODY,
+const SELF_HOSTED_OPAQUE_WORKSPACE_UPDATE_COST_BODY = {
+  ...SELF_HOSTED_WORKSPACELESS_UPDATE_COST_BODY,
   workspaceId: 'local-self-hosted-workspace',
 } as const
 
@@ -147,7 +148,7 @@ const KEYLESS_UPDATE_COST_BODY = {
 describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    setEnvFlags({ isBillingEnabled: true, isCopilotBillingProtocolRequired: false })
+    setEnvFlags({ isBillingEnabled: true, isHosted: false })
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockRecordCumulativeUsage.mockResolvedValue({ billed: true, delta: 0.5, total: 0.5 })
     mockCheckAndBillOverageThreshold.mockResolvedValue(undefined)
@@ -186,7 +187,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
-  it('returns no-op success for old markerless Go when billing is disabled', async () => {
+  it('returns no-op success for markerless local self-hosted Go when billing is disabled', async () => {
     setEnvFlags({ isBillingEnabled: false })
 
     const res = await POST(
@@ -212,13 +213,13 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
-  it('keeps the exact old-Go callback bodies contract-compatible', () => {
-    expect(billingUpdateCostBodySchema.safeParse(OLD_GO_HOSTED_UPDATE_COST_BODY).success).toBe(true)
+  it('keeps local self-hosted callback bodies contract-compatible', () => {
+    expect(billingUpdateCostBodySchema.safeParse(SELF_HOSTED_UPDATE_COST_BODY).success).toBe(true)
     expect(
-      billingUpdateCostBodySchema.safeParse(OLD_GO_WORKSPACELESS_UPDATE_COST_BODY).success
+      billingUpdateCostBodySchema.safeParse(SELF_HOSTED_WORKSPACELESS_UPDATE_COST_BODY).success
     ).toBe(true)
     expect(
-      billingUpdateCostBodySchema.safeParse(OLD_GO_OPAQUE_WORKSPACE_UPDATE_COST_BODY).success
+      billingUpdateCostBodySchema.safeParse(SELF_HOSTED_OPAQUE_WORKSPACE_UPDATE_COST_BODY).success
     ).toBe(true)
   })
 
@@ -233,9 +234,9 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(mockCheckAndBillPayerOverageThreshold).not.toHaveBeenCalled()
   })
 
-  it('bills the routed workspace payer for the exact markerless hosted callback', async () => {
+  it('bills the routed workspace payer for a markerless self-hosted callback', async () => {
     const res = await POST(
-      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
+      createMockRequest('POST', SELF_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
     )
 
     expect(res.status).toBe(200)
@@ -276,7 +277,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     )
 
     const res = await POST(
-      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
+      createMockRequest('POST', SELF_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
     )
 
     expect(res.status).toBe(503)
@@ -289,10 +290,10 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     })
   })
 
-  it('rejects markerless callbacks only when protocol-required is explicitly enabled', async () => {
-    setEnvFlags({ isCopilotBillingProtocolRequired: true })
+  it('rejects markerless callbacks on hosted Sim', async () => {
+    setEnvFlags({ isHosted: true })
     const res = await POST(
-      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
+      createMockRequest('POST', SELF_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
     )
 
     expect(res.status).toBe(400)
@@ -302,7 +303,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
 
   it('does not let markerless legacy traffic fall through to a modern attribution envelope', async () => {
     const res = await POST(
-      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, {
+      createMockRequest('POST', SELF_HOSTED_UPDATE_COST_BODY, {
         'x-api-key': 'internal',
         'x-sim-billing-attribution': 'serialized-attribution',
       })
@@ -315,7 +316,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   })
 
   it('rejects explicitly labeled legacy callbacks without admission attribution', async () => {
-    setEnvFlags({ isCopilotBillingProtocolRequired: true })
+    setEnvFlags({ isHosted: true })
     const res = await POST(
       createMockRequest('POST', EXPLICIT_LEGACY_HOSTED_UPDATE_COST_BODY, {
         'x-api-key': 'internal',
@@ -330,7 +331,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   })
 
   it('bills explicitly labeled legacy callbacks from their admission attribution', async () => {
-    setEnvFlags({ isCopilotBillingProtocolRequired: true })
+    setEnvFlags({ isHosted: true })
     const res = await POST(
       createMockRequest('POST', EXPLICIT_LEGACY_HOSTED_UPDATE_COST_BODY, {
         'x-api-key': 'internal',
@@ -418,6 +419,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         billingPeriod: {
           start: new Date('2026-07-01T00:00:00.000Z'),
           end: new Date('2026-08-01T00:00:00.000Z'),
+          source: 'reporting',
         },
       })
     )
@@ -431,6 +433,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         expectedBillingPeriod: {
           start: new Date('2026-07-01T00:00:00.000Z'),
           end: new Date('2026-08-01T00:00:00.000Z'),
+          source: 'reporting',
         },
       }
     )
@@ -504,13 +507,13 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
-  it('does not expose context-mismatch 409 to markerless old Go', async () => {
+  it('does not expose context-mismatch 409 to markerless self-hosted Go', async () => {
     mockRecordCumulativeUsage.mockRejectedValue(
       new MockCumulativeUsageContextMismatchError('different billing context')
     )
 
     const res = await POST(
-      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
+      createMockRequest('POST', SELF_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
     )
 
     expect(res.status).toBe(500)
@@ -522,10 +525,10 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(mockCheckAndBillPayerOverageThreshold).not.toHaveBeenCalled()
   })
 
-  it('preserves old Go duplicate-compatible 409 semantics for markerless callbacks', async () => {
+  it('preserves duplicate-compatible 409 semantics for markerless self-hosted callbacks', async () => {
     mockRecordCumulativeUsage.mockResolvedValue({ billed: false, delta: 0, total: 0.4662453 })
     const res = await POST(
-      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
+      createMockRequest('POST', SELF_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
     )
     expect(res.status).toBe(409)
     await expect(res.json()).resolves.toMatchObject({
@@ -555,7 +558,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
       .mockRejectedValueOnce(new Error('Threshold settlement unavailable'))
       .mockResolvedValueOnce(undefined)
     const createRequest = () =>
-      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
+      createMockRequest('POST', SELF_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
 
     const firstResponse = await POST(createRequest())
     const retryResponse = await POST(createRequest())
@@ -660,14 +663,17 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         expectedBillingPeriod: {
           start: new Date('2026-07-01T00:00:00.000Z'),
           end: new Date('2026-08-01T00:00:00.000Z'),
+          source: 'reporting',
         },
       }
     )
   })
 
-  it('preserves account-ledger ownership for the exact workspace-less old-Go callback', async () => {
+  it('preserves account-ledger ownership for a workspace-less self-hosted callback', async () => {
     const res = await POST(
-      createMockRequest('POST', OLD_GO_WORKSPACELESS_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
+      createMockRequest('POST', SELF_HOSTED_WORKSPACELESS_UPDATE_COST_BODY, {
+        'x-api-key': 'internal',
+      })
     )
 
     expect(res.status).toBe(200)
@@ -687,7 +693,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   it('preserves account-ledger ownership for an opaque direct legacy workspace', async () => {
     mockResolveLegacyV0BillingAttribution.mockResolvedValueOnce(null)
     const res = await POST(
-      createMockRequest('POST', OLD_GO_OPAQUE_WORKSPACE_UPDATE_COST_BODY, {
+      createMockRequest('POST', SELF_HOSTED_OPAQUE_WORKSPACE_UPDATE_COST_BODY, {
         'x-api-key': 'internal',
       })
     )

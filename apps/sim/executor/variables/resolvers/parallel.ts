@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { assertNoLargeValueRefs } from '@/lib/execution/payloads/large-value-ref'
 import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   extractBranchIndex,
   extractInnermostOuterBranchIndex,
@@ -158,7 +159,13 @@ export class ParallelResolver implements Resolver {
         result.items = distributionItems
         result.currentItem = currentItem
       }
-      return result
+      return useAsyncPath
+        ? this.importOutputProvenance(
+            parallelScope?.inputResolvedSecretTraceProvenance,
+            result,
+            context
+          )
+        : result
     }
 
     const [rawProperty, ...remainingPathParts] = rest
@@ -184,15 +191,32 @@ export class ParallelResolver implements Resolver {
     }
 
     if (pathParts.length > 0) {
-      return useAsyncPath && this.navigatePathAsync
-        ? this.navigatePathAsync(value, pathParts, context)
-        : navigatePath(value, pathParts, {
-            allowLargeValueRefs: context.allowLargeValueRefs,
-            executionContext: context.executionContext,
-          })
+      if (useAsyncPath) {
+        const resolved = this.navigatePathAsync
+          ? this.navigatePathAsync(value, pathParts, context)
+          : navigatePath(value, pathParts, {
+              allowLargeValueRefs: context.allowLargeValueRefs,
+              executionContext: context.executionContext,
+            })
+        return this.importOutputProvenance(
+          parallelScope?.inputResolvedSecretTraceProvenance,
+          resolved,
+          context
+        )
+      }
+      return navigatePath(value, pathParts, {
+        allowLargeValueRefs: context.allowLargeValueRefs,
+        executionContext: context.executionContext,
+      })
     }
 
-    return value
+    return useAsyncPath
+      ? this.importOutputProvenance(
+          parallelScope?.inputResolvedSecretTraceProvenance,
+          value,
+          context
+        )
+      : value
   }
 
   private resolveBranchIndex(targetParallelId: string, context: ResolutionContext): number | null {
@@ -324,7 +348,8 @@ export class ParallelResolver implements Resolver {
     pathParts: string[],
     context: ResolutionContext
   ): Promise<unknown> {
-    const output = context.executionState.getBlockOutput(parallelId)
+    const state = context.executionState.getBlockState(parallelId)
+    const output = state?.output
     if (!output || typeof output !== 'object') {
       return undefined
     }
@@ -335,17 +360,40 @@ export class ParallelResolver implements Resolver {
           executionContext: context.executionContext,
         })
     if (pathParts.length > 0) {
-      return this.navigatePathAsync
+      const resolved = this.navigatePathAsync
         ? this.navigatePathAsync(value, pathParts, context)
         : navigatePath(value, pathParts, {
             allowLargeValueRefs: context.allowLargeValueRefs,
             executionContext: context.executionContext,
           })
+      return this.importOutputProvenance(
+        state?.resolvedSecretTraceProvenance,
+        await resolved,
+        context
+      )
     }
     if (!context.allowLargeValueRefs) {
       assertNoLargeValueRefs(value)
     }
-    return value
+    return this.importOutputProvenance(state?.resolvedSecretTraceProvenance, value, context)
+  }
+
+  private async importOutputProvenance(
+    provenance: ResolvedSecretTraceProvenanceV1 | undefined,
+    value: unknown | Promise<unknown>,
+    context: ResolutionContext
+  ): Promise<unknown> {
+    const resolvedValue = await value
+    const registry = context.executionContext.resolvedSecretTraceRegistry
+    if (!registry || !provenance) return resolvedValue
+    const imported = await registry.importProvenanceForValueAtInputPath(
+      provenance,
+      resolvedValue,
+      context.inputPath,
+      { trusted: true, origin: 'parallelResolver.itemCrossing' }
+    )
+    if (imported.matched) context.onResolvedSecretReference?.()
+    return resolvedValue
   }
 
   private getDistributionItems(parallelConfig: SerializedParallel): unknown[] {

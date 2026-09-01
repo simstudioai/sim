@@ -68,6 +68,8 @@ export const customBlockSchema = z.object({
   /** Uploaded icon image URL, or null for the default icon. */
   iconUrl: z.string().nullable(),
   enabled: z.boolean(),
+  /** Whether this block's runs are joined into consumers' traces, org-wide. */
+  traceChildRuns: z.boolean(),
   inputFields: z.array(inputFieldSchema),
   /** Curated outputs exposed to consumers; empty = expose the child's whole result. */
   exposedOutputs: z.array(exposedOutputSchema),
@@ -83,7 +85,7 @@ export const listCustomBlocksQuerySchema = z.object({
  * Icon URLs are rendered as org-wide `<img>` sources, so only https URLs and
  * internal file-serve paths (what the icon upload UI stores) are accepted —
  * never data:/blob:/other schemes an admin could smuggle into shared metadata.
- * Shared with the copilot deploy_custom_block handler's pass-through branch.
+ * Shared with the copilot publish_custom_block handler's pass-through branch.
  */
 export function isAllowedCustomBlockIconUrl(value: string): boolean {
   return value.startsWith('https://') || value.startsWith('/api/files/serve/')
@@ -102,8 +104,23 @@ export const publishCustomBlockBodySchema = z.object({
   iconUrl: iconUrlSchema.optional(),
   /** Per-input placeholder hints keyed by Start field id; the field set itself is always derived from the deployment. */
   inputs: z.array(inputPlaceholderSchema).max(50).optional(),
-  /** Curated outputs; omit/empty to expose the child's whole result. */
-  exposedOutputs: z.array(exposedOutputWriteSchema).max(50).optional(),
+  /**
+   * Curated outputs. REQUIRED: every field a consumer receives must be one the
+   * publisher explicitly chose. There is deliberately no "expose everything"
+   * fallback — the terminal block's raw state carries execution metadata
+   * (an agent's `toolCalls`, `providerTiming.thinkingContent`, `cost`; a nested
+   * workflow block's ids) that would cross the invocation boundary unchosen.
+   */
+  exposedOutputs: z
+    .array(exposedOutputWriteSchema)
+    .min(1, 'Select at least one output to expose to consumers')
+    .max(50),
+  /**
+   * Joins this block's runs into consumers' traces, org-wide. Defaults FALSE: it is
+   * the only policy guarding the source workflow's internals, so publishing must
+   * never open them as a side effect of omitting a field.
+   */
+  traceChildRuns: z.boolean().default(false),
 })
 
 export type PublishCustomBlockBody = z.input<typeof publishCustomBlockBodySchema>
@@ -120,7 +137,14 @@ export const updateCustomBlockBodySchema = z
     /** A URL (https or internal serve path) sets/replaces the icon; `null` clears it (default icon). */
     iconUrl: iconUrlSchema.nullable().optional(),
     inputs: z.array(inputPlaceholderSchema).max(50).optional(),
-    exposedOutputs: z.array(exposedOutputWriteSchema).max(50).optional(),
+    /** Omit to leave the curated outputs unchanged; never settable to empty. */
+    exposedOutputs: z
+      .array(exposedOutputWriteSchema)
+      .min(1, 'Select at least one output to expose to consumers')
+      .max(50)
+      .optional(),
+    /** Omit to leave the trace policy unchanged. */
+    traceChildRuns: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'At least one field is required' })
 

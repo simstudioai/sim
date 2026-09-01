@@ -43,7 +43,7 @@ export function VideoChapters({ title = 'Chapters', chapters, className }: Video
 
   return (
     <aside className={cn('not-prose', className)}>
-      <p className='mb-2 px-2.5 font-medium text-[0.8125rem] text-[var(--text-muted)]'>{title}</p>
+      <p className='mb-2 px-2.5 font-medium text-[var(--text-muted)] text-small'>{title}</p>
       <ul className='m-0 flex list-none flex-col gap-0.5 p-0'>
         {chapters.map((chapter) => (
           <li key={chapter.title}>

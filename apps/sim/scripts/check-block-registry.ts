@@ -27,7 +27,7 @@
 import { execSync } from 'child_process'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
 import { getAllBlocks, getBlock, getBlockMeta } from '@/blocks/registry'
-import { tools as toolRegistry } from '@/tools/registry'
+import { getToolParams } from '@/tools/metadata'
 
 const baseRef = process.argv[2] || 'HEAD~1'
 
@@ -171,11 +171,11 @@ function checkSubblockIdStability(): CheckResult {
     const currIds = current[blockType]
     if (!currIds) continue
 
-    const migrations = SUBBLOCK_ID_MIGRATIONS[blockType] ?? {}
+    const migrations = SUBBLOCK_ID_MIGRATIONS[blockType] ?? []
 
     for (const oldId of prevIds) {
       if (currIds.has(oldId)) continue
-      if (oldId in migrations) continue
+      if (migrations.some((migration) => migration.from === oldId)) continue
 
       errors.push(
         `Block "${blockType}": subblock ID "${oldId}" was removed.\n` +
@@ -213,10 +213,10 @@ function checkCanonicalIdContract(): CheckResult {
     }
 
     for (const toolId of access) {
-      const tool = toolRegistry[toolId]
-      if (!tool) continue
+      const toolParams = getToolParams(toolId)
+      if (!toolParams) continue
 
-      for (const [paramId, paramConfig] of Object.entries(tool.params ?? {})) {
+      for (const [paramId, paramConfig] of Object.entries(toolParams)) {
         if (!paramConfig || typeof paramConfig !== 'object') continue
         const required = (paramConfig as { required?: boolean }).required === true
         const userOnly = (paramConfig as { visibility?: string }).visibility === 'user-only'

@@ -18,13 +18,14 @@ import {
   createMinimalWorkflowState,
   createMissingMetadataWorkflow,
 } from '@sim/testing/factories'
-import { blocksMock, toolsUtilsMock } from '@sim/testing/mocks'
+import { blocksMock, toolsMetadataMock, toolsUtilsMock } from '@sim/testing/mocks'
 import { describe, expect, it, vi } from 'vitest'
 import { Serializer } from '@/serializer/index'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 vi.mock('@/blocks', () => blocksMock)
 vi.mock('@/tools/utils', () => toolsUtilsMock)
+vi.mock('@/tools/metadata', () => toolsMetadataMock)
 
 describe('Serializer', () => {
   describe('serializeWorkflow', () => {

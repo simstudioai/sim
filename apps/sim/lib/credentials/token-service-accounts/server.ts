@@ -1,3 +1,4 @@
+import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 import {
   AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID,
   ASANA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -5,6 +6,7 @@ import {
   CALCOM_SERVICE_ACCOUNT_PROVIDER_ID,
   CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID,
   CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
+  HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID,
   HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
   isTokenServiceAccountProviderId,
   LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -12,6 +14,7 @@ import {
   NOTION_SERVICE_ACCOUNT_PROVIDER_ID,
   PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
   type TokenServiceAccountProviderId,
   TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -24,12 +27,14 @@ import { validateAttioServiceAccount } from '@/lib/credentials/token-service-acc
 import { validateCalcomServiceAccount } from '@/lib/credentials/token-service-accounts/validators/calcom'
 import { validateClaudePlatformServiceAccount } from '@/lib/credentials/token-service-accounts/validators/claude-platform'
 import { validateClickupServiceAccount } from '@/lib/credentials/token-service-accounts/validators/clickup'
+import { validateHarmonicServiceAccount } from '@/lib/credentials/token-service-accounts/validators/harmonic'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
 import { validateMondayServiceAccount } from '@/lib/credentials/token-service-accounts/validators/monday'
 import { validateNotionServiceAccount } from '@/lib/credentials/token-service-accounts/validators/notion'
 import { validatePipedriveServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pipedrive'
 import { validateShopifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/shopify'
+import { validateSnowflakeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/snowflake'
 import { validateTrelloServiceAccount } from '@/lib/credentials/token-service-accounts/validators/trello'
 import { validateWealthboxServiceAccount } from '@/lib/credentials/token-service-accounts/validators/wealthbox'
 import { validateWebflowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/webflow'
@@ -44,11 +49,21 @@ export interface TokenServiceAccountFields {
 export interface TokenServiceAccountValidationResult {
   /** Default display name when the user didn't provide one. */
   displayName: string
-  /** Non-secret identifiers recorded in the audit log (e.g. portal/workspace id). */
+  /**
+   * Identity the token authenticates as, or `null` when the provider exposes
+   * none. Required (never optional) so a new validator cannot be written
+   * without deciding. `verifyAndBuildServiceAccountSecret` mirrors it into both
+   * `auditMetadata` and `storedMetadata`, so validators must not repeat it.
+   */
+  principal: ServiceAccountPrincipal | null
+  /**
+   * Non-secret identifiers recorded in the audit log that are NOT the
+   * principal (e.g. the org id behind a user principal).
+   */
   auditMetadata: Record<string, string>
   /**
    * Non-secret metadata persisted inside the encrypted blob alongside the
-   * token (e.g. normalized store domain, portal id) for later debugging.
+   * token (e.g. normalized store domain, granted scopes) for later debugging.
    */
   storedMetadata?: Record<string, string>
   /** Normalized domain to persist instead of the raw user input (when collected). */
@@ -74,6 +89,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [ASANA_SERVICE_ACCOUNT_PROVIDER_ID]: validateAsanaServiceAccount,
   [ATTIO_SERVICE_ACCOUNT_PROVIDER_ID]: validateAttioServiceAccount,
   [CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID]: validateClickupServiceAccount,
+  [HARMONIC_SERVICE_ACCOUNT_PROVIDER_ID]: validateHarmonicServiceAccount,
   [LINEAR_SERVICE_ACCOUNT_PROVIDER_ID]: validateLinearServiceAccount,
   [MONDAY_SERVICE_ACCOUNT_PROVIDER_ID]: validateMondayServiceAccount,
   [SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID]: validateShopifyServiceAccount,
@@ -83,6 +99,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID]: validateWealthboxServiceAccount,
   [PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID]: validatePipedriveServiceAccount,
   [CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID]: validateClaudePlatformServiceAccount,
+  [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: validateSnowflakeServiceAccount,
 }
 
 export function getTokenServiceAccountValidator(

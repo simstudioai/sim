@@ -1,7 +1,7 @@
 import type { GmailMarkReadParams, GmailToolResponse } from '@/tools/gmail/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const gmailMarkReadTool: ToolConfig<GmailMarkReadParams, GmailToolResponse> = {
+export const gmailMarkReadTool: InternalToolConfig<GmailMarkReadParams, GmailToolResponse> = {
   id: 'gmail_mark_read',
   name: 'Gmail Mark as Read',
   description: 'Mark a Gmail message as read',
@@ -27,13 +27,8 @@ export const gmailMarkReadTool: ToolConfig<GmailMarkReadParams, GmailToolRespons
     },
   },
 
-  request: {
-    url: '/api/tools/gmail/mark-read',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: GmailMarkReadParams) => ({
+  operation: {
+    input: (params: GmailMarkReadParams) => ({
       accessToken: params.accessToken,
       messageId: params.messageId,
     }),
@@ -85,14 +80,14 @@ interface GmailModifyV2Response {
   }
 }
 
-export const gmailMarkReadV2Tool: ToolConfig<GmailMarkReadParams, GmailModifyV2Response> = {
+export const gmailMarkReadV2Tool: InternalToolConfig<GmailMarkReadParams, GmailModifyV2Response> = {
   id: 'gmail_mark_read_v2',
   name: 'Gmail Mark as Read',
   description: 'Mark a Gmail message as read. Returns API-aligned fields only.',
   version: '2.0.0',
   oauth: gmailMarkReadTool.oauth,
   params: gmailMarkReadTool.params,
-  request: gmailMarkReadTool.request,
+  operation: gmailMarkReadTool.operation,
   transformResponse: async (response) => {
     const legacy = await gmailMarkReadTool.transformResponse!(response)
     if (!legacy.success) return { success: false, output: {}, error: legacy.error }

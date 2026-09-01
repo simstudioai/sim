@@ -1,5 +1,7 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
@@ -8,20 +10,30 @@ import {
   isLargeValueStorageKey,
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
+import {
+  MAX_DURABLE_LARGE_VALUE_BYTES,
+  MAX_FUNCTION_FILE_BYTES,
+  MAX_FUNCTION_INLINE_BYTES,
+  MAX_INLINE_MATERIALIZATION_BYTES,
+} from '@/lib/execution/payloads/limits'
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import type { StorageContext } from '@/lib/uploads'
-import { bufferToBase64, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  bufferToBase64,
+  inferContextFromKey,
+  isGeneratedDocumentSourceType,
+  isPublicStorageContext,
+} from '@/lib/uploads/utils/file-utils'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
+import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionPayloadMaterialization')
 
-export const MAX_DURABLE_LARGE_VALUE_BYTES = 64 * 1024 * 1024
-export const MAX_INLINE_MATERIALIZATION_BYTES = 16 * 1024 * 1024
-export const MAX_FUNCTION_FILE_BYTES = 64 * 1024 * 1024
-export const MAX_FUNCTION_INLINE_BYTES = 10 * 1024 * 1024
-
 export interface ExecutionMaterializationContext {
+  principal?: Principal
   workflowId?: string
   workspaceId?: string
   executionId?: string
@@ -45,6 +57,11 @@ export interface ReadUserFileContentOptions extends ExecutionMaterializationCont
   length?: number
   chunked?: boolean
   encoding: 'base64' | 'text'
+}
+
+export interface ReadUserFileContentResult {
+  content: string
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }
 
 function getLogger(options: ExecutionMaterializationContext): Logger {
@@ -233,7 +250,7 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
   }
 }
 
-function getVerifiedStorageContext(file: UserFile): StorageContext {
+function getVerifiedStorageContext(file: Pick<UserFile, 'key' | 'context'>): StorageContext {
   if (!file.key) {
     throw new Error('File content requires a storage key.')
   }
@@ -247,13 +264,48 @@ function getVerifiedStorageContext(file: UserFile): StorageContext {
 }
 
 export async function assertUserFileContentAccess(
-  file: UserFile,
+  file: Pick<UserFile, 'key' | 'context'>,
   options: ExecutionMaterializationContext
 ): Promise<void> {
   const context = getVerifiedStorageContext(file)
 
   if (context === 'execution') {
     assertExecutionFileScope(file.key, options)
+    return
+  }
+
+  if (isPublicStorageContext(context)) {
+    return
+  }
+
+  if (context === 'workspace' && options.principal && options.workspaceId) {
+    const principal =
+      options.principal.kind === 'delegated'
+        ? rebindWorkspaceFileDelegatedPrincipal({
+            principal: options.principal,
+            workspaceId: options.workspaceId,
+            delegationId: `execution-file-read:${options.requestId ?? 'unknown'}`,
+            ...(options.principal.resourceScope?.fileId
+              ? { fileId: options.principal.resourceScope.fileId }
+              : {}),
+            ...(options.principal.resourceScope?.chatId
+              ? { chatId: options.principal.resourceScope.chatId }
+              : {}),
+            ...(options.executionId ? { executionId: options.executionId } : {}),
+          })
+        : options.principal
+    try {
+      await readWorkspaceFileRecordByKey.execute({
+        principal,
+        input: {
+          key: file.key,
+          assertedWorkspaceId: options.workspaceId,
+        },
+      })
+      return
+    } catch (error) {
+      if (!(error instanceof OrchestrationError && error.code === 'not_found')) throw error
+    }
   }
 
   if (!options.userId) {
@@ -267,10 +319,15 @@ export async function assertUserFileContentAccess(
   }
 }
 
-export async function readUserFileContent(
+/**
+ * Reads the bytes a consumer should receive. For generated documents, updates the
+ * file's size to the rendered artifact size so downstream attachment routing does
+ * not make decisions from the smaller generation-source size.
+ */
+export async function readUserFileContentWithContributors(
   file: unknown,
   options: ReadUserFileContentOptions
-): Promise<string> {
+): Promise<ReadUserFileContentResult> {
   if (!isUserFileWithMetadata(file)) {
     throw new Error('Expected a file object with metadata.')
   }
@@ -287,13 +344,21 @@ export async function readUserFileContent(
   }
 
   let buffer: Buffer | null = null
+  let contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
   const log = getLogger(options)
   const requestId = options.requestId ?? 'unknown'
 
   try {
-    buffer = await downloadFileFromStorage(file, requestId, log, { maxBytes: maxSourceBytes })
+    const servable = await downloadServableFileFromStorage(file, requestId, log, {
+      maxBytes: maxSourceBytes,
+    })
+    buffer = servable.buffer
+    contributingFiles = servable.contributingFiles
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
+      if (isGeneratedDocumentSourceType(file.type) && error.observedBytes !== undefined) {
+        file.size = error.observedBytes
+      }
       throw new ExecutionResourceLimitError({
         resource: 'execution_payload_bytes',
         attemptedBytes: error.observedBytes ?? maxSourceBytes + 1,
@@ -305,6 +370,9 @@ export async function readUserFileContent(
 
   if (!buffer) {
     throw new Error(`File content for ${file.name} is unavailable.`)
+  }
+  if (isGeneratedDocumentSourceType(file.type)) {
+    file.size = buffer.length
   }
   if (buffer.length > maxSourceBytes) {
     throw new ExecutionResourceLimitError({
@@ -319,7 +387,17 @@ export async function readUserFileContent(
   const selected = shouldSlice ? normalizeRange(buffer, options) : buffer
   assertInlineMaterializationSize(selected.length, options.maxBytes ?? MAX_FUNCTION_INLINE_BYTES)
 
-  return options.encoding === 'base64' ? bufferToBase64(selected) : selected.toString('utf8')
+  return {
+    content: options.encoding === 'base64' ? bufferToBase64(selected) : selected.toString('utf8'),
+    ...(contributingFiles && contributingFiles.length > 0 ? { contributingFiles } : {}),
+  }
+}
+
+export async function readUserFileContent(
+  file: unknown,
+  options: ReadUserFileContentOptions
+): Promise<string> {
+  return (await readUserFileContentWithContributors(file, options)).content
 }
 
 export function unavailableLargeValueError(ref: LargeValueRef): Error {

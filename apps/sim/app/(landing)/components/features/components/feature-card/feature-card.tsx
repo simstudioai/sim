@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { ChipTag, cn } from '@sim/emcn'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight } from '@sim/emcn/icons'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -107,7 +107,7 @@ export function FeatureCard({
         <ChipTag variant='mono' className='hidden max-lg:mb-3 max-lg:inline-flex max-lg:self-start'>
           {eyebrow}
         </ChipTag>
-        <h3 className='text-balance font-medium text-[22px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[20px]'>
+        <h3 className='text-balance text-[22px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[20px]'>
           {title}
         </h3>
         <p className='mt-3 text-pretty text-[15px] text-[var(--text-muted)] leading-[1.6]'>

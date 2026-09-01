@@ -8,6 +8,7 @@ import {
   ProductDemo,
 } from '@/app/(landing)/components'
 import { LANDING_SECTION_RHYTHM } from '@/app/(landing)/components/landing-layout'
+import { LandingAnalytics } from '@/app/(landing)/landing-analytics'
 
 /**
  * Landing page root - owns the section order and the `<main>` content region.
@@ -26,6 +27,7 @@ import { LANDING_SECTION_RHYTHM } from '@/app/(landing)/components/landing-layou
 export default function Landing() {
   return (
     <main id='main-content' className={cn('flex flex-col', LANDING_SECTION_RHYTHM)}>
+      <LandingAnalytics />
       <HomeStructuredData />
       <Hero />
       <ProductDemo />

@@ -10,19 +10,14 @@ import { isZodError, validationErrorResponse } from '@/lib/api/server/validation
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  addTableColumn,
-  deleteColumn,
-  renameColumn,
-  updateColumnConstraints,
-  updateColumnOptions,
-  updateColumnType,
-} from '@/lib/table'
-import { columnMatchesRef } from '@/lib/table/column-keys'
+import { addTableColumn, deleteColumn } from '@/lib/table'
+import { signalTableSchemaChanged } from '@/lib/table/events'
+import { performUpdateTableColumn } from '@/lib/table/orchestration'
+import { normalizeColumn } from '@/lib/table/wire'
 import {
   accessError,
   checkAccess,
-  normalizeColumn,
+  orchestrationOutcomeErrorResponse,
   rootErrorMessage,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
@@ -59,6 +54,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     }
 
     const updatedTable = await addTableColumn(tableId, validated.column, requestId)
+    signalTableSchemaChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -117,109 +113,30 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const { updates } = validated
-    let updatedTable = null
-
-    if (updates.name) {
-      updatedTable = await renameColumn(
-        { tableId, oldName: validated.columnName, newName: updates.name },
-        requestId
-      )
+    const outcome = await performUpdateTableColumn({
+      table,
+      columnName: validated.columnName,
+      userId: authResult.userId,
+      updates: validated.updates,
+      requestId,
+      request,
+    })
+    if (!outcome.success || !outcome.table) {
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to update column')
     }
 
-    // A payload that repeats the current type must not go through
-    // `updateColumnType` — it early-returns on an unchanged type and would drop
-    // any `options` alongside it. Only a real type change routes there; an
-    // unchanged type with options routes to the options-only update.
-    const currentColumn = table.schema.columns.find((c) =>
-      columnMatchesRef(c, validated.columnName)
-    )
-    const typeChanging = updates.type !== undefined && updates.type !== currentColumn?.type
-
-    // Every write below is its own locked transaction, so any of them paired
-    // with a constraint write that is going to fail commits and then errors.
-    // Gate on the type the column ENDS UP with, not on whether the type is
-    // changing: an options-only update on an existing select column carries the
-    // same hazard as a conversion does.
-    const resultingType = updates.type ?? currentColumn?.type
-    if (updates.unique === true && resultingType === 'select') {
-      return NextResponse.json({ error: 'Cannot set a select column as unique' }, { status: 400 })
-    }
-
-    if (typeChanging) {
-      updatedTable = await updateColumnType(
-        {
-          tableId,
-          columnName: updates.name ?? validated.columnName,
-          newType: updates.type as NonNullable<typeof updates.type>,
-          ...(updates.options !== undefined ? { options: updates.options } : {}),
-          ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
-          // Forwarded so the conversion validates against the constraint this
-          // same request is about to set, not the column's current one.
-          ...(updates.required !== undefined ? { required: updates.required } : {}),
-        },
-        requestId
-      )
-    } else if (updates.options !== undefined || updates.multiple !== undefined) {
-      updatedTable = await updateColumnOptions(
-        {
-          tableId,
-          columnName: updates.name ?? validated.columnName,
-          options: updates.options ?? currentColumn?.options ?? [],
-          ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
-          // Forwarded so the removal guard validates against the constraint this
-          // same request is about to set, not the column's current one.
-          ...(updates.required !== undefined ? { required: updates.required } : {}),
-        },
-        requestId
-      )
-    }
-
-    if (updates.required !== undefined || updates.unique !== undefined) {
-      updatedTable = await updateColumnConstraints(
-        {
-          tableId,
-          columnName: updates.name ?? validated.columnName,
-          ...(updates.required !== undefined ? { required: updates.required } : {}),
-          ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
-        },
-        requestId
-      )
-    }
-
-    if (!updatedTable) {
-      return NextResponse.json({ error: 'No updates specified' }, { status: 400 })
-    }
+    // Live-collab: tell open viewers the change landed so they refetch.
+    signalTableSchemaChanged(tableId)
 
     return NextResponse.json({
       success: true,
       data: {
-        columns: updatedTable.schema.columns.map(normalizeColumn),
+        columns: outcome.table.schema.columns.map(normalizeColumn),
       },
     })
   } catch (error) {
-    const lockError = tableLockErrorResponse(error)
-    if (lockError) return lockError
     if (isZodError(error)) {
       return validationErrorResponse(error, 'Invalid request data')
-    }
-
-    const msg = rootErrorMessage(error)
-    if (msg.includes('not found') || msg.includes('Table not found')) {
-      return NextResponse.json({ error: msg }, { status: 404 })
-    }
-    if (
-      msg.includes('already exists') ||
-      msg.includes('Cannot delete the last column') ||
-      msg.includes('Cannot set column') ||
-      msg.includes('Cannot set unique column') ||
-      msg.includes('Invalid column') ||
-      msg.includes('exceeds maximum') ||
-      msg.includes('incompatible') ||
-      msg.includes('duplicate') ||
-      msg.includes('option')
-    ) {
-      return NextResponse.json({ error: msg }, { status: 400 })
     }
 
     logger.error(`[${requestId}] Error updating column in table ${tableId}:`, error)
@@ -257,6 +174,7 @@ export const DELETE = withRouteHandler(
         { tableId, columnName: validated.columnName },
         requestId
       )
+      signalTableSchemaChanged(tableId)
 
       return NextResponse.json({
         success: true,

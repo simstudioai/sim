@@ -1,11 +1,8 @@
 'use client'
 
-import type React from 'react'
 import { useMemo, useState } from 'react'
 import {
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
   ChipCombobox,
   ChipInput,
   type ComboboxOptionGroup,
@@ -14,30 +11,23 @@ import {
   FieldDivider,
   Label,
   Loader,
+  OverflowText,
   Switch,
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft, ChevronDown, X } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, SquareArrowUpRight, X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, RepeatIcon, SplitIcon } from 'lucide-react'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
-import { requestJson } from '@/lib/api/client/request'
 import type {
   AddWorkflowGroupBodyInput,
   UpdateWorkflowGroupBodyInput,
 } from '@/lib/api/contracts/tables'
-import {
-  putWorkflowNormalizedStateContract,
-  type WorkflowStateContractInput,
-} from '@/lib/api/contracts/workflows'
 import type {
   ColumnDefinition,
   WorkflowGroup,
   WorkflowGroupDependencies,
-  WorkflowGroupDeploymentMode,
   WorkflowGroupInputMapping,
   WorkflowGroupOutput,
 } from '@/lib/table'
@@ -57,14 +47,13 @@ import {
   RequiredLabel,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
-import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { BlockTile } from '@/blocks/block-tile'
+import { useDeployedWorkflowState } from '@/hooks/queries/deployments'
 import {
   useAddWorkflowGroup,
   useUpdateColumn,
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
-import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { InputMappingSection } from './input-mapping-section'
 import { RunSettingsSection } from './run-settings-section'
@@ -140,57 +129,8 @@ interface BlockOutputGroup {
   blockId: string
   blockName: string
   blockType: string
-  blockIcon: string | React.ComponentType<{ className?: string }>
-  blockColor: string
   paths: string[]
 }
-
-interface WorkflowStatePayload {
-  blocks: Record<
-    string,
-    {
-      type: string
-      subBlocks?: Record<string, { id?: string; type?: string; value?: unknown }>
-    } & Record<string, unknown>
-  >
-  edges: unknown[]
-  loops: unknown
-  parallels: unknown
-  lastSaved?: number
-  isDeployed?: boolean
-}
-
-function tableColumnTypeToInputType(colType: ColumnDefinition['type'] | undefined): string {
-  switch (colType) {
-    case 'number':
-      return 'number'
-    case 'boolean':
-      return 'boolean'
-    case 'json':
-      return 'object'
-    default:
-      return 'string'
-  }
-}
-
-const TagIcon: React.FC<{
-  icon: string | React.ComponentType<{ className?: string }>
-  color: string
-}> = ({ icon, color }) => (
-  <div
-    className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded [&_img]:size-full'
-    style={{ background: color }}
-  >
-    {typeof icon === 'string' ? (
-      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
-    ) : (
-      (() => {
-        const IconComponent = icon
-        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
-      })()
-    )}
-  </div>
-)
 
 /**
  * Right-edge sidebar for workflow group configuration. Three flows:
@@ -308,11 +248,6 @@ export function WorkflowSidebarBody({
    */
   const otherColumns = anchorIdx >= allColumns.length ? allColumns : allColumns.slice(0, anchorIdx)
 
-  // Used by the "missing workflow input" suggestion below — for edit-output
-  // we exclude the column being edited (you can't suggest it as its own
-  // input).
-  const anchorColumnName = config.mode === 'edit-output' ? config.columnName : null
-
   // Every left-of-current column is a valid dep — workflow output columns
   // included. Exclude this group's own outputs (you can't depend on yourself).
   const ownOutputIds = new Set(existingGroup?.outputs.map((o) => o.columnName) ?? [])
@@ -343,11 +278,6 @@ export function WorkflowSidebarBody({
   const [autoRun, setAutoRun] = useState<boolean>(() =>
     existingGroup ? existingGroup.autoRun !== false : false
   )
-  // Which workflow state per-cell runs execute against. Defaults to `'live'`
-  // (the editable draft) for both new and pre-feature groups.
-  const [deploymentMode, setDeploymentMode] = useState<WorkflowGroupDeploymentMode>(
-    () => existingGroup?.deploymentMode ?? 'live'
-  )
   // Deps default to none selected. With auto-run on, at least one is required
   // (enforced via `depsValid` below); a legacy group with empty deps will
   // surface the error on first open until the user picks at least one column.
@@ -363,100 +293,20 @@ export function WorkflowSidebarBody({
   const [showValidation, setShowValidation] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
 
-  const workflowState = useWorkflowState(selectedWorkflowId || undefined)
+  const workflowState = useDeployedWorkflowState(selectedWorkflowId || null)
 
-  /** Resolves the unified Start block id and its current `inputFormat` field
-   *  names. The "Add inputs" mutation only adds rows for table columns that
-   *  aren't already represented in the start block. */
-  const startBlockInputs = useMemo<{
-    blockId: string | null
-    existingNames: Set<string>
-    existing: InputFormatField[]
-  }>(() => {
+  /** Resolves Start-block inputs from the active deployment used by table runs. */
+  const startBlockInputs = useMemo<InputFormatField[]>(() => {
     const blocks = (workflowState.data as { blocks?: Record<string, { type: string }> } | null)
       ?.blocks
-    if (!blocks) return { blockId: null, existingNames: new Set(), existing: [] }
+    if (!blocks) return []
     const candidate = TriggerUtils.findStartBlock(blocks, 'manual')
-    if (!candidate) return { blockId: null, existingNames: new Set(), existing: [] }
+    if (!candidate) return []
     const block = blocks[candidate.blockId] as
       | { subBlocks?: Record<string, { value?: unknown }> }
       | undefined
-    const existing = normalizeInputFormatValue(block?.subBlocks?.inputFormat?.value)
-    return {
-      blockId: candidate.blockId,
-      existingNames: new Set(existing.map((f) => f.name).filter((n): n is string => !!n)),
-      existing,
-    }
+    return normalizeInputFormatValue(block?.subBlocks?.inputFormat?.value)
   }, [workflowState.data])
-
-  const missingInputColumnNames = useMemo<string[]>(() => {
-    if (!startBlockInputs.blockId) return []
-    const anchor = anchorColumnName
-    return allColumns
-      .filter(
-        (c) =>
-          getColumnId(c) !== anchor &&
-          !c.workflowGroupId &&
-          !startBlockInputs.existingNames.has(c.name)
-      )
-      .map((c) => c.name)
-  }, [allColumns, anchorColumnName, startBlockInputs])
-
-  const queryClient = useQueryClient()
-  const addInputsMutation = useMutation({
-    mutationFn: async () => {
-      const wfId = selectedWorkflowId
-      const startBlockId = startBlockInputs.blockId
-      const state = workflowState.data as WorkflowStatePayload | null | undefined
-      if (!wfId || !startBlockId || !state || missingInputColumnNames.length === 0) {
-        throw new Error('Nothing to add')
-      }
-      const startBlock = state.blocks[startBlockId]
-      if (!startBlock) throw new Error('Start block missing from workflow')
-
-      const newFields: InputFormatField[] = missingInputColumnNames.map((name) => {
-        const col = allColumns.find((c) => c.name === name)
-        return {
-          id: generateId(),
-          name,
-          type: tableColumnTypeToInputType(col?.type),
-          value: '',
-          collapsed: false,
-        } as InputFormatField & { id: string; collapsed: boolean }
-      })
-
-      const updatedSubBlock = {
-        ...(startBlock.subBlocks?.inputFormat ?? { id: 'inputFormat', type: 'input-format' }),
-        value: [...startBlockInputs.existing, ...newFields],
-      }
-      const updatedBlocks = {
-        ...state.blocks,
-        [startBlockId]: {
-          ...startBlock,
-          subBlocks: { ...startBlock.subBlocks, inputFormat: updatedSubBlock },
-        },
-      }
-
-      const rawBody = {
-        blocks: updatedBlocks,
-        edges: state.edges,
-        loops: state.loops,
-        parallels: state.parallels,
-        lastSaved: state.lastSaved ?? Date.now(),
-        isDeployed: state.isDeployed ?? false,
-      }
-      // double-cast-allowed: WorkflowStatePayload is the loose local view of
-      // useWorkflowState; round-trip back to the strict PUT body shape.
-      const body = rawBody as unknown as WorkflowStateContractInput
-      await requestJson(putWorkflowNormalizedStateContract, { params: { id: wfId }, body })
-    },
-    onError: (err) => {
-      toast.error(toError(err).message)
-    },
-    onSettled: () => {
-      return queryClient.invalidateQueries({ queryKey: workflowKeys.state(selectedWorkflowId) })
-    },
-  })
 
   const blockOutputGroups = useMemo<BlockOutputGroup[]>(() => {
     const state = workflowState.data as
@@ -477,20 +327,10 @@ export function WorkflowSidebarBody({
     for (const f of flat) {
       let group = groupsByBlockId.get(f.blockId)
       if (!group) {
-        const blockConfig = getBlock(f.blockType)
-        const blockColor = blockConfig?.bgColor || '#2F55FF'
-        let blockIcon: string | React.ComponentType<{ className?: string }> = f.blockName
-          .charAt(0)
-          .toUpperCase()
-        if (blockConfig?.icon) blockIcon = blockConfig.icon
-        else if (f.blockType === 'loop') blockIcon = RepeatIcon
-        else if (f.blockType === 'parallel') blockIcon = SplitIcon
         group = {
           blockId: f.blockId,
           blockName: f.blockName,
           blockType: f.blockType,
-          blockIcon,
-          blockColor,
           paths: [],
         }
         groupsByBlockId.set(f.blockId, group)
@@ -513,10 +353,12 @@ export function WorkflowSidebarBody({
         section: group.blockName,
         sectionElement: (
           <div className='flex items-center gap-1.5 px-1.5 pt-1.5 pb-1'>
-            <TagIcon icon={group.blockIcon} color={group.blockColor} />
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-              {group.blockName}
-            </span>
+            <BlockTile
+              blockType={group.blockType}
+              fallbackLabel={group.blockName.charAt(0).toUpperCase()}
+              size='sm'
+            />
+            <span className='text-[var(--text-secondary)] text-caption'>{group.blockName}</span>
           </div>
         ),
         items: group.paths.map((path) => ({
@@ -556,13 +398,13 @@ export function WorkflowSidebarBody({
   // Once the Start block's input fields resolve, auto-fill any field that has no
   // persisted mapping yet but matches a table column by name. Runs once; never
   // overrides a persisted or user-picked mapping.
-  if (!inputMappingsHydrated && startBlockInputs.existing.length > 0) {
+  if (!inputMappingsHydrated && startBlockInputs.length > 0) {
     // Map a Start input field to the column sharing its name, storing the
     // column id (the value the dropdowns and persisted mappings key on).
     const idByColumnName = new Map(depOptions.map((c) => [c.name, getColumnId(c)]))
     const next = { ...inputMappings }
     let changed = false
-    for (const field of startBlockInputs.existing) {
+    for (const field of startBlockInputs) {
       if (!field.name || next[field.name]) continue
       const colId = idByColumnName.get(field.name)
       if (colId) {
@@ -715,7 +557,6 @@ export function WorkflowSidebarBody({
             outputs: fullOutputs,
             ...(newOutputColumns.length > 0 ? { newOutputColumns } : {}),
             inputMappings: inputMappingsList,
-            deploymentMode,
             autoRun,
           })
           toast.success(`Saved "${existingGroup.name ?? 'Workflow'}"`)
@@ -747,7 +588,6 @@ export function WorkflowSidebarBody({
           dependencies,
           outputs: groupOutputs,
           inputMappings: inputMappingsList,
-          deploymentMode,
           autoRun,
         }
         await addWorkflowGroup.mutateAsync({ group, outputColumns: newOutputColumns })
@@ -803,7 +643,9 @@ export function WorkflowSidebarBody({
               <ArrowLeft className='size-[14px]' />
             </Button>
           )}
-          <h2 className='truncate font-medium text-[var(--text-primary)] text-small'>{title}</h2>
+          <h2 className='flex min-w-0'>
+            <OverflowText label={title} className='text-[var(--text-primary)] text-small' />
+          </h2>
         </div>
         <Button
           variant='ghost'
@@ -852,29 +694,6 @@ export function WorkflowSidebarBody({
             <div className='flex flex-col gap-[9.5px]'>
               <div className='flex min-w-0 items-center justify-between gap-2 pl-0.5'>
                 <Label>Workflow preview</Label>
-                {!isEnrichment &&
-                  startBlockInputs.blockId &&
-                  missingInputColumnNames.length > 0 && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          type='button'
-                          variant='default'
-                          size='sm'
-                          className='flex-none whitespace-nowrap'
-                          onClick={() => addInputsMutation.mutate()}
-                          disabled={addInputsMutation.isPending}
-                        >
-                          {addInputsMutation.isPending
-                            ? 'Adding…'
-                            : `Add column inputs (${missingInputColumnNames.length})`}
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side='top'>
-                        Adds {missingInputColumnNames.join(', ')} to the workflow's Start block
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
               </div>
               <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                 {workflowState.isLoading ? (
@@ -910,7 +729,7 @@ export function WorkflowSidebarBody({
                             }
                             className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                           >
-                            <ExternalLink className='size-[12px]' />
+                            <SquareArrowUpRight className='size-[12px]' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
@@ -933,12 +752,16 @@ export function WorkflowSidebarBody({
         <div className='flex flex-col gap-[9.5px]'>
           <RequiredLabel>Workflow</RequiredLabel>
           <ChipCombobox
-            options={workflows?.map((wf) => ({ label: wf.name, value: wf.id })) ?? []}
+            options={
+              workflows
+                ?.filter((workflow) => workflow.isDeployed)
+                .map((workflow) => ({ label: workflow.name, value: workflow.id })) ?? []
+            }
             value={selectedWorkflowId}
             onChange={(v) => setSelectedWorkflowId(v)}
             placeholder='Select a workflow'
             disabled={!workflows || workflows.length === 0 || isEditOutputMode || isEnrichment}
-            emptyMessage='No manual triggers configured'
+            emptyMessage='No deployed workflows available'
             maxHeight={260}
             searchable
             searchPlaceholder='Search workflows...'
@@ -1016,7 +839,7 @@ export function WorkflowSidebarBody({
                   <button
                     type='button'
                     onClick={() => setShowAdvanced((v) => !v)}
-                    className='flex items-center gap-1.5 whitespace-nowrap font-medium text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
+                    className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
                   >
                     {showAdvanced ? 'Hide additional fields' : 'Show additional fields'}
                     <ChevronDown
@@ -1030,25 +853,8 @@ export function WorkflowSidebarBody({
                 </div>
                 {showAdvanced && (
                   <>
-                    {!isEnrichment && (
-                      <>
-                        <div className='flex items-center justify-between pl-0.5'>
-                          <Label>Workflow version</Label>
-                          <ButtonGroup
-                            value={deploymentMode}
-                            onValueChange={(v) =>
-                              setDeploymentMode(v === 'deployed' ? 'deployed' : 'live')
-                            }
-                          >
-                            <ButtonGroupItem value='live'>Live</ButtonGroupItem>
-                            <ButtonGroupItem value='deployed'>Deployed</ButtonGroupItem>
-                          </ButtonGroup>
-                        </div>
-                        <FieldDivider />
-                      </>
-                    )}
                     <InputMappingSection
-                      inputFields={startBlockInputs.existing}
+                      inputFields={startBlockInputs}
                       columnOptions={depOptions}
                       value={inputMappings}
                       onChange={setInputMappings}

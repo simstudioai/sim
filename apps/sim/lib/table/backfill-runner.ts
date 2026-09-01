@@ -3,10 +3,15 @@ import { tableRowExecutions, userTableRows, workflowExecutionLogs } from '@sim/d
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, asc, count, eq, gt, inArray } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import {
+  type FunctionalExecutionDataSource,
+  getFunctionalBlockOutput,
+} from '@/lib/logs/execution/functional-outputs'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { appendTableEvent } from '@/lib/table/events'
 import {
@@ -16,6 +21,7 @@ import {
   updateJobProgress,
 } from '@/lib/table/jobs/service'
 import { pluckByPath } from '@/lib/table/pluck'
+import { createTableRowSecretProvenanceFromRegistry } from '@/lib/table/rows/secret-provenance'
 import { batchUpdateRows } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 import type {
@@ -24,6 +30,11 @@ import type {
   TableDefinition,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
+import {
+  isResolvedSecretTraceProvenanceV1,
+  RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('TableBackfillRunner')
 
@@ -47,25 +58,45 @@ export interface TableBackfillPayload {
   actorUserId?: string | null
 }
 
-/** Minimal shape of a trace span we care about for backfill. */
-interface BackfillTraceSpan {
-  blockId?: string
-  output?: Record<string, unknown>
-  children?: BackfillTraceSpan[]
-}
-
-/** DFS the trace tree for the first span matching `blockId`. */
-function findSpanByBlockId(
-  spans: BackfillTraceSpan[] | undefined,
-  blockId: string
-): BackfillTraceSpan | undefined {
-  if (!spans) return undefined
-  for (const span of spans) {
-    if (span.blockId === blockId) return span
-    const child = findSpanByBlockId(span.children, blockId)
-    if (child) return child
+/**
+ * Reconstructs the encrypted provenance checkpoint bound to one persisted
+ * execution. Historical states without the contract, mismatched execution ids,
+ * malformed envelopes, and undecryptable entries remain permanently unknown.
+ */
+export async function createBackfillExecutionSecretRegistry(options: {
+  executionData: Record<string, unknown>
+  executionId: string
+  workspaceId: string
+}): Promise<ResolvedSecretTraceRegistry> {
+  const state = isRecordLike(options.executionData.executionState)
+    ? options.executionData.executionState
+    : undefined
+  const provenance = state?.resolvedSecretTraceProvenance
+  /**
+   * A state persisted before the checkpoint contract carries no version at all. That is the bulk of
+   * any backfill over historical rows, so it is separated from a checkpoint that exists but cannot
+   * be used — only the latter is worth an error, and conflating them would put one line per legacy
+   * row into the error stream.
+   */
+  const checkpointPresent =
+    state?.resolvedSecretTraceCheckpointVersion === RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION
+  const valid =
+    checkpointPresent &&
+    state?.sourceExecutionId === options.executionId &&
+    isResolvedSecretTraceProvenanceV1(provenance) &&
+    provenance.scope?.workspaceId === options.workspaceId
+  const registry = new ResolvedSecretTraceRegistry([], valid ? provenance.scope : undefined)
+  if (!valid) {
+    registry.markIncomplete(
+      checkpointPresent ? 'backfill-checkpoint-unusable' : 'backfill-checkpoint-absent'
+    )
+    return registry
   }
-  return undefined
+  await registry.importProvenance(provenance, {
+    trusted: true,
+    origin: 'tableBackfill.rowProvenance',
+  })
+  return registry
 }
 
 /** One keyset page of completed (rowId, executionId) pairs for the group, ordered by rowId. */
@@ -94,8 +125,8 @@ async function selectCompletedExecPage(
 }
 
 /**
- * Backfills one page of rows: pulls each target output's value out of the rows' saved trace
- * spans (materialized from object storage with bounded concurrency) and writes it into row data.
+ * Backfills one page of rows: pulls each target output from the saved raw execution state
+ * (materialized from object storage with bounded concurrency) and writes it into row data.
  * Returns the number of rows updated.
  */
 async function processBackfillPage(opts: {
@@ -136,20 +167,30 @@ async function processBackfillPage(opts: {
     .from(workflowExecutionLogs)
     .where(inArray(workflowExecutionLogs.executionId, executionIds))
 
-  const logByExecutionId = new Map<string, { traceSpans?: BackfillTraceSpan[] }>()
+  const logByExecutionId = new Map<
+    string,
+    { data: FunctionalExecutionDataSource; registry: ResolvedSecretTraceRegistry }
+  >()
   // Heavy execution data may live in object storage; resolve pointers (bounded concurrency).
   await mapWithConcurrency(logs, MATERIALIZE_CONCURRENCY, async (log) => {
     const executionData = await materializeExecutionData(
       log.executionData as Record<string, unknown> | null,
       { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
     )
-    logByExecutionId.set(
-      log.executionId,
-      (executionData as { traceSpans?: BackfillTraceSpan[] }) ?? {}
-    )
+    logByExecutionId.set(log.executionId, {
+      data: executionData as FunctionalExecutionDataSource,
+      registry: await createBackfillExecutionSecretRegistry({
+        executionData,
+        executionId: log.executionId,
+        workspaceId: log.workspaceId,
+      }),
+    })
   })
 
   const updates: Array<{ rowId: string; data: RowData }> = []
+  const secretProvenanceByRowId: NonNullable<
+    Parameters<typeof batchUpdateRows>[0]['secretProvenanceByRowId']
+  > = {}
   for (const r of rowRecords) {
     const execId = executionIdsByRow.get(r.id)
     if (!execId) continue
@@ -160,21 +201,31 @@ async function processBackfillPage(opts: {
     let mutated = false
     for (const out of outputs) {
       if (!overwrite && (r.data as RowData)[out.columnName] !== undefined) continue
-      const span = findSpanByBlockId(log.traceSpans, out.blockId)
-      if (!span?.output) continue
-      const picked = pluckByPath(span.output, out.path)
+      const functionalOutput = getFunctionalBlockOutput(log.data, out.blockId)
+      if (functionalOutput === undefined) continue
+      const picked = pluckByPath(functionalOutput, out.path)
       if (picked === undefined) continue
       dataPatch[out.columnName] = picked as RowData[string]
       mutated = true
     }
     if (!mutated) continue
     updates.push({ rowId: r.id, data: dataPatch })
+    secretProvenanceByRowId[r.id] = createTableRowSecretProvenanceFromRegistry(
+      dataPatch,
+      log.registry
+    )
   }
 
   if (updates.length === 0) return 0
 
   await batchUpdateRows(
-    { tableId: table.id, updates, workspaceId: table.workspaceId, actorUserId },
+    {
+      tableId: table.id,
+      updates,
+      workspaceId: table.workspaceId,
+      actorUserId,
+      secretProvenanceByRowId,
+    },
     table,
     requestId,
     // Every patched key is a workflow-group output column, so a backfill is a

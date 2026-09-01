@@ -1,6 +1,23 @@
 {
   "$schema": "https://v2-9-12.turborepo.dev/schema.json",
   "envMode": "loose",
+  // Local cache eviction is opt-in until Turborepo 3.0, so without these the
+  // filesystem cache grows forever. In CI each cache dir is a Blacksmith sticky
+  // disk that is mounted many times a day, so it never goes idle long enough for
+  // Blacksmith's own 7-day inactivity purge to fire, and one cache-missing app
+  // build writes a ~400 MB artifact: the build cache reached 206 GB in 43 days.
+  //
+  // Size is the real bound and age is hygiene. A hit only happens when a task's
+  // input hash is unchanged — a re-run, or a commit touching only unrelated
+  // workspaces — which recurs within hours, so nothing older than a day or two
+  // can ever be read again. Measured hit rate on the app build is ~17%, worth
+  // ~7 minutes each, so the cache earns its keep; it just needs a ceiling.
+  // 40 GB is ~100 app-sized artifacts against ~4.8 GB/day of real accumulation.
+  //
+  // Neither key participates in the task hash, so changing them does not
+  // invalidate the cache.
+  "cacheMaxAge": "7d",
+  "cacheMaxSize": "40GB",
   "tasks": {
     "transit": {
       "dependsOn": ["^transit"],

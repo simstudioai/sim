@@ -1,13 +1,11 @@
-import { db } from '@sim/db'
-import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1GetLogContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
   checkRateLimit,
@@ -38,36 +36,7 @@ export const GET = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      const rows = await db
-        .select({
-          id: workflowExecutionLogs.id,
-          workflowId: workflowExecutionLogs.workflowId,
-          workspaceId: workflowExecutionLogs.workspaceId,
-          executionId: workflowExecutionLogs.executionId,
-          stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
-          level: workflowExecutionLogs.level,
-          trigger: workflowExecutionLogs.trigger,
-          startedAt: workflowExecutionLogs.startedAt,
-          endedAt: workflowExecutionLogs.endedAt,
-          totalDurationMs: workflowExecutionLogs.totalDurationMs,
-          executionData: workflowExecutionLogs.executionData,
-          costTotal: workflowExecutionLogs.costTotal,
-          files: workflowExecutionLogs.files,
-          createdAt: workflowExecutionLogs.createdAt,
-          workflowName: workflow.name,
-          workflowDescription: workflow.description,
-          workflowFolderId: workflow.folderId,
-          workflowUserId: workflow.userId,
-          workflowWorkspaceId: workflow.workspaceId,
-          workflowCreatedAt: workflow.createdAt,
-          workflowUpdatedAt: workflow.updatedAt,
-        })
-        .from(workflowExecutionLogs)
-        .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-        .where(eq(workflowExecutionLogs.id, id))
-        .limit(1)
-
-      const log = rows[0]
+      const log = await getPublicWorkflowLog({ column: 'id', value: id })
       if (!log) {
         return NextResponse.json({ error: 'Log not found' }, { status: 404 })
       }
@@ -100,12 +69,13 @@ export const GET = withRouteHandler(
         totalDurationMs: log.totalDurationMs,
         files: log.files || undefined,
         workflow: workflowSummary,
-        executionData: (await materializeExecutionData(
+        executionData: (await materializeExecutionDataForDisplay(
           log.executionData as Record<string, unknown> | null,
           {
             workspaceId: log.workspaceId,
             workflowId: log.workflowId,
             executionId: log.executionId,
+            userId,
           }
         )) as any,
         cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,

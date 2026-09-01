@@ -17,6 +17,7 @@ interface ExactWorkspaceStorageRow {
   [key: string]: unknown
   document_bytes: number | string
   workspace_file_bytes: number | string
+  workspace_file_missing_size_count: number | string
 }
 
 interface BatchExactWorkspaceStorageRow extends ExactWorkspaceStorageRow {
@@ -82,11 +83,18 @@ async function getExactWorkspaceStorageBytes(tx: DbOrTx, workspaceId: string): P
   const [row] = await tx.execute<ExactWorkspaceStorageRow>(sql`
     SELECT
       COALESCE((
-        SELECT SUM(${workspaceFiles.size}::bigint)
+        SELECT SUM(${workspaceFiles.sizeBytes})
         FROM ${workspaceFiles}
         WHERE ${workspaceFiles.workspaceId} = ${workspaceId}
           AND ${workspaceFiles.context} = 'workspace'
       ), 0)::bigint AS workspace_file_bytes,
+      (
+        SELECT COUNT(*)
+        FROM ${workspaceFiles}
+        WHERE ${workspaceFiles.workspaceId} = ${workspaceId}
+          AND ${workspaceFiles.context} = 'workspace'
+          AND ${workspaceFiles.sizeBytes} IS NULL
+      )::bigint AS workspace_file_missing_size_count,
       COALESCE((
         SELECT SUM(${document.fileSize}::bigint)
         FROM ${document}
@@ -101,6 +109,9 @@ async function getExactWorkspaceStorageBytes(tx: DbOrTx, workspaceId: string): P
   if (!row) {
     throw new Error(`Could not recompute storage for workspace ${workspaceId}`)
   }
+  if (parseExactBytes(row.workspace_file_missing_size_count, 'missing workspace file size') > 0) {
+    throw new Error(`Workspace ${workspaceId} has files missing canonical size_bytes metadata`)
+  }
 
   const workspaceFileBytes = parseExactBytes(row.workspace_file_bytes, 'workspace file')
   const documentBytes = parseExactBytes(row.document_bytes, 'knowledge document')
@@ -114,7 +125,9 @@ async function getExactWorkspaceStorageBytes(tx: DbOrTx, workspaceId: string): P
 /**
  * Locks a payer row and returns its current aggregate. A missing source can be
  * historical drift and is represented as `null`; callers must reject a
- * missing destination.
+ * missing destination. `FOR NO KEY UPDATE` avoids upgrading the implicit
+ * foreign-key `FOR KEY SHARE` this transaction may already hold; see the
+ * module header of `lib/billing/storage/tracking.ts`.
  */
 async function lockStoragePayer(tx: DbOrTx, payer: BillingEntity): Promise<number | null> {
   if (payer.type === 'organization') {
@@ -122,7 +135,7 @@ async function lockStoragePayer(tx: DbOrTx, payer: BillingEntity): Promise<numbe
       .select({ storageUsedBytes: organization.storageUsedBytes })
       .from(organization)
       .where(eq(organization.id, payer.id))
-      .for('update')
+      .for('no key update')
       .limit(1)
     return row?.storageUsedBytes ?? null
   }
@@ -131,7 +144,7 @@ async function lockStoragePayer(tx: DbOrTx, payer: BillingEntity): Promise<numbe
     .select({ storageUsedBytes: userStats.storageUsedBytes })
     .from(userStats)
     .where(eq(userStats.userId, payer.id))
-    .for('update')
+    .for('no key update')
     .limit(1)
   return row?.storageUsedBytes ?? null
 }
@@ -167,12 +180,16 @@ async function getExactWorkspaceStorageBytesBatch(
       COALESCE(SUM(storage_by_workspace.workspace_file_bytes), 0)::bigint
         AS workspace_file_bytes,
       COALESCE(SUM(storage_by_workspace.document_bytes), 0)::bigint
-        AS document_bytes
+        AS document_bytes,
+      COALESCE(SUM(storage_by_workspace.workspace_file_missing_size_count), 0)::bigint
+        AS workspace_file_missing_size_count
     FROM (
       SELECT
         ${workspaceFiles.workspaceId} AS workspace_id,
-        SUM(${workspaceFiles.size}::bigint) AS workspace_file_bytes,
-        0::bigint AS document_bytes
+        SUM(${workspaceFiles.sizeBytes}) AS workspace_file_bytes,
+        0::bigint AS document_bytes,
+        COUNT(*) FILTER (WHERE ${workspaceFiles.sizeBytes} IS NULL)::bigint
+          AS workspace_file_missing_size_count
       FROM ${workspaceFiles}
       WHERE ${inArray(workspaceFiles.workspaceId, workspaceIds)}
         AND ${workspaceFiles.context} = 'workspace'
@@ -183,7 +200,8 @@ async function getExactWorkspaceStorageBytesBatch(
       SELECT
         ${knowledgeBase.workspaceId} AS workspace_id,
         0::bigint AS workspace_file_bytes,
-        SUM(${document.fileSize}::bigint) AS document_bytes
+        SUM(${document.fileSize}::bigint) AS document_bytes,
+        0::bigint AS workspace_file_missing_size_count
       FROM ${document}
       INNER JOIN ${knowledgeBase}
         ON ${knowledgeBase.id} = ${document.knowledgeBaseId}
@@ -197,6 +215,11 @@ async function getExactWorkspaceStorageBytesBatch(
   `)
 
   for (const row of rows) {
+    if (parseExactBytes(row.workspace_file_missing_size_count, 'missing workspace file size') > 0) {
+      throw new Error(
+        `Workspace ${row.workspace_id} has files missing canonical size_bytes metadata`
+      )
+    }
     const workspaceFileBytes = parseExactBytes(row.workspace_file_bytes, 'workspace file')
     const documentBytes = parseExactBytes(row.document_bytes, 'knowledge document')
     const total = workspaceFileBytes + documentBytes
@@ -236,7 +259,7 @@ async function lockStoragePayers(
       .from(userStats)
       .where(inArray(userStats.userId, userIds))
       .orderBy(asc(userStats.userId))
-      .for('update')
+      .for('no key update')
     for (const row of rows) {
       usageByKey.set(getPayerKey({ type: 'user', id: row.id }), row.storageUsedBytes)
     }
@@ -248,7 +271,7 @@ async function lockStoragePayers(
       .from(organization)
       .where(inArray(organization.id, organizationIds))
       .orderBy(asc(organization.id))
-      .for('update')
+      .for('no key update')
     for (const row of rows) {
       usageByKey.set(getPayerKey({ type: 'organization', id: row.id }), row.storageUsedBytes)
     }
@@ -350,7 +373,7 @@ export async function changeWorkspaceStoragePayersInTx(
     .from(workspace)
     .where(inArray(workspace.id, workspaceIds))
     .orderBy(asc(workspace.id))
-    .for('update')
+    .for('no key update')
 
   const workspaceById = new Map(lockedWorkspaces.map((row) => [row.id, row]))
   for (const workspaceId of workspaceIds) {
@@ -541,7 +564,7 @@ export async function changeOrganizationWorkspaceBilledAccountsInTx(
       )
     )
     .orderBy(asc(workspace.id))
-    .for('update')
+    .for('no key update')
 
   const rows = await tx
     .update(workspace)
@@ -583,7 +606,7 @@ export async function changeWorkspaceStoragePayerInTx(
     })
     .from(workspace)
     .where(eq(workspace.id, params.workspaceId))
-    .for('update')
+    .for('no key update')
     .limit(1)
 
   if (!lockedWorkspace) {

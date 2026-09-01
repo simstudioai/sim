@@ -3,11 +3,13 @@
  */
 import type OpenAI from 'openai'
 import { describe, expect, it } from 'vitest'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   buildResponsesInputFromMessages,
   parseResponsesUsage,
   toOpenAIModelUsage,
 } from '@/providers/openai/utils'
+import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
 
 describe('parseResponsesUsage', () => {
   it('reads cache writes, which GPT-5.6+ bills at a premium', () => {
@@ -107,6 +109,46 @@ describe('buildResponsesInputFromMessages', () => {
             type: 'input_image',
             image_url: 'data:image/png;base64,iVBORw0KGgo=',
             detail: 'auto',
+          },
+        ],
+      },
+    ])
+  })
+
+  it('preserves an ordinary document filename that collides with a configured secret', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FILE_NAME', plaintext: 'report.pdf', encryptedValue: 'ciphertext' },
+    ])
+
+    const input = runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, () =>
+      buildResponsesInputFromMessages([
+        {
+          role: 'user',
+          content: 'Analyze this document',
+          files: [
+            {
+              id: 'file-1',
+              key: 'workspace/ws-1/report.pdf',
+              name: 'report.pdf',
+              url: '/api/files/serve/workspace%2Fws-1%2Freport.pdf?context=workspace',
+              size: 128,
+              type: 'application/octet-stream',
+              base64: 'cGRm',
+            },
+          ],
+        },
+      ])
+    )
+
+    expect(input).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'Analyze this document' },
+          {
+            type: 'input_file',
+            filename: 'report.pdf',
+            file_data: 'data:application/pdf;base64,cGRm',
           },
         ],
       },

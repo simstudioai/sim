@@ -99,6 +99,9 @@ vi.mock('@/lib/mcp/connection-manager', () => ({
 }))
 
 vi.mock('@/lib/mcp/domain-check', () => ({
+  MCP_EGRESS_PROFILE: 'selfHostedService',
+  OAUTH_EGRESS_PROFILE: 'contentFetch',
+  McpSsrfError: class McpSsrfError extends Error {},
   isMcpDomainAllowed: (...args: unknown[]) => mockIsDomainAllowed(...args),
   validateMcpDomain: (...args: unknown[]) => mockValidateDomain(...args),
   validateMcpServerSsrf: (...args: unknown[]) => mockValidateSsrf(...args),
@@ -120,8 +123,10 @@ vi.mock('@/lib/mcp/storage', () => ({
   getMcpCacheType: () => 'memory',
 }))
 
+import { MAX_MCP_LAST_ERROR_LENGTH } from '@/lib/mcp/constants'
 import { mcpService } from '@/lib/mcp/service'
 import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
+import { MCP_CONSTANTS } from '@/lib/mcp/utils'
 
 const mockLogger = vi.mocked(loggerMock.createLogger).mock.results.at(-1)?.value
 
@@ -156,6 +161,51 @@ function tool(name: string, serverId: string) {
     serverId,
     serverName: serverId,
   }
+}
+
+/**
+ * Renders a mocked drizzle `sql` fragment, recursing into nested fragments.
+ *
+ * The failure status write computes the consecutive-failure counter in SQL
+ * rather than reading it, adding one and writing it back, so its
+ * `connectionStatus` and `statusConfig` arrive as expressions. Rendering them is
+ * the only way to assert the increment and the error threshold without a live
+ * database — and asserting on a literal object would be asserting the old
+ * read-modify-write back into existence.
+ */
+function renderSql(fragment: unknown): string {
+  const node = fragment as { strings?: readonly string[]; values?: readonly unknown[] }
+  if (!node?.strings) return String(fragment)
+  return node.strings.reduce<string>(
+    (rendered, chunk, index) =>
+      index === 0 ? chunk : `${rendered}${renderSql(node.values?.[index - 1])}${chunk}`,
+    ''
+  )
+}
+
+/** The values written by the failure branch of the discovery status write. */
+function failureStatusWrite(lastError: string): Record<string, unknown> {
+  const call = dbChainMockFns.set.mock.calls.find(
+    ([values]) => (values as Record<string, unknown> | undefined)?.lastError === lastError
+  )
+  expect(call, `no status write carried lastError ${lastError}`).toBeDefined()
+  return (call as unknown[])[0] as Record<string, unknown>
+}
+
+/**
+ * Pins the failure write's SQL: the counter is incremented from the stored blob
+ * in the same statement, and the row flips to `error` at the threshold.
+ */
+function expectSqlSideFailureIncrement(values: Record<string, unknown>): void {
+  const statusConfig = renderSql(values.statusConfig)
+  expect(statusConfig).toContain("'consecutiveFailures'")
+  expect(statusConfig).toContain("->> 'consecutiveFailures')::int, 0) + 1")
+  expect(statusConfig).toContain("-> 'lastSuccessfulDiscovery'")
+
+  const connectionStatus = renderSql(values.connectionStatus)
+  expect(connectionStatus).toContain(') + 1 >= ')
+  expect(connectionStatus).toContain(String(MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES))
+  expect(connectionStatus).toContain("THEN 'error' ELSE 'disconnected' END")
 }
 
 describe('McpService.discoverTools per-server caching', () => {
@@ -342,13 +392,7 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(first).toEqual([])
 
     await vi.waitFor(() => {
-      expect(dbChainMockFns.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          connectionStatus: 'disconnected',
-          lastError: 'Authentication failed',
-          statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
-        })
-      )
+      expectSqlSideFailureIncrement(failureStatusWrite('Authentication failed'))
       expect(mockCacheAdapter.set).toHaveBeenCalledWith(
         `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
         [],
@@ -411,10 +455,17 @@ describe('McpService.discoverTools per-server caching', () => {
     )
     expect(mockListTools).not.toHaveBeenCalled()
 
+    // A public `refresh` skips the positive cache but still honours the
+    // cooldown, so it cannot be used to hammer a failing endpoint.
+    await expect(
+      mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, 'skip-cache')
+    ).rejects.toThrow('cooldown')
+    expect(mockListTools).not.toHaveBeenCalled()
+
     // Reconnecting via the explicit-refresh path (refresh button / OAuth
     // callback) bypasses both caches and brings the server back to live.
     mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
-    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, 'force')
     expect(tools.map((t) => t.name)).toEqual(['a1'])
 
     // discoverTools now sees the cleared negative cache + primed positive cache.
@@ -455,13 +506,9 @@ describe('McpService.discoverTools per-server caching', () => {
       'Request timed out'
     )
 
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        connectionStatus: 'disconnected',
-        // Raw SDK timeout text is mapped to a user-facing message before persisting.
-        lastError: 'The MCP server took too long to respond and timed out',
-        statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
-      })
+    // Raw SDK timeout text is mapped to a user-facing message before persisting.
+    expectSqlSideFailureIncrement(
+      failureStatusWrite('The MCP server took too long to respond and timed out')
     )
   })
 
@@ -492,13 +539,7 @@ describe('McpService.discoverTools per-server caching', () => {
       reflectedCredential
     )
 
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        connectionStatus: 'disconnected',
-        lastError: 'Authentication failed',
-        statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
-      })
-    )
+    expectSqlSideFailureIncrement(failureStatusWrite('Authentication failed'))
     expect(JSON.stringify(dbChainMockFns.set.mock.calls)).not.toContain(reflectedCredential)
     expect(JSON.stringify(mockCacheAdapter.set.mock.calls)).not.toContain(reflectedCredential)
     expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
@@ -550,7 +591,14 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(mockResolveEnvVars).toHaveBeenCalledTimes(1)
   })
 
-  it('promotes the persisted server status to error on the third consecutive failure', async () => {
+  /**
+   * The counter used to be read, incremented in JS, and written back. Two
+   * concurrent failures both read N and wrote N+1, losing a count, so a flapping
+   * server could sit below the threshold forever and never flip to `error`. The
+   * increment and the threshold comparison now happen in the one statement that
+   * writes them.
+   */
+  it('promotes to error by incrementing the failure counter in the write itself', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([
       dbRow('mcp-a', 'A', {
         statusConfig: { consecutiveFailures: 2, lastSuccessfulDiscovery: null },
@@ -562,12 +610,73 @@ describe('McpService.discoverTools per-server caching', () => {
       'Connection refused'
     )
 
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        connectionStatus: 'error',
-        statusConfig: { consecutiveFailures: 3, lastSuccessfulDiscovery: null },
-      })
-    )
+    expectSqlSideFailureIncrement(failureStatusWrite('Connection refused'))
+  })
+
+  /**
+   * A URL that is not an MCP endpoint answers the discovery POST with whatever
+   * it serves, and the transport folds that body verbatim into the error. The
+   * unbounded message used to land in `last_error`, which both `list` and `get`
+   * republish, so one misconfigured URL could persist and re-serve an entire
+   * remote document.
+   */
+  it('bounds the persisted lastError instead of storing a whole remote body', async () => {
+    const remoteBody = `<!doctype html><html><body>${'x'.repeat(20000)}</body></html>`
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockRejectedValueOnce(new Error(remoteBody))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow()
+
+    const write = dbChainMockFns.set.mock.calls
+      .map(([values]) => values as Record<string, unknown> | undefined)
+      .find((values) => typeof values?.lastError === 'string' && values.lastError !== null)
+    expect(write, 'no status write carried a lastError').toBeDefined()
+    const lastError = write?.lastError as string
+    expect(lastError.length).toBeLessThanOrEqual(MAX_MCP_LAST_ERROR_LENGTH + 3)
+    expect(lastError.endsWith('...')).toBe(true)
+    expect(lastError).toContain('<!doctype html>')
+  })
+
+  /**
+   * `updatedAt` is one of the public list's keyset sorts. A background discovery
+   * stamping it moves rows to the head of `sortBy=updatedAt` mid-walk, so a
+   * caller paginating while any discovery runs sees servers duplicated across
+   * pages and others skipped entirely.
+   */
+  it('never stamps updatedAt from a discovery status write', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A'), dbRow('mcp-b', 'B')])
+    mockListTools
+      .mockResolvedValueOnce([tool('a1', 'mcp-a')])
+      .mockRejectedValueOnce(new Error('Connection refused'))
+
+    await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+
+    await vi.waitFor(() => {
+      expect(dbChainMockFns.set.mock.calls.length).toBeGreaterThanOrEqual(2)
+    })
+    for (const [values] of dbChainMockFns.set.mock.calls) {
+      expect(
+        (values as Record<string, unknown>)?.updatedAt,
+        'a discovery status write stamped updatedAt, corrupting the updatedAt keyset page'
+      ).toBeUndefined()
+    }
+  })
+
+  /**
+   * A discovery that started before a newer attempt landed must not overwrite
+   * it, and neither outcome may write onto a foreign or soft-deleted row. The
+   * success branch used to guard on the id alone.
+   */
+  it('guards the success status write with workspace, liveness and staleness', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+
+    const guard = JSON.stringify(dbChainMockFns.where.mock.calls)
+    expect(guard).toContain('deletedAt')
+    expect(guard).toContain('lastConnected')
+    expect(guard).toContain(WORKSPACE_ID)
   })
 
   it('persists OAuth-required discovery as disconnected without a failure error', async () => {

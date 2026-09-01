@@ -4,24 +4,63 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ForkRemapKind } from '@/ee/workspace-forking/lib/remap/remap-references'
 
-const { mockFilterExisting, mockGetCredentialProviders, mockGetEnvKeys } = vi.hoisted(() => ({
+const {
+  mockFilterExisting,
+  mockGetCredentialProviders,
+  mockGetEnvKeys,
+  mockLoadLabels,
+  mockListCandidates,
+  mockClassifyCredential,
+  mockListDeployedWorkflows,
+  mockReadDeployedState,
+  mockScanWorkflowReferences,
+  mockDetectCascade,
+} = vi.hoisted(() => ({
   mockFilterExisting: vi.fn(),
   mockGetCredentialProviders: vi.fn(),
   mockGetEnvKeys: vi.fn(),
+  mockLoadLabels: vi.fn(),
+  mockListCandidates: vi.fn(),
+  mockClassifyCredential: vi.fn(),
+  mockListDeployedWorkflows: vi.fn(),
+  mockReadDeployedState: vi.fn(),
+  mockScanWorkflowReferences: vi.fn(),
+  mockDetectCascade: vi.fn(),
 }))
 
 vi.mock('@/ee/workspace-forking/lib/mapping/resources', () => ({
-  listForkResourceCandidates: vi.fn(),
-  classifyCredentialResourceType: vi.fn(),
+  listForkResourceCandidates: mockListCandidates,
+  classifyCredentialResourceType: mockClassifyCredential,
   getWorkspaceEnvKeys: mockGetEnvKeys,
   filterExistingForkTargets: mockFilterExisting,
   getCredentialProvidersByIds: mockGetCredentialProviders,
+  loadForkResourceLabels: mockLoadLabels,
   CANDIDATE_LIMIT: 1000,
 }))
 
+vi.mock('@/ee/workspace-forking/lib/copy/deploy-bridge', () => ({
+  listDeployedWorkflows: mockListDeployedWorkflows,
+  readDeployedState: mockReadDeployedState,
+}))
+
+vi.mock('@/ee/workspace-forking/lib/mapping/cascade', () => ({
+  detectForkCascadeReferences: mockDetectCascade,
+}))
+
+vi.mock('@/ee/workspace-forking/lib/remap/remap-references', () => ({
+  scanWorkflowReferences: mockScanWorkflowReferences,
+}))
+
+vi.mock('@/ee/workspace-forking/lib/remap/reference-scan', () => ({
+  toScannerBlocks: vi.fn((state: unknown) => state),
+}))
+
+import { workflow, workspaceForkResourceMap } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 import {
   findDuplicateTargetEntry,
+  getForkMappingView,
   suggestTarget,
   validateForkMappingTargets,
 } from '@/ee/workspace-forking/lib/mapping/mapping-service'
@@ -149,16 +188,32 @@ describe('validateForkMappingTargets', () => {
     ).resolves.toBeUndefined()
   })
 
-  it('rejects a credential whose source is not a credential in the source workspace', async () => {
+  /**
+   * A source credential that no longer exists is exactly what the mapping editor asks the user
+   * to resolve (`sourceDeleted`), so the save must accept it - rejecting made it the one kind of
+   * reference the UI told you to map and the server refused. Access propagation is not driven
+   * from here: `propagateCredentialAccess` re-validates both sides inside the promote tx.
+   */
+  it('accepts a credential whose source no longer exists in the source workspace', async () => {
     mockFilterExisting.mockResolvedValue({ credential: new Set(['cred-tgt']) })
     mockGetCredentialProviders.mockImplementation(async (_db: unknown, workspaceId: string) =>
       workspaceId === 'ws-source'
-        ? new Map<string, string | null>() // cred-foreign is not in the source
+        ? new Map<string, string | null>() // cred-deleted is gone from the source
         : new Map([['cred-tgt', 'google-email']])
     )
     await expect(
       validateForkMappingTargets('ws-source', 'ws-target', [
-        { resourceType: 'oauth_credential', sourceId: 'cred-foreign', targetId: 'cred-tgt' },
+        { resourceType: 'oauth_credential', sourceId: 'cred-deleted', targetId: 'cred-tgt' },
+      ])
+    ).resolves.toBeUndefined()
+  })
+
+  it('still rejects a target that does not exist, even when the source is gone', async () => {
+    mockFilterExisting.mockResolvedValue({ credential: new Set<string>() })
+    mockGetCredentialProviders.mockImplementation(async () => new Map<string, string | null>())
+    await expect(
+      validateForkMappingTargets('ws-source', 'ws-target', [
+        { resourceType: 'oauth_credential', sourceId: 'cred-deleted', targetId: 'cred-foreign' },
       ])
     ).rejects.toBeInstanceOf(ForkError)
   })
@@ -244,5 +299,111 @@ describe('suggestTarget', () => {
 
   it('matches the name case- and whitespace-insensitively', () => {
     expect(suggestTarget('table', '  Orders  ', undefined, [cand('t1', 'orders')])).toBe('t1')
+  })
+})
+
+describe('getForkMappingView', () => {
+  const edge = { parentWorkspaceId: 'ws-parent', childWorkspaceId: 'ws-child' } as never
+  const emptyCandidates = {
+    credential: [],
+    'env-var': [],
+    table: [],
+    'knowledge-base': [],
+    'mcp-server': [],
+    'custom-tool': [],
+    skill: [],
+    'knowledge-document': [],
+    file: [],
+  }
+
+  /** Pull: parent is the source, child the target — the direction the raw-id rows showed up in. */
+  function pullView(overrides: { workflowRows?: unknown[] } = {}) {
+    // The real `getEdgeMappingRows` runs; this row is the workflow identity pair it returns.
+    queueTableRows(workspaceForkResourceMap, [
+      {
+        id: 'map-1',
+        childWorkspaceId: 'ws-child',
+        resourceType: 'workflow',
+        parentResourceId: 'wf-parent',
+        childResourceId: 'wf-child',
+      },
+    ])
+    queueTableRows(
+      workflow,
+      overrides.workflowRows ?? [{ id: 'wf-child', forkSyncExcluded: false }]
+    )
+    return getForkMappingView({
+      edge,
+      sourceWorkspaceId: 'ws-parent',
+      targetWorkspaceId: 'ws-child',
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetEnvKeys.mockResolvedValue(new Set<string>())
+    mockListCandidates.mockResolvedValue(emptyCandidates)
+    mockListDeployedWorkflows.mockResolvedValue([{ id: 'wf-parent', name: 'Prod' }])
+    mockReadDeployedState.mockResolvedValue({ blocks: {} })
+    mockScanWorkflowReferences.mockReturnValue({
+      references: [
+        { kind: 'table', sourceId: 'tbl_live', subBlockKey: 'tableSelector', required: false },
+        { kind: 'table', sourceId: 'tbl_gone', subBlockKey: 'tableSelector', required: false },
+      ],
+    })
+    mockDetectCascade.mockResolvedValue({ references: [] })
+    mockFilterExisting.mockResolvedValue({})
+    mockGetCredentialProviders.mockResolvedValue(new Map())
+    mockClassifyCredential.mockResolvedValue('oauth_credential')
+    mockLoadLabels.mockResolvedValue({ table: new Map([['tbl_live', 'Orders']]) })
+  })
+
+  it('labels a live source resource by name and flags a deleted one', async () => {
+    const { entries } = await pullView()
+    expect(entries).toEqual([
+      expect.objectContaining({
+        sourceId: 'tbl_live',
+        sourceLabel: 'Orders',
+        sourceDeleted: false,
+      }),
+      expect.objectContaining({
+        sourceId: 'tbl_gone',
+        sourceLabel: 'tbl_gone',
+        sourceDeleted: true,
+      }),
+    ])
+  })
+
+  /**
+   * The label lookup must be by exact id, never the display-capped candidate list — otherwise a
+   * workspace past CANDIDATE_LIMIT renders live resources as raw ids, indistinguishable from
+   * deleted ones. Pinned by asserting the exact ids are what gets looked up.
+   */
+  it('looks source labels up by exact id, not through the capped candidate list', async () => {
+    await pullView()
+    expect(mockLoadLabels).toHaveBeenCalledWith(expect.anything(), 'ws-parent', {
+      table: new Set(['tbl_live', 'tbl_gone']),
+    })
+    expect(mockListCandidates).toHaveBeenCalledTimes(1)
+    expect(mockListCandidates).toHaveBeenCalledWith(expect.anything(), 'ws-child')
+  })
+
+  it('skips a source workflow whose target is excluded from sync', async () => {
+    const { entries } = await pullView({
+      workflowRows: [{ id: 'wf-child', forkSyncExcluded: true }],
+    })
+    expect(entries).toEqual([])
+    expect(mockReadDeployedState).not.toHaveBeenCalled()
+  })
+
+  it('still scans when the excluded flag is on an unrelated target workflow', async () => {
+    const { entries } = await pullView({
+      workflowRows: [
+        { id: 'wf-child', forkSyncExcluded: false },
+        { id: 'wf-other', forkSyncExcluded: true },
+      ],
+    })
+    expect(entries).toHaveLength(2)
   })
 })

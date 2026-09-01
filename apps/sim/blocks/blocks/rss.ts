@@ -17,6 +17,15 @@ export const RssBlock: BlockConfig = {
   triggerAllowed: true,
   docsLink: 'https://docs.sim.ai/workflows/triggers/rss',
 
+  canvasPresentation: {
+    defaultTitle: 'RSS Feed',
+    /* The single trigger's registry name is "RSS Feed Trigger", which the header
+       already says — so the sentence names the event and the feed it watches. */
+    triggerSentences: {
+      default: ['Run on a new item', { text: 'in', field: 'feedUrl', core: true }],
+    },
+  },
+
   subBlocks: [...getTrigger('rss_poller').subBlocks],
 
   tools: {

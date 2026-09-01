@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { resolveHostAddresses } from '@sim/security/dns'
+import { DEFAULT_DNS_TIMEOUT_MS, DnsTimeoutError, resolveHostAddresses } from '@sim/security/dns'
 import {
   isIpLiteral,
   isLoopbackIp,
@@ -43,10 +43,9 @@ function guardHost(rawUrl: string): string | null {
  *
  * Loopback is deliberately allowed: it is the user's own machine, and opening
  * a dev server on localhost is one of the most ordinary things to do in this
- * panel — the URL bar already assumes `http://` for it. Nothing is given away
- * by it either, since the desktop app hands the same agent an unrestricted
- * shell on that machine, so a blocked `http://localhost:3000` is one
- * `curl http://localhost:3000` away regardless.
+ * panel — the URL bar already assumes `http://` for it. This is an explicit
+ * desktop-product capability, independent of whether terminal execution is
+ * enabled or separately approval-gated.
  *
  * Every other private range stays blocked. Those are a different matter: the
  * LAN is other people's machines, and `169.254.169.254` is link-local rather
@@ -100,7 +99,7 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
   }
 
   try {
-    const { addresses } = await resolveHostAddresses(host)
+    const { addresses } = await resolveHostAddressesBounded(host)
     if (addresses.some((address) => isBlockedAddress(address))) {
       logger.warn('Blocked agent navigation resolving to private IP', { host })
       return BLOCKED
@@ -121,11 +120,13 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
 /**
  * Subresource types that keep the cheap synchronous literal-IP check.
  *
- * Images and fonts are the high-volume types and are not readable
- * cross-origin, so the residual for them is a load/error timing oracle — a
- * documented, accepted trade against a DNS lookup per asset.
+ * Fonts are high-volume and their response bytes are not exposed to the model,
+ * so the residual is a load/error timing oracle — a documented, accepted trade
+ * against a DNS lookup per asset. Images are not exempt: browser screenshots
+ * make their rendered contents observable even when cross-origin reads are
+ * otherwise blocked.
  */
-const LITERAL_ONLY_RESOURCE_TYPES: ReadonlySet<string> = new Set(['image', 'font'])
+const LITERAL_ONLY_RESOURCE_TYPES: ReadonlySet<string> = new Set(['font'])
 
 /**
  * Whether a subresource needs the DNS-resolving check rather than the literal-IP
@@ -151,6 +152,57 @@ const HOST_VERDICT_TTL_MS = 30_000
  * bounded rather than left to grow.
  */
 const MAX_HOST_VERDICTS = 256
+const MAX_CONCURRENT_DNS_LOOKUPS = 8
+const MAX_QUEUED_DNS_LOOKUPS = 64
+
+let activeDnsLookups = 0
+const dnsLookupWaiters: Array<() => void> = []
+
+async function acquireDnsLookupSlot(host: string, deadline: number): Promise<void> {
+  if (activeDnsLookups < MAX_CONCURRENT_DNS_LOOKUPS) {
+    activeDnsLookups++
+    return
+  }
+  if (dnsLookupWaiters.length >= MAX_QUEUED_DNS_LOOKUPS) {
+    throw new Error('DNS lookup queue is full')
+  }
+  const remainingMs = deadline - Date.now()
+  if (remainingMs <= 0) throw new DnsTimeoutError(host)
+
+  await new Promise<void>((resolve, reject) => {
+    const grant = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      const index = dnsLookupWaiters.indexOf(grant)
+      if (index >= 0) dnsLookupWaiters.splice(index, 1)
+      reject(new DnsTimeoutError(host))
+    }, remainingMs)
+    dnsLookupWaiters.push(grant)
+  })
+}
+
+function releaseDnsLookupSlot(): void {
+  const next = dnsLookupWaiters.shift()
+  if (next) {
+    next()
+    return
+  }
+  activeDnsLookups--
+}
+
+async function resolveHostAddressesBounded(host: string) {
+  const deadline = Date.now() + DEFAULT_DNS_TIMEOUT_MS
+  await acquireDnsLookupSlot(host, deadline)
+  try {
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) throw new DnsTimeoutError(host)
+    return await resolveHostAddresses(host, { timeoutMs: remainingMs })
+  } finally {
+    releaseDnsLookupSlot()
+  }
+}
 
 /**
  * The in-flight or settled verdict per host.
@@ -216,7 +268,7 @@ export async function isBlockedSubresourceUrl(rawUrl: string): Promise<boolean> 
   const cached = hostVerdicts.get(host)
   if (cached && Date.now() < cached.expiry) return cached.verdict
 
-  const verdict = resolveHostAddresses(host)
+  const verdict = resolveHostAddressesBounded(host)
     .then(({ addresses }) => {
       const blocked = addresses.some((address) => isBlockedAddress(address))
       if (blocked) {

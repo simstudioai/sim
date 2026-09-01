@@ -1,17 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { z } from 'zod'
 import type { forkRemapKindSchema } from '@/lib/api/contracts/workspace-fork'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import {
   coerceObjectArray,
-  isRecord,
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
-import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
   getWorkflowSearchSubBlockResourceDefinition,
@@ -19,10 +17,16 @@ import {
   type StructuredWorkflowSearchResourceKind,
 } from '@/lib/workflows/search-replace/resources/registry'
 import {
+  getDependsOnFields,
+  getSubBlocksDependingOnChange,
+  getTransitiveSubBlockDependents,
+} from '@/lib/workflows/subblocks/dependencies'
+import {
   buildCanonicalIndex,
   buildSubBlockValues,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   isNonEmptyValue,
   reindexCanonicalModesByPosition,
@@ -30,15 +34,20 @@ import {
   resolveCanonicalMode,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import {
+  isSubBlockRequired,
+  resolveToolParamRequired,
+} from '@/lib/workflows/tool-input/param-visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
+import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getDependsOnFields, getSubBlocksDependingOnChange } from '@/blocks/utils'
 import {
   collectForkFileUploadKeys,
   remapForkFileUploadValue,
 } from '@/ee/workspace-forking/lib/remap/remap-files'
 import { isEnvVarReference, isReference } from '@/executor/constants'
+import type { ParameterVisibility } from '@/tools/types'
 
 /**
  * Resource kinds the fork remapper rewrites across workspaces, derived from the
@@ -113,6 +122,22 @@ const PRESERVED_NAME_BASED_DEPENDENT_TYPES = new Set<string>([
  * carry over on a copy.
  */
 const PRESERVED_UNDER_COPY_DEPENDENT_TYPES = new Set<string>(['column-selector'])
+
+/**
+ * Selector-backed dependents that hold stable column ids the same way a `column-selector` does
+ * (a multi-select column pick is a `dropdown` with a column selector behind it), so they are
+ * preserved under a COPIED parent on the same terms. Keyed by selector, not subblock type,
+ * because the type says how the field renders, not what it stores.
+ */
+const PRESERVED_UNDER_COPY_SELECTOR_KEYS = new Set<string>(['table.columns', 'table.outputColumns'])
+
+/** Whether a dependent's value stays valid on a COPY of its parent (see the sets above). */
+function isPreservedUnderCopy(cfg: Pick<SubBlockConfig, 'type' | 'selectorKey'>): boolean {
+  return (
+    PRESERVED_UNDER_COPY_DEPENDENT_TYPES.has(cfg.type) ||
+    (cfg.selectorKey !== undefined && PRESERVED_UNDER_COPY_SELECTOR_KEYS.has(cfg.selectorKey))
+  )
+}
 
 /** Matches `{{ENV_KEY}}` references inside subblock values; shared with cascade detection. */
 export const ENV_REF_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g
@@ -204,8 +229,193 @@ export type SubBlockTransform = (
   subBlocks: SubBlockRecord,
   blockType: string,
   canonicalModes?: CanonicalModeOverrides,
-  onCanonicalModesChanged?: (next: CanonicalModeOverrides) => void
+  onCanonicalModesChanged?: (next: CanonicalModeOverrides) => void,
+  /** The block's trigger mode, scoping the canonical index (see {@link createCanonicalModeGates}). */
+  triggerMode?: boolean
 ) => SubBlockRecord
+
+/**
+ * The sub-block key reported for a custom-block reference. It names the block's own
+ * identity rather than one of its fields, because a custom block has no field to name.
+ */
+export const CUSTOM_BLOCK_REFERENCE_KEY = 'type'
+
+/** Outcome of remapping a placed block's own `type` across a fork edge. */
+export interface RemapForkBlockTypeResult {
+  /** The type to persist. Equal to the input unless a mapping pointed elsewhere. */
+  type: string
+  /** Set when the block IS a custom block, so callers can aggregate/report it. */
+  reference?: ForkReference
+  /**
+   * Whether a mapping EXISTS for this reference — deliberately not "the type changed".
+   * The two diverge on an identity mapping: the org-wide candidate list includes the
+   * source block, so binding an environment to the shared block is a normal pick, and
+   * treating it as unresolved would raise `unmapped-custom-block` and block the promote
+   * on a choice the user explicitly made. Callers use this to decide whether the
+   * reference is a blocker; whether the type actually moved is visible from `type`.
+   */
+  resolved: boolean
+}
+
+/**
+ * Separator for a configured custom-block input's storage key. `::` cannot occur in a
+ * `custom_block_<slug>` type, and a field id that contained it would simply fail to parse and
+ * be skipped rather than land on the wrong field.
+ */
+const CUSTOM_BLOCK_INPUT_KEY_SEPARATOR = '::'
+
+/**
+ * Storage key for one configured input of a repointed custom block.
+ *
+ * The stored value's own key carries the TARGET TYPE and the field's declared TYPE, because the
+ * dependent-value store is keyed only by `(target workflow, block, sub-block)` and holds a plain
+ * string:
+ *  - **target type** — remap a block to A, configure its fields, then remap it to B. Without the
+ *    type in the key, a field id that happens to exist on both would pre-fill and submit A's
+ *    value into B, which is a different workflow's field of the same name. Namespacing makes
+ *    that structurally impossible rather than a rule someone has to remember.
+ *  - **field type** — the canvas stores a `boolean` input as a real boolean (its sub-block is a
+ *    `switch`), so a stored `'true'` has to become `true` on the way in. Reading the type from
+ *    the key means the apply side needs no second lookup of the target's schema.
+ */
+export function customBlockInputStorageKey(
+  targetType: string,
+  fieldType: string,
+  fieldId: string
+): string {
+  const sep = CUSTOM_BLOCK_INPUT_KEY_SEPARATOR
+  return `${targetType}${sep}${fieldType}${sep}${fieldId}`
+}
+
+interface ParsedCustomBlockInputKey {
+  targetType: string
+  fieldType: string
+  fieldId: string
+}
+
+/** Inverse of {@link customBlockInputStorageKey}; null when the key is not one of ours. */
+export function parseCustomBlockInputStorageKey(key: string): ParsedCustomBlockInputKey | null {
+  const parts = key.split(CUSTOM_BLOCK_INPUT_KEY_SEPARATOR)
+  if (parts.length !== 3) return null
+  const [targetType, fieldType, fieldId] = parts
+  if (!targetType || !fieldType || !fieldId) return null
+  return { targetType, fieldType, fieldId }
+}
+
+/**
+ * Replace a retyped custom block's inputs with the values configured for the TARGET block.
+ *
+ * A custom block's input sub-blocks are keyed by the SOURCE Start field's stable id, so once
+ * the block's `type` is repointed they describe fields the new config does not declare. The
+ * serializer would drop them silently (a stored value with no matching config is a deleted
+ * input), which is what made a synced block look corrupted: same name, no fields.
+ *
+ * There is deliberately NO attempt to match or migrate values across the swap. Two custom
+ * blocks are independent workflows; a field id that happens to collide would carry a value
+ * that means something else.
+ *
+ * Only values stored for THIS target type are applied — a key naming a previous target is
+ * skipped, so re-pointing a block twice never carries the first target's values into the
+ * second. Reserved wiring (`workflowId`/`inputMapping`) is preserved untouched: those are
+ * computed value-fns the serializer recomputes and never carries forward.
+ *
+ * `targetCurrent` is the block the sync is about to overwrite. When it is ALREADY the mapped
+ * type — the normal state of every sync after the one that set the mapping — its own values
+ * seed the result and the configured ones are layered on top. That is what stops a re-sync
+ * wiping an input the modal cannot offer a control for: a `file[]` field is an upload on the
+ * canvas, so it is only ever set there, and rebuilding the block from the stored overrides
+ * alone would blank it every single time. It also means a field the user simply left alone in
+ * the modal keeps the target's value rather than being cleared; a field they explicitly
+ * emptied stores `''`, which is an override and still wins.
+ *
+ * The type equality check is the whole safety property. Under a DIFFERENT current type the
+ * target's values are keyed by another block's field ids, which is exactly the orphaning this
+ * function exists to prevent — so nothing is carried over.
+ */
+export function replaceCustomBlockInputs(
+  subBlocks: SubBlockRecord,
+  values: ReadonlyMap<string, string> | undefined,
+  targetType: string,
+  targetCurrent?: { type: string; subBlocks: SubBlockRecord }
+): SubBlockRecord {
+  const next: SubBlockRecord = {}
+  for (const [key, subBlock] of Object.entries(subBlocks)) {
+    if (RESERVED_PARAMS.has(key)) next[key] = subBlock
+  }
+  if (targetCurrent?.type === targetType) {
+    for (const [key, subBlock] of Object.entries(targetCurrent.subBlocks)) {
+      // Reserved wiring is taken from the SOURCE block above: it is recomputed by the
+      // serializer, and the target's copy is stale the moment the mapping changes.
+      if (!RESERVED_PARAMS.has(key)) next[key] = subBlock
+    }
+  }
+  for (const [key, value] of values ?? []) {
+    const parsed = parseCustomBlockInputStorageKey(key)
+    if (!parsed || parsed.targetType !== targetType) continue
+    if (RESERVED_PARAMS.has(parsed.fieldId)) continue
+    if (parsed.fieldType === 'boolean') {
+      // A `boolean` field's sub-block is a `switch`, which the canvas stores as a real boolean
+      // — but only `'true'`/`'false'` mean anything. An untouched optional flag submits `''`,
+      // and coercing that to `false` would write a value the user never chose:
+      // `assembleCustomBlockInputMapping` skips `''` and keeps `false`, so it would reach the
+      // child's `inputMapping` and override the Start field's own default. Leave it unset.
+      if (value !== 'true' && value !== 'false') continue
+      next[parsed.fieldId] = { value: value === 'true' }
+      continue
+    }
+    // Everything else is stored as text: `object`/`array` are authored as JSON and parsed by
+    // the executor, and a number rides a `short-input` like it does on the canvas.
+    next[parsed.fieldId] = { value }
+  }
+  return next
+}
+
+/**
+ * Repoint a placed custom block at the fork's own published block.
+ *
+ * Custom blocks are the one remappable resource NOT referenced by a sub-block value:
+ * the reference IS the canvas block's `type` (`custom_block_<slug>`), and its bound
+ * workflow lives in a hidden, recomputed sub-block the serializer never carries
+ * forward. `remapForkSubBlocks` therefore cannot express this rewrite, so it gets its
+ * own channel.
+ *
+ * Mapping rows are keyed by the block TYPE, not `custom_block.id` — the same rule every
+ * other kind follows (`file` keys by storage key, `env-var` by name): key by whatever the
+ * workflow actually references, so a resolver lookup needs no extra translation table.
+ *
+ * Unresolved references are deliberately LEFT POINTING AT THE SOURCE rather than cleared,
+ * in both modes. Every other unresolved reference clears to an empty field; there is no
+ * such thing for a block's type — clearing it would delete the node and silently drop a
+ * step from the workflow. The reference is reported as unmapped instead, so the mapping UI
+ * surfaces it and `sync-blockers` refuses the promote. That is what stops a uat
+ * orchestrator from quietly invoking prod.
+ *
+ * An UNMAPPED reference and one mapped back to itself look identical in the output `type`
+ * but are opposite states, which is why {@link RemapForkBlockTypeResult.resolved} reports
+ * mapping existence rather than whether the type moved.
+ */
+export function remapForkBlockType(
+  blockType: string | undefined,
+  resolve: ForkReferenceResolver,
+  context?: { blockId?: string; blockName?: string }
+): RemapForkBlockTypeResult {
+  const type = blockType ?? ''
+  if (!isCustomBlockType(type)) return { type, resolved: false }
+
+  const reference: ForkReference = {
+    kind: 'custom-block',
+    sourceId: type,
+    blockId: context?.blockId,
+    blockName: context?.blockName,
+    subBlockKey: CUSTOM_BLOCK_REFERENCE_KEY,
+    required: true,
+  }
+
+  const targetType = resolve('custom-block', type)
+  if (!targetType) return { type, reference, resolved: false }
+
+  return { type: targetType, reference, resolved: true }
+}
 
 /**
  * The canonical-pair mode questions every fork/promote surface asks of a subblock key.
@@ -244,28 +454,63 @@ const NO_GATES: CanonicalModeGates = {
  * augmented with each pair's ACTIVE value under its canonical id, mirroring how the serializer
  * exposes params to conditions. With no configs (unknown block type) every gate is a no-op:
  * everything is detected and nothing passes through, the conservative default.
+ *
+ * `triggerSurface` scopes the index to the block's active surface. Without it, a trigger field
+ * sharing a `canonicalParamId` with an action pair (`triggerSiteId` under `siteId`,
+ * `triggerCredentials` under `oauthCredential`) is read as a member of THAT pair, and since it is
+ * neither its `basicId` nor in its `advancedIds`, `isDormantMember` answers `true` the moment the
+ * shared mode resolves to advanced — which a fork acts on by CLEARING the value. Pass a caller
+ * that has already narrowed its configs (the dependent scan) `false`; scoping twice is harmless
+ * but the flag should describe what the caller actually did.
  */
 export function createCanonicalModeGates(
   configSubBlocks: SubBlockConfig[] | undefined,
   values: Record<string, unknown>,
-  canonicalModes?: CanonicalModeOverrides
+  canonicalModes?: CanonicalModeOverrides,
+  triggerSurface = false
 ): CanonicalModeGates {
   if (!configSubBlocks || configSubBlocks.length === 0) return NO_GATES
-  const canonicalIndex = buildCanonicalIndex(configSubBlocks)
+  const surfaceSubBlocks = getCanonicalSubBlocksForSurface(configSubBlocks, triggerSurface)
+  const canonicalIndex = buildCanonicalIndex(surfaceSubBlocks)
+  // canonical-index-unscoped: the fallback for keys the ACTIVE surface does not define — see
+  // `indexFor`. Scoping decides membership for live fields only; a dormant surface's own values
+  // keep the classification they had before scoping existed.
+  const fullIndex = buildCanonicalIndex(configSubBlocks)
   const configByBaseKey = new Map(
     configSubBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg])
   )
   const conditionValues = { ...values }
-  for (const [canonicalId, group] of Object.entries(canonicalIndex.groupsById)) {
-    if (conditionValues[canonicalId] === undefined) {
-      conditionValues[canonicalId] = resolveActiveCanonicalValue(group, values, canonicalModes)
+  for (const index of [canonicalIndex, fullIndex]) {
+    for (const [canonicalId, group] of Object.entries(index.groupsById)) {
+      if (conditionValues[canonicalId] === undefined) {
+        conditionValues[canonicalId] = resolveActiveCanonicalValue(group, values, canonicalModes)
+      }
     }
   }
 
+  /**
+   * The index that owns a key.
+   *
+   * The scoped index answers for anything the active surface defines — that is the fix: a trigger
+   * field sharing a `canonicalParamId` with an action pair gets its OWN group instead of being
+   * read as a stranded member of the action pair's.
+   *
+   * Everything else falls back to the whole array, deliberately. A dormant surface's values are
+   * still real keys in the block's value map, and the remap loop reads `isDormantMember` to decide
+   * both whether to CLEAR a value and whether to skip detecting it as a reference. Answering
+   * "not a member" for them would stop clearing them AND start detecting them, turning a stale
+   * action selector on a trigger-mode block into a mapping requirement that can block a sync.
+   * Scoping is meant to stop live fields being misread, not to re-classify dormant ones.
+   */
+  const indexFor = (key: string) =>
+    canonicalIndex.canonicalIdBySubBlockId[key] || canonicalIndex.groupsById[key]
+      ? canonicalIndex
+      : fullIndex
+
   const groupFor = (memberOrCanonicalId: string) => {
-    const canonicalId =
-      canonicalIndex.canonicalIdBySubBlockId[memberOrCanonicalId] ?? memberOrCanonicalId
-    const group = canonicalIndex.groupsById[canonicalId]
+    const index = indexFor(memberOrCanonicalId)
+    const canonicalId = index.canonicalIdBySubBlockId[memberOrCanonicalId] ?? memberOrCanonicalId
+    const group = index.groupsById[canonicalId]
     return group && isCanonicalPair(group) ? group : undefined
   }
   const baseKeyOf = (subBlockKey: string) => subBlockKey.replace(/_\d+$/, '')
@@ -280,7 +525,7 @@ export function createCanonicalModeGates(
     isDormantMember: (subBlockKey) => {
       const baseKey = baseKeyOf(subBlockKey)
       const group = groupFor(baseKey)
-      if (!group || !canonicalIndex.canonicalIdBySubBlockId[baseKey]) return false
+      if (!group || !indexFor(baseKey).canonicalIdBySubBlockId[baseKey]) return false
       return isAdvancedActiveGroup(baseKey) !== group.advancedIds.includes(baseKey)
     },
     isActiveManualMember: (subBlockKey) => {
@@ -314,6 +559,12 @@ export interface RemapForkContext {
   blockType?: string
   /** Canonical-mode overrides (`block.data.canonicalModes`), picking the active member per pair. */
   canonicalModes?: CanonicalModeOverrides
+  /**
+   * Whether the block is in TRIGGER mode, scoping the canonical index to that surface. A mixed
+   * action/trigger block shares one mode key across both surfaces, so without this a trigger
+   * field reads as a dormant member of the action pair and its value is cleared.
+   */
+  triggerMode?: boolean
   /** Target MCP server row lookup for rewriting remapped tool-input entries' server metadata. */
   resolveMcpServerMeta?: ForkMcpServerMetaResolver
   /**
@@ -345,7 +596,7 @@ function remapEnvInValue(
   }
   // Recurse plain objects so `{{ENV}}` nested in array-form tool params (and other
   // object-valued subblocks) is rewritten, not just top-level strings/arrays.
-  if (isRecord(value)) {
+  if (isRecordLike(value)) {
     let changed = false
     const next: Record<string, unknown> = {}
     for (const [key, nested] of Object.entries(value)) {
@@ -389,7 +640,7 @@ interface ToolBlockRemapOptions {
  * fields (handled by the callers / the workflow id map), not block params, so they
  * pass through here untouched. Returns a new tool object only when something changed.
  * After remapping, dependent params (via `dependsOn`) of any changed resource are
- * cleared with the same {@link getWorkflowSearchDependentClears} walk search-replace
+ * cleared with the same {@link getTransitiveSubBlockDependents} walk search-replace
  * uses, so a child scoped to the old parent isn't left stale.
  */
 export function remapToolBlockResources(
@@ -398,7 +649,7 @@ export function remapToolBlockResources(
 ): Record<string, unknown> {
   if (typeof tool.type !== 'string') return tool
   const params = tool.params
-  if (!isRecord(params)) return tool
+  if (!isRecordLike(params)) return tool
 
   let nextParams: Record<string, unknown> | null = null
   const setParam = (paramId: string, value: unknown) => {
@@ -419,6 +670,7 @@ export function remapToolBlockResources(
     tool.type
   )
   const toolBlockSubBlocks = (opts.blockConfigs?.[tool.type] ?? getBlock(tool.type))?.subBlocks
+  // canonical-index-unscoped: a nested tool's params are always the action surface
   const gates = createCanonicalModeGates(toolBlockSubBlocks, toolValues, scopedModes)
 
   // Clear DORMANT member keys first: a stale inactive value must not survive the copy (and must
@@ -588,7 +840,7 @@ export function remapToolBlockResources(
       const parentCfg = configBySubBlockId.get(subBlockId)
       const parentRemappedNonEmpty = isNonEmptyValue(readParam(parentCfg, subBlockId))
       const parentCopied = parentRemappedNonEmpty && copyRemappedSubBlockIds.has(subBlockId)
-      for (const clear of getWorkflowSearchDependentClears(toolBlockSubBlocks, subBlockId)) {
+      for (const clear of getTransitiveSubBlockDependents(toolBlockSubBlocks, [subBlockId])) {
         const dependentCfg = configBySubBlockId.get(clear.subBlockId)
         // A verbatim manual-parent dependent is never cleared, even when reachable from a
         // second (remapped) parent.
@@ -601,7 +853,7 @@ export function remapToolBlockResources(
           parentRemappedNonEmpty &&
           dependentCfg &&
           (PRESERVED_NAME_BASED_DEPENDENT_TYPES.has(dependentCfg.type) ||
-            (parentCopied && PRESERVED_UNDER_COPY_DEPENDENT_TYPES.has(dependentCfg.type)))
+            (parentCopied && isPreservedUnderCopy(dependentCfg)))
         ) {
           continue
         }
@@ -678,7 +930,7 @@ function remapForkToolInputValue(
       next.push(nextTool)
     }
 
-    if (!isRecord(tool) || typeof tool.type !== 'string') {
+    if (!isRecordLike(tool) || typeof tool.type !== 'string') {
       keep(tool)
       return
     }
@@ -701,7 +953,11 @@ function remapForkToolInputValue(
       keep(tool)
       return
     }
-    if (tool.type === 'mcp' && isRecord(tool.params) && typeof tool.params.serverId === 'string') {
+    if (
+      tool.type === 'mcp' &&
+      isRecordLike(tool.params) &&
+      typeof tool.params.serverId === 'string'
+    ) {
       const serverId = tool.params.serverId
       const target = resolve('mcp-server', serverId)
       opts.record?.('mcp-server', serverId, target != null)
@@ -774,7 +1030,7 @@ function remapForkSkillInputValue(
   if (!array) return value
   let changed = false
   const next = array.flatMap((entry) => {
-    if (!isRecord(entry) || typeof entry.skillId !== 'string') return [entry]
+    if (!isRecordLike(entry) || typeof entry.skillId !== 'string') return [entry]
     if (entry.skillId.startsWith('builtin-')) return [entry]
     const target = resolve('skill', entry.skillId)
     opts.record?.('skill', entry.skillId, target != null)
@@ -836,7 +1092,8 @@ export function remapForkSubBlocks(
   const gates = createCanonicalModeGates(
     context?.blockType ? getBlock(context.blockType)?.subBlocks : undefined,
     buildSubBlockValues(subBlocks),
-    context?.canonicalModes
+    context?.canonicalModes,
+    context?.triggerMode === true
   )
 
   for (const [subBlockKey, subBlock] of Object.entries(subBlocks)) {
@@ -859,14 +1116,30 @@ export function remapForkSubBlocks(
     // under a MANUAL (advanced-active) parent passes through verbatim; a condition-hidden
     // subblock is rewritten but never detected.
     const dormant = gates.isDormantMember(subBlockKey)
-    const verbatimManualDependent = !dormant && gates.isManualParentDependent(subBlockKey)
-    const detectionSkipped =
-      dormant || verbatimManualDependent || gates.isConditionHidden(subBlockKey)
+    // Verbatim (user-owned: never remapped, never a mapping requirement) covers the ACTIVE
+    // advanced member itself as well as every dependent scoped to it. `clearDependentsOnRemap`
+    // already spares an active manual member from a parent remap; naming it here applies the
+    // same policy on the detect/rewrite side, which until now held only because every shipped
+    // pair's advanced member is a plain `short-input` carrying no resource definition.
+    const verbatimManual =
+      !dormant &&
+      (gates.isActiveManualMember(subBlockKey) || gates.isManualParentDependent(subBlockKey))
+    const detectionSkipped = dormant || verbatimManual || gates.isConditionHidden(subBlockKey)
+    // `{{ENV}}` detection is gated on EXECUTION, not on ownership. A dormant member and a
+    // condition-hidden field never execute, so their refs must not become sync blockers - but an
+    // ACTIVE MANUAL member is exactly the value that DOES execute, and its `{{KEY}}` is a live
+    // secret reference like any other. Sharing `detectionSkipped` here made the two halves
+    // disagree: `remapEnvInValue` below rewrites a manual member's ref unconditionally, while
+    // detection suppressed it - so the key could never originate a mapping entry, and a target
+    // missing that secret silently passed the required-env gate instead of blocking the sync.
+    // Resource-id detection keeps `verbatimManual` (a hand-typed id stays a user-owned escape
+    // hatch); only env refs, which are never workspace-scoped ids, are detected here.
+    const envDetectionSkipped = dormant || gates.isConditionHidden(subBlockKey)
     if (dormant && isNonEmptyValue(value)) {
       value = ''
     }
 
-    if (definition && forkKind && subBlockType && !verbatimManualDependent) {
+    if (definition && forkKind && subBlockType && !verbatimManual) {
       const parsed = parseWorkflowSearchSubBlockResources(value, {
         type: subBlockType as SubBlockType,
       })
@@ -964,11 +1237,12 @@ export function remapForkSubBlocks(
     if (value !== valueBeforeResource) remappedKeys.add(subBlockKey)
 
     // Promote rewrites `{{ENV}}` refs via the resolver; fork preserves them by name. A hidden
-    // field's ref is rewritten (kept verbatim when unmapped) but not recorded - it never
-    // executes, so it must not become a required sync blocker.
+    // (or dormant) field's ref is rewritten (kept verbatim when unmapped) but not recorded - it
+    // never executes, so it must not become a required sync blocker. An ACTIVE MANUAL member's
+    // ref IS recorded (see {@link envDetectionSkipped}) - it executes, so it must gate the sync.
     if (mode === 'promote') {
       value = remapEnvInValue(value, resolve, (sourceId, mapped) => {
-        if (detectionSkipped) return
+        if (envDetectionSkipped) return
         recordReference(
           `env-var:${sourceId}`,
           {
@@ -1048,7 +1322,9 @@ export function clearDependentsOnRemap(
   remappedKeys: ReadonlySet<string>,
   canonicalModes?: CanonicalModeOverrides,
   /** Keys remapped via a COPY (see {@link RemapSubBlocksResult.copyRemappedKeys}). */
-  copyRemappedKeys?: ReadonlySet<string>
+  copyRemappedKeys?: ReadonlySet<string>,
+  /** The block's trigger mode, scoping the canonical index (see {@link createCanonicalModeGates}). */
+  triggerMode?: boolean
 ): SubBlockRecord {
   if (remappedKeys.size === 0) return subBlocks
   const config = getBlock(blockType)
@@ -1062,7 +1338,8 @@ export function clearDependentsOnRemap(
   const gates = createCanonicalModeGates(
     config.subBlocks,
     buildSubBlockValues(subBlocks),
-    canonicalModes
+    canonicalModes,
+    triggerMode === true
   )
 
   // The exemption's parent test: an mcp-server selector whose POST-remap value is non-empty was
@@ -1105,13 +1382,13 @@ export function clearDependentsOnRemap(
       if (nonEmptyParent && PRESERVED_NAME_BASED_DEPENDENT_TYPES.has(dependent.type)) {
         preservedDependents.add(dependent.id)
       }
-      if (copiedParent && PRESERVED_UNDER_COPY_DEPENDENT_TYPES.has(dependent.type)) {
+      if (copiedParent && isPreservedUnderCopy(dependent)) {
         preservedDependents.add(dependent.id)
       }
     }
   }
 
-  // Same BFS as `getWorkflowSearchDependentClears`, with each preserved dependent's subtree
+  // Same BFS as `getTransitiveSubBlockDependents`, with each preserved dependent's subtree
   // pruned (skipping it keeps its own dependents - e.g. a tool's arguments - out of the clear
   // set). A dependent under an ACTIVE MANUAL parent is verbatim by policy (the manual value is
   // never remapped), so it is pruned the same way.
@@ -1171,20 +1448,6 @@ export interface NeedsConfigurationField {
   required: boolean
 }
 
-/** Evaluate a subblock's `required` (boolean | condition | fn) against a value map. */
-export function isSubBlockRequired(
-  required: SubBlockConfig['required'],
-  values: Record<string, unknown>
-): boolean {
-  if (required === true) return true
-  if (!required) return false
-  // The object/function forms are structurally a SubBlockCondition.
-  return evaluateSubBlockCondition(
-    required as Parameters<typeof evaluateSubBlockCondition>[0],
-    values
-  )
-}
-
 /** Nested `tool-input` dependents (Agent/tool blocks) the TARGET configured that a remap cleared. */
 function collectClearedToolParamDependents(
   toolInputKey: string,
@@ -1204,12 +1467,12 @@ function collectClearedToolParamDependents(
   for (let index = 0; index < mergedTools.length; index++) {
     const tool = mergedTools[index]
     const targetTool = targetTools[index]
-    if (!isRecord(tool) || typeof tool.type !== 'string') continue
-    if (!isRecord(targetTool) || targetTool.type !== tool.type) continue
+    if (!isRecordLike(tool) || typeof tool.type !== 'string') continue
+    if (!isRecordLike(targetTool) || targetTool.type !== tool.type) continue
     const toolConfig = getBlock(tool.type)
     if (!toolConfig) continue
-    const targetParams = isRecord(targetTool.params) ? targetTool.params : {}
-    const mergedParams = isRecord(tool.params) ? tool.params : {}
+    const targetParams = isRecordLike(targetTool.params) ? targetTool.params : {}
+    const mergedParams = isRecordLike(tool.params) ? tool.params : {}
     // A tool's `operation` lives at the tool level, not in params, but conditions
     // reference it - merge it in so condition/required gating matches the editor.
     const mergedValues =
@@ -1219,12 +1482,34 @@ function collectClearedToolParamDependents(
     // A DORMANT canonical member's cleared slot is not a lost configuration (only the pair's
     // active member executes). Modes resolve like the tool-input UI: tool-scoped overrides,
     // then the value heuristic over the merged params.
+    // canonical-index-unscoped: a nested tool's params are always the action surface
     const gates = createCanonicalModeGates(
       toolConfig.subBlocks,
       mergedValues,
       scopeCanonicalModesForTool(parentCanonicalModes, index, tool.type)
     )
     const toolLabel = typeof tool.title === 'string' && tool.title ? tool.title : toolConfig.name
+    // Resolved visibility per param, so `required` here means the same thing it means in the
+    // pre-sync modal. Without this the two paths disagree: the modal would let a sync through
+    // (a model-supplied param is not the user's to fill) and then this collector would mark it
+    // required, which SKIPS the target's redeploy in `promote.ts` - leaving the fork silently
+    // running its previous deployed version.
+    const paramVisibilityById = new Map<string, ParameterVisibility | undefined>()
+    for (const resolved of getToolInputParamConfigs({
+      tool: { ...tool, type: tool.type, params: mergedParams },
+      toolIndex: index,
+      parentCanonicalModes,
+    })) {
+      if (!resolved.authoritative) continue
+      const visibility = resolved.config.paramVisibility
+      paramVisibilityById.set(resolved.paramId, visibility)
+      if (
+        resolved.config.canonicalParamId &&
+        !paramVisibilityById.has(resolved.config.canonicalParamId)
+      ) {
+        paramVisibilityById.set(resolved.config.canonicalParamId, visibility)
+      }
+    }
     for (const cfg of toolConfig.subBlocks) {
       if (!cfg.dependsOn || !cfg.id) continue
       // Only flag a param the TARGET tool had configured (not one the source carried in).
@@ -1240,7 +1525,7 @@ function collectClearedToolParamDependents(
         subBlockKey: `${toolInputKey}[${index}].${cfg.id}`,
         title: cfg.title ?? cfg.id,
         toolName: toolLabel,
-        required: isSubBlockRequired(cfg.required, mergedValues),
+        required: resolveToolParamRequired(cfg, mergedValues, paramVisibilityById),
       })
     }
   }
@@ -1263,7 +1548,9 @@ export function collectClearedDependents(
   blockName: string,
   targetCurrentSubBlocks: SubBlockRecord,
   mergedSubBlocks: SubBlockRecord,
-  canonicalModes?: CanonicalModeOverrides
+  canonicalModes?: CanonicalModeOverrides,
+  /** The block's trigger mode, scoping the canonical index (see {@link createCanonicalModeGates}). */
+  triggerMode?: boolean
 ): NeedsConfigurationField[] {
   const config = getBlock(blockType)
   if (!config) return []
@@ -1271,7 +1558,12 @@ export function collectClearedDependents(
   const mergedValues = buildSubBlockValues(mergedSubBlocks)
   // A DORMANT canonical member the merge cleared is not a lost configuration - only the pair's
   // active member executes, so an inactive slot must never demand a re-pick.
-  const gates = createCanonicalModeGates(config.subBlocks, mergedValues, canonicalModes)
+  const gates = createCanonicalModeGates(
+    config.subBlocks,
+    mergedValues,
+    canonicalModes,
+    triggerMode === true
+  )
   const fields: NeedsConfigurationField[] = []
   for (const cfg of config.subBlocks) {
     if (!cfg.id) continue
@@ -1347,10 +1639,10 @@ export function readTargetDraftDependentValue(
   if (nested) {
     const { toolInputId, index, paramId } = nested
     const targetTool = coerceObjectArray(targetDraftSubBlocks[toolInputId]?.value).array?.[index]
-    if (!isRecord(targetTool) || typeof targetTool.type !== 'string') return ''
+    if (!isRecordLike(targetTool) || typeof targetTool.type !== 'string') return ''
     const sourceTool = coerceObjectArray(sourceSubBlocks?.[toolInputId]?.value).array?.[index]
-    if (!isRecord(sourceTool) || sourceTool.type !== targetTool.type) return ''
-    const params = isRecord(targetTool.params) ? targetTool.params : {}
+    if (!isRecordLike(sourceTool) || sourceTool.type !== targetTool.type) return ''
+    const params = isRecordLike(targetTool.params) ? targetTool.params : {}
     const value = params[paramId]
     return typeof value === 'string' ? value : ''
   }
@@ -1378,7 +1670,7 @@ function applyNestedToolOverrides(
   const merged = array.map((tool, index) => {
     const forTool = items.filter((item) => item.index === index)
     if (forTool.length === 0) return tool
-    if (!isRecord(tool) || typeof tool.type !== 'string') return tool
+    if (!isRecordLike(tool) || typeof tool.type !== 'string') return tool
     const toolConfig = getBlock(tool.type)
     if (!toolConfig) return tool
     const allowed = new Set(
@@ -1386,7 +1678,7 @@ function applyNestedToolOverrides(
         .filter((cfg) => cfg.id && cfg.dependsOn && cfg.selectorKey)
         .map((cfg) => cfg.id)
     )
-    const params = isRecord(tool.params) ? tool.params : {}
+    const params = isRecordLike(tool.params) ? tool.params : {}
     let nextParams: Record<string, unknown> | null = null
     for (const item of forTool) {
       if (!allowed.has(item.paramId)) continue
@@ -1410,6 +1702,48 @@ function applyNestedToolOverrides(
  * set a parent/credential field (bypassing mapping validation) or inject a bogus subblock.
  * Returns a new record only when something applied.
  */
+/** Sub-block types the fork sync modal renders as a free-text field rather than a picker. */
+export const TEXT_DEPENDENT_TYPES = new Set<string>(['short-input', 'long-input'])
+
+/**
+ * The dependents of a remapped parent that the sync modal can offer AND the sync can apply.
+ *
+ * ONE definition on purpose. The collector and the apply side each encoded this rule separately
+ * and drifted the moment text fields were added: they were collected, stored, and gated on by
+ * the Sync button, then dropped here because the allowlist still demanded a `selectorKey`. The
+ * field stayed wiped on every push and the typed value went nowhere.
+ *
+ * A text member of a canonical pair whose basic side is a selector is excluded: the pair is
+ * already represented by its selector member, and the manual member is verbatim by policy.
+ */
+export function reconfigurableDependentIds(
+  subBlocks: ReadonlyArray<{
+    id?: string
+    type?: string
+    dependsOn?: unknown
+    selectorKey?: string
+    canonicalParamId?: string
+  }>
+): Set<string> {
+  const canonicalWithSelector = new Set(
+    subBlocks
+      .filter((cfg) => cfg.canonicalParamId && cfg.selectorKey)
+      .map((cfg) => cfg.canonicalParamId)
+  )
+  const allowed = new Set<string>()
+  for (const cfg of subBlocks) {
+    if (!cfg.id || !cfg.dependsOn) continue
+    if (cfg.selectorKey) {
+      allowed.add(cfg.id)
+      continue
+    }
+    if (!TEXT_DEPENDENT_TYPES.has(cfg.type ?? '')) continue
+    if (cfg.canonicalParamId && canonicalWithSelector.has(cfg.canonicalParamId)) continue
+    allowed.add(cfg.id)
+  }
+  return allowed
+}
+
 export function applyDependentOverrides(
   subBlocks: SubBlockRecord,
   blockType: string,
@@ -1418,12 +1752,10 @@ export function applyDependentOverrides(
   const config = getBlock(blockType)
   if (!config || overrides.size === 0) return subBlocks
 
-  const allowedTopLevel = new Set<string>()
+  const allowedTopLevel = reconfigurableDependentIds(config.subBlocks)
   const toolInputIds = new Set<string>()
   for (const cfg of config.subBlocks) {
-    if (!cfg.id) continue
-    if (cfg.dependsOn && cfg.selectorKey) allowedTopLevel.add(cfg.id)
-    if (cfg.type === 'tool-input') toolInputIds.add(cfg.id)
+    if (cfg.id && cfg.type === 'tool-input') toolInputIds.add(cfg.id)
   }
 
   const nestedByTool = new Map<string, Array<{ index: number; paramId: string; value: string }>>()
@@ -1480,10 +1812,11 @@ export function createForkSubBlockTransform(
     isCopiedTarget?: (kind: ForkRemapKind, sourceId: string) => boolean
   }
 ): SubBlockTransform {
-  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged) => {
+  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged, triggerMode) => {
     const result = remapSubBlocks(subBlocks, resolve, {
       blockType,
       canonicalModes,
+      triggerMode,
       resolveMcpServerMeta: options?.resolveMcpServerMeta,
       isCopiedTarget: options?.isCopiedTarget,
     })
@@ -1493,7 +1826,8 @@ export function createForkSubBlockTransform(
       blockType,
       result.remappedKeys,
       result.canonicalModes ?? canonicalModes,
-      result.copyRemappedKeys
+      result.copyRemappedKeys,
+      triggerMode
     )
   }
 }
@@ -1517,6 +1851,8 @@ export function scanWorkflowReferences(
     subBlocks: unknown
     /** `block.data.canonicalModes`, picking the active member per canonical pair for detection. */
     canonicalModes?: CanonicalModeOverrides
+    /** The block's trigger mode, scoping the canonical index (see {@link createCanonicalModeGates}). */
+    triggerMode?: boolean
   }>,
   resolve: ForkReferenceResolver
 ): WorkflowReferenceScan {
@@ -1524,6 +1860,21 @@ export function scanWorkflowReferences(
   const unmapped = new Map<string, ForkReference>()
 
   for (const block of blocks) {
+    // A custom block's reference is the block's own TYPE, not a sub-block value, so it is
+    // detected here rather than inside the sub-block walk — and before the `subBlocks`
+    // guard below, since a custom block with no sub-blocks is still a live reference.
+    const blockTypeResult = remapForkBlockType(block.type, resolve, {
+      blockId: block.id,
+      blockName: block.name,
+    })
+    if (blockTypeResult.reference) {
+      const key = `${blockTypeResult.reference.kind}:${blockTypeResult.reference.sourceId}`
+      if (!references.has(key)) references.set(key, blockTypeResult.reference)
+      if (!blockTypeResult.resolved && !unmapped.has(key)) {
+        unmapped.set(key, blockTypeResult.reference)
+      }
+    }
+
     if (!block.subBlocks || typeof block.subBlocks !== 'object' || Array.isArray(block.subBlocks)) {
       continue
     }
@@ -1532,6 +1883,7 @@ export function scanWorkflowReferences(
       blockName: block.name,
       blockType: block.type,
       canonicalModes: block.canonicalModes,
+      triggerMode: block.triggerMode,
     })
     for (const reference of blockResult.references) {
       const key = `${reference.kind}:${reference.sourceId}`

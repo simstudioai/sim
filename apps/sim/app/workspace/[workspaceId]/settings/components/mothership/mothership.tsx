@@ -97,7 +97,7 @@ function Divider() {
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className='font-medium text-[var(--text-muted)] text-small'>{children}</p>
+  return <p className='text-[var(--text-muted)] text-small'>{children}</p>
 }
 
 export function Mothership() {
@@ -525,7 +525,7 @@ function StatCard({
       {loading ? (
         <Skeleton className='mt-1 h-[24px] w-[80px] rounded-sm' />
       ) : (
-        <p className='mt-1 font-medium text-[var(--text-primary)] text-lg'>{value ?? '—'}</p>
+        <p className='mt-1 text-[var(--text-primary)] text-lg'>{value ?? '—'}</p>
       )}
     </div>
   )

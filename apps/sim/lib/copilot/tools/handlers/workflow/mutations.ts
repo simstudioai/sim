@@ -1,49 +1,36 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, assertWorkflowMutable } from '@sim/platform-authz/workflow'
-import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
-import { eq } from 'drizzle-orm'
-import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
-import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
-import { prepareWorkflowExecutionAdmission } from '@/lib/copilot/request/tools/workflow-context'
+import { createCopilotWorkspaceApiKey } from '@/lib/api-key/application/create-api-key'
+import { messageForCopilotApplicationError } from '@/lib/copilot/application/error'
+import { executeCopilotApiKeyUseCase } from '@/lib/copilot/application/execute-api-key-use-case'
+import {
+  executeCopilotWorkflowUseCase,
+  messageForCopilotWorkflowError,
+} from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
-  buildVfsFolderPathMap,
-  decodeVfsPathSegments,
-  encodeVfsPathSegments,
-} from '@/lib/copilot/vfs/path-utils'
-import { env } from '@/lib/core/config/env'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { getSocketServerUrl } from '@/lib/core/utils/urls'
+  TOOL_EFFECT_PHASE,
+  type ToolCallEffect,
+  type ToolEffectPhase,
+} from '@/lib/copilot/tool-executor/types'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
+import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { PlatformEvents } from '@/lib/core/telemetry'
+import { createWorkflow } from '@/lib/workflows/application/create-workflow'
+import { moveWorkflowsBulk } from '@/lib/workflows/application/move-workflows-bulk'
 import {
-  type ExecuteWorkflowOptions,
-  executeWorkflow,
-  type WorkflowInfo,
-} from '@/lib/workflows/executor/execute-workflow'
+  runBlockFromCopilot,
+  runFromBlockFromCopilot,
+  runWorkflowFromCopilot,
+  runWorkflowUntilBlockFromCopilot,
+} from '@/lib/workflows/application/run-workflow-from-copilot'
+import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
 import {
-  getExecutionInputForWorkflow,
-  getExecutionStateForWorkflow,
-  getLatestExecutionStateWithExecutionId,
-} from '@/lib/workflows/executor/execution-state'
-import { performCreateWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
-import {
-  loadDeployedWorkflowState,
-  loadWorkflowFromNormalizedTables,
-  saveWorkflowToNormalizedTables,
-} from '@/lib/workflows/persistence/utils'
+  applyWorkflowVariableOperations,
+  setWorkflowBlockEnabled,
+} from '@/lib/workflows/application/update-workflow-content'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import {
-  resolveTriggerRunOptions,
-  validateTriggerInput,
-} from '@/lib/workflows/triggers/run-options'
-import { listFolders, setWorkflowVariables, verifyFolderWorkspace } from '@/lib/workflows/utils'
-import type { SerializableExecutionState } from '@/executor/execution/types'
-import { hasExecutionResult } from '@/executor/utils/errors'
-import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
+import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 function stripBinaryFields(value: unknown): unknown {
   if (value === null || value === undefined) return value
@@ -57,6 +44,41 @@ function stripBinaryFields(value: unknown): unknown {
   return out
 }
 
+/**
+ * States how far a run got, so the answer survives a result the egress boundary withholds.
+ *
+ * Without it a withheld run reduces to a bare success or an opaque failure and takes the
+ * execution id with it, which is what left a caller unable to tell a rejected call from a
+ * completed run — and with nothing to look either one up by.
+ */
+function executionEffect(phase: ToolEffectPhase, executionId?: string): ToolCallEffect {
+  return { phase, ...(executionId ? { ids: { executionId } } : {}) }
+}
+
+/** A run refused on its own arguments, before anything could be created. */
+function runRejected(error: string): ToolCallResult {
+  return { success: false, error, effect: executionEffect(TOOL_EFFECT_PHASE.notAttempted) }
+}
+
+/**
+ * The phase of a run whose result came back, from how that run ended.
+ *
+ * A result in hand means the executor reached a terminal state and recorded it, so the
+ * caller can read the whole story by id — `performed`. Cancelled and paused stopped partway
+ * and may have run every block, one, or none, which is exactly what `attempted` says.
+ *
+ * Deliberately does not separate "ran no blocks" from "ran some". Establishing that would
+ * take a callback on every block of every execution in the product, and buys the caller
+ * nothing it cannot get by resolving the id it was already handed.
+ */
+function settledPhase(status: ExecutionResultStatus): ToolEffectPhase {
+  return status === 'cancelled' || status === 'paused'
+    ? TOOL_EFFECT_PHASE.attempted
+    : TOOL_EFFECT_PHASE.performed
+}
+
+type ExecutionResultStatus = 'completed' | 'paused' | 'cancelled' | undefined
+
 function buildExecutionOutput(
   result: {
     success: boolean
@@ -64,7 +86,9 @@ function buildExecutionOutput(
     output?: unknown
     logs?: unknown[]
     error?: string
+    status?: ExecutionResultStatus
   },
+  phase: ToolEffectPhase,
   extra?: Record<string, unknown>
 ): ToolCallResult {
   return {
@@ -77,81 +101,34 @@ function buildExecutionOutput(
       logs: stripBinaryFields(result.logs),
     },
     error: result.success ? undefined : result.error || 'Workflow execution failed',
-  }
-}
-
-async function executeCopilotWorkflowTarget(params: {
-  workflow: WorkflowInfo
-  input: unknown
-  context: ExecutionContext
-  options: Omit<ExecuteWorkflowOptions, 'billingAttribution'>
-}) {
-  const childExecutionId = generateId()
-  if (!params.workflow.workspaceId) {
-    throw new Error(`Workflow ${params.workflow.id} has no workspaceId`)
-  }
-  const admission = await prepareWorkflowExecutionAdmission(
-    params.context,
-    params.workflow.workspaceId,
-    childExecutionId
-  )
-
-  try {
-    return await executeWorkflow(
-      params.workflow,
-      generateRequestId(),
-      params.input,
-      params.context.userId,
-      {
-        ...params.options,
-        billingAttribution: admission.billingAttribution,
-      },
-      childExecutionId
-    )
-  } catch (error) {
-    if (admission.targetReservation) {
-      await releaseExecutionSlot(childExecutionId)
-    }
-    throw error
+    effect: executionEffect(phase, result.metadata?.executionId),
   }
 }
 
 function buildExecutionError(error: unknown): ToolCallResult {
-  const message = toError(error).message
   if (hasExecutionResult(error)) {
-    return buildExecutionOutput({
-      ...error.executionResult,
-      success: false,
-      error: error.executionResult.error || message,
-    })
+    return buildExecutionOutput(
+      {
+        ...error.executionResult,
+        success: false,
+        error: error.executionResult.error || 'Workflow execution failed',
+      },
+      settledPhase(error.executionResult.status)
+    )
   }
-  return { success: false, error: message }
-}
-
-async function resolveRunFromBlockSnapshot(
-  workflowId: string,
-  executionId?: string
-): Promise<
-  | {
-      executionId: string
-      snapshot: SerializableExecutionState
-    }
-  | undefined
-> {
-  const sourceExecution = executionId
-    ? {
-        executionId,
-        state: await getExecutionStateForWorkflow(executionId, workflowId),
-      }
-    : await getLatestExecutionStateWithExecutionId(workflowId)
-
-  if (!sourceExecution?.state) {
-    return undefined
-  }
-
+  logger.error('Copilot workflow execution command failed', { error })
+  /**
+   * Only failures raised after dispatch carry the id, so its absence is the positive
+   * statement that nothing was created rather than an admission of not knowing.
+   */
+  const attemptedExecutionId = readAttemptedExecutionId(error)
   return {
-    executionId: sourceExecution.executionId,
-    snapshot: sourceExecution.state,
+    success: false,
+    error: messageForCopilotWorkflowError(error, 'Workflow execution failed'),
+    effect: executionEffect(
+      attemptedExecutionId ? TOOL_EFFECT_PHASE.attempted : TOOL_EFFECT_PHASE.notAttempted,
+      attemptedExecutionId
+    ),
   }
 }
 
@@ -171,174 +148,26 @@ function resolveRunTriggerBlockId(params: { triggerBlockId?: unknown }): string 
     : undefined
 }
 
-interface PreparedTriggerRun {
-  triggerBlockId: string
-  input: unknown
+function resolveInputFromExecutionId(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
 }
 
-/**
- * Resolves which trigger a copilot run targets and validates the input against
- * it. There are no fallbacks: an invalid trigger id, an ambiguous workflow, or
- * input that doesn't match the trigger's schema returns an error string so the
- * agent fixes it and retries. The resolved triggerBlockId is returned so the
- * caller pins the executed entry to the validated one.
- */
-async function resolveValidatedTriggerRun(
-  workflowId: string,
-  useDraftState: boolean,
-  params: {
-    triggerBlockId?: unknown
-    workflow_input?: unknown
-    input?: unknown
-    useMockPayload?: unknown
-    inputFromExecutionId?: unknown
+function copilotRunLifecycle(context: ExecutionContext) {
+  return {
+    billingAttribution: context.billingAttribution,
+    resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
+    abortSignal: context.abortSignal,
+    // Present only when the request handler already claimed an execution id for
+    // this tool call because it is running the workflow server-side.
+    ...(context.boundWorkflowExecutionId && context.toolCallId
+      ? {
+          boundExecution: {
+            executionId: context.boundWorkflowExecutionId,
+            copilotToolCallId: context.toolCallId,
+          },
+        }
+      : {}),
   }
-): Promise<PreparedTriggerRun | { error: string }> {
-  const state = useDraftState
-    ? await loadWorkflowFromNormalizedTables(workflowId)
-    : await loadDeployedWorkflowState(workflowId)
-
-  if (!state?.blocks) {
-    return {
-      error: `Workflow ${workflowId} has no ${useDraftState ? 'saved draft' : 'deployed'} state to run.`,
-    }
-  }
-
-  const merged = mergeSubblockStateWithValues(state.blocks)
-  const options = resolveTriggerRunOptions(merged, state.edges)
-
-  if (options.length === 0) {
-    return {
-      error:
-        'No runnable trigger found. Add a Start/API/Input/Chat trigger or an external (webhook/integration) trigger before running.',
-    }
-  }
-
-  const listTriggers = () =>
-    options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
-
-  const requestedId = resolveRunTriggerBlockId(params)
-  let option = options[0]
-  if (requestedId) {
-    const match = options.find((o) => o.triggerBlockId === requestedId)
-    if (!match) {
-      return {
-        error: `triggerBlockId "${requestedId}" is not a runnable trigger in this workflow. Valid triggers: ${listTriggers()}. Call get_workflow_run_options to inspect them.`,
-      }
-    }
-    option = match
-  } else if (options.length > 1) {
-    return {
-      error: `This workflow has multiple triggers — pass triggerBlockId to choose one: ${listTriggers()}. Call get_workflow_run_options for each trigger's input shape.`,
-    }
-  }
-
-  const providedInput = resolveRunWorkflowInput(params)
-  const hasProvidedInput = providedInput !== undefined
-  const useMock = params.useMockPayload === true
-  const fromExecutionId =
-    typeof params.inputFromExecutionId === 'string' && params.inputFromExecutionId.trim().length > 0
-      ? params.inputFromExecutionId.trim()
-      : undefined
-
-  const sourceCount = (hasProvidedInput ? 1 : 0) + (useMock ? 1 : 0) + (fromExecutionId ? 1 : 0)
-  if (sourceCount > 1) {
-    return {
-      error:
-        'Provide only one input source: workflow_input, useMockPayload: true, or inputFromExecutionId.',
-    }
-  }
-
-  // Mock payload is generated to match the trigger, so it bypasses validation.
-  if (useMock) {
-    return { triggerBlockId: option.triggerBlockId, input: option.mockPayload }
-  }
-
-  let inputToValidate = providedInput
-  if (fromExecutionId) {
-    const past = await getExecutionInputForWorkflow(fromExecutionId, workflowId)
-    if (!past.found) {
-      return {
-        error: `No execution "${fromExecutionId}" found for this workflow to reuse input from.`,
-      }
-    }
-    if (past.input === undefined) {
-      return { error: `Execution "${fromExecutionId}" has no recorded input to reuse.` }
-    }
-    inputToValidate = past.input
-  }
-
-  const validation = validateTriggerInput(option, inputToValidate)
-  if (!validation.ok) {
-    return { error: validation.error || 'workflow_input is invalid for the target trigger.' }
-  }
-
-  return { triggerBlockId: option.triggerBlockId, input: inputToValidate }
-}
-
-function isBlockProtected(blockId: string, blocksById: Record<string, BlockState>): boolean {
-  const block = blocksById[blockId]
-  if (!block) return false
-  if (block.locked) return true
-
-  const visited = new Set<string>()
-  let parentId = block.data?.parentId
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    if (blocksById[parentId]?.locked) return true
-    parentId = blocksById[parentId]?.data?.parentId
-  }
-
-  return false
-}
-
-function hasDisabledAncestor(blockId: string, blocksById: Record<string, BlockState>): boolean {
-  const visited = new Set<string>()
-  let parentId = blocksById[blockId]?.data?.parentId
-
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    const parent = blocksById[parentId]
-    if (!parent) return false
-    if (parent.enabled === false) return true
-    parentId = parent.data?.parentId
-  }
-
-  return false
-}
-
-function findDescendants(containerId: string, blocksById: Record<string, BlockState>): string[] {
-  const descendants: string[] = []
-  const stack = [containerId]
-  const visited = new Set<string>()
-
-  while (stack.length > 0) {
-    const current = stack.pop()!
-    if (visited.has(current)) continue
-    visited.add(current)
-
-    for (const [blockId, block] of Object.entries(blocksById)) {
-      if (block.data?.parentId === current) {
-        descendants.push(blockId)
-        stack.push(blockId)
-      }
-    }
-  }
-
-  return descendants
-}
-
-function notifyWorkflowUpdated(workflowId: string): void {
-  fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.INTERNAL_API_SECRET,
-    },
-    body: JSON.stringify({ workflowId }),
-  }).catch((error) => {
-    logger.warn('Failed to notify socket server of workflow update', { workflowId, error })
-  })
 }
 
 import type {
@@ -378,60 +207,32 @@ export async function executeCreateWorkflow(
     if (name.length > 200) {
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
-    const workspaceId =
-      params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    const workspaceId = requireCopilotWorkspace(context, params?.workspaceId)
 
     const folderPath = typeof params?.folderPath === 'string' ? params.folderPath.trim() : ''
-    let folderId =
+    const folderId =
       typeof params?.folderId === 'string' && params.folderId.trim() ? params.folderId.trim() : null
+    let canonicalFolderPath: string | undefined
     if (folderPath) {
       const relativePath = workflowFolderRelativePath(folderPath)
-      if (!relativePath) {
-        folderId = null
-      } else {
-        const target = resolveFolderIdByPath(folderPath, await loadFolderPathIndex(workspaceId))
-        if ('error' in target) return { success: false, error: target.error }
-        folderId = target.folderId
-      }
+      canonicalFolderPath = relativePath
+        ? `/${encodeVfsPathSegments(decodeVfsPathSegments(relativePath))}`
+        : '/'
     }
 
-    await assertFolderMutable(folderId)
     assertWorkflowMutationNotAborted(context)
 
-    const result = await performCreateWorkflow({
-      userId: context.userId,
+    const result = await executeCopilotWorkflowUseCase(context, createWorkflow, {
       workspaceId,
       name,
-      folderId,
+      ...(canonicalFolderPath !== undefined ? { folderPath: canonicalFolderPath } : { folderId }),
     })
-    if (!result.success || !result.workflow) {
-      return { success: false, error: result.error || 'Failed to create workflow' }
-    }
-
-    try {
-      const { PlatformEvents } = await import('@/lib/core/telemetry')
-      PlatformEvents.workflowCreated({
-        workflowId: result.workflow.id,
-        name: result.workflow.name,
-        workspaceId,
-        folderId: folderId ?? undefined,
-      })
-    } catch (_e) {
-      // Telemetry is best-effort
-    }
-
-    const normalized = await loadWorkflowFromNormalizedTables(result.workflow.id)
-    let copilotSanitizedWorkflowState: unknown
-    if (normalized) {
-      copilotSanitizedWorkflowState = sanitizeForCopilot({
-        blocks: normalized.blocks || {},
-        edges: normalized.edges || [],
-        loops: normalized.loops || {},
-        parallels: normalized.parallels || {},
-      } as WorkflowState)
-    }
+    const copilotSanitizedWorkflowState = sanitizeForCopilot({
+      blocks: result.normalizedState.blocks || {},
+      edges: result.normalizedState.edges || [],
+      loops: result.normalizedState.loops || {},
+      parallels: result.normalizedState.parallels || {},
+    } as WorkflowState)
 
     return {
       success: true,
@@ -444,7 +245,10 @@ export async function executeCreateWorkflow(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to create workflow'),
+    }
   }
 }
 
@@ -455,39 +259,24 @@ export async function executeRunWorkflow(
   try {
     const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+      return runRejected('workflowId is required')
     }
-
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
 
     const useDraftState = !params.useDeployedState
-
-    const prepared = await resolveValidatedTriggerRun(workflowId, useDraftState, params)
-    if ('error' in prepared) {
-      return { success: false, error: prepared.error }
-    }
-    const result = await executeCopilotWorkflowTarget({
-      workflow: {
-        id: workflowRecord.id,
-        userId: workflowRecord.userId,
-        workspaceId: workflowRecord.workspaceId,
-        variables: workflowRecord.variables || {},
-      },
-      input: prepared.input,
-      context,
-      options: {
-        enabled: true,
-        useDraftState,
-        workflowTriggerType: 'copilot',
-        triggerBlockId: prepared.triggerBlockId,
-      },
+    const workflowInput = resolveRunWorkflowInput(params)
+    const result = await executeCopilotWorkflowUseCase(context, runWorkflowFromCopilot, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+      useDraftState,
+      triggerBlockId: resolveRunTriggerBlockId(params),
+      workflowInput,
+      hasWorkflowInput: workflowInput !== undefined,
+      useMockPayload: params.useMockPayload === true,
+      inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
+      lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result)
+    return buildExecutionOutput(result, settledPhase(result.status))
   } catch (error) {
     return buildExecutionError(error)
   }
@@ -505,113 +294,17 @@ export async function executeSetGlobalWorkflowVariables(
     const operations: VariableOperation[] = Array.isArray(params.operations)
       ? params.operations
       : []
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
-    await assertWorkflowMutable(workflowId)
-
-    interface WorkflowVariable {
-      id: string
-      workflowId?: string
-      name: string
-      type: string
-      value?: unknown
-    }
-    const currentVarsRecord = (workflowRecord.variables as Record<string, unknown>) || {}
-    const byName: Record<string, WorkflowVariable> = {}
-    Object.values(currentVarsRecord).forEach((v) => {
-      if (v && typeof v === 'object' && 'id' in v && 'name' in v) {
-        const variable = v as WorkflowVariable
-        byName[String(variable.name)] = variable
-      }
-    })
-
-    for (const op of operations) {
-      const key = String(op?.name || '')
-      if (!key) continue
-      const nextType = op?.type || byName[key]?.type || 'plain'
-      const coerceValue = (value: unknown, type: string): unknown => {
-        if (value === undefined) return value
-        if (type === 'number') {
-          const n = Number(value)
-          return Number.isNaN(n) ? value : n
-        }
-        if (type === 'boolean') {
-          const v = String(value).trim().toLowerCase()
-          if (v === 'true') return true
-          if (v === 'false') return false
-          return value
-        }
-        if (type === 'array' || type === 'object') {
-          try {
-            const parsed = JSON.parse(String(value))
-            if (type === 'array' && Array.isArray(parsed)) return parsed
-            if (type === 'object' && parsed && typeof parsed === 'object' && !Array.isArray(parsed))
-              return parsed
-          } catch (error) {
-            logger.warn('Failed to parse JSON value for variable coercion', {
-              error: toError(error).message,
-            })
-          }
-          return value
-        }
-        return value
-      }
-
-      if (op.operation === 'delete') {
-        delete byName[key]
-        continue
-      }
-      const typedValue = coerceValue(op.value, nextType)
-      if (op.operation === 'add') {
-        byName[key] = {
-          id: generateId(),
-          workflowId,
-          name: key,
-          type: nextType,
-          value: typedValue,
-        }
-        continue
-      }
-      if (op.operation === 'edit') {
-        if (!byName[key]) {
-          byName[key] = {
-            id: generateId(),
-            workflowId,
-            name: key,
-            type: nextType,
-            value: typedValue,
-          }
-        } else {
-          byName[key] = {
-            ...byName[key],
-            type: nextType,
-            value: typedValue,
-          }
-        }
-      }
-    }
-
-    const nextVarsRecord = Object.fromEntries(Object.values(byName).map((v) => [String(v.id), v]))
 
     assertWorkflowMutationNotAborted(context)
-    await setWorkflowVariables(workflowId, nextVarsRecord)
-    notifyWorkflowUpdated(workflowId)
-
-    recordAudit({
-      actorId: context.userId,
-      action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
-      resourceType: AuditResourceType.WORKFLOW,
-      resourceId: workflowId,
-      description: `Updated workflow variables`,
-      metadata: { operationCount: operations.length, source: 'copilot' },
+    const result = await executeCopilotWorkflowUseCase(context, applyWorkflowVariableOperations, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+      operations,
     })
 
-    return { success: true, output: { updated: Object.values(byName).length } }
+    return { success: true, output: { updated: result.updated } }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotWorkflowError(error) }
   }
 }
 
@@ -632,27 +325,19 @@ export async function executeRenameWorkflow(
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
 
-    const current = await ensureWorkflowAccess(workflowId, context.userId, 'write')
-    await assertWorkflowMutable(workflowId)
     assertWorkflowMutationNotAborted(context)
-    if (!current.workspaceId) {
-      return { success: false, error: 'Workflow workspace is required' }
-    }
-    const result = await performUpdateWorkflow({
+    await executeCopilotWorkflowUseCase(context, updateWorkflow, {
       workflowId,
-      userId: context.userId,
-      workspaceId: current.workspaceId,
-      currentName: current.workflow.name,
-      currentFolderId: current.workflow.folderId,
+      assertedWorkspaceId: context.workspaceId,
       name,
     })
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to rename workflow' }
-    }
 
     return { success: true, output: { workflowId, name } }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to rename workflow'),
+    }
   }
 }
 
@@ -665,53 +350,23 @@ export async function executeMoveWorkflow(
     if (!workflowIds || workflowIds.length === 0) {
       return { success: false, error: 'workflowIds is required' }
     }
-
-    const folderId = params.folderId || null
-    const moved: string[] = []
-    const failed: string[] = []
-
-    await assertFolderMutable(folderId)
-
-    for (const workflowId of workflowIds) {
-      try {
-        const { workspaceId, workflow } = await ensureWorkflowAccess(
-          workflowId,
-          context.userId,
-          'write'
-        )
-        if (!workspaceId) {
-          failed.push(workflowId)
-          continue
-        }
-        if (folderId) {
-          if (!workspaceId || !(await verifyFolderWorkspace(folderId, workspaceId))) {
-            failed.push(workflowId)
-            continue
-          }
-        }
-        await assertWorkflowMutable(workflowId)
-        assertWorkflowMutationNotAborted(context)
-        const result = await performUpdateWorkflow({
-          workflowId,
-          userId: context.userId,
-          workspaceId,
-          currentName: workflow.name,
-          currentFolderId: workflow.folderId,
-          folderId,
-        })
-        if (!result.success) {
-          failed.push(workflowId)
-          continue
-        }
-        moved.push(workflowId)
-      } catch {
-        failed.push(workflowId)
-      }
+    if (!context.workspaceId) {
+      return { success: false, error: 'Workspace context is required' }
     }
 
-    return { success: moved.length > 0, output: { moved, failed, folderId } }
+    assertWorkflowMutationNotAborted(context)
+    const result = await executeCopilotWorkflowUseCase(context, moveWorkflowsBulk, {
+      workspaceId: context.workspaceId,
+      workflowIds,
+      folderId: params.folderId || null,
+    })
+
+    return {
+      success: result.moved.length > 0,
+      output: { moved: result.moved, failed: result.failed, folderId: result.folderId },
+    }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotWorkflowError(error) }
   }
 }
 
@@ -722,43 +377,30 @@ export async function executeRunWorkflowUntilBlock(
   try {
     const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+      return runRejected('workflowId is required')
     }
     if (!params.stopAfterBlockId) {
-      return { success: false, error: 'stopAfterBlockId is required' }
+      return runRejected('stopAfterBlockId is required')
     }
-
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
 
     const useDraftState = !params.useDeployedState
-
-    const prepared = await resolveValidatedTriggerRun(workflowId, useDraftState, params)
-    if ('error' in prepared) {
-      return { success: false, error: prepared.error }
-    }
-    const result = await executeCopilotWorkflowTarget({
-      workflow: {
-        id: workflowRecord.id,
-        userId: workflowRecord.userId,
-        workspaceId: workflowRecord.workspaceId,
-        variables: workflowRecord.variables || {},
-      },
-      input: prepared.input,
-      context,
-      options: {
-        enabled: true,
-        useDraftState,
-        stopAfterBlockId: params.stopAfterBlockId,
-        workflowTriggerType: 'copilot',
-        triggerBlockId: prepared.triggerBlockId,
-      },
+    const workflowInput = resolveRunWorkflowInput(params)
+    const result = await executeCopilotWorkflowUseCase(context, runWorkflowUntilBlockFromCopilot, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+      useDraftState,
+      triggerBlockId: resolveRunTriggerBlockId(params),
+      workflowInput,
+      hasWorkflowInput: workflowInput !== undefined,
+      useMockPayload: params.useMockPayload === true,
+      inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
+      stopAfterBlockId: params.stopAfterBlockId,
+      lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, { stoppedAfterBlockId: params.stopAfterBlockId })
+    return buildExecutionOutput(result, settledPhase(result.status), {
+      stoppedAfterBlockId: params.stopAfterBlockId,
+    })
   } catch (error) {
     return buildExecutionError(error)
   }
@@ -777,19 +419,17 @@ export async function executeGenerateApiKey(
       return { success: false, error: 'API key name must be 200 characters or less' }
     }
 
-    const workspaceId =
-      params.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
+    const workspaceId = requireCopilotWorkspace(context, params.workspaceId)
     assertWorkflowMutationNotAborted(context)
 
-    const result = await performCreateWorkspaceApiKey({
+    const result = await executeCopilotApiKeyUseCase(context, createCopilotWorkspaceApiKey, {
       workspaceId,
-      userId: context.userId,
       name,
-      source: 'copilot',
     })
-    if (!result.success || !result.key) {
-      return { success: false, error: result.error || 'Failed to generate API key' }
+    try {
+      PlatformEvents.apiKeyGenerated({ userId: context.userId, keyName: result.key.name })
+    } catch (error) {
+      logger.warn('Failed to capture Copilot API key analytics', { error })
     }
 
     return {
@@ -803,7 +443,11 @@ export async function executeGenerateApiKey(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    logger.error('Copilot API key creation failed', { error })
+    return {
+      success: false,
+      error: messageForCopilotApplicationError(error, 'Failed to create API key'),
+    }
   }
 }
 
@@ -814,52 +458,26 @@ export async function executeRunFromBlock(
   try {
     const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+      return runRejected('workflowId is required')
     }
     if (!params.startBlockId) {
-      return { success: false, error: 'startBlockId is required' }
+      return runRejected('startBlockId is required')
     }
 
-    const sourceSnapshot = await resolveRunFromBlockSnapshot(workflowId, params.executionId)
-
-    if (!sourceSnapshot) {
-      return {
-        success: false,
-        error: params.executionId
-          ? `No execution state found for execution ${params.executionId}. Run the full workflow first.`
-          : `No execution state found for workflow ${workflowId}. Run the full workflow first to create a snapshot.`,
-      }
-    }
-
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
     const useDraftState = !params.useDeployedState
-
-    const result = await executeCopilotWorkflowTarget({
-      workflow: {
-        id: workflowRecord.id,
-        userId: workflowRecord.userId,
-        workspaceId: workflowRecord.workspaceId,
-        variables: workflowRecord.variables || {},
-      },
-      input: resolveRunWorkflowInput(params),
-      context,
-      options: {
-        enabled: true,
-        useDraftState,
-        workflowTriggerType: 'copilot',
-        runFromBlock: {
-          startBlockId: params.startBlockId,
-          sourceSnapshot: sourceSnapshot.snapshot,
-          sourceExecutionId: sourceSnapshot.executionId,
-        },
-      },
+    const result = await executeCopilotWorkflowUseCase(context, runFromBlockFromCopilot, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+      useDraftState,
+      blockId: params.startBlockId,
+      workflowInput: resolveRunWorkflowInput(params),
+      sourceExecutionId: params.executionId,
+      lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, { startBlockId: params.startBlockId })
+    return buildExecutionOutput(result, settledPhase(result.status), {
+      startBlockId: params.startBlockId,
+    })
   } catch (error) {
     return buildExecutionError(error)
   }
@@ -881,119 +499,32 @@ export async function executeSetBlockEnabled(
       return { success: false, error: 'enabled must be a boolean' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+    assertWorkflowMutationNotAborted(context)
+    const result = await executeCopilotWorkflowUseCase(context, setWorkflowBlockEnabled, {
       workflowId,
-      context.userId,
-      'write'
-    )
-    await assertWorkflowMutable(workflowId)
-    assertWorkflowMutationNotAborted(context)
-
-    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-    if (!normalized) {
-      return { success: false, error: `Workflow ${workflowId} has no normalized state` }
-    }
-
-    const currentState: WorkflowState = {
-      blocks: normalized.blocks as Record<string, BlockState>,
-      edges: normalized.edges || [],
-      loops: normalized.loops || {},
-      parallels: normalized.parallels || {},
-      lastSaved: Date.now(),
-    }
-
-    const currentBlocks = currentState.blocks
-    const targetBlock = currentBlocks[params.blockId]
-    if (!targetBlock) {
-      return {
-        success: false,
-        error: `Block ${params.blockId} not found in workflow ${workflowId}`,
-      }
-    }
-    if (isBlockProtected(params.blockId, currentBlocks)) {
-      return {
-        success: false,
-        error: `Block ${params.blockId} is locked or inside a locked container and cannot be updated`,
-      }
-    }
-    if (targetBlock.enabled === params.enabled) {
-      return {
-        success: true,
-        output: {
-          workflowId,
-          workflowName: workflowRecord.name,
-          blockId: params.blockId,
-          enabled: params.enabled,
-          affectedBlockIds: [params.blockId],
-          workflowState: currentState,
-          copilotSanitizedWorkflowState: sanitizeForCopilot(currentState),
-          message: `Block ${params.blockId} is already ${params.enabled ? 'enabled' : 'disabled'}`,
-        },
-      }
-    }
-    if (params.enabled && hasDisabledAncestor(params.blockId, currentBlocks)) {
-      return {
-        success: false,
-        error: `Cannot enable block ${params.blockId} while one of its parent containers is disabled. Enable the parent first.`,
-      }
-    }
-
-    const affectedBlockIds = new Set<string>([params.blockId])
-    if (targetBlock.type === 'loop' || targetBlock.type === 'parallel') {
-      for (const descendantId of findDescendants(params.blockId, currentBlocks)) {
-        if (!isBlockProtected(descendantId, currentBlocks)) {
-          affectedBlockIds.add(descendantId)
-        }
-      }
-    }
-
-    const nextBlocks: Record<string, BlockState> = { ...currentBlocks }
-    for (const blockId of affectedBlockIds) {
-      nextBlocks[blockId] = {
-        ...nextBlocks[blockId],
-        enabled: params.enabled,
-      }
-    }
-
-    const nextState: WorkflowState = {
-      ...currentState,
-      blocks: nextBlocks,
-      lastSaved: Date.now(),
-    }
-
-    assertWorkflowMutationNotAborted(context)
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, nextState)
-    if (!saveResult.success) {
-      return {
-        success: false,
-        error: saveResult.error || `Failed to persist enabled state for block ${params.blockId}`,
-      }
-    }
-
-    await db
-      .update(workflowTable)
-      .set({
-        lastSynced: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(workflowTable.id, workflowId))
-
-    notifyWorkflowUpdated(workflowId)
+      assertedWorkspaceId: context.workspaceId,
+      blockId: params.blockId,
+      enabled: params.enabled,
+    })
 
     return {
       success: true,
       output: {
         workflowId,
-        workflowName: workflowRecord.name,
+        workflowName: result.workflowName,
         blockId: params.blockId,
         enabled: params.enabled,
-        affectedBlockIds: Array.from(affectedBlockIds),
-        workflowState: nextState,
-        copilotSanitizedWorkflowState: sanitizeForCopilot(nextState),
+        affectedBlockIds: result.affectedBlockIds,
+        copilotSanitizedWorkflowState: sanitizeForCopilot(result.state),
+        ...(!result.changed
+          ? {
+              message: `Block ${params.blockId} is already ${params.enabled ? 'enabled' : 'disabled'}`,
+            }
+          : {}),
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotWorkflowError(error) }
   }
 }
 
@@ -1008,47 +539,6 @@ function workflowFolderRelativePath(rawPath: string): string {
   return trimmed.startsWith('workflows/') ? trimmed.slice('workflows/'.length) : trimmed
 }
 
-type FolderPathIndex = Map<string, string | null>
-
-/**
- * Load an index from each canonical encoded VFS path to its folder id. A null
- * value records that multiple folder ids collapse to the same canonical path,
- * so callers can reject the ambiguous path instead of silently choosing one.
- */
-async function loadFolderPathIndex(workspaceId: string): Promise<FolderPathIndex> {
-  const byPath: FolderPathIndex = new Map()
-  for (const [folderId, encodedPath] of buildVfsFolderPathMap(
-    await listFolders(workspaceId)
-  ).entries()) {
-    if (!byPath.has(encodedPath)) {
-      byPath.set(encodedPath, folderId)
-    } else if (byPath.get(encodedPath) !== folderId) {
-      byPath.set(encodedPath, null)
-    }
-  }
-  return byPath
-}
-
-function resolveFolderIdByPath(
-  rawPath: string,
-  byPath: FolderPathIndex,
-  label = 'Folder'
-): { folderId: string } | { error: string } {
-  const relative = workflowFolderRelativePath(rawPath)
-  if (!relative) return { error: `${label} not found at ${rawPath}` }
-
-  const canonicalPath = encodeVfsPathSegments(decodeVfsPathSegments(relative))
-  if (!byPath.has(canonicalPath)) return { error: `${label} not found at ${rawPath}` }
-
-  const folderId = byPath.get(canonicalPath)
-  if (!folderId) {
-    return {
-      error: `${label} path is ambiguous after canonicalization: ${rawPath}. Rename one of the conflicting folders and retry.`,
-    }
-  }
-  return { folderId }
-}
-
 export async function executeRunBlock(
   params: RunBlockParams,
   context: ExecutionContext
@@ -1056,53 +546,24 @@ export async function executeRunBlock(
   try {
     const workflowId = params.workflowId || context.workflowId
     if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+      return runRejected('workflowId is required')
     }
     if (!params.blockId) {
-      return { success: false, error: 'blockId is required' }
+      return runRejected('blockId is required')
     }
 
-    const sourceSnapshot = await resolveRunFromBlockSnapshot(workflowId, params.executionId)
-
-    if (!sourceSnapshot) {
-      return {
-        success: false,
-        error: params.executionId
-          ? `No execution state found for execution ${params.executionId}. Run the full workflow first.`
-          : `No execution state found for workflow ${workflowId}. Run the full workflow first to create a snapshot.`,
-      }
-    }
-
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
     const useDraftState = !params.useDeployedState
-
-    const result = await executeCopilotWorkflowTarget({
-      workflow: {
-        id: workflowRecord.id,
-        userId: workflowRecord.userId,
-        workspaceId: workflowRecord.workspaceId,
-        variables: workflowRecord.variables || {},
-      },
-      input: resolveRunWorkflowInput(params),
-      context,
-      options: {
-        enabled: true,
-        useDraftState,
-        workflowTriggerType: 'copilot',
-        runFromBlock: {
-          startBlockId: params.blockId,
-          sourceSnapshot: sourceSnapshot.snapshot,
-          sourceExecutionId: sourceSnapshot.executionId,
-        },
-        stopAfterBlockId: params.blockId,
-      },
+    const result = await executeCopilotWorkflowUseCase(context, runBlockFromCopilot, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+      useDraftState,
+      blockId: params.blockId,
+      workflowInput: resolveRunWorkflowInput(params),
+      sourceExecutionId: params.executionId,
+      lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, { blockId: params.blockId })
+    return buildExecutionOutput(result, settledPhase(result.status), { blockId: params.blockId })
   } catch (error) {
     return buildExecutionError(error)
   }

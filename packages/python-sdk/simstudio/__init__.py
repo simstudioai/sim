@@ -6,14 +6,21 @@ Official Python SDK for Sim, allowing you to execute workflows programmatically.
 
 from typing import Any, Dict, Optional, Union
 from dataclasses import dataclass
+from datetime import datetime
 import time
 import random
 import os
 
 import requests
 
+MAX_EXECUTION_TIMEOUT_SECONDS = 604_800
 
-__version__ = "0.1.2"
+# Run statuses that count as a successful synchronous execution. Deliberately a
+# whitelist: a status later added to the API then defaults to "not successful"
+# rather than silently reporting True.
+_SUCCESSFUL_RUN_STATUSES = ('completed', 'paused')
+
+__version__ = "0.2.0"
 __all__ = [
     "SimStudioClient",
     "SimStudioError",
@@ -27,7 +34,14 @@ __all__ = [
 
 @dataclass
 class WorkflowExecutionResult:
-    """Result of a workflow execution."""
+    """
+    Result of a workflow execution.
+
+    ``success`` is True only for the 'completed' and 'paused' statuses, so a
+    run the server cancels and a run that fails both report False. Read
+    ``status`` to tell those apart -- it carries the server's own terminal
+    status ('completed', 'failed', 'paused' or 'cancelled').
+    """
     success: bool
     output: Optional[Any] = None
     error: Optional[str] = None
@@ -35,6 +49,7 @@ class WorkflowExecutionResult:
     metadata: Optional[Dict[str, Any]] = None
     trace_spans: Optional[list] = None
     total_duration: Optional[float] = None
+    status: Optional[str] = None
 
 
 @dataclass
@@ -49,16 +64,21 @@ class WorkflowStatus:
 class AsyncExecutionResult:
     """Result of an async workflow execution."""
     success: bool
-    job_id: str
+    run_id: str
     status_url: str
-    execution_id: Optional[str] = None
     message: str = ""
     async_execution: bool = True
 
 
 @dataclass
 class RateLimitInfo:
-    """Rate limit information from API response headers."""
+    """
+    Rate limit information from API response headers.
+
+    ``reset`` is epoch milliseconds when the server sends the ISO 8601
+    ``X-RateLimit-Reset`` the v2 API uses, and epoch seconds for the bare
+    integer older endpoints sent. ``retry_after`` is milliseconds.
+    """
     limit: int
     remaining: int
     reset: int
@@ -80,6 +100,23 @@ class SimStudioError(Exception):
         super().__init__(message)
         self.code = code
         self.status = status
+
+
+def _parse_reset_header(value: str) -> int:
+    """
+    Parse the ``X-RateLimit-Reset`` header, matching the TypeScript SDK.
+
+    The v2 API sends an ISO 8601 timestamp, which yields epoch milliseconds;
+    older endpoints sent an epoch integer, which is kept as-is. A quota hint
+    must never take down the call it rode in on, so an unrecognised value
+    degrades to 0 rather than raising.
+    """
+    if value.isdecimal():
+        return int(value)
+    try:
+        return int(datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp() * 1000)
+    except ValueError:
+        return 0
 
 
 class SimStudioClient:
@@ -155,23 +192,27 @@ class SimStudioClient:
         timeout: float = 30.0,
         stream: Optional[bool] = None,
         selected_outputs: Optional[list] = None,
-        async_execution: Optional[bool] = None
+        async_execution: Optional[bool] = None,
+        execution_timeout_seconds: Optional[int] = None
     ) -> Union[WorkflowExecutionResult, AsyncExecutionResult]:
         """
         Execute a workflow with optional input data.
-        If async_execution is True, returns immediately with a task ID.
+        If async_execution is True, returns immediately with a run ID.
 
         File objects in input will be automatically detected and converted to base64.
 
         Args:
             workflow_id: The ID of the workflow to execute
-            input: Input data to pass to the workflow. Can be a dict (spread at root level),
-                   primitive value (string, number, bool), or list (wrapped in 'input' field).
-                   File-like objects within dicts are automatically converted to base64.
+            input: Input data to pass to the workflow, sent nested under the request
+                   body's 'input' field. A dict becomes the workflow input as-is; any
+                   other value (string, number, bool, list) is wrapped as
+                   {'input': value}. File-like objects within it are automatically
+                   converted to base64.
             timeout: Timeout in seconds (default: 30.0)
             stream: Enable streaming responses (default: None)
             selected_outputs: Block outputs to stream (e.g., ["agent1.content"])
             async_execution: Execute asynchronously (default: None)
+            execution_timeout_seconds: Server-side async execution cap in seconds (1-604800)
 
         Returns:
             WorkflowExecutionResult or AsyncExecutionResult object
@@ -179,31 +220,46 @@ class SimStudioClient:
         Raises:
             SimStudioError: If the workflow execution fails
         """
-        url = f"{self.base_url}/api/workflows/{workflow_id}/execute"
+        url = f"{self.base_url}/api/v2/workflows/{workflow_id}/execute"
 
-        # Build headers - async execution uses X-Execution-Mode header
+        if execution_timeout_seconds is not None:
+            if not async_execution:
+                raise SimStudioError(
+                    'execution_timeout_seconds is supported only for async executions',
+                    'INVALID_EXECUTION_TIMEOUT'
+                )
+            if (
+                isinstance(execution_timeout_seconds, bool)
+                or not isinstance(execution_timeout_seconds, int)
+                or execution_timeout_seconds < 1
+                or execution_timeout_seconds > MAX_EXECUTION_TIMEOUT_SECONDS
+            ):
+                raise SimStudioError(
+                    f'execution_timeout_seconds must be an integer between 1 and {MAX_EXECUTION_TIMEOUT_SECONDS}',
+                    'INVALID_EXECUTION_TIMEOUT'
+                )
+
         headers = self._session.headers.copy()
-        if async_execution:
-            headers['X-Execution-Mode'] = 'async'
 
         try:
-            # Build JSON body - spread dict inputs at root level, wrap primitives/lists in 'input' field
-            body = {}
+            workflow_input = {}
             if input is not None:
                 if isinstance(input, dict):
-                    # Dict input: spread at root level (matches curl/API behavior)
-                    body = input.copy()
+                    workflow_input = input.copy()
                 else:
-                    # Primitive or list input: wrap in 'input' field
-                    body = {'input': input}
+                    workflow_input = {'input': input}
 
-            # Convert any file objects in the input to base64 format
-            body = self._convert_files_to_base64(body)
+            workflow_input = self._convert_files_to_base64(workflow_input)
+            body = {'input': workflow_input}
 
             if stream is not None:
                 body['stream'] = stream
             if selected_outputs is not None:
                 body['selectedOutputs'] = selected_outputs
+            if async_execution is not None:
+                body['async'] = async_execution
+            if execution_timeout_seconds is not None:
+                body['executionTimeoutSeconds'] = execution_timeout_seconds
 
             response = self._session.post(
                 url,
@@ -227,35 +283,45 @@ class SimStudioClient:
             if not response.ok:
                 try:
                     error_data = response.json()
-                    error_message = error_data.get('error', f'HTTP {response.status_code}: {response.reason}')
-                    error_code = error_data.get('code')
+                    error = error_data.get('error', {})
+                    error_message = error.get('message', f'HTTP {response.status_code}: {response.reason}')
+                    error_code = error.get('code')
                 except (ValueError, KeyError):
                     error_message = f'HTTP {response.status_code}: {response.reason}'
                     error_code = None
 
                 raise SimStudioError(error_message, error_code, response.status_code)
 
-            result_data = response.json()
+            result = response.json()
+            if 'data' not in result:
+                raise SimStudioError('Invalid v2 workflow execution response', 'EXECUTION_ERROR')
+            result_data = result['data']
 
-            # Check if this is an async execution response (202 status)
-            if response.status_code == 202 and 'jobId' in result_data:
+            if response.status_code == 202:
+                if 'runId' not in result_data or 'statusUrl' not in result_data:
+                    raise SimStudioError('Invalid v2 async execution response', 'EXECUTION_ERROR')
                 return AsyncExecutionResult(
-                    success=result_data.get('success', True),
-                    job_id=result_data['jobId'],
+                    success=True,
+                    run_id=result_data['runId'],
                     status_url=result_data['statusUrl'],
-                    execution_id=result_data.get('executionId'),
-                    message=result_data.get('message', ''),
-                    async_execution=result_data.get('async', True)
+                    message='Workflow execution queued',
+                    async_execution=True
                 )
 
+            execution_error = result_data.get('error')
+            status = result_data.get('status')
             return WorkflowExecutionResult(
-                success=result_data['success'],
+                success=status in _SUCCESSFUL_RUN_STATUSES,
                 output=result_data.get('output'),
-                error=result_data.get('error'),
-                logs=result_data.get('logs'),
-                metadata=result_data.get('metadata'),
-                trace_spans=result_data.get('traceSpans'),
-                total_duration=result_data.get('totalDuration')
+                error=execution_error.get('message') if execution_error else None,
+                metadata={
+                    'duration': result_data.get('durationMs'),
+                    'runId': result_data['runId'],
+                    'startTime': result_data.get('startedAt'),
+                    'endTime': result_data.get('endedAt')
+                },
+                total_duration=result_data.get('durationMs'),
+                status=status
             )
 
         except requests.Timeout:
@@ -378,10 +444,10 @@ class SimStudioClient:
 
     def get_job_status(self, job_id: str) -> Dict[str, Any]:
         """
-        Get the status of an async job.
+        Get the status of a legacy async job.
 
         Args:
-            job_id: The job ID returned from async execution
+            job_id: The job ID returned from legacy async execution
 
         Returns:
             Dictionary containing the job status
@@ -412,6 +478,61 @@ class SimStudioClient:
         except requests.RequestException as e:
             raise SimStudioError(f'Failed to get job status: {str(e)}', 'STATUS_ERROR')
 
+    def get_workflow_run(
+        self,
+        workflow_id: str,
+        run_id: str,
+        *,
+        include_output: Optional[bool] = None,
+        selected_outputs: Optional[list] = None
+    ) -> Dict[str, Any]:
+        """
+        Get a workflow run's current status and optional outputs from the v2 API.
+
+        Args:
+            workflow_id: The workflow ID
+            run_id: The run ID returned from async execution
+            include_output: Include the final output for completed executions
+            selected_outputs: Block output selectors to include
+
+        Returns:
+            Dictionary containing the run status
+
+        Raises:
+            SimStudioError: If getting the status fails
+        """
+        url = f"{self.base_url}/api/v2/workflows/{workflow_id}/runs/{run_id}"
+        params = {}
+        if include_output is not None:
+            params['includeOutput'] = str(include_output).lower()
+        if selected_outputs:
+            params['selectedOutputs'] = ','.join(selected_outputs)
+
+        try:
+            response = self._session.get(url, params=params or None)
+
+            self._update_rate_limit_info(response)
+
+            if not response.ok:
+                try:
+                    error_data = response.json()
+                    error = error_data.get('error', {})
+                    error_message = error.get('message', f'HTTP {response.status_code}: {response.reason}')
+                    error_code = error.get('code')
+                except (ValueError, KeyError):
+                    error_message = f'HTTP {response.status_code}: {response.reason}'
+                    error_code = None
+
+                raise SimStudioError(error_message, error_code, response.status_code)
+
+            result = response.json()
+            if 'data' not in result:
+                raise SimStudioError('Invalid v2 workflow run response', 'STATUS_ERROR')
+            return result['data']
+
+        except requests.RequestException as e:
+            raise SimStudioError(f'Failed to get workflow run: {str(e)}', 'STATUS_ERROR')
+
     def execute_with_retry(
         self,
         workflow_id: str,
@@ -421,6 +542,7 @@ class SimStudioClient:
         stream: Optional[bool] = None,
         selected_outputs: Optional[list] = None,
         async_execution: Optional[bool] = None,
+        execution_timeout_seconds: Optional[int] = None,
         max_retries: int = 3,
         initial_delay: float = 1.0,
         max_delay: float = 30.0,
@@ -436,6 +558,7 @@ class SimStudioClient:
             stream: Enable streaming responses
             selected_outputs: Block outputs to stream
             async_execution: Execute asynchronously
+            execution_timeout_seconds: Server-side async execution cap in seconds (1-604800)
             max_retries: Maximum number of retries (default: 3)
             initial_delay: Initial delay in seconds (default: 1.0)
             max_delay: Maximum delay in seconds (default: 30.0)
@@ -458,7 +581,8 @@ class SimStudioClient:
                     timeout=timeout,
                     stream=stream,
                     selected_outputs=selected_outputs,
-                    async_execution=async_execution
+                    async_execution=async_execution,
+                    execution_timeout_seconds=execution_timeout_seconds,
                 )
             except SimStudioError as e:
                 if e.code != 'RATE_LIMIT_EXCEEDED':
@@ -512,7 +636,7 @@ class SimStudioClient:
             self._rate_limit_info = RateLimitInfo(
                 limit=int(limit) if limit else 0,
                 remaining=int(remaining) if remaining else 0,
-                reset=int(reset) if reset else 0,
+                reset=_parse_reset_header(reset) if reset else 0,
                 retry_after=int(retry_after) * 1000 if retry_after else None
             )
 
@@ -565,4 +689,4 @@ class SimStudioClient:
 
 
 # For backward compatibility
-Client = SimStudioClient 
+Client = SimStudioClient

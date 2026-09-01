@@ -4,6 +4,28 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { IncidentioResponse } from '@/tools/incidentio/types'
 import { getTrigger } from '@/triggers'
 
+/** Identifiers a user can be looked up by, whichever one is filled. */
+const USER_LOOKUP_FIELD = ['user_email', 'user_slack_id'] as const
+
+/** Override target: an id, an email, or a Slack id — exactly one is supplied. */
+const OVERRIDE_USER_FIELD = ['user_id', 'user_email', 'user_slack_id'] as const
+
+/** An escalation pages either a path or an explicit user list, never both. */
+const ESCALATION_TARGET_FIELD = ['escalation_path_id', 'user_ids'] as const
+
+/**
+ * Maps an optional-filter dropdown onto a real boolean, or `undefined` for the "Any" sentinel.
+ *
+ * The executor merges the transform output over the raw inputs, so a key this returns
+ * `undefined` for still overwrites the sentinel string rather than letting it reach the tool.
+ * Skipping the assignment instead would leak `has_notes[is]=any` to the API.
+ */
+function toTriState(value: unknown): boolean | undefined {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return undefined
+}
+
 export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   type: 'incidentio',
   name: 'incident.io',
@@ -16,6 +38,182 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   integrationType: IntegrationType.Observability,
   bgColor: '#FFFFFF',
   icon: IncidentioIcon,
+  canvasPresentation: {
+    defaultTitle: 'incident.io',
+    sentences: {
+      byOperation: {
+        incidentio_incidents_list: ['List incidents'],
+        incidentio_incidents_create: [
+          { text: 'Create incident', field: 'name', core: true },
+          { text: 'at severity', field: 'severity_id', core: true },
+        ],
+        incidentio_incidents_show: [{ text: 'Fetch incident', field: 'id', core: true }],
+        incidentio_incidents_update: [
+          { text: 'Update incident', field: 'id', core: true },
+          { text: ', to status', field: 'incident_status_id' },
+          { text: ', at severity', field: 'severity_id' },
+        ],
+        incidentio_actions_list: [
+          'List actions',
+          { text: 'on incident', field: 'incident_id' },
+          { text: ', in mode', field: 'incident_mode' },
+        ],
+        incidentio_actions_show: [{ text: 'Fetch action', field: 'id', core: true }],
+        incidentio_follow_ups_list: [
+          'List follow-ups',
+          { text: 'on incident', field: 'incident_id' },
+          { text: ', in mode', field: 'incident_mode' },
+        ],
+        incidentio_follow_ups_show: [{ text: 'Fetch follow-up', field: 'id', core: true }],
+        incidentio_users_list: ['List users', { text: ', matching', field: USER_LOOKUP_FIELD }],
+        incidentio_users_show: [{ text: 'Fetch user', field: 'id', core: true }],
+        incidentio_workflows_list: ['List workflows'],
+        incidentio_workflows_create: [
+          { text: 'Create workflow', field: 'name', core: true },
+          { text: ', triggered by', field: 'trigger' },
+        ],
+        incidentio_workflows_show: [{ text: 'Fetch workflow', field: 'id', core: true }],
+        incidentio_workflows_update: [
+          { text: 'Update workflow', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        incidentio_workflows_delete: [{ text: 'Delete workflow', field: 'id', core: true }],
+        incidentio_schedules_list: ['List on-call schedules'],
+        incidentio_schedules_create: [
+          { text: 'Create schedule', field: 'name', core: true },
+          { text: ', in', field: 'timezone' },
+        ],
+        incidentio_schedules_show: [{ text: 'Fetch schedule', field: 'id', core: true }],
+        incidentio_schedules_update: [
+          { text: 'Update schedule', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        incidentio_schedules_delete: [{ text: 'Delete schedule', field: 'id', core: true }],
+        incidentio_escalations_list: ['List escalations'],
+        incidentio_escalations_create: [
+          { text: 'Raise escalation', field: 'title', core: true },
+          { text: ', to', field: ESCALATION_TARGET_FIELD },
+        ],
+        incidentio_escalations_show: [{ text: 'Fetch escalation', field: 'id', core: true }],
+        incidentio_custom_fields_list: ['List custom fields'],
+        incidentio_custom_fields_create: [
+          { text: 'Create custom field', field: 'name', core: true },
+          { text: ', of type', field: 'field_type' },
+        ],
+        incidentio_custom_fields_show: [{ text: 'Fetch custom field', field: 'id', core: true }],
+        incidentio_custom_fields_update: [
+          { text: 'Update custom field', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        incidentio_custom_fields_delete: [{ text: 'Delete custom field', field: 'id', core: true }],
+        incidentio_severities_list: ['List severity levels'],
+        incidentio_incident_statuses_list: ['List incident statuses'],
+        incidentio_incident_types_list: ['List incident types'],
+        incidentio_incident_roles_list: ['List incident roles'],
+        incidentio_incident_roles_create: [
+          { text: 'Create incident role', field: 'name', core: true },
+          { text: ', with shortform', field: 'shortform' },
+        ],
+        incidentio_incident_roles_show: [{ text: 'Fetch incident role', field: 'id', core: true }],
+        incidentio_incident_roles_update: [
+          { text: 'Update incident role', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        incidentio_incident_roles_delete: [
+          { text: 'Delete incident role', field: 'id', core: true },
+        ],
+        incidentio_incident_timestamps_list: ['List incident timestamps'],
+        incidentio_incident_timestamps_show: [
+          { text: 'Fetch incident timestamp', field: 'id', core: true },
+        ],
+        incidentio_incident_updates_list: [
+          'List status updates',
+          { text: 'on incident', field: 'incident_id' },
+        ],
+        incidentio_schedule_entries_list: [
+          { text: 'List entries on schedule', field: 'schedule_id', core: true },
+          { text: ', from', field: 'entry_window_start' },
+          { text: ', through', field: 'entry_window_end' },
+        ],
+        incidentio_schedule_overrides_create: [
+          { text: 'Override schedule', field: 'schedule_id', core: true },
+          { text: ', assigning', field: OVERRIDE_USER_FIELD },
+          { text: ', from', field: 'start_at' },
+        ],
+        incidentio_escalation_paths_list: ['List escalation paths'],
+        incidentio_escalation_paths_create: [
+          { text: 'Create escalation path', field: 'name', core: true },
+        ],
+        incidentio_escalation_paths_show: [
+          { text: 'Fetch escalation path', field: 'id', core: true },
+        ],
+        incidentio_escalation_paths_update: [
+          { text: 'Update escalation path', field: 'id', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        incidentio_escalation_paths_delete: [
+          { text: 'Delete escalation path', field: 'id', core: true },
+        ],
+        incidentio_on_call_now: [
+          'Get who is on call',
+          { text: 'on schedule', field: 'schedule_id' },
+        ],
+        incidentio_schedule_overrides_list: [
+          { text: 'List overrides on schedule', field: 'schedule_id', core: true },
+        ],
+        incidentio_alerts_list: [
+          'List alerts',
+          { text: ', with status', field: 'alert_status' },
+          { text: ', from source', field: 'alert_source_id' },
+        ],
+        incidentio_alerts_show: [{ text: 'Fetch alert', field: 'id', core: true }],
+        incidentio_alerts_resolve: [{ text: 'Resolve alert', field: 'id', core: true }],
+        incidentio_alert_events_create: [
+          { text: 'Fire alert', field: 'alert_title', core: true },
+          { text: ', into source', field: 'alert_source_config_id' },
+        ],
+        incidentio_incident_alerts_list: [
+          'List incident alerts',
+          { text: ', on incident', field: 'incident_id' },
+          { text: ', for alert', field: 'alert_id' },
+        ],
+        incidentio_escalations_cancel: [{ text: 'Cancel escalation', field: 'id', core: true }],
+        incidentio_catalog_types_list: ['List catalog types'],
+        incidentio_catalog_entries_list: [
+          { text: 'List entries of catalog type', field: 'catalog_type_id', core: true },
+        ],
+        incidentio_teams_list: ['List teams'],
+        incidentio_teams_show: [{ text: 'Fetch team', field: 'id', core: true }],
+        incidentio_follow_ups_create: [
+          { text: 'Create follow-up', field: 'follow_up_title', core: true },
+          { text: ', on incident', field: 'incident_id' },
+        ],
+        incidentio_follow_ups_update: [
+          { text: 'Update follow-up', field: 'id', core: true },
+          { text: ', to status', field: 'item_status' },
+        ],
+        incidentio_actions_create: [
+          { text: 'Create action', field: 'action_description', core: true },
+          { text: ', on incident', field: 'incident_id' },
+        ],
+        incidentio_actions_update: [
+          { text: 'Update action', field: 'id', core: true },
+          { text: ', to status', field: 'item_status' },
+        ],
+        incidentio_incident_participants_list: [
+          { text: 'List participants of incident', field: 'incident_id', core: true },
+        ],
+        incidentio_incident_memberships_create: [
+          { text: 'Grant', field: 'user_id', core: true },
+          { text: 'access to incident', field: 'incident_id', core: true },
+        ],
+        incidentio_incident_memberships_revoke: [
+          { text: 'Revoke', field: 'user_id', core: true },
+          { text: 'access to incident', field: 'incident_id', core: true },
+        ],
+      },
+    },
+  },
   triggers: {
     enabled: true,
     available: [
@@ -92,6 +290,33 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         { label: 'Show Escalation Path', id: 'incidentio_escalation_paths_show' },
         { label: 'Update Escalation Path', id: 'incidentio_escalation_paths_update' },
         { label: 'Delete Escalation Path', id: 'incidentio_escalation_paths_delete' },
+        // On-call
+        { label: 'Get Who Is On Call', id: 'incidentio_on_call_now' },
+        { label: 'List Schedule Overrides', id: 'incidentio_schedule_overrides_list' },
+        // Alerts
+        { label: 'List Alerts', id: 'incidentio_alerts_list' },
+        { label: 'Show Alert', id: 'incidentio_alerts_show' },
+        { label: 'Resolve Alert', id: 'incidentio_alerts_resolve' },
+        { label: 'Create Alert Event', id: 'incidentio_alert_events_create' },
+        { label: 'List Incident Alerts', id: 'incidentio_incident_alerts_list' },
+        // Escalations
+        { label: 'Cancel Escalation', id: 'incidentio_escalations_cancel' },
+        // Catalog
+        { label: 'List Catalog Types', id: 'incidentio_catalog_types_list' },
+        { label: 'List Catalog Entries', id: 'incidentio_catalog_entries_list' },
+        // Teams
+        { label: 'List Teams', id: 'incidentio_teams_list' },
+        { label: 'Show Team', id: 'incidentio_teams_show' },
+        // Follow-ups
+        { label: 'Create Follow-up', id: 'incidentio_follow_ups_create' },
+        { label: 'Update Follow-up', id: 'incidentio_follow_ups_update' },
+        // Actions
+        { label: 'Create Action', id: 'incidentio_actions_create' },
+        { label: 'Update Action', id: 'incidentio_actions_update' },
+        // Incident people
+        { label: 'List Incident Participants', id: 'incidentio_incident_participants_list' },
+        { label: 'Grant Incident Membership', id: 'incidentio_incident_memberships_create' },
+        { label: 'Revoke Incident Membership', id: 'incidentio_incident_memberships_revoke' },
       ],
       value: () => 'incidentio_incidents_list',
     },
@@ -110,6 +335,12 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
           'incidentio_escalations_list',
           'incidentio_incident_updates_list',
           'incidentio_escalation_paths_list',
+          'incidentio_on_call_now',
+          'incidentio_schedule_overrides_list',
+          'incidentio_alerts_list',
+          'incidentio_incident_alerts_list',
+          'incidentio_catalog_entries_list',
+          'incidentio_teams_list',
         ],
       },
       mode: 'advanced',
@@ -129,6 +360,12 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
           'incidentio_escalations_list',
           'incidentio_incident_updates_list',
           'incidentio_escalation_paths_list',
+          'incidentio_on_call_now',
+          'incidentio_schedule_overrides_list',
+          'incidentio_alerts_list',
+          'incidentio_incident_alerts_list',
+          'incidentio_catalog_entries_list',
+          'incidentio_teams_list',
         ],
       },
       mode: 'advanced',
@@ -261,6 +498,12 @@ Return ONLY the summary text - no explanations.`,
           'incidentio_escalation_paths_show',
           'incidentio_escalation_paths_update',
           'incidentio_escalation_paths_delete',
+          'incidentio_alerts_show',
+          'incidentio_alerts_resolve',
+          'incidentio_escalations_cancel',
+          'incidentio_teams_show',
+          'incidentio_follow_ups_update',
+          'incidentio_actions_update',
         ],
       },
       required: true,
@@ -366,13 +609,29 @@ Return ONLY the title - no explanations.`,
       id: 'incident_id',
       title: 'Incident ID',
       type: 'short-input',
-      placeholder: 'Filter by incident ID...',
+      placeholder: 'Enter incident ID...',
       condition: {
         field: 'operation',
         value: [
           'incidentio_actions_list',
           'incidentio_follow_ups_list',
           'incidentio_incident_updates_list',
+          'incidentio_incident_alerts_list',
+          'incidentio_incident_participants_list',
+          'incidentio_incident_memberships_create',
+          'incidentio_incident_memberships_revoke',
+          'incidentio_follow_ups_create',
+          'incidentio_actions_create',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'incidentio_incident_participants_list',
+          'incidentio_incident_memberships_create',
+          'incidentio_incident_memberships_revoke',
+          'incidentio_follow_ups_create',
+          'incidentio_actions_create',
         ],
       },
     },
@@ -442,8 +701,6 @@ Return ONLY the title - no explanations.`,
       options: [
         { label: 'Newly Created', id: 'newly_created' },
         { label: 'Newly Created and Active', id: 'newly_created_and_active' },
-        { label: 'Active', id: 'active' },
-        { label: 'All', id: 'all' },
       ],
       value: () => 'newly_created',
       condition: {
@@ -743,9 +1000,21 @@ Return ONLY the instructions text - no explanations.`,
       placeholder: 'Enter schedule ID...',
       condition: {
         field: 'operation',
-        value: ['incidentio_schedule_entries_list', 'incidentio_schedule_overrides_create'],
+        value: [
+          'incidentio_schedule_entries_list',
+          'incidentio_schedule_overrides_create',
+          'incidentio_schedule_overrides_list',
+          'incidentio_on_call_now',
+        ],
       },
-      required: true,
+      required: {
+        field: 'operation',
+        value: [
+          'incidentio_schedule_entries_list',
+          'incidentio_schedule_overrides_create',
+          'incidentio_schedule_overrides_list',
+        ],
+      },
     },
     {
       id: 'entry_window_start',
@@ -793,24 +1062,40 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Rotation ID',
       type: 'short-input',
       placeholder: 'Enter rotation ID...',
-      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
-      required: true,
+      condition: {
+        field: 'operation',
+        value: ['incidentio_schedule_overrides_create', 'incidentio_schedule_overrides_list'],
+      },
+      required: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
     },
     {
       id: 'layer_id',
       title: 'Layer ID',
       type: 'short-input',
       placeholder: 'Enter layer ID...',
-      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
-      required: true,
+      condition: {
+        field: 'operation',
+        value: ['incidentio_schedule_overrides_create', 'incidentio_schedule_overrides_list'],
+      },
+      required: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
     },
     {
       id: 'user_id',
       title: 'User ID',
       type: 'short-input',
-      placeholder: 'Enter user ID (provide one of: user_id, user_email, or user_slack_id)...',
-      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
-      required: false,
+      placeholder: 'Enter user ID...',
+      condition: {
+        field: 'operation',
+        value: [
+          'incidentio_schedule_overrides_create',
+          'incidentio_incident_memberships_create',
+          'incidentio_incident_memberships_revoke',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: ['incidentio_incident_memberships_create', 'incidentio_incident_memberships_revoke'],
+      },
     },
     {
       id: 'user_email',
@@ -930,6 +1215,351 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
         generationType: 'json-object',
       },
     },
+    // Alerts inputs
+    {
+      id: 'alert_status',
+      title: 'Alert Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Firing', id: 'firing' },
+        { label: 'Resolved', id: 'resolved' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['incidentio_alerts_list', 'incidentio_alert_events_create'],
+      },
+      required: { field: 'operation', value: 'incidentio_alert_events_create' },
+    },
+    {
+      id: 'status_operator',
+      title: 'Alert Status Match',
+      type: 'dropdown',
+      options: [
+        { label: 'Is One Of', id: 'one_of' },
+        { label: 'Is Not', id: 'not_in' },
+      ],
+      value: () => 'one_of',
+      condition: { field: 'operation', value: 'incidentio_alerts_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alert_source_id',
+      title: 'Alert Source ID',
+      type: 'short-input',
+      placeholder: 'Filter by alert source ID...',
+      condition: { field: 'operation', value: 'incidentio_alerts_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alert_source_operator',
+      title: 'Alert Source Match',
+      type: 'dropdown',
+      options: [
+        { label: 'Is One Of', id: 'one_of' },
+        { label: 'Is Not', id: 'not_in' },
+      ],
+      value: () => 'one_of',
+      condition: { field: 'operation', value: 'incidentio_alerts_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'deduplication_key',
+      title: 'Deduplication Key',
+      type: 'short-input',
+      placeholder: 'Reuse this key to update or resolve the same alert...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_alerts_list', 'incidentio_alert_events_create'],
+      },
+    },
+    {
+      id: 'created_at_gte',
+      title: 'Created On Or After',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (e.g., 2025-01-01)...',
+      condition: { field: 'operation', value: 'incidentio_alerts_list' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date based on the user's description.
+The date should be in the format: YYYY-MM-DD.
+
+Return ONLY the date string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the earliest date (e.g., "start of last month")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'created_at_lte',
+      title: 'Created On Or Before',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD (e.g., 2025-02-01)...',
+      condition: { field: 'operation', value: 'incidentio_alerts_list' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a date based on the user's description.
+The date should be in the format: YYYY-MM-DD.
+
+Return ONLY the date string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the latest date (e.g., "end of last month")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'has_notes',
+      title: 'Has Notes',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: 'any' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'any',
+      condition: { field: 'operation', value: 'incidentio_alerts_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'include_maintenance_window',
+      title: 'Include Maintenance Window Alerts',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: 'any' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'any',
+      condition: { field: 'operation', value: 'incidentio_alerts_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alert_id',
+      title: 'Alert ID',
+      type: 'short-input',
+      placeholder: 'Filter by alert ID...',
+      condition: { field: 'operation', value: 'incidentio_incident_alerts_list' },
+    },
+    {
+      id: 'alert_source_config_id',
+      title: 'Alert Source Config ID',
+      type: 'short-input',
+      placeholder: 'Enter HTTP alert source config ID...',
+      condition: { field: 'operation', value: 'incidentio_alert_events_create' },
+      required: true,
+    },
+    {
+      id: 'alert_source_token',
+      title: 'Alert Source Token',
+      type: 'short-input',
+      placeholder: 'Enter the token from the HTTP alert source setup...',
+      password: true,
+      condition: { field: 'operation', value: 'incidentio_alert_events_create' },
+      required: true,
+    },
+    {
+      id: 'alert_title',
+      title: 'Alert Title',
+      type: 'short-input',
+      placeholder: 'Enter alert title...',
+      condition: { field: 'operation', value: 'incidentio_alert_events_create' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an alert title based on the user's description.
+The title should:
+- Name the affected system and the symptom
+- Be short enough to read in a page notification
+
+Return ONLY the title - no explanations.`,
+        placeholder: 'Describe the alert (e.g., "checkout latency above 2s")...',
+      },
+    },
+    {
+      id: 'alert_description',
+      title: 'Alert Description',
+      type: 'long-input',
+      placeholder: 'Enter alert description (supports Markdown)...',
+      condition: { field: 'operation', value: 'incidentio_alert_events_create' },
+    },
+    {
+      id: 'source_url',
+      title: 'Source URL',
+      type: 'short-input',
+      placeholder: 'Link back to the alert in the upstream system...',
+      condition: { field: 'operation', value: 'incidentio_alert_events_create' },
+      mode: 'advanced',
+    },
+    {
+      id: 'metadata',
+      title: 'Metadata',
+      type: 'long-input',
+      placeholder: '{"service": "payments"}',
+      condition: { field: 'operation', value: 'incidentio_alert_events_create' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object of alert metadata based on the user's description.
+
+Return ONLY the JSON object - no explanations, no markdown fences.`,
+        placeholder:
+          'Describe the metadata to attach (e.g., "service payments, region eu-west-1")...',
+        generationType: 'json-object',
+      },
+    },
+    // Catalog inputs
+    {
+      id: 'catalog_type_id',
+      title: 'Catalog Type ID',
+      type: 'short-input',
+      placeholder: 'Enter catalog type ID...',
+      condition: { field: 'operation', value: 'incidentio_catalog_entries_list' },
+      required: true,
+    },
+    {
+      id: 'identifier',
+      title: 'Identifier',
+      type: 'short-input',
+      placeholder: 'Match entries by ID, external ID, or alias...',
+      condition: { field: 'operation', value: 'incidentio_catalog_entries_list' },
+      mode: 'advanced',
+    },
+    // Follow-up and Action inputs
+    {
+      id: 'follow_up_title',
+      title: 'Follow-up Title',
+      type: 'short-input',
+      placeholder: 'Enter follow-up title...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_follow_ups_create', 'incidentio_follow_ups_update'],
+      },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a follow-up title based on the user's description.
+The title should:
+- Name the concrete piece of work to be done after the incident
+- Start with a verb
+
+Return ONLY the title - no explanations.`,
+        placeholder:
+          'Describe the follow-up (e.g., "add alerting on connection pool saturation")...',
+      },
+    },
+    {
+      id: 'follow_up_description',
+      title: 'Follow-up Description',
+      type: 'long-input',
+      placeholder: 'Enter follow-up description (supports Markdown)...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_follow_ups_create', 'incidentio_follow_ups_update'],
+      },
+    },
+    {
+      id: 'action_description',
+      title: 'Action Description',
+      type: 'long-input',
+      placeholder: 'Enter action description (supports Markdown)...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_actions_create', 'incidentio_actions_update'],
+      },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an incident action description based on the user's description.
+The description should:
+- Name the concrete step someone needs to take during the incident
+- Start with a verb
+
+Return ONLY the description - no explanations.`,
+        placeholder: 'Describe the action (e.g., "fail over the primary database")...',
+      },
+    },
+    {
+      id: 'item_status',
+      title: 'Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Outstanding', id: 'outstanding' },
+        { label: 'Completed', id: 'completed' },
+        { label: 'Not Doing', id: 'not_doing' },
+      ],
+      value: () => 'outstanding',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_follow_ups_update', 'incidentio_actions_update'],
+      },
+      required: true,
+    },
+    {
+      id: 'assignee_id',
+      title: 'Assignee ID',
+      type: 'short-input',
+      placeholder: 'Enter user ID to assign to...',
+      condition: {
+        field: 'operation',
+        value: [
+          'incidentio_follow_ups_create',
+          'incidentio_follow_ups_update',
+          'incidentio_actions_create',
+          'incidentio_actions_update',
+        ],
+      },
+    },
+    {
+      id: 'assignee_team_id',
+      title: 'Assignee Team ID',
+      type: 'short-input',
+      placeholder: 'Enter team ID to assign to...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_follow_ups_create', 'incidentio_follow_ups_update'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'follow_up_category_id',
+      title: 'Follow-up Category ID',
+      type: 'short-input',
+      placeholder: 'Enter follow-up category ID...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_follow_ups_create', 'incidentio_follow_ups_update'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'follow_up_priority_option_id',
+      title: 'Follow-up Priority ID',
+      type: 'short-input',
+      placeholder: 'Enter follow-up priority option ID...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_follow_ups_create', 'incidentio_follow_ups_update'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'external_issue_reference_id',
+      title: 'External Issue Reference ID',
+      type: 'short-input',
+      placeholder: 'Enter external issue ID...',
+      condition: { field: 'operation', value: 'incidentio_follow_ups_create' },
+      mode: 'advanced',
+    },
+    {
+      id: 'labels',
+      title: 'Labels',
+      type: 'short-input',
+      placeholder: 'Comma-separated labels (e.g., bug,urgent)...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_follow_ups_create', 'incidentio_follow_ups_update'],
+      },
+      mode: 'advanced',
+    },
     // API Key (common)
     {
       id: 'apiKey',
@@ -993,6 +1623,25 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
       'incidentio_escalation_paths_show',
       'incidentio_escalation_paths_update',
       'incidentio_escalation_paths_delete',
+      'incidentio_on_call_now',
+      'incidentio_schedule_overrides_list',
+      'incidentio_alerts_list',
+      'incidentio_alerts_show',
+      'incidentio_alerts_resolve',
+      'incidentio_alert_events_create',
+      'incidentio_incident_alerts_list',
+      'incidentio_escalations_cancel',
+      'incidentio_catalog_types_list',
+      'incidentio_catalog_entries_list',
+      'incidentio_teams_list',
+      'incidentio_teams_show',
+      'incidentio_follow_ups_create',
+      'incidentio_follow_ups_update',
+      'incidentio_actions_create',
+      'incidentio_actions_update',
+      'incidentio_incident_participants_list',
+      'incidentio_incident_memberships_create',
+      'incidentio_incident_memberships_revoke',
     ],
     config: {
       tool: (params) => {
@@ -1089,6 +1738,44 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
             return 'incidentio_escalation_paths_update'
           case 'incidentio_escalation_paths_delete':
             return 'incidentio_escalation_paths_delete'
+          case 'incidentio_on_call_now':
+            return 'incidentio_on_call_now'
+          case 'incidentio_schedule_overrides_list':
+            return 'incidentio_schedule_overrides_list'
+          case 'incidentio_alerts_list':
+            return 'incidentio_alerts_list'
+          case 'incidentio_alerts_show':
+            return 'incidentio_alerts_show'
+          case 'incidentio_alerts_resolve':
+            return 'incidentio_alerts_resolve'
+          case 'incidentio_alert_events_create':
+            return 'incidentio_alert_events_create'
+          case 'incidentio_incident_alerts_list':
+            return 'incidentio_incident_alerts_list'
+          case 'incidentio_escalations_cancel':
+            return 'incidentio_escalations_cancel'
+          case 'incidentio_catalog_types_list':
+            return 'incidentio_catalog_types_list'
+          case 'incidentio_catalog_entries_list':
+            return 'incidentio_catalog_entries_list'
+          case 'incidentio_teams_list':
+            return 'incidentio_teams_list'
+          case 'incidentio_teams_show':
+            return 'incidentio_teams_show'
+          case 'incidentio_follow_ups_create':
+            return 'incidentio_follow_ups_create'
+          case 'incidentio_follow_ups_update':
+            return 'incidentio_follow_ups_update'
+          case 'incidentio_actions_create':
+            return 'incidentio_actions_create'
+          case 'incidentio_actions_update':
+            return 'incidentio_actions_update'
+          case 'incidentio_incident_participants_list':
+            return 'incidentio_incident_participants_list'
+          case 'incidentio_incident_memberships_create':
+            return 'incidentio_incident_memberships_create'
+          case 'incidentio_incident_memberships_revoke':
+            return 'incidentio_incident_memberships_revoke'
           default:
             return 'incidentio_incidents_list'
         }
@@ -1112,6 +1799,35 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
         if (params.operation === 'incidentio_users_list') {
           if (params.user_email) result.email = params.user_email
           if (params.user_slack_id) result.slack_user_id = params.user_slack_id
+        }
+        if (params.operation === 'incidentio_alerts_list') {
+          if (params.alert_status) result.status = params.alert_status
+          result.has_notes = toTriState(params.has_notes)
+          result.include_maintenance_window = toTriState(params.include_maintenance_window)
+        }
+        if (params.operation === 'incidentio_alert_events_create') {
+          if (params.alert_status) result.status = params.alert_status
+          if (params.alert_title) result.title = params.alert_title
+          if (params.alert_description) result.description = params.alert_description
+        }
+        if (
+          params.operation === 'incidentio_follow_ups_create' ||
+          params.operation === 'incidentio_follow_ups_update'
+        ) {
+          if (params.follow_up_title) result.title = params.follow_up_title
+          if (params.follow_up_description) result.description = params.follow_up_description
+        }
+        if (
+          params.operation === 'incidentio_actions_create' ||
+          params.operation === 'incidentio_actions_update'
+        ) {
+          if (params.action_description) result.description = params.action_description
+        }
+        if (
+          params.operation === 'incidentio_follow_ups_update' ||
+          params.operation === 'incidentio_actions_update'
+        ) {
+          if (params.item_status) result.status = params.item_status
         }
         return result
       },
@@ -1188,6 +1904,43 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     // Escalation Paths fields
     path: { type: 'json', description: 'Escalation path configuration' },
     working_hours: { type: 'json', description: 'Working hours configuration' },
+    // Alert fields
+    alert_id: { type: 'string', description: 'Alert ID' },
+    alert_status: { type: 'string', description: 'Alert status (firing, resolved)' },
+    status_operator: { type: 'string', description: 'How to match the alert status filter' },
+    alert_source_id: { type: 'string', description: 'Alert source ID' },
+    alert_source_operator: {
+      type: 'string',
+      description: 'How to match the alert source filter',
+    },
+    deduplication_key: { type: 'string', description: 'Alert deduplication key' },
+    created_at_gte: { type: 'string', description: 'Earliest alert creation date' },
+    created_at_lte: { type: 'string', description: 'Latest alert creation date' },
+    has_notes: { type: 'string', description: 'Whether to filter on alerts having notes' },
+    include_maintenance_window: {
+      type: 'string',
+      description: 'Whether to include alerts held by a maintenance window',
+    },
+    alert_source_config_id: { type: 'string', description: 'HTTP alert source config ID' },
+    alert_source_token: { type: 'string', description: 'HTTP alert source token' },
+    alert_title: { type: 'string', description: 'Alert title' },
+    alert_description: { type: 'string', description: 'Alert description' },
+    source_url: { type: 'string', description: 'Link to the alert in the upstream system' },
+    metadata: { type: 'string', description: 'Alert metadata JSON' },
+    // Catalog fields
+    catalog_type_id: { type: 'string', description: 'Catalog type ID' },
+    identifier: { type: 'string', description: 'Catalog entry identifier to match' },
+    // Follow-up and Action fields
+    follow_up_title: { type: 'string', description: 'Follow-up title' },
+    follow_up_description: { type: 'string', description: 'Follow-up description' },
+    action_description: { type: 'string', description: 'Action description' },
+    item_status: { type: 'string', description: 'Follow-up or action status' },
+    assignee_id: { type: 'string', description: 'ID of the user to assign to' },
+    assignee_team_id: { type: 'string', description: 'ID of the team to assign to' },
+    follow_up_category_id: { type: 'string', description: 'Follow-up category ID' },
+    follow_up_priority_option_id: { type: 'string', description: 'Follow-up priority option ID' },
+    external_issue_reference_id: { type: 'string', description: 'External issue reference ID' },
+    labels: { type: 'string', description: 'Comma-separated follow-up labels' },
   },
   outputs: {
     // Incidents
@@ -1230,10 +1983,32 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     // Schedule Entries
     schedule_entries: { type: 'json', description: 'List of schedule entries' },
     // Schedule Overrides
-    schedule_override: { type: 'json', description: 'Schedule override details' },
+    override: { type: 'json', description: 'Schedule override details' },
     // Escalation Paths
     escalation_paths: { type: 'json', description: 'List of escalation paths' },
     escalation_path: { type: 'json', description: 'Escalation path details' },
+    // On-call
+    on_call: { type: 'json', description: 'Shifts that are ongoing right now' },
+    next_on_call: { type: 'json', description: 'Shifts that take over at the next changeover' },
+    // Schedule Overrides
+    overrides: { type: 'json', description: 'List of schedule overrides' },
+    // Alerts
+    alerts: { type: 'json', description: 'List of alerts' },
+    alert: { type: 'json', description: 'Alert details' },
+    incident_alerts: { type: 'json', description: 'List of incident-to-alert connections' },
+    deduplication_key: { type: 'string', description: 'Deduplication key of the alert event' },
+    status: { type: 'string', description: 'Status of the alert event' },
+    // Catalog
+    catalog_types: { type: 'json', description: 'List of catalog types' },
+    catalog_entries: { type: 'json', description: 'List of catalog entries' },
+    catalog_type: { type: 'json', description: 'The catalog type the entries belong to' },
+    // Teams
+    teams: { type: 'json', description: 'List of teams' },
+    team: { type: 'json', description: 'Team details' },
+    // Incident people
+    active: { type: 'json', description: 'Participants actively helping with the incident' },
+    passive: { type: 'json', description: 'Participants observing the incident' },
+    incident_membership: { type: 'json', description: 'Incident membership details' },
     // General
     message: { type: 'string', description: 'Operation result message' },
     pagination_meta: { type: 'json', description: 'Pagination metadata' },
@@ -1332,7 +2107,20 @@ export const IncidentioBlockMeta = {
       name: 'on-call-handoff-report',
       description: 'Summarize who is on call and recent open incidents for an on-call handoff.',
       content:
-        '# On-Call Handoff Report\n\nBuild a clean handoff so the next on-call engineer knows the state of the world.\n\n## Steps\n1. List current schedules and active escalation paths to determine who is on call.\n2. List recent incidents and filter to those that are open or recently resolved.\n3. For each open incident, capture severity, status, and outstanding follow-ups.\n\n## Output\nReturn a handoff brief: who is on call now, open incidents with severity and status, and follow-ups that still need owners.',
+        '# On-Call Handoff Report\n\nBuild a clean handoff so the next on-call engineer knows the state of the world.\n\n## Steps\n1. Get who is on call to read the ongoing shifts, and note the shifts that take over at the next changeover.\n2. List schedule overrides so any shift cover is reflected in the handoff.\n3. List recent incidents and filter to those that are open or recently resolved.\n4. For each open incident, capture severity, status, and outstanding follow-ups.\n\n## Output\nReturn a handoff brief: who is on call now and who takes over next, open incidents with severity and status, and follow-ups that still need owners.',
+    },
+    {
+      name: 'triage-firing-alerts',
+      description:
+        'Review firing alerts, link them to incidents, and resolve the ones that are stale.',
+      content:
+        '# Triage Firing Alerts\n\nWork the firing alert queue so real problems get an incident and noise gets closed out.\n\n## Steps\n1. List alerts filtered to status firing, oldest first, and capture title, source, and when each started.\n2. For each alert, list incident alerts to see whether it is already attached to an incident.\n3. Group the unattached alerts by source and by the attributes they share.\n4. Resolve alerts that are clearly stale or already handled, and flag the rest for an incident.\n\n## Output\nReturn three lists: alerts already attached to an incident, alerts resolved as stale, and alerts that still need a human decision with the reason why.',
+    },
+    {
+      name: 'page-the-on-call-for-a-service',
+      description: 'Find who is on call for a service and raise an escalation to them.',
+      content:
+        '# Page the On-Call for a Service\n\nRoute an urgent problem to whoever is actually holding the pager right now.\n\n## Steps\n1. List catalog entries for the service catalog type to resolve the service and its owning team.\n2. Get who is on call and pick the shift covering that team’s schedule.\n3. List escalation paths and choose the one matching the service, falling back to the on-call user IDs.\n4. Create the escalation with a title naming the service and the symptom, using a unique idempotency key so a retry does not double-page.\n\n## Output\nReturn who was paged, the escalation ID, and the schedule the on-call shift came from. If nobody is on call for that schedule, say so instead of paging a fallback silently.',
     },
     {
       name: 'export-incident-followups',

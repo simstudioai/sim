@@ -1,12 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { PANEL_WIDTH } from '@/stores/constants'
 import type { PanelState, PanelTab } from '@/stores/panel/types'
 
 /**
- * Default panel tab
+ * Default panel tab. Falls back to the toolbar when Chat is disabled, since the
+ * copilot tab is not rendered then and would leave the panel body empty.
  */
-const DEFAULT_TAB: PanelTab = 'copilot'
+const DEFAULT_TAB: PanelTab = isChatEnabled ? 'copilot' : 'toolbar'
 
 export const usePanelStore = create<PanelState>()(
   persist(

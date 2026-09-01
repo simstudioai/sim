@@ -64,6 +64,10 @@ export function createStableFlagController(
         if (active || showTimer !== null) {
           return
         }
+        if (delayMs <= 0) {
+          show()
+          return
+        }
         showTimer = setTimeout(show, delayMs)
         return
       }
@@ -95,7 +99,7 @@ export function createStableFlagController(
  * - Rising edge — `value` must hold true for `delayMs` before the flag turns on.
  * - Falling edge — once on, the flag stays on for at least `minVisibleMs`.
  *
- * With both options at `0` it returns `value` unchanged (after a tick). Useful for
+ * With both options at `0` it returns `value` unchanged. Useful for
  * connection/loading indicators that would otherwise flicker on sub-second changes.
  */
 export function useStableFlag(value: boolean, options: StableFlagOptions = {}): boolean {

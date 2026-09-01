@@ -20,6 +20,15 @@ export const TranslateBlock: BlockConfig = {
   integrationType: IntegrationType.AI,
   bgColor: '#FF4B4B',
   icon: TranslateIcon,
+  canvasPresentation: {
+    defaultTitle: 'Translate',
+    sentences: {
+      default: [
+        { text: 'Translate', field: 'context', core: true },
+        { text: 'into', field: 'targetLanguage', core: true },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'context',

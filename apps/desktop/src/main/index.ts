@@ -1,22 +1,38 @@
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { Session, WebContents } from 'electron'
-import { app, BrowserWindow, crashReporter, net, session } from 'electron'
+import type { OpenDialogOptions, Session, WebContents } from 'electron'
+import { app, BrowserWindow, crashReporter, dialog, net, session, shell } from 'electron'
+import {
+  beginAccountDataTeardown,
+  completeDeploymentScopedTeardown,
+  getAccountDataTeardownKind,
+  getAccountDataTeardownOrigin,
+  initializeAccountDataRecovery,
+  isAccountDataTeardownRequired,
+  prepareAccountDataTeardownForQuit,
+  retryAccountDataTeardown,
+  waitForAccountDataMutations,
+} from '@/main/account-data-generation'
 import { newChatRoute, settingsRoute } from '@/main/app-routes'
 import {
+  activateBrowserScope as activateAgentBrowserScope,
   clearBrowserProfile as clearAgentBrowserProfile,
+  closeBrowserSession as closeAgentBrowserSession,
   initDriver as initBrowserAgentDriver,
 } from '@/main/browser-agent/driver'
 import {
   canReportPanelBounds,
+  capturePanelSnapshot as captureBrowserAgentPanelSnapshot,
   setPanelBounds as setBrowserAgentPanelBounds,
   setPanelOccluded as setBrowserAgentPanelOccluded,
 } from '@/main/browser-agent/panel'
 import {
-  closeSession as closeAgentBrowserSession,
-  closeFocusedTab as closeFocusedBrowserTab,
-  reopenFocusedTab as reopenClosedBrowserTab,
+  handleFocusedShortcut as handleFocusedBrowserShortcut,
+  isBrowserScopeSuspended,
+  quiesceBrowserSessions,
+  setBrowserDefaultZoom as setAgentBrowserDefaultZoom,
+  setBrowserAppearanceTheme as setAgentBrowserTheme,
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
 import {
@@ -29,18 +45,26 @@ import {
 } from '@/main/config'
 import { attachContextMenu } from '@/main/context-menu'
 import { attachCspFallback } from '@/main/csp'
+import { DesktopChatSessionStore } from '@/main/desktop-chat-session-store'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
+import {
+  installDocumentationHelpSearch,
+  uninstallDocumentationHelpSearch,
+} from '@/main/help-search'
 import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesystem-grant-store'
 import { installApplicationMenu } from '@/main/menu'
 import { openExternalSafe } from '@/main/navigation'
-import { createEventLog } from '@/main/observability'
+import { createEventLog, installMainProcessFailureObservers } from '@/main/observability'
+import { ScopedEventRouter } from '@/main/scoped-event-router'
 import { installGlobalGuards } from '@/main/security-guards'
+import { createServerWindow, relaunchApp } from '@/main/server-window'
 import {
+  canRevokeIn,
   createSessionLifecycleCoordinator,
   decideStartRoute,
   handleConnectIntercept,
@@ -48,7 +72,7 @@ import {
   resolveStartRoute,
 } from '@/main/session-lifecycle'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
-import { TerminalService } from '@/main/terminal'
+import { TerminalRegistry } from '@/main/terminal/registry'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
@@ -60,13 +84,15 @@ const logger = createLogger('DesktopMain')
  * Backstop for the sign-in flows, which are dispatched fire-and-forget from a
  * loopback callback and a navigation guard. The flows record their own expected
  * failures; this catches anything they do not, so a rejection cannot surface as
- * an unhandled one — main registers no `unhandledRejection` handler.
+ * an unhandled one — the process-level observer is a last-resort restart path,
+ * not routine control flow.
  */
 function reportHandoffFailure(error: unknown): void {
   logger.error('Sign-in handoff failed', { error: getErrorMessage(error) })
 }
 
 const OFFLINE_PAGE = 'static/offline.html'
+const SERVER_PAGE = 'static/server.html'
 const DOCK_ICON_FOR_CHANNEL = {
   prod: 'dock-icon.png',
   staging: 'dock-icon-staging.png',
@@ -77,16 +103,50 @@ const DOCK_ICON_FOR_CHANNEL = {
 function main(): void {
   app.enableSandbox()
 
-  const config = createConfigStore(join(app.getPath('userData'), 'settings.json'))
-  const events = createEventLog(join(app.getPath('userData'), 'logs'))
+  const userDataPath = app.getPath('userData')
+  const config = createConfigStore(join(userDataPath, 'settings.json'))
+  initializeAccountDataRecovery(join(userDataPath, 'account-data-teardown-required.json'))
+  const recoveryOrigin = getAccountDataTeardownOrigin()
+  if (isAccountDataTeardownRequired() && recoveryOrigin && !config.isPersistenceAvailable()) {
+    const repaired = config.setOrigin(recoveryOrigin)
+    if (!repaired.ok) {
+      logger.error('Could not repair desktop settings for account-data recovery')
+    }
+  }
+  const accountDataAvailable = () =>
+    config.isPersistenceAvailable() && !isAccountDataTeardownRequired()
+  const events = createEventLog(join(userDataPath, 'logs'))
+  const appOrigin = () => config.getOrigin()
+  /** Resource snapshots stay with the deployment that created this process. */
+  const processOrigin = appOrigin()
+  const recoveryPartition = `sim-settings-recovery-${process.pid}`
+  const appPartition = (origin = appOrigin()) =>
+    accountDataAvailable() ? partitionForOrigin(origin) : recoveryPartition
+  const desktopChatSessions = new DesktopChatSessionStore(
+    join(userDataPath, 'desktop-chat-sessions.json')
+  )
+  const clearDesktopChatSessions = (): void => {
+    desktopChatSessions.clear()
+  }
+  const flushDesktopChatSessions = (phase: 'before-quit' | 'will-quit'): void => {
+    if (!desktopChatSessions.flush()) {
+      logger.warn('Could not flush encrypted task resource state', { phase })
+    }
+  }
   const localFilesystem = new LocalFilesystemService({
     grantStore: createEncryptedLocalFilesystemGrantStore(
-      join(app.getPath('userData'), 'local-filesystem-grants.json')
+      join(userDataPath, 'local-filesystem-grants.json')
     ),
   })
-  const terminal = new TerminalService({
-    loadCwd: () => config.get('terminalCwd'),
-    saveCwd: (cwd) => config.set('terminalCwd', cwd),
+  const scopeEvents = new ScopedEventRouter()
+  const terminal = new TerminalRegistry({
+    load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
+    save: (scopeId, snapshot) => desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
+    migrate: (fromScopeId, toScopeId) =>
+      desktopChatSessions.migrateTerminal(processOrigin, fromScopeId, toScopeId),
+    disposeScope: (scopeId) => {
+      desktopChatSessions.deleteScope(processOrigin, scopeId)
+    },
   })
   const preloadPath = join(__dirname, 'preload.cjs')
 
@@ -96,11 +156,13 @@ function main(): void {
   let ensureWindowCreation: Promise<BrowserWindow> | null = null
   let appSession: Session | null = null
   let sessionLifecycle: ReturnType<typeof createSessionLifecycleCoordinator> | null = null
+  let resumingQuitAfterTeardown = false
+  let mandatoryRelaunchPending = false
   let tray: TrayHandle | null = null
   let updater: UpdaterHandle | null = null
+  let startupReady: Promise<void> | null = null
   const configuredPartitions = new Set<string>()
 
-  const appOrigin = () => config.getOrigin()
   const allowHttpLocalhost = () => !app.isPackaged || appOrigin().startsWith('http://')
   const getWindows = () => [...windows].filter((win) => !win.isDestroyed())
   const getMainWindow = () => {
@@ -113,6 +175,7 @@ function main(): void {
     }
     return getWindows().at(-1) ?? null
   }
+  installMainProcessFailureObservers({ events, getWindow: getMainWindow })
   const windowForContents = (contents: WebContents) => {
     const win = BrowserWindow.fromWebContents(contents)
     return win && windows.has(win) && !win.isDestroyed() ? win : null
@@ -189,7 +252,7 @@ function main(): void {
   })
 
   function configureSessionForOrigin(origin: string) {
-    const partition = partitionForOrigin(origin)
+    const partition = appPartition(origin)
     const ses = session.fromPartition(partition)
     if (configuredPartitions.has(partition)) {
       return ses
@@ -213,11 +276,60 @@ function main(): void {
       events,
       getWindows,
       clearHandoffState: async () => {
-        handoff.clear()
-        tray?.clearRecentChats()
-        await localFilesystem.forgetAll()
+        const stores = [
+          { label: 'sign-in handoff state', clear: () => handoff.clear() },
+          { label: 'recent tasks', clear: () => tray?.clearRecentChats() },
+          {
+            label: 'renderer session state',
+            clear: () =>
+              Promise.all(
+                getWindows()
+                  .filter((win) => canRevokeIn(win, appOrigin()))
+                  .map((win) =>
+                    win.webContents.executeJavaScript(
+                      `(() => { sessionStorage.clear(); window.name = '' })()`,
+                      true
+                    )
+                  )
+              ).then(() => undefined),
+          },
+          // Shells are account-scoped runtime state. Leaving them alive across
+          // sign-out would stream the previous account's output into the next
+          // renderer and keep its local processes running invisibly.
+          { label: 'terminal sessions', clear: () => terminal.dispose() },
+          { label: 'task resource state', clear: clearDesktopChatSessions },
+          { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
+        ]
+        const outcomes = await Promise.allSettled(
+          stores.map(({ clear }) => Promise.resolve().then(clear))
+        )
+        const failures = outcomes.flatMap((outcome, index) => {
+          if (outcome.status === 'fulfilled') return []
+          logger.error('Could not clear local account state', {
+            store: stores[index].label,
+            error: getErrorMessage(outcome.reason),
+          })
+          return [outcome.reason]
+        })
+        if (failures.length > 0) {
+          throw new AggregateError(failures, 'Local account state survived teardown.')
+        }
       },
-      clearBrowserProfile: clearAgentBrowserProfile,
+      clearBrowserProfile: async () => {
+        // Browser profile teardown emits empty tab snapshots while closing its
+        // live views. Clear task descriptors afterward so those snapshots
+        // cannot recreate account-scoped state after sign-out.
+        const failures: unknown[] = []
+        await clearAgentBrowserProfile().catch((error) => failures.push(error))
+        try {
+          clearDesktopChatSessions()
+        } catch (error) {
+          failures.push(error)
+        }
+        if (failures.length > 0) {
+          throw new AggregateError(failures, 'Browser account state survived teardown.')
+        }
+      },
     })
     return ses
   }
@@ -267,10 +379,11 @@ function main(): void {
       config,
       events,
       appOrigin,
-      partition: partitionForOrigin(origin),
+      partition: appPartition(origin),
       preloadPath,
       isPackaged: app.isPackaged,
       restorePosition,
+      isMandatoryRelaunchPending: () => mandatoryRelaunchPending,
       onFullScreenChange: (isFullScreen) => {
         if (!win.isDestroyed()) {
           win.webContents.send('desktop:window-state:changed', { isFullScreen })
@@ -305,6 +418,7 @@ function main(): void {
         }
       },
       allowHttpLocalhost: allowHttpLocalhost(),
+      isMandatoryRelaunchPending: () => mandatoryRelaunchPending,
     })
     attachContextMenu(win.webContents, {
       isDev: !app.isPackaged,
@@ -358,7 +472,7 @@ function main(): void {
     }
     if (!tray) {
       tray = installTray({
-        partition: () => partitionForOrigin(appOrigin()),
+        partition: appPartition,
         appOrigin,
         lastRoute: () => config.get('lastRoute'),
         openMainWindow: (route) => void openMainWindowAt(route),
@@ -381,6 +495,68 @@ function main(): void {
     setTerminalEnabled: (enabled) => {
       if (!enabled) terminal.dispose()
     },
+    setBrowserTheme: setAgentBrowserTheme,
+    setBrowserDefaultZoom: setAgentBrowserDefaultZoom,
+    setTerminalDefaultZoom: (zoom) => {
+      broadcast('terminal:default-zoom-changed', zoom)
+    },
+    onBrowserThemeChanged: (theme) => {
+      const win = getMainWindow()
+      if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return
+      win.webContents.send('browser-agent:appearance-theme-changed', theme)
+    },
+    getDefaultBrowserDownloadDirectory: () => app.getPath('downloads'),
+    chooseBrowserDownloadDirectory: async (defaultPath) => {
+      const options: OpenDialogOptions = {
+        title: 'Choose Browser Downloads Folder',
+        buttonLabel: 'Choose',
+        defaultPath,
+        properties: ['openDirectory', 'createDirectory'],
+      }
+      const win = getMainWindow()
+      const result = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options)
+      return result.canceled ? null : (result.filePaths[0] ?? null)
+    },
+  })
+
+  const serverWindow = createServerWindow({
+    config,
+    defaultOrigin: DEFAULT_ORIGIN,
+    pagePath: SERVER_PAGE,
+    preloadPath,
+    isPackaged: app.isPackaged,
+    getParentWindow: getMainWindow,
+    prepareDeploymentScopedStateChange: () => beginAccountDataTeardown('deployment', appOrigin()),
+    clearDeploymentScopedState: async () => {
+      await waitForAccountDataMutations()
+      // allSettled, not sequential awaits: these are independent stores, and a
+      // rejection from the first must not skip the second — leaving the store
+      // that would have cleared fine still holding the outgoing deployment's
+      // access. Each failure is named so the picker can say what survived.
+      const stores = [
+        { label: 'local file access', clear: () => localFilesystem.forgetAll() },
+        {
+          label: 'built-in browser sessions',
+          clear: () => clearAgentBrowserProfile({ settingsPersistence: 'server-repair' }),
+        },
+      ]
+      const outcomes = await Promise.allSettled(stores.map((store) => store.clear()))
+      return outcomes.flatMap((outcome, index) => {
+        if (outcome.status === 'fulfilled') return []
+        logger.error('Could not clear deployment-scoped state', {
+          store: stores[index].label,
+          error: getErrorMessage(outcome.reason),
+        })
+        return [stores[index].label]
+      })
+    },
+    completeDeploymentScopedStateChange: completeDeploymentScopedTeardown,
+    relaunch: () => {
+      mandatoryRelaunchPending = true
+      relaunchApp()
+    },
   })
 
   /**
@@ -392,11 +568,11 @@ function main(): void {
    */
   function signOutFromMenu(): void {
     ensureAppSession()
-    sessionLifecycle?.signOut()
+    void sessionLifecycle?.signOut()
   }
 
   app.on('second-instance', () => {
-    void app.whenReady().then(() => createAndLoadAppWindow())
+    void (startupReady ?? app.whenReady()).then(() => createAndLoadAppWindow())
   })
 
   app.on('window-all-closed', () => {
@@ -405,27 +581,72 @@ function main(): void {
     }
   })
 
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
+    if (!resumingQuitAfterTeardown && sessionLifecycle?.isTeardownActive()) {
+      event.preventDefault()
+      void sessionLifecycle.awaitTeardown().then((clean) => {
+        if (!clean && !mandatoryRelaunchPending) {
+          logger.error('Quit cancelled because account teardown did not finish safely')
+          return
+        }
+        if (!mandatoryRelaunchPending && !prepareAccountDataTeardownForQuit()) {
+          logger.error('Quit cancelled because account-data recovery could not be persisted')
+          return
+        }
+        if (!clean) {
+          logger.warn(
+            'Committed server relaunch is continuing with account-data recovery armed for startup'
+          )
+        }
+        resumingQuitAfterTeardown = true
+        app.quit()
+      })
+      return
+    }
+    /**
+     * A mandatory relaunch is requested only after the server-switch transaction
+     * has cleared deployment-scoped capabilities and committed the replacement
+     * origin. The ordinary quit guard must not strand that committed process on
+     * its old partition; any retained marker is startup retry metadata.
+     */
+    if (!mandatoryRelaunchPending && !prepareAccountDataTeardownForQuit()) {
+      event.preventDefault()
+      logger.error('Quit cancelled because account-data recovery could not be persisted')
+      return
+    }
     // Stops the tray's background chat refresh alongside the OS handles.
     tray?.destroy()
     tray = null
     localFilesystem.close()
+    // Quiesce native pages before publishing the final encrypted descriptor
+    // set. This prevents a navigation event racing the synchronous quit flush.
+    quiesceBrowserSessions()
     terminal.dispose()
+    uninstallDocumentationHelpSearch()
+    flushDesktopChatSessions('before-quit')
     // Settings writes coalesce, so a change made in the last moments before
     // quit is still pending here.
     config.flush()
   })
 
-  app.on('activate', () => {
-    if (app.isReady() && !getMainWindow()) {
-      void ensureMainWindow()
-    }
+  app.on('will-quit', () => {
+    // Final backstop for any descriptor dirtied while Electron was closing
+    // windows after before-quit.
+    flushDesktopChatSessions('will-quit')
   })
 
-  void app.whenReady().then(async () => {
-    // Use the same high-resolution source in packaged and unpackaged apps so
-    // macOS renders every environment marker consistently in the Dock.
-    if (process.platform === 'darwin') {
+  app.on('activate', () => {
+    if (!app.isReady()) return
+    void (startupReady ?? app.whenReady()).then(() => {
+      if (!getMainWindow()) return ensureMainWindow()
+    })
+  })
+
+  startupReady = app.whenReady().then(async () => {
+    // Packaged apps keep their native bundle icon so the Dock appearance does
+    // not change when the process starts. Unpackaged runs have no branded
+    // bundle, so they still need the channel-specific development icon.
+    if (process.platform === 'darwin' && !app.isPackaged) {
       const channel = channelForOrigin(config.getOrigin())
       app.dock?.setIcon(join(__dirname, '..', 'static', DOCK_ICON_FOR_CHANNEL[channel]))
     }
@@ -433,33 +654,117 @@ function main(): void {
       version: app.getVersion(),
       electron: process.versions.electron ?? '',
     })
+
+    if (isAccountDataTeardownRequired()) {
+      const kind = getAccountDataTeardownKind()
+      const origin = getAccountDataTeardownOrigin()
+      if (!origin) {
+        logger.error('Account-data recovery marker does not contain a trusted origin')
+      }
+      const stores = [
+        { label: 'built-in browser sessions', clear: () => clearAgentBrowserProfile() },
+        { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
+        {
+          label: 'browser site history',
+          clear: () => {
+            config.set('browserKnownSites', undefined)
+            if (!config.flush()) throw new Error('Browser site history could not be erased')
+          },
+        },
+        ...(kind === 'account' && origin
+          ? [
+              { label: 'sign-in handoff state', clear: () => handoff.clear() },
+              { label: 'terminal sessions', clear: () => terminal.dispose() },
+              { label: 'task resource state', clear: clearDesktopChatSessions },
+              {
+                label: 'app session storage',
+                clear: async () => {
+                  const persistedSession = session.fromPartition(partitionForOrigin(origin))
+                  await persistedSession.clearStorageData()
+                  await persistedSession.clearCache()
+                },
+              },
+            ]
+          : []),
+      ]
+      const failures = origin
+        ? await retryAccountDataTeardown(stores).catch((error) => {
+            logger.error('Could not finish interrupted account-data teardown', {
+              error: getErrorMessage(error),
+            })
+            return ['account-data recovery marker']
+          })
+        : ['account-data recovery marker']
+      if (failures.length > 0) {
+        logger.error('Account-data recovery remains incomplete', { stores: failures })
+      }
+    }
+
+    if (!accountDataAvailable()) {
+      logger.warn(
+        'Account-bearing browser, terminal, and local filesystem APIs are unavailable until local recovery succeeds'
+      )
+    } else if (!desktopChatSessions.initialize()) {
+      logger.warn(
+        'Encrypted task resource storage is unavailable; browser and terminal state will remain memory-only'
+      )
+    }
     initBrowserAgentDriver(
       {
         onPageState: (state) => {
-          broadcast('browser-agent:page-state', state)
+          scopeEvents.sendBrowser(state.scopeId, 'browser-agent:page-state', state)
         },
         onTabsState: (state) => {
-          broadcast('browser-agent:tabs-state', state)
+          scopeEvents.sendBrowser(state.scopeId, 'browser-agent:tabs-state', state)
         },
-        onSessionStatus: (alive) => {
-          broadcast('browser-agent:session-status', alive)
+        onSessionStatus: (alive, scopeId) => {
+          scopeEvents.sendBrowser(scopeId, 'browser-agent:session-status', alive, scopeId)
         },
-        onFillAvailability: (available) => {
-          broadcast('browser-credentials:fill-availability', { available })
+        sitePermissionPromptSupported: (scopeId) =>
+          scopeEvents.browserSitePermissionPromptSupported(scopeId),
+        onFillAvailability: (available, scopeId) => {
+          scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', {
+            available,
+            scopeId,
+          })
+        },
+        onDownloadsChanged: (state) => {
+          scopeEvents.sendBrowser(state.scopeId, 'browser-agent:downloads-state', state)
         },
       },
       getMainWindow,
-      config
+      config,
+      {
+        load: (scopeId) => desktopChatSessions.getBrowser(processOrigin, scopeId),
+        save: (scopeId, snapshot) =>
+          desktopChatSessions.setBrowser(processOrigin, scopeId, snapshot),
+        migrateScope: (fromScopeId, toScopeId) =>
+          desktopChatSessions.migrateBrowser(processOrigin, fromScopeId, toScopeId),
+        disposeScope: (scopeId) => {
+          desktopChatSessions.deleteScope(processOrigin, scopeId)
+        },
+      },
+      {
+        getDirectory: () => desktopSettings.getPreferences().browserDownloadDirectory,
+      }
     )
-    await localFilesystem.initialize()
+    if (accountDataAvailable()) {
+      await localFilesystem.initialize()
+    }
     terminal.setSink({
-      data: (terminalId, data) => broadcast('terminal:data', terminalId, data),
-      tabs: (state) => broadcast('terminal:tabs', state),
-      command: (event) => broadcast('terminal:command', event),
+      data: (scopeId, terminalId, data) =>
+        scopeEvents.sendTerminal(scopeId, 'terminal:data', terminalId, data, scopeId),
+      tabs: (scopeId, state) =>
+        scopeEvents.sendTerminal(scopeId, 'terminal:tabs', { ...state, scopeId }),
+      command: (scopeId, event) =>
+        scopeEvents.sendTerminal(scopeId, 'terminal:command', { ...event, scopeId }),
     })
     registerIpcHandlers({
       appOrigin,
       allowHttpLocalhost,
+      accountDataAvailable,
+      localPagePaths: [resolve(OFFLINE_PAGE), resolve(SERVER_PAGE)],
+      scopeEvents,
       retryLoad: (sender) => {
         const win = windowForContents(sender)
         if (win) loadHealthByWindow.get(win)?.retry()
@@ -472,21 +777,56 @@ function main(): void {
       }),
       getWindowForContents: (sender) => windowForContents(sender) ?? null,
       browserPanel: {
-        setBounds: (sender, bounds, anchor) => {
+        activateScope: (sender, scopeId) => {
+          const win = windowForContents(sender)
+          if (win && focusedAppWindow() === win) {
+            activateAgentBrowserScope(scopeId)
+          }
+        },
+        setBounds: (sender, bounds, anchor, scopeId) => {
           const win = windowForContents(sender)
           if (!win) return
-          if (bounds !== null && !canReportPanelBounds(win, focusedAppWindow())) {
+          // A second window can keep reporting its old panel rect after this
+          // task was soft-deleted elsewhere. Bounds are a heartbeat, not a
+          // task-open signal, so they must never clear the suspension
+          // tombstone and recreate the closed WebContents.
+          if (bounds !== null && isBrowserScopeSuspended(scopeId)) return
+          // A window may have become focused without its chat changing, so no
+          // renderer activation effect reran. Its live bounds lease is the
+          // authoritative signal to move the singleton compositor now.
+          if (bounds !== null && focusedAppWindow() === win) {
+            activateAgentBrowserScope(scopeId)
+          }
+          if (bounds !== null && !canReportPanelBounds(win, focusedAppWindow(), scopeId)) {
             return
           }
-          setBrowserAgentPanelBounds(bounds, win, anchor)
+          setBrowserAgentPanelBounds(bounds, win, anchor, scopeId)
         },
-        setFocused: (sender, focused) => {
+        setFocused: (sender, focused, scopeId) => {
           const win = windowForContents(sender)
-          if (win) setBrowserAgentPanelFocused(focused, win)
+          if (win) setBrowserAgentPanelFocused(focused, win, scopeId)
         },
-        setOccluded: (sender, occluded) => {
+        captureSnapshot: (sender, scopeId) => {
           const win = windowForContents(sender)
-          if (win) setBrowserAgentPanelOccluded(occluded, win)
+          return win ? captureBrowserAgentPanelSnapshot(win, scopeId) : Promise.resolve(null)
+        },
+        setOccluded: (sender, occluded, scopeId, force) => {
+          const win = windowForContents(sender)
+          if (!win) return false
+          // A modal in a stale renderer must not resurrect a soft-deleted
+          // Browser scope. There is no local native surface for that scope;
+          // acknowledge only its forced hide/any reveal as scoped no-ops.
+          if (isBrowserScopeSuspended(scopeId)) return !occluded || force === true
+          // The focused window may open a modal before its next bounds frame
+          // has transferred the singleton Browser from another app window.
+          // Move the session scope first so the forced hide establishes the
+          // new owner's hidden lease, rather than acknowledging a background
+          // no-op and then attaching the view visibly on the bounds report.
+          const resolvedScopeId =
+            occluded && force && focusedAppWindow() === win
+              ? activateAgentBrowserScope(scopeId)
+              : scopeId
+          return setBrowserAgentPanelOccluded(occluded, win, resolvedScopeId, force)
         },
       },
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
@@ -495,30 +835,49 @@ function main(): void {
         check: () => updater?.check(),
         install: () => updater?.install(),
       },
+      server: {
+        open: () => serverWindow.open(),
+        getConfiguration: () => serverWindow.getConfiguration(),
+        setOrigin: (origin) => serverWindow.setOrigin(origin),
+      },
     })
     await ensureMainWindow()
     installApplicationMenu({
       config,
       getMainWindow,
+      isMainWindow: (win) => windows.has(win) && !win.isDestroyed(),
       allowHttpLocalhost,
       openSettings,
+      openServerSettings: () => serverWindow.open(),
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
-      closeFocusedBrowserTab: (win) => closeFocusedBrowserTab(win),
-      reopenClosedBrowserTab: (win) => reopenClosedBrowserTab(win),
-      closeFocusedTerminal: (win) => terminal.closeFocusedTerminal(win),
-      reopenClosedTerminal: (win) => terminal.reopenClosedTerminal(win),
+      handleFocusedResourceShortcut: (win, shortcut) =>
+        handleFocusedBrowserShortcut(shortcut, win) ||
+        terminal.handleFocusedShortcut(win, shortcut),
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
+      openSearch: () => getMainWindow()?.webContents.send('desktop:command', 'open-search'),
       signOut: signOutFromMenu,
       checkForUpdates: () =>
         checkForUpdatesInteractive({ getWindow: getMainWindow, events, handle: updater }),
+      openDiagnostics: () => shell.showItemInFolder(events.filePath),
     })
+    installDocumentationHelpSearch()
     setTrayEnabled(config.get('trayEnabled') ?? true)
     updater = initUpdater({
       getWindow: getMainWindow,
       events,
       appOrigin,
       autoDownload: () => config.get('autoDownloadUpdates') ?? true,
+      beforeInstall: async () => {
+        if (!prepareAccountDataTeardownForQuit()) {
+          throw new Error(
+            'Account-data recovery could not be persisted before update installation.'
+          )
+        }
+        if (sessionLifecycle && !(await sessionLifecycle.awaitTeardown())) {
+          throw new Error('Account teardown did not finish safely before update installation.')
+        }
+      },
       onStateChange: (state) => {
         broadcast('desktop:updates:state', state)
       },

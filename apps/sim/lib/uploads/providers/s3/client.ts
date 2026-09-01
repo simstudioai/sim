@@ -7,6 +7,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListPartsCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
@@ -20,13 +21,18 @@ import {
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { S3_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/config'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import type {
   S3Config,
   S3MultipartPart,
   S3MultipartUploadInit,
   S3PartUploadUrl,
 } from '@/lib/uploads/providers/s3/types'
-import type { FileInfo } from '@/lib/uploads/shared/types'
+import type {
+  FileInfo,
+  MultipartCompletionPolicy,
+  StoredObjectInfo,
+} from '@/lib/uploads/shared/types'
 import {
   sanitizeFilenameForMetadata,
   sanitizeStorageMetadata,
@@ -168,6 +174,39 @@ export async function getPresignedUrlWithConfig(
 }
 
 /**
+ * Generates a create-only signed single-object PUT for a caller-selected final key.
+ * The AWS presigner hoists `x-amz-meta-*` values into the signed query string,
+ * so only ordinary transfer headers are returned. Repeating that metadata as
+ * request headers makes S3 reject the otherwise-valid signature.
+ */
+export async function getS3PresignedUploadUrl(params: {
+  key: string
+  contentType: string
+  fileSize: number
+  metadata: Record<string, string>
+  customConfig: S3Config
+  expiresIn: number
+}): Promise<{ url: string; headers: Record<string, string> }> {
+  const metadata = sanitizeStorageMetadata(params.metadata, 2000)
+  const command = new PutObjectCommand({
+    Bucket: params.customConfig.bucket,
+    Key: params.key,
+    ContentType: params.contentType,
+    ContentLength: params.fileSize,
+    IfNoneMatch: '*',
+    Metadata: metadata,
+  })
+  const url = await getSignedUrl(getS3Client(), command, { expiresIn: params.expiresIn })
+  return {
+    url,
+    headers: {
+      'Content-Type': params.contentType,
+      'If-None-Match': '*',
+    },
+  }
+}
+
+/**
  * Download a file from S3
  * @param key S3 object key
  * @returns File buffer
@@ -190,8 +229,16 @@ export async function downloadFromS3(
 
 export async function downloadFromS3(
   key: string,
+  customConfig: S3Config,
+  maxBytes: number | undefined,
+  signal: AbortSignal | undefined
+): Promise<Buffer>
+
+export async function downloadFromS3(
+  key: string,
   customConfig?: S3Config,
-  maxBytes?: number
+  maxBytes?: number,
+  signal?: AbortSignal
 ): Promise<Buffer> {
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
 
@@ -200,7 +247,7 @@ export async function downloadFromS3(
     Key: key,
   })
 
-  const response = await getS3Client().send(command)
+  const response = await getS3Client().send(command, { abortSignal: signal })
   if (maxBytes !== undefined && response.ContentLength !== undefined) {
     try {
       assertKnownSizeWithinLimit(response.ContentLength, maxBytes, 'storage download')
@@ -215,6 +262,7 @@ export async function downloadFromS3(
   return readNodeStreamToBufferWithLimit(stream, {
     maxBytes: maxBytes ?? Number.MAX_SAFE_INTEGER,
     label: 'storage download',
+    signal,
   })
 }
 
@@ -243,26 +291,43 @@ export async function downloadFromS3Stream(
 export async function headS3Object(
   key: string,
   customConfig?: S3Config
-): Promise<{ size: number; contentType?: string } | null> {
+): Promise<StoredObjectInfo | null> {
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
 
   try {
     const response = await getS3Client().send(
       new HeadObjectCommand({ Bucket: config.bucket, Key: key })
     )
+    const uploadId = readUploadId(response.Metadata)
     return {
       size: response.ContentLength ?? 0,
       contentType: response.ContentType,
+      ...(uploadId ? { uploadId } : {}),
+      ...(response.ETag ? { version: response.ETag } : {}),
+      ...(response.Metadata ? { metadata: response.Metadata } : {}),
     }
   } catch (error) {
-    const code = (error as { name?: string; $metadata?: { httpStatusCode?: number } } | null)?.name
-    const status = (error as { $metadata?: { httpStatusCode?: number } } | null)?.$metadata
-      ?.httpStatusCode
-    if (code === 'NotFound' || code === 'NoSuchKey' || status === 404) {
+    if (isObjectNotFoundError(error)) {
       return null
     }
     throw error
   }
+}
+
+/** Deletes an upload object only if it is still the version the caller inspected. */
+export async function deleteS3ObjectVersion(params: {
+  key: string
+  etag: string
+  customConfig: S3Config
+}): Promise<void> {
+  if (!params.etag) throw new Error('S3 upload object is missing its ETag')
+  await getS3Client().send(
+    new DeleteObjectCommand({
+      Bucket: params.customConfig.bucket,
+      Key: params.key,
+      IfMatch: params.etag,
+    })
+  )
 }
 
 /**
@@ -341,7 +406,7 @@ export async function deleteManyFromS3(
 export async function initiateS3MultipartUpload(
   options: S3MultipartUploadInit
 ): Promise<{ uploadId: string; key: string }> {
-  const { fileName, contentType, customConfig, customKey, purpose } = options
+  const { fileName, contentType, customConfig, customKey, purpose, metadata } = options
 
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
@@ -357,6 +422,7 @@ export async function initiateS3MultipartUpload(
       originalName: sanitizeFilenameForMetadata(fileName),
       uploadedAt: new Date().toISOString(),
       purpose: purpose || 'knowledge-base',
+      ...sanitizeStorageMetadata(metadata ?? {}, 2000),
     },
   })
 
@@ -370,6 +436,11 @@ export async function initiateS3MultipartUpload(
     uploadId: response.UploadId,
     key: uniqueKey,
   }
+}
+
+function readUploadId(metadata?: Record<string, string>): string | undefined {
+  if (!metadata) return undefined
+  return Object.entries(metadata).find(([key]) => key.toLowerCase() === 'uploadid')?.[1]
 }
 
 /**
@@ -401,13 +472,19 @@ export async function uploadS3Part(
 }
 
 /**
- * Generate presigned URLs for uploading parts to S3
+ * Generate presigned URLs for uploading parts to S3.
+ *
+ * `expiresIn` is required rather than defaulted: the caller owns the part-URL lifetime and
+ * advertises the matching `expiresAt` to the client, so a local default would be a second
+ * source of truth that silently keeps signing 1h URLs after the caller's window changed.
  */
 export async function getS3MultipartPartUrls(
   key: string,
   uploadId: string,
   partNumbers: number[],
-  customConfig?: S3Config
+  customConfig: S3Config | undefined,
+  /** Signature lifetime, in seconds. */
+  expiresIn: number
 ): Promise<S3PartUploadUrl[]> {
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
@@ -421,12 +498,47 @@ export async function getS3MultipartPartUrls(
         UploadId: uploadId,
       })
 
-      const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
+      const url = await getSignedUrl(s3Client, command, { expiresIn })
       return { partNumber, url }
     })
   )
 
   return presignedUrls
+}
+
+/** Lists the provider-authoritative state for a multipart upload. */
+export async function listS3MultipartParts(
+  key: string,
+  uploadId: string,
+  customConfig?: S3Config
+): Promise<Array<{ partNumber: number; etag: string; size: number }>> {
+  const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
+  const parts: Array<{ partNumber: number; etag: string; size: number }> = []
+  let partNumberMarker: string | undefined
+
+  for (;;) {
+    const response = await getS3Client().send(
+      new ListPartsCommand({
+        Bucket: config.bucket,
+        Key: key,
+        UploadId: uploadId,
+        PartNumberMarker: partNumberMarker,
+      })
+    )
+    for (const part of response.Parts ?? []) {
+      if (part.PartNumber === undefined || part.ETag === undefined || part.Size === undefined) {
+        throw new Error(`S3 returned incomplete part metadata for ${key}`)
+      }
+      parts.push({ partNumber: part.PartNumber, etag: part.ETag, size: part.Size })
+    }
+    if (!response.IsTruncated) break
+    if (response.NextPartNumberMarker === undefined) {
+      throw new Error(`S3 truncated the part listing for ${key} without a continuation marker`)
+    }
+    partNumberMarker = String(response.NextPartNumberMarker)
+  }
+
+  return parts
 }
 
 /**
@@ -456,6 +568,32 @@ function buildObjectFallbackUrl(bucket: string, region: string, key: string): st
   return `https://${bucket}.s3.${region}.amazonaws.com/${encodedKey}`
 }
 
+function isCompletedS3UploadRetry(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const record = error as { name?: unknown; code?: unknown; Code?: unknown }
+  return (
+    record.name === 'NoSuchUpload' ||
+    record.code === 'NoSuchUpload' ||
+    record.Code === 'NoSuchUpload'
+  )
+}
+
+function isS3CreateConflict(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const record = error as {
+    name?: unknown
+    code?: unknown
+    Code?: unknown
+    $metadata?: { httpStatusCode?: unknown }
+  }
+  return (
+    record.name === 'PreconditionFailed' ||
+    record.code === 'PreconditionFailed' ||
+    record.Code === 'PreconditionFailed' ||
+    record.$metadata?.httpStatusCode === 412
+  )
+}
+
 /**
  * Complete multipart upload for S3
  */
@@ -463,7 +601,8 @@ export async function completeS3MultipartUpload(
   key: string,
   uploadId: string,
   parts: S3MultipartPart[],
-  customConfig?: S3Config
+  customConfig?: S3Config,
+  completionPolicy: MultipartCompletionPolicy = 'create-only'
 ): Promise<{ location: string; path: string; key: string }> {
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
@@ -472,13 +611,26 @@ export async function completeS3MultipartUpload(
     Bucket: config.bucket,
     Key: key,
     UploadId: uploadId,
+    ...(completionPolicy === 'replace' ? {} : { IfNoneMatch: '*' }),
     MultipartUpload: {
       Parts: parts.sort((a, b) => a.PartNumber - b.PartNumber),
     },
   })
 
-  const response = await s3Client.send(command)
-  const location = response.Location || buildObjectFallbackUrl(config.bucket, config.region, key)
+  let location: string | undefined
+  try {
+    const response = await s3Client.send(command)
+    location = response.Location
+  } catch (error) {
+    const canReuseExisting = completionPolicy === 'reuse-existing' && isS3CreateConflict(error)
+    if (
+      (!isCompletedS3UploadRetry(error) && !canReuseExisting) ||
+      !(await headS3Object(key, config))
+    ) {
+      throw error
+    }
+  }
+  location ||= buildObjectFallbackUrl(config.bucket, config.region, key)
   const path = `/api/files/serve/${encodeURIComponent(key)}`
 
   return {

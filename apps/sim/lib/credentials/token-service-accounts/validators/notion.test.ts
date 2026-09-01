@@ -39,8 +39,9 @@ describe('validateNotionServiceAccount', () => {
 
     expect(result).toEqual({
       displayName: 'Ops Integration',
-      auditMetadata: { notionBotId: 'bot-123' },
-      storedMetadata: { botId: 'bot-123', workspaceName: 'Acme Workspace' },
+      principal: { kind: 'user', id: 'bot-123', label: 'Ops Integration' },
+      auditMetadata: {},
+      storedMetadata: { workspaceName: 'Acme Workspace' },
     })
     expect(mockFetch).toHaveBeenCalledWith('https://api.notion.com/v1/users/me', {
       headers: {
@@ -66,11 +67,9 @@ describe('validateNotionServiceAccount', () => {
     const result = await validateNotionServiceAccount({ apiToken: 'secret_legacy' })
 
     expect(result.displayName).toBe('Acme Workspace')
-    expect(result.auditMetadata).toEqual({ notionBotId: 'bot-456' })
-    expect(result.storedMetadata).toEqual({
-      botId: 'bot-456',
-      workspaceName: 'Acme Workspace',
-    })
+    expect(result.principal).toEqual({ kind: 'user', id: 'bot-456' })
+    expect(result.auditMetadata).toEqual({})
+    expect(result.storedMetadata).toEqual({ workspaceName: 'Acme Workspace' })
   })
 
   it('throws invalid_credentials on 401', async () => {

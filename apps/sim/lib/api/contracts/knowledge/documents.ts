@@ -12,9 +12,12 @@ import {
   successResponseSchema,
   wireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
+import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { getFieldTypeForSlot } from '@/lib/knowledge/constants'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
+import { getFieldTypeForSlot, MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE } from '@/lib/knowledge/constants'
 import { getOperatorsForFieldType, isValidFilterValue } from '@/lib/knowledge/filters/types'
+import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
 
 export const documentTagFilterSchema = z
   .object({
@@ -127,20 +130,23 @@ export const createDocumentBodySchema = z.object({
 })
 
 export const bulkCreateDocumentsBodySchema = z.object({
-  documents: z.array(createDocumentBodySchema),
-  processingOptions: z
-    .object({
-      recipe: z.string().optional(),
-      lang: z.string().optional(),
-    })
-    .optional(),
+  documents: z
+    .array(createDocumentBodySchema)
+    .min(1, 'At least one document is required')
+    .max(
+      MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE,
+      `At most ${MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE} documents may be created at once`
+    ),
+  processingOptions: knowledgeDocumentUploadMetadataSchema.shape.processingOptions,
   bulk: z.literal(true),
   workflowId: z.string().optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 const singleCreateDocumentBodySchema = createDocumentBodySchema.extend({
   bulk: z.literal(false),
   workflowId: z.string().optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 const createKnowledgeDocumentsBodyDiscriminatedUnion = z.discriminatedUnion('bulk', [
@@ -163,13 +169,9 @@ export const upsertDocumentBodySchema = z.object({
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
   documentTagsData: z.string().optional(),
-  processingOptions: z
-    .object({
-      recipe: z.string().optional(),
-      lang: z.string().optional(),
-    })
-    .optional(),
+  processingOptions: knowledgeDocumentUploadMetadataSchema.shape.processingOptions,
   workflowId: z.string().optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 export type UpsertDocumentBody = z.output<typeof upsertDocumentBodySchema>
 
@@ -256,6 +258,8 @@ export const documentDataSchema = z
     tokenCount: z.number(),
     characterCount: z.number(),
     processingStatus: z.enum(['pending', 'processing', 'completed', 'failed']),
+    /** When indexing was last dispatched to a worker, which precedes a worker starting it. */
+    processingQueuedAt: nullableWireDateSchema.optional(),
     processingStartedAt: nullableWireDateSchema.optional(),
     processingCompletedAt: nullableWireDateSchema.optional(),
     processingError: z.string().nullable().optional(),
@@ -315,16 +319,23 @@ export const listKnowledgeDocumentsContract = defineRouteContract({
   },
 })
 
-export const createKnowledgeDocumentsContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/knowledge/[id]/documents',
+/**
+ * Document creation from inline content has no HTTP route: `POST
+ * /api/knowledge/[id]/documents` was retired when tool operations moved
+ * in-process, and the surviving `GET`/`PATCH` on that path would answer a `POST`
+ * with 405. So these stay plain schemas rather than a `defineRouteContract` —
+ * `lib/internal/knowledge/execute-tool.ts` validates `knowledge_create_document`
+ * against them directly. Callers wanting an HTTP upload use v1 or v2, both of
+ * which take multipart file bodies rather than inline content.
+ */
+export const createKnowledgeDocumentsSchemas = {
   params: knowledgeBaseParamsSchema,
   body: createKnowledgeDocumentsBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.union([bulkCreateDocumentsResponseSchema, documentDataSchema])),
-  },
-})
+} as const
+
+export const createKnowledgeDocumentsResponseSchema = successResponseSchema(
+  z.union([bulkCreateDocumentsResponseSchema, documentDataSchema])
+)
 
 export const updateKnowledgeDocumentContract = defineRouteContract({
   method: 'PUT',
@@ -333,9 +344,17 @@ export const updateKnowledgeDocumentContract = defineRouteContract({
   body: updateDocumentBodySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(documentDataSchema),
+    schema: successResponseSchema(
+      z.union([
+        documentDataSchema,
+        z.object({ documentId: z.string(), status: z.string(), message: z.string() }),
+      ])
+    ),
   },
 })
+export type UpdateKnowledgeDocumentResponseData = z.output<
+  typeof updateKnowledgeDocumentContract.response.schema
+>['data']
 
 export const updateKnowledgeDocumentTagsContract = defineRouteContract({
   method: 'PUT',
@@ -376,6 +395,23 @@ export const upsertKnowledgeDocumentContract = defineRouteContract({
   body: upsertDocumentBodySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(documentDataSchema),
+    schema: successResponseSchema(
+      z.object({
+        documentsCreated: z.array(
+          z.object({
+            documentId: z.string(),
+            filename: z.string(),
+            status: z.literal('pending'),
+          })
+        ),
+        isUpdate: z.boolean(),
+        previousDocumentId: z.string().nullable(),
+        processingMethod: z.literal('background'),
+        processingConfig: z.object({
+          maxConcurrentDocuments: z.number(),
+          batchSize: z.number(),
+        }),
+      })
+    ),
   },
 })

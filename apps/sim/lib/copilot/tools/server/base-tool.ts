@@ -1,16 +1,22 @@
 import type { z } from 'zod'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ServerToolContext {
   userId: string
   workspaceId?: string
+  executionId?: string
+  /** Stable, server-issued identity of the tool call currently executing. */
+  toolCallId?: string
+  /** True only for contexts built by the authenticated Copilot execution pipeline. */
+  copilotToolExecution?: boolean
   billingAttribution?: BillingAttributionSnapshot
   userPermission?: string
   chatId?: string
   messageId?: string
   /**
    * The invoking subagent's channel id (its outer tool_use id). Used to scope
-   * the workspace_file -> edit_content intent handoff to a single file subagent
+   * the prepare_file_edit -> apply_file_edit intent handoff to a single file subagent
    * so two file agents writing concurrently never consume each other's pending
    * intent. Undefined for main-agent tool calls (which never overlap).
    */
@@ -18,6 +24,8 @@ export interface ServerToolContext {
   abortSignal?: AbortSignal
   /** Fires only on explicit user stop, never on passive transport disconnect. */
   userStopSignal?: AbortSignal
+  /** Private in-process provenance channel; never copied into tool arguments or results. */
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
 export function assertServerToolNotAborted(

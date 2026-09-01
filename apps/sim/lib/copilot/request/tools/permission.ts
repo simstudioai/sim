@@ -54,9 +54,8 @@ export const TOOL_AWAITING_APPROVAL_STATUS = MothershipStreamV1ToolStatus.awaiti
 /**
  * Whether this call must be held for an explicit user decision.
  *
- * Headless and non-interactive runs (scheduled tasks, one-shot execute) are
- * never gated: nobody is there to answer, and blocking them would hang the run
- * until the orchestration timeout.
+ * Headless one-shot executions are never gated: nobody is there to answer, and
+ * blocking them would hang the run until the orchestration timeout.
  */
 export function toolCallNeedsApproval(
   toolName: string,

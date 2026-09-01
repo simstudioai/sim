@@ -45,6 +45,12 @@ const baseParams = {
   accessToken: 'pat-token',
 }
 
+/**
+ * Uses the real tool registry: these assertions are about tool registration and
+ * params, which the global `@/tools/registry` mock in vitest.setup.ts empties.
+ */
+vi.unmock('@/tools/registry')
+
 const authHeader = `Basic ${Buffer.from(':pat-token').toString('base64')}`
 
 const allTools = [

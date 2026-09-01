@@ -1,7 +1,7 @@
-import type { MemoryResponse } from '@/tools/memory/types'
-import type { ToolConfig } from '@/tools/types'
+import type { MemoryAddParams, MemoryResponse } from '@/tools/memory/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
+export const memoryAddTool: InternalToolConfig<MemoryAddParams, MemoryResponse> = {
   id: 'memory_add',
   name: 'Add Memory',
   description: 'Add a new memory to the database or append to existing memory with the same ID.',
@@ -36,34 +36,18 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
     },
   },
 
-  request: {
-    url: '/api/memory',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
-      const workspaceId = params._context?.workspaceId
-      if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
-      }
-
+  operation: {
+    input: (params) => {
       const conversationId = params.conversationId || params.id
-      if (!conversationId) {
-        throw new Error('conversationId or id is required')
+      if (!conversationId) throw new Error('conversationId or id is required')
+      return {
+        key: conversationId,
+        data: { role: params.role, content: params.content },
       }
-      const key = conversationId
-
-      const body: Record<string, any> = {
-        key,
-        workspaceId,
-        data: {
-          role: params.role,
-          content: params.content,
-        },
-      }
-
-      return body
+    },
+    secretProvenance: {
+      request: () => [{ key: 'data', inputPaths: [['role'], ['content']] }],
+      response: { incomplete: 'reject' },
     },
   },
 

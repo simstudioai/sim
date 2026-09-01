@@ -1,6 +1,6 @@
 /**
- * URL safety utilities for external hyperlinks/media in untrusted document content
- * (PPTX, DOCX, and other previews rendered into the app origin).
+ * Safety utilities for untrusted document content rendered into the app origin
+ * (PPTX, DOCX, and other previews).
  */
 
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
@@ -33,5 +33,16 @@ export function sanitizeRenderedHyperlinks(root: ParentNode): void {
       continue
     }
     anchor.removeAttribute('href')
+  }
+}
+
+/**
+ * Removes embedded browsing contexts from rendered document content. A renderer-injected
+ * `<iframe srcdoc>` inherits the app origin, so any script it carries runs with the
+ * victim's session. Defense in depth — renderers are also configured not to emit frames.
+ */
+export function stripEmbeddedFrames(root: ParentNode): void {
+  for (const element of root.querySelectorAll('iframe, object, embed')) {
+    element.remove()
   }
 }

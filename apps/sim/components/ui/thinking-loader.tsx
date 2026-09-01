@@ -5,6 +5,7 @@ import { cn } from '@sim/emcn'
 import styles from '@/components/ui/thinking-loader.module.css'
 
 const VARIANTS = [
+  'play',
   'metaballs',
   'relay',
   'corners',
@@ -18,11 +19,10 @@ const VARIANTS = [
 export type ThinkingLoaderVariant = (typeof VARIANTS)[number]
 
 /**
- * Shapes used in the random morph cycle. `orb` (the solid terminal circle) is
- * excluded — it is only reachable by pinning `variant='orb'` or via `settle`,
- * so the cycle never lands on it mid-stream.
+ * Shapes used in the random morph cycle. The `play` entry shape and `orb`
+ * terminal shape are excluded so the cycle never lands on either mid-stream.
  */
-const CYCLE_VARIANTS = VARIANTS.filter((v) => v !== 'orb')
+const CYCLE_VARIANTS = VARIANTS.filter((v) => v !== 'play' && v !== 'orb')
 
 /**
  * Deterministic integer hash — turns a step index into a spread-out pseudo-
@@ -44,6 +44,7 @@ function hashStep(n: number): number {
  * animation-delay that phase-locks instances mounted at different times.
  */
 const SYNC_PERIOD_MS = 12_000
+const DEFAULT_MORPH_DURATION_MS = 500
 
 /**
  * A super-cycle of steps, each holding a pseudo-random shape for a pseudo-random
@@ -89,6 +90,9 @@ function variantAtNow(): { variant: ThinkingLoaderVariant; msUntilNext: number }
  * contain-fit to the canvas. Animations live in the CSS module.
  */
 const VARIANT_SHAPES: Record<ThinkingLoaderVariant, ReactNode> = {
+  play: (
+    <path d='M 31 20 C 27 17 22 20 22 25 V 75 C 22 80 27 83 31 80 L 76 55 C 81 52 81 48 76 45 Z' />
+  ),
   metaballs: (
     <>
       <circle className={styles.metaballsA} cx='22' cy='50' r='16' />
@@ -160,12 +164,52 @@ const VARIANT_SHAPES: Record<ThinkingLoaderVariant, ReactNode> = {
   orb: <circle cx='50' cy='50' r='42' />,
 }
 
+const WIDE_RELAY_WIDTH = 160
+const WIDE_RELAY_HEIGHT = 24
+const WIDE_RELAY_LEFT_CAP_PATH =
+  'M23.75 0A8 8 0 0 0 17.6 2.88L3.41 19.9A2.5 2.5 0 0 0 5.34 24L36 24L36 0Z'
+const WIDE_RELAY_RIGHT_CAP_PATH =
+  'M16.25 0A8 8 0 0 1 22.4 2.88L36.59 19.9A2.5 2.5 0 0 1 34.66 24L4 24L4 0Z'
+const WIDE_RELAY_LAYOUT = (
+  <foreignObject width='100%' height={WIDE_RELAY_HEIGHT}>
+    <div className={styles.relayWideLayout}>
+      <svg
+        aria-hidden='true'
+        className={cn(styles.relayCapFrame, styles.relayLeftCapFrame)}
+        viewBox='0 0 40 24'
+        width='40'
+        height='24'
+      >
+        <path d={WIDE_RELAY_LEFT_CAP_PATH} fill='currentColor' />
+      </svg>
+      <span aria-hidden='true' className={cn(styles.relayCapExtension, styles.relayLeftCap)} />
+      <div className={styles.relayActivityTrack}>
+        <span className={styles.relayActivityBlock} />
+        <span className={cn(styles.relayActivityBlock, styles.relayActivityBlockSecond)} />
+        <span className={cn(styles.relayActivityBlock, styles.relayActivityBlockThird)} />
+        <span className={cn(styles.relayActivityBlock, styles.relayActivityBlockFourth)} />
+      </div>
+      <svg
+        aria-hidden='true'
+        className={cn(styles.relayCapFrame, styles.relayRightCapFrame)}
+        viewBox='0 0 40 24'
+        width='40'
+        height='24'
+      >
+        <path d={WIDE_RELAY_RIGHT_CAP_PATH} fill='currentColor' />
+      </svg>
+      <span aria-hidden='true' className={cn(styles.relayCapExtension, styles.relayRightCap)} />
+    </div>
+  </foreignObject>
+)
+
 /**
  * World-aligned status phrase per shape (used when `phase` is set). Each phrase
  * names what the shape represents in the Sim world, so the words on screen always
  * match the loader. Keys are the shape names; the comment is the world concept.
  */
 const VARIANT_PHRASE: Record<ThinkingLoaderVariant, string> = {
+  play: 'Ready',
   corners: 'Orchestrating…', // Mothership — the Core directing the work
   squeeze: 'Working…', // Pod — one agent on a task
   compass: 'In formation…', // Formation — many Pods in parallel
@@ -179,12 +223,16 @@ const VARIANT_PHRASE: Record<ThinkingLoaderVariant, string> = {
 export interface ThinkingLoaderProps {
   /** Pin one pattern. When omitted, the loader morphs between all patterns at random. */
   variant?: ThinkingLoaderVariant
+  /** Expand a pinned relay across a horizontal container while preserving its canonical motion. */
+  relayLayout?: 'compact' | 'wide'
   /**
    * When cycling, open on this pattern (held one beat) before joining the
    * shared morph timeline. Use `'corners'` (the Mothership shape) to always
    * begin on the Core. Ignored when `variant` pins a single pattern.
    */
   startVariant?: ThinkingLoaderVariant
+  /** Time to keep the entry shape painted before joining the shared cycle. */
+  startHoldMs?: number
   /**
    * Stop cycling and morph to the solid `orb` disc — the loader's terminal
    * resting shape. The goo filter melts the current shape into the orb (no hard
@@ -194,6 +242,8 @@ export interface ThinkingLoaderProps {
   settle?: boolean
   /** Rendered square size in px. Defaults to 20. */
   size?: number
+  /** Shape-to-shape goo overlap duration. Defaults to the loader's CSS timing. */
+  morphDurationMs?: number
   /** Optional status text (e.g. "Thinking…") rendered beside the goo with a shimmer sweep. */
   label?: string
   /**
@@ -214,6 +264,8 @@ export interface ThinkingLoaderProps {
    * sweep — while the phrase crossfade still applies.
    */
   shimmer?: boolean
+  /** Inherit the surrounding control's current text color instead of using the default loader ink. */
+  tone?: 'default' | 'inherit'
   /** Layout-only classes (margins, alignment). The loader owns its chrome. */
   className?: string
   /**
@@ -241,16 +293,21 @@ export interface ThinkingLoaderProps {
  */
 export function ThinkingLoader({
   variant,
+  relayLayout = 'compact',
   startVariant,
+  startHoldMs = STEP_MIN_MS,
   settle = false,
   size = 20,
+  morphDurationMs,
   label,
   phase,
   labelRatio = 0.7,
   shimmer = true,
+  tone = 'default',
   className,
   style,
 }: ThinkingLoaderProps) {
+  const isWideRelay = variant === 'relay' && relayLayout === 'wide'
   // useId emits colons, which break url(#...) filter references — strip them.
   const id = useId().replace(/[^a-zA-Z0-9-]/g, '')
   const filterId = `tl-goo-${id}`
@@ -258,9 +315,10 @@ export function ThinkingLoader({
   const windowClipId = `tl-window-${id}`
   const gradientId = `tl-grad-${id}`
   const [cycleVariant, setCycleVariant] = useState<ThinkingLoaderVariant>(
-    startVariant ?? 'metaballs'
+    variant ?? startVariant ?? 'metaballs'
   )
   const cycling = variant === undefined
+  const [retainMorphStages, setRetainMorphStages] = useState(cycling)
 
   useEffect(() => {
     if (!cycling) return
@@ -269,7 +327,10 @@ export function ThinkingLoader({
       setCycleVariant('orb')
       return
     }
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setCycleVariant('thinking')
+      return
+    }
 
     // When a startVariant is given, hold it for one min-step so the cycle always
     // opens on that shape, then join the shared wall-clock morph timeline.
@@ -279,7 +340,7 @@ export function ThinkingLoader({
       if (!opened) {
         opened = true
         setCycleVariant(startVariant as ThinkingLoaderVariant)
-        timeout = setTimeout(tick, STEP_MIN_MS)
+        timeout = setTimeout(tick, startHoldMs)
         return
       }
       const { variant: next, msUntilNext } = variantAtNow()
@@ -288,17 +349,36 @@ export function ThinkingLoader({
     }
     tick()
     return () => clearTimeout(timeout)
-  }, [cycling, startVariant, settle])
+  }, [cycling, startHoldMs, startVariant, settle])
+
+  useEffect(() => {
+    if (cycling) {
+      setRetainMorphStages(true)
+      return
+    }
+    if (!retainMorphStages) return
+
+    const timeout = window.setTimeout(
+      () => setRetainMorphStages(false),
+      morphDurationMs ?? DEFAULT_MORPH_DURATION_MS
+    )
+    return () => window.clearTimeout(timeout)
+  }, [cycling, morphDurationMs, retainMorphStages])
 
   // Phase-lock the CSS animations to the wall clock (set after mount so
   // server and client markup agree). All instances share the same negative
   // delay modulus, so their keyframes line up regardless of mount time.
-  const [syncDelay, setSyncDelay] = useState<string | undefined>(undefined)
+  const [syncDelay, setSyncDelay] = useState<string | undefined>(isWideRelay ? '0ms' : undefined)
   useEffect(() => {
+    if (isWideRelay) {
+      setSyncDelay('0ms')
+      return
+    }
     setSyncDelay(`-${Date.now() % SYNC_PERIOD_MS}ms`)
-  }, [])
+  }, [isWideRelay])
 
   const shown = variant ?? cycleVariant
+  const renderedWidth = isWideRelay ? WIDE_RELAY_WIDTH : size
   // `phase` shows the world phrase for the shape on screen; otherwise the
   // caller's static label (if any). Cycling, it updates as the shape morphs.
   const displayLabel = phase ? VARIANT_PHRASE[shown] : label
@@ -319,19 +399,31 @@ export function ThinkingLoader({
     return () => clearTimeout(timeout)
   }, [exitingLabel])
 
-  const stages = cycling ? VARIANTS : [shown]
+  const stages = cycling || retainMorphStages ? VARIANTS : [shown]
 
   const loader = (
     <svg
       role={displayLabel ? undefined : 'status'}
       aria-label={displayLabel ? undefined : 'Thinking'}
       aria-hidden={displayLabel ? true : undefined}
-      viewBox='0 0 100 100'
-      width={size}
+      viewBox={isWideRelay ? undefined : '0 0 100 100'}
+      width={renderedWidth}
       height={size}
-      className={cn(styles.frame, !displayLabel && className)}
+      className={cn(
+        styles.frame,
+        tone === 'inherit' && styles.inheritInk,
+        !displayLabel && className
+      )}
       style={{
         ...(syncDelay ? ({ '--tl-sync': syncDelay } as CSSProperties) : {}),
+        ...(morphDurationMs !== undefined
+          ? ({ '--tl-morph-duration': `${morphDurationMs}ms` } as CSSProperties)
+          : {}),
+        ...(isWideRelay
+          ? ({
+              '--tl-glow': 'transparent',
+            } as CSSProperties)
+          : {}),
         ...style,
       }}
     >
@@ -401,22 +493,26 @@ export function ThinkingLoader({
           <rect x='12.5' y='12.5' width='75' height='75' />
         </clipPath>
       </defs>
-      <g
-        filter={`url(#${filterId})`}
-        fill={`url(#${gradientId})`}
-        stroke={`url(#${gradientId})`}
-        strokeWidth={0}
-      >
-        {stages.map((v) => (
-          <g
-            key={v}
-            clipPath={`url(#${v === 'burst' ? windowClipId : clipId})`}
-            className={cn(styles.stage, v === shown && styles.stageActive)}
-          >
-            {VARIANT_SHAPES[v]}
-          </g>
-        ))}
-      </g>
+      {isWideRelay ? (
+        <g className={cn(styles.stage, styles.stageActive)}>{WIDE_RELAY_LAYOUT}</g>
+      ) : (
+        <g
+          filter={`url(#${filterId})`}
+          fill={`url(#${gradientId})`}
+          stroke={`url(#${gradientId})`}
+          strokeWidth={0}
+        >
+          {stages.map((v) => (
+            <g
+              key={v}
+              clipPath={`url(#${v === 'burst' ? windowClipId : clipId})`}
+              className={cn(styles.stage, v === shown && styles.stageActive)}
+            >
+              {VARIANT_SHAPES[v]}
+            </g>
+          ))}
+        </g>
+      )}
     </svg>
   )
 

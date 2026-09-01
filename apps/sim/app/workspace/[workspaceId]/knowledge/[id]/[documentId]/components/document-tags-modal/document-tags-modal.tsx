@@ -14,11 +14,17 @@ import {
   ChipModalHeader,
   handleKeyboardActivation,
   Label,
-  Trash,
 } from '@sim/emcn'
+import { Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
-import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
+import {
+  ALL_TAG_SLOTS,
+  type AllTagSlot,
+  FIELD_TYPE_LABELS,
+  KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
+  MAX_TAG_SLOTS,
+} from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
 import type { DocumentData } from '@/lib/knowledge/types'
 import {
@@ -29,14 +35,6 @@ import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/kb/use-tag-d
 import { useNextAvailableSlotMutation, useUpdateDocumentTags } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('DocumentTagsModal')
-
-/** Field type display labels */
-const FIELD_TYPE_LABELS: Record<string, string> = {
-  text: 'Text',
-  number: 'Number',
-  date: 'Date',
-  boolean: 'Boolean',
-}
 
 /**
  * Gets the appropriate value when changing field types.
@@ -380,14 +378,10 @@ export function DocumentTagsModal({
 
   return (
     <ChipModal open={open} onOpenChange={handleClose} srTitle='Document Tags' size='sm'>
-      <ChipModalHeader onClose={() => handleClose(false)}>
-        <div className='flex items-center justify-between'>
-          <span>Document Tags</span>
-        </div>
-      </ChipModalHeader>
+      <ChipModalHeader onClose={() => handleClose(false)}>Document Tags</ChipModalHeader>
 
       <ChipModalBody>
-        <ChipModalField type='custom' title='Tags'>
+        <ChipModalField type='custom' title='Tags' submitOnEnter={false}>
           <div className='space-y-2'>
             {documentTags.map((tag, index) => (
               <div key={tag.displayName} className='space-y-2'>
@@ -462,6 +456,7 @@ export function DocumentTagsModal({
                             setEditTagForm({ ...editTagForm, displayName: e.target.value })
                           }
                           placeholder='Enter tag name'
+                          maxLength={KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH}
                           error={tagNameConflict}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && canSaveTag) {
@@ -615,6 +610,7 @@ export function DocumentTagsModal({
                         setEditTagForm({ ...editTagForm, displayName: e.target.value })
                       }
                       placeholder='Enter tag name'
+                      maxLength={KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH}
                       error={tagNameConflict}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && canSaveTag) {
@@ -741,6 +737,7 @@ export function DocumentTagsModal({
 
       <ChipModalFooter
         onCancel={() => handleClose(false)}
+        defaultAction='none'
         primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
       />
     </ChipModal>

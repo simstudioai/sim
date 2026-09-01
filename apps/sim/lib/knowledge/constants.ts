@@ -1,5 +1,38 @@
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+
 /** Max character length for a knowledge base description, enforced at every layer (UI, internal API, v1 API). */
 export const KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH = 10_000
+
+/** Hard bound for path-indexed knowledge folder trees and recursive cascades. */
+export const MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE = MAX_FOLDERS_PER_WORKSPACE
+
+/**
+ * Maximum items a knowledge bulk request may address by identifier. Lives here
+ * rather than in the application batch policy so the boundary contracts can
+ * bound their id arrays without pulling a server-only module into client code.
+ */
+export const MAX_KNOWLEDGE_BATCH_ITEMS = 100
+/** Maximum documents accepted by one internal bulk-create command. */
+export const MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE = 100
+/** Maximum connector documents mutated atomically by one command. */
+export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS = 100
+/** Default and maximum bounded connector-document list page sizes. */
+export const DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 100
+export const MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE = 200
+
+/**
+ * Chunking a knowledge base gets when its creator names no configuration.
+ *
+ * Applied in `lib/knowledge/orchestration` so the UI, the v1 and v2 APIs, and
+ * the copilot agent all index identical input identically. Previously each
+ * caller carried its own literal and the agent's `minSize` was 1, so the same
+ * document chunked differently depending on who uploaded it.
+ */
+export const DEFAULT_CHUNKING_CONFIG = {
+  maxSize: 1024,
+  minSize: 100,
+  overlap: 200,
+} as const
 
 export const TAG_SLOT_CONFIG = {
   text: {
@@ -42,6 +75,12 @@ export type TagSlot = (typeof TAG_SLOTS)[number]
 
 /** Type for all tag slots */
 export type AllTagSlot = (typeof ALL_TAG_SLOTS)[number]
+
+/**
+ * Max character length for a tag display name, enforced on every write path (UI,
+ * create API, bulk document API, copilot tools).
+ */
+export const KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH = 100
 
 /** Type for number tag slots */
 export type NumberTagSlot = (typeof TAG_SLOT_CONFIG.number.slots)[number]
@@ -138,3 +177,14 @@ export function getPlaceholderForFieldType(fieldType: string): string {
       return 'Enter value'
   }
 }
+
+/**
+ * Minimum time the client waits before asking the server to classify an active
+ * document-processing run as dead.
+ *
+ * Lives here so the client does not import server configuration. The server
+ * derives its authoritative threshold from the configured task
+ * duration and retry budget and may require longer. Keeping the client at the
+ * same 45-minute floor prevents the default UI from racing a legitimate run.
+ */
+export const KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS = 45 * 60 * 1000

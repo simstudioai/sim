@@ -30,9 +30,15 @@
  * Response: AdminSingleResponse<{ success, organizationId, slug, membersRemoved, workspacesDetached }>
  */
 
-import { AuditAction, AuditResourceType, recordAudit, recordAuditBatch } from '@sim/audit'
+import {
+  AuditAction,
+  AuditResourceType,
+  auditUpdatedFields,
+  recordAudit,
+  recordAuditBatch,
+} from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, subscription } from '@sim/db/schema'
+import { member, organization, organizationColumns, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray, isNull, not, or } from 'drizzle-orm'
 import {
@@ -86,7 +92,7 @@ export const GET = withRouteHandler(
 
     try {
       const [orgData] = await db
-        .select()
+        .select(organizationColumns)
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -137,7 +143,7 @@ export const PATCH = withRouteHandler(
 
     try {
       const [existing] = await db
-        .select()
+        .select(organizationColumns)
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -176,11 +182,10 @@ export const PATCH = withRouteHandler(
         .update(organization)
         .set(updateData)
         .where(eq(organization.id, organizationId))
-        .returning()
+        .returning(organizationColumns)
 
-      logger.info(`Admin API: Updated organization ${organizationId}`, {
-        fields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
-      })
+      const updatedFields = auditUpdatedFields(updateData)
+      logger.info(`Admin API: Updated organization ${organizationId}`, { updatedFields })
 
       recordAudit({
         workspaceId: null,
@@ -190,7 +195,7 @@ export const PATCH = withRouteHandler(
         resourceId: organizationId,
         resourceName: updated.name,
         description: `Admin API updated organization "${updated.name}"`,
-        metadata: { fields: Object.keys(updateData).filter((k) => k !== 'updatedAt') },
+        metadata: { updatedFields },
         request,
       })
 

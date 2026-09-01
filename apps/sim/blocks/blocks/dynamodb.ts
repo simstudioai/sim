@@ -17,6 +17,49 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse | DynamoDBIntrospectRes
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
   iconColor: '#527FFF',
   icon: DynamoDBIcon,
+  canvasPresentation: {
+    defaultTitle: 'Amazon DynamoDB',
+    sentences: {
+      byOperation: {
+        get: [
+          { text: 'Get item', field: 'getKey', core: true },
+          { text: 'from', field: 'tableName', core: true },
+        ],
+        put: [
+          { text: 'Put', field: 'item', core: true },
+          { text: 'into', field: 'tableName', core: true },
+          { text: ', if', field: 'putConditionExpression' },
+        ],
+        query: [
+          { text: 'Query items from', field: 'tableName', core: true },
+          { text: ', keyed on', field: 'keyConditionExpression' },
+          { text: ', over index', field: 'indexName' },
+        ],
+        scan: [
+          { text: 'Scan every item in', field: 'tableName', core: true },
+          { text: ', where', field: 'scanFilterExpression' },
+          { text: ', up to', field: 'scanLimit', after: 'items' },
+        ],
+        update: [
+          { text: 'Update item', field: 'updateKey', core: true },
+          { text: 'in', field: 'tableName', core: true },
+          { text: ', setting', field: 'updateExpression' },
+        ],
+        delete: [
+          { text: 'Delete item', field: 'deleteKey', core: true },
+          { text: 'from', field: 'tableName', core: true },
+          { text: ', if', field: 'deleteConditionExpression' },
+        ],
+        introspect: [
+          {
+            text: 'Read the schema of',
+            field: 'introspectTableName',
+            core: true,
+          },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

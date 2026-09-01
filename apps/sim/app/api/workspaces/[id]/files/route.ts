@@ -1,227 +1,61 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { type NextRequest, NextResponse } from 'next/server'
 import {
-  listWorkspaceFilesQuerySchema,
-  workspaceFilesParamsSchema,
+  createWorkspaceFileContract,
+  listWorkspaceFilesContract,
 } from '@/lib/api/contracts/workspace-files'
-import { getValidationErrorMessage } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { generateRequestId } from '@/lib/core/utils/request'
 import {
-  isPayloadSizeLimitError,
-  MAX_MULTIPART_OVERHEAD_BYTES,
-  readFormDataWithLimit,
-} from '@/lib/core/utils/stream-limits'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import {
-  FileConflictError,
-  listWorkspaceFiles,
-  uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace'
-import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
+  internalFileAnalytics,
+  internalFileErrorPolicies,
+  internalFilePresenters,
+} from '@/lib/workspace-files/api'
+import {
+  admitCreateWorkspaceFile,
+  createWorkspaceFile,
+} from '@/lib/workspace-files/application/create-workspace-file'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('WorkspaceFilesAPI')
+/** GET /api/workspaces/[id]/files — List workspace files. */
+export const GET = defineInternalJsonRoute({
+  contract: listWorkspaceFilesContract,
+  auth: internalSessionAuth,
+  operation: fileOperations.list,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal file-list behavior' }),
+  errorPolicy: internalFileErrorPolicies.default,
+  mapInput: ({ params, query }) => ({ workspaceId: params.id, scope: query.scope }),
+  useCase: listAllWorkspaceFiles,
+  present: internalFilePresenters.successFiles,
+})
 
-/**
- * GET /api/workspaces/[id]/files
- * List all files for a workspace (requires read permission)
- */
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const paramsResult = workspaceFilesParamsSchema.safeParse(await params)
-    if (!paramsResult.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
-        { status: 400 }
-      )
-    }
-    const { id: workspaceId } = paramsResult.data
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      // Check workspace permissions (requires read)
-      const userPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
-      if (!userPermission) {
-        logger.warn(
-          `[${requestId}] User ${session.user.id} lacks permission for workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-      }
-
-      const queryResult = listWorkspaceFilesQuerySchema.safeParse(
-        Object.fromEntries(request.nextUrl.searchParams.entries())
-      )
-      if (!queryResult.success) {
-        return NextResponse.json(
-          { error: getValidationErrorMessage(queryResult.error, 'Invalid scope') },
-          { status: 400 }
-        )
-      }
-      const { scope } = queryResult.data
-
-      const files = await listWorkspaceFiles(workspaceId, { scope })
-
-      const shares = await getWorkspaceShares('file', workspaceId)
-      const filesWithShares = files.map((file) => ({
-        ...file,
-        share: shares.get(file.id) ?? null,
-      }))
-
-      logger.info(`[${requestId}] Listed ${files.length} files for workspace ${workspaceId}`)
-
-      return NextResponse.json({
-        success: true,
-        files: filesWithShares,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error listing workspace files:`, error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: getErrorMessage(error, 'Failed to list files'),
-        },
-        { status: 500 }
-      )
-    }
-  }
-)
-
-/**
- * POST /api/workspaces/[id]/files
- * Upload a new file to workspace storage (requires write permission)
- */
-export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const paramsResult = workspaceFilesParamsSchema.safeParse(await params)
-    if (!paramsResult.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(paramsResult.error, 'Invalid route parameters') },
-        { status: 400 }
-      )
-    }
-    const { id: workspaceId } = paramsResult.data
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      // Check workspace permissions (requires write)
-      const userPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workspaceId
-      )
-      if (userPermission !== 'admin' && userPermission !== 'write') {
-        logger.warn(
-          `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-      }
-
-      let formData: FormData
-      try {
-        formData = await readFormDataWithLimit(request, {
-          maxBytes: MAX_WORKSPACE_FORMDATA_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
-          label: 'workspace file upload body',
-        })
-      } catch (error) {
-        if (isPayloadSizeLimitError(error)) {
-          return NextResponse.json({ error: error.message }, { status: 413 })
-        }
-        return NextResponse.json(
-          { error: 'Request body must be valid multipart form data' },
-          { status: 400 }
-        )
-      }
-      const rawFile = formData.get('file')
-      const rawFolderId = formData.get('folderId')
-      const folderId =
-        typeof rawFolderId === 'string' && rawFolderId.length > 0 ? rawFolderId : null
-
-      if (!rawFile || !(rawFile instanceof File)) {
-        return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-      }
-
-      const fileName = rawFile.name || 'untitled.md'
-
-      if (rawFile.size > MAX_WORKSPACE_FORMDATA_FILE_SIZE) {
-        return NextResponse.json(
-          {
-            error: `File size exceeds maximum of ${MAX_WORKSPACE_FORMDATA_FILE_SIZE} bytes (${(rawFile.size / (1024 * 1024)).toFixed(2)}MB)`,
-          },
-          { status: 413 }
-        )
-      }
-
-      const buffer = Buffer.from(await rawFile.arrayBuffer())
-
-      const userFile = await uploadWorkspaceFile(
-        workspaceId,
-        session.user.id,
-        buffer,
-        fileName,
-        rawFile.type || 'application/octet-stream',
-        { folderId }
-      )
-
-      logger.info(`[${requestId}] Uploaded workspace file: ${fileName}`)
-
-      captureServerEvent(
-        session.user.id,
-        'file_uploaded',
-        { workspace_id: workspaceId, file_type: rawFile.type || 'application/octet-stream' },
-        { groups: { workspace: workspaceId } }
-      )
-
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.FILE_UPLOADED,
-        resourceType: AuditResourceType.FILE,
-        resourceId: userFile.id,
-        resourceName: fileName,
-        description: `Uploaded file "${fileName}"`,
-        metadata: { fileSize: rawFile.size, fileType: rawFile.type || 'application/octet-stream' },
-        request,
-      })
-
-      return NextResponse.json({
-        success: true,
-        file: userFile,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error uploading workspace file:`, error)
-
-      const errorMessage = getErrorMessage(error, 'Failed to upload file')
-      const isDuplicate =
-        error instanceof FileConflictError || errorMessage.includes('already exists')
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: errorMessage,
-          isDuplicate,
-        },
-        { status: isDuplicate ? 409 : 500 }
-      )
-    }
-  }
-)
+/** POST /api/workspaces/[id]/files — Create an authored workspace file. */
+export const POST = defineInternalJsonRoute({
+  contract: createWorkspaceFileContract,
+  auth: internalSessionAuth,
+  operation: fileOperations.create,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal file-create behavior' }),
+  errorPolicy: internalFileErrorPolicies.default,
+  parseOptions: { maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES },
+  beforeParse: async ({ principal, params }) => {
+    if (typeof params.id === 'string') await admitCreateWorkspaceFile(principal, params.id)
+  },
+  mapInput: ({ params, body }) => ({
+    workspaceId: params.id,
+    name: body.name,
+    contentType: body.contentType ?? getMimeTypeFromExtension(getFileExtension(body.name)),
+    content: body.content,
+    encoding: body.encoding,
+    folderId: body.folderId,
+    exactName: false,
+  }),
+  useCase: createWorkspaceFile,
+  onSuccess: internalFileAnalytics.uploaded,
+  present: internalFilePresenters.successFile,
+})

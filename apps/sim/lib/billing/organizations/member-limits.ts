@@ -5,6 +5,8 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, gte, isNull, lt, or, sql } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
+import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
+import type { UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -95,7 +97,7 @@ export async function setOrgMemberUsageLimit(
 export async function getOrgMemberUsageForBillingPeriod(
   organizationId: string,
   userId: string,
-  billingPeriod: { start: Date; end: Date }
+  billingPeriod: UsageQueryPeriod
 ): Promise<number> {
   const [row] = await db
     .select({ cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)` })
@@ -104,25 +106,34 @@ export async function getOrgMemberUsageForBillingPeriod(
     .where(
       and(
         eq(usageLog.userId, userId),
-        or(
-          and(
-            eq(usageLog.billingEntityType, 'organization'),
-            eq(usageLog.billingEntityId, organizationId),
-            eq(usageLog.billingPeriodStart, billingPeriod.start),
-            eq(usageLog.billingPeriodEnd, billingPeriod.end)
-          ),
-          and(
-            isNull(usageLog.billingEntityType),
-            isNull(usageLog.billingEntityId),
-            eq(workspace.organizationId, organizationId),
-            or(
-              isNull(workspace.organizationAssignedAt),
-              gte(usageLog.createdAt, workspace.organizationAssignedAt)
-            ),
-            gte(usageLog.createdAt, billingPeriod.start),
-            lt(usageLog.createdAt, billingPeriod.end)
-          )
-        )
+        ...(billingPeriod.source === 'reporting'
+          ? [
+              eq(usageLog.billingEntityType, 'organization'),
+              eq(usageLog.billingEntityId, organizationId),
+              gte(usageLog.createdAt, billingPeriod.start),
+              lt(usageLog.createdAt, billingPeriod.end),
+            ]
+          : [
+              or(
+                and(
+                  eq(usageLog.billingEntityType, 'organization'),
+                  eq(usageLog.billingEntityId, organizationId),
+                  eq(usageLog.billingPeriodStart, billingPeriod.start),
+                  eq(usageLog.billingPeriodEnd, billingPeriod.end)
+                ),
+                and(
+                  isNull(usageLog.billingEntityType),
+                  isNull(usageLog.billingEntityId),
+                  eq(workspace.organizationId, organizationId),
+                  or(
+                    isNull(workspace.organizationAssignedAt),
+                    gte(usageLog.createdAt, workspace.organizationAssignedAt)
+                  ),
+                  gte(usageLog.createdAt, billingPeriod.start),
+                  lt(usageLog.createdAt, billingPeriod.end)
+                )
+              ),
+            ])
       )
     )
 
@@ -150,10 +161,10 @@ export async function getOrgMemberUsageForCurrentPeriod(
     prefetchedSubscription === undefined
       ? await getOrganizationSubscription(organizationId)
       : prefetchedSubscription
-  const billingPeriod =
-    subscription?.periodStart && subscription.periodEnd
-      ? { start: subscription.periodStart, end: subscription.periodEnd }
-      : defaultBillingPeriod()
+  const billingPeriod = resolveSubscriptionUsagePeriod(subscription) ?? {
+    ...defaultBillingPeriod(),
+    source: 'default' as const,
+  }
 
   return getOrgMemberUsageForBillingPeriod(organizationId, userId, billingPeriod)
 }

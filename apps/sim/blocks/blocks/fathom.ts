@@ -17,6 +17,40 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
   integrationType: IntegrationType.Analytics,
   bgColor: '#181C1E',
   icon: FathomIcon,
+  canvasPresentation: {
+    defaultTitle: 'Fathom',
+    /*
+     * The API key is plumbing; the recording set the webhook is registered for
+     * is the scope, and both triggers expose it under the same id, so one
+     * declaration covers them.
+     */
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'for', field: 'triggeredFor', core: true },
+      ],
+    },
+    sentences: {
+      byOperation: {
+        fathom_list_meetings: [
+          'List recent meetings',
+          { text: ', recorded by', field: 'recordedBy' },
+          { text: ', of type', field: 'meetingType' },
+          { text: ', since', field: 'createdAfter' },
+        ],
+        fathom_list_meeting_types: ['List all meeting types'],
+        fathom_get_summary: [
+          { text: 'Fetch the summary of recording', field: 'recordingId', core: true },
+        ],
+        fathom_get_transcript: [
+          { text: 'Fetch the transcript of recording', field: 'recordingId', core: true },
+        ],
+        fathom_list_team_members: ['List team members', { text: 'on team', field: 'teams' }],
+        fathom_list_teams: ['List all teams'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -195,6 +229,7 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
     {
       id: 'selectedTriggerId',
       title: 'Trigger Type',
+      canvasNoun: 'an event',
       type: 'dropdown',
       mode: 'trigger',
       options: fathomTriggerOptions,

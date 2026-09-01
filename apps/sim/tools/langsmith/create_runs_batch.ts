@@ -4,7 +4,12 @@ import type {
   LangsmithCreateRunsBatchResponse,
   LangsmithRunPayload,
 } from '@/tools/langsmith/types'
-import { normalizeLangsmithRunPayload } from '@/tools/langsmith/utils'
+import {
+  LANGSMITH_API_BASE,
+  normalizeLangsmithRunPayload,
+  prepareLangsmithPatchPayload,
+  truncateLangsmithErrorText,
+} from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateRunsBatchTool: ToolConfig<
@@ -36,7 +41,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
     },
   },
   request: {
-    url: () => 'https://api.smith.langchain.com/runs/batch',
+    url: () => `${LANGSMITH_API_BASE}/runs/batch`,
     method: 'POST',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,
@@ -48,7 +53,7 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
           ? params.post.map((run) => normalizeLangsmithRunPayload(run).payload)
           : undefined,
         patch: params.patch
-          ? params.patch.map((run) => normalizeLangsmithRunPayload(run).payload)
+          ? params.patch.map((run) => prepareLangsmithPatchPayload(run).payload)
           : undefined,
       }
 
@@ -56,6 +61,13 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
     },
   },
   transformResponse: async (response, params) => {
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(
+        `LangSmith create runs batch failed (${response.status}): ${truncateLangsmithErrorText(errorText)}`
+      )
+    }
+
     const data = (await response.json()) as Record<string, unknown>
     const directMessage =
       typeof (data as { message?: unknown }).message === 'string'
@@ -71,14 +83,19 @@ export const langsmithCreateRunsBatchTool: ToolConfig<
       })
       .filter((value): value is string => Boolean(value))
 
-    const collectRunIds = (runs?: LangsmithRunPayload[]) =>
-      runs?.map((run) => normalizeLangsmithRunPayload(run).runId) ?? []
+    const collectRunIds = (
+      runs: LangsmithRunPayload[] | undefined,
+      resolve: (run: LangsmithRunPayload) => string
+    ) => runs?.map(resolve) ?? []
 
     return {
       success: true,
       output: {
         accepted: true,
-        runIds: [...collectRunIds(params?.post), ...collectRunIds(params?.patch)],
+        runIds: [
+          ...collectRunIds(params?.post, (run) => normalizeLangsmithRunPayload(run).runId),
+          ...collectRunIds(params?.patch, (run) => prepareLangsmithPatchPayload(run).runId),
+        ],
         message: directMessage ?? null,
         messages: messages.length ? messages : undefined,
       },

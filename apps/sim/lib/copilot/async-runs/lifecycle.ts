@@ -1,10 +1,21 @@
-import type { CopilotAsyncToolStatus } from '@sim/db/schema'
+import type { CopilotAsyncToolStatus, CopilotToolPermissionDecision } from '@sim/db/schema'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 
 export const ASYNC_TOOL_STATUS = MothershipStreamV1AsyncToolRecordStatus
+
+export const EXECUTABLE_TOOL_PERMISSION_DECISIONS = [
+  'allow',
+  'allow_chat',
+  'always_allow',
+] as const satisfies readonly CopilotToolPermissionDecision[]
+
+export const DESKTOP_TOOL_CLAIM_OWNER = {
+  browser: 'desktop-browser',
+  terminal: 'desktop-terminal',
+} as const
 
 export type AsyncLifecycleStatus =
   | typeof ASYNC_TOOL_STATUS.pending
@@ -79,6 +90,23 @@ export interface AsyncCompletionSignal {
   status: AsyncPromiseStatus
   message?: string
   data?: AsyncCompletionData
+}
+
+export function isExecutableToolPermissionDecision(
+  decision: CopilotToolPermissionDecision | null | undefined
+): boolean {
+  return decision !== null && decision !== undefined && decision !== 'skip'
+}
+
+export function isWorkflowToolExecutionClaimable(
+  status: CopilotAsyncToolStatus,
+  permissionDecision: CopilotToolPermissionDecision | null | undefined
+): boolean {
+  return (
+    status === ASYNC_TOOL_STATUS.running ||
+    status === ASYNC_TOOL_STATUS.delivered ||
+    (status === ASYNC_TOOL_STATUS.pending && isExecutableToolPermissionDecision(permissionDecision))
+  )
 }
 
 export function isTerminalAsyncStatus(

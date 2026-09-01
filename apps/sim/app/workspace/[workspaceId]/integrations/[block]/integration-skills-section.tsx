@@ -2,10 +2,15 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Chip, toast } from '@sim/emcn'
-import { Check, Plus } from 'lucide-react'
+import { Check, Plus } from '@sim/emcn/icons'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { isSkillNameConflictError } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SuggestedSkill } from '@/blocks/types'
 import { useCreateSkill, useSkills } from '@/hooks/queries/skills'
@@ -26,22 +31,23 @@ interface SkillRowProps {
 
 function SkillRow({ skill, added, pending, disabled, onAdd }: SkillRowProps) {
   return (
-    <div className='flex items-center gap-2.5 rounded-lg p-2'>
-      <SkillTile />
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <span className='truncate text-[14px] text-[var(--text-body)]'>{skill.name}</span>
-        <span className='truncate text-[12px] text-[var(--text-muted)]'>{skill.description}</span>
-      </div>
-      {added ? (
-        <Chip leftIcon={Check} disabled flush>
-          Added
-        </Chip>
-      ) : (
-        <Chip variant='primary' leftIcon={Plus} onClick={onAdd} disabled={disabled} flush>
-          {pending ? 'Adding...' : 'Add'}
-        </Chip>
-      )}
-    </div>
+    <SettingsResourceRow
+      iconVariant='custom'
+      icon={<SkillTile />}
+      title={skill.name}
+      description={skill.description}
+      trailing={
+        added ? (
+          <Chip leftIcon={Check} disabled>
+            Added
+          </Chip>
+        ) : (
+          <Chip variant='primary' leftIcon={Plus} onClick={onAdd} disabled={disabled}>
+            {pending ? 'Adding...' : 'Add'}
+          </Chip>
+        )
+      }
+    />
   )
 }
 
@@ -98,10 +104,8 @@ export function IntegrationSkillsSection({
   }
 
   return (
-    <section className='flex flex-col'>
-      <span className='pl-0.5 text-[var(--text-muted)] text-small'>Skills</span>
-      <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
-      <div className='-mx-2 flex flex-col gap-y-0.5'>
+    <SettingsSection label='Skills'>
+      <div className={RESOURCE_LIST_STACK}>
         {skills.map((skill, index) => (
           <SkillRow
             key={skill.name}
@@ -113,6 +117,6 @@ export function IntegrationSkillsSection({
           />
         ))}
       </div>
-    </section>
+    </SettingsSection>
   )
 }

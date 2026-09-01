@@ -1,11 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, cn, Input, toast } from '@sim/emcn'
-import { ChevronDown, ChevronRight, ChevronUp, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
-import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
 import {
@@ -20,6 +19,7 @@ import {
 import { getWorkflowSearchBlocks } from '@/lib/workflows/search-replace/state'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import type { WorkflowSearchReplaceSubflowUpdate } from '@/lib/workflows/search-replace/types'
+import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -110,6 +110,30 @@ function createActiveSearchTarget(
 }
 
 export function WorkflowSearchReplace() {
+  const { isOpen, open } = useWorkflowSearchReplaceStore(
+    useShallow((state) => ({ isOpen: state.isOpen, open: state.open }))
+  )
+  const focusSearchInputRef = useRef<(() => void) | null>(null)
+
+  useRegisterGlobalCommands([
+    createCommand({
+      id: 'open-workflow-search-replace',
+      handler: () => {
+        open()
+        focusSearchInputRef.current?.()
+      },
+    }),
+  ])
+
+  return isOpen ? <WorkflowSearchReplacePanel focusRef={focusSearchInputRef} /> : null
+}
+
+interface WorkflowSearchReplacePanelProps {
+  /** Lets the shortcut re-select the query while the panel is already open. */
+  focusRef: RefObject<(() => void) | null>
+}
+
+function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string | undefined
   const routeWorkflowId = params.workflowId as string | undefined
@@ -143,38 +167,33 @@ export function WorkflowSearchReplace() {
   >({})
 
   const {
-    isOpen,
     query,
     replacement: textReplacement,
     activeMatchId,
     position,
     close,
-    open,
     setPosition,
     setQuery,
     setReplacement,
     setActiveMatchId,
   } = useWorkflowSearchReplaceStore(
     useShallow((state) => ({
-      isOpen: state.isOpen,
       query: state.query,
       replacement: state.replacement,
       activeMatchId: state.activeMatchId,
       position: state.position,
       close: state.close,
-      open: state.open,
       setPosition: state.setPosition,
       setQuery: state.setQuery,
       setReplacement: state.setReplacement,
       setActiveMatchId: state.setActiveMatchId,
     }))
   )
-  const prevQueryRef = useRef(query)
-  const prevIsOpenRef = useRef(false)
+  const prevQueryRef = useRef<string | null>(null)
   const afterReplaceIndexRef = useRef<number | null>(null)
-  const { data: workspaceCredentials } = useWorkspaceCredentials({ workspaceId, enabled: isOpen })
-  const { data: customTools = [] } = useCustomTools(isOpen && workspaceId ? workspaceId : '')
-  const { mcpTools } = useMcpTools(isOpen && workspaceId ? workspaceId : '')
+  const { data: workspaceCredentials } = useWorkspaceCredentials({ workspaceId })
+  const { data: customTools = [] } = useCustomTools(workspaceId ?? '')
+  const { mcpTools } = useMcpTools(workspaceId ?? '')
   const mcpToolNamesById = useMemo(() => {
     const names = new Map<string, string>()
     for (const t of mcpTools) {
@@ -182,19 +201,6 @@ export function WorkflowSearchReplace() {
     }
     return names
   }, [mcpTools])
-
-  useRegisterGlobalCommands([
-    createCommand({
-      id: 'open-workflow-search-replace',
-      handler: () => {
-        open()
-        requestAnimationFrame(() => {
-          searchInputRef.current?.focus()
-          searchInputRef.current?.select()
-        })
-      },
-    }),
-  ])
 
   const searchBlocks = useMemo(
     () =>
@@ -267,10 +273,17 @@ export function WorkflowSearchReplace() {
   )
 
   useEffect(() => {
-    if (!isOpen) return
-    searchInputRef.current?.focus()
-    searchInputRef.current?.select()
-  }, [isOpen])
+    const focusSearchInput = () => {
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }
+    focusSearchInput()
+    focusRef.current = focusSearchInput
+    return () => {
+      focusRef.current = null
+      usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
+    }
+  }, [focusRef])
 
   const panelHeight = isReplaceExpanded
     ? SEARCH_PANEL_EXPANDED_HEIGHT
@@ -288,7 +301,7 @@ export function WorkflowSearchReplace() {
   })
 
   useFloatBoundarySync({
-    isOpen,
+    isOpen: true,
     position: actualPosition,
     width: SEARCH_PANEL_WIDTH,
     height: panelHeight,
@@ -384,14 +397,6 @@ export function WorkflowSearchReplace() {
   }
 
   useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false
-      usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
-      return
-    }
-
-    const justOpened = !prevIsOpenRef.current
-    prevIsOpenRef.current = true
     const queryChanged = prevQueryRef.current !== query
     prevQueryRef.current = query
 
@@ -406,7 +411,7 @@ export function WorkflowSearchReplace() {
       const replaceIndex = afterReplaceIndexRef.current
       afterReplaceIndexRef.current = null
 
-      if (queryChanged || justOpened) {
+      if (queryChanged) {
         handleSelectMatch(hydratedMatches[0].id)
       } else if (replaceIndex !== null) {
         handleSelectMatch(hydratedMatches[Math.min(replaceIndex, hydratedMatches.length - 1)].id)
@@ -422,9 +427,7 @@ export function WorkflowSearchReplace() {
     usePanelEditorSearchStore
       .getState()
       .setActiveSearchTarget(createActiveSearchTarget(activeHydratedMatch, query))
-  }, [activeMatchId, handleSelectMatch, hydratedMatches, isOpen, query, setActiveMatchId])
-
-  if (!isOpen) return null
+  }, [activeMatchId, handleSelectMatch, hydratedMatches, query, setActiveMatchId])
 
   const handleMoveActiveMatch = (delta: number) => {
     if (hydratedMatches.length === 0) return
@@ -474,10 +477,9 @@ export function WorkflowSearchReplace() {
         const blockConfig = block ? getBlock(block.type) : null
         if (!blockConfig?.subBlocks) continue
 
-        const dependentClears = getWorkflowSearchDependentClears(
-          blockConfig.subBlocks,
-          update.subBlockId
-        )
+        const dependentClears = getTransitiveSubBlockDependents(blockConfig.subBlocks, [
+          update.subBlockId,
+        ])
         for (const clear of dependentClears) {
           const alreadyUpdated = batchUpdates.some(
             (candidate) =>
@@ -565,7 +567,7 @@ export function WorkflowSearchReplace() {
         onMouseDown={handleMouseDown}
       >
         <div className='flex min-w-0 items-center'>
-          <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+          <span className='truncate text-[13px] text-[var(--text-primary)]'>
             Search and replace
           </span>
         </div>

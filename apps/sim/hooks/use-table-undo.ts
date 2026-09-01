@@ -390,6 +390,7 @@ export function useTableUndo({
                   // cell data restored below is keyed by those option ids.
                   ...(action.columnOptions ? { options: action.columnOptions } : {}),
                   ...(action.columnMultiple ? { multiple: true } : {}),
+                  ...(action.columnCurrencyCode ? { currencyCode: action.columnCurrencyCode } : {}),
                   position: action.columnPosition,
                 },
                 {

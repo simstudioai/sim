@@ -1,14 +1,14 @@
 'use client'
 
 import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/emcn'
-import { ArrowLeftRight, Info } from 'lucide-react'
+import { ArrowLeftRight, CircleInfo } from '@sim/emcn/icons'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
-import type { SelectorKey } from '@/hooks/selectors/types'
 
 export interface ConnectorConfigFieldsProps {
   /** Registry definition whose `configFields` drive the rendered rows. */
@@ -86,7 +86,7 @@ export function ConnectorConfigFields({
                           className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
                           aria-label={`About ${field.title}`}
                         >
-                          <Info className='size-[12px]' />
+                          <CircleInfo className='size-[12px]' />
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content side='top'>{field.description}</Tooltip.Content>

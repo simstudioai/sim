@@ -14,6 +14,16 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#2B3543',
   icon: SerperIcon,
+  canvasPresentation: {
+    defaultTitle: 'Serper',
+    sentences: {
+      default: [
+        { text: 'Search Google for', field: 'query', core: true },
+        { text: ', from', field: 'gl' },
+        { text: ', returning up to', field: 'num', after: 'results' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'query',
@@ -31,6 +41,8 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
         { label: 'news', id: 'news' },
         { label: 'places', id: 'places' },
         { label: 'images', id: 'images' },
+        { label: 'videos', id: 'videos' },
+        { label: 'shopping', id: 'shopping' },
       ],
       value: () => 'search',
     },

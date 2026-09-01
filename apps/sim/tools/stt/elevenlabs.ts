@@ -1,7 +1,7 @@
 import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const elevenLabsSttTool: ToolConfig<SttParams, SttResponse> = {
+export const elevenLabsSttTool: InternalToolConfig<SttParams, SttResponse> = {
   id: 'stt_elevenlabs',
   name: 'ElevenLabs STT',
   description: 'Transcribe audio to text using ElevenLabs',
@@ -58,17 +58,12 @@ export const elevenLabsSttTool: ToolConfig<SttParams, SttResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/stt',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: SttParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ language: params.language }),
+    },
+    input: (params) => ({
       provider: 'elevenlabs',
       apiKey: params.apiKey,
       model: 'scribe_v2',
@@ -77,9 +72,6 @@ export const elevenLabsSttTool: ToolConfig<SttParams, SttResponse> = {
       audioUrl: params.audioUrl,
       language: params.language || 'auto',
       timestamps: params.timestamps || 'none',
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 
@@ -125,20 +117,16 @@ const elevenLabsSttV2Params = {
   audioFileReference: elevenLabsSttTool.params.audioFileReference,
   language: elevenLabsSttTool.params.language,
   timestamps: elevenLabsSttTool.params.timestamps,
-} satisfies ToolConfig['params']
+} satisfies InternalToolConfig['params']
 
-export const elevenLabsSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+export const elevenLabsSttV2Tool: InternalToolConfig<SttV2Params, SttResponse> = {
   ...elevenLabsSttTool,
   id: 'stt_elevenlabs_v2',
   name: 'ElevenLabs STT',
   params: elevenLabsSttV2Params,
-  request: {
-    ...elevenLabsSttTool.request,
-    body: (
-      params: SttV2Params & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+  operation: {
+    ...elevenLabsSttTool.operation,
+    input: (params) => ({
       provider: 'elevenlabs',
       apiKey: params.apiKey,
       model: 'scribe_v2',
@@ -146,9 +134,6 @@ export const elevenLabsSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
       audioFileReference: params.audioFileReference,
       language: params.language || 'auto',
       timestamps: params.timestamps || 'none',
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 }

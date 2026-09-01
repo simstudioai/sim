@@ -13,6 +13,7 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { chunkArray } from '@sim/utils/helpers'
 import { task } from '@trigger.dev/sdk'
 import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
@@ -23,7 +24,6 @@ import {
 } from '@/lib/billing/storage'
 import {
   batchDeleteByWorkspaceAndTimestamp,
-  chunkArray,
   chunkedBatchDelete,
   DEFAULT_DELETE_CHUNK_SIZE,
   selectRowsByIdChunks,
@@ -35,6 +35,7 @@ import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { allocateUniqueWorkspaceFileName } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('CleanupSoftDeletes')
@@ -113,7 +114,7 @@ async function selectExpiredWorkspaceFiles(
           key: workspaceFiles.key,
           workspaceId: workspaceFiles.workspaceId,
           context: workspaceFiles.context,
-          size: workspaceFiles.size,
+          sizeBytes: workspaceFiles.sizeBytes,
         })
         .from(workspaceFiles)
         .where(
@@ -134,7 +135,7 @@ async function selectExpiredWorkspaceFiles(
       key: r.key,
       workspaceId: r.workspaceId,
       context: r.context as StorageContext,
-      size: r.size,
+      size: getWorkspaceFileSize(r),
     })),
   }
 }
@@ -325,11 +326,14 @@ async function deleteExpiredBillableWorkspaceFileRows(
                 lt(workspaceFiles.deletedAt, retentionDate)
               )
             )
-            .returning({ id: workspaceFiles.id, size: workspaceFiles.size })
-          if (deletedRows.some(({ size }) => size < 0)) {
-            throw new Error('Cannot delete workspace files with negative stored-byte metadata')
-          }
-          const deletedBytes = deletedRows.reduce((total, { size }) => total + size, 0)
+            .returning({
+              id: workspaceFiles.id,
+              sizeBytes: workspaceFiles.sizeBytes,
+            })
+          const deletedBytes = deletedRows.reduce(
+            (total, row) => total + getWorkspaceFileSize(row),
+            0
+          )
           await decrementStorageUsageForBillingContextInTx(tx, billingContext, deletedBytes)
           return deletedRows.length
         })
@@ -695,14 +699,13 @@ const CLEANUP_TARGETS = [
 ] as const
 
 /**
- * Sweep abandoned knowledge-base ownership bindings. The presigned upload flow
- * writes a `workspace_files` binding when it hands out an upload URL, before the
- * object is stored and before any document is created. If the upload is never
- * completed, that binding is orphaned — no `document.storageKey` ever references
- * its key. Such bindings are inert (read access requires a live document, and
- * the move re-point only follows referenced keys), but they accumulate, so we
- * drop the best-effort object and soft-delete the binding once they are older
- * than the grace window.
+ * Sweep abandoned knowledge-base ownership bindings. Knowledge upload sessions write a
+ * `workspace_files` binding before the object is stored and before any document is created.
+ * If the upload is never completed, that binding is orphaned — no
+ * `document.storageKey` ever references its key. Such bindings are inert (read access requires
+ * a live document, and the move re-point only follows referenced keys), but they accumulate,
+ * so we drop the best-effort object and soft-delete the binding once they are older than the
+ * grace window.
  */
 async function cleanupOrphanedKnowledgeBaseBindings(
   workspaceIds: string[],

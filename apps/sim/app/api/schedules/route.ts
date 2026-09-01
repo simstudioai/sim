@@ -4,12 +4,11 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createScheduleContract, scheduleQuerySchema } from '@/lib/api/contracts/schedules'
-import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { scheduleQuerySchema } from '@/lib/api/contracts/schedules'
+import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { performCreateJob } from '@/lib/workflows/schedules/orchestration'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ScheduledAPI')
@@ -128,155 +127,41 @@ async function handleWorkspaceSchedules(requestId: string, userId: string, works
 
   logger.info(`[${requestId}] Getting all schedules for workspace ${workspaceId}`)
 
-  const [workflowRows, jobRows] = await Promise.all([
-    db
-      .select({
-        schedule: workflowSchedule,
-        workflowName: workflow.name,
-      })
-      .from(workflowSchedule)
-      .innerJoin(workflow, eq(workflow.id, workflowSchedule.workflowId))
-      .leftJoin(
-        workflowDeploymentVersion,
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflowSchedule.workflowId),
-          eq(workflowDeploymentVersion.isActive, true)
+  const workflowRows = await db
+    .select({
+      schedule: workflowSchedule,
+      workflowName: workflow.name,
+    })
+    .from(workflowSchedule)
+    .innerJoin(workflow, eq(workflow.id, workflowSchedule.workflowId))
+    .leftJoin(
+      workflowDeploymentVersion,
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowSchedule.workflowId),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .where(
+      and(
+        eq(workflow.workspaceId, workspaceId),
+        isNull(workflow.archivedAt),
+        eq(workflowSchedule.triggerType, 'schedule'),
+        isNull(workflowSchedule.archivedAt),
+        or(eq(workflowSchedule.sourceType, 'workflow'), isNull(workflowSchedule.sourceType)),
+        or(
+          eq(workflowSchedule.deploymentVersionId, workflowDeploymentVersion.id),
+          and(isNull(workflowDeploymentVersion.id), isNull(workflowSchedule.deploymentVersionId))
         )
       )
-      .where(
-        and(
-          eq(workflow.workspaceId, workspaceId),
-          isNull(workflow.archivedAt),
-          eq(workflowSchedule.triggerType, 'schedule'),
-          isNull(workflowSchedule.archivedAt),
-          or(eq(workflowSchedule.sourceType, 'workflow'), isNull(workflowSchedule.sourceType)),
-          or(
-            eq(workflowSchedule.deploymentVersionId, workflowDeploymentVersion.id),
-            and(isNull(workflowDeploymentVersion.id), isNull(workflowSchedule.deploymentVersionId))
-          )
-        )
-      ),
-    db
-      .select({ schedule: workflowSchedule })
-      .from(workflowSchedule)
-      .where(
-        and(
-          eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-          eq(workflowSchedule.sourceType, 'job'),
-          isNull(workflowSchedule.archivedAt)
-        )
-      ),
-  ])
+    )
 
   const headers = new Headers()
   headers.set('Cache-Control', 'no-store, max-age=0')
 
-  const schedules = [
-    ...workflowRows.map((r) => ({
-      ...r.schedule,
-      workflowName: r.workflowName,
-    })),
-    ...jobRows.map((r) => ({
-      ...r.schedule,
-      workflowName: null,
-    })),
-  ]
+  const schedules = workflowRows.map((r) => ({
+    ...r.schedule,
+    workflowName: r.workflowName,
+  }))
 
   return NextResponse.json({ schedules }, { headers })
 }
-
-/**
- * Create a standalone scheduled job.
- *
- * Body: { workspaceId, title, prompt, cronExpression, timezone, lifecycle?, maxRuns?, startDate? }
- */
-export const POST = withRouteHandler(async (req: NextRequest) => {
-  const requestId = generateRequestId()
-
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized schedule creation attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const parsed = await parseRequest(
-      createScheduleContract,
-      req,
-      {},
-      {
-        validationErrorResponse: (error) =>
-          NextResponse.json(
-            { error: 'Invalid request body', details: error.issues },
-            { status: 400 }
-          ),
-      }
-    )
-    if (!parsed.success) return parsed.response
-
-    const {
-      workspaceId,
-      title,
-      prompt,
-      cronExpression,
-      time,
-      timezone,
-      lifecycle,
-      maxRuns,
-      endsAt,
-      startDate,
-      contexts,
-    } = parsed.data.body
-
-    const permission = await verifyWorkspaceMembership(session.user.id, workspaceId)
-    if (permission !== 'admin' && permission !== 'write') {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
-    }
-
-    const result = await performCreateJob({
-      workspaceId,
-      userId: session.user.id,
-      actorName: session.user.name,
-      actorEmail: session.user.email,
-      title,
-      prompt,
-      cronExpression,
-      time,
-      timezone,
-      lifecycle,
-      maxRuns,
-      endsAt,
-      startDate,
-      contexts,
-      request: req,
-    })
-    if (!result.success || !result.schedule) {
-      return NextResponse.json(
-        { error: result.error || 'Failed to create schedule' },
-        { status: result.errorCode === 'validation' ? 400 : 500 }
-      )
-    }
-
-    logger.info(`[${requestId}] Created job schedule ${result.schedule.id}`, {
-      title,
-      cronExpression,
-      timezone,
-      lifecycle,
-    })
-
-    return NextResponse.json(
-      {
-        schedule: {
-          id: result.schedule.id,
-          status: result.schedule.status,
-          cronExpression: result.schedule.cronExpression,
-          nextRunAt: result.schedule.nextRunAt,
-        },
-      },
-      { status: 201 }
-    )
-  } catch (error) {
-    logger.error(`[${requestId}] Error creating schedule`, error)
-    return NextResponse.json({ error: 'Failed to create schedule' }, { status: 500 })
-  }
-})

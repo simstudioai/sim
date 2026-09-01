@@ -30,10 +30,10 @@ vi.mock('@/lib/table/service', () => ({
 }))
 vi.mock('@/lib/table/jobs/service', () => ({
   selectExportRowPage: mockSelectExportRowPage,
-  updateJobProgress: mockUpdateJobProgress,
-  markJobReady: mockMarkJobReady,
-  markJobFailed: mockMarkJobFailed,
-  setJobResultKey: mockSetJobResultKey,
+  updateJobProgressInWorkspace: mockUpdateJobProgress,
+  markJobReadyInWorkspace: mockMarkJobReady,
+  markJobFailedInWorkspace: mockMarkJobFailed,
+  setJobResultKeyInWorkspace: mockSetJobResultKey,
 }))
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({
@@ -84,7 +84,7 @@ describe('runTableExport', () => {
     mockUpdateJobProgress.mockResolvedValue(true)
     mockMarkJobReady.mockResolvedValue(true)
     mockMarkJobFailed.mockResolvedValue(undefined)
-    mockSetJobResultKey.mockResolvedValue(undefined)
+    mockSetJobResultKey.mockResolvedValue(true)
     mockDeleteFile.mockResolvedValue(undefined)
     // A handle that records every write so tests can assert the streamed bytes, and echoes the
     // pinned key back from `complete` like the real uploader does.
@@ -116,6 +116,7 @@ describe('runTableExport', () => {
 
     expect(mockCreateMultipartUpload).toHaveBeenCalledTimes(1)
     const init = mockCreateMultipartUpload.mock.calls[0][0]
+    expect(init.completionPolicy).toBe('replace')
     expect(init.key).toBe('workspace/ws_1/exports/tbl_1/job_1/People.csv')
     expect(init.context).toBe('workspace')
     expect(init.contentType).toContain('text/csv')
@@ -125,8 +126,8 @@ describe('runTableExport', () => {
     expect(lastHandle?.complete).toHaveBeenCalledTimes(1)
     expect(lastHandle?.abort).not.toHaveBeenCalled()
 
-    expect(mockSetJobResultKey).toHaveBeenCalledWith('tbl_1', 'job_1', init.key)
-    expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'job_1')
+    expect(mockSetJobResultKey).toHaveBeenCalledWith('tbl_1', 'ws_1', 'job_1', init.key)
+    expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'ws_1', 'job_1')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'export', status: 'ready', progress: 1 })
     )
@@ -185,7 +186,7 @@ describe('runTableExport', () => {
     await runTableExport(payload)
 
     expect(lastHandle?.abort).toHaveBeenCalledTimes(1)
-    expect(mockMarkJobFailed).toHaveBeenCalledWith('tbl_1', 'job_1', 'boom')
+    expect(mockMarkJobFailed).toHaveBeenCalledWith('tbl_1', 'ws_1', 'job_1', 'boom')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'export', status: 'failed', error: 'boom' })
     )

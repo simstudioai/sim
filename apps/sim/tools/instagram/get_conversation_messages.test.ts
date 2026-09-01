@@ -70,10 +70,6 @@ describe('instagramGetConversationMessagesTool', () => {
         nextCursor: 'next-message-cursor',
       },
     })
-    expect(instagramGetConversationMessagesTool.outputs?.messages.type).toBe('array')
-    expect(instagramGetConversationMessagesTool.outputs?.messages.items?.properties).toHaveProperty(
-      'isUnsupported'
-    )
   })
 
   it('rejects oversized Graph response bodies', async () => {
@@ -91,25 +87,6 @@ describe('instagramGetConversationMessagesTool', () => {
     ).rejects.toThrow(
       `Instagram conversation messages response exceeds maximum size of ${INSTAGRAM_RESPONSE_MAX_BYTES} bytes`
     )
-  })
-
-  it('allows success responses above the smaller Graph error-body cap', async () => {
-    const transform = instagramGetConversationMessagesTool.transformResponse
-    if (!transform) throw new Error('Expected a response transform')
-
-    const result = await transform(
-      Response.json({
-        id: 'conversation-1',
-        messages: { data: [] },
-        padding: 'x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1),
-      }),
-      { accessToken: 'token', conversationId: 'conversation-1' }
-    )
-
-    expect(result).toMatchObject({
-      success: true,
-      output: { conversationId: 'conversation-1', messages: [] },
-    })
   })
 
   it('rejects malformed successful Graph responses', async () => {

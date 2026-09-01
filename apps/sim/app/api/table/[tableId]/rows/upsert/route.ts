@@ -1,88 +1,53 @@
-import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
 import { upsertTableRowContract } from '@/lib/api/contracts/tables'
-import { parseRequest } from '@/lib/api/server'
-import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { RowData, TableSchema } from '@/lib/table'
-import { upsertRow } from '@/lib/table'
-import { rowWireTranslators } from '@/app/api/table/row-wire'
-import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { internalTableRowsErrorPolicy } from '@/lib/table/api/row-route-policies'
+import { tableOperations } from '@/lib/table/application/operations'
+import { upsertTableRow } from '@/lib/table/application/rows'
+import type { RowData } from '@/lib/table/types'
+import {
+  finalizeTableRowsProvenance,
+  negotiateTableRowsProvenance,
+  readTableRowProvenanceEnvelope,
+} from '@/app/api/table/row-secret-provenance'
+import { presentRowForPrincipal, rowKeyingForPrincipal } from '@/app/api/table/row-wire'
 
-const logger = createLogger('TableUpsertAPI')
+export const dynamic = 'force-dynamic'
 
-interface UpsertRouteParams {
-  params: Promise<{ tableId: string }>
-}
-
-/** POST /api/table/[tableId]/rows/upsert - Inserts or updates based on unique columns. */
-export const POST = withRouteHandler(async (request: NextRequest, context: UpsertRouteParams) => {
-  const requestId = generateRequestId()
-  const { tableId } = await context.params
-
-  try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    const validation = await parseRequest(upsertTableRowContract, request, context)
-    if (!validation.success) return validation.response
-    const validated = validation.data.body
-
-    const result = await checkAccess(tableId, authResult.userId, 'write')
-    if (!result.ok) return accessError(result, requestId, tableId)
-
-    const { table } = result
-
-    if (table.workspaceId !== validated.workspaceId) {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-
-    const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
-    // conflictTarget passes through untranslated — upsertRow resolves it id-or-name.
-    const upsertResult = await upsertRow(
-      {
-        tableId,
-        workspaceId: validated.workspaceId,
-        data: wire.dataIn(validated.data as RowData),
-        userId: authResult.userId,
-        conflictTarget: validated.conflictTarget,
-      },
-      table,
-      requestId
-    )
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        row: {
-          id: upsertResult.row.id,
-          data: wire.dataOut(upsertResult.row.data),
-          createdAt:
-            upsertResult.row.createdAt instanceof Date
-              ? upsertResult.row.createdAt.toISOString()
-              : upsertResult.row.createdAt,
-          updatedAt:
-            upsertResult.row.updatedAt instanceof Date
-              ? upsertResult.row.updatedAt.toISOString()
-              : upsertResult.row.updatedAt,
-        },
-        operation: upsertResult.operation,
-        message: `Row ${upsertResult.operation === 'update' ? 'updated' : 'inserted'} successfully`,
-      },
-    })
-  } catch (error) {
-    if (isZodError(error)) {
-      return validationErrorResponse(error)
-    }
-
-    const response = rowWriteErrorResponse(error)
-    if (response) return response
-
-    logger.error(`[${requestId}] Error upserting row:`, error)
-    return NextResponse.json({ error: 'Failed to upsert row' }, { status: 500 })
-  }
+/** POST /api/table/[tableId]/rows/upsert — inserts or updates based on unique columns. */
+export const POST = defineInternalJsonRoute({
+  contract: upsertTableRowContract,
+  operation: tableOperations.upsertRow,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal table upsert behavior',
+  }),
+  errorPolicy: internalTableRowsErrorPolicy,
+  mapInput: ({ params, body }, { principal, request }) => ({
+    tableId: params.tableId,
+    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+    data: body.data as RowData,
+    dataKeying: rowKeyingForPrincipal(principal),
+    strictWrite: false,
+    // The conflict target follows the same keying as the data; the use case
+    // resolves it id-or-name against the canonical schema.
+    conflictTarget: body.conflictTarget,
+    // Handed over unresolved: interpreting the selections needs the canonical
+    // schema, which this adapter must not load.
+    secretProvenanceEnvelope: readTableRowProvenanceEnvelope(request, body),
+    includePersistedSecretProvenance: negotiateTableRowsProvenance(
+      request,
+      principal.kind !== 'session'
+    ),
+  }),
+  useCase: upsertTableRow,
+  present: ({ table, row, operation }, { principal }) => ({
+    success: true as const,
+    data: {
+      row: presentRowForPrincipal(row, table.schema, principal),
+      operation,
+      message: `Row ${operation === 'update' ? 'updated' : 'inserted'} successfully`,
+    },
+  }),
+  finalizeResponse: ({ result }) => finalizeTableRowsProvenance(result.secretProvenance),
 })

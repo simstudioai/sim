@@ -40,6 +40,8 @@ export function shouldSkipBlockRender(
     prevProps.data.config === nextProps.data.config &&
     prevProps.data.subBlockValues === nextProps.data.subBlockValues &&
     prevProps.data.blockState === nextProps.data.blockState &&
+    prevProps.data.onSetErrorOutputEnabled === nextProps.data.onSetErrorOutputEnabled &&
+    prevProps.data.onRemoveEdges === nextProps.data.onRemoveEdges &&
     prevProps.selected === nextProps.selected &&
     prevProps.dragging === nextProps.dragging
   )

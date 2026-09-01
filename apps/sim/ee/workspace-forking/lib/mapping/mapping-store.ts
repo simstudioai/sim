@@ -29,6 +29,21 @@ export interface ForkMappingUpsert {
   childResourceId: string | null
 }
 
+export interface PersistCopiedResourceMappingsParams {
+  executor: DbOrTx
+  edgeChildWorkspaceId: string
+  userId: string
+  /** Whether the runtime copy source is the canonical parent side of the fork edge. */
+  sourceIsParent: boolean
+  /** Runtime source -> runtime target identities produced by the copy operation. */
+  entries: ForkMappingUpsert[]
+}
+
+export interface OrientedCopiedResourceMappings {
+  entries: ForkMappingUpsert[]
+  deleteKeys: Array<{ resourceType: ForkResourceType; childResourceId: string }>
+}
+
 const RESOURCE_TYPE_TO_FORK_KIND: Record<ForkResourceType, ForkRemapKind | null> = {
   workflow: null,
   oauth_credential: 'credential',
@@ -42,6 +57,7 @@ const RESOURCE_TYPE_TO_FORK_KIND: Record<ForkResourceType, ForkRemapKind | null>
   // Identity-only, like `workflow`: nothing in a subblock references a workflow-publishing
   // server, so these rows never participate in reference remapping.
   workflow_mcp_server: null,
+  custom_block: 'custom-block',
   custom_tool: 'custom-tool',
   skill: 'skill',
 }
@@ -62,6 +78,7 @@ const NON_CREDENTIAL_FORK_KIND_TO_RESOURCE_TYPE = {
   file: 'file',
   'mcp-server': 'mcp_server',
   'custom-tool': 'custom_tool',
+  'custom-block': 'custom_block',
   skill: 'skill',
 } as const satisfies Record<
   Exclude<ForkRemapKind, 'credential'>,
@@ -217,6 +234,56 @@ export async function upsertEdgeMappings(
 }
 
 /**
+ * Orient runtime source -> target copy identities into the edge's canonical parent -> child
+ * storage shape. Pull/fork copies already have that orientation. Push copies run child -> parent,
+ * so their pairs are swapped and the old row keyed by the source-child identity is removed before
+ * the replacement is upserted.
+ */
+export function orientCopiedResourceMappings(
+  sourceIsParent: boolean,
+  entries: ForkMappingUpsert[]
+): OrientedCopiedResourceMappings {
+  if (sourceIsParent) return { entries, deleteKeys: [] }
+
+  const oriented: ForkMappingUpsert[] = []
+  const deleteKeys: OrientedCopiedResourceMappings['deleteKeys'] = []
+  for (const entry of entries) {
+    if (entry.childResourceId == null) continue
+    oriented.push({
+      resourceType: entry.resourceType,
+      parentResourceId: entry.childResourceId,
+      childResourceId: entry.parentResourceId,
+    })
+    deleteKeys.push({
+      resourceType: entry.resourceType,
+      childResourceId: entry.parentResourceId,
+    })
+  }
+  return { entries: oriented, deleteKeys }
+}
+
+/**
+ * Persist identities created by a copy operation through one shared orientation boundary. Used by
+ * both the promote transaction and the post-commit full-KB document copier so those paths cannot
+ * disagree about parent/child direction.
+ */
+export async function persistCopiedResourceMappings({
+  executor,
+  edgeChildWorkspaceId,
+  userId,
+  sourceIsParent,
+  entries,
+}: PersistCopiedResourceMappingsParams): Promise<void> {
+  if (entries.length === 0) return
+  const oriented = orientCopiedResourceMappings(sourceIsParent, entries)
+  if (oriented.entries.length === 0) return
+  if (oriented.deleteKeys.length > 0) {
+    await deleteEdgeMappingsByChildResources(executor, edgeChildWorkspaceId, oriented.deleteKeys)
+  }
+  await upsertEdgeMappings(executor, edgeChildWorkspaceId, userId, oriented.entries)
+}
+
+/**
  * Remove mapping rows matched by their child-side (source) resource id, grouped by
  * resource type into a single OR-of-INs - one query for the whole push save (the
  * unique key is on the parent side, so a changed push target must drop the old
@@ -227,18 +294,52 @@ export async function deleteEdgeMappingsByChildResources(
   childWorkspaceId: string,
   pairs: Array<{ resourceType: ForkResourceType; childResourceId: string }>
 ): Promise<void> {
+  await deleteEdgeMappingsByResourceIds(
+    tx,
+    childWorkspaceId,
+    'child',
+    pairs.map(({ resourceType, childResourceId }) => ({
+      resourceType,
+      resourceId: childResourceId,
+    }))
+  )
+}
+
+/** Remove copy mappings whose runtime target resources are being discarded after a failed fill. */
+export async function deleteCopiedResourceMappingsByTargets(params: {
+  executor: DbOrTx
+  edgeChildWorkspaceId: string
+  sourceIsParent: boolean
+  targets: Array<{ resourceType: ForkResourceType; resourceId: string }>
+}): Promise<void> {
+  const { executor, edgeChildWorkspaceId, sourceIsParent, targets } = params
+  await deleteEdgeMappingsByResourceIds(
+    executor,
+    edgeChildWorkspaceId,
+    sourceIsParent ? 'child' : 'parent',
+    targets
+  )
+}
+
+async function deleteEdgeMappingsByResourceIds(
+  tx: DbOrTx,
+  childWorkspaceId: string,
+  side: 'parent' | 'child',
+  pairs: Array<{ resourceType: ForkResourceType; resourceId: string }>
+): Promise<void> {
   if (pairs.length === 0) return
   const idsByType = new Map<ForkResourceType, string[]>()
-  for (const { resourceType, childResourceId } of pairs) {
+  for (const { resourceType, resourceId } of pairs) {
     const list = idsByType.get(resourceType)
-    if (list) list.push(childResourceId)
-    else idsByType.set(resourceType, [childResourceId])
+    if (list) list.push(resourceId)
+    else idsByType.set(resourceType, [resourceId])
   }
+  const resourceColumn =
+    side === 'parent'
+      ? workspaceForkResourceMap.parentResourceId
+      : workspaceForkResourceMap.childResourceId
   const conditions = Array.from(idsByType, ([resourceType, ids]) =>
-    and(
-      eq(workspaceForkResourceMap.resourceType, resourceType),
-      inArray(workspaceForkResourceMap.childResourceId, ids)
-    )
+    and(eq(workspaceForkResourceMap.resourceType, resourceType), inArray(resourceColumn, ids))
   )
   await tx
     .delete(workspaceForkResourceMap)

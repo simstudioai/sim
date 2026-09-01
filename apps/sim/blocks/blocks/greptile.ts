@@ -4,6 +4,9 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GreptileResponse } from '@/tools/greptile/types'
 
+/** Shared by the two repository operations, which both take a branch. */
+const ON_BRANCH = { text: 'on branch', field: 'branch' } as const
+
 export const GreptileBlock: BlockConfig<GreptileResponse> = {
   type: 'greptile',
   name: 'Greptile',
@@ -16,6 +19,22 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#181C1E',
   icon: GreptileIcon,
+  canvasPresentation: {
+    defaultTitle: 'Greptile',
+    sentences: {
+      byOperation: {
+        greptile_query: [
+          { text: 'Query', field: 'repositories', after: 'for', core: true },
+          { field: 'query', core: true },
+        ],
+        greptile_index_repo: [{ text: 'Index', field: 'repository', core: true }, ON_BRANCH],
+        greptile_status: [
+          { text: 'Check indexing status of', field: 'repository', core: true },
+          ON_BRANCH,
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

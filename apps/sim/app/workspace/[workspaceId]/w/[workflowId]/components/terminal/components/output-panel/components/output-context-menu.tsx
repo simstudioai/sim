@@ -44,13 +44,7 @@ export const OutputContextMenu = memo(function OutputContextMenu({
   hasSelection,
 }: OutputContextMenuProps) {
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-      colorScheme='inverted'
-    >
+    <Popover open={isOpen} onOpenChange={(open) => !open && onClose()} size='sm'>
       <PopoverAnchor
         style={{
           position: 'fixed',

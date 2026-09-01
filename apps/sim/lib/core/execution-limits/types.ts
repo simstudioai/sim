@@ -1,3 +1,9 @@
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import {
+  MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
+  parseWorkflowExecutionTimeoutSeconds,
+  resolveEnterpriseWorkflowExecutionTimeoutFallbackSeconds,
+} from '@/lib/billing/execution-timeout-defaults'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -39,6 +45,10 @@ function getAsyncTimeoutForPlan(plan: SubscriptionPlan): number {
     team: env.EXECUTION_TIMEOUT_ASYNC_TEAM,
     enterprise: env.EXECUTION_TIMEOUT_ASYNC_ENTERPRISE,
   }
+  if (plan === 'enterprise') {
+    return resolveEnterpriseWorkflowExecutionTimeoutFallbackSeconds(envVarMap[plan]) * 1000
+  }
+
   return (Number.parseInt(envVarMap[plan] || '') || DEFAULT_ASYNC_TIMEOUTS_SECONDS[plan]) * 1000
 }
 
@@ -69,7 +79,8 @@ const EXECUTION_TIMEOUTS: Record<SubscriptionPlan, ExecutionTimeoutConfig> = {
  */
 export function getExecutionTimeout(
   plan: SubscriptionPlan | string | undefined,
-  type: 'sync' | 'async' = 'sync'
+  type: 'sync' | 'async' = 'sync',
+  enterpriseWorkflowExecutionTimeoutSeconds?: number
 ): number {
   if (!isBillingEnabled) {
     const override = Number.parseInt(
@@ -77,15 +88,67 @@ export function getExecutionTimeout(
     )
     return Number.isFinite(override) && override > 0 ? EXECUTION_TIMEOUTS.free[type] : 0
   }
-  return EXECUTION_TIMEOUTS[getPlanTypeForLimits(plan)][type]
+  const planType = getPlanTypeForLimits(plan)
+  if (type === 'async' && planType === 'enterprise') {
+    const configuredTimeout = parseWorkflowExecutionTimeoutSeconds(
+      enterpriseWorkflowExecutionTimeoutSeconds
+    )
+    if (configuredTimeout !== null) return configuredTimeout * 1000
+  }
+  return EXECUTION_TIMEOUTS[planType][type]
+}
+
+/** Resolves the async execution policy captured in a trusted billing snapshot. */
+export function getAsyncExecutionTimeoutForBillingAttribution(
+  billingAttribution: BillingAttributionSnapshot
+): number {
+  const payerSubscription = billingAttribution.payerSubscription
+  return getExecutionTimeout(
+    payerSubscription?.plan,
+    'async',
+    payerSubscription?.enterpriseWorkflowExecutionTimeoutSeconds
+  )
 }
 
 export function getMaxExecutionTimeout(): number {
-  return EXECUTION_TIMEOUTS.enterprise.async
+  return MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS * 1000
+}
+
+/** Applies an async API request cap without allowing it to exceed account policy. */
+export function resolveAsyncExecutionTimeout(
+  policyTimeoutMs: number,
+  requestedTimeoutSeconds?: number
+): number {
+  const requested = parseWorkflowExecutionTimeoutSeconds(requestedTimeoutSeconds)
+  if (requested === null) return policyTimeoutMs
+
+  const requestedTimeoutMs = requested * 1000
+  return policyTimeoutMs > 0 ? Math.min(policyTimeoutMs, requestedTimeoutMs) : requestedTimeoutMs
+}
+
+/** Caps an already-normalized timeout while preserving an untimed policy. */
+export function capExecutionTimeoutMs(
+  policyTimeoutMs: number,
+  requestedTimeoutMs?: number
+): number {
+  if (
+    requestedTimeoutMs === undefined ||
+    !Number.isFinite(requestedTimeoutMs) ||
+    requestedTimeoutMs <= 0
+  ) {
+    return policyTimeoutMs
+  }
+  return policyTimeoutMs > 0 ? Math.min(policyTimeoutMs, requestedTimeoutMs) : requestedTimeoutMs
+}
+
+/** Trigger.dev requires per-run max durations to be integer seconds and at least five seconds. */
+export function toTriggerMaxDurationSeconds(timeoutMs?: number): number | undefined {
+  if (!timeoutMs || timeoutMs <= 0) return undefined
+  return Math.max(5, Math.ceil((timeoutMs + RESERVATION_TTL_BUFFER_MS) / 1000))
 }
 
 /** Safety buffer added beyond the max execution timeout for execution-lifetime TTLs. */
-export const RESERVATION_TTL_BUFFER_MS = 60_000
+export const RESERVATION_TTL_BUFFER_MS = 5 * 60_000
 
 /**
  * TTL (ms) bounding how long a single execution can remain in flight: the max
@@ -169,6 +232,29 @@ export function isTimeoutAbortReason(reason: unknown): boolean {
  */
 const signalDeadlines = new WeakMap<AbortSignal, number>()
 
+export function getExecutionDeadlineAt(signal?: AbortSignal): Date | undefined {
+  if (!signal) return undefined
+  const deadline = signalDeadlines.get(signal)
+  return deadline === undefined ? undefined : new Date(deadline)
+}
+
+/** Combines cancellation sources and carries their earliest known execution deadline. */
+export function combineExecutionAbortSignals(signals: readonly AbortSignal[]): AbortSignal {
+  if (signals.length === 0) return new AbortController().signal
+  if (signals.length === 1) return signals[0]
+
+  const combined = AbortSignal.any([...signals])
+  let earliestDeadline: number | undefined
+  for (const signal of signals) {
+    const deadline = signalDeadlines.get(signal)
+    if (deadline !== undefined && (earliestDeadline === undefined || deadline < earliestDeadline)) {
+      earliestDeadline = deadline
+    }
+  }
+  if (earliestDeadline !== undefined) signalDeadlines.set(combined, earliestDeadline)
+  return combined
+}
+
 /**
  * Wall-clock milliseconds left before `signal`'s own timeout fires.
  *
@@ -189,10 +275,17 @@ export function getRemainingExecutionMs(signal?: AbortSignal): number | undefine
   return Math.max(0, deadline - Date.now())
 }
 
-export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortController {
+export function createTimeoutAbortController(
+  timeoutMs?: number,
+  parentSignal?: AbortSignal
+): TimeoutAbortController {
   const abortController = new AbortController()
   let isTimedOut = false
   let timeoutId: NodeJS.Timeout | undefined
+  const abortFromParent = () => {
+    if (isTimeoutAbortReason(parentSignal?.reason)) isTimedOut = true
+    abortController.abort(parentSignal?.reason ?? new DOMException('user', 'AbortError'))
+  }
 
   if (timeoutMs) {
     signalDeadlines.set(abortController.signal, Date.now() + timeoutMs)
@@ -203,11 +296,25 @@ export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortCo
     }, timeoutMs)
   }
 
+  if (parentSignal) {
+    const parentDeadline = signalDeadlines.get(parentSignal)
+    const ownDeadline = signalDeadlines.get(abortController.signal)
+    if (
+      parentDeadline !== undefined &&
+      (ownDeadline === undefined || parentDeadline < ownDeadline)
+    ) {
+      signalDeadlines.set(abortController.signal, parentDeadline)
+    }
+    if (parentSignal.aborted) abortFromParent()
+    else parentSignal.addEventListener('abort', abortFromParent, { once: true })
+  }
+
   return {
     signal: abortController.signal,
     isTimedOut: () => isTimedOut,
     cleanup: () => {
       if (timeoutId) clearTimeout(timeoutId)
+      parentSignal?.removeEventListener('abort', abortFromParent)
     },
     // Manual abort is user/client cancellation (disconnect, Stop, registerManualExecutionAborter).
     abort: () => abortController.abort(new DOMException('user', 'AbortError')),

@@ -159,6 +159,14 @@
               "type": "string",
               "description": "Comma-separated reverse-proxy IPs or CIDR ranges in front of the app (e.g. '10.0.0.0/16'). Better Auth walks x-forwarded-for right to left, skips these hops, and uses the first untrusted address as the client IP."
             },
+            "EGRESS_ALLOWED_HOSTS": {
+              "type": "string",
+              "description": "Comma-separated hostnames on a private network that outbound requests may reach, leading wildcard allowed (e.g. '*.svc.cluster.local'). Naming a destination also permits plain HTTP to it and lifts the blocked-port list for it. Cloud metadata endpoints stay blocked regardless. Ignored on the hosted platform."
+            },
+            "EGRESS_ALLOWED_IP_RANGES": {
+              "type": "string",
+              "description": "Comma-separated CIDRs or IPs on a private network that outbound requests may reach (e.g. '10.0.0.0/8'). Cloud metadata endpoints stay blocked regardless. Ignored on the hosted platform."
+            },
             "SSO_TRUSTED_PROVIDER_IDS": {
               "type": "string",
               "description": "Comma-separated SSO provider IDs to trust for automatic account linking when an SSO sign-in matches an existing account's email. Only needed for IdPs that do not assert email_verified. Merged into Better Auth accountLinking.trustedProviders."
@@ -212,6 +220,10 @@
               "type": "string",
               "description": "Set to 'true' to force TLS on connect. Defaults to true when SMTP_PORT=465."
             },
+            "SMTP_EHLO_NAME": {
+              "type": "string",
+              "description": "Hostname sent in the SMTP EHLO greeting. Defaults to the domain the app is served from; set only when the relay expects a different identity."
+            },
             "GMAIL_CREDENTIALS_JSON": {
               "type": "string",
               "description": "Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider."
@@ -243,6 +255,10 @@
             "DISABLE_GITHUB_AUTH": {
               "type": "string",
               "description": "Set to 'true' to hide GitHub OAuth login even when credentials are configured"
+            },
+            "MSHIP_SYSPROMPT_OVERRIDE": {
+              "type": "string",
+              "description": "Optional enterprise-only highest-priority system prompt override forwarded to Mothership"
             },
             "OPENAI_API_KEY": {
               "type": "string",
@@ -486,6 +502,44 @@
             }
           }
         }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "description": "In-cluster Redis for pub/sub, the Socket.IO adapter, and the idempotency/progress stores. Disable and set app.env.REDIS_URL to use a managed instance.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Deploy the bundled Redis. Skipped automatically when app.env.REDIS_URL is set or a secret-manager mode is active."
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "digest": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "maxmemory": { "type": "string", "description": "Redis maxmemory value, e.g. 512mb" },
+        "maxmemoryPolicy": {
+          "type": "string",
+          "enum": [
+            "noeviction",
+            "allkeys-lru",
+            "allkeys-lfu",
+            "allkeys-random",
+            "volatile-lru",
+            "volatile-lfu",
+            "volatile-random",
+            "volatile-ttl"
+          ],
+          "description": "Redis eviction policy. An invalid value makes Redis exit at startup, so it is enumerated."
+        },
+        "resources": { "type": "object" },
+        "nodeSelector": { "type": "object" },
+        "podSecurityContext": { "type": "object" },
+        "securityContext": { "type": "object" }
       }
     },
     "postgresql": {

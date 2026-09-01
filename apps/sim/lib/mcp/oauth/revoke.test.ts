@@ -8,7 +8,7 @@
  * raw `fetch`.
  */
 
-import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const BLOCKED_ENDPOINT = 'http://169.254.170.2/v2/credentials/'
@@ -44,6 +44,9 @@ vi.mock('@sim/security/ssrf', () => ({
   isPrivateIp: (ip: string) => ip.startsWith('127.') || ip.startsWith('10.') || ip === '::1',
 }))
 vi.mock('@/lib/mcp/domain-check', () => ({
+  MCP_EGRESS_PROFILE: 'selfHostedService',
+  OAUTH_EGRESS_PROFILE: 'contentFetch',
+  McpSsrfError: class McpSsrfError extends Error {},
   validateMcpServerSsrf: mockValidateMcpServerSsrf,
 }))
 vi.mock('@modelcontextprotocol/sdk/client/auth.js', () => ({
@@ -104,7 +107,7 @@ describe('revokeMcpOauthTokens — SSRF guard', () => {
   })
 
   it('routes metadata discovery through the SSRF-guarded fetch', async () => {
-    await revokeMcpOauthTokens('server-1')
+    await revokeMcpOauthTokens('server-1', 'workspace-1')
 
     expect(mockDiscoverOAuthServerInfo).toHaveBeenCalledTimes(1)
     const [, options] = mockDiscoverOAuthServerInfo.mock.calls[0]
@@ -112,13 +115,13 @@ describe('revokeMcpOauthTokens — SSRF guard', () => {
   })
 
   it('validates the attacker-controlled revocation_endpoint before issuing the request', async () => {
-    await revokeMcpOauthTokens('server-1')
+    await revokeMcpOauthTokens('server-1', 'workspace-1')
 
-    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(BLOCKED_ENDPOINT)
+    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(BLOCKED_ENDPOINT, 'contentFetch')
   })
 
   it('never issues an outbound request to the blocked revocation endpoint', async () => {
-    await revokeMcpOauthTokens('server-1')
+    await revokeMcpOauthTokens('server-1', 'workspace-1')
 
     const allCalls = [
       ...mockUndiciFetch.mock.calls,
@@ -131,7 +134,7 @@ describe('revokeMcpOauthTokens — SSRF guard', () => {
   })
 
   it('swallows the SSRF rejection — revocation is best-effort and never throws', async () => {
-    await expect(revokeMcpOauthTokens('server-1')).resolves.toBeUndefined()
+    await expect(revokeMcpOauthTokens('server-1', 'workspace-1')).resolves.toBeUndefined()
   })
 
   it('still issues the revocation POST when the endpoint resolves to a public IP', async () => {
@@ -143,14 +146,34 @@ describe('revokeMcpOauthTokens — SSRF guard', () => {
       },
     })
 
-    await revokeMcpOauthTokens('server-1')
+    await revokeMcpOauthTokens('server-1', 'workspace-1')
 
-    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(publicEndpoint)
+    // Same origin as the configured server, so it keeps that server's profile —
+    // the metadata pointed back at the host the operator already chose. The
+    // blocked-endpoint test above covers the cross-origin case, which does not.
+    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(publicEndpoint, 'selfHostedService')
     const revokeCalls = mockUndiciFetch.mock.calls.filter((call) => {
       const target = typeof call[0] === 'string' ? call[0] : String(call[0])
       return target === publicEndpoint
     })
     expect(revokeCalls.length).toBeGreaterThan(0)
     expect(revokeCalls[0][1]).toMatchObject({ method: 'POST' })
+  })
+
+  it('loads no OAuth tokens when the server is outside the authorized workspace', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.mcpServers, [])
+
+    await revokeMcpOauthTokens('server-1', 'workspace-other')
+
+    expect(mockLoadOauthRow).not.toHaveBeenCalled()
+    expect(mockDiscoverOAuthServerInfo).not.toHaveBeenCalled()
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conditions: expect.arrayContaining([
+          expect.objectContaining({ type: 'eq', right: 'workspace-other' }),
+        ]),
+      })
+    )
   })
 })

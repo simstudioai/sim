@@ -84,6 +84,144 @@ export const TriggerDevBlock: BlockConfig<TriggerDevResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#000000',
   icon: TriggerDevIcon,
+  canvasPresentation: {
+    defaultTitle: 'Trigger.dev',
+    sentences: {
+      byOperation: {
+        trigger_dev_trigger_task: [
+          { text: 'Trigger task', field: 'taskIdentifier', core: true },
+          { text: 'with', field: 'payload' },
+          { text: ', delayed by', field: 'delay' },
+        ],
+        trigger_dev_batch_trigger_task: [
+          { text: 'Batch trigger task', field: 'taskIdentifier', core: true },
+          { text: 'with', field: 'items' },
+        ],
+        trigger_dev_get_batch: [{ text: 'Read batch', field: 'batchId', core: true }],
+        trigger_dev_get_batch_results: [
+          { text: 'Read the run results of batch', field: 'batchId', core: true },
+        ],
+        trigger_dev_get_run: [{ text: 'Read run', field: 'runId', core: true }],
+        trigger_dev_get_run_result: [
+          { text: 'Read the outcome of run', field: 'runId', core: true },
+        ],
+        trigger_dev_get_run_events: [
+          { text: 'Read the log events of run', field: 'runId', core: true },
+        ],
+        trigger_dev_get_run_trace: [
+          { text: 'Read the trace spans of run', field: 'runId', core: true },
+        ],
+        trigger_dev_list_runs: [
+          'List runs',
+          { text: 'of task', field: 'filterTaskIdentifier' },
+          { text: ', with status', field: 'status' },
+          { text: ', from the last', field: 'period' },
+        ],
+        trigger_dev_cancel_run: [{ text: 'Cancel run', field: 'runId', core: true }],
+        trigger_dev_replay_run: [{ text: 'Replay run', field: 'runId', core: true }],
+        trigger_dev_reschedule_run: [
+          { text: 'Reschedule run', field: 'runId', core: true },
+          { text: 'to start after', field: 'rescheduleDelay' },
+        ],
+        trigger_dev_add_run_tags: [
+          { text: 'Add tags', field: 'runTags', core: true },
+          { text: 'to run', field: 'runId', core: true },
+        ],
+        trigger_dev_update_run_metadata: [
+          { text: 'Replace the metadata of run', field: 'runId', core: true },
+          { text: 'with', field: 'metadata' },
+        ],
+        trigger_dev_create_schedule: [
+          { text: 'Schedule task', field: 'task', core: true },
+          { text: 'on cron', field: 'cron' },
+        ],
+        trigger_dev_get_schedule: [{ text: 'Read schedule', field: 'scheduleId', core: true }],
+        trigger_dev_list_schedules: ['List all schedules'],
+        trigger_dev_update_schedule: [
+          { text: 'Update schedule', field: 'scheduleId', core: true },
+          { text: 'to run task', field: 'task' },
+          { text: 'on cron', field: 'cron' },
+        ],
+        trigger_dev_delete_schedule: [{ text: 'Delete schedule', field: 'scheduleId', core: true }],
+        trigger_dev_activate_schedule: [
+          { text: 'Activate schedule', field: 'scheduleId', core: true },
+        ],
+        trigger_dev_deactivate_schedule: [
+          { text: 'Deactivate schedule', field: 'scheduleId', core: true },
+        ],
+        trigger_dev_list_env_vars: [
+          { text: 'List env vars of project', field: 'projectRef', core: true },
+          { text: 'in', field: 'environment' },
+        ],
+        trigger_dev_create_env_var: [
+          { text: 'Create env var', field: 'name', core: true },
+          { text: 'in', field: 'environment' },
+        ],
+        trigger_dev_get_env_var: [
+          { text: 'Read env var', field: 'name', core: true },
+          { text: 'from', field: 'environment' },
+        ],
+        trigger_dev_update_env_var: [
+          { text: 'Update env var', field: 'name', core: true },
+          { text: 'in', field: 'environment' },
+        ],
+        trigger_dev_delete_env_var: [
+          { text: 'Delete env var', field: 'name', core: true },
+          { text: 'from', field: 'environment' },
+        ],
+        trigger_dev_import_env_vars: [
+          { text: 'Import env vars into project', field: 'projectRef', core: true },
+          { text: 'in', field: 'environment' },
+        ],
+        trigger_dev_get_queue: [{ text: 'Read queue', field: 'queueName', core: true }],
+        trigger_dev_list_queues: ['List all queues'],
+        trigger_dev_pause_queue: [{ text: 'Pause queue', field: 'queueName', core: true }],
+        trigger_dev_resume_queue: [{ text: 'Resume queue', field: 'queueName', core: true }],
+        trigger_dev_override_queue_concurrency: [
+          { text: 'Set the concurrency limit of queue', field: 'queueName', core: true },
+          { text: 'to', field: 'concurrencyLimit' },
+        ],
+        trigger_dev_reset_queue_concurrency: [
+          { text: 'Clear the concurrency override on queue', field: 'queueName', core: true },
+        ],
+        trigger_dev_list_deployments: [
+          'List deployments',
+          { text: 'with status', field: 'deploymentStatus' },
+          { text: ', from the last', field: 'period' },
+        ],
+        trigger_dev_get_deployment: [
+          { text: 'Read deployment', field: 'deploymentId', core: true },
+        ],
+        trigger_dev_get_latest_deployment: ['Read the latest deployment'],
+        trigger_dev_promote_deployment: [
+          { text: 'Promote deployment version', field: 'deploymentVersion', core: true },
+        ],
+        trigger_dev_execute_query: [
+          { text: 'Run TRQL query', field: 'query', core: true },
+          { text: ', over the last', field: 'period' },
+        ],
+        trigger_dev_get_query_schema: ['Read the TRQL query schema'],
+        trigger_dev_create_waitpoint_token: [
+          'Create a waitpoint token',
+          { text: ', timing out after', field: 'timeout' },
+          { text: ', tagged', field: 'tags' },
+        ],
+        trigger_dev_complete_waitpoint_token: [
+          { text: 'Complete waitpoint token', field: 'waitpointId', core: true },
+          { text: 'with', field: 'waitpointData' },
+        ],
+        trigger_dev_get_waitpoint_token: [
+          { text: 'Read waitpoint token', field: 'waitpointId', core: true },
+        ],
+        trigger_dev_list_waitpoint_tokens: [
+          'List waitpoint tokens',
+          { text: 'with status', field: 'waitpointStatus' },
+          { text: ', tagged', field: 'waitpointTags' },
+        ],
+        trigger_dev_list_timezones: ['List the timezones supported by schedules'],
+      },
+    },
+  },
 
   subBlocks: [
     {

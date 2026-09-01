@@ -49,13 +49,6 @@ vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
 
 vi.mock('@/lib/cleanup/batch-delete', () => ({
   batchDeleteByWorkspaceAndTimestamp: mockBatchDeleteByWorkspaceAndTimestamp,
-  chunkArray: (items: string[], size: number) => {
-    const chunks: string[][] = []
-    for (let index = 0; index < items.length; index += size) {
-      chunks.push(items.slice(index, index + size))
-    }
-    return chunks
-  },
   chunkedBatchDelete: mockChunkedBatchDelete,
 }))
 

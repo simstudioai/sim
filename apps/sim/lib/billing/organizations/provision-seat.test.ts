@@ -181,14 +181,14 @@ describe('ensureTeamOrganizationForAcceptance', () => {
       new Error('Enterprise issuance is unfinished')
     )
 
-    const result = await ensureTeamOrganizationForAcceptance({
-      billingOwnerUserId: 'owner-1',
-      workspaceOrganizationId: 'org-1',
-      executor: testExecutor(),
-      workspaceIdsToAttach: [],
-    })
-
-    expect(result).toEqual({ success: false, failureCode: 'server-error' })
+    await expect(
+      ensureTeamOrganizationForAcceptance({
+        billingOwnerUserId: 'owner-1',
+        workspaceOrganizationId: 'org-1',
+        executor: testExecutor(),
+        workspaceIdsToAttach: [],
+      })
+    ).rejects.toThrow('Enterprise issuance is unfinished')
     expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledWith(expect.anything(), 'org-1')
     expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
     expect(updateCalls.value).toHaveLength(0)
@@ -285,14 +285,14 @@ describe('ensureTeamOrganizationForAcceptance', () => {
       new Error('Enterprise issuance is unfinished')
     )
 
-    const result = await ensureTeamOrganizationForAcceptance({
-      billingOwnerUserId: 'owner-1',
-      workspaceOrganizationId: null,
-      executor: testExecutor(),
-      workspaceIdsToAttach: ['workspace-1'],
-    })
-
-    expect(result).toEqual({ success: false, failureCode: 'server-error' })
+    await expect(
+      ensureTeamOrganizationForAcceptance({
+        billingOwnerUserId: 'owner-1',
+        workspaceOrganizationId: null,
+        executor: testExecutor(),
+        workspaceIdsToAttach: ['workspace-1'],
+      })
+    ).rejects.toThrow('Enterprise issuance is unfinished')
     expect(updateCalls.value).toHaveLength(0)
     expect(enqueueMock).not.toHaveBeenCalled()
   })

@@ -4,6 +4,7 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { canonicalizeDesktopSessionResource } from '@/lib/copilot/resources/types'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   hasRenderableFilePreviewContent,
@@ -32,7 +33,6 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     addResource,
     removeResource,
     setResources,
-    setActiveResourceId,
     resourcesRef,
     activeResourceIdRef,
     previewSessionsRef,
@@ -44,32 +44,31 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   } = ctx.deps
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
-  const resource = payload.resource
+  const resource = canonicalizeDesktopSessionResource({
+    type: payload.resource.type as MothershipResourceType,
+    id: payload.resource.id,
+    title:
+      typeof payload.resource.title === 'string' ? payload.resource.title : payload.resource.id,
+  })
 
   if (payload.op === MothershipStreamV1ResourceOp.remove) {
-    const resourceType = resource.type as MothershipResourceType
+    const resourceType = resource.type
     removeResource(resourceType, resource.id)
     if (resourceType === 'workflow') {
       removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)
     }
     invalidateResourceQueries(queryClient, workspaceId, resourceType, resource.id)
-    onResourceEvent?.()
     return
   }
 
-  const nextResource = {
-    type: resource.type as MothershipResourceType,
-    id: resource.id,
-    title: typeof resource.title === 'string' ? resource.title : resource.id,
-  }
   const completedPreviewHandoff =
-    nextResource.type === 'file'
-      ? completedPreviewResourceHandoffRef.current.get(nextResource.id)
+    resource.type === 'file'
+      ? completedPreviewResourceHandoffRef.current.get(resource.id)
       : undefined
   const matchingPreviewSessions =
-    nextResource.type === 'file'
+    resource.type === 'file'
       ? Object.values(previewSessionsRef.current).filter(
-          (session) => session.fileId === nextResource.id
+          (session) => session.fileId === resource.id
         )
       : []
   const latestPreviewForResource = (
@@ -89,7 +88,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     (!latestActivePreviewForResource ||
       latestActivePreviewForResource.id === completedPreviewHandoff.sessionId)
   if (completedPreviewHandoff && !isCompletedPreviewHandoffCurrent) {
-    completedPreviewResourceHandoffRef.current.delete(nextResource.id)
+    completedPreviewResourceHandoffRef.current.delete(resource.id)
     previewActivationOwnerRef.current.delete(completedPreviewHandoff.sessionId)
   }
   const shouldSuppressFileResourceActivation =
@@ -99,36 +98,29 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       (!hasRenderableFilePreviewContent(previewForResource) ||
         !shouldAutoActivatePreviewSession(previewForResource)))
   const wasAdded = shouldSuppressFileResourceActivation
-    ? !resourcesRef.current.some((r) => r.type === nextResource.type && r.id === nextResource.id)
-    : addResource(nextResource)
+    ? !resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)
+    : addResource(resource)
   if (shouldSuppressFileResourceActivation && wasAdded) {
     setResources((current) =>
-      current.some((r) => r.type === nextResource.type && r.id === nextResource.id)
+      current.some((r) => r.type === resource.type && r.id === resource.id)
         ? current
-        : [...current, nextResource]
+        : [...current, resource]
     )
   }
   if (completedPreviewHandoff && isCompletedPreviewHandoffCurrent) {
-    completedPreviewResourceHandoffRef.current.delete(nextResource.id)
+    completedPreviewResourceHandoffRef.current.delete(resource.id)
     previewActivationOwnerRef.current.delete(completedPreviewHandoff.sessionId)
   }
-  invalidateResourceQueries(queryClient, workspaceId, nextResource.type, nextResource.id)
+  invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
 
-  if (
-    !shouldSuppressFileResourceActivation &&
-    !wasAdded &&
-    activeResourceIdRef.current !== nextResource.id
-  ) {
-    setActiveResourceId(nextResource.id)
-  }
-  onResourceEvent?.()
+  if (!shouldSuppressFileResourceActivation) onResourceEvent?.(resource.id)
 
-  if (nextResource.type === 'workflow') {
-    const wasRegistered = ensureWorkflowInRegistry(nextResource.id, nextResource.title, workspaceId)
+  if (resource.type === 'workflow') {
+    const wasRegistered = ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
     if (wasAdded && wasRegistered) {
-      useWorkflowRegistry.getState().setActiveWorkflow(nextResource.id)
+      useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
     } else {
-      useWorkflowRegistry.getState().loadWorkflowState(nextResource.id)
+      useWorkflowRegistry.getState().loadWorkflowState(resource.id)
     }
   }
 }

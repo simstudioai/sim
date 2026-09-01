@@ -1,4 +1,6 @@
 import { db } from '@sim/db'
+import { workflow } from '@sim/db/schema'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { ForkMappableResourceType, ForkMappingEntry } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -25,7 +27,9 @@ import {
   getCredentialProvidersByIds,
   getWorkspaceEnvKeys,
   listForkResourceCandidates,
+  loadForkResourceLabels,
 } from '@/ee/workspace-forking/lib/mapping/resources'
+import { resolveForkExcludedTargetId } from '@/ee/workspace-forking/lib/promote/promote-plan'
 import { toScannerBlocks } from '@/ee/workspace-forking/lib/remap/reference-scan'
 import {
   type ForkReference,
@@ -66,13 +70,16 @@ export async function getForkMappingView(
   const { edge, sourceWorkspaceId, targetWorkspaceId } = params
   const sourceIsParent = sourceWorkspaceId === edge.parentWorkspaceId
 
-  const [mappingRows, targetEnvKeys, sourceEnvKeys, sourceCandidates, targetCandidates] =
+  const [mappingRows, targetEnvKeys, sourceEnvKeys, targetCandidates, targetWorkflows] =
     await Promise.all([
       getEdgeMappingRows(db, edge.childWorkspaceId),
       getWorkspaceEnvKeys(db, targetWorkspaceId),
       getWorkspaceEnvKeys(db, sourceWorkspaceId),
-      listForkResourceCandidates(db, sourceWorkspaceId),
       listForkResourceCandidates(db, targetWorkspaceId),
+      db
+        .select({ id: workflow.id, forkSyncExcluded: workflow.forkSyncExcluded })
+        .from(workflow)
+        .where(and(eq(workflow.workspaceId, targetWorkspaceId), isNull(workflow.archivedAt))),
     ])
 
   const resolver = buildForkResolver(mappingRows, { sourceIsParent, targetEnvKeys, sourceEnvKeys })
@@ -93,11 +100,30 @@ export async function getForkMappingView(
     if (key) resourceTypeBySourceId.set(key, row.resourceType)
   }
 
+  // The workflow identity map + the target's live/excluded sets, so this view scans exactly the
+  // workflows a sync would write. Without the exclusion filter a source whose target is marked
+  // "Exclude from sync" still contributed blocking mapping entries the sync could never act on.
+  const identityMap = new Map<string, string>()
+  for (const row of mappingRows) {
+    if (row.resourceType !== 'workflow' || row.childResourceId == null) continue
+    if (sourceIsParent) identityMap.set(row.parentResourceId, row.childResourceId)
+    else identityMap.set(row.childResourceId, row.parentResourceId)
+  }
+  const targetActiveIds = new Set(targetWorkflows.map((w) => w.id))
+  const excludedTargetIds = new Set(
+    targetWorkflows.filter((w) => w.forkSyncExcluded).map((w) => w.id)
+  )
+
   // Scan one deployed workflow state at a time and merge deduped references, so
   // peak memory stays at a single workflow state rather than all of them at once.
   const deployedWorkflows = await listDeployedWorkflows(db, sourceWorkspaceId)
   const referenceByKey = new Map<string, ForkReference>()
   for (const wf of deployedWorkflows) {
+    if (
+      resolveForkExcludedTargetId(wf.id, identityMap, targetActiveIds, excludedTargetIds) !== null
+    ) {
+      continue
+    }
     const state = await readDeployedState(wf.id, sourceWorkspaceId)
     if (!state) continue
     for (const reference of scanWorkflowReferences(toScannerBlocks(state), () => null).references) {
@@ -116,6 +142,25 @@ export async function getForkMappingView(
   }
   const references: ForkReference[] = Array.from(referenceByKey.values())
 
+  // Source-side labels and credential providers, both looked up by EXACT ID (never the capped
+  // candidate list). A capped lookup made a live resource past `CANDIDATE_LIMIT` render as a raw
+  // id, indistinguishable from a deleted one - and, for a credential, silently dropped the
+  // provider filter so the picker offered every provider's credentials. Resolved here, an id
+  // missing from `sourceLabels` means exactly one thing: it no longer exists in the source.
+  const sourceIdsByKind: Partial<Record<ForkRemapKind, Set<string>>> = {}
+  for (const reference of references) {
+    if (reference.kind === 'env-var' || reference.kind === 'knowledge-document') continue
+    ;(sourceIdsByKind[reference.kind] ??= new Set()).add(reference.sourceId)
+  }
+  const [sourceLabels, sourceProviders] = await Promise.all([
+    loadForkResourceLabels(db, sourceWorkspaceId, sourceIdsByKind),
+    getCredentialProvidersByIds(
+      db,
+      sourceWorkspaceId,
+      Array.from(sourceIdsByKind.credential ?? [])
+    ),
+  ])
+
   // First pass: resolve each reference's stored target + the data to build its entry,
   // collecting stored target ids so existence is checked by exact id (cap-free) - a
   // valid mapping to a target past the display cap must be RETAINED, not shown unmapped.
@@ -123,6 +168,7 @@ export async function getForkMappingView(
     reference: ForkReference
     resourceType: ForkMappableResourceType
     sourceLabel: string
+    sourceDeleted: boolean
     sourceProviderId: string | undefined
     candidates: ForkResourceCandidate[]
     storedTargetId: string | null
@@ -147,11 +193,16 @@ export async function getForkMappingView(
           : nonCredentialForkKindToResourceType(reference.kind)
     }
 
-    const sourceCandidate = sourceCandidates[reference.kind].find(
-      (c) => c.id === reference.sourceId
-    )
-    const sourceLabel = sourceCandidate?.label ?? reference.sourceId
-    const sourceProviderId = sourceCandidate?.providerId
+    // An env var IS its own name, so it can never be "deleted but referenced" here - a `{{KEY}}`
+    // absent from the source workspace was already skipped above as a personal secret.
+    const sourceLabel =
+      reference.kind === 'env-var'
+        ? reference.sourceId
+        : (sourceLabels[reference.kind]?.get(reference.sourceId) ?? reference.sourceId)
+    const sourceDeleted =
+      reference.kind !== 'env-var' &&
+      !(sourceLabels[reference.kind]?.has(reference.sourceId) ?? false)
+    const sourceProviderId = sourceProviders.get(reference.sourceId) ?? undefined
     // A credential reference only maps to a target credential of the SAME OAuth
     // provider - a Gmail (google-email) reference must never offer a Google Calendar
     // credential. Non-credential kinds carry no provider, so their full list stands.
@@ -169,6 +220,7 @@ export async function getForkMappingView(
       reference,
       resourceType,
       sourceLabel,
+      sourceDeleted,
       sourceProviderId,
       candidates,
       storedTargetId,
@@ -212,6 +264,7 @@ export async function getForkMappingView(
       resourceType: p.resourceType,
       sourceId: p.reference.sourceId,
       sourceLabel: p.sourceLabel,
+      sourceDeleted: p.sourceDeleted,
       targetId,
       suggested,
       // Every entry here is a reference a synced workflow actually carries, and a sync is
@@ -414,16 +467,18 @@ export async function validateForkMappingTargets(
     }
 
     if (kind === 'credential') {
-      // The source must be a real credential in the source workspace. A foreign id
-      // (not present) would skip the provider check and let a crafted mapping drive
-      // cross-workspace credential-access propagation on promote.
-      if (!sourceProviders.has(entry.sourceId)) {
-        throw new ForkError(
-          `Source credential "${entry.sourceId}" is not a credential in the source workspace`,
-          400
-        )
-      }
+      // A source credential that no longer exists in the source workspace is EXPECTED here: the
+      // mapping editor deliberately lists such references (`sourceDeleted`) because mapping the
+      // dead id to a live target is the documented way to unblock the sync. Rejecting the save
+      // made that the one kind you could not resolve - the UI told you to map it and the server
+      // refused. Accepting it is safe: the target is still proven to belong to the target
+      // workspace above, and credential-ACCESS propagation is not driven from here - promote's
+      // `propagateCredentialAccess` re-validates BOTH sides inside its transaction and skips any
+      // pair whose source is not a live credential of the source workspace.
       const sourceProviderId = sourceProviders.get(entry.sourceId)
+      if (sourceProviderId === undefined) continue
+      // With a live source, the target must share its OAuth provider - a Gmail reference can
+      // never be pointed at a Google Calendar credential.
       const targetProviderId = targetProviders.get(targetId) ?? null
       if (sourceProviderId && targetProviderId !== sourceProviderId) {
         throw new ForkError(

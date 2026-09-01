@@ -15,9 +15,8 @@ import {
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
+import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { ExternalLink, RotateCcw } from 'lucide-react'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
@@ -28,6 +27,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
@@ -194,7 +194,7 @@ export function EditConnectorModal({
   const { ownerBilling } = useWorkspaceHostContext()
   const { mutate: updateConnector, isPending: isSaving } = useUpdateConnector()
 
-  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling, isBillingEnabled)
+  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const persistedCanonicalModes = useMemo(
     () => readPersistedCanonicalModes(connector.sourceConfig),
@@ -270,11 +270,12 @@ export function EditConnectorModal({
   return (
     <ChipModal
       open={open}
-      onOpenChange={(val) => !isSaving && onOpenChange(val)}
+      onOpenChange={onOpenChange}
       srTitle={`Edit ${displayName}`}
       size='md'
+      dismissDisabled={isSaving}
     >
-      <ChipModalHeader icon={Icon ?? null} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={Icon ? withBrandIcon(Icon) : null} onClose={() => onOpenChange(false)}>
         Edit {displayName}
       </ChipModalHeader>
 
@@ -313,7 +314,6 @@ export function EditConnectorModal({
       {activeTab === 'settings' && (
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
-          cancelDisabled={isSaving}
           primaryAction={{
             label: isSaving ? 'Saving…' : 'Save',
             onClick: handleSave,
@@ -403,19 +403,27 @@ interface DocumentsTabProps {
 function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
   const [filter, setFilter] = useState<'active' | 'excluded'>('active')
 
-  const { data, isLoading } = useConnectorDocuments(knowledgeBaseId, connectorId, {
-    includeExcluded: true,
-  })
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useConnectorDocuments(
+    knowledgeBaseId,
+    connectorId,
+    {
+      includeExcluded: true,
+    }
+  )
 
   const { mutate: excludeDoc, isPending: isExcluding } = useExcludeConnectorDocument()
   const { mutate: restoreDoc, isPending: isRestoring } = useRestoreConnectorDocument()
 
   const documents = useMemo(() => {
-    if (!data?.documents) return []
-    return data.documents.filter((d) => (filter === 'excluded' ? d.userExcluded : !d.userExcluded))
-  }, [data?.documents, filter])
+    const loadedDocuments = data?.pages.flatMap((page) => page.documents) ?? []
+    return loadedDocuments.filter((document) =>
+      filter === 'excluded' ? document.userExcluded : !document.userExcluded
+    )
+  }, [data?.pages, filter])
 
-  const counts = data?.counts ?? { active: 0, excluded: 0 }
+  const counts = data?.pages[0]?.counts ?? { active: 0, excluded: 0 }
+  const visibleDocumentCount = filter === 'excluded' ? counts.excluded : counts.active
+  const hasMoreVisibleDocuments = Boolean(hasNextPage && documents.length < visibleDocumentCount)
 
   if (isLoading) {
     return (
@@ -436,7 +444,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
       </ButtonGroup>
 
       <div className='max-h-[320px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
-        {documents.length === 0 ? (
+        {visibleDocumentCount === 0 ? (
           <p className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-small'>
             {filter === 'excluded' ? 'No excluded documents' : 'No documents yet'}
           </p>
@@ -460,7 +468,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                           rel='noopener noreferrer'
                           className='flex size-5 flex-shrink-0 items-center justify-center rounded-md text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                         >
-                          <ExternalLink className='size-3' />
+                          <SquareArrowUpRight className='size-3' />
                         </a>
                       </Tooltip.Trigger>
                       <Tooltip.Content>Open source document</Tooltip.Content>
@@ -480,7 +488,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                 >
                   {doc.userExcluded ? (
                     <>
-                      <RotateCcw className='mr-1 size-3' />
+                      <RefreshCw className='mr-1 size-3' />
                       Restore
                     </>
                   ) : (
@@ -489,6 +497,17 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                 </Button>
               </div>
             ))}
+            {hasMoreVisibleDocuments && (
+              <Button
+                variant='ghost-secondary'
+                size='sm'
+                className='w-full'
+                disabled={isFetchingNextPage}
+                onClick={() => fetchNextPage()}
+              >
+                {isFetchingNextPage ? 'Loading…' : 'Load more documents'}
+              </Button>
+            )}
           </div>
         )}
       </div>

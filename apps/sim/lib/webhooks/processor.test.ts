@@ -14,7 +14,7 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
-import type { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ADMISSION_ERROR_CODE,
@@ -32,6 +32,8 @@ const {
   mockGenerateId,
   mockAdmissionRelease,
   mockEnqueue,
+  mockExecuteWebhookJob,
+  mockGetInlineJobQueue,
   mockGetJobQueue,
   mockReleaseExecutionSlot,
   mockProviderHandler,
@@ -40,6 +42,8 @@ const {
   mockGenerateId: vi.fn(),
   mockAdmissionRelease: vi.fn(),
   mockEnqueue: vi.fn(),
+  mockExecuteWebhookJob: vi.fn().mockResolvedValue({ success: true }),
+  mockGetInlineJobQueue: vi.fn(),
   mockGetJobQueue: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockProviderHandler: { current: {} as Record<string, unknown> },
@@ -68,7 +72,7 @@ vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
 }))
 
 vi.mock('@/lib/core/async-jobs', () => ({
-  getInlineJobQueue: vi.fn(),
+  getInlineJobQueue: mockGetInlineJobQueue,
   getJobQueue: mockGetJobQueue,
   shouldExecuteInline: mockShouldExecuteInline,
 }))
@@ -104,7 +108,7 @@ vi.mock('@/lib/webhooks/providers', () => ({
 }))
 
 vi.mock('@/background/webhook-execution', () => ({
-  executeWebhookJob: vi.fn().mockResolvedValue({ success: true }),
+  executeWebhookJob: mockExecuteWebhookJob,
 }))
 
 vi.mock('@/executor/utils/reference-validation', () => ({
@@ -131,7 +135,9 @@ import {
   checkWebhookPreprocessing,
   dispatchResolvedWebhookTarget,
   findAllWebhooksForPath,
+  handleProviderChallenges,
   handleWebhookEventFilter,
+  parseWebhookBody,
   processPolledWebhookEvent,
 } from '@/lib/webhooks/processor'
 
@@ -391,8 +397,10 @@ describe('webhook processor execution identity', () => {
       success: true,
       actorUserId: 'actor-user-1',
       billingAttribution,
+      executionTimeout: { sync: 0, async: 120_000 },
     })
     mockEnqueue.mockResolvedValue('job-1')
+    mockGetInlineJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockProviderHandler.current = {}
     mockShouldExecuteInline.mockReturnValue(false)
@@ -470,6 +478,68 @@ describe('webhook processor execution identity', () => {
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
+  it('carries request query parameters into the queued payload', async () => {
+    await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ path: 'incoming/hook', provider: 'generic' }),
+      makeWorkflowRecord({}),
+      {},
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/incoming/hook?srcId=123&title=Hello%20World'
+      ) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/hook' }
+    )
+
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'webhook-execution',
+      expect.objectContaining({ query: { srcId: '123', title: 'Hello World' } }),
+      expect.anything()
+    )
+  })
+
+  it('omits query from the queued payload when the request has none', async () => {
+    await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ path: 'incoming/hook', provider: 'generic' }),
+      makeWorkflowRecord({}),
+      { event: 'test' },
+      createMockRequest(
+        'POST',
+        { event: 'test' },
+        {},
+        'http://localhost:3000/api/webhooks/trigger/incoming/hook'
+      ) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/hook' }
+    )
+
+    expect(mockEnqueue.mock.calls[0]?.[1]).not.toHaveProperty('query')
+  })
+
+  it('runs database-inline webhook jobs through the queue cancellation signal', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const result = await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ path: 'incoming/gmail', provider: 'gmail' }),
+      makeWorkflowRecord({}),
+      { event: 'message.received' },
+      createMockRequest('POST', { event: 'message.received' }) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/gmail' }
+    )
+    const options = mockEnqueue.mock.calls[0]?.[2] as {
+      runner?: (payload: unknown, signal: AbortSignal) => Promise<unknown>
+    }
+    const controller = new AbortController()
+
+    expect(result.outcome).toBe('queued')
+    expect(mockGetInlineJobQueue).toHaveBeenCalledOnce()
+    expect(options.runner).toBeTypeOf('function')
+    await options.runner?.({}, controller.signal)
+    expect(mockExecuteWebhookJob).toHaveBeenCalledWith(
+      expect.objectContaining({ executionId: 'generated-execution-id' }),
+      controller.signal
+    )
+  })
+
   it('releases the reservation when enqueue fails before ownership transfer', async () => {
     mockEnqueue.mockRejectedValueOnce(new Error('queue unavailable'))
 
@@ -516,8 +586,10 @@ describe('polled webhook reservation ownership', () => {
       success: true,
       actorUserId: 'actor-user-1',
       billingAttribution,
+      executionTimeout: { sync: 0, async: 120_000 },
     })
     mockEnqueue.mockResolvedValue('job-1')
+    mockGetInlineJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockShouldExecuteInline.mockReturnValue(false)
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
@@ -621,5 +693,144 @@ describe('polled webhook reservation ownership', () => {
       }),
       expect.any(Object)
     )
+  })
+
+  it('runs database-inline polled events through the queue cancellation signal', async () => {
+    mockShouldExecuteInline.mockReturnValue(true)
+    const result = await processPolledWebhookEvent(
+      makeWebhookRecord(foundWebhook),
+      makeWorkflowRecord(foundWorkflow),
+      { event: 'message.received' },
+      'request-1'
+    )
+    const options = mockEnqueue.mock.calls[0]?.[2] as {
+      runner?: (payload: unknown, signal: AbortSignal) => Promise<unknown>
+    }
+    const controller = new AbortController()
+
+    expect(result.success).toBe(true)
+    expect(mockGetInlineJobQueue).toHaveBeenCalledOnce()
+    expect(options.runner).toBeTypeOf('function')
+    await options.runner?.({}, controller.signal)
+    expect(mockExecuteWebhookJob).toHaveBeenCalledWith(
+      expect.objectContaining({ executionId: 'generated-execution-id' }),
+      controller.signal
+    )
+  })
+})
+
+describe('parseWebhookBody', () => {
+  const parse = async (request: NextRequest) => {
+    const result = await parseWebhookBody(request, 'req-1')
+    if (result instanceof Response) throw new Error(`unexpected ${result.status} response`)
+    return result
+  }
+
+  it('flattens a multipart body, as Jotform posts submissions', async () => {
+    const form = new FormData()
+    form.set('formID', '231504059977966')
+    form.set('submissionID', '5678')
+    form.set('rawRequest', '{"q4_email":"bart@example.com"}')
+
+    const result = await parse(
+      new NextRequest('http://localhost:3000/api/webhooks/trigger/jotform-path', {
+        method: 'POST',
+        body: form,
+      })
+    )
+
+    expect(result.body).toEqual({
+      formID: '231504059977966',
+      submissionID: '5678',
+      rawRequest: '{"q4_email":"bart@example.com"}',
+    })
+  })
+
+  it('reduces an uploaded multipart part to its filename', async () => {
+    const form = new FormData()
+    form.set('attachment', new File(['file bytes'], 'receipt.pdf', { type: 'application/pdf' }))
+
+    const result = await parse(
+      new NextRequest('http://localhost:3000/api/webhooks/trigger/jotform-path', {
+        method: 'POST',
+        body: form,
+      })
+    )
+
+    expect(result.body).toEqual({ attachment: 'receipt.pdf' })
+  })
+
+  it('still rejects a body that matches no supported content type', async () => {
+    const response = await parseWebhookBody(
+      new NextRequest('http://localhost:3000/api/webhooks/trigger/jotform-path', {
+        method: 'POST',
+        body: 'not json',
+        headers: { 'content-type': 'application/json' },
+      }),
+      'req-1'
+    )
+
+    expect(response).toBeInstanceOf(Response)
+    expect((response as Response).status).toBe(400)
+  })
+})
+
+describe('handleProviderChallenges method gating', () => {
+  /**
+   * `getProviderHandler` is mocked module-wide here, so every provider in the challenge list
+   * resolves to the same stub. That is what this test wants: the behavior under test is the gate
+   * in `handleProviderChallenges`, not any one provider's matching logic.
+   */
+  const challenge = (method: string, challengeMethods?: readonly string[]) => {
+    const handleChallenge = vi.fn(() => new NextResponse('answered', { status: 200 }))
+    mockProviderHandler.current = challengeMethods
+      ? { handleChallenge, challengeMethods }
+      : { handleChallenge }
+
+    return {
+      handleChallenge,
+      response: handleProviderChallenges(
+        {},
+        new NextRequest('http://localhost:3000/api/webhooks/trigger/abc', { method }),
+        'req-1',
+        'abc'
+      ),
+    }
+  }
+
+  it('runs a handler that declares nothing on POST', async () => {
+    const { handleChallenge, response } = challenge('POST')
+
+    expect((await response)?.status).toBe(200)
+    expect(handleChallenge).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * The regression this gate exists for: a challenge handler matching on payload shape alone runs
+   * before the webhook lookup, so on a method its provider never uses it would answer a delivery
+   * addressed to whoever actually owns the path.
+   */
+  it.each(['GET', 'PUT', 'PATCH', 'DELETE'])(
+    'does not run a handler that declares nothing on a %s delivery',
+    async (method) => {
+      const { handleChallenge, response } = challenge(method)
+
+      await expect(response).resolves.toBeNull()
+      expect(handleChallenge).not.toHaveBeenCalled()
+    }
+  )
+
+  it('runs a handler on a method it declares', async () => {
+    const { handleChallenge, response } = challenge('GET', ['GET', 'POST'])
+
+    expect((await response)?.status).toBe(200)
+    expect(handleChallenge).toHaveBeenCalledOnce()
+  })
+
+  it('does not run a declaring handler on a method outside its list', async () => {
+    const { handleChallenge, response } = challenge('DELETE', ['GET', 'POST'])
+
+    await expect(response).resolves.toBeNull()
+    expect(handleChallenge).not.toHaveBeenCalled()
   })
 })

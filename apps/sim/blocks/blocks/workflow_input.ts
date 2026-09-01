@@ -9,11 +9,21 @@ export const WorkflowInputBlock: BlockConfig = {
   bestPractices: `
   - Usually clarify/check if the user has tagged a workflow to use as the child workflow. Understand the child workflow to determine the logical position of this block in the workflow.
   - Remember, that the start point of the child workflow is the Start block.
+  - Which version of the child runs depends on how this workflow runs: manual/draft executions run the child's draft, while deployed executions run the child's active deployment. Deploy the child (and redeploy it after editing it) before deploying this workflow, otherwise the deployed run fails because the child is not deployed.
   `,
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/workflows/blocks/workflow',
   bgColor: '#6366F1',
   icon: WorkflowIcon,
+  canvasPresentation: {
+    defaultTitle: 'Workflow',
+    sentences: {
+      default: [
+        { text: 'Run', field: ['workflowId', 'manualWorkflowId'], core: true },
+        { text: ', with inputs', field: 'inputMapping' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'workflowId',

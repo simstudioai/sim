@@ -1,5 +1,6 @@
+import { isValidEmailSyntax } from '@sim/utils/string'
 import { describe, expect, it } from 'vitest'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { quickValidateEmail, validateAllowlistEntry } from '@/lib/messaging/email/validation'
 
 describe('quickValidateEmail', () => {
   it.concurrent('should validate a correct email', () => {
@@ -143,5 +144,57 @@ describe('quickValidateEmail', () => {
     const result = quickValidateEmail('user@mail.subdomain.example.com')
     expect(result.isValid).toBe(true)
     expect(result.checks.domain).toBe(true)
+  })
+})
+
+describe('isValidEmailSyntax', () => {
+  it.concurrent('should only accept a bare domain when allowDomains is set', () => {
+    expect(isValidEmailSyntax('@example.com')).toBe(false)
+    expect(isValidEmailSyntax('@example.com', true)).toBe(true)
+  })
+
+  it.concurrent('should accept single-label domains, which self-hosted deployments use', () => {
+    expect(isValidEmailSyntax('@intranet', true)).toBe(true)
+    expect(isValidEmailSyntax('@localhost', true)).toBe(true)
+  })
+
+  it.concurrent('should reject bare domains the old startsWith("@") check let through', () => {
+    for (const entry of ['@', '@-bad.com', '@bad-.com', '@example.com.', '@exa mple.com']) {
+      expect(isValidEmailSyntax(entry, true)).toBe(false)
+    }
+  })
+
+  it.concurrent('should enforce the 254-character cap', () => {
+    const at254 = `${'a'.repeat(242)}@example.com`
+    const at255 = `${'a'.repeat(243)}@example.com`
+    expect(at254).toHaveLength(254)
+    expect(at255).toHaveLength(255)
+    expect(isValidEmailSyntax(at254)).toBe(true)
+    expect(isValidEmailSyntax(at255)).toBe(false)
+  })
+
+  it.concurrent('should enforce the 63-character DNS label limit on bare domains', () => {
+    expect(isValidEmailSyntax(`@${'a'.repeat(63)}.com`, true)).toBe(true)
+    expect(isValidEmailSyntax(`@${'a'.repeat(64)}.com`, true)).toBe(false)
+  })
+})
+
+describe('validateAllowlistEntry', () => {
+  it.concurrent('should accept a valid address', () => {
+    expect(validateAllowlistEntry('user@example.com')).toBeNull()
+  })
+
+  it.concurrent('should waive address-level policy for bare domain entries', () => {
+    expect(validateAllowlistEntry('@mailinator.com')).toBeNull()
+    expect(validateAllowlistEntry('user@mailinator.com')).toBe(
+      'Disposable email addresses are not allowed'
+    )
+  })
+
+  it.concurrent('should surface the underlying rejection reason', () => {
+    expect(validateAllowlistEntry('notanemail')).toBe('Invalid email format')
+    expect(validateAllowlistEntry('user..name@example.com')).toBe(
+      'Email contains suspicious patterns'
+    )
   })
 })

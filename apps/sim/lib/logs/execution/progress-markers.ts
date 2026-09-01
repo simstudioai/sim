@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike as isRecord } from '@sim/utils/object'
+import { isRecordLike } from '@sim/utils/object'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getExecutionReservationTtlMs } from '@/lib/core/execution-limits'
 import type { ExecutionLastCompletedBlock, ExecutionLastStartedBlock } from '@/lib/logs/types'
@@ -38,7 +38,7 @@ function markerKey(executionId: string): string {
 
 /**
  * Atomic monotonic write: set the field only when the incoming marker's embedded
- * timestamp is >= the stored one, then refresh the TTL — all in one script so
+ * timestamp is >= the stored one, then preserve the attempt's absolute expiry — all in one script so
  * concurrent block callbacks can't race a read-modify-write. Preserves the exact
  * `<=` ordering the legacy SQL used (`COALESCE(stored, '') <= incoming`). ISO
  * UTC timestamps compare correctly lexicographically.
@@ -48,21 +48,21 @@ local existing = redis.call('HGET', KEYS[1], ARGV[1])
 if existing then
   local ok, decoded = pcall(cjson.decode, existing)
   if ok and type(decoded) == 'table' and decoded[ARGV[2]] and tostring(decoded[ARGV[2]]) > ARGV[3] then
-    redis.call('PEXPIRE', KEYS[1], ARGV[5])
+    redis.call('PEXPIREAT', KEYS[1], ARGV[5])
     return 0
   end
 end
 redis.call('HSET', KEYS[1], ARGV[1], ARGV[4])
-redis.call('PEXPIRE', KEYS[1], ARGV[5])
+redis.call('PEXPIREAT', KEYS[1], ARGV[5])
 return 1
 `
 
 /**
- * Write a marker field under the monotonic guard, refreshing the key TTL. The
- * TTL is a backstop for executions that die without a terminal/pause boundary
- * (deterministic cleanup is {@link clearProgressMarkers}); it mirrors the
- * admission-reservation TTL so a crashed run's marker key and slot expire
- * together. Returns `true` only when the marker was durably written to Redis,
+ * Write a marker field under the monotonic guard while preserving the attempt's
+ * absolute expiry. The expiry is a backstop for executions that die without a
+ * terminal/pause boundary (deterministic cleanup is {@link clearProgressMarkers});
+ * it mirrors the admission reservation so a crashed run's marker key and slot
+ * expire together. Returns `true` only when the marker was durably written to Redis,
  * so callers can fall back to the SQL path on a missing client or a failure.
  */
 async function setMarker(
@@ -70,7 +70,8 @@ async function setMarker(
   field: string,
   timestampField: 'startedAt' | 'endedAt',
   timestamp: string,
-  marker: ExecutionLastStartedBlock | ExecutionLastCompletedBlock
+  marker: ExecutionLastStartedBlock | ExecutionLastCompletedBlock,
+  expiresAt?: number
 ): Promise<boolean> {
   const redis = getMarkerClient()
   if (!redis) return false
@@ -84,7 +85,7 @@ async function setMarker(
       timestampField,
       timestamp,
       JSON.stringify(marker),
-      getExecutionReservationTtlMs().toString()
+      (expiresAt ?? Date.now() + getExecutionReservationTtlMs()).toString()
     )
     return true
   } catch (error) {
@@ -102,9 +103,10 @@ async function setMarker(
  */
 export async function setLastStartedBlock(
   executionId: string,
-  marker: ExecutionLastStartedBlock
+  marker: ExecutionLastStartedBlock,
+  expiresAt?: number
 ): Promise<boolean> {
-  return setMarker(executionId, STARTED_FIELD, 'startedAt', marker.startedAt, marker)
+  return setMarker(executionId, STARTED_FIELD, 'startedAt', marker.startedAt, marker, expiresAt)
 }
 
 /**
@@ -113,9 +115,10 @@ export async function setLastStartedBlock(
  */
 export async function setLastCompletedBlock(
   executionId: string,
-  marker: ExecutionLastCompletedBlock
+  marker: ExecutionLastCompletedBlock,
+  expiresAt?: number
 ): Promise<boolean> {
-  return setMarker(executionId, COMPLETED_FIELD, 'endedAt', marker.endedAt, marker)
+  return setMarker(executionId, COMPLETED_FIELD, 'endedAt', marker.endedAt, marker, expiresAt)
 }
 
 export interface ExecutionProgressMarkers {
@@ -164,7 +167,7 @@ function safeJsonParse(raw: string | undefined): unknown {
  */
 function parseStartedMarker(raw: string | undefined): ExecutionLastStartedBlock | undefined {
   const v = safeJsonParse(raw)
-  if (!isRecord(v)) return undefined
+  if (!isRecordLike(v)) return undefined
   const { blockId, blockName, blockType, startedAt } = v
   if (
     typeof blockId === 'string' &&
@@ -183,7 +186,7 @@ function parseStartedMarker(raw: string | undefined): ExecutionLastStartedBlock 
  */
 function parseCompletedMarker(raw: string | undefined): ExecutionLastCompletedBlock | undefined {
   const v = safeJsonParse(raw)
-  if (!isRecord(v)) return undefined
+  if (!isRecordLike(v)) return undefined
   const { blockId, blockName, blockType, endedAt, success } = v
   if (
     typeof blockId === 'string' &&

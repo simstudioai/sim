@@ -1,25 +1,40 @@
+/*
+ * Two classes, both on the ProseMirror root, splitting what a host may own from what it may not.
+ *
+ * `.rich-markdown-nodes` is the editor's node chrome: task-list layout and checkboxes, selection
+ * rings, the gap cursor, image and divider treatment, the highlight mark, table resize affordances,
+ * collaborative carets. It is the same on every surface and no host re-declares it.
+ *
+ * `.rich-markdown-prose` is the document type scale and ink — sizes, weights, colours, block rhythm.
+ * A host that paints its own surface (the canvas Note card, which has its own fill and text colour)
+ * takes `surface='bare'`, drops this class, and supplies its own typography instead.
+ *
+ * Keep new rules on the right side of that line. A chrome rule that lands in `prose` silently
+ * disappears on every bare surface: that is how a note's checklists ended up rendering as a native
+ * checkbox next to a disc bullet, with the label wrapped onto the following line.
+ */
 .rich-markdown-prose {
   flex: 1 1 auto;
   outline: none;
   color: var(--text-primary);
   font-family: var(--font-inter);
   font-size: 15px;
-  font-weight: 430;
+  font-weight: 400;
   line-height: 25px;
   letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
-.rich-markdown-prose img {
+.rich-markdown-nodes img {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
 }
 
 /* One consistent ring for every node that can only be selected as a whole (divider, image,
    code block, table) — so a mouse click and a keyboard NodeSelection look identical. */
-.rich-markdown-prose .ProseMirror-selectednode {
+.rich-markdown-nodes .ProseMirror-selectednode {
   outline: 2px solid var(--brand-secondary);
   outline-offset: 2px;
   border-radius: 4px;
@@ -27,11 +42,11 @@
 
 /* An image is its own framed element; ring the image itself so the indicator hugs the picture
    rather than the node's bounding box, which can be far wider/taller than a small image. */
-.rich-markdown-prose .ProseMirror-selectednode:has(img) {
+.rich-markdown-nodes .ProseMirror-selectednode:has(img) {
   outline: none;
 }
 
-.rich-markdown-prose .ProseMirror-selectednode img {
+.rich-markdown-nodes .ProseMirror-selectednode img {
   outline: 2px solid var(--brand-secondary);
   outline-offset: 2px;
 }
@@ -39,8 +54,8 @@
 /* The inline mention chip isn't a block leaf, so it skips the heavy outline ring above and just uses
    the same native text-selection highlight as the surrounding prose. ProseMirror puts `selectednode`
    on the node-view wrapper, so match it via `:has` (the chip span itself when it's the selected node). */
-.rich-markdown-prose .mention-chip.ProseMirror-selectednode,
-.rich-markdown-prose .ProseMirror-selectednode:has(.mention-chip) {
+.rich-markdown-nodes .mention-chip.ProseMirror-selectednode,
+.rich-markdown-nodes .ProseMirror-selectednode:has(.mention-chip) {
   outline: none;
 }
 
@@ -128,7 +143,7 @@
 
 /* Render the gap cursor (e.g. above a leading divider) as a normal vertical caret rather
    than ProseMirror's default short horizontal bar, which reads as a stray underscore. */
-.rich-markdown-prose .ProseMirror-gapcursor::after {
+.rich-markdown-nodes .ProseMirror-gapcursor::after {
   top: 0;
   width: 2px;
   height: 1.25em;
@@ -140,7 +155,7 @@
    empty space the view gives no hint about. Hide it there (matching Linear): the gap cursor stays
    functional — typing still inserts a block between them — it just isn't drawn. Leading/trailing gaps
    keep theirs. The keymap plugin sets `data-gap-between-leaves` when both neighbours are leaves. */
-.rich-markdown-prose[data-gap-between-leaves] .ProseMirror-gapcursor::after {
+.rich-markdown-nodes[data-gap-between-leaves] .ProseMirror-gapcursor::after {
   display: none;
 }
 
@@ -157,7 +172,7 @@
   list-style: decimal;
 }
 
-.rich-markdown-prose li > p {
+.rich-markdown-nodes li > p {
   margin: 0;
 }
 
@@ -165,38 +180,44 @@
   color: var(--text-primary);
 }
 
-.rich-markdown-prose ul[data-type="taskList"] {
+/* A checklist is not a bulleted list, so this has to outrank whatever the host set on `ul` — hence
+   the doubled-up root selector. Both classes are always on the ProseMirror root; the extra class
+   buys the specificity to beat a host's own `ul` rule, which would otherwise tie and be decided by
+   stylesheet order. Losing that tie puts a disc bullet beside every checkbox. */
+.ProseMirror.rich-markdown-nodes ul[data-type="taskList"] {
   list-style: none;
   padding-left: 0;
 }
 
-.rich-markdown-prose ul[data-type="taskList"] li {
+.rich-markdown-nodes ul[data-type="taskList"] li {
   display: flex;
   align-items: flex-start;
   gap: 0.5em;
 }
 
-/* One line tall with the box centered, so it aligns with the item's first line. */
-.rich-markdown-prose ul[data-type="taskList"] li > label {
+/* One line tall with the box centered, so it aligns with the item's first line. The height has to
+   match whatever line-height the host set — the default is the prose 25px at 15px font, and a host
+   on a different scale (the canvas Note) overrides the variable rather than this rule. */
+.rich-markdown-nodes ul[data-type="taskList"] li > label {
   display: flex;
   align-items: center;
-  height: 1.6667em; /* = the prose 25px line-height at 15px font */
+  height: var(--rich-markdown-line-height, 1.6667em);
   flex-shrink: 0;
   user-select: none;
 }
 
-.rich-markdown-prose ul[data-type="taskList"] li > div {
+.rich-markdown-nodes ul[data-type="taskList"] li > div {
   flex: 1 1 auto;
   min-width: 0;
 }
 
 /* TaskItem nests content as li > div > p, which the `li > p` reset misses, leaving UA margins. */
-.rich-markdown-prose ul[data-type="taskList"] li > div > p {
+.rich-markdown-nodes ul[data-type="taskList"] li > div > p {
   margin: 0;
 }
 
 /* Match the design-system Checkbox (emcn) rather than the platform-native control. */
-.rich-markdown-prose ul[data-type="taskList"] input[type="checkbox"] {
+.rich-markdown-nodes ul[data-type="taskList"] input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
   display: inline-grid;
@@ -204,18 +225,18 @@
   width: 16px;
   height: 16px;
   margin: 0;
-  border: 1px solid var(--border-1);
+  border: var(--border-width) solid var(--border-1);
   border-radius: 3px;
   background: transparent;
   cursor: pointer;
 }
 
-.rich-markdown-prose ul[data-type="taskList"] input[type="checkbox"]:checked {
+.rich-markdown-nodes ul[data-type="taskList"] input[type="checkbox"]:checked {
   background-color: var(--text-primary);
   border-color: var(--text-primary);
 }
 
-.rich-markdown-prose ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+.rich-markdown-nodes ul[data-type="taskList"] input[type="checkbox"]:checked::after {
   content: "";
   width: 10px;
   height: 10px;
@@ -224,7 +245,7 @@
 }
 
 .rich-markdown-prose blockquote {
-  border-left: 2px solid var(--divider);
+  border-left: 2px solid var(--border);
   padding-left: 1rem;
   color: var(--text-primary);
   font-style: italic;
@@ -275,15 +296,15 @@
    only wrap when the line-wrap toggle sets data-wrap, breaking long unbroken tokens too. The
    `overflow-wrap`/`word-break` resets undo the editor-wide `overflow-wrap: anywhere`, which would
    otherwise still break a long unbroken token even under `white-space: pre`. */
-.rich-markdown-prose pre.code-editor-theme,
-.rich-markdown-prose pre.code-editor-theme code {
+.rich-markdown-nodes pre.code-editor-theme,
+.rich-markdown-nodes pre.code-editor-theme code {
   white-space: pre;
   overflow-wrap: normal;
   word-break: normal;
 }
 
-.rich-markdown-prose pre.code-editor-theme[data-wrap="true"],
-.rich-markdown-prose pre.code-editor-theme[data-wrap="true"] code {
+.rich-markdown-nodes pre.code-editor-theme[data-wrap="true"],
+.rich-markdown-nodes pre.code-editor-theme[data-wrap="true"] code {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -304,8 +325,8 @@
    comments, footnotes) — held verbatim and re-emitted byte-for-byte on save (./raw-markdown-snippet.ts).
    Same neutral surface as `code`/`pre` below (no color tint — a tint reads as a warning/error state,
    which isn't the signal here); the hover "Raw HTML"/"Footnote" badge is what conveys "not interpreted". */
-.rich-markdown-prose .raw-markdown-block,
-.rich-markdown-prose .raw-markdown-inline {
+.rich-markdown-nodes .raw-markdown-block,
+.rich-markdown-nodes .raw-markdown-inline {
   font-family: var(--font-martian-mono, ui-monospace, monospace);
   font-size: 0.875em;
   color: var(--text-muted);
@@ -314,24 +335,24 @@
   overflow-wrap: anywhere;
 }
 
-.dark .rich-markdown-prose .raw-markdown-block,
-.dark .rich-markdown-prose .raw-markdown-inline {
+.dark .rich-markdown-nodes .raw-markdown-block,
+.dark .rich-markdown-nodes .raw-markdown-inline {
   background: var(--code-bg);
 }
 
-.rich-markdown-prose .raw-markdown-block {
+.rich-markdown-nodes .raw-markdown-block {
   border-radius: 8px;
   padding: 0.75rem 1rem;
 }
 
-.rich-markdown-prose .raw-markdown-inline {
+.rich-markdown-nodes .raw-markdown-inline {
   border-radius: 4px;
   padding: 0.0625rem 0.3rem;
 }
 
-.rich-markdown-prose hr {
+.rich-markdown-nodes hr {
   border: none;
-  border-top: 1px solid var(--divider);
+  border-top: var(--border-width) solid var(--border);
   margin: 1.5em 0;
 }
 
@@ -339,52 +360,43 @@
    highlight skips leaf nodes (they hold no text), so the keymap's decoration paints the band itself.
    A divider is a void <hr> (no pseudo-elements), so a box-shadow spreads the selection band around its
    hairline without shifting layout; an image rings instead. */
-.rich-markdown-prose hr.rich-leaf-in-selection {
+.rich-markdown-nodes hr.rich-leaf-in-selection {
   box-shadow: 0 0 0 0.4em var(--selection-bg);
   border-radius: 1px;
 }
 
-.dark .rich-markdown-prose hr.rich-leaf-in-selection {
+.dark .rich-markdown-nodes hr.rich-leaf-in-selection {
   box-shadow: 0 0 0 0.4em var(--selection-dark);
 }
 
-.rich-markdown-prose .rich-leaf-in-selection:has(img) img,
-.rich-markdown-prose img.rich-leaf-in-selection {
+.rich-markdown-nodes .rich-leaf-in-selection:has(img) img,
+.rich-markdown-nodes img.rich-leaf-in-selection {
   outline: 2px solid var(--selection-bg);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-.rich-markdown-prose table {
-  width: 100%;
-  border-collapse: collapse;
+/* Borders, padding, typography, and header fill come from document-table.css — the chrome shared
+   with the CSV/XLSX previews. Only the editor-specific bits live here: `table-layout: fixed` is
+   required by prosemirror-tables' column-resizing plugin, and `overflow: visible` lets a
+   collaborator's caret name label escape the table box instead of being clipped (fixed layout means
+   columns can't exceed the table width, so nothing else needs clipping). */
+.rich-markdown-nodes table {
   table-layout: fixed;
+  overflow: visible;
+}
+
+/* The block margin is prose rhythm, so it stays with the type scale. */
+.rich-markdown-prose table {
   margin: 1rem 0;
-  overflow: hidden;
 }
 
-.rich-markdown-prose th,
-.rich-markdown-prose td {
-  position: relative;
-  border: 1px solid var(--divider);
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-  vertical-align: top;
-  font-size: 14px;
-  line-height: 1.5rem;
-}
-
-.rich-markdown-prose th {
-  background: var(--surface-4);
-  font-weight: 600;
-}
-
-.rich-markdown-prose th > p,
-.rich-markdown-prose td > p {
+.rich-markdown-nodes th > p,
+.rich-markdown-nodes td > p {
   margin: 0;
 }
 
-.rich-markdown-prose .selectedCell::after {
+.rich-markdown-nodes .selectedCell::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -393,7 +405,7 @@
   pointer-events: none;
 }
 
-.rich-markdown-prose .column-resize-handle {
+.rich-markdown-nodes .column-resize-handle {
   position: absolute;
   right: -2px;
   top: 0;
@@ -408,7 +420,7 @@
  * while the pointer is over a column boundary; without this rule the handle shows but the cursor
  * never changes to the resize affordance.
  */
-.rich-markdown-prose.resize-cursor {
+.rich-markdown-nodes.resize-cursor {
   cursor: col-resize;
 }
 
@@ -427,7 +439,7 @@
  * horizontal padding is cancelled by an equal negative margin so the tint bleeds slightly past the
  * text without ever shifting the text (or any following text) as the highlight is applied/removed.
  */
-.rich-markdown-prose mark {
+.rich-markdown-nodes mark {
   background-color: rgba(255, 212, 0, 0.4);
   color: inherit;
   border-radius: 2px;
@@ -453,4 +465,144 @@
 
 .rich-markdown-field-prose p.is-editor-empty:first-child::before {
   color: var(--text-muted);
+}
+
+/*
+ * Collaborative carets (TipTap CollaborationCaret). The caret bar and the name
+ * label's background are colored inline from each collaborator's identity color
+ * (the same `getUserColor` mechanism the canvas cursors use); the selection is a
+ * translucent tint of that color (set via selectionRender). The name label shows
+ * while the peer is active (JS toggles `--active` on each awareness change) or on
+ * hover, then fades after inactivity — matching Google Docs. `z-index` lifts the
+ * caret (and its label) above table cell backgrounds so a caret inside a table
+ * cell is not hidden behind adjacent cells.
+ */
+.rich-markdown-nodes .collaboration-carets__caret {
+  /* Zero inline footprint: a positioned anchor with NO width/border/margin, so inserting or moving this
+   * inline widget never reflows the surrounding text. The visible bar, dormant cap (::before), name label,
+   * and hover slop (::after) are all positioned relative to this anchor and are out of the inline flow. */
+  position: relative;
+  word-break: normal;
+  z-index: 20;
+}
+
+/* The visible caret bar — absolutely positioned so it draws over the text without occupying inline
+ * width. `left: -1px` centers the 2px bar on the cursor position; top/bottom span the line box height. */
+.rich-markdown-nodes .collaboration-carets__bar {
+  position: absolute;
+  top: -0.1em;
+  bottom: -0.1em;
+  left: -1px;
+  width: 2px;
+  background-color: var(--caret-color);
+  pointer-events: none;
+}
+
+/* Dormant affordance: a small cap at the top of the caret in the collaborator's color,
+ * shaped like a collapsed presence name tag (same `rounded-xs` + notch corner as the
+ * tables/canvas tags) so the whole presence system reads as one language. It signals
+ * "someone's here — hover for who", and fades out when the full name tag takes over
+ * (peer active or on hover). */
+.rich-markdown-nodes .collaboration-carets__caret::before {
+  content: "";
+  position: absolute;
+  /* Seat the cap's square bottom-left corner on the pole's top-left, flush like a flag on its pole.
+   * `left: -1px` matches the bar's `left: -1px` so the cap's left edge lines up with the bar's left edge;
+   * `top` overlaps the bar's top a hair so the notch reads as continuous, no gap. */
+  top: -2px;
+  left: -1px;
+  width: 8px;
+  height: 5px;
+  border-radius: 2px 2px 2px 0;
+  background-color: var(--caret-color);
+  transition: opacity 0.2s ease;
+}
+
+.rich-markdown-nodes .collaboration-carets__caret--active::before,
+.rich-markdown-nodes .collaboration-carets__caret:hover::before {
+  opacity: 0;
+}
+
+/* Transparent hover hit-slop. The visible caret bar is only ~2px wide and the dormant cap is
+ * 8×5px, so "hover for who" (revealing the name label on a dormant caret) would be near
+ * impossible to trigger. This invisible strip widens the hover target across the caret's full
+ * height and over the cap — nothing visible changes, only the pointer area. `pointer-events:
+ * auto` is required so it catches the hover; kept narrow so it barely intrudes on selecting
+ * text next to a remote caret. */
+.rich-markdown-nodes .collaboration-carets__caret::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+  pointer-events: auto;
+}
+
+/* Matches the canvas cursor name tag (cursors.tsx): identity-color background with
+ * `--surface-1` text at `text-xs`/`font-medium`, so both presence surfaces read as
+ * one system. `--surface-1` is the base surface token (readable on every assigned
+ * identity color in both themes), not a hardcoded value. Hidden by default; the
+ * show/fade is driven by the `--active` class (see caret-presence.ts) and hover. */
+.rich-markdown-nodes .collaboration-carets__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  max-width: 10rem;
+  overflow: hidden;
+  padding: 0.1rem 0.35rem;
+  border-radius: 2px 2px 2px 0;
+  /* 11px = the `text-xs` the canvas/tables presence tags use, for pixel parity. */
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background-color: var(--caret-color);
+  color: var(--surface-1);
+  user-select: none;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.rich-markdown-nodes .collaboration-carets__caret--active .collaboration-carets__label,
+.rich-markdown-nodes .collaboration-carets__caret:hover .collaboration-carets__label {
+  opacity: 1;
+}
+
+/* Near the editor's right edge the label is flipped to the caret's left so it never
+ * runs off (JS toggles `--flip` after measuring); mirror the tag's notch corner. */
+.rich-markdown-nodes .collaboration-carets__caret--flip .collaboration-carets__label {
+  left: auto;
+  right: -1px;
+  border-radius: 2px 2px 0 2px;
+}
+
+/* Remote text selection: a rounded translucent tint of the collaborator's identity
+ * color (the alpha fill is set inline by selectionRender). */
+.rich-markdown-nodes .collaboration-carets__selection {
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* Cmd/Ctrl+F match highlights. Every hit carries the same tint the rest of the app
+ * paints a search match with. */
+.rich-markdown-nodes .rich-find-match {
+  background-color: var(--highlight-match-bg);
+  color: var(--highlight-match-text);
+  border-radius: 2px;
+}
+
+/* The active hit is a stronger fill of the same hue, never a ring: an outline drawn
+ * around a run of text traces the line box, so on a heading it reads as a stray
+ * rectangle rather than as emphasis. Filling instead keeps the two states one family.
+ *
+ * The ink is fixed rather than tokenized because the fill is: `--brand-secondary` is
+ * the same blue in both themes, so a theme-flipping text token would go white on light
+ * blue in dark mode. Same reasoning as the note card's active search mark, which pairs
+ * its solid fill with a fixed dark ink for exactly this reason. */
+.rich-markdown-nodes .rich-find-match-active {
+  background-color: var(--brand-secondary);
+  color: #000;
 }

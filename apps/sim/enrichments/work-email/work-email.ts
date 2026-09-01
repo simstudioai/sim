@@ -1,5 +1,6 @@
 import { Mail } from '@sim/emcn/icons'
 import { filterUndefined } from '@sim/utils/object'
+import { projectProspeoEnrichmentFailure } from '@/enrichments/provider-failures/prospeo'
 import { normalizeDomain, splitName, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
@@ -20,7 +21,7 @@ export const workEmailEnrichment: EnrichmentConfig = {
   icon: Mail,
   inputs: [
     { id: 'fullName', name: 'Full name', type: 'string', required: true },
-    { id: 'companyDomain', name: 'Company domain', type: 'string' },
+    { id: 'companyDomain', name: 'Company domain', type: 'string', required: true },
     { id: 'linkedinUrl', name: 'LinkedIn URL', type: 'string' },
   ],
   outputs: [{ id: 'email', name: 'email', type: 'string' }],
@@ -86,6 +87,7 @@ export const workEmailEnrichment: EnrichmentConfig = {
           company_website: companyWebsite || undefined,
         })
       },
+      projectFailure: projectProspeoEnrichmentFailure,
       mapOutput: (output) => {
         const person = output.person as Record<string, unknown> | undefined
         const emailObj = person?.email as Record<string, unknown> | undefined

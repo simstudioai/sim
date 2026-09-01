@@ -1,9 +1,43 @@
 import { SapS4HanaIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, CanvasSentence } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SapProxyResponse } from '@/tools/sap_s4hana/types'
+import type { SapS4HanaResponse } from '@/tools/sap_s4hana/types'
 
-export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
+/**
+ * Whichever name a new business partner carries: an organization has
+ * `organizationBPName1`, a person has the name pair, and `businessPartnerCategory`
+ * keeps exactly one set visible — so the first match is always the real name.
+ */
+const BUSINESS_PARTNER_NAME_FIELD = ['organizationBPName1', 'lastName', 'firstName'] as const
+
+/**
+ * Card sentence for an OData collection read.
+ *
+ * Every list operation exposes the same optional `$filter` and `$top`, so none
+ * of them can anchor on a field — an unfiltered list still has to render.
+ */
+function listSentence(noun: string): CanvasSentence {
+  return [
+    `List ${noun}`,
+    { text: ', where', field: 'filter' },
+    { text: ', up to', field: 'top', after: 'records' },
+  ]
+}
+
+/** Card sentence for a single-key OData entity read. */
+function readSentence(noun: string, keyField: string): CanvasSentence {
+  return [{ text: `Read ${noun}`, field: keyField, core: true }]
+}
+
+/** Card sentence for an OData MERGE, which always writes the same JSON body. */
+function updateSentence(noun: string, keyField: string): CanvasSentence {
+  return [
+    { text: `Update ${noun}`, field: keyField, core: true },
+    { text: ', setting', field: 'updateBody' },
+  ]
+}
+
+export const SapS4HanaBlock: BlockConfig<SapS4HanaResponse> = {
   type: 'sap_s4hana',
   name: 'SAP S4HANA',
   description: 'Read and write SAP S4HANA Cloud business data via OData',
@@ -15,6 +49,100 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
   integrationType: IntegrationType.HR,
   bgColor: '#FFFFFF',
   icon: SapS4HanaIcon,
+  canvasPresentation: {
+    defaultTitle: 'SAP S4HANA',
+    sentences: {
+      byOperation: {
+        sap_s4hana_list_business_partners: listSentence('business partners'),
+        sap_s4hana_get_business_partner: readSentence('business partner', 'businessPartner'),
+        sap_s4hana_create_business_partner: [
+          'Create a business partner',
+          { text: 'named', field: BUSINESS_PARTNER_NAME_FIELD },
+        ],
+        sap_s4hana_update_business_partner: updateSentence('business partner', 'businessPartner'),
+        sap_s4hana_list_customers: listSentence('customers'),
+        sap_s4hana_get_customer: readSentence('customer', 'customer'),
+        sap_s4hana_update_customer: updateSentence('customer', 'customer'),
+        sap_s4hana_list_suppliers: listSentence('suppliers'),
+        sap_s4hana_get_supplier: readSentence('supplier', 'supplier'),
+        sap_s4hana_update_supplier: updateSentence('supplier', 'supplier'),
+        sap_s4hana_list_sales_orders: listSentence('sales orders'),
+        sap_s4hana_get_sales_order: readSentence('sales order', 'salesOrder'),
+        sap_s4hana_create_sales_order: [
+          {
+            text: 'Create',
+            field: 'salesOrderType',
+            after: 'sales order',
+            core: true,
+          },
+          { text: 'for customer', field: 'soldToParty', core: true },
+        ],
+        sap_s4hana_update_sales_order: updateSentence('sales order', 'salesOrder'),
+        sap_s4hana_delete_sales_order: [
+          { text: 'Delete sales order', field: 'salesOrder', core: true },
+        ],
+        sap_s4hana_list_outbound_deliveries: listSentence('outbound deliveries'),
+        sap_s4hana_get_outbound_delivery: readSentence('outbound delivery', 'deliveryDocument'),
+        sap_s4hana_list_inbound_deliveries: listSentence('inbound deliveries'),
+        sap_s4hana_get_inbound_delivery: readSentence('inbound delivery', 'deliveryDocument'),
+        sap_s4hana_list_billing_documents: listSentence('billing documents'),
+        sap_s4hana_get_billing_document: readSentence('billing document', 'billingDocument'),
+        sap_s4hana_list_products: listSentence('products'),
+        sap_s4hana_get_product: readSentence('product', 'product'),
+        sap_s4hana_update_product: updateSentence('product', 'product'),
+        sap_s4hana_list_material_stock: listSentence('material stock'),
+        sap_s4hana_list_material_documents: listSentence('material documents'),
+        sap_s4hana_get_material_document: [
+          { text: 'Read material document', field: 'materialDocument', core: true },
+          { text: 'from year', field: 'materialDocumentYear' },
+        ],
+        sap_s4hana_list_purchase_requisitions: listSentence('purchase requisitions'),
+        sap_s4hana_get_purchase_requisition: readSentence(
+          'purchase requisition',
+          'purchaseRequisition'
+        ),
+        sap_s4hana_create_purchase_requisition: [
+          {
+            text: 'Create',
+            field: 'purchaseRequisitionType',
+            after: 'purchase requisition',
+            core: true,
+          },
+        ],
+        sap_s4hana_update_purchase_requisition: updateSentence(
+          'purchase requisition',
+          'purchaseRequisition'
+        ),
+        sap_s4hana_list_purchase_orders: listSentence('purchase orders'),
+        sap_s4hana_get_purchase_order: readSentence('purchase order', 'purchaseOrder'),
+        sap_s4hana_create_purchase_order: [
+          {
+            text: 'Create',
+            field: 'purchaseOrderType',
+            after: 'purchase order',
+            core: true,
+          },
+          { text: 'for supplier', field: 'supplier', core: true },
+        ],
+        sap_s4hana_update_purchase_order: updateSentence('purchase order', 'purchaseOrder'),
+        sap_s4hana_list_supplier_invoices: listSentence('supplier invoices'),
+        sap_s4hana_get_supplier_invoice: [
+          { text: 'Read supplier invoice', field: 'supplierInvoice', core: true },
+          { text: 'from fiscal year', field: 'fiscalYear' },
+        ],
+        sap_s4hana_odata_query: [
+          {
+            text: 'Send',
+            field: 'odataMethod',
+            after: 'request to',
+            core: true,
+          },
+          { field: 'odataPath', core: true },
+          { text: 'on service', field: 'odataService' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -379,6 +507,7 @@ Return ONLY the $filter expression - no explanations, no extra text.`,
     {
       id: 'salesOrderType',
       title: 'SalesOrderType',
+      canvasNoun: 'a type',
       type: 'short-input',
       placeholder: 'OR',
       condition: { field: 'operation', value: 'sap_s4hana_create_sales_order' },
@@ -501,6 +630,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     {
       id: 'purchaseRequisitionType',
       title: 'PurchaseRequisitionType',
+      canvasNoun: 'a type',
       type: 'short-input',
       placeholder: 'NB',
       condition: { field: 'operation', value: 'sap_s4hana_create_purchase_requisition' },
@@ -539,6 +669,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     {
       id: 'purchaseOrderType',
       title: 'PurchaseOrderType',
+      canvasNoun: 'a type',
       type: 'short-input',
       placeholder: 'NB',
       condition: { field: 'operation', value: 'sap_s4hana_create_purchase_order' },
@@ -691,6 +822,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     {
       id: 'odataMethod',
       title: 'HTTP Method',
+      canvasNoun: 'an HTTP method',
       type: 'dropdown',
       options: [
         { label: 'GET', id: 'GET' },

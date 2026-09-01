@@ -9,8 +9,7 @@ import {
   TRIGGER_BORDER_CLASS,
   useCopyToClipboard,
 } from '@sim/emcn'
-import { Duplicate } from '@sim/emcn/icons'
-import { Share2 } from 'lucide-react'
+import { Duplicate, Share } from '@sim/emcn/icons'
 import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
 
 interface ShareButtonProps {
@@ -35,7 +34,7 @@ export function ShareButton({ url, title }: ShareButtonProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Chip leftIcon={Share2} className={TRIGGER_BORDER_CLASS} aria-label='Share this page'>
+        <Chip leftIcon={Share} className={TRIGGER_BORDER_CLASS} aria-label='Share this page'>
           Share
         </Chip>
       </DropdownMenuTrigger>

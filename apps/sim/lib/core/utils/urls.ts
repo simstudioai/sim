@@ -12,18 +12,39 @@ function hasHttpProtocol(url: string): boolean {
   return /^https?:\/\//i.test(url)
 }
 
+/**
+ * Brings a configured base URL to the no-trailing-slash form {@link SITE_URL}
+ * documents: adds the protocol when the operator omitted it, then strips
+ * trailing slashes.
+ *
+ * Call sites overwhelmingly build URLs as `${base}/path`, so a base spelled
+ * `https://host/` gives every one of them a `//path` pathname that matches no
+ * route, and breaks the `startsWith(`${base}/`)` prefix checks that decide
+ * whether a redirect target is our own. Normalizing once here is what lets
+ * those call sites stay simple instead of each defending against the operator's
+ * spelling.
+ *
+ * Trailing slashes are the only spelling this absorbs. The app declares no Next
+ * `basePath`, so its routes are served at the origin root and a path-prefixed
+ * value could not address them however this normalized it.
+ */
 function normalizeBaseUrl(url: string): string {
-  if (hasHttpProtocol(url)) {
-    return url
-  }
-
   const protocol = isProd ? 'https://' : 'http://'
-  return `${protocol}${url}`
+  const withProtocol = hasHttpProtocol(url) ? url : `${protocol}${url}`
+  return withProtocol.replace(/\/+$/, '')
 }
 
 /**
  * Returns the base URL of the application from NEXT_PUBLIC_APP_URL
  * This ensures webhooks, callbacks, and other integrations always use the correct public URL
+ *
+ * Deliberately has no browser fallback to `window.location.origin`. The value is
+ * injected before hydration by `<PublicEnvScript>`, so an empty read means the
+ * deployment is misconfigured — and a same-origin guess would hide that. It also
+ * would not be safe to guess: an opaque origin (a sandboxed iframe, and `/chat/*`
+ * is embeddable) serializes to the string `'null'`, which is truthy and would
+ * silently produce `null/api/...` at every call site.
+ *
  * @returns The base URL string (e.g., 'http://localhost:3000' or 'https://example.com')
  * @throws Error if NEXT_PUBLIC_APP_URL is not configured
  */
@@ -43,9 +64,35 @@ export function getBaseUrl(): string {
  * Returns the base URL used by server-side internal API calls.
  * Falls back to NEXT_PUBLIC_APP_URL when INTERNAL_API_BASE_URL is not set.
  */
+/**
+ * Whether this process is a Trigger.dev worker rather than the app container.
+ *
+ * `TRIGGER_SECRET_KEY` and `TRIGGER_DEV_ENABLED` are both present on the app too
+ * — it needs them to dispatch — so neither discriminates. `trigger.config.ts`
+ * syncs exactly one worker-only marker, `DB_APP_NAME='sim-trigger'`, which is
+ * what this reads.
+ */
+function isTriggerWorkerRuntime(): boolean {
+  return getEnv('DB_APP_NAME') === 'sim-trigger'
+}
+
 export function getInternalApiBaseUrl(): string {
   const internalBaseUrl = getEnv('INTERNAL_API_BASE_URL')?.trim()
-  if (!internalBaseUrl) {
+  /*
+   * `INTERNAL_API_BASE_URL` describes a route that exists only from inside the
+   * app container — a loopback address, or a cluster-internal Service name. A
+   * Trigger.dev worker runs in Trigger's infrastructure, so that route resolves
+   * to the worker itself, where nothing is listening.
+   *
+   * This is not hypothetical: several modules run in BOTH runtimes and call this.
+   * `lib/guardrails/mask-client.ts` is the sharp one — its own TSDoc notes the
+   * log-redaction persist path runs inside the trigger.dev runtime — so setting
+   * the variable produced `PII redaction failed: Unable to connect` on every
+   * worker-side redaction. Ignoring it here makes the variable safe to set from
+   * a shared secret store instead of relying on every operator to remember which
+   * runtimes may read it.
+   */
+  if (!internalBaseUrl || isTriggerWorkerRuntime()) {
     return getBaseUrl()
   }
 
@@ -55,7 +102,9 @@ export function getInternalApiBaseUrl(): string {
     )
   }
 
-  return internalBaseUrl
+  // Protocol is proven present above, so this only trims trailing slashes —
+  // callers concatenate `${base}/api/...` exactly as they do with getBaseUrl().
+  return normalizeBaseUrl(internalBaseUrl)
 }
 
 /**
@@ -236,4 +285,13 @@ export function getSocketUrl(): string {
  */
 export function getOllamaUrl(): string {
   return env.OLLAMA_URL || DEFAULT_OLLAMA_URL
+}
+
+/**
+ * Whether OLLAMA_URL names a server, as opposed to {@link getOllamaUrl} falling
+ * back to the loopback default. Callers use this to tell "someone pointed us at
+ * an Ollama" apart from "nobody configured one".
+ */
+export function isOllamaUrlConfigured(): boolean {
+  return Boolean(env.OLLAMA_URL)
 }

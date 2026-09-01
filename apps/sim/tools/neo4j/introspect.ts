@@ -1,7 +1,7 @@
 import type { Neo4jIntrospectParams, Neo4jIntrospectResponse } from '@/tools/neo4j/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const introspectTool: ToolConfig<Neo4jIntrospectParams, Neo4jIntrospectResponse> = {
+export const introspectTool: InternalToolConfig<Neo4jIntrospectParams, Neo4jIntrospectResponse> = {
   id: 'neo4j_introspect',
   name: 'Neo4j Introspect',
   description:
@@ -47,13 +47,8 @@ export const introspectTool: ToolConfig<Neo4jIntrospectParams, Neo4jIntrospectRe
     },
   },
 
-  request: {
-    url: '/api/tools/neo4j/introspect',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

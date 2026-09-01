@@ -5,11 +5,13 @@
  * directly from `@/lib/table/rows/executions`.
  */
 
-import { tableRowExecutions } from '@sim/db/schema'
+import { tableRowExecutions, userTableRows } from '@sim/db/schema'
 import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import { areGroupDepsSatisfied } from '@/lib/table/deps'
+import { TableRunStateCollectionLimitExceededError } from '@/lib/table/rows/errors'
+import { normalizeBlockErrors } from '@/lib/table/rows/run-state'
 import type {
   EnrichmentRunDetail,
   RowData,
@@ -20,59 +22,99 @@ import type {
 } from '@/lib/table/types'
 
 /**
+ * Rows whose sidecar is fetched per round trip. Bounds the `IN (...)` list and,
+ * with it, the heap a single batch can materialize: `blockErrors` is unbounded
+ * jsonb, so one query over a whole page's row ids has no ceiling of its own.
+ */
+const RUN_STATE_ID_CHUNK_SIZE = 250
+
+interface LoadExecutionsOptions {
+  /**
+   * Ceiling on the serialized sidecar this call may materialize. Accumulated as
+   * the drain proceeds and enforced BEFORE the next chunk is fetched, so a
+   * refusal costs one over-budget chunk rather than the whole page — measuring
+   * an already-materialized result could only report a spike that had already
+   * happened.
+   */
+  budgetBytes?: number
+}
+
+/**
  * Loads `tableRowExecutions` rows for the given row ids and groups them into a
  * `Map<rowId, RowExecutions>` suitable for plugging into `TableRow.executions`.
+ *
+ * Drains in bounded chunks rather than one unbounded `IN (...)`. Pass
+ * `budgetBytes` on any path that hands the sidecar to a caller; without it the
+ * drain is still chunked but will read every named row.
  */
 export async function loadExecutionsByRow(
   trx: DbOrTx,
-  rowIds: Iterable<string>
+  rowIds: Iterable<string>,
+  options?: LoadExecutionsOptions
 ): Promise<Map<string, RowExecutions>> {
   const ids = Array.from(new Set(rowIds))
   const result = new Map<string, RowExecutions>()
   if (ids.length === 0) return result
-  // Explicit column list, never `select()` — `enrichmentDetails` is large and
-  // must stay off the hot grid read path (fetched on demand via
-  // `loadEnrichmentDetail`).
-  const rows = await trx
-    .select({
-      rowId: tableRowExecutions.rowId,
-      groupId: tableRowExecutions.groupId,
-      status: tableRowExecutions.status,
-      executionId: tableRowExecutions.executionId,
-      jobId: tableRowExecutions.jobId,
-      workflowId: tableRowExecutions.workflowId,
-      error: tableRowExecutions.error,
-      runningBlockIds: tableRowExecutions.runningBlockIds,
-      blockErrors: tableRowExecutions.blockErrors,
-      cancelledAt: tableRowExecutions.cancelledAt,
-    })
-    .from(tableRowExecutions)
-    .where(inArray(tableRowExecutions.rowId, ids))
-  for (const r of rows) {
-    const existing = result.get(r.rowId) ?? {}
-    const meta: RowExecutionMetadata = {
-      status: r.status as RowExecutionMetadata['status'],
-      executionId: r.executionId ?? null,
-      jobId: r.jobId ?? null,
-      workflowId: r.workflowId,
-      error: r.error ?? null,
-      ...(r.runningBlockIds && r.runningBlockIds.length > 0
-        ? { runningBlockIds: r.runningBlockIds }
-        : {}),
-      ...(r.blockErrors && Object.keys(r.blockErrors as Record<string, string>).length > 0
-        ? { blockErrors: r.blockErrors as Record<string, string> }
-        : {}),
-      ...(r.cancelledAt ? { cancelledAt: r.cancelledAt.toISOString() } : {}),
+  const budgetBytes = options?.budgetBytes
+  let bytes = 0
+  for (let offset = 0; offset < ids.length; offset += RUN_STATE_ID_CHUNK_SIZE) {
+    if (budgetBytes !== undefined && bytes > budgetBytes) {
+      throw new TableRunStateCollectionLimitExceededError(budgetBytes)
     }
-    existing[r.groupId] = meta
-    result.set(r.rowId, existing)
+    const chunk = ids.slice(offset, offset + RUN_STATE_ID_CHUNK_SIZE)
+    // Explicit column list, never `select()` — `enrichmentDetails` is large and
+    // must stay off the hot grid read path (fetched on demand via
+    // `loadEnrichmentDetail`).
+    const rows = await trx
+      .select({
+        rowId: tableRowExecutions.rowId,
+        groupId: tableRowExecutions.groupId,
+        status: tableRowExecutions.status,
+        executionId: tableRowExecutions.executionId,
+        jobId: tableRowExecutions.jobId,
+        workflowId: tableRowExecutions.workflowId,
+        error: tableRowExecutions.error,
+        runningBlockIds: tableRowExecutions.runningBlockIds,
+        blockErrors: tableRowExecutions.blockErrors,
+        cancelledAt: tableRowExecutions.cancelledAt,
+      })
+      .from(tableRowExecutions)
+      .where(inArray(tableRowExecutions.rowId, chunk))
+    for (const r of rows) {
+      const existing = result.get(r.rowId) ?? {}
+      const blockErrors = normalizeBlockErrors(r.blockErrors)
+      const meta: RowExecutionMetadata = {
+        status: r.status as RowExecutionMetadata['status'],
+        executionId: r.executionId ?? null,
+        jobId: r.jobId ?? null,
+        workflowId: r.workflowId,
+        error: r.error ?? null,
+        ...(r.runningBlockIds && r.runningBlockIds.length > 0
+          ? { runningBlockIds: r.runningBlockIds }
+          : {}),
+        ...(blockErrors ? { blockErrors } : {}),
+        ...(r.cancelledAt ? { cancelledAt: r.cancelledAt.toISOString() } : {}),
+      }
+      if (budgetBytes !== undefined) {
+        bytes += Buffer.byteLength(JSON.stringify(meta), 'utf8')
+        if (bytes > budgetBytes) {
+          throw new TableRunStateCollectionLimitExceededError(budgetBytes)
+        }
+      }
+      existing[r.groupId] = meta
+      result.set(r.rowId, existing)
+    }
   }
   return result
 }
 
 /** Convenience: load executions for one row, returning `{}` when missing. */
-export async function loadExecutionsForRow(trx: DbOrTx, rowId: string): Promise<RowExecutions> {
-  const byRow = await loadExecutionsByRow(trx, [rowId])
+export async function loadExecutionsForRow(
+  trx: DbOrTx,
+  rowId: string,
+  options?: LoadExecutionsOptions
+): Promise<RowExecutions> {
+  const byRow = await loadExecutionsByRow(trx, [rowId], options)
   return byRow.get(rowId) ?? {}
 }
 
@@ -212,7 +254,7 @@ export function applyExecutionsPatch(
 /**
  * Writes a per-group execution patch for one row against the `tableRowExecutions`
  * sidecar. Non-null values upsert into the table; nulls delete the entry. When
- * `guard` is set, the upsert is gated to:
+ * `guard` is set, both upserts and null deletions are gated to:
  *  - reject if a `cancelled` row for the same execution already exists, and
  *  - reject if the row exists but is owned by a different executionId
  *    (with carve-outs for missing rows and null executionIds — the dispatcher's
@@ -238,10 +280,21 @@ export async function writeExecutionsPatch(
   if (entries.length === 0) return 'wrote'
 
   for (const [gid, value] of entries) {
+    const isGuarded = guard && guard.groupId === gid
     if (value === null) {
-      await trx
+      const deleteCondition = isGuarded
+        ? and(
+            eq(tableRowExecutions.rowId, rowId),
+            eq(tableRowExecutions.groupId, gid),
+            sql`${tableRowExecutions.status} <> 'cancelled'`,
+            sql`(${tableRowExecutions.executionId} IS NULL OR ${tableRowExecutions.executionId} = ${guard.executionId})`
+          )
+        : and(eq(tableRowExecutions.rowId, rowId), eq(tableRowExecutions.groupId, gid))
+      const deleted = await trx
         .delete(tableRowExecutions)
-        .where(and(eq(tableRowExecutions.rowId, rowId), eq(tableRowExecutions.groupId, gid)) as SQL)
+        .where(deleteCondition as SQL)
+        .returning({ rowId: tableRowExecutions.rowId })
+      if (isGuarded && deleted.length === 0) return 'guard-rejected'
       continue
     }
     const insertValues = {
@@ -260,7 +313,6 @@ export async function writeExecutionsPatch(
       updatedAt: new Date(),
     } as const
 
-    const isGuarded = guard && guard.groupId === gid
     if (isGuarded) {
       // Gate by guard semantics. The original JSONB guard had two AND'd
       // clauses; we collapse them onto the upsert's WHERE so a non-matching
@@ -343,13 +395,22 @@ export async function writeExecutionsPatch(
 export async function stripGroupExecutions(
   trx: DbOrTx,
   tableId: string,
-  groupIds: Iterable<string>
+  groupIds: Iterable<string>,
+  options?: { expectedWorkspaceId?: string }
 ): Promise<void> {
   const ids = Array.from(new Set(groupIds))
   if (ids.length === 0) return
-  await trx
-    .delete(tableRowExecutions)
-    .where(
-      and(eq(tableRowExecutions.tableId, tableId), inArray(tableRowExecutions.groupId, ids)) as SQL
-    )
+  await trx.delete(tableRowExecutions).where(
+    and(
+      eq(tableRowExecutions.tableId, tableId),
+      inArray(tableRowExecutions.groupId, ids),
+      options?.expectedWorkspaceId
+        ? sql`EXISTS (
+              SELECT 1 FROM ${userTableRows}
+              WHERE ${userTableRows.id} = ${tableRowExecutions.rowId}
+                AND ${userTableRows.workspaceId} = ${options.expectedWorkspaceId}
+            )`
+        : undefined
+    ) as SQL
+  )
 }

@@ -1,0 +1,190 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  CONSOLE_STORAGE_VERSION,
+  clearAllExecutionPointers,
+  consolePersistence,
+  migratePersistedConsoleData,
+  saveExecutionPointer,
+} from '@/stores/terminal/console/storage'
+
+const legacyEntry = {
+  id: 'entry-1',
+  timestamp: '2026-07-31T00:00:00.000Z',
+  workflowId: 'workflow-1',
+  blockId: 'function-1',
+  blockName: 'Function 1',
+  blockType: 'function',
+  executionId: 'execution-1',
+  executionOrder: 1,
+  success: false,
+  input: { secret: 'resolved-secret' },
+  output: { value: 'resolved-secret' },
+  error: 'ReferenceError: resolved-secret',
+  warning: 'resolved-secret',
+  agentStreamThinking: 'resolved-secret',
+  agentStreamToolCalls: [
+    {
+      key: 'function-1:tool-1',
+      id: 'tool-1',
+      name: 'database_query',
+      displayName: 'Database Query',
+      status: 'error' as const,
+    },
+  ],
+}
+
+describe('terminal console storage migration', () => {
+  it('strips content-bearing fields from unversioned persisted entries', () => {
+    const result = migratePersistedConsoleData({
+      workflowEntries: { 'workflow-1': [legacyEntry] },
+      isOpen: true,
+    })
+
+    expect(result?.migrated).toBe(true)
+    expect(result?.data.storageVersion).toBe(CONSOLE_STORAGE_VERSION)
+    expect(result?.data.workflowEntries['workflow-1'][0]).toEqual({
+      id: 'entry-1',
+      timestamp: '2026-07-31T00:00:00.000Z',
+      workflowId: 'workflow-1',
+      blockId: 'function-1',
+      blockName: 'Function 1',
+      blockType: 'function',
+      executionId: 'execution-1',
+      executionOrder: 1,
+      success: false,
+      agentStreamToolCalls: legacyEntry.agentStreamToolCalls,
+    })
+  })
+
+  it('strips content from the original flat Zustand storage format', () => {
+    const result = migratePersistedConsoleData({
+      state: { entries: [legacyEntry], isOpen: false },
+      version: 0,
+    })
+
+    expect(result?.migrated).toBe(true)
+    expect(result?.data.workflowEntries['workflow-1'][0]).not.toHaveProperty('error')
+    expect(result?.data.workflowEntries['workflow-1'][0]).not.toHaveProperty('agentStreamThinking')
+  })
+
+  it('retains content already written under the current projection version', () => {
+    const projectedEntry = {
+      ...legacyEntry,
+      input: { secret: '{{OPENAI_API_KEY}}' },
+      output: { value: '{{OPENAI_API_KEY}}' },
+      error: 'ReferenceError: {{OPENAI_API_KEY}}',
+      agentStreamThinking: '{{OPENAI_API_KEY}}',
+    }
+    const result = migratePersistedConsoleData({
+      storageVersion: CONSOLE_STORAGE_VERSION,
+      workflowEntries: { 'workflow-1': [projectedEntry] },
+      isOpen: false,
+    })
+
+    expect(result?.migrated).toBe(false)
+    expect(result?.data.workflowEntries['workflow-1'][0]).toEqual(projectedEntry)
+  })
+})
+
+describe('terminal execution pointers', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear()
+  })
+
+  it('clears every terminal pointer without removing unrelated tab state', async () => {
+    window.sessionStorage.setItem('unrelated', 'keep')
+    await saveExecutionPointer({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      lastEventId: 1,
+    })
+    await saveExecutionPointer({
+      workflowId: 'workflow-2',
+      executionId: 'execution-2',
+      lastEventId: 2,
+    })
+
+    clearAllExecutionPointers()
+
+    expect(window.sessionStorage.getItem('terminal-active-execution:workflow-1')).toBeNull()
+    expect(window.sessionStorage.getItem('terminal-active-execution:workflow-2')).toBeNull()
+    expect(window.sessionStorage.getItem('unrelated')).toBe('keep')
+  })
+})
+
+describe('console persistence execution lifecycle', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    consolePersistence.reset()
+  })
+
+  afterEach(() => {
+    consolePersistence.reset()
+    vi.useRealTimers()
+  })
+
+  it('ignores an execution ending after its authenticated session was reset', () => {
+    const previousSessionExecution = consolePersistence.executionStarted()
+    consolePersistence.reset()
+    const currentSessionExecution = consolePersistence.executionStarted()
+
+    consolePersistence.executionEnded(previousSessionExecution)
+
+    expect(vi.getTimerCount()).toBe(1)
+
+    consolePersistence.executionEnded(currentSessionExecution)
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not let a duplicate completion end another active execution', () => {
+    const firstExecution = consolePersistence.executionStarted()
+    const secondExecution = consolePersistence.executionStarted()
+
+    consolePersistence.executionEnded(firstExecution)
+    consolePersistence.executionEnded(firstExecution)
+
+    expect(vi.getTimerCount()).toBe(1)
+
+    consolePersistence.executionEnded(secondExecution)
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('lets a new owner adopt and finish a scoped execution', () => {
+    const execution = consolePersistence.beginScopedExecution('workflow-1')
+
+    expect(consolePersistence.adoptScopedExecution('workflow-1')).toBe(execution)
+    expect(consolePersistence.endScopedExecution('workflow-1', execution)).toBe(true)
+    expect(consolePersistence.adoptScopedExecution('workflow-1')).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not let a stale scoped completion end its replacement', () => {
+    const staleExecution = consolePersistence.beginScopedExecution('workflow-1')
+    const currentExecution = consolePersistence.beginScopedExecution('workflow-1')
+
+    expect(consolePersistence.endScopedExecution('workflow-1', staleExecution)).toBe(false)
+    expect(consolePersistence.adoptScopedExecution('workflow-1')).toBe(currentExecution)
+    expect(vi.getTimerCount()).toBe(1)
+
+    expect(consolePersistence.endScopedExecution('workflow-1', currentExecution)).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('clears scoped ownership across authenticated-session resets', () => {
+    const previousSessionExecution = consolePersistence.beginScopedExecution('workflow-1')
+
+    consolePersistence.reset()
+    const currentSessionExecution = consolePersistence.beginScopedExecution('workflow-1')
+
+    expect(consolePersistence.endScopedExecution('workflow-1', previousSessionExecution)).toBe(
+      false
+    )
+    expect(consolePersistence.adoptScopedExecution('workflow-1')).toBe(currentSessionExecution)
+    expect(vi.getTimerCount()).toBe(1)
+  })
+})

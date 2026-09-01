@@ -1,8 +1,8 @@
+import { mapJupyterKernel } from '@/lib/internal/jupyter/protocol'
 import type { JupyterListKernelsParams, JupyterListKernelsResponse } from '@/tools/jupyter/types'
-import { mapJupyterKernel } from '@/tools/jupyter/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jupyterListKernelsTool: ToolConfig<
+export const jupyterListKernelsTool: InternalToolConfig<
   JupyterListKernelsParams,
   JupyterListKernelsResponse
 > = {
@@ -26,11 +26,8 @@ export const jupyterListKernelsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jupyter/proxy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       serverUrl: params.serverUrl,
       token: params.token,
       method: 'GET',

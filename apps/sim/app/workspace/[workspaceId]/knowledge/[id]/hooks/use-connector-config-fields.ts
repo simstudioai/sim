@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { getDependsOnFields } from '@/blocks/utils'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
 export type ConfigFieldValue = string | string[]

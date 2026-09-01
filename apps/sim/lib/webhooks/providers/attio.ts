@@ -4,6 +4,7 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { getCredentialOwner, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -15,7 +16,6 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookProvider:Attio')
 

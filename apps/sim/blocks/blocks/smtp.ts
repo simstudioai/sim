@@ -16,6 +16,15 @@ export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
   bgColor: '#2D3748',
   icon: SmtpIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'SMTP',
+    sentences: {
+      default: [
+        { text: 'Send', field: 'subject', core: true },
+        { text: 'to', field: 'to', core: true },
+      ],
+    },
+  },
 
   subBlocks: [
     {
@@ -71,6 +80,7 @@ export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
     {
       id: 'to',
       title: 'To',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'recipient@example.com',
       required: true,

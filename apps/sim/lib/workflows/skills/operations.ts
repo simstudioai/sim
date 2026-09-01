@@ -2,7 +2,8 @@ import { db } from '@sim/db'
 import { skill, skillMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { and, desc, eq, ne } from 'drizzle-orm'
+import { and, type Column, desc, eq, ne } from 'drizzle-orm'
+import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEditableSkillIds } from '@/lib/skills/access'
 import {
@@ -18,18 +19,81 @@ const logger = createLogger('SkillsOperations')
 /** Stable epoch timestamp for built-in (template) skills, which have no DB row. */
 const BUILTIN_SKILL_TIMESTAMP = new Date(0)
 
-/** Shape a built-in skill as a `skill` table row so it can ride alongside DB skills. */
-function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): typeof skill.$inferSelect {
+type SkillRow = typeof skill.$inferSelect
+
+/**
+ * A skill row without its body. Skill content runs to 50 000 characters, so
+ * list surfaces that only render metadata select this projection instead of
+ * loading every body just to drop it in the presenter.
+ */
+export type SkillSummaryRow = Omit<SkillRow, 'content'>
+
+/** The `skill` columns that make up {@link SkillSummaryRow}. */
+const SKILL_SUMMARY_COLUMNS = {
+  id: skill.id,
+  workspaceId: skill.workspaceId,
+  userId: skill.userId,
+  name: skill.name,
+  description: skill.description,
+  createdAt: skill.createdAt,
+  updatedAt: skill.updatedAt,
+}
+
+/** Shape a built-in skill as a body-less `skill` row so it can ride alongside DB skills. */
+function builtinSkillSummaryRow(workspaceId: string, builtin: BuiltinSkill): SkillSummaryRow {
   return {
     id: builtin.id,
     workspaceId,
     userId: null,
     name: builtin.name,
     description: builtin.description,
-    content: builtin.content,
     createdAt: BUILTIN_SKILL_TIMESTAMP,
     updatedAt: BUILTIN_SKILL_TIMESTAMP,
   }
+}
+
+function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): SkillRow {
+  return { ...builtinSkillSummaryRow(workspaceId, builtin), content: builtin.content }
+}
+
+/**
+ * The built-ins a list should show: those no DB row shadows by name, narrowed
+ * by the same search term the DB half ran.
+ *
+ * Restricting `dbNames` to the searched rows is safe: a DB skill only shadows a
+ * built-in by sharing its name, and a name that matches the search on the
+ * built-in matches it on the DB row too.
+ */
+function visibleBuiltins(dbNames: Set<string>, search?: string): BuiltinSkill[] {
+  const term = search?.toLowerCase()
+  return BUILTIN_SKILLS.filter(
+    (b) => !dbNames.has(b.name.toLowerCase()) && (!term || b.name.toLowerCase().includes(term))
+  )
+}
+export type SkillSortBy = 'name' | 'createdAt' | 'updatedAt'
+
+/**
+ * Orderings for the public list's sortable fields, made total over the contract
+ * enum by `satisfies`. Each ends in `id` so skills sharing a timestamp still
+ * come back in a stable order.
+ */
+const SKILL_SORTS = {
+  name: [skill.name, skill.id],
+  createdAt: [skill.createdAt, skill.id],
+  updatedAt: [skill.updatedAt, skill.id],
+} satisfies Record<SkillSortBy, readonly Column[]>
+
+/** The sort key {@link SKILL_SORTS} orders on, for one row. */
+function skillSortKey(row: SkillSummaryRow, sortBy: SkillSortBy): [string | number, string] {
+  if (sortBy === 'name') return [row.name, row.id]
+  return [(sortBy === 'createdAt' ? row.createdAt : row.updatedAt).getTime(), row.id]
+}
+
+function compareSkills(a: SkillSummaryRow, b: SkillSummaryRow, sortBy: SkillSortBy): number {
+  const [aKey, aId] = skillSortKey(a, sortBy)
+  const [bKey, bId] = skillSortKey(b, sortBy)
+  if (aKey !== bKey) return aKey < bKey ? -1 : 1
+  return aId < bId ? -1 : aId > bId ? 1 : 0
 }
 
 /**
@@ -40,23 +104,109 @@ function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): typeof ski
  * Pass `includeBuiltins: false` to return only user-created skills. The
  * mothership uses this for the workspace skill inventory it sees, which lists
  * only user-created skills and never the code-only templates.
+ *
+ * `search` and `sort` serve the public list. The DB half of both runs in the
+ * query; the built-ins are a small code constant with no row to order, so they
+ * are filtered and merged in memory — the one place a v2 list cannot push its
+ * sort all the way down. Passing `sort` also re-orders the built-ins into the
+ * requested order instead of pinning them first, so the public list is sorted
+ * as documented; callers that omit it keep the historical builtins-first order.
+ *
+ * The merged ordering compares names with JS string order rather than the
+ * database collation. Only the handful of ASCII built-in names are placed by
+ * it, so the two agree in practice.
+ *
+ * This returns the whole set. The public v2 list pages through
+ * {@link listSkillSummariesPage} instead.
  */
-export async function listSkills(params: { workspaceId: string; includeBuiltins?: boolean }) {
+export async function listSkills(params: {
+  workspaceId: string
+  includeBuiltins?: boolean
+  /** Case-insensitive substring match on the skill name. */
+  search?: string
+  sort?: { sortBy: SkillSortBy; sortOrder: ListSortOrder }
+}): Promise<SkillRow[]> {
+  const sortBy = params.sort?.sortBy ?? 'createdAt'
+  const sortOrder = params.sort?.sortOrder ?? 'desc'
+
   const dbRows = await db
     .select()
     .from(skill)
-    .where(eq(skill.workspaceId, params.workspaceId))
-    .orderBy(desc(skill.createdAt))
+    .where(and(eq(skill.workspaceId, params.workspaceId), searchFilter(skill.name, params.search)))
+    .orderBy(...listOrderBy(SKILL_SORTS[sortBy], sortOrder))
 
   if (params.includeBuiltins === false) {
     return dbRows
   }
 
   const dbNames = new Set(dbRows.map((r) => r.name.toLowerCase()))
-  const builtins = BUILTIN_SKILLS.filter((b) => !dbNames.has(b.name.toLowerCase())).map((b) =>
+  const builtins = visibleBuiltins(dbNames, params.search).map((b) =>
     builtinSkillRow(params.workspaceId, b)
   )
-  return [...builtins, ...dbRows]
+
+  if (!params.sort) return [...builtins, ...dbRows]
+
+  const direction = sortOrder === 'asc' ? 1 : -1
+  return [...builtins, ...dbRows].sort((a, b) => direction * compareSkills(a, b, sortBy))
+}
+
+/** One page of skill summaries, plus the window it was taken from. */
+export interface SkillSummaryPage {
+  skills: SkillSummaryRow[]
+  hasMore: boolean
+  /** The window actually applied, so a caller can mint the next cursor. */
+  offset: number
+  limit: number
+}
+
+/**
+ * A page of the public skill list: built-ins merged with the workspace's DB
+ * rows, sorted as requested, then sliced.
+ *
+ * **Why the window is an offset and not a keyset.** Every other v2 list resumes
+ * from a keyset cursor pushed into the SQL `WHERE`. This list cannot: half its
+ * items are {@link BUILTIN_SKILLS}, a code constant with no DB row for a
+ * predicate to act on, and the merged array is re-sorted in JS afterwards. A
+ * keyset over `skill` columns therefore cannot express a position inside the
+ * merged sequence — under `createdAt asc` the epoch-stamped built-ins all sort
+ * ahead of every DB row and a SQL cursor would skip or repeat them. So this
+ * follows the offset-cursor pattern that `GET /api/v2/knowledge/[knowledgeBaseId]/documents`
+ * already uses.
+ *
+ * The consequence of that merge is that the DB half is read whole on every
+ * page: the slice happens after the merge, so `LIMIT` cannot be pushed down.
+ * The projection drops `content` to keep that read cheap.
+ */
+export async function listSkillSummariesPage(params: {
+  workspaceId: string
+  search?: string
+  sortBy: SkillSortBy
+  sortOrder: ListSortOrder
+  limit: number
+  offset: number
+}): Promise<SkillSummaryPage> {
+  const { sortBy, sortOrder, limit, offset } = params
+
+  const dbRows = await db
+    .select(SKILL_SUMMARY_COLUMNS)
+    .from(skill)
+    .where(and(eq(skill.workspaceId, params.workspaceId), searchFilter(skill.name, params.search)))
+    .orderBy(...listOrderBy(SKILL_SORTS[sortBy], sortOrder))
+
+  const dbNames = new Set(dbRows.map((r) => r.name.toLowerCase()))
+  const builtins = visibleBuiltins(dbNames, params.search).map((b) =>
+    builtinSkillSummaryRow(params.workspaceId, b)
+  )
+
+  const direction = sortOrder === 'asc' ? 1 : -1
+  const merged = [...builtins, ...dbRows].sort((a, b) => direction * compareSkills(a, b, sortBy))
+
+  return {
+    skills: merged.slice(offset, offset + limit),
+    hasMore: offset + limit < merged.length,
+    offset,
+    limit,
+  }
 }
 
 /** A skill row tagged with whether the caller can edit it (always false on builtins). */

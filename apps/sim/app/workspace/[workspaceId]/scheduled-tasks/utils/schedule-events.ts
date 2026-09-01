@@ -20,6 +20,8 @@ export interface ScheduledTask {
   id: string
   /** The persisted schedule id, used to edit or delete the task. */
   scheduleId: string
+  /** The user whose authority executes the task and who may edit its contents. */
+  sourceUserId: string | null
   /** The instruction Sim runs. Doubles as the calendar title. */
   prompt: string
   /** Resources the prompt `@`-mentions / skills it `/`-invokes, when any. */
@@ -100,6 +102,7 @@ export function scheduleToTasks(
   const contexts = (row.contexts ?? undefined) as unknown as ChatContext[] | undefined
   const base = {
     scheduleId: row.id,
+    sourceUserId: row.sourceUserId,
     prompt: row.prompt ?? '',
     contexts,
     timezone: row.timezone,

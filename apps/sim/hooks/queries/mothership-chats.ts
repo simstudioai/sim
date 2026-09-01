@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import {
   keepPreviousData,
+  queryOptions,
   skipToken,
   useMutation,
   useQuery,
@@ -10,13 +11,13 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   addMothershipChatResourceContract,
-  createMothershipChatContract,
   deleteMothershipChatContract,
   forkMothershipChatContract,
   getMothershipChatContract,
   listMothershipChatsContract,
   type MothershipChat,
   type MothershipChatScope,
+  markMothershipChatReadContract,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
   restoreMothershipChatContract,
@@ -30,6 +31,7 @@ import {
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
+import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
@@ -252,9 +254,7 @@ export async function fetchMothershipChatHistory(
     })
     return parseChatHistory(data)
   } catch (error) {
-    if (!isApiClientError(error)) throw error
-    // Fall through to the legacy copilot-shape alias on any HTTP error (typically 404
-    // when the chat lives in the older copilot table and isn't a mothership-typed row).
+    if (!isApiClientError(error) || error.status !== 404) throw error
   }
 
   // boundary-raw-fetch: legacy alias path /api/mothership/chat?chatId=... returns the
@@ -271,16 +271,20 @@ export async function fetchMothershipChatHistory(
   return parseChatHistory(await copilotRes.json())
 }
 
+export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
+  return queryOptions({
+    queryKey: mothershipChatKeys.detail(chatId),
+    queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
+    staleTime: MOTHERSHIP_CHAT_HISTORY_STALE_TIME,
+  })
+}
+
 /**
  * Fetches chat history for a single chat (mothership chat).
  * Used by the chat page to load an existing conversation.
  */
 export function useMothershipChatHistory(chatId: string | undefined) {
-  return useQuery({
-    queryKey: mothershipChatKeys.detail(chatId),
-    queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
-    staleTime: MOTHERSHIP_CHAT_HISTORY_STALE_TIME,
-  })
+  return useQuery(mothershipChatHistoryQueryOptions(chatId))
 }
 
 async function deleteChat(chatId: string): Promise<void> {
@@ -297,6 +301,9 @@ export function useDeleteMothershipChat(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: deleteChat,
+    onSuccess: async (_data, chatId) => {
+      await suspendDesktopChatScopes(chatId)
+    },
     onSettled: (_data, _error, chatId) => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
       queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
@@ -333,7 +340,16 @@ export function useDeleteMothershipChats(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (chatIds: string[]) => {
-      await Promise.all(chatIds.map(deleteChat))
+      // Couple each successful DELETE to its own native suspension. If one
+      // sibling request fails, Promise.all rejects but the independently
+      // successful tasks still stop their pages and PTYs instead of being
+      // stranded live behind the aggregate onSuccess callback.
+      await Promise.all(
+        chatIds.map(async (chatId) => {
+          await deleteChat(chatId)
+          await suspendDesktopChatScopes(chatId)
+        })
+      )
     },
     onSettled: (_data, _error, chatIds) => {
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
@@ -518,9 +534,8 @@ export function useRemoveChatResource(chatId?: string) {
 }
 
 async function markChatRead(chatId: string): Promise<void> {
-  await requestJson(updateMothershipChatContract, {
-    params: { chatId },
-    body: { isUnread: false },
+  await requestJson(markMothershipChatReadContract, {
+    body: { chatId },
   })
 }
 
@@ -665,47 +680,6 @@ export function useSetMothershipChatPinned(workspaceId?: string) {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
-    },
-  })
-}
-
-async function createChat(workspaceId: string): Promise<{ id: string }> {
-  const { id } = await requestJson(createMothershipChatContract, { body: { workspaceId } })
-  return { id }
-}
-
-export function useCreateMothershipChat(workspaceId?: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: () => {
-      if (!workspaceId) throw new Error('workspaceId is required')
-      return createChat(workspaceId)
-    },
-    onSuccess: (data) => {
-      if (!workspaceId) return
-      const existing =
-        queryClient.getQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId)) ??
-        []
-      const newChat: MothershipChatMetadata = {
-        id: data.id,
-        name: 'New chat',
-        updatedAt: new Date(),
-        isActive: false,
-        isUnread: false,
-        isPinned: false,
-        deletedAt: null,
-      }
-      const pinnedCount = existing.findIndex((chat) => !chat.isPinned)
-      const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
-      queryClient.setQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId), [
-        ...existing.slice(0, insertAt),
-        newChat,
-        ...existing.slice(insertAt),
-      ])
-    },
-    onSettled: () => {
-      if (!workspaceId) return
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
     },
   })

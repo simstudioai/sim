@@ -1,30 +1,20 @@
-import { render } from '@react-email/render'
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import {
-  member,
-  organization,
-  subscription as subscriptionTable,
-  user,
-  userStats,
-} from '@sim/db/schema'
+import { member, subscription as subscriptionTable, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type Stripe from 'stripe'
-import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
-import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
-import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import {
-  COPILOT_USAGE_SOURCES,
-  getBillingPeriodUsageCostByUser,
-} from '@/lib/billing/core/usage-log'
+  getEmailSubject,
+  renderCreditPurchaseEmail,
+  renderPaymentFailedEmail,
+} from '@/components/emails'
+import { isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { resolveDefaultPaymentMethod } from '@/lib/billing/stripe-payment-method'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
@@ -35,6 +25,17 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('StripeInvoiceWebhooks')
+
+/**
+ * Cycle rollover (usage window advance, final overage collection,
+ * `billedOverageThisPeriod` reset, last-period bookkeeping) is NOT handled
+ * here. Usage windows advance automatically — current usage is the attributed
+ * usage_log ledger for the subscription's current period — and the money +
+ * bookkeeping close runs off period advance in
+ * `@/lib/billing/cycle-close`, independent of invoice payload shape. These
+ * handlers only manage payment lifecycle: block/unblock, notification emails,
+ * credit purchases, and audit.
+ */
 
 /**
  * Resolve the audit actor for a billing event. For org-scoped subscriptions the
@@ -58,26 +59,6 @@ async function resolveBillingActorId(isOrgScoped: boolean, referenceId: string):
       error,
     })
     return referenceId
-  }
-}
-
-function getSubscriptionLinePeriod(
-  invoice: Stripe.Invoice,
-  stripeSubscriptionId: string
-): { periodStart: Date; periodEnd: Date } | null {
-  const subscriptionLine = invoice.lines?.data?.find(
-    (line) =>
-      line.parent?.type === 'subscription_item_details' &&
-      line.parent.subscription_item_details?.subscription === stripeSubscriptionId
-  )
-
-  if (!subscriptionLine?.period?.start || !subscriptionLine.period.end) {
-    return null
-  }
-
-  return {
-    periodStart: new Date(subscriptionLine.period.start * 1000),
-    periodEnd: new Date(subscriptionLine.period.end * 1000),
   }
 }
 
@@ -353,22 +334,19 @@ async function sendPaymentFailureEmails(
     // Send emails to all affected users
     for (const userToNotify of usersToNotify) {
       try {
-        const emailHtml = await render(
-          PaymentFailedEmail({
-            userName: userToNotify.name || undefined,
-            amountDue,
-            lastFourDigits,
-            billingPortalUrl,
-            failureReason,
-            sentDate: new Date(),
-          })
-        )
+        const emailHtml = await renderPaymentFailedEmail({
+          userName: userToNotify.name || undefined,
+          amountDue,
+          lastFourDigits,
+          billingPortalUrl,
+          failureReason,
+        })
 
         const { from } = getPersonalEmailFrom()
         const replyTo = getHelpEmailAddress()
         await sendEmail({
           to: userToNotify.email,
-          subject: 'Payment Failed - Action Required',
+          subject: getEmailSubject('payment-failed'),
           html: emailHtml,
           from,
           replyTo,
@@ -436,224 +414,6 @@ export async function getBilledOverageForSubscription(sub: {
   return userStatsRecords.length > 0
     ? toNumber(toDecimal(userStatsRecords[0].billedOverageThisPeriod))
     : 0
-}
-
-export async function resetUsageForSubscription(sub: {
-  plan: string | null
-  referenceId: string
-  periodStart?: Date | null
-  periodEnd?: Date | null
-}) {
-  const billingPeriod =
-    sub.periodStart && sub.periodEnd ? { start: sub.periodStart, end: sub.periodEnd } : null
-
-  if (await isSubscriptionOrgScoped(sub)) {
-    const ledgerUsageByUser = billingPeriod
-      ? await getBillingPeriodUsageCostByUser(
-          { type: 'organization', id: sub.referenceId },
-          billingPeriod
-        )
-      : new Map<string, number>()
-    // Copilot-family ledger per user, so last-period copilot mirrors last-period
-    // cost (baseline + usage_log) instead of capturing the baseline alone.
-    const copilotLedgerByUser = billingPeriod
-      ? await getBillingPeriodUsageCostByUser(
-          { type: 'organization', id: sub.referenceId },
-          billingPeriod,
-          COPILOT_USAGE_SOURCES
-        )
-      : new Map<string, number>()
-
-    await db.transaction(async (tx) => {
-      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
-
-      const ownerRows = await tx
-        .select({ userId: member.userId })
-        .from(member)
-        .where(and(eq(member.organizationId, sub.referenceId), eq(member.role, 'owner')))
-        .for('update')
-        .limit(1)
-
-      const ownerId = ownerRows[0]?.userId
-      if (ownerId) {
-        await tx
-          .select({ userId: userStats.userId })
-          .from(userStats)
-          .where(eq(userStats.userId, ownerId))
-          .for('update')
-          .limit(1)
-      }
-
-      const membersRows = await tx
-        .select({ userId: member.userId })
-        .from(member)
-        .where(eq(member.organizationId, sub.referenceId))
-
-      const memberIds = membersRows.map((row) => row.userId)
-
-      // Lock every member's userStats before the organization row so this path
-      // follows the canonical userStats → organization order shared by the
-      // join, remove, threshold-billing, and storage-transfer paths. Locking
-      // organization first would invert against them and risk an AB-BA
-      // deadlock. The per-member UPDATE below re-locks these rows (no-op).
-      if (memberIds.length > 0) {
-        await tx
-          .select({ userId: userStats.userId })
-          .from(userStats)
-          .where(inArray(userStats.userId, memberIds))
-          .for('update')
-      }
-
-      await tx
-        .select({ id: organization.id })
-        .from(organization)
-        .where(eq(organization.id, sub.referenceId))
-        .for('update')
-        .limit(1)
-      if (memberIds.length > 0) {
-        const memberStatsRows = await tx
-          .select({
-            userId: userStats.userId,
-            current: userStats.currentPeriodCost,
-            currentCopilot: userStats.currentPeriodCopilotCost,
-          })
-          .from(userStats)
-          .where(inArray(userStats.userId, memberIds))
-
-        const statsUserIds = memberStatsRows.map((row) => row.userId)
-        if (statsUserIds.length === 0) {
-          await tx
-            .update(organization)
-            .set({ departedMemberUsage: '0' })
-            .where(eq(organization.id, sub.referenceId))
-          return
-        }
-
-        const lastCostByUser = sql.join(
-          memberStatsRows.map((row) => {
-            const baseline = toNumber(toDecimal(row.current))
-            const ledgerUsage = ledgerUsageByUser.get(row.userId) ?? 0
-            const lastPeriodCost = (baseline + ledgerUsage).toString()
-            return sql`WHEN ${row.userId} THEN ${lastPeriodCost}`
-          }),
-          sql` `
-        )
-        const currentCostByUser = sql.join(
-          memberStatsRows.map((row) => sql`WHEN ${row.userId} THEN ${row.current ?? '0'}`),
-          sql` `
-        )
-        const currentCopilotCostByUser = sql.join(
-          memberStatsRows.map((row) => sql`WHEN ${row.userId} THEN ${row.currentCopilot ?? '0'}`),
-          sql` `
-        )
-        // Last-period copilot = baseline copilot + copilot-family ledger, mirroring
-        // lastPeriodCost. (The reset below still subtracts only the baseline, since
-        // the ledger is period-scoped and rolls over on its own.)
-        const lastCopilotCostByUser = sql.join(
-          memberStatsRows.map((row) => {
-            const baselineCopilot = toNumber(toDecimal(row.currentCopilot))
-            const copilotLedger = copilotLedgerByUser.get(row.userId) ?? 0
-            return sql`WHEN ${row.userId} THEN ${(baselineCopilot + copilotLedger).toString()}`
-          }),
-          sql` `
-        )
-        const capturedLastCost = sql`CASE ${userStats.userId} ${lastCostByUser} ELSE '0' END`
-        const capturedCurrentCost = sql`CASE ${userStats.userId} ${currentCostByUser} ELSE '0' END`
-        const capturedCurrentCopilotCost = sql`CASE ${userStats.userId} ${currentCopilotCostByUser} ELSE '0' END`
-        const capturedLastCopilotCost = sql`CASE ${userStats.userId} ${lastCopilotCostByUser} ELSE '0' END`
-
-        await tx
-          .update(userStats)
-          .set({
-            lastPeriodCost: capturedLastCost,
-            lastPeriodCopilotCost: capturedLastCopilotCost,
-            currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - (${capturedCurrentCost})::decimal)`,
-            currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - (${capturedCurrentCopilotCost})::decimal)`,
-            billedOverageThisPeriod: '0',
-          })
-          .where(inArray(userStats.userId, statsUserIds))
-      }
-
-      await tx
-        .update(organization)
-        .set({ departedMemberUsage: '0' })
-        .where(eq(organization.id, sub.referenceId))
-    })
-  } else {
-    const currentStats = await db
-      .select({
-        current: userStats.currentPeriodCost,
-        snapshot: userStats.proPeriodCostSnapshot,
-        currentCopilot: userStats.currentPeriodCopilotCost,
-      })
-      .from(userStats)
-      .where(eq(userStats.userId, sub.referenceId))
-      .limit(1)
-    if (currentStats.length > 0) {
-      const current = currentStats[0].current || '0'
-      const snapshot = toNumber(toDecimal(currentStats[0].snapshot))
-      const currentCopilot = currentStats[0].currentCopilot || '0'
-      const ledgerUsage = billingPeriod
-        ? await getBillingPeriodUsageCostByUser(
-            { type: 'user', id: sub.referenceId },
-            billingPeriod
-          )
-        : new Map<string, number>()
-      const userLedgerUsage = ledgerUsage.get(sub.referenceId) ?? 0
-      const copilotLedgerUsage = billingPeriod
-        ? ((
-            await getBillingPeriodUsageCostByUser(
-              { type: 'user', id: sub.referenceId },
-              billingPeriod,
-              COPILOT_USAGE_SOURCES
-            )
-          ).get(sub.referenceId) ?? 0)
-        : 0
-
-      // Snapshot > 0: user joined a paid org mid-cycle. The pre-join
-      // portion was billed on this invoice (snapshot); `currentPeriodCost`
-      // is post-join usage the org will bill next cycle-close, so keep
-      // it. Only retire the personal-billing trackers here.
-      if (snapshot > 0) {
-        await db
-          .update(userStats)
-          .set({
-            lastPeriodCost: (snapshot + userLedgerUsage).toString(),
-            // Pre-join personal copilot = the user-scoped copilot ledger only
-            // (post-join copilot usage is org-attributed, so this captures the
-            // pre-join portion). The copilot baseline stays with the org via the
-            // retained currentPeriodCopilotCost, so don't add it here (avoids a
-            // double count at the org's cycle-close).
-            lastPeriodCopilotCost: copilotLedgerUsage.toString(),
-            proPeriodCostSnapshot: '0',
-            proPeriodCostSnapshotAt: null,
-            billedOverageThisPeriod: '0',
-          })
-          .where(eq(userStats.userId, sub.referenceId))
-      } else {
-        const totalLastPeriod = (
-          toNumber(toDecimal(current)) +
-          snapshot +
-          userLedgerUsage
-        ).toString()
-        // Delta-reset for the same reason as the org branch above.
-        await db
-          .update(userStats)
-          .set({
-            lastPeriodCost: totalLastPeriod,
-            lastPeriodCopilotCost: (
-              toNumber(toDecimal(currentCopilot)) + copilotLedgerUsage
-            ).toString(),
-            currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - ${current}::decimal)`,
-            currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - ${currentCopilot}::decimal)`,
-            proPeriodCostSnapshot: '0',
-            proPeriodCostSnapshotAt: null,
-            billedOverageThisPeriod: '0',
-          })
-          .where(eq(userStats.userId, sub.referenceId))
-      }
-    }
-  }
 }
 
 /**
@@ -854,30 +614,6 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
         const { sub } = resolvedInvoice
         const subIsOrgScoped = await isSubscriptionOrgScoped(sub)
 
-        let wasBlocked = false
-        if (subIsOrgScoped) {
-          const membersRows = await db
-            .select({ userId: member.userId })
-            .from(member)
-            .where(eq(member.organizationId, sub.referenceId))
-          const memberIds = membersRows.map((m) => m.userId)
-          if (memberIds.length > 0) {
-            const blockedRows = await db
-              .select({ blocked: userStats.billingBlocked })
-              .from(userStats)
-              .where(inArray(userStats.userId, memberIds))
-
-            wasBlocked = blockedRows.some((row) => !!row.blocked)
-          }
-        } else {
-          const row = await db
-            .select({ blocked: userStats.billingBlocked })
-            .from(userStats)
-            .where(eq(userStats.userId, sub.referenceId))
-            .limit(1)
-          wasBlocked = row.length > 0 ? !!row[0].blocked : false
-        }
-
         const isProrationInvoice = invoice.billing_reason === 'subscription_update'
         const shouldUnblock = !isProrationInvoice || (invoice.amount_paid ?? 0) > 0
 
@@ -900,19 +636,6 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
             invoiceId: invoice.id,
             billingReason: invoice.billing_reason,
             amountPaid: invoice.amount_paid,
-          })
-        }
-
-        if (wasBlocked && !isProrationInvoice) {
-          const invoicePeriod = getSubscriptionLinePeriod(
-            invoice,
-            resolvedInvoice.stripeSubscriptionId
-          )
-          await resetUsageForSubscription({
-            plan: sub.plan,
-            referenceId: sub.referenceId,
-            periodStart: invoicePeriod?.periodStart ?? null,
-            periodEnd: invoicePeriod?.periodEnd ?? null,
           })
         }
 
@@ -1089,271 +812,6 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
       eventId: event.id,
       error,
     })
-    throw error
-  }
-}
-
-/**
- * Handle base invoice finalized → create a separate overage-only invoice
- * Note: Enterprise plans no longer have overages
- */
-export async function handleInvoiceFinalized(event: Stripe.Event) {
-  try {
-    const invoice = event.data.object as Stripe.Invoice
-    const subscription = invoice.parent?.subscription_details?.subscription
-    const stripeSubscriptionId = typeof subscription === 'string' ? subscription : subscription?.id
-    if (!stripeSubscriptionId) {
-      logger.info('No subscription found on invoice; skipping finalized handler', {
-        invoiceId: invoice.id,
-      })
-      return
-    }
-    if (invoice.billing_reason && invoice.billing_reason !== 'subscription_cycle') return
-
-    const records = await db
-      .select()
-      .from(subscriptionTable)
-      .where(eq(subscriptionTable.stripeSubscriptionId, stripeSubscriptionId))
-      .limit(1)
-
-    if (records.length === 0) return
-    const sub = records[0]
-
-    const invoicePeriod = getSubscriptionLinePeriod(invoice, stripeSubscriptionId)
-    if (!invoicePeriod) {
-      logger.error('Missing subscription line period on subscription cycle invoice', {
-        invoiceId: invoice.id,
-        stripeSubscriptionId,
-      })
-      if (isEnterprise(sub.plan)) {
-        await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
-      }
-      return
-    }
-
-    if (isEnterprise(sub.plan)) {
-      await resetUsageForSubscription({
-        plan: sub.plan,
-        referenceId: sub.referenceId,
-        periodStart: invoicePeriod.periodStart,
-        periodEnd: invoicePeriod.periodEnd,
-      })
-      return
-    }
-
-    await stripeWebhookIdempotency.executeWithIdempotency(
-      'invoice-finalized',
-      event.id,
-      async () => {
-        const stripe = requireStripeClient()
-        const periodStart = Math.floor(invoicePeriod.periodStart.getTime() / 1000)
-        const periodEnd = Math.floor(invoicePeriod.periodEnd.getTime() / 1000)
-        const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
-
-        const totalOverage = await calculateSubscriptionOverage({
-          ...sub,
-          periodStart: new Date(periodStart * 1000),
-          periodEnd: new Date(periodEnd * 1000),
-        })
-
-        const entityType = (await isSubscriptionOrgScoped(sub)) ? 'organization' : 'user'
-        const entityId = sub.referenceId
-
-        // Phase 1 — atomic commit. Resolve org owners inside the transaction,
-        // then lock the tracker row so `billedOverageThisPeriod` is serialized
-        // against threshold billing, resets, owner transfers, and retries.
-        const phase1 = await db.transaction(async (tx) => {
-          await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
-
-          let trackerUserId = entityId
-          if (entityType === 'organization') {
-            const ownerRows = await tx
-              .select({ userId: member.userId })
-              .from(member)
-              .where(and(eq(member.organizationId, entityId), eq(member.role, 'owner')))
-              .for('update')
-              .limit(1)
-            const ownerId = ownerRows[0]?.userId
-            if (!ownerId) {
-              throw new Error(
-                `Organization ${entityId} has no owner member; cannot process invoice finalization`
-              )
-            }
-            trackerUserId = ownerId
-          }
-
-          const trackerRows = await tx
-            .select({ billed: userStats.billedOverageThisPeriod })
-            .from(userStats)
-            .where(eq(userStats.userId, trackerUserId))
-            .for('update')
-            .limit(1)
-
-          const billedInTx = trackerRows.length > 0 ? toNumber(toDecimal(trackerRows[0].billed)) : 0
-          const remaining = Math.max(0, totalOverage - billedInTx)
-
-          if (remaining === 0) {
-            return { billedInTx, applied: 0, billed: 0, remaining: 0 }
-          }
-
-          const lockedBalance =
-            entityType === 'organization'
-              ? await tx
-                  .select({ creditBalance: organization.creditBalance })
-                  .from(organization)
-                  .where(eq(organization.id, entityId))
-                  .for('update')
-                  .limit(1)
-              : await tx
-                  .select({ creditBalance: userStats.creditBalance })
-                  .from(userStats)
-                  .where(eq(userStats.userId, entityId))
-                  .for('update')
-                  .limit(1)
-
-          const creditBalance =
-            lockedBalance.length > 0 ? toNumber(toDecimal(lockedBalance[0].creditBalance)) : 0
-
-          const applied = Math.min(creditBalance, remaining)
-          const billed = remaining - applied
-
-          if (applied > 0) {
-            if (entityType === 'organization') {
-              await tx
-                .update(organization)
-                .set({
-                  creditBalance: sql`GREATEST(0, ${organization.creditBalance} - ${applied})`,
-                })
-                .where(eq(organization.id, entityId))
-            } else {
-              await tx
-                .update(userStats)
-                .set({
-                  creditBalance: sql`GREATEST(0, ${userStats.creditBalance} - ${applied})`,
-                })
-                .where(eq(userStats.userId, entityId))
-            }
-          }
-
-          await tx
-            .update(userStats)
-            .set({ billedOverageThisPeriod: totalOverage.toString() })
-            .where(eq(userStats.userId, trackerUserId))
-
-          return { billedInTx, applied, billed, remaining }
-        })
-
-        const creditsApplied = phase1.applied
-        const amountToBillStripe = phase1.billed
-
-        logger.info('Invoice finalized overage calculation', {
-          subscriptionId: sub.id,
-          totalOverage,
-          billedOverageBeforeTx: phase1.billedInTx,
-          creditsApplied,
-          amountToBillStripe,
-          billingPeriod,
-        })
-
-        // Phase 2 — Stripe invoice. Runs outside any DB transaction.
-        // Every call uses a deterministic idempotency key so retries
-        // converge on the same invoice object: re-create returns the
-        // existing draft, re-finalize no-ops on an already-finalized
-        // invoice, re-pay no-ops on an already-paid invoice.
-        if (amountToBillStripe > 0) {
-          const customerId = String(invoice.customer)
-          const cents = Math.round(amountToBillStripe * 100)
-          const itemIdemKey = `overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-          const invoiceIdemKey = `overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-          const finalizeIdemKey = `overage-finalize:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-          const payIdemKey = `overage-pay:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-
-          const { paymentMethodId: defaultPaymentMethod, collectionMethod } =
-            await resolveDefaultPaymentMethod(stripe, stripeSubscriptionId, customerId)
-
-          const effectiveCollectionMethod = collectionMethod ?? 'charge_automatically'
-
-          const overageInvoice = await stripe.invoices.create(
-            {
-              customer: customerId,
-              collection_method: effectiveCollectionMethod,
-              auto_advance: false,
-              ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
-              metadata: {
-                type: 'overage_billing',
-                billingPeriod,
-                subscriptionId: stripeSubscriptionId,
-              },
-            },
-            { idempotencyKey: invoiceIdemKey }
-          )
-
-          await stripe.invoiceItems.create(
-            {
-              customer: customerId,
-              invoice: overageInvoice.id,
-              amount: cents,
-              currency: 'usd',
-              description: `Usage Based Overage – ${billingPeriod}`,
-              metadata: {
-                type: 'overage_billing',
-                billingPeriod,
-                subscriptionId: stripeSubscriptionId,
-              },
-            },
-            { idempotencyKey: itemIdemKey }
-          )
-
-          const draftId = overageInvoice.id
-          if (typeof draftId !== 'string' || draftId.length === 0) {
-            logger.error('Stripe created overage invoice without id; aborting finalize')
-          } else {
-            const finalized = await stripe.invoices.finalizeInvoice(
-              draftId,
-              {},
-              { idempotencyKey: finalizeIdemKey }
-            )
-            if (
-              effectiveCollectionMethod === 'charge_automatically' &&
-              finalized.status === 'open'
-            ) {
-              try {
-                const payId = finalized.id
-                if (typeof payId !== 'string' || payId.length === 0) {
-                  logger.error('Finalized invoice missing id')
-                  throw new Error('Finalized invoice missing id')
-                }
-                await stripe.invoices.pay(
-                  payId,
-                  { payment_method: defaultPaymentMethod },
-                  { idempotencyKey: payIdemKey }
-                )
-              } catch (payError) {
-                logger.error('Failed to auto-pay overage invoice', {
-                  error: payError,
-                  invoiceId: finalized.id,
-                })
-              }
-            }
-          }
-        }
-
-        // Phase 3 — reset usage for the new period. Clears trackers and
-        // rolls `currentPeriodCost` forward by delta. Idempotent on its
-        // own (delta subtraction of a value that's already been
-        // subtracted is a no-op).
-        await resetUsageForSubscription({
-          plan: sub.plan,
-          referenceId: sub.referenceId,
-          periodStart: invoicePeriod.periodStart,
-          periodEnd: invoicePeriod.periodEnd,
-        })
-
-        return { totalOverage, creditsApplied, amountToBillStripe }
-      }
-    )
-  } catch (error) {
-    logger.error('Failed to handle invoice finalized', { error })
     throw error
   }
 }

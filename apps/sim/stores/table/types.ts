@@ -60,6 +60,9 @@ export type TableUndoAction =
       // holds option ids, would have nothing to attach to.
       columnOptions?: ColumnDefinition['options']
       columnMultiple?: boolean
+      // Likewise for a `currency` column: without its code the restore would
+      // silently re-denominate every cell to the default currency.
+      columnCurrencyCode?: string
       cellData: Array<{ rowId: string; value: unknown }>
       previousOrder: string[] | null
       previousWidth: number | null

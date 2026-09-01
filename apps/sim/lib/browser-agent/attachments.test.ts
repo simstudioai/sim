@@ -11,19 +11,28 @@ const BROWSER_RESOURCE: MothershipResource = {
 
 describe('buildResourceAttachments', () => {
   beforeEach(() => {
-    useBrowserSessionStore.setState({
+    const session = {
       pageState: null,
       tabs: [],
       activeTabId: null,
-      tabsSupported: false,
-      panelSnapshot: null,
+      automationTabId: null,
+      automationActive: false,
+      automationNeedsAttention: false,
+      agentRunIds: [],
       sessionAlive: true,
+      suspended: false,
+    }
+    useBrowserSessionStore.setState({
+      ...session,
+      activeScopeId: 'chat-test',
+      sessions: { 'chat-test': session },
     })
   })
 
   it('adds every live browser tab and marks only the selected tab active', () => {
-    useBrowserSessionStore.setState({
-      tabsSupported: true,
+    const store = useBrowserSessionStore.getState()
+    store.setTabsState({
+      scopeId: 'chat-test',
       activeTabId: '2',
       tabs: [
         {
@@ -32,6 +41,7 @@ describe('buildResourceAttachments', () => {
           url: 'https://docs.sim.ai',
           loading: false,
           active: false,
+          pinned: false,
         },
         {
           tabId: '2',
@@ -39,11 +49,12 @@ describe('buildResourceAttachments', () => {
           url: 'https://sim.ai/workspace',
           loading: false,
           active: true,
+          pinned: false,
         },
       ],
     })
 
-    expect(buildResourceAttachments([BROWSER_RESOURCE], BROWSER_RESOURCE.id)).toEqual([
+    expect(buildResourceAttachments([BROWSER_RESOURCE], BROWSER_RESOURCE.id, 'chat-test')).toEqual([
       {
         type: 'browser',
         id: 'browser-session:1',
@@ -62,8 +73,9 @@ describe('buildResourceAttachments', () => {
   })
 
   it('keeps all browser tabs open rather than active when another resource is selected', () => {
-    useBrowserSessionStore.setState({
-      tabsSupported: true,
+    const store = useBrowserSessionStore.getState()
+    store.setTabsState({
+      scopeId: 'chat-test',
       activeTabId: '1',
       tabs: [
         {
@@ -72,34 +84,52 @@ describe('buildResourceAttachments', () => {
           url: 'https://docs.sim.ai',
           loading: false,
           active: true,
+          pinned: false,
         },
       ],
     })
 
-    const attachments = buildResourceAttachments([BROWSER_RESOURCE], 'workflow-1')
+    const attachments = buildResourceAttachments([BROWSER_RESOURCE], 'workflow-1', 'chat-test')
 
     expect(attachments?.[0]).toMatchObject({ id: 'browser-session:1', active: false })
   })
 
-  it('falls back to the active page for older single-tab desktop versions', () => {
-    useBrowserSessionStore.setState({
-      pageState: {
-        url: 'https://sim.ai',
-        title: 'Sim',
-        loading: false,
-        canGoBack: false,
-        canGoForward: false,
-      },
+  it('reads attachments only from the requested chat scope', () => {
+    const store = useBrowserSessionStore.getState()
+    store.setTabsState({
+      scopeId: 'chat-a',
+      activeTabId: 'same-id',
+      tabs: [
+        {
+          tabId: 'same-id',
+          title: 'A',
+          url: 'https://a.example',
+          loading: false,
+          active: true,
+          pinned: false,
+        },
+      ],
+    })
+    store.setTabsState({
+      scopeId: 'chat-b',
+      activeTabId: 'same-id',
+      tabs: [
+        {
+          tabId: 'same-id',
+          title: 'B',
+          url: 'https://b.example',
+          loading: false,
+          active: true,
+          pinned: false,
+        },
+      ],
     })
 
-    expect(buildResourceAttachments([BROWSER_RESOURCE], BROWSER_RESOURCE.id)).toEqual([
-      {
-        type: 'browser',
-        id: 'browser-session',
-        title: 'Sim',
-        active: true,
-        url: 'https://sim.ai',
-      },
-    ])
+    expect(
+      buildResourceAttachments([BROWSER_RESOURCE], BROWSER_RESOURCE.id, 'chat-a')?.[0]
+    ).toMatchObject({ title: 'A', url: 'https://a.example' })
+    expect(
+      buildResourceAttachments([BROWSER_RESOURCE], BROWSER_RESOURCE.id, 'chat-b')?.[0]
+    ).toMatchObject({ title: 'B', url: 'https://b.example' })
   })
 })

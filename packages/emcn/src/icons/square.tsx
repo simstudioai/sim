@@ -3,8 +3,8 @@ import type { SVGProps } from 'react'
 /**
  * Square icon (stroke/outline version) — used as the "stop" glyph in
  * media-control-style buttons (per-row run/stop, table action bar, context
- * menus). Same visual as `lucide-react`'s `Square` so existing call sites
- * migrate without any visual change.
+ * menus). Drawn as a plain rounded square so it reads as a neutral stop mark
+ * next to `Play` in the same control cluster.
  */
 export function Square(props: SVGProps<SVGSVGElement>) {
   return (
@@ -14,7 +14,7 @@ export function Square(props: SVGProps<SVGSVGElement>) {
       viewBox='0 0 24 24'
       fill='none'
       stroke='currentColor'
-      strokeWidth='1.75'
+      strokeWidth='1.55'
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'

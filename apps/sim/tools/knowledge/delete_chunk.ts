@@ -1,7 +1,7 @@
 import type { KnowledgeDeleteChunkResponse } from '@/tools/knowledge/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeDeleteChunkTool: ToolConfig<any, KnowledgeDeleteChunkResponse> = {
+export const knowledgeDeleteChunkTool: InternalToolConfig<any, KnowledgeDeleteChunkResponse> = {
   id: 'knowledge_delete_chunk',
   name: 'Knowledge Delete Chunk',
   description: 'Delete a chunk from a document in a knowledge base',
@@ -28,12 +28,11 @@ export const knowledgeDeleteChunkTool: ToolConfig<any, KnowledgeDeleteChunkRespo
     },
   },
 
-  request: {
-    url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks/${params.chunkId}`,
-    method: 'DELETE',
-    headers: () => ({
-      'Content-Type': 'application/json',
+  operation: {
+    input: (params) => ({
+      knowledgeBaseId: params.knowledgeBaseId,
+      documentId: params.documentId,
+      chunkId: params.chunkId,
     }),
   },
 

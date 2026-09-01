@@ -41,6 +41,21 @@ function setWorkflowVariableEntry(
   })
 }
 
+function setWorkflowVariableProvenance(
+  provenanceByVariableId: NonNullable<
+    ExecutionContext['workflowVariableResolvedSecretTraceProvenance']
+  >,
+  id: string,
+  provenance: NonNullable<ExecutionContext['workflowVariableResolvedSecretTraceProvenance']>[string]
+): void {
+  Object.defineProperty(provenanceByVariableId, id, {
+    value: provenance,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  })
+}
+
 export class VariablesBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
     const canHandle = block.metadata?.id === BlockType.VARIABLES
@@ -65,6 +80,9 @@ export class VariablesBlockHandler implements BlockHandler {
         const existingEntry =
           getWorkflowVariableEntry(ctx.workflowVariables, assignment.variableId) ??
           Object.entries(ctx.workflowVariables).find(([_, v]) => v.name === assignment.variableName)
+        const provenance = ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(
+          assignment.value
+        )
         const value = await this.compactAssignmentValue(ctx, assignment.value)
 
         if (existingEntry?.[1]) {
@@ -73,6 +91,16 @@ export class VariablesBlockHandler implements BlockHandler {
             ...variable,
             value,
           })
+          if (provenance) {
+            ctx.workflowVariableResolvedSecretTraceProvenance ??= {}
+            setWorkflowVariableProvenance(
+              ctx.workflowVariableResolvedSecretTraceProvenance,
+              id,
+              provenance
+            )
+          } else if (ctx.workflowVariableResolvedSecretTraceProvenance) {
+            delete ctx.workflowVariableResolvedSecretTraceProvenance[id]
+          }
         } else {
           logger.warn(`Variable "${assignment.variableName}" not found in workflow variables`)
         }

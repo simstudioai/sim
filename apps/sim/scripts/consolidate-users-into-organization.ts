@@ -65,7 +65,7 @@ import { db } from '@sim/db'
 import { member, organization, session, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { normalizeEmail } from '@sim/utils/string'
+import { normalizeEmail, slugify } from '@sim/utils/string'
 import { and, count, eq, inArray, isNull, ne } from 'drizzle-orm'
 import {
   createOrganizationWithOwner,
@@ -202,14 +202,6 @@ function parseArgs(argv: string[]): Options {
   return options
 }
 
-/** Mirrors the slug derivation used by `POST /api/v1/admin/organizations`. */
-function slugifyOrganizationName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-
 async function findUserByEmail(email: string): Promise<UserRow | null> {
   const [row] = await db
     .select({ id: user.id, email: user.email, name: user.name })
@@ -244,7 +236,7 @@ async function resolveTargetOrganization(options: Options): Promise<TargetOrgani
     ? eq(organization.id, options.orgId)
     : options.orgSlug
       ? eq(organization.slug, options.orgSlug)
-      : eq(organization.slug, slugifyOrganizationName(options.orgName as string))
+      : eq(organization.slug, slugify(options.orgName as string))
 
   const [existing] = await db
     .select({ id: organization.id, name: organization.name, slug: organization.slug })
@@ -302,7 +294,7 @@ async function resolveTargetOrganization(options: Options): Promise<TargetOrgani
   return {
     id: null,
     name: options.orgName,
-    slug: options.orgSlug?.trim() || slugifyOrganizationName(options.orgName),
+    slug: options.orgSlug?.trim() || slugify(options.orgName),
     ownerUserId: owner.id,
     ownerEmail: owner.email,
     mustBeCreated: true,

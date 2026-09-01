@@ -1,15 +1,15 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   shopifyAuthorizeQuerySchema,
   shopifyShopDomainSchema,
 } from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/core/config/env'
+import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createShopifyOAuthState } from '@/lib/oauth/shopify-state'
 import { getScopesForService } from '@/lib/oauth/utils'
 
 const logger = createLogger('ShopifyAuthorize')
@@ -18,6 +18,11 @@ export const dynamic = 'force-dynamic'
 
 const SHOPIFY_SCOPES = getScopesForService('shopify').join(',')
 
+/** Serializes user-controlled text without allowing it to terminate an inline script element. */
+function serializeInlineScriptString(value: string): string {
+  return JSON.stringify(value).replaceAll('<', '\\u003c')
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
@@ -25,23 +30,22 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const clientId = env.SHOPIFY_CLIENT_ID
-
-    if (!clientId) {
-      logger.error('SHOPIFY_CLIENT_ID not configured')
-      return NextResponse.json({ error: 'Shopify client ID not configured' }, { status: 500 })
-    }
+    const {
+      values: { SHOPIFY_CLIENT_ID: clientId, SHOPIFY_CLIENT_SECRET: clientSecret },
+    } = requireConfiguredOAuthClient('shopify')
 
     const query = shopifyAuthorizeQuerySchema.parse({
       shop: request.nextUrl.searchParams.get('shop') || undefined,
       returnUrl: request.nextUrl.searchParams.get('returnUrl') || undefined,
+      draftId: request.nextUrl.searchParams.get('draftId') || undefined,
     })
-    const { shop: shopDomain, returnUrl } = query
+    const { shop: shopDomain, returnUrl, draftId } = query
 
     if (!shopDomain) {
       const safeReturnUrl =
         returnUrl && isSameOrigin(returnUrl) ? encodeURIComponent(returnUrl) : ''
-      const returnUrlJsLiteral = JSON.stringify(safeReturnUrl)
+      const returnUrlJsLiteral = serializeInlineScriptString(safeReturnUrl)
+      const draftIdJsLiteral = serializeInlineScriptString(draftId ?? '')
       return new NextResponse(
         `<!DOCTYPE html>
 <html>
@@ -130,6 +134,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     <script>
       const returnUrl = ${returnUrlJsLiteral};
+      const draftId = ${draftIdJsLiteral};
       function handleSubmit(e) {
         e.preventDefault();
         let shop = document.getElementById('shop').value.trim().toLowerCase();
@@ -143,6 +148,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         let url = window.location.pathname + '?shop=' + encodeURIComponent(shop);
         if (returnUrl) {
           url += '&returnUrl=' + returnUrl;
+        }
+        if (draftId) {
+          url += '&draftId=' + encodeURIComponent(draftId);
         }
         window.location.href = url;
       }
@@ -171,8 +179,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const baseUrl = getBaseUrl()
     const redirectUri = `${baseUrl}/api/auth/oauth2/callback/shopify`
+    const safeReturnUrl = returnUrl && isSameOrigin(returnUrl) ? returnUrl : undefined
 
-    const state = generateId()
+    const state = createShopifyOAuthState({
+      userId: session.user.id,
+      shopDomain: cleanShop,
+      draftId,
+      returnUrl: safeReturnUrl,
+      clientSecret,
+    })
 
     const oauthUrl =
       `https://${cleanShop}/admin/oauth/authorize?` +
@@ -192,31 +207,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const response = NextResponse.redirect(oauthUrl)
 
-    response.cookies.set('shopify_oauth_state', state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 10,
-      path: '/',
-    })
+    response.cookies.delete('shopify_oauth_state')
+    response.cookies.delete('shopify_shop_domain')
+    response.cookies.delete('shopify_credential_draft_id')
 
-    response.cookies.set('shopify_shop_domain', cleanShop, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 10,
-      path: '/',
-    })
-
-    if (returnUrl && isSameOrigin(returnUrl)) {
-      response.cookies.set('shopify_return_url', returnUrl, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 10,
-        path: '/',
-      })
-    }
+    response.cookies.delete('shopify_return_url')
 
     return response
   } catch (error) {

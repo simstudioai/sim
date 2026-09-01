@@ -2,8 +2,26 @@ import { type ButtonHTMLAttributes, forwardRef } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
 
+/**
+ * `size='icon'` is the square 20px icon-only button — a chip field's trailing
+ * affordance, a toast dismiss, a section-header action. It drops the text padding
+ * the `sm`/`md` sizes carry and tightens the radius to `rounded-sm` (4px), which
+ * reads correctly at this size where the base 5px does not. The box is deliberately
+ * larger than every glyph it holds; that margin IS the button's padding, since the
+ * glyph is sized at the call site rather than here.
+ *
+ * Glyphs also draw one step thinner than the 1.55 the icon set ships, so a lone
+ * icon reads as a secondary affordance rather than a piece of UI text. CSS wins
+ * over the SVG's own `stroke-width` attribute, so this reaches every stroked icon
+ * without touching the icon components — including the few that ship at 2.
+ *
+ * Compose it with `quiet` (the usual choice) or `ghost` (where the surrounding
+ * surface owns the hover) — those pairings also pick up the muted icon color.
+ *
+ * @example <Button variant='quiet' size='icon' aria-label='Dismiss'><X className='size-[16px]' /></Button>
+ */
 const buttonVariants = cva(
-  'inline-flex items-center justify-center font-medium transition-colors disabled:pointer-events-none disabled:opacity-70 outline-none focus:outline-none focus-visible:outline-none rounded-[5px]',
+  'inline-flex items-center justify-center transition-colors disabled:pointer-events-none disabled:opacity-70 outline-none focus:outline-none focus-visible:outline-none rounded-[5px]',
   {
     variants: {
       variant: {
@@ -30,8 +48,19 @@ const buttonVariants = cva(
       size: {
         sm: 'px-1.5 py-1 text-[length:11px]',
         md: 'px-2 py-1.5 text-[length:12px]',
+        icon: 'size-[20px] rounded-sm p-0 [&_svg]:[stroke-width:1.25]',
       },
     },
+    compoundVariants: [
+      /**
+       * A lone glyph is icon content, not text, so the neutral icon buttons paint
+       * with `--text-icon-muted` rather than the variant's text color. Scoped to
+       * the neutral variants: the filled ones (`primary`, `destructive`, …) carry
+       * inverse text that must keep winning over their own surface.
+       */
+      { size: 'icon', variant: 'quiet', className: 'text-[var(--text-icon-muted)]' },
+      { size: 'icon', variant: 'ghost', className: 'text-[var(--text-icon-muted)]' },
+    ],
     defaultVariants: {
       variant: 'default',
       size: 'md',

@@ -11,6 +11,8 @@ import { vi } from 'vitest'
 export const app = {
   name: 'Sim',
   isPackaged: false,
+  userAgentFallback:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Sim/1.0.0 Chrome/140.0.7339.207 Electron/43.1.1 Safari/537.36',
   getVersion: vi.fn(() => '1.0.0'),
   getName: vi.fn(() => 'Sim'),
   setName: vi.fn(),
@@ -20,6 +22,8 @@ export const app = {
   on: vi.fn(),
   once: vi.fn(),
   quit: vi.fn(),
+  exit: vi.fn(),
+  relaunch: vi.fn(),
   focus: vi.fn(),
   enableSandbox: vi.fn(),
   requestSingleInstanceLock: vi.fn(() => true),
@@ -35,7 +39,9 @@ export const crashReporter = {
 }
 
 export const shell = {
+  beep: vi.fn(),
   openExternal: vi.fn(() => Promise.resolve()),
+  openPath: vi.fn(() => Promise.resolve('')),
   showItemInFolder: vi.fn(),
 }
 
@@ -54,6 +60,13 @@ export const safeStorage = {
 export const clipboard = {
   writeText: vi.fn(),
   readText: vi.fn(() => ''),
+}
+
+export const systemPreferences = {
+  getMediaAccessStatus: vi.fn(() => 'granted'),
+  askForMediaAccess: vi.fn(() => Promise.resolve(true)),
+  canPromptTouchID: vi.fn(() => false),
+  promptTouchID: vi.fn(() => Promise.resolve()),
 }
 
 export const nativeTheme = {
@@ -96,6 +109,17 @@ export const nativeImage = {
     setTemplateImage: vi.fn(),
     getSize: vi.fn(() => ({ width: options.width, height: options.height })),
   })),
+  /**
+   * Decodes nothing: tests pass short base64 stand-ins rather than real images.
+   * Reports empty so callers take their undecodable-capture fallback, and let a
+   * test opt into the resize path by overriding this mock with a sized image.
+   */
+  createFromBuffer: vi.fn((_buffer: unknown) => ({
+    isEmpty: vi.fn(() => true),
+    getSize: vi.fn(() => ({ width: 0, height: 0 })),
+    resize: vi.fn(),
+    toJPEG: vi.fn(() => Buffer.alloc(0)),
+  })),
 }
 
 export class Tray {
@@ -105,6 +129,7 @@ export class Tray {
   }
   setToolTip = vi.fn()
   setContextMenu = vi.fn()
+  setIgnoreDoubleClickEvents = vi.fn()
   popUpContextMenu = vi.fn()
   on = vi.fn()
   destroy = vi.fn()
@@ -131,16 +156,23 @@ function createWebContentsMock() {
     getTitle: vi.fn(() => 'Example'),
     loadURL: vi.fn(() => Promise.resolve()),
     reload: vi.fn(),
+    stop: vi.fn(),
+    print: vi.fn(),
     focus: vi.fn(),
+    invalidate: vi.fn(),
     isFocused: vi.fn(() => false),
     close: vi.fn(),
     isDestroyed: vi.fn(() => false),
     isLoading: vi.fn(() => false),
+    isLoadingMainFrame: vi.fn(() => false),
     findInPage: vi.fn(() => 1),
     stopFindInPage: vi.fn(),
     setBackgroundThrottling: vi.fn(),
+    setUserAgent: vi.fn(),
+    setIgnoreMenuShortcuts: vi.fn(),
     getZoomFactor: vi.fn(() => 1),
     setZoomFactor: vi.fn(),
+    forcefullyCrashRenderer: vi.fn(),
     copy: vi.fn(),
     paste: vi.fn(),
     capturePage: vi.fn(() => {
@@ -158,6 +190,7 @@ function createWebContentsMock() {
     navigationHistory: {
       canGoBack: vi.fn(() => false),
       canGoForward: vi.fn(() => false),
+      getActiveIndex: vi.fn(() => 0),
       goBack: vi.fn(),
       goForward: vi.fn(),
     },
@@ -171,6 +204,7 @@ function createWebContentsMock() {
     session: {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
+      setUserAgent: vi.fn(),
       webRequest: { onBeforeRequest: vi.fn() },
       on: vi.fn(),
     },
@@ -181,15 +215,21 @@ export class WebContentsView {
   webContents = createWebContentsMock()
   setBackgroundColor = vi.fn()
   setVisible = vi.fn()
-  setBounds = vi.fn()
+  private bounds = { x: 0, y: 0, width: 0, height: 0 }
+  setBounds = vi.fn((bounds: { x: number; y: number; width: number; height: number }) => {
+    this.bounds = { ...bounds }
+  })
+  getBounds = vi.fn(() => ({ ...this.bounds }))
 }
 
 export class BrowserWindow {
   static fromWebContents = vi.fn(() => null)
   static getFocusedWindow = vi.fn(() => null)
+  static nextId = 1
   /** Constructor tracking for tests (the class itself is not a vi.fn mock). */
   static instances: BrowserWindow[] = []
   static lastOptions: Record<string, unknown> | undefined
+  readonly id = BrowserWindow.nextId++
   constructor(options?: Record<string, unknown>) {
     BrowserWindow.instances.push(this)
     BrowserWindow.lastOptions = options
@@ -204,6 +244,8 @@ export class BrowserWindow {
     getZoomFactor: vi.fn(() => 1),
     executeJavaScript: vi.fn(() => Promise.resolve(true)),
     focus: vi.fn(),
+    isFocused: vi.fn(() => false),
+    isDestroyed: vi.fn(() => false),
     send: vi.fn(),
     setWindowOpenHandler: vi.fn(),
     isDevToolsOpened: vi.fn(() => false),

@@ -21,4 +21,22 @@ export const workspaceCredentialKeys = {
     [...workspaceCredentialKeys.details(), credentialId ?? 'none'] as const,
   members: (credentialId?: string) =>
     [...workspaceCredentialKeys.detail(credentialId), 'members'] as const,
+  /**
+   * Keyed by name and scope rather than credential id: the usage trail is recorded against
+   * the secret's name, so it survives a credential row being recreated for the same key.
+   */
+  usage: (workspaceId?: string, name?: string, scope?: string) =>
+    [
+      ...workspaceCredentialKeys.all,
+      'usage',
+      workspaceId ?? 'none',
+      scope ?? 'all',
+      name ?? '',
+    ] as const,
+  /**
+   * Keyed by name alone — references are found by name, so neither the credential id nor a
+   * scope narrows the result, and adding either would split one answer across cache entries.
+   */
+  references: (workspaceId?: string, name?: string) =>
+    [...workspaceCredentialKeys.all, 'references', workspaceId ?? 'none', name ?? ''] as const,
 }

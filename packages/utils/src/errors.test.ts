@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { describeError, getPostgresErrorCode, toError } from './errors.js'
+import { describeError, findCause, getPostgresErrorCode, toError } from './errors.js'
 
 describe('toError', () => {
   it('returns the same Error when given an Error', () => {
@@ -102,6 +102,30 @@ describe('describeError', () => {
     ])
   })
 
+  it('redacts driver-appended bound parameter values from every reported message', () => {
+    const driver = Object.assign(
+      new Error('cannot execute SELECT FOR UPDATE in a read-only transaction'),
+      {
+        code: '25006',
+      }
+    )
+    const wrapped = new Error(
+      'Failed query: select "storage_used_bytes" from "workspace" where id = $1 limit $2 for update\nparams: ws-secret-id,1',
+      { cause: driver }
+    )
+    const described = describeError(wrapped)
+    expect(described.code).toBe('25006')
+    expect(described.causeChain?.[0]).toBe(
+      'Error: Failed query: select "storage_used_bytes" from "workspace" where id = $1 limit $2 for update\nparams: [redacted]'
+    )
+    expect(JSON.stringify(described)).not.toContain('ws-secret-id')
+  })
+
+  it('redacts bound parameter values from an unwrapped driver error message', () => {
+    const described = describeError(new Error('Failed query: select 1\nparams: ws-secret-id'))
+    expect(described.message).toBe('Failed query: select 1\nparams: [redacted]')
+  })
+
   it('always returns the cause for unclassified errors (AbortError)', () => {
     const aborted = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })
     expect(describeError(aborted)).toEqual({
@@ -125,5 +149,33 @@ describe('describeError', () => {
       described = describeError(a)
     }).not.toThrow()
     expect(described?.causeChain?.length).toBeLessThanOrEqual(10)
+  })
+})
+
+describe('findCause', () => {
+  class Marker extends Error {}
+  const isMarker = (value: unknown): value is Marker => value instanceof Marker
+
+  it('returns the error itself when it matches', () => {
+    const marker = new Marker('hit')
+    expect(findCause(marker, isMarker)).toBe(marker)
+  })
+
+  it('finds a match further down the cause chain', () => {
+    const marker = new Marker('deep')
+    const wrapped = new Error('outer', { cause: new Error('middle', { cause: marker }) })
+    expect(findCause(wrapped, isMarker)).toBe(marker)
+  })
+
+  it('returns undefined when nothing matches', () => {
+    expect(findCause(new Error('plain'), isMarker)).toBeUndefined()
+  })
+
+  it('survives a cyclic chain', () => {
+    const a = new Error('a')
+    const b = new Error('b')
+    Object.assign(a, { cause: b })
+    Object.assign(b, { cause: a })
+    expect(findCause(a, isMarker)).toBeUndefined()
   })
 })

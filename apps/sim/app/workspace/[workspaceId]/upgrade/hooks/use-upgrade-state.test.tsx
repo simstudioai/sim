@@ -120,6 +120,22 @@ describe('useUpgradeState', () => {
     })
   })
 
+  it('shows checkout admission failures through the standard error toast', async () => {
+    mockHandleUpgrade.mockRejectedValueOnce(
+      new Error('Your subscription payment is still processing.')
+    )
+
+    await act(async () => {
+      root.render(<Harness />)
+    })
+
+    await act(async () => {
+      await currentState?.doUpgrade('team', 25000)
+    })
+
+    expect(mockToastError).toHaveBeenCalledWith('Your subscription payment is still processing.')
+  })
+
   it('includes the routed workspace when switching the host billing interval', async () => {
     await act(async () => {
       root.render(<Harness />)

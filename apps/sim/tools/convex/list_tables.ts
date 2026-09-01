@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { ConvexListTablesParams, ConvexListTablesResponse } from '@/tools/convex/types'
 import { convexApiUrl, convexAuthHeaders, parseConvexResponse } from '@/tools/convex/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -32,10 +33,7 @@ export const listTablesTool: ToolConfig<ConvexListTablesParams, ConvexListTables
 
   transformResponse: async (response: Response) => {
     const data = await parseConvexResponse(response)
-    const schemas =
-      data !== null && typeof data === 'object' && !Array.isArray(data)
-        ? (data as Record<string, unknown>)
-        : {}
+    const schemas = isRecordLike(data) ? (data as Record<string, unknown>) : {}
 
     return {
       success: true,

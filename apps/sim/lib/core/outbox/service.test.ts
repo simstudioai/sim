@@ -24,7 +24,15 @@ vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'test-event-id'),
 }))
 
-import { enqueueOutboxEvent, processOutboxEvents } from './service'
+import {
+  deferOutboxHandler,
+  enqueueOrReschedulePendingOutboxEvent,
+  enqueueOutboxEvent,
+  enqueueOutboxEvents,
+  outboxEventHasSourceOperationId,
+  outboxPayloadHasSourceOperationId,
+  processOutboxEvents,
+} from './service'
 
 function makePendingRow(overrides: Partial<OutboxRow> = {}): OutboxRow {
   return {
@@ -87,6 +95,145 @@ describe('enqueueOutboxEvent', () => {
     expect((dbChainMockFns.values.mock.calls[0][0] as { availableAt: Date }).availableAt).toBe(
       future
     )
+  })
+
+  it('inserts a bounded event batch in one statement', async () => {
+    const ids = await enqueueOutboxEvents(dbChainMock.db, 'test.event', [
+      { sequence: 0 },
+      { sequence: 1 },
+    ])
+
+    expect(ids).toHaveLength(2)
+    expect(dbChainMockFns.values).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.values.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ eventType: 'test.event', payload: { sequence: 0 } }),
+      expect.objectContaining({ eventType: 'test.event', payload: { sequence: 1 } }),
+    ])
+  })
+
+  it('rejects an oversized event batch before inserting', async () => {
+    await expect(
+      enqueueOutboxEvents(
+        dbChainMock.db,
+        'test.event',
+        Array.from({ length: 1_001 }, (_, sequence) => ({ sequence }))
+      )
+    ).rejects.toThrow('Cannot enqueue more than 1000')
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+})
+
+describe('outbox parent-operation correlation', () => {
+  it('casts JSON payloads before applying JSONB containment operators', () => {
+    const query = JSON.stringify(outboxEventHasSourceOperationId('operation-1'))
+
+    expect(query).toContain("::jsonb -> 'sourceOperationIds'")
+    expect(query).toContain('@> jsonb_build_array')
+  })
+
+  it('retains both scalar and coalesced parent operation identities', () => {
+    expect(
+      outboxPayloadHasSourceOperationId({ sourceOperationId: 'operation-1' }, 'operation-1')
+    ).toBe(true)
+    expect(
+      outboxPayloadHasSourceOperationId(
+        { sourceOperationIds: ['operation-1', 'operation-2'] },
+        'operation-1'
+      )
+    ).toBe(true)
+    expect(
+      outboxPayloadHasSourceOperationId(
+        { sourceOperationIds: ['operation-1', 'operation-2'] },
+        'operation-2'
+      )
+    ).toBe(true)
+    expect(
+      outboxPayloadHasSourceOperationId({ sourceOperationIds: ['operation-2'] }, 'operation-1')
+    ).toBe(false)
+  })
+})
+
+describe('enqueueOrReschedulePendingOutboxEvent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('inserts normally when the subject has no pending event', async () => {
+    const availableAt = new Date('2026-07-30T12:01:00.000Z')
+
+    const id = await enqueueOrReschedulePendingOutboxEvent(
+      dbChainMock.db,
+      'invitation.send-migrated-link',
+      { invitationId: 'invite-1' },
+      {
+        availableAt,
+        coalesceOn: { payloadKey: 'invitationId', payloadValue: 'invite-1' },
+      }
+    )
+
+    expect(id).toBe('test-event-id')
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'test-event-id',
+        eventType: 'invitation.send-migrated-link',
+        payload: { invitationId: 'invite-1' },
+        availableAt,
+      })
+    )
+  })
+
+  it('extends one pending event instead of inserting a duplicate for the same subject', async () => {
+    const existingAvailableAt = new Date('2026-07-30T12:00:00.000Z')
+    const nextAvailableAt = new Date('2026-07-30T12:01:00.000Z')
+    queueTableRows(outboxEvent, [
+      makePendingRow({
+        id: 'evt-existing',
+        payload: { invitationId: 'invite-1' },
+        availableAt: existingAvailableAt,
+      }),
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'evt-existing' }])
+
+    const id = await enqueueOrReschedulePendingOutboxEvent(
+      dbChainMock.db,
+      'invitation.send-migrated-link',
+      { invitationId: 'invite-1' },
+      {
+        availableAt: nextAvailableAt,
+        coalesceOn: { payloadKey: 'invitationId', payloadValue: 'invite-1' },
+      }
+    )
+
+    expect(id).toBe('evt-existing')
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ availableAt: nextAvailableAt })
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+  })
+
+  it('keeps a later existing delivery deadline when another mutation settles sooner', async () => {
+    const existingAvailableAt = new Date('2026-07-30T12:02:00.000Z')
+    const requestedAvailableAt = new Date('2026-07-30T12:01:00.000Z')
+    queueTableRows(outboxEvent, [
+      makePendingRow({
+        id: 'evt-existing',
+        payload: { invitationId: 'invite-1' },
+        availableAt: existingAvailableAt,
+      }),
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'evt-existing' }])
+
+    await enqueueOrReschedulePendingOutboxEvent(
+      dbChainMock.db,
+      'invitation.send-migrated-link',
+      { invitationId: 'invite-1' },
+      {
+        availableAt: requestedAvailableAt,
+        coalesceOn: { payloadKey: 'invitationId', payloadValue: 'invite-1' },
+      }
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ availableAt: existingAvailableAt })
   })
 })
 
@@ -199,6 +346,45 @@ describe('processOutboxEvents — handler success and retry', () => {
     const scheduledAt = retryUpdate?.availableAt as Date
     expect(scheduledAt.getTime()).toBeGreaterThan(before + 7500)
     expect(scheduledAt.getTime()).toBeLessThan(before + 10_000)
+  })
+
+  it('keeps an acknowledged external wait pending without recording a failure', async () => {
+    const handler = vi.fn(async () => deferOutboxHandler('waiting for webhook'))
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 2 })])
+    holdLease()
+
+    const result = await processOutboxEvents({ 'test.event': handler })
+
+    expect(result.retried).toBe(1)
+    const deferredUpdate = updateSets().find((set) => set.status === 'pending' && 'attempts' in set)
+    expect(deferredUpdate).toMatchObject({ attempts: 3, lastError: null, lockedAt: null })
+  })
+
+  it('dead-letters a deferred wait only after its acknowledgement budget is exhausted', async () => {
+    const handler = vi.fn(async () => deferOutboxHandler('webhook acknowledgement missing'))
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 9, maxAttempts: 10 })])
+    holdLease()
+
+    const result = await processOutboxEvents({ 'test.event': handler })
+
+    expect(result.deadLettered).toBe(1)
+    const deadUpdate = updateSets().find((set) => set.status === 'dead_letter')
+    expect(deadUpdate).toMatchObject({
+      attempts: 10,
+      lastError: 'webhook acknowledgement missing',
+    })
+  })
+
+  it('reschedules an internal dependency wait without consuming its attempt budget', async () => {
+    const handler = vi.fn(async () => deferOutboxHandler('waiting for dependency', 5_000, false))
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 4, maxAttempts: 5 })])
+    holdLease()
+
+    const result = await processOutboxEvents({ 'test.event': handler })
+
+    expect(result.retried).toBe(1)
+    const deferredUpdate = updateSets().find((set) => set.status === 'pending' && 'attempts' in set)
+    expect(deferredUpdate).toMatchObject({ attempts: 4, lastError: null, lockedAt: null })
   })
 
   it('dead-letters on failure when attempts reaches maxAttempts', async () => {

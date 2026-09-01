@@ -17,8 +17,7 @@ import {
   languages,
   Tooltip,
 } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
-import { ArrowLeftRight, Plus } from 'lucide-react'
+import { ArrowLeftRight, Plus, Trash } from '@sim/emcn/icons'
 import Editor from 'react-simple-code-editor'
 import {
   createDefaultInputFormatField,
@@ -112,6 +111,8 @@ export function FieldFormat({
   const nameInputRefs = useRef<Record<string, HTMLInputElement>>({})
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const nameOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
+  const descriptionInputRefs = useRef<Record<string, HTMLInputElement>>({})
+  const descriptionOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const [fileFieldModes, setFileFieldModes] = useState<Record<string, 'upload' | 'json'>>({})
 
@@ -285,6 +286,14 @@ export function FieldFormat({
   }
 
   /**
+   * Syncs scroll position between description input and overlay for text highlighting
+   */
+  const syncDescriptionOverlayScroll = (fieldId: string, scrollLeft: number) => {
+    const overlay = descriptionOverlayRefs.current[fieldId]
+    if (overlay) overlay.scrollLeft = scrollLeft
+  }
+
+  /**
    * Generates a unique field key for name inputs to avoid collision with value inputs
    */
   const getNameFieldKey = (fieldId: string) => `name-${fieldId}`
@@ -314,7 +323,7 @@ export function FieldFormat({
       (newValue) => updateField(field.id, 'name', newValue)
     )
 
-    const inputClassName = cn('text-transparent caret-foreground')
+    const inputClassName = cn('text-transparent [letter-spacing:inherit] caret-foreground')
 
     return (
       <>
@@ -346,7 +355,7 @@ export function FieldFormat({
             if (el) nameOverlayRefs.current[field.id] = el
           }}
           className={cn(
-            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
             !isReadOnly && 'pointer-events-none'
           )}
           style={{ scrollbarWidth: 'none' }}
@@ -394,7 +403,7 @@ export function FieldFormat({
       }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
           {field.name || `${title} ${index + 1}`}
         </span>
         {field.name && showType && (
@@ -461,7 +470,7 @@ export function FieldFormat({
       (newValue) => updateField(field.id, 'value', newValue)
     )
 
-    const inputClassName = cn('text-transparent caret-foreground')
+    const inputClassName = cn('text-transparent [letter-spacing:inherit] caret-foreground')
 
     const tagDropdown = fieldState.showTags && (
       <TagDropdown
@@ -484,7 +493,7 @@ export function FieldFormat({
         return Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
+            className='font-mono text-[var(--text-muted)] text-xs'
             style={{ height: `${21}px`, lineHeight: `${21}px` }}
           >
             {i + 1}
@@ -519,7 +528,7 @@ export function FieldFormat({
         return Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
+            className='font-mono text-[var(--text-muted)] text-xs'
             style={{ height: `${21}px`, lineHeight: `${21}px` }}
           >
             {i + 1}
@@ -578,7 +587,7 @@ export function FieldFormat({
         Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
+            className='font-mono text-[var(--text-muted)] text-xs'
             style={{ height: `${21}px`, lineHeight: `${21}px` }}
           >
             {i + 1}
@@ -636,7 +645,7 @@ export function FieldFormat({
             if (el) overlayRefs.current[field.id] = el
           }}
           className={cn(
-            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
             !isReadOnly && 'pointer-events-none'
           )}
           style={{ scrollbarWidth: 'none' }}
@@ -693,19 +702,36 @@ export function FieldFormat({
                     {renderFieldLabel('Description')}
                     <div className='relative'>
                       <Input
+                        ref={(el) => {
+                          if (el) descriptionInputRefs.current[field.id] = el
+                        }}
                         value={field.description ?? ''}
                         onChange={(e) => updateField(field.id, 'description', e.target.value)}
+                        onScroll={(e) =>
+                          syncDescriptionOverlayScroll(field.id, e.currentTarget.scrollLeft)
+                        }
+                        onPaste={() =>
+                          setTimeout(() => {
+                            const input = descriptionInputRefs.current[field.id]
+                            input && syncDescriptionOverlayScroll(field.id, input.scrollLeft)
+                          }, 0)
+                        }
                         placeholder={descriptionPlaceholder}
                         disabled={isReadOnly}
-                        className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                        autoComplete='off'
+                        className='allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50'
                       />
                       <div
+                        ref={(el) => {
+                          if (el) descriptionOverlayRefs.current[field.id] = el
+                        }}
+                        style={{ scrollbarWidth: 'none' }}
                         className={cn(
-                          'pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm',
+                          'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
                           isReadOnly && 'opacity-50'
                         )}
                       >
-                        <span className='truncate'>
+                        <span className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
                           {formatDisplayText(
                             field.description ?? '',
                             accessiblePrefixes

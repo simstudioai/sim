@@ -5,6 +5,19 @@
 @source "../../../packages/emcn/src";
 @source "../../../packages/workflow-renderer/src";
 
+/* Every @sim/emcn component expresses hover through `hover-hover:` so touch
+   devices never latch a sticky hover state. The app registers it as a plugin
+   variant in apps/sim/tailwind.config.ts; docs is CSS-first Tailwind v4 with no
+   config, so without this declaration the variant compiles to nothing and every
+   emcn hover state silently no-ops here. */
+@custom-variant hover-hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
 /* Prevent overscroll bounce effect on the page */
 html,
 body {
@@ -29,11 +42,20 @@ body {
   --text-small: 13px;
   --text-base: 15px;
   --text-md: 16px;
-}
 
-/* Hide the floating Ask Sim widget while a workflow-preview lightbox is open. */
-body.wp-lightbox-open [aria-label="Ask Sim"] {
-  display: none;
+  /* Code-token size for the API reference — a deliberate sixth step, between
+     --text-caption and --text-small, because the mono face reads small at 12px. */
+  --text-code: 0.78125rem;
+
+  /* The platform's code face. `apps/sim/tailwind.config.ts` lists `var(--font-martian-mono)`
+     first, but nothing in the app ever defines that variable — `apps/sim/app/layout.tsx`
+     applies only `season.variable` — so every code surface in the product resolves to the
+     system stack below. Docs match what the app actually renders rather than the token it
+     nominally references; loading a webfont here would make docs the odd one out, not the
+     aligned one. If the app ever wires that font up for real, add the var back in both
+     places at once. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
 }
 
 /* Pure white light mode background */
@@ -64,17 +86,20 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-4: #f5f5f5;
   --surface-5: #f3f3f3;
   --surface-6: #e5e5e5;
+  --surface-7: #d9d9d9;
   --surface-active: #ececec;
-  --border: #dedede;
-  --border-1: #e0e0e0;
-  --divider: #ededed;
+  --surface-hover: #f2f2f2;
+  --border: #d8d8d8;
+  /** Legacy neutral-border aliases. New work should use --border. */
+  --border-1: var(--border);
   --text-primary: #1a1a1a;
   --text-secondary: #525252;
   --text-tertiary: #5c5c5c;
-  --text-body: #3b3b3b;
-  --text-muted: #707070;
+  --text-body: #434343;
+  --text-muted: #7a7a7a;
   --text-subtle: #8c8c8c;
-  --text-icon: #525252;
+  --text-icon: #5a5a5a;
+  --text-icon-muted: #5c5c5c;
   --text-inverse: #ffffff;
   --text-error: #ef4444;
   --text-muted-inverse: #a0a0a0;
@@ -84,9 +109,26 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-inverted: #1b1b1b;
   --surface-inverted-hover: #363636;
   --border-inverted: #363636;
-  --border-muted: #e4e4e4;
+  --border-muted: var(--border);
   --badge-success-bg: #bbf7d0;
   --badge-success-text: #15803d;
+  /* Shared-component tokens: referenced by @sim/emcn and @sim/workflow-renderer.
+     Undefined here, a var() silently falls back to currentColor. Values mirror
+     apps/sim/app/_styles/globals.css. */
+  --border-success: #e0e0e0;
+  --success: #22c55e;
+  --error: #dc2626;
+  --warning: #ea580c;
+  --caution: #f59e0b;
+  --text-placeholder: #8d8d8d;
+  --badge-teal-bg: #99f6e4;
+  --badge-teal-text: #0f766e;
+  --badge-cyan-bg: #cffafe;
+  --badge-cyan-text: #0891b2;
+  --badge-pink-bg: #fbcfe8;
+  --badge-pink-text: #be185d;
+  --badge-blue-secondary-bg: #bae6fd;
+  --badge-blue-secondary-text: #0369a1;
   --badge-blue-bg: #bfdbfe;
   --badge-blue-text: #1d4ed8;
   --badge-purple-bg: #e9d5ff;
@@ -99,11 +141,23 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --badge-error-text: #dc2626;
   --badge-gray-bg: #e7e5e4;
   --badge-gray-text: #57534e;
+  --code-bg: #f5f5f5;
+  --code-foreground: #1a1a1a;
+  --code-line-number: #737373;
+  --selection-bg: #add6ff;
+  --selection-dark: #264f78;
+  --highlight-search-active: #f6ad55;
   --scrollbar-thumb-color: #c0c0c0;
-  --scrollbar-thumb-hover-color: #a8a8a8;
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
   --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.11);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+  /* z-index scale — poppers sit above the modal so menus stay clickable over
+     the modal overlay. Mirrors apps/sim/app/_styles/globals.css. */
+  --z-toast: 150;
+  --z-modal: 200;
+  --z-popover: 300;
+  --z-tooltip: 400;
 }
 
 .dark {
@@ -115,17 +169,20 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-4: #292929;
   --surface-5: #363636;
   --surface-6: #454545;
+  --surface-7: #505050;
   --surface-active: #2c2c2c;
-  --border: #333333;
-  --border-1: #3d3d3d;
-  --divider: #393939;
+  --surface-hover: #262626;
+  --border: #444444;
+  /** Legacy neutral-border aliases. New work should use --border. */
+  --border-1: var(--border);
   --text-primary: #e6e6e6;
   --text-secondary: #cccccc;
   --text-tertiary: #b3b3b3;
-  --text-body: #cdcdcd;
-  --text-muted: #787878;
+  --text-body: #c1c1c1;
+  --text-muted: #6e6e6e;
   --text-subtle: #7d7d7d;
-  --text-icon: #a0a0a0;
+  --text-icon: #969696;
+  --text-icon-muted: #949494;
   --text-inverse: #1b1b1b;
   --text-error: #ef4444;
   --text-muted-inverse: #b3b3b3;
@@ -135,9 +192,26 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --surface-inverted: #242424;
   --surface-inverted-hover: #363636;
   --border-inverted: #3d3d3d;
-  --border-muted: #424242;
+  --border-muted: var(--border);
   --badge-success-bg: rgba(34, 197, 94, 0.2);
   --badge-success-text: #86efac;
+  /* Shared-component tokens: referenced by @sim/emcn and @sim/workflow-renderer.
+     Undefined here, a var() silently falls back to currentColor. Values mirror
+     apps/sim/app/_styles/globals.css. */
+  --border-success: #575757;
+  --success: #22c55e;
+  --error: #f87171;
+  --warning: #ff6600;
+  --caution: #f59e0b;
+  --text-placeholder: #8d8d8d;
+  --badge-teal-bg: rgba(20, 184, 166, 0.2);
+  --badge-teal-text: #5eead4;
+  --badge-cyan-bg: rgba(14, 165, 233, 0.2);
+  --badge-cyan-text: #7dd3fc;
+  --badge-pink-bg: rgba(236, 72, 153, 0.2);
+  --badge-pink-text: #f9a8d4;
+  --badge-blue-secondary-bg: rgba(51, 180, 255, 0.2);
+  --badge-blue-secondary-text: #7dd3fc;
   --badge-blue-bg: rgba(59, 130, 246, 0.2);
   --badge-blue-text: #93c5fd;
   --badge-purple-bg: rgba(168, 85, 247, 0.2);
@@ -150,43 +224,27 @@ body.wp-lightbox-open [aria-label="Ask Sim"] {
   --badge-error-text: #fca5a5;
   --badge-gray-bg: #3a3a3a;
   --badge-gray-text: #a8a8a8;
+  --code-bg: #1f1f1f;
+  --code-foreground: #eeeeee;
+  --code-line-number: #a8a8a8;
+  --selection-bg: #264f78;
   --scrollbar-thumb-color: #5a5a5a;
-  --scrollbar-thumb-hover-color: #6a6a6a;
+  --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
-/* Scrollbars — platform thumb tokens, transparent track */
+/* Scrollbars — platform thumb tokens, transparent track. A non-auto
+   `scrollbar-width`/`scrollbar-color` makes Chromium ignore every
+   `::-webkit-scrollbar*` rule on the element, so no webkit block here. Hover
+   shading is not expressible through the standard properties. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb-color) transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background-color: var(--scrollbar-thumb-color);
-  border-radius: 9999px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background-color: var(--scrollbar-thumb-hover-color);
 }
 
 /* Font family utilities */
 .font-sans {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-}
-
-.font-mono {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
 }
 
 /* Platform UI font — Season Sans, used by the chip chrome to match the main app */
@@ -296,20 +354,44 @@ aside#nd-sidebar [data-radix-scroll-area-viewport] {
     min-height: var(--fd-docs-height) !important;
   }
 
-  /* Sidebar divider line — sticky within the docs layout box, so it ends where
-     the layout does instead of bleeding into (or past) the footer below it.
-     #nd-docs-layout is a CSS grid (see fumadocs' Container slot); a sticky
-     pseudo-element stays in normal flow, so without an explicit grid-area it
-     gets auto-placed into a real content cell and skews that cell's sizing.
-     Spanning the full grid keeps it purely decorative/overlaid instead. */
+  /* Pin the sidebar to the viewport instead of letting fumadocs' `sticky` do it.
+     A sticky box is bottom-limited by its containing block, and #nd-docs-layout
+     ends ~660px above the document bottom because the site footer is a sibling
+     of the layout, not a grid child. So across the whole footer the sidebar gets
+     pushed upward — and any content-height change while the reader is in that
+     zone (expanding an FAQ row, say) makes it visibly jump. A fixed box ignores
+     both the container's end and the document's height, so neither happens.
+
+     Safe because the grid columns are explicit (`0px 300px 1fr 268px 0px`), so
+     removing the placeholder from flow leaves its track intact. `left`/`width`
+     are restated because a fixed box no longer derives them from its grid cell,
+     and `height` already comes from fumadocs' own utility classes.
+
+     Anchoring to `bottom` rather than `top` is what keeps the footer off it: the
+     offset is how far the footer currently reaches into the viewport (published
+     by `FooterOverlapProbe`), so the sidebar keeps its full height and slides up
+     out of view as the footer arrives, the way it did before it was pinned. With
+     no footer on screen the offset is 0 and this resolves back to top: 92px. */
+  [data-sidebar-placeholder] {
+    position: fixed !important;
+    left: var(--sidebar-offset);
+    width: var(--fd-sidebar-width);
+    top: auto !important;
+    bottom: var(--docs-footer-overlap, 0px) !important;
+  }
+
+  /* Sidebar divider line — pinned for the same reason, and so it stays glued to
+     the sidebar's right edge. Being fixed takes it out of #nd-docs-layout's grid
+     entirely, so it needs no grid placement and cannot skew a content cell; its
+     position comes from `left`/`top`/`bottom` alone. Unlike the sidebar it is
+     shortened rather than slid, so it runs from the navbar down to the footer's
+     top border and the two meet instead of the line stopping short. */
   #nd-docs-layout::before {
     content: "";
     display: block;
-    position: sticky;
-    grid-row: 1 / -1;
-    grid-column: 1 / -1;
+    position: fixed;
     top: 92px; /* below navbar */
-    height: calc(100dvh - 92px);
+    bottom: var(--docs-footer-overlap, 0px);
     left: calc(var(--sidebar-offset) + var(--fd-sidebar-width));
     width: 1px;
     background-color: var(--surface-active);
@@ -323,10 +405,10 @@ aside#nd-sidebar [data-radix-scroll-area-viewport] {
   }
 }
 
-/* Sidebar spacing — left padding aligns item text with navbar content (item has 14px internal padding) */
+/* Sidebar spacing — left padding aligns item text with navbar content (item has 8px internal padding) */
 [data-sidebar-viewport],
 #nd-sidebar > div {
-  padding: 0 14px 0 calc(var(--nav-inset) - 14px) !important;
+  padding: 0 14px 0 calc(var(--nav-inset) - 8px) !important;
   background: transparent !important;
 }
 
@@ -351,15 +433,20 @@ html #nd-sidebar [data-radix-scroll-area-viewport] > div {
 /* Target Link and button elements in sidebar - override Fumadocs itemVariants */
 /* Exclude the small chevron-only toggle buttons */
 /* Using html prefix for higher specificity over Tailwind v4 utilities */
+/* NEVER set `display` here. This selector scores (1,2,2) and carries
+   `!important`, so it out-specifies every rule below that hides the language
+   selector, theme toggle, and search button — a `display` declaration here
+   forces all of them back into the sidebar. The 30px chip height therefore
+   comes from line-height + padding (20 + 5 + 5), not from flex centering. */
 html #nd-sidebar a:not(:has(span.font-mono)),
 html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
   font-size: 0.875rem !important; /* 14px to match navbar items */
-  line-height: 1.4 !important;
-  padding: 0.375rem 0.875rem !important;
-  font-weight: 450 !important;
+  line-height: 20px !important;
+  padding: 5px 0.5rem !important; /* 30px tall overall — the app's chip pill, at its px-2 */
+  font-weight: 400 !important;
   border-radius: 0.5rem !important; /* platform rounded-lg */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif !important;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
 }
 
 /* Sidebar text — platform --text-body */
@@ -393,26 +480,16 @@ html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) 
   margin-bottom: 0 !important;
 }
 
-/* Section separator headers — styling handled by component, override fumadocs defaults */
+/* Section separator headers — match the app sidebar's group label: 12px,
+   sentence case, normal weight. Only the fumadocs defaults are overridden here;
+   size and color stay on the component. */
 [data-sidebar-viewport] [data-separator] p,
 #nd-sidebar [data-separator] p {
-  font-size: 0.625rem !important; /* 10px */
-  font-weight: 600 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.06em !important;
+  font-weight: 400 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
   margin: 0 !important;
   padding: 0 !important;
-}
-
-/* First separator has no top margin or divider; subsequent ones show the divider on desktop */
-[data-separator]:not([data-separator] ~ [data-separator]) {
-  margin-top: 0;
-}
-
-@media (min-width: 1024px) {
-  [data-separator] ~ [data-separator] > .separator-divider {
-    display: block;
-  }
 }
 
 /* Active state — aligned with platform --surface-active */
@@ -427,17 +504,13 @@ html #nd-sidebar button[data-active="true"] {
   color: var(--text-body) !important;
 }
 
-/* Hover state — platform --surface-3 */
+/* Hover state — emcn's two-surface row model (see `chipHoverSurfaceClass`).
+   These rules must carry !important to beat fumadocs' own sidebar styles, which
+   also means they override the Tailwind hover utilities on the items; keep the
+   two in step. */
 html #nd-sidebar a:not(:has(span.font-mono)):hover:not([data-active="true"]),
 html #nd-sidebar button:hover:not([data-active="true"]) {
-  background-color: var(--surface-3) !important;
-}
-
-/* Active items don't change on hover */
-html #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)):hover,
-html #nd-sidebar button[data-active="true"]:hover {
-  background-color: var(--surface-active) !important;
-  color: var(--text-body) !important;
+  background-color: var(--surface-hover) !important;
 }
 
 /* Hide search, platform, and collapse button from sidebar completely */
@@ -581,34 +654,26 @@ aside[data-sidebar],
   writing-mode: horizontal-tb !important;
 }
 
-/* Apply Geist Mono to code elements */
 code,
 pre,
 pre code {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono);
 }
 
-/* Inline code — neutral colors aligned with sim design system */
+/* Inline code chip, matching the one the app renders for markdown
+   (`apps/sim/lib/content/mdx.tsx`).
+
+   Two things here are deliberate rather than oversights. The border is gone because the app's
+   chip has none, and at inline size a hairline reads as a boxed-in label rather than a
+   highlight. The color is unset so the chip composites over whatever encloses it — inline
+   code inside a link picks up the link color instead of sitting on it as a grey island, which
+   is the behavior the app's chip was written for. */
 :not(pre) > code {
-  padding: 0.2em 0.4em;
-  border-radius: 0.375rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
   font-size: 0.875em;
-  font-weight: 500;
-}
-
-/* Inline code — platform surface-4 / text-body / border-1 */
-:not(pre) > code {
-  background-color: var(--surface-4);
-  color: var(--text-body);
-  border: 1px solid var(--border-1);
-}
-
-/* Remove heavy shadows globally — aligned with sim design system (shadow-card: 0 1px 3px rgba(0,0,0,0.04)) */
-figure.shiki,
-figure[data-rehype-pretty-code-figure],
-.shiki {
-  box-shadow: none !important;
+  font-weight: 400;
+  background-color: var(--surface-5);
 }
 
 /* Search dialog — lighter shadow + constrained size */
@@ -628,9 +693,11 @@ figure[data-rehype-pretty-code-figure],
   z-index: 60 !important;
 }
 
+/* Code metrics — the platform's `Code.Viewer` runs 13px on a 21px line box
+   (`text-small` / `leading-[21px]`); identical snippets should not read larger here. */
 pre {
-  font-size: 0.875rem;
-  line-height: 1.7;
+  font-size: var(--text-small);
+  line-height: 21px;
   tab-size: 2;
   -webkit-overflow-scrolling: touch;
 }
@@ -672,7 +739,7 @@ main article h4,
 [data-content] h4,
 #nd-page h3,
 #nd-page h4 {
-  font-size: 1rem !important;
+  font-size: var(--text-md) !important;
   font-weight: 470 !important;
   letter-spacing: -0.01em;
   color: var(--text-body);
@@ -714,18 +781,26 @@ main article li,
   border-left: none !important;
 }
 
+/* The clerk TOC draws its active range twice: a track segment, plus a dot that
+   animates along the track to the current heading. The dot is redundant with the
+   segment and reads as a stray artifact, so hide it and keep the segment. It is
+   the only node fumadocs gives an inline offset-path, which is what anchors it. */
+#nd-toc [style*="offset-path"] {
+  display: none !important;
+}
+
 /* TOC heading — align weight with landing */
 #nd-toc h3,
 #nd-toc [class*="title"] {
   font-weight: 480 !important;
-  font-size: 0.8125rem !important;
+  font-size: var(--text-small) !important;
   color: var(--text-muted);
 }
 
 /* TOC links — softer colors aligned with landing muted text */
 #nd-toc a {
   font-weight: 430 !important;
-  font-size: 0.8125rem !important;
+  font-size: var(--text-small) !important;
   color: var(--text-muted);
   transition: color 0.2s;
 }
@@ -817,16 +892,18 @@ video {
   display: none !important;
 }
 
-/* Ensure API reference pages use the same font as the rest of the docs */
+/* Ensure API reference pages use the same font as the rest of the docs.
+   `.font-mono` is excluded: this selector (id + element) outranks the
+   `.font-mono` class rule, so without it every code identifier renders sans. */
 #nd-page:has(.api-page-header),
 #nd-page:has(.api-page-header) h2,
 #nd-page:has(.api-page-header) h3,
 #nd-page:has(.api-page-header) h4,
-#nd-page:has(.api-page-header) p,
-#nd-page:has(.api-page-header) span,
-#nd-page:has(.api-page-header) div,
-#nd-page:has(.api-page-header) label,
-#nd-page:has(.api-page-header) button {
+#nd-page:has(.api-page-header) p:not(.font-mono),
+#nd-page:has(.api-page-header) span:not(.font-mono),
+#nd-page:has(.api-page-header) div:not(.font-mono),
+#nd-page:has(.api-page-header) label:not(.font-mono),
+#nd-page:has(.api-page-header) button:not(.font-mono) {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -850,7 +927,9 @@ span.font-mono.font-medium[data-method="delete"] {
   background-color: var(--badge-error-bg);
 }
 
-/* Sidebar links with method badges — match regular item padding */
+/* Sidebar links with method badges — match regular item padding. Radius follows the
+   platform's two-tier convention (documented on emcn's `DropdownMenu`): floating surfaces
+   take 12px, rows inside one take 8px. These are rows. */
 html #nd-sidebar a:has(span.font-mono.font-medium) {
   display: flex !important;
   align-items: center !important;
@@ -859,7 +938,7 @@ html #nd-sidebar a:has(span.font-mono.font-medium) {
   font-size: 0.875rem !important;
   line-height: 1.4 !important;
   font-weight: 450 !important;
-  border-radius: 0.75rem !important;
+  border-radius: 0.5rem !important;
 }
 
 /* Sidebar method badges — fixed-width for right-aligned labels */
@@ -868,7 +947,7 @@ html #nd-sidebar a:has(span.font-mono.font-medium) {
   align-items: center;
   justify-content: center;
   width: 2.625rem;
-  font-size: 0.625rem !important;
+  font-size: var(--text-micro) !important;
   line-height: 1 !important;
   padding: 0.15625rem 0.25rem;
   border-radius: 0.375rem;
@@ -880,7 +959,7 @@ html #nd-sidebar a:has(span.font-mono.font-medium) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.625rem !important;
+  font-size: var(--text-micro) !important;
   line-height: 1 !important;
   padding: 0.15625rem 0.375rem;
   border-radius: 0.375rem;
@@ -889,11 +968,6 @@ html #nd-sidebar a:has(span.font-mono.font-medium) {
 /* API page code/card containers — transparent background */
 #nd-page:has(.api-page-header) {
   --color-fd-card: transparent !important;
-}
-
-#nd-page:has(.api-page-header) figure.shiki {
-  border-radius: 0.75rem !important;
-  background-color: transparent !important;
 }
 
 /* API page code example panels — transparent */
@@ -947,7 +1021,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   span.font-mono.font-medium {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
   font-weight: 600 !important;
-  font-size: 0.6875rem !important;
+  font-size: var(--text-xs) !important;
   letter-spacing: 0.025em;
   text-transform: uppercase;
   padding: 0.125rem 0.5rem !important;
@@ -990,18 +1064,13 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   background-color: var(--badge-error-bg) !important;
 }
 
-/* Path text inside method+path bar — monospace, bright like Gumloop */
+/* The path inside the method+path bar is a heading, not a chip — strip the inline-code
+   surface so it reads as the endpoint itself. */
 #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose code {
   color: var(--text-body) !important;
   background: none !important;
-  border: none !important;
   padding: 0 !important;
-  font-size: 0.8125rem !important;
-}
-/* Inline code in API pages — neutral color aligned with sim design.
-   Exclude code inside the method+path bar (handled above). */
-#nd-page:has(.api-page-header) .prose :not(pre) > code {
-  color: var(--text-body) !important;
+  font-size: var(--text-small) !important;
 }
 
 /* Response Section — custom dropdown-based rendering (Mintlify style) */
@@ -1067,23 +1136,45 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   position: relative;
 }
 
+/* API-reference metadata face — the status trigger, the content-type label, the
+   `required` / `header` markers, and the status-code tabs. Defined once; each
+   consumer below adds only its own colour, content, and order. The `code.text-xs`
+   label further down needs `!important` to beat fumadocs and stays separate. */
+#nd-page:has(.api-page-header) button.response-section-dropdown-trigger,
+.response-section-dropdown-trigger,
+#nd-page:has(.api-page-header) span.response-section-content-type,
+.response-section-content-type,
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after,
+#nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before,
+#nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after,
+#nd-page:has(.api-page-header) .flex.gap-3\.5.overflow-x-auto.not-prose > button {
+  font-size: var(--text-code);
+  line-height: 1.25rem;
+  font-weight: 400;
+  font-family: var(--font-mono);
+}
+
+/* Status-code trigger — matches the content-type label beside it. */
+#nd-page:has(.api-page-header) button.response-section-dropdown-trigger,
 .response-section-dropdown-trigger {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.125rem 0.25rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-fd-muted-foreground);
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  color: var(--text-secondary);
   background: none;
   border: none;
   cursor: pointer;
   border-radius: 0.375rem;
   transition: color 0.15s;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
+/* Carries the same id-qualified prefix as the base rule above; without it the
+   base rule outranks this one and the trigger never changes colour on hover. */
+#nd-page:has(.api-page-header) button.response-section-dropdown-trigger:hover,
 .response-section-dropdown-trigger:hover {
-  color: var(--color-fd-foreground);
+  color: var(--text-primary);
 }
 
 .response-section-chevron {
@@ -1131,7 +1222,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   color: var(--text-primary);
 }
 .response-section-dropdown-item-selected {
-  color: var(--color-fd-foreground);
+  color: var(--text-primary);
 }
 
 .response-section-check {
@@ -1139,10 +1230,15 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   height: 0.875rem;
 }
 
+/* Content-type label. The Response header renders this class; the Request Body
+   header renders a fumadocs `code.text-xs`. Keep the two in sync — the same
+   string at different weights reads as one being lighter than the other. */
+#nd-page:has(.api-page-header) span.response-section-content-type,
 .response-section-content-type {
-  font-size: 0.875rem;
-  color: var(--color-fd-muted-foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  padding: 0;
 }
 
 /* Response schema container — remove border to match Path Parameters style */
@@ -1167,26 +1263,80 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   order: 1;
 }
 
-/* Type badge — order 2, grey pill */
+/* Type token — order 2. Covers every shape the slot takes: scalar span, union
+   wrapper, schema-reference button, and the auth row's `::after` label. Reuses
+   the docs inline-code recipe, so a type reads as code wherever it appears; the
+   explicit 20px height keeps a union level with a scalar, which its nested
+   links would otherwise push to 26px. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
-  > span.text-sm.font-mono.text-fd-muted-foreground {
+  > span.text-sm.font-mono.text-fd-muted-foreground,
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button),
+#nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground::after {
   order: 2;
-  background-color: var(--surface-5);
-  color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.6875rem;
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  .flex.flex-wrap.items-center.gap-3.not-prose
-  > span.text-sm.font-mono.text-fd-muted-foreground {
+  display: inline-flex;
+  align-items: center;
+  height: 1.25rem;
+  /* No gap: an `array<T>` slot holds its brackets as bare text nodes, which
+     become anonymous flex items, so any gap here would prise `array<` and `>`
+     away from the type they wrap. The union separator spaces itself instead. */
+  gap: 0;
   background-color: var(--surface-4);
-  color: var(--text-secondary);
+  border: 1px solid var(--border-1);
+  color: var(--text-body);
+  padding: 0 0.3125rem;
+  border-radius: 0.375rem;
+  font-size: var(--text-code);
+  line-height: 1;
+  font-weight: 400;
+  font-family: var(--font-mono);
+}
+
+/* Everything inside a type token inherits the token's own face, size, and ink.
+   Applied to every descendant, not just the links: a union's `|` separator is a
+   classless `span`, so the page-wide `span:not(.font-mono)` rule assigned it the
+   body sans face and one chip rendered in two faces. Anything fumadocs nests in
+   here later is covered by the same reset.
+   Underline is deferred to hover so links don't read heavier than a plain scalar
+   in the same box. The button that *is* the slot needs its own rule below: it
+   cannot `inherit`, which would pull the row's 14px sans back in. */
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground
+  * {
+  text-decoration: none;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+}
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > button.text-sm.font-mono.text-fd-muted-foreground {
+  text-decoration: none;
+}
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground
+  :is(a, button):hover,
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > button.text-sm.font-mono.text-fd-muted-foreground:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Union separator — dimmed one step, no further: `string | null` started
+   reading as `string null` on the chip fill. Own margin; the slot has no gap. */
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground
+  > span {
+  margin: 0 0.375rem;
+  color: var(--text-muted);
 }
 
 /* Hide the "*" inside the name span — we'll add "required" as a ::after on the flex row */
@@ -1194,21 +1344,15 @@ html.dark
   display: none;
 }
 
-/* Required badge — order 3, red pill */
+/* Required marker — order 3. Error text colour but no fill: eight required
+   params on one page should not read as eight alarms. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
   content: "required";
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: var(--badge-error-bg);
   color: var(--badge-error-text);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.6875rem;
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 /* Optional "?" indicator — hide it */
 #nd-page:has(.api-page-header)
@@ -1232,81 +1376,52 @@ html.dark
   > span.font-medium.font-mono.text-fd-primary {
   order: 1;
 }
+/* Auth rows collapse the real `<token>` text to zero and draw the chip in the
+   `::after` below, so this span is a bare wrapper: it must drop the type-token
+   box it matches, or the chip renders inside a second, empty bordered box. */
 #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
   order: 2;
   font-size: 0;
-  padding: 0 !important;
-  background: none !important;
+  padding: 0;
+  background: none;
+  border: none;
+  height: auto;
   line-height: 0;
 }
+/* Only the label — the box comes from the shared type-token rule above, which
+   this pseudo-element is a member of. */
 #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
   content: "string";
-  font-size: 0.6875rem;
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  background-color: var(--surface-5);
-  color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  display: inline-flex;
-  align-items: center;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.my-4
-  > .flex.flex-wrap.items-center.gap-3.not-prose
-  > span.text-sm.font-mono.text-fd-muted-foreground::after {
-  background-color: var(--surface-4);
-  color: var(--text-secondary);
 }
 
-/* "header" badge via ::before on the auth flex row */
+/* "header" location via ::before on the auth flex row — uncontained metadata,
+   matching the `required` marker rather than the type token. */
 #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before {
   content: "header";
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: var(--surface-5);
-  color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.6875rem;
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.my-4
-  > .flex.flex-wrap.items-center.gap-3.not-prose::before {
-  background-color: var(--surface-4);
   color: var(--text-secondary);
 }
 
-/* "required" badge via ::after on the auth flex row — red pill */
+/* "required" marker via ::after on the auth flex row */
 #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
   content: "required";
   order: 4;
   display: inline-flex;
   align-items: center;
-  background-color: var(--badge-error-bg);
   color: var(--badge-error-text);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.6875rem;
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
-/* Hide "In: header" text below auth property — redundant with the header badge */
-#nd-page:has(.api-page-header) div.my-4 .prose-no-margin p:has(> code) {
+/* Hide the trailing "In: header" line — redundant with the header marker.
+   Matched by position, not shape: descriptions contain a `code` too (status
+   codes), so a bare `p:has(> code)` also hid the API-key description. */
+#nd-page:has(.api-page-header) div.my-4 .prose-no-margin > p:last-child:has(> code) {
   display: none !important;
 }
 
@@ -1333,37 +1448,18 @@ html.dark
   border-color: var(--surface-active);
 }
 
-/* Body/Callback section "application/json" label — remove inline code styling */
+/* Body/Callback "application/json" label — strip inline-code chrome and keep in
+   sync with `.response-section-content-type`; same string, two headers. */
 #nd-page:has(.api-page-header) .flex.gap-2.items-center.justify-between p.not-prose code.text-xs,
 #nd-page:has(.api-page-header) .flex.justify-between.gap-2.items-end p.not-prose code.text-xs {
   background: none !important;
   border: none !important;
   padding: 0 !important;
-  color: var(--color-fd-muted-foreground) !important;
-  font-size: 0.875rem !important;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
-}
-
-/* Object/array type triggers in property rows — order 2 + badge chip styling */
-#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
-#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
-  order: 2;
-  background-color: var(--surface-5);
-  color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.6875rem;
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-}
-html.dark #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
-html.dark
-  #nd-page:has(.api-page-header)
-  .flex.flex-wrap.items-center.gap-3.not-prose
-  > span:has(> button) {
-  background-color: var(--surface-4);
-  color: var(--text-secondary);
+  color: var(--text-secondary) !important;
+  font-size: var(--text-code) !important;
+  line-height: 1.25rem !important;
+  font-weight: 400 !important;
+  font-family: var(--font-mono) !important;
 }
 
 /* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */
@@ -1372,15 +1468,15 @@ html.dark
   margin-bottom: 0.25rem !important;
 }
 
-/* Code examples in right column — wrap long lines instead of horizontal scroll */
-#nd-page:has(.api-page-header) pre {
-  white-space: pre-wrap !important;
-  word-break: break-all !important;
-}
-#nd-page:has(.api-page-header) pre code {
-  width: 100% !important;
-  word-break: break-all !important;
-  overflow-wrap: break-word !important;
+/* Example-panel code overflows rather than wraps: a wrapped line restarts at
+   column zero and misreports the JSON nesting depth. */
+
+/* fumadocs' own lucide glyphs (heading anchor, copy button) ship at stroke-width
+   2 while emcn strokes at 1.55, so they read heavier than everything near them.
+   Layout-wide on purpose: one icon weight across the docs. Retired once
+   createAPIPage is given renderHeading/renderCodeBlock. */
+#nd-docs-layout svg[class*="lucide"] {
+  stroke-width: 1.55;
 }
 
 /* Callout/alert — transparent background, no shadow, hide colored bar, add padding */
@@ -1406,7 +1502,7 @@ div.not-prose.rounded-md.border.bg-fd-card.p-2 {
 div.rounded-xl.border.bg-fd-card.shadow-md:has(> [role="none"]) > svg {
   fill: none !important;
   color: var(--color-fd-foreground) !important;
-  stroke-width: 1.75 !important;
+  stroke-width: 1.55 !important;
   flex-shrink: 0;
   width: 1rem !important;
   height: 1rem !important;
@@ -1505,109 +1601,335 @@ main article tbody tr:last-child td {
   border-bottom: none !important;
 }
 
-/* Code blocks — aligned with platform chat code block styling */
+/* Code blocks — platform field chrome.
 
-/* Standalone code block figure — border + rounded */
-figure.shiki:not(div > figure.shiki),
-figure[data-rehype-pretty-code-figure]:not(div > figure[data-rehype-pretty-code-figure]),
-figure:has(pre):not(div > figure:has(pre)) {
-  border-radius: 0.5rem !important;
-  border: 1px solid var(--border) !important;
-  overflow: hidden !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
+   Three renderers emit these figures and only two go through components/ui/code-block.tsx, so
+   the shell and the fumadocs internals that component cannot reach — the title row, the scroll
+   viewport, the tab strip `<Tabs>` puts above a fence — are all defined here. The component
+   keeps only the copy control and the prose margin. */
+
+/* Local aliases, not new design values: each names an existing platform token pair whose light
+   and dark halves differ (`--surface-5`/`--code-bg`, `--text-muted`/`--code-line-number`).
+
+   `--code-surface` has three consumers. `--code-gutter` has one, and is an alias anyway because
+   a `.dark` twin would have to restate the sibling-combinator `:has()` its consumer is matched
+   by — the expensive form, which re-checks on every line insertion. */
+:root {
+  --code-surface: var(--surface-5);
+  --code-gutter: var(--text-muted);
 }
 
-/* Code block inside tabs (API examples) — no extra border, inherits from parent */
-div > figure.shiki {
-  border: none !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
+.dark {
+  --code-surface: var(--code-bg);
+  --code-gutter: var(--code-line-number);
 }
 
-html.dark div > figure.shiki {
-  background-color: transparent !important;
-}
+/* Code block shell — `chipFieldSurfaceClass`'s `rounded-lg` and `--border-1` hairline, over
+   the `--surface-5` / `--code-bg` fill. (`--surface-5` is `chipFilledFillTokens`' light fill;
+   the dark half is the code surface emcn's `Code` container paints. The chip field uses
+   `--surface-4` on dark, which is not a code surface.)
 
-/* Tabbed code block container (cURL/JS/Go tabs) */
+   Three renderers emit these figures: the MDX `pre` mapping and fumadocs-openapi's
+   `renderCodeBlock` both go through `components/ui/code-block.tsx`, but its `UsageTab` renders
+   `ClientCodeBlock` directly and takes no override. The shell could be a class on the
+   component for the first two, at the cost of defining it twice — once there and once here for
+   the third. One definition covering all three is the simpler seam.
+
+   Vertical margin is deliberately not set here: prose fences want `my-4` (the component
+   supplies it) and API samples sit flush inside their panel with `my-0`.
+
+   @see packages/emcn/src/components/chip/chip-chrome.ts — `chipFieldSurfaceClass`, the constant
+   this mirrors. Keep the two in step by hand. */
+figure.shiki,
 div:has(> [role="tablist"]):has(> div > figure.shiki) {
-  border-radius: 0.5rem !important;
-  border: 1px solid var(--border) !important;
-  overflow: hidden !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-1);
+  background-color: var(--code-surface);
+  overflow: hidden;
+  box-shadow: none;
 }
 
-/* Tab list bar — match platform surface-4 */
+/* Title row — the platform's `--surface-4`-over-`--surface-5` pairing, the same split
+   ChipModal uses between its outer frame and inner panel. */
+figure.shiki > div:first-child:has(figcaption),
 div:has(> div > figure.shiki) > [role="tablist"] {
-  background: none !important;
-  border-bottom: 1px solid var(--surface-active) !important;
-}
-
-/* Tab triggers — muted text, active gets foreground */
-div:has(> div > figure.shiki) > [role="tablist"] button {
-  color: var(--text-muted) !important;
-  font-weight: 470 !important;
-}
-
-div:has(> div > figure.shiki) > [role="tablist"] button:hover {
-  color: var(--text-body) !important;
-}
-
-div:has(> div > figure.shiki) > [role="tablist"] button[data-state="active"] {
-  color: var(--text-primary) !important;
-}
-
-/* Code block title header (figcaption with filename) */
-figure.shiki > div:first-child:has(figcaption) {
-  background-color: var(--surface-4) !important;
-  border-bottom: 1px solid var(--surface-active) !important;
+  height: 34px;
+  padding-inline: 0.625rem;
+  background-color: var(--surface-4);
+  border-bottom: 1px solid var(--border-1);
 }
 
 figure.shiki figcaption {
-  color: var(--text-muted) !important;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
 }
 
-/* Code block pre element — transparent bg */
-figure.shiki pre {
-  background-color: transparent !important;
+/* fumadocs derives a file-type icon from the title's extension and leaves it at
+   `currentColor`; the platform paints row icons `--text-icon`. */
+figure.shiki > div:first-child:has(figcaption) svg {
+  color: var(--text-icon);
 }
 
-html.dark figure.shiki pre {
-  background-color: transparent !important;
+/* Line-number gutter, mirroring the one `Code.Viewer` draws in the app.
+
+   Only multi-line fences get one, column and digit together. A line number on a one-line shell
+   command references nothing, and these docs are mostly one-line commands. Reserving the column
+   but leaving it blank was tried and is worse: the code picks up a 44px indent with nothing in
+   it, which reads as a rendering fault rather than as alignment. Single-line fences therefore
+   keep fumadocs' default padding, so adjacent blocks can start their text 28px apart —
+   acceptable, because each fence is its own bordered card, and differing padding between cards
+   is far less noticeable than an unexplained indent inside one.
+
+   The column is opened through fumadocs' own `--padding-left`, not by overriding its `.line`
+   rule: that rule is `.shiki:not(.not-fumadocs-codeblock *) .line`, and `:not()` carries its
+   argument's specificity, so it lands at (0,3,0) — above anything reasonable to write here.
+
+   Declared at every level the variable could be shadowed at, because it is inherited and the
+   nearest declaration wins: fumadocs sets it on `.shiki`, which is on the `figure` for prose
+   fences but on the `figure` AND the inner `pre` for API samples.
+
+   The `!important` and the viewport selector are belt-and-braces, not strictly required —
+   fumadocs' declaration is (0,2,0) and these selectors are (0,3,1) and (0,4,1), so they
+   already win, and nothing declares this property on the viewport. They are kept because the
+   specificity of `:has()` and `:not()` is easy to miscount in the direction that puts the line
+   numbers on top of the code. Remove them only alongside a visual check.
+ */
+figure.shiki:has(.line ~ .line),
+figure.shiki:has(.line ~ .line) > div[role="region"],
+figure.shiki:has(.line ~ .line) .shiki {
+  --padding-left: 2.75rem !important;
 }
 
-/* Code viewport scroll area — transparent bg */
+figure.shiki code {
+  counter-reset: line;
+}
+
+/* Gated on the same condition as the digit these anchor: without it, every line of every
+   single-line fence becomes a positioned containing block for a pseudo-element that never
+   renders. */
+figure.shiki code:has(.line ~ .line) .line {
+  position: relative;
+  counter-increment: line;
+}
+
+figure.shiki code:has(.line ~ .line) .line::before {
+  content: counter(line);
+  position: absolute;
+  left: 0;
+  width: 1.75rem;
+  text-align: right;
+  color: var(--code-gutter);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* The code fill is painted here, on the scroll viewport, rather than left to show through from
+   the figure or the tab group. Those diverge per renderer: fumadocs gives a standalone figure
+   `bg-fd-card` but an in-tab figure `bg-fd-secondary`, and this app forces
+   `--color-fd-card: transparent` on API reference pages. The result was measurable — a request
+   panel showing the page background (#fff light, `--bg` dark) beside a response panel showing
+   the code surface. The viewport is the one box all three renderers agree on. */
 figure.shiki > div[role="region"] {
-  background-color: transparent !important;
+  background-color: var(--code-surface);
+  /* fumadocs ships 14px of vertical padding, the platform's viewer 8px; 10px splits them and
+     keeps a single-line fence from looking hollow at the tighter 21px line box. */
+  padding-block: 10px;
 }
 
-html.dark figure.shiki > div[role="region"] {
-  background-color: transparent !important;
+/* Shiki emits `--shiki-*-bg` custom properties under `defaultColor: false`; keep the `pre` clear
+   so nothing paints over the viewport fill. */
+figure.shiki pre {
+  background-color: transparent;
 }
 
-/* Copy button — minimal ghost style */
-figure.shiki button[aria-label="Copy Text"],
-figure.shiki button[aria-label="Copied Text"] {
-  color: var(--text-muted) !important;
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
+/* Untitled blocks float the copy control over the code, so the last column has to clear it:
+   an 8px offset plus emcn's 20px icon button, with room to breathe. fumadocs reserves 32px,
+   which the glyphs run into.
+
+   `!important` is load-bearing: fumadocs writes this same custom property as an inline style
+   on the viewport, and an inline declaration outranks any stylesheet rule without it. */
+figure.shiki:not(:has(figcaption)),
+figure.shiki:not(:has(figcaption)) > div[role="region"],
+figure.shiki:not(:has(figcaption)) .shiki {
+  --padding-right: 2.75rem !important;
 }
 
-figure.shiki button[aria-label="Copy Text"]:hover {
-  color: var(--text-icon) !important;
+/* Copy control on the one block this app does not render.
+
+   Prose fences and the API reference's request/response samples both render
+   `components/ui/code-block.tsx`, which uses an emcn `Button`. Only fumadocs-openapi's
+   `UsageTab` is left — it renders `ClientCodeBlock` directly and takes no override — so these
+   rules bring its button to the same geometry and color as emcn's `variant='quiet' size='icon'`.
+
+   Every rule here is qualified with `:has(> svg[class*="lucide"])`. Without it they also match
+   the emcn `Button`, whose `aria-label` is identical, and re-declare chrome that component
+   owns — silently pinning docs to today's `buttonVariants` values.
+
+   The container carries an opaque `--code-surface` pad rather than fumadocs' `backdrop-blur-lg`.
+   The blur went milky over a filled block, but something has to sit behind the button: these
+   fences scroll horizontally and a long line runs straight under a transparent one. Matching
+   the block's own fill hides the code cleanly instead of frosting it. */
+figure.shiki > div:has(> button[aria-label$="Text"] > svg[class*="lucide"]) {
+  top: 0.5rem;
+  right: 0.5rem;
+  padding-left: 0.25rem;
+  border-radius: 0.25rem;
+  background-color: var(--code-surface);
+  backdrop-filter: none;
 }
 
-figure.shiki button[aria-label="Copied Text"] {
-  color: var(--brand-accent) !important;
+figure.shiki button[aria-label="Copy Text"]:has(> svg[class*="lucide"]),
+figure.shiki button[aria-label="Copied Text"]:has(> svg[class*="lucide"]) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 0.25rem;
+  width: 20px;
+  height: 20px;
+  color: var(--text-icon-muted);
+  background: none;
+  box-shadow: none;
+  transition:
+    background-color 150ms,
+    color 150ms;
 }
 
-/* Copy button container — remove backdrop blur bg */
-figure.shiki > div:has(> button[aria-label]) {
-  background: none !important;
-  backdrop-filter: none !important;
+figure.shiki button[aria-label="Copy Text"]:has(> svg[class*="lucide"]) {
+  @variant hover-hover {
+    background-color: var(--surface-active);
+  }
+}
+
+figure.shiki button[aria-label="Copied Text"]:has(> svg[class*="lucide"]) {
+  color: var(--brand-accent);
+}
+
+/* One block per API reference page — the request "usage tabs" (cURL / JavaScript / Go / …) —
+   is rendered by fumadocs-openapi's `UsageTab`, which hardcodes its own `ClientCodeBlock`.
+   `renderCodeBlock` covers every other sample, and `OperationClientOptions` exposes only
+   `APIExampleSelector`, so there is no supported prop that reaches this one. Its lucide
+   clipboard is masked over with emcn's `Duplicate` / `Check` artwork so the copy glyph is the
+   same everywhere.
+
+   Scoped to `svg.lucide-*`: any block that already renders the real emcn icon is untouched,
+   and if fumadocs ever adds an override for these tabs, these rules simply stop matching.
+   The paths are copied from `packages/emcn/src/icons/{duplicate,check}.tsx` — a mask cannot
+   reference a component — so they must be updated together if that artwork changes. */
+figure.shiki button[aria-label$="Text"] > svg[class*="lucide"] {
+  display: none;
+}
+
+figure.shiki button[aria-label$="Text"]:has(> svg[class*="lucide"])::before {
+  content: "";
+  display: block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask-image: var(--copy-glyph);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-image: var(--copy-glyph);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+figure.shiki button[aria-label="Copy Text"]:has(> svg[class*="lucide"]) {
+  --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25'/%3E%3Crect x='5.25' y='5.25' width='14' height='14' rx='2'/%3E%3C/svg%3E");
+}
+
+figure.shiki button[aria-label="Copied Text"]:has(> svg[class*="lucide"]) {
+  --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18.25 2.75L7.25 15.75L1.75 10.25'/%3E%3C/svg%3E");
+}
+
+/* Tabbed fences (`<Tabs>` around code) — collapse the strip and the figure into one box so
+   the group reads as a single control rather than a bar stacked on a card.
+
+   Every rule in this group carries the full `:has(> div > figure.shiki)` qualifier. Dropping
+   it on the panel rules would match prose `<Tabs>` too — nine pages use those — and strip the
+   padding they rely on. */
+/* The strip becomes the group's title row; it and a titled fence's caption row are the same
+   object, so they share the rule above rather than restating its body.
+
+   Its scrollbar is hidden, matching what the platform does for a scrolling tab strip
+   (`overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden` on emcn's `TabStrip`).
+   fumadocs makes the strip `overflow-x-auto`, and an endpoint with ten status codes overflows it
+   in the API reference's narrow rail — leaving a scrollbar across the bottom of a 34px header,
+   which reads as the header being clipped rather than as something scrollable. The code viewport
+   below keeps its scrollbar: there the overflow is content, and hiding it would hide that a line
+   continues. */
+div:has(> div > figure.shiki) > [role="tablist"] {
+  align-items: center;
+  gap: 0.25rem;
+  padding-inline: 0.375rem;
+  scrollbar-width: none;
+}
+
+div:has(> div > figure.shiki) > [role="tablist"]::-webkit-scrollbar {
+  display: none;
+}
+
+/* Triggers read as chips — a `--surface-active` pad on the selected tab, at `ChipTag`'s 6px
+   inline-tag corner — rather than fumadocs' underline, which drew a hard black rule the
+   platform uses nowhere. */
+div:has(> div > figure.shiki) > [role="tablist"] button {
+  height: 22px;
+  padding-inline: 0.5rem;
+  border: none;
+  border-radius: 0.375rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-weight: 470;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+
+/* Kept as its own rule rather than nested into the block above: biome's
+   `noDuplicateProperties` reads a nested `@variant` setting the same property as a duplicate
+   declaration and fails the build. */
+div:has(> div > figure.shiki) > [role="tablist"] button {
+  @variant hover-hover {
+    color: var(--text-body);
+  }
+}
+
+/* The API reference's request-sample tabs draw their active indicator as an absolutely
+   positioned hairline child rather than a border, so the chip pad below would sit under a
+   second, redundant underline. Matched structurally — it is the only element fumadocs renders
+   before the trigger's label — rather than by its utility classes, which are upstream's to
+   change. */
+div:has(> div > figure.shiki) > [role="tablist"] button > div:first-child {
+  display: none;
+}
+
+div:has(> div > figure.shiki) > [role="tablist"] button[data-state="active"] {
+  background-color: var(--surface-active);
+  color: var(--text-primary);
+}
+
+/* The panel is scaffolding, not chrome. fumadocs gives it `p-4`, its own `rounded-xl`, and a
+   `bg-fd-background` fill that would paint white inside the group's surface; strip all three
+   so the fence sits flush and the group reads as one box. */
+div:has(> [role="tablist"]):has(> div > figure.shiki) > [role="tabpanel"] {
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+/* A fence inside a panel is already inside the group's box — drop its own shell. Its
+   viewport padding supplies the inset the panel's `p-4` used to. */
+div:has(> [role="tablist"]):has(> div > figure.shiki) > [role="tabpanel"] > figure.shiki {
+  margin: 0;
+  border: none;
+  border-radius: 0;
 }
 
 /* Cards container — vertical list with line dividers instead of grid boxes */
@@ -1653,7 +1975,7 @@ figure.shiki > div:has(> button[aria-label]) {
 .grid > a[data-card] p,
 .grid > a[data-card] div {
   color: var(--text-muted) !important;
-  font-size: 0.8125rem !important;
+  font-size: var(--text-small) !important;
 }
 
 /* Steps — lighter styling aligned with platform */

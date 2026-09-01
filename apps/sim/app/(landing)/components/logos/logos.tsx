@@ -32,10 +32,9 @@ interface Logo {
 }
 
 /**
- * The canonical six customer wordmarks, in row-major reading order - the 3×2
- * hero grid places them as: Rivian|VW (top-left), Russell (top-center),
- * eXp Realty (top-right); Artie (bottom-left), thinkproject (bottom-center),
- * Mobile Health (bottom-right).
+ * The canonical five customer wordmarks, in reading order - the card grid places
+ * them 3-up (Rivian|VW, eXp Realty, Artie) with the remaining two
+ * (thinkproject, Mobile Health) centered beneath.
  */
 const LOGOS: readonly Logo[] = [
   {
@@ -43,12 +42,6 @@ const LOGOS: readonly Logo[] = [
     src: '/landing/logos/rivian-vw.svg',
     aspect: 10.72,
     height: 17,
-  },
-  {
-    name: 'Russell Investments',
-    src: '/landing/logos/russell-investments.svg',
-    aspect: 4.29,
-    height: 21,
   },
   { name: 'eXp Realty', src: '/landing/logos/exp-realty.svg', aspect: 1.84, height: 28 },
   { name: 'Artie', src: '/landing/logos/artie.svg', aspect: 3.65, height: 24 },
@@ -69,12 +62,16 @@ const LOGOS: readonly Logo[] = [
 interface LogosProps {
   /**
    * Layout intent.
-   * - `grid` - the hero's logo wall: each wordmark sits in its own bordered
+   * - `grid` - the logo wall: each wordmark sits in its own bordered
    *   `--surface-1` card (the platform card chrome - `rounded-lg`, `--border-1`,
-   *   `h-24`) on a `gap-3` 3-up grid. On desktop (`xl+`) the grid hugs its content
-   *   with fixed `w-[180px]` cards; below `xl` (where the hero/demo split collapses
-   *   to a stacked column) the grid stretches full-width and the cards flex to fill
-   *   it, dropping to 2-up on phones (`max-sm`) so the wall never wraps early.
+   *   `h-24`) wrapping 3-up on a `gap-3` row. Because the set is an odd five, the
+   *   wall is a centered flex wrap rather than a grid, so the trailing row of two
+   *   sits centered under the row of three instead of leaving a hole. On desktop
+   *   (`xl+`) the wall is pinned to `w-[564px]` - exactly three `w-[180px]` cards
+   *   plus their two 12px `gap-3` gutters - so it always breaks after the third
+   *   card; below `xl` (where the hero/demo split collapses to a stacked
+   *   column) it stretches full-width and the cards take an even share of the row,
+   *   dropping to 2-up on phones (`max-sm`) so the wall never wraps early.
    *   Wordmarks render at {@link GRID_ICON_SCALE} of their optical row size.
    * - `row` - the platform page's single centered row of bare wordmarks.
    */
@@ -83,11 +80,11 @@ interface LogosProps {
 
 /**
  * Renders the shared customer logos. In the `grid` layout each wordmark is boxed
- * in a bordered `--surface-1` card (the platform card chrome) on a 3-up grid and
- * renders at {@link GRID_ICON_SCALE} of its optical size; in the `row` layout the
- * bare wordmarks wrap at full optical size in a centered row. Either way a logo
- * scales down to fit when it would otherwise overflow (`max-w-full h-auto`), so
- * wide marks never break the box.
+ * in a bordered `--surface-1` card (the platform card chrome) on a centered 3-up
+ * wrap and renders at {@link GRID_ICON_SCALE} of its optical size; in the `row`
+ * layout the bare wordmarks wrap at full optical size in a centered row. Either
+ * way a logo scales down to fit when it would otherwise overflow
+ * (`max-w-full h-auto`), so wide marks never break the box.
  */
 export function Logos({ layout }: LogosProps) {
   const isGrid = layout === 'grid'
@@ -96,7 +93,7 @@ export function Logos({ layout }: LogosProps) {
       aria-label='Companies building AI agents with Sim'
       className={
         isGrid
-          ? 'grid w-fit grid-cols-3 gap-3 max-sm:grid-cols-2 max-xl:w-full'
+          ? 'flex w-[564px] flex-wrap justify-center gap-3 max-xl:w-full'
           : 'flex flex-wrap items-center justify-center gap-x-24 gap-y-12'
       }
     >
@@ -107,7 +104,7 @@ export function Logos({ layout }: LogosProps) {
             key={logo.name}
             className={
               isGrid
-                ? 'flex h-24 w-[180px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-3 max-xl:w-full'
+                ? 'flex h-24 w-[180px] items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-3 max-sm:w-[calc(50%-0.375rem)] max-xl:w-[calc(33.333%-0.5rem)]'
                 : undefined
             }
           >

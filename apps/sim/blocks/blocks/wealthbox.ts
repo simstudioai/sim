@@ -4,6 +4,8 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { WealthboxResponse } from '@/tools/wealthbox/types'
 
+const CONTACT_FIELD = ['contactId', 'manualContactId'] as const
+
 export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
   type: 'wealthbox',
   name: 'Wealthbox',
@@ -16,6 +18,28 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: WealthboxIcon,
+  canvasPresentation: {
+    defaultTitle: 'Wealthbox',
+    sentences: {
+      byOperation: {
+        read_note: [{ text: 'Read note', field: 'noteId', core: true }],
+        write_note: [
+          { text: 'Write note', field: 'content', core: true },
+          { text: 'on contact', field: CONTACT_FIELD },
+        ],
+        read_contact: [{ text: 'Read contact', field: CONTACT_FIELD, core: true }],
+        write_contact: [
+          { text: 'Create contact', field: 'firstName', core: true },
+          { text: ', with email', field: 'emailAddress' },
+        ],
+        read_task: [{ text: 'Read task', field: 'taskId', core: true }],
+        write_task: [
+          { text: 'Write task', field: 'title', core: true },
+          { text: 'for contact', field: CONTACT_FIELD },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

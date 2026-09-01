@@ -55,6 +55,7 @@ describe('forwardAgentStreamToExecutionEvents', () => {
       workflowId: 'wf-1',
       data: { blockId: 'agent-1', text: 'plan ' },
     })
+    expect(sendEvent.mock.calls[0][0].data).not.toHaveProperty('display')
     expect(sendEvent.mock.calls[1][0]).toMatchObject({
       type: 'stream:tool',
       data: { blockId: 'agent-1', phase: 'start', id: 't1', name: 'http_request' },
@@ -113,10 +114,76 @@ describe('forwardAgentStreamToExecutionEvents', () => {
 
     const calls = sendEvent.mock.calls.map(([event]) => ({ type: event.type, data: event.data }))
     expect(calls).toEqual([
-      { type: 'stream:chunk', data: { blockId: 'agent-1', chunk: 'Let me check…' } },
+      {
+        type: 'stream:chunk',
+        data: { blockId: 'agent-1', chunk: 'Let me check…' },
+      },
       { type: 'stream:chunk_reset', data: { blockId: 'agent-1' } },
       { type: 'stream:chunk', data: { blockId: 'agent-1', chunk: 'Answer' } },
     ])
+  })
+
+  it('attaches projected display text while retaining the raw stream payload', async () => {
+    let sinkHandler: ((event: AgentStreamEvent) => void | Promise<void>) | undefined
+    const sendEvent = vi.fn()
+    const projectDisplay = vi.fn(async (field: 'text' | 'chunk', value: string) => ({
+      [field]: value.replace('1234', '{{NUMBER_SECRET}}'),
+    }))
+
+    forwardAgentStreamToExecutionEvents(
+      makeStreamingExec((handler) => {
+        sinkHandler = handler
+      }),
+      {
+        blockId: 'agent-1',
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        sendEvent,
+        forwardAnswerText: true,
+        projectDisplay,
+      }
+    )
+
+    await sinkHandler!({ type: 'thinking_delta', text: 'inspect 1234' })
+    await sinkHandler!({ type: 'text_delta', text: 'answer 1234', turn: 'final' })
+
+    expect(sendEvent.mock.calls[0]?.[0].data).toEqual({
+      blockId: 'agent-1',
+      text: 'inspect 1234',
+      display: { text: 'inspect {{NUMBER_SECRET}}' },
+    })
+    expect(sendEvent.mock.calls[1]?.[0].data).toEqual({
+      blockId: 'agent-1',
+      chunk: 'answer 1234',
+      display: { chunk: 'answer {{NUMBER_SECRET}}' },
+    })
+  })
+
+  it('fails closed to empty display when stream projection fails', async () => {
+    let sinkHandler: ((event: AgentStreamEvent) => void | Promise<void>) | undefined
+    const sendEvent = vi.fn()
+
+    forwardAgentStreamToExecutionEvents(
+      makeStreamingExec((handler) => {
+        sinkHandler = handler
+      }),
+      {
+        blockId: 'agent-1',
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        sendEvent,
+        projectDisplay: vi.fn().mockRejectedValue(new Error('projection failed')),
+      }
+    )
+
+    await expect(
+      sinkHandler!({ type: 'thinking_delta', text: 'possibly sensitive' })
+    ).resolves.toBeUndefined()
+    expect(sendEvent.mock.calls[0]?.[0].data).toEqual({
+      blockId: 'agent-1',
+      text: 'possibly sensitive',
+      display: {},
+    })
   })
 
   it('skips chunk_reset when no text was forwarded for the turn', async () => {

@@ -13,8 +13,20 @@ export function isCustomBlockType(type: string | undefined | null): type is stri
   return typeof type === 'string' && type.startsWith(CUSTOM_BLOCK_TYPE_PREFIX)
 }
 
-/** Tile background for custom-block icons (the uploaded image renders on top). */
+/** Tile background behind a custom block's default glyph, when it has no image. */
 export const CUSTOM_BLOCK_TILE_COLOR = '#6F6F6F'
+
+/**
+ * Tile background for a custom block whose icon is an uploaded image — the same
+ * white plate every other light-tiled provider wears.
+ *
+ * Not `'transparent'`: the header chip sets its label beside the icon, so an
+ * unpainted chip leaves the label nothing to contrast and it renders white on white.
+ *
+ * A fixed, non-theme fill, so this is a trade: a dark logo now reads in both
+ * themes, and a light one in neither. There is no per-org override.
+ */
+export const CUSTOM_BLOCK_IMAGE_TILE_COLOR = '#FFFFFF'
 
 /** A curated output exposed on the block, mapped from a child block output. */
 export interface CustomBlockOutput {
@@ -45,6 +57,8 @@ export interface CustomBlockRow {
   name: string
   description: string
   workflowId: string
+  /** Source workflow's home workspace name, to disambiguate same-named env copies. */
+  workspaceName?: string | null
   /** Curated exposed outputs; empty/absent exposes the child's whole `result`. */
   exposedOutputs?: CustomBlockOutput[]
 }
@@ -63,13 +77,14 @@ export const RESERVED_PARAMS = new Set([
 ])
 
 /**
- * Output names the block projects itself (`success`/`error` from `buildOutputs`,
- * `cost` from the executor's billing aggregation). A user-named exposed output
- * must never shadow these — an output literally named `cost` would clobber the
- * billed cost. `result` is deliberately NOT reserved: it only exists as a system
+ * Output names the block projects itself: `success`/`error`/`errorType`/`errorRef`
+ * from `buildOutputs`, plus `cost` (kept reserved for forward compatibility now
+ * that the child bills its own run). A user-named exposed output must never
+ * shadow these. `result` is deliberately NOT reserved: it only exists as a system
  * field when no outputs are curated, which cannot co-occur with a named output.
+ * Compared lowercased, so every entry here must be lowercase.
  */
-export const RESERVED_OUTPUT_NAMES = new Set(['success', 'error', 'cost'])
+export const RESERVED_OUTPUT_NAMES = new Set(['success', 'error', 'cost', 'errortype', 'errorref'])
 
 /** Whether an exposed-output name collides with a system output field. */
 export function isReservedOutputName(name: string): boolean {
@@ -93,7 +108,13 @@ export function assembleCustomBlockInputMapping(params: Record<string, unknown>)
 }
 
 /** Map a Start input field type to the editor sub-block type used to collect it. */
-function subBlockTypeForField(fieldType: string): SubBlockType {
+/**
+ * The sub-block a Start input field becomes on the canvas. Exported so any surface that has to
+ * render or reason about a custom block's inputs derives the field's KIND from here instead of
+ * re-deriving it — the fork sync modal renders its own controls but must agree with this about
+ * what each field is.
+ */
+export function subBlockTypeForField(fieldType: string): SubBlockType {
   switch (fieldType) {
     case 'boolean':
       return 'switch'
@@ -153,6 +174,7 @@ export function buildCustomBlockConfig(
     name: row.name,
     description: row.description,
     sourceWorkflowId: row.workflowId,
+    ...(row.workspaceName ? { sourceWorkspaceName: row.workspaceName } : {}),
     category: 'tools',
     longDescription:
       'A published workflow packaged as a reusable, self-contained block. Fill its input ' +
@@ -208,13 +230,15 @@ function buildOutputs(exposed: CustomBlockOutput[] | undefined): BlockConfig['ou
   const outputs: BlockConfig['outputs'] = {
     success: { type: 'boolean', description: 'Execution success status' },
     error: { type: 'string', description: 'Error message' },
+    errorType: { type: 'string', description: 'Machine-readable failure class' },
+    errorRef: { type: 'string', description: 'Opaque reference to the failed run' },
   }
-  if (exposed && exposed.length > 0) {
-    for (const out of exposed) {
-      outputs[out.name] = { type: 'json', description: `Output: ${out.path}` }
-    }
-  } else {
-    outputs.result = { type: 'json', description: 'Workflow execution result' }
+  // No whole-`result` fallback: curation is required at publish, so every
+  // consumer-visible field is one the publisher chose. A legacy row with no
+  // curated outputs advertises no data fields and fails loudly at invocation
+  // rather than silently reverting to exposing the child's raw terminal state.
+  for (const out of exposed ?? []) {
+    outputs[out.name] = { type: 'json', description: `Output: ${out.path}` }
   }
   return outputs
 }

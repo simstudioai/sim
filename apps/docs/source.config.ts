@@ -1,22 +1,28 @@
 import { defineConfig, defineDocs, frontmatterSchema } from 'fumadocs-mdx/config'
-import { z } from 'zod'
+import { curlJsonBodyGrammar } from './lib/shiki-curl-json'
+import { simShikiOptions } from './lib/shiki-theme'
 
-/**
- * Diátaxis page type — an internal authoring taxonomy surfaced to readers as a
- * small badge near the page title. Optional so existing pages render unchanged
- * until backfilled. Only collections may be exported from this file, so the
- * shared type lives in `@/lib/source` (`DocsPageType`).
- */
 export const docs = defineDocs({
   dir: 'content/docs',
   docs: {
-    schema: frontmatterSchema.extend({
-      pageType: z.enum(['tutorial', 'guide', 'reference', 'concept']).optional(),
-    }),
+    schema: frontmatterSchema,
     postprocess: {
       includeProcessedMarkdown: true,
     },
   },
 })
 
-export default defineConfig()
+export default defineConfig({
+  mdxOptions: {
+    /**
+     * Shiki defaults to `github-light` / `github-dark`, whose blues and purples appear nowhere
+     * in the product. These themes carry the platform's own token colors instead — see
+     * `lib/shiki-theme.ts`.
+     */
+    rehypeCodeOptions: {
+      ...simShikiOptions,
+      /** Preloads the injection that colors a `curl -d '{…}'` body — see lib/shiki-curl-json.ts. */
+      langs: [curlJsonBodyGrammar],
+    },
+  },
+})

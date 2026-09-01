@@ -2,8 +2,8 @@
 
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, Tooltip } from '@sim/emcn'
-import { ArrowLeft } from 'lucide-react'
+import { Button, cn, OverflowText, Tooltip } from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { PreviewEditor } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor'
 import {
@@ -301,16 +301,17 @@ export function Preview({
                 className='flex h-[28px] items-center gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-[var(--text-secondary)] shadow-sm hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
               >
                 <ArrowLeft className='size-[12px]' />
-                <span className='font-medium text-caption'>Back</span>
+                <span className='text-caption'>Back</span>
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='bottom'>Go back to parent workflow</Tooltip.Content>
           </Tooltip.Root>
           {currentWorkflowName && (
             <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-sm'>
-              <span className='truncate font-medium text-[var(--text-secondary)] text-caption'>
-                {currentWorkflowName}
-              </span>
+              <OverflowText
+                label={currentWorkflowName}
+                className='text-[var(--text-secondary)] text-caption'
+              />
             </div>
           )}
         </div>

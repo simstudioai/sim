@@ -3,7 +3,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import type { ExecutionContext } from '@/lib/uploads/contexts/execution/utils'
-import { generateExecutionFileKey, generateFileId } from '@/lib/uploads/contexts/execution/utils'
+import {
+  generateFileId,
+  generateUniqueExecutionFileKey,
+} from '@/lib/uploads/contexts/execution/utils'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionFileStorage')
@@ -78,7 +81,7 @@ export async function uploadExecutionFile(
     bufferSize: fileBuffer.length,
   })
 
-  const storageKey = generateExecutionFileKey(context, fileName)
+  const storageKey = generateUniqueExecutionFileKey(context, fileName)
   const fileId = generateFileId()
 
   logger.info(`Generated storage key: "${storageKey}" for file: ${fileName}`)
@@ -137,9 +140,10 @@ export async function uploadExecutionFile(
  */
 export async function downloadExecutionFile(
   userFile: UserFile,
-  options: { maxBytes?: number } = {}
+  options: { maxBytes?: number; signal?: AbortSignal } = {}
 ): Promise<Buffer> {
   logger.info(`Downloading execution file: ${userFile.name}`)
+  options.signal?.throwIfAborted()
 
   try {
     const StorageService = await getStorageService()
@@ -147,13 +151,16 @@ export async function downloadExecutionFile(
       key: userFile.key,
       context: 'execution',
       ...(options.maxBytes === undefined ? {} : { maxBytes: options.maxBytes }),
+      ...(options.signal ? { signal: options.signal } : {}),
     })
+    options.signal?.throwIfAborted()
 
     logger.info(
       `Successfully downloaded execution file: ${userFile.name} (${fileBuffer.length} bytes)`
     )
     return fileBuffer
   } catch (error) {
+    options.signal?.throwIfAborted()
     if (isPayloadSizeLimitError(error)) {
       throw error
     }

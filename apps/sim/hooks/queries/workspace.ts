@@ -1,10 +1,18 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
+  createPinnedItemContract,
   createWorkspaceContract,
+  deletePinnedItemContract,
   deleteWorkspaceContract,
   getWorkspaceContract,
   getWorkspaceMembersContract,
@@ -98,6 +106,121 @@ export function useWorkspaceCreationPolicy(enabled = true) {
   })
 }
 
+export const EMPTY_PINNED_WORKSPACE_IDS: ReadonlySet<string> = new Set()
+
+const selectPinnedWorkspaceIds = (data: WorkspacesResponse): ReadonlySet<string> =>
+  data.pinnedWorkspaceIds.length ? new Set(data.pinnedWorkspaceIds) : EMPTY_PINNED_WORKSPACE_IDS
+
+/**
+ * The viewer's pinned workspace ids, as a `Set` so a row resolves its pin state in
+ * O(1) — mirroring {@link usePinnedIds} for the workspace-scoped kinds. Sourced
+ * from the workspace list rather than `/api/pinned-items`; see
+ * `pinnedResourceTypeSchema` for why that is the one kind read this way.
+ */
+export function usePinnedWorkspaceIds(enabled = true) {
+  return useQuery({
+    queryKey: workspaceKeys.list('active'),
+    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    select: selectPinnedWorkspaceIds,
+    enabled,
+    staleTime: WORKSPACE_LIST_STALE_TIME,
+  })
+}
+
+/**
+ * Identifies pin toggles in the mutation cache so `onSettled` can tell whether it is
+ * the last one. Doubles as the `scope` id, which is what serializes them.
+ */
+const WORKSPACE_PIN_MUTATION_KEY = ['workspace', 'toggle-pin'] as const
+
+/** Applies one toggle to a pin list. Idempotent, so replaying it cannot double-apply. */
+function applyPinToggle(pinnedWorkspaceIds: string[], workspaceId: string, pinned: boolean) {
+  const without = pinnedWorkspaceIds.filter((id) => id !== workspaceId)
+  return pinned ? [...without, workspaceId] : without
+}
+
+/**
+ * Pins or unpins a workspace in the switcher.
+ *
+ * A pin is one `pinned_item` row, so pinning inserts and unpinning deletes. Both
+ * are idempotent against their own end state — a duplicate pin answers 409 and a
+ * duplicate unpin answers 404, and each means the row is already how the caller
+ * wants it, so neither is a failure to roll back.
+ *
+ * Ordering still matters, because pinning and unpinning the *same* workspace race
+ * on the *same* row: an unpin that overtook its pin would delete nothing and leave
+ * the workspace pinned. `scope` serializes them, and because TanStack runs
+ * `onMutate` before the scope gate, the optimistic update is still immediate.
+ */
+export function useToggleWorkspacePin() {
+  const queryClient = useQueryClient()
+  const queryKey = workspaceKeys.list('active')
+
+  return useMutation({
+    mutationKey: WORKSPACE_PIN_MUTATION_KEY,
+    scope: { id: 'workspace-pin' },
+    mutationFn: async ({ workspaceId, pinned }: { workspaceId: string; pinned: boolean }) => {
+      try {
+        if (pinned) {
+          await requestJson(createPinnedItemContract, {
+            body: { workspaceId, resourceType: 'workspace', resourceId: workspaceId },
+          })
+        } else {
+          await requestJson(deletePinnedItemContract, {
+            params: { resourceType: 'workspace', resourceId: workspaceId },
+          })
+        }
+      } catch (error) {
+        const alreadyInEndState = pinned ? 409 : 404
+        if (error instanceof ApiClientError && error.status === alreadyInEndState) return
+        throw error
+      }
+    },
+    onMutate: async ({ workspaceId, pinned }) => {
+      await queryClient.cancelQueries({ queryKey })
+      queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) =>
+        old
+          ? {
+              ...old,
+              pinnedWorkspaceIds: applyPinToggle(old.pinnedWorkspaceIds, workspaceId, pinned),
+            }
+          : old
+      )
+    },
+    /**
+     * Undoes this toggle rather than restoring a snapshot: a snapshot taken before
+     * a concurrent toggle would silently drop that one's optimistic state too.
+     */
+    onError: (_error, { workspaceId, pinned }) => {
+      queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) =>
+        old
+          ? {
+              ...old,
+              pinnedWorkspaceIds: applyPinToggle(old.pinnedWorkspaceIds, workspaceId, !pinned),
+            }
+          : old
+      )
+    },
+    /**
+     * Reconciles only once nothing is still queued. `scope` serializes the writes,
+     * so an earlier toggle settles while a later one is still waiting its turn —
+     * refetching there would render the server's intermediate state and bounce the
+     * row out of the pinned group and back before the last write even leaves.
+     *
+     * Counted off the mutation cache rather than a ref because this module is
+     * server-importable (`workspaceKeys` is read during SSR), so it cannot use hooks.
+     */
+    onSettled: () => {
+      /**
+       * `onSettled` runs before the mutation leaves `pending`, so it counts itself —
+       * anything above one means a later toggle is still queued behind the scope.
+       */
+      if (queryClient.isMutating({ mutationKey: WORKSPACE_PIN_MUTATION_KEY }) > 1) return
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+    },
+  })
+}
+
 type CreateWorkspaceParams = Pick<ContractBodyInput<typeof createWorkspaceContract>, 'name'>
 
 /**
@@ -116,7 +239,12 @@ export function useCreateWorkspace() {
     onSuccess: (newWorkspace) => {
       queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
         if (!previous) {
-          return { workspaces: [newWorkspace], lastActiveWorkspaceId: null, creationPolicy: null }
+          return {
+            workspaces: [newWorkspace],
+            lastActiveWorkspaceId: null,
+            pinnedWorkspaceIds: [],
+            creationPolicy: null,
+          }
         }
         if (previous.workspaces.some((w) => w.id === newWorkspace.id)) {
           return previous
@@ -208,7 +336,6 @@ export function useWorkspacePermissionsQuery(workspaceId: string | null | undefi
     queryFn: ({ signal }) => fetchWorkspacePermissions(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
     staleTime: WORKSPACE_PERMISSIONS_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -256,48 +383,30 @@ async function fetchWorkspaceSettings(workspaceId: string, signal?: AbortSignal)
  */
 export function prefetchWorkspaceSettings(queryClient: QueryClient, workspaceId: string) {
   if (!workspaceId) return
-  queryClient.prefetchQuery({
+  queryClient.prefetchQuery(workspaceSettingsQueryOptions(workspaceId))
+}
+
+export function workspaceSettingsQueryOptions(workspaceId: string) {
+  return queryOptions({
     queryKey: workspaceKeys.settings(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceSettings(workspaceId, signal),
     staleTime: WORKSPACE_SETTINGS_STALE_TIME,
+    placeholderData: keepPreviousData,
   })
+}
+
+interface UseWorkspaceSettingsOptions {
+  enabled?: boolean
 }
 
 /**
  * Fetches workspace settings including permissions.
  * @param workspaceId - The workspace ID to fetch settings for
  */
-export function useWorkspaceSettings(workspaceId: string) {
+export function useWorkspaceSettings(workspaceId: string, options?: UseWorkspaceSettingsOptions) {
   return useQuery({
-    queryKey: workspaceKeys.settings(workspaceId),
-    queryFn: ({ signal }) => fetchWorkspaceSettings(workspaceId, signal),
-    enabled: !!workspaceId,
-    staleTime: WORKSPACE_SETTINGS_STALE_TIME,
-    placeholderData: keepPreviousData,
-  })
-}
-
-type UpdateWorkspaceSettingsParams = { workspaceId: string } & Pick<
-  ContractBodyInput<typeof updateWorkspaceContract>,
-  'billedAccountUserId'
->
-
-/**
- * Updates workspace settings (e.g., billing configuration).
- * Invalidates the workspace settings cache on success.
- */
-export function useUpdateWorkspaceSettings() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ workspaceId, ...updates }: UpdateWorkspaceSettingsParams) => {
-      return requestJson(updateWorkspaceContract, { params: { id: workspaceId }, body: updates })
-    },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workspaceKeys.settings(variables.workspaceId),
-      })
-    },
+    ...workspaceSettingsQueryOptions(workspaceId),
+    enabled: !!workspaceId && (options?.enabled ?? true),
   })
 }
 

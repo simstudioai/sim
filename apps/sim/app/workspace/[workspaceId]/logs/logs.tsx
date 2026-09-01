@@ -1,6 +1,8 @@
 'use client'
 
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useEffectEvent,
@@ -16,6 +18,7 @@ import {
   type ComboboxOption,
   cn,
   Library,
+  OverflowText,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -23,6 +26,7 @@ import {
   toast,
 } from '@sim/emcn'
 import { Download, Workflow } from '@sim/emcn/icons'
+import { getErrorMessage } from '@sim/utils/errors'
 import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -33,6 +37,7 @@ import type {
   WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { formatDateShort } from '@/lib/core/utils/date-display'
 import {
   getEndDateFromTimeRange,
   getStartDateFromTimeRange,
@@ -47,6 +52,7 @@ import {
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import type {
   FilterTag,
   ResourceAction,
@@ -55,7 +61,16 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource, type ResourceTableHandle } from '@/app/workspace/[workspaceId]/components'
+import {
+  isResourceListEmpty,
+  Resource,
+  type ResourceTableHandle,
+} from '@/app/workspace/[workspaceId]/components'
+import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import {
+  SnapshotBoundary,
+  SnapshotModalFallback,
+} from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/snapshot-boundary'
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import {
@@ -67,12 +82,11 @@ import {
   logSortParams,
 } from '@/app/workspace/[workspaceId]/logs/search-params'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import {
-  fetchLogDetail,
-  logKeys,
   prefetchLogDetail,
   useCancelExecution,
   useDashboardStats,
@@ -86,19 +100,32 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
+import { Dashboard, LogDetails, LogRowContextMenu } from './components'
 import {
-  DELETED_WORKFLOW_LABEL,
-  extractRetryInput,
   formatDate,
-  formatDateShort,
   getDisplayStatus,
   type LogStatus,
   parseDuration,
+  resolveLogWorkflowId,
   STATUS_CONFIG,
   StatusBadge,
   TriggerBadge,
+  workflowEditorPath,
 } from './utils'
+
+/**
+ * Lazy per the code-splitting rule in `sim-imports.md`: the snapshot renders the workflow
+ * preview canvas, whose graph is ~7.6 MB of source (the editor's sub-block components and
+ * the generated tool metadata). Both render sites are gated on client-only state (a preview
+ * selection / an opened detail), so the chunk is fetched on first use, never during SSR or
+ * hydration. The now-dead barrel re-export is deleted — with no `sideEffects: false`, a
+ * leftover re-export would silently defeat this split.
+ */
+const ExecutionSnapshot = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/execution-snapshot'
+  ).then((m) => ({ default: m.ExecutionSnapshot }))
+)
 
 const LOGS_PER_PAGE = 50 as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
@@ -234,6 +261,7 @@ export default function Logs() {
 
   const viewMode = useFilterStore((s) => s.viewMode)
   const setViewMode = useFilterStore((s) => s.setViewMode)
+  const isDashboardView = viewMode === 'dashboard'
 
   const [{ selectedLogId, isSidebarOpen }, dispatch] = useReducer(logSelectionReducer, {
     selectedLogId: null,
@@ -271,7 +299,7 @@ export default function Logs() {
   const isSidebarOpenRef = useRef(false)
   const shouldScrollIntoViewRef = useRef(false)
   const resourceTableRef = useRef<ResourceTableHandle>(null)
-  const logsRefetchRef = useRef<() => void>(() => {})
+  const activeViewRefetchRef = useRef<() => void>(() => {})
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const activeLogTabRef = useRef<string>('overview')
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
@@ -310,6 +338,7 @@ export default function Logs() {
   )
 
   const selectedDetailQuery = useLogDetail(selectedLogId ?? undefined, workspaceId, {
+    enabled: isSidebarOpen,
     refetchInterval,
   })
 
@@ -346,6 +375,7 @@ export default function Logs() {
   )
 
   const logsQuery = useLogsList(workspaceId, logFilters, {
+    enabled: !isDashboardView || isSidebarOpen,
     refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
 
@@ -364,6 +394,7 @@ export default function Logs() {
   )
 
   const dashboardStatsQuery = useDashboardStats(workspaceId, dashboardFilters, {
+    enabled: isDashboardView,
     refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
 
@@ -388,7 +419,14 @@ export default function Logs() {
   selectedLogIndexRef.current = selectedLogIndex
   selectedLogIdRef.current = selectedLogId
   isSidebarOpenRef.current = isSidebarOpen
-  logsRefetchRef.current = logsQuery.refetch
+  activeViewRefetchRef.current = () => {
+    if (isDashboardView) {
+      void dashboardStatsQuery.refetch()
+    }
+    if (!isDashboardView || isSidebarOpen) {
+      void logsQuery.refetch()
+    }
+  }
   activeLogRefetchRef.current = selectedDetailQuery.refetch
   logsQueryRef.current = {
     isFetching: logsQuery.isFetching,
@@ -527,9 +565,9 @@ export default function Logs() {
   }, [contextMenuLog, workspaceId])
 
   const handleOpenWorkflow = useCallback(() => {
-    const wfId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
+    const wfId = contextMenuLog ? resolveLogWorkflowId(contextMenuLog) : null
     if (wfId) {
-      window.open(`/workspace/${workspaceId}/w/${wfId}`, '_blank')
+      window.open(workflowEditorPath(workspaceId, wfId), '_blank')
     }
   }, [contextMenuLog, workspaceId])
 
@@ -561,29 +599,28 @@ export default function Logs() {
   const cancelExecution = useCancelExecution(workspaceId)
   const retryExecution = useRetryExecution()
 
-  const handleCancelExecution = useCallback(() => {
+  const handleCancelExecution = useCallback(async () => {
     const workflowId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
     const executionId = contextMenuLog?.executionId
-    if (workflowId && executionId) {
-      cancelExecution.mutate({ workflowId, executionId })
+    if (!userPermissions.canEdit || !workflowId || !executionId) return
+
+    try {
+      await cancelExecution.mutateAsync({ workflowId, executionId })
+      toast.success('Run stopped')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to stop run'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextMenuLog])
+  }, [contextMenuLog, userPermissions.canEdit])
 
   const retryLog = useCallback(
     async (log: WorkflowLogRow | null) => {
       const workflowId = log?.workflow?.id || log?.workflowId
-      const logId = log?.id
-      if (!workflowId || !logId) return
+      const executionId = log?.executionId
+      if (!workflowId || !executionId) return
 
       try {
-        const detailLog = await queryClient.fetchQuery({
-          queryKey: logKeys.detail(workspaceId, logId),
-          queryFn: ({ signal }) => fetchLogDetail(logId, workspaceId, signal),
-          staleTime: 30 * 1000,
-        })
-        const input = extractRetryInput(detailLog)
-        await retryExecution.mutateAsync({ workflowId, input })
+        await retryExecution.mutateAsync({ workflowId, executionId })
         toast.success('Retry started')
       } catch {
         toast.error('Failed to retry execution')
@@ -636,22 +673,25 @@ export default function Logs() {
 
   const handleRefresh = useCallback(() => {
     triggerVisualRefresh()
-    logsRefetchRef.current()
-    if (selectedLogIdRef.current) {
+    activeViewRefetchRef.current()
+    if (selectedLogIdRef.current && isSidebarOpenRef.current) {
       activeLogRefetchRef.current()
     }
   }, [triggerVisualRefresh])
 
-  const prevIsFetchingRef = useRef(logsQuery.isFetching)
+  const activeViewIsFetching = isDashboardView
+    ? dashboardStatsQuery.isFetching || (isSidebarOpen && logsQuery.isFetching)
+    : logsQuery.isFetching
+  const prevIsFetchingRef = useRef(activeViewIsFetching)
   useEffect(() => {
     const wasFetching = prevIsFetchingRef.current
-    const isFetching = logsQuery.isFetching
+    const isFetching = activeViewIsFetching
     prevIsFetchingRef.current = isFetching
 
     if (isLive && !wasFetching && isFetching) {
       triggerVisualRefresh()
     }
-  }, [logsQuery.isFetching, isLive, triggerVisualRefresh])
+  }, [activeViewIsFetching, isLive, triggerVisualRefresh])
 
   const handleExport = useCallback(async () => {
     setIsExporting(true)
@@ -697,6 +737,13 @@ export default function Logs() {
     startDate,
     endDate,
     debouncedSearchQuery,
+  ])
+
+  useRegisterGlobalCommands(() => [
+    { id: 'logs-refresh', handler: () => handleRefresh() },
+    { id: 'logs-export', handler: () => void handleExport() },
+    { id: 'logs-show-dashboard', handler: () => setViewMode('dashboard') },
+    { id: 'logs-show-logs', handler: () => setViewMode('logs') },
   ])
 
   const loadMoreLogs = useCallback(() => {
@@ -764,8 +811,6 @@ export default function Logs() {
   function handleClosePreview() {
     setPreviewLogId(null)
   }
-
-  const isDashboardView = viewMode === 'dashboard'
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -893,6 +938,16 @@ export default function Logs() {
     setTimeRange,
   ])
 
+  /** Logs has no folder navigation, so the graphic means "nothing has ever run here". */
+  const showEmptyState = isResourceListEmpty({
+    rowCount: rows.length,
+    isLoading: logsQuery.isLoading,
+    isPlaceholderData: logsQuery.isPlaceholderData,
+    error: logsQuery.error,
+    search: debouncedSearchQuery,
+    filterCount: filterTags.length,
+  })
+
   const workflowsData = useMemo<WorkflowData[]>(
     () =>
       Object.values(allWorkflows).map((w) => ({
@@ -996,7 +1051,7 @@ export default function Logs() {
             )}
             {sections.map((section) => (
               <div key={section.title}>
-                <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
+                <div className='px-3 py-1.5 text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                   {section.title}
                 </div>
                 {section.suggestions.map((suggestion) => {
@@ -1020,7 +1075,7 @@ export default function Logs() {
         ) : (
           <div className='py-1'>
             {suggestionType === 'filters' && (
-              <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
+              <div className='px-3 py-1.5 text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                 SUGGESTED FILTERS
               </div>
             )}
@@ -1113,6 +1168,9 @@ export default function Logs() {
   )
 
   const refreshIcon = isVisuallyRefreshing ? SpinningRefreshCw : RefreshCw
+  const hasExportableLogs = isDashboardView
+    ? !dashboardStatsQuery.isPlaceholderData && (dashboardStatsQuery.data?.totalRuns ?? 0) > 0
+    : !logsQuery.isPlaceholderData && logs.length > 0
 
   const headerActions = useMemo<ResourceAction[]>(
     () => [
@@ -1120,7 +1178,7 @@ export default function Logs() {
         text: 'Export',
         icon: Download,
         onSelect: handleExport,
-        disabled: !userPermissions.canEdit || isExporting || logs.length === 0,
+        disabled: !userPermissions.canEdit || isExporting || !hasExportableLogs,
       },
       {
         text: 'Refresh',
@@ -1148,7 +1206,7 @@ export default function Logs() {
       handleExport,
       userPermissions.canEdit,
       isExporting,
-      logs.length,
+      hasExportableLogs,
     ]
   )
 
@@ -1170,8 +1228,8 @@ export default function Logs() {
           filterTags={filterTags}
         />
         {isDashboardView ? (
-          <div className='relative flex min-h-0 flex-1 flex-col overflow-auto'>
-            <div className='flex min-h-0 flex-1 flex-col px-6'>
+          <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-6'>
               <Dashboard
                 stats={dashboardStatsQuery.data}
                 isLoading={dashboardStatsQuery.isLoading}
@@ -1187,6 +1245,7 @@ export default function Logs() {
             virtualized
             columns={LOG_COLUMNS}
             rows={rows}
+            emptyState={showEmptyState ? <LogsEmptyState /> : undefined}
             selectedRowId={selectedLogId}
             onRowClick={handleLogClick}
             onRowHover={handleLogHover}
@@ -1210,6 +1269,9 @@ export default function Logs() {
         onOpenPreview={handleOpenPreview}
         onCancelExecution={handleCancelExecution}
         onRetryExecution={handleRetryExecution}
+        canCancelExecution={userPermissions.canEdit}
+        isCancelPending={cancelExecution.isPending}
+        cancelPendingExecutionId={cancelExecution.variables?.executionId}
         isRetryPending={retryExecution.isPending}
         onToggleWorkflowFilter={handleToggleWorkflowFilter}
         onClearAllFilters={handleClearAllFilters}
@@ -1218,13 +1280,21 @@ export default function Logs() {
       />
 
       {previewLogId !== null && previewDetailQuery.data?.executionId && (
-        <ExecutionSnapshot
-          executionId={previewDetailQuery.data.executionId}
-          traceSpans={previewDetailQuery.data.executionData?.traceSpans}
-          isModal
-          isOpen={previewLogId !== null}
-          onClose={handleClosePreview}
-        />
+        <SnapshotBoundary
+          key={previewDetailQuery.data.executionId}
+          isOpen
+          onLoadError={handleClosePreview}
+        >
+          <Suspense fallback={<SnapshotModalFallback isOpen onClose={handleClosePreview} />}>
+            <ExecutionSnapshot
+              executionId={previewDetailQuery.data.executionId}
+              traceSpans={previewDetailQuery.data.executionData?.traceSpans}
+              isModal
+              isOpen={previewLogId !== null}
+              onClose={handleClosePreview}
+            />
+          </Suspense>
+        </SnapshotBoundary>
       )}
     </>
   )
@@ -1394,15 +1464,16 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={selectedStatuses}
           onMultiSelectChange={handleStatusChange}
           placeholder='All statuses'
+          overlayLabel={statusDisplayLabel}
           overlayContent={
-            <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
+            <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedStatusColor && (
                 <div
                   className='flex-shrink-0 rounded-[3px]'
                   style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
                 />
               )}
-              <span className='truncate'>{statusDisplayLabel}</span>
+              <span className='min-w-0 flex-1'>{statusDisplayLabel}</span>
             </span>
           }
           showAllOption
@@ -1419,12 +1490,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={workflowIds}
           onMultiSelectChange={setWorkflowIds}
           placeholder='All workflows'
+          overlayLabel={workflowDisplayLabel}
           overlayContent={
-            <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
+            <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedWorkflow && (
                 <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
               )}
-              <span className='truncate'>{workflowDisplayLabel}</span>
+              <span className='min-w-0 flex-1'>{workflowDisplayLabel}</span>
             </span>
           }
           searchable
@@ -1443,9 +1515,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={folderIds}
           onMultiSelectChange={setFolderIds}
           placeholder='All folders'
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
-          }
+          overlayLabel={folderDisplayLabel}
+          overlayContent={folderDisplayLabel}
           searchable
           searchPlaceholder='Search folders...'
           showAllOption
@@ -1462,9 +1533,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={triggers}
           onMultiSelectChange={setTriggers}
           placeholder='All triggers'
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
-          }
+          overlayLabel={triggerDisplayLabel}
+          overlayContent={triggerDisplayLabel}
           searchable
           searchPlaceholder='Search triggers...'
           showAllOption
@@ -1481,9 +1551,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             value={timeRange}
             onChange={handleTimeRangeChange}
             placeholder='All time'
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
-            }
+            overlayLabel={timeDisplayLabel}
+            overlayContent={timeDisplayLabel}
             className='w-full'
             maxHeight={320}
           />
@@ -1558,7 +1627,7 @@ function SuggestionButton({
       }}
     >
       <div className='flex w-full items-center justify-between gap-3'>
-        <div className='min-w-0 flex-1 truncate text-small'>{suggestion.label}</div>
+        <OverflowText label={suggestion.label} className='flex-1 text-small' />
         {showCategory && suggestion.value !== suggestion.label && (
           <div className='shrink-0 font-mono text-[var(--text-muted)] text-xs'>
             {suggestion.category === 'workflow' || suggestion.category === 'folder'

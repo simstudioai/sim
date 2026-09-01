@@ -13,8 +13,12 @@
  * owns the Pi block.
  */
 
-/** Exact first-party Pi versions mirrored from bun.lock — image builds run npm independently. */
-export const PI_NPM = [
+/** Bun version mirrored from the root packageManager field. */
+export const PI_BUN_VERSION = '1.3.14'
+
+/** Exact global package versions mirrored from package.json and bun.lock. */
+export const PI_GLOBAL_NPM_PACKAGES = [
+  `bun@${PI_BUN_VERSION}`,
   '@earendil-works/pi-coding-agent@0.80.10',
   '@earendil-works/pi-agent-core@0.80.10',
   '@earendil-works/pi-ai@0.80.10',
@@ -51,12 +55,8 @@ export const PI_NODE_MAJOR = 22
 export const PI_NODE_VERSION_ASSERT =
   'node -e "const [major, minor] = process.versions.node.split(\'.\').map(Number); if (major < 22 || (major === 22 && minor < 19)) process.exit(1)"'
 
-/**
- * The review tools run `python3 /workspace/sim-review-tools.py`
- * (`cloud-review-tools.ts:15`). E2B's `code-interpreter-v1` base ships Python, so
- * only the Daytona image has to provide it explicitly.
- */
-export const PI_REQUIRES_PYTHON3 = true
+/** Fails the build loudly if the sandbox does not contain the repository's Bun version. */
+export const PI_BUN_VERSION_ASSERT = `test "$(bun --version)" = "${PI_BUN_VERSION}"`
 
 /**
  * vCPU and RAM for the Pi sandbox, shared for the same reason the package lists

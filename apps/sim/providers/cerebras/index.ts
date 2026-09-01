@@ -9,11 +9,13 @@ import type { CerebrasResponse } from '@/providers/cerebras/types'
 import { createReadableStreamFromCerebrasStream } from '@/providers/cerebras/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -23,12 +25,12 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
   trackForcedToolUsage,
 } from '@/providers/utils'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('CerebrasProvider')
 
@@ -53,6 +55,7 @@ export const cerebrasProvider: ProviderConfig = {
     try {
       const client = new Cerebras({
         apiKey: request.apiKey,
+        ...openAICompatTransport(),
       })
 
       const allMessages = []
@@ -197,7 +200,8 @@ export const cerebrasProvider: ProviderConfig = {
       const toolCallSignatures = new Set()
       try {
         while (iterationCount < MAX_TOOL_ITERATIONS) {
-          const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+          const toolCallsInResponse =
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
@@ -254,17 +258,27 @@ export const cerebrasProvider: ProviderConfig = {
                 }
               }
 
-              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams, {
-                signal: request.abortSignal,
-              })
+              const { toolParams, executionParams } = prepareToolExecution(
+                tool,
+                toolArgs,
+                request,
+                toolCall.id
+              )
+              const { rawResponse, modelResponse } = await executeProviderTool(
+                toolName,
+                executionParams,
+                {
+                  signal: request.abortSignal,
+                }
+              )
               const toolCallEndTime = Date.now()
 
               return {
                 toolCall,
                 toolName,
                 toolParams,
-                result,
+                result: rawResponse,
+                modelResult: modelResponse,
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
                 duration: toolCallEndTime - toolCallStartTime,
@@ -310,6 +324,8 @@ export const cerebrasProvider: ProviderConfig = {
           for (const executionResult of executionResults) {
             const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
               executionResult
+            const modelResult =
+              'modelResult' in executionResult ? (executionResult.modelResult ?? result) : result
             timeSegments.push({
               type: 'tool',
               name: toolName,
@@ -331,6 +347,13 @@ export const cerebrasProvider: ProviderConfig = {
                 tool: toolName,
               }
             }
+            const modelResultContent = modelResult.success
+              ? (modelResult.output ?? null)
+              : {
+                  error: true,
+                  message: modelResult.error || 'Tool execution failed',
+                  tool: toolName,
+                }
 
             toolCalls.push({
               name: toolName,
@@ -344,7 +367,7 @@ export const cerebrasProvider: ProviderConfig = {
             currentMessages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: JSON.stringify(resultContent),
+              content: JSON.stringify(modelResultContent),
             })
           }
 
@@ -353,7 +376,7 @@ export const cerebrasProvider: ProviderConfig = {
           let usedForcedTools: string[] = []
           if (typeof originalToolChoice === 'object' && forcedTools.length > 0) {
             const toolTracking = trackForcedToolUsage(
-              currentResponse.choices[0]?.message?.tool_calls,
+              currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
               originalToolChoice,
               logger,
               'openai',
@@ -408,7 +431,7 @@ export const cerebrasProvider: ProviderConfig = {
             enrichLastModelSegmentFromChatCompletions(
               timeSegments,
               currentResponse,
-              currentResponse.choices[0]?.message?.tool_calls,
+              currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
               { model: request.model, provider: 'cerebras' }
             )
 
@@ -450,7 +473,8 @@ export const cerebrasProvider: ProviderConfig = {
           }
         }
 
-        const cappedToolCalls = currentResponse.choices[0]?.message?.tool_calls
+        const cappedToolCalls =
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
         if (iterationCount === MAX_TOOL_ITERATIONS && cappedToolCalls?.length) {
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
@@ -492,7 +516,7 @@ export const cerebrasProvider: ProviderConfig = {
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             currentResponse,
-            currentResponse.choices[0]?.message?.tool_calls,
+            currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
             { model: request.model, provider: 'cerebras' }
           )
           iterationCount++

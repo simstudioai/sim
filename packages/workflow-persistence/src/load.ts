@@ -1,13 +1,80 @@
 import { db, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
-import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
+import type { BlockRetryConfig, BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
+import {
+  normalizeBlockRetryTries,
+  normalizeBlockRetryWaitMs,
+  normalizeWorkflowEdgeSourceHandle,
+  normalizeWorkflowEdgeTargetHandle,
+  SUBFLOW_TYPES,
+} from '@sim/workflow-types/workflow'
 import { and, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { clampParallelBatchSize } from './subflow-helpers'
 import type { DbOrTx, NormalizedWorkflowData } from './types'
 
 const logger = createLogger('WorkflowPersistenceLoad')
+
+/**
+ * Rebuilds a stored retry policy as a real {@link BlockRetryConfig} instead of
+ * asserting that the raw `jsonb` blob already is one.
+ *
+ * The column is written verbatim by writers that never validate its contents —
+ * the realtime batch-add and replace-state ops take untyped block records, and
+ * the admin/superuser import routes persist externally-authored workflow JSON —
+ * so a row can hold an out-of-range number, a missing field, or a non-boolean
+ * flag. Pinning the values here is the policy the feature declares (see
+ * `resolveBlockRetryConfig`) and applies it to every reader at once: the editor
+ * renders exactly the numbers execution will use, and the strict HTTP contract
+ * that serves this state can never reject a workflow it is meant to open.
+ *
+ * `enabled` is carried across rather than resolved, so the numbers a builder
+ * configured survive switching retry off and back on. That is why
+ * `resolveBlockRetryConfig` — which collapses a disabled policy to `null` —
+ * must not be used on this path.
+ */
+/**
+ * Stored subflow config coerced to the string the loaded shape declares.
+ *
+ * `config` is schemaless JSONB and the writers are looser than the readers:
+ * `?? ''` only replaces `null`/`undefined`, so an object or number written into
+ * `whileCondition` or `doWhileCondition` survived to a consumer whose schema
+ * asserts `z.string()`. On the v2 read that is a `500` on a workflow that opens
+ * fine in the editor. Non-strings are preserved as JSON rather than dropped, so
+ * nothing a caller wrote is lost.
+ *
+ * `forEachItems` and `distribution` deliberately do NOT go through this: both
+ * are declared `unknown[] | Record<string, unknown> | string` in
+ * `@sim/workflow-types` and published as that union by the v2 read schema, so a
+ * stored array is correct data rather than a shape to coerce.
+ */
+function storedConfigString(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return ''
+  try {
+    return JSON.stringify(value) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/** Stored subflow `nodes` filtered to the block-id strings the shape declares. */
+function storedConfigNodes(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((node): node is string => typeof node === 'string')
+    : []
+}
+
+function normalizeStoredBlockRetry(stored: unknown): BlockRetryConfig | undefined {
+  if (stored == null || typeof stored !== 'object') return undefined
+  const retry = stored as Record<string, unknown>
+
+  return {
+    enabled: Boolean(retry.enabled),
+    maxTries: normalizeBlockRetryTries(retry.maxTries),
+    waitBetweenTriesMs: normalizeBlockRetryWaitMs(retry.waitBetweenTriesMs),
+  }
+}
 
 export interface RawNormalizedWorkflow extends NormalizedWorkflowData {
   workspaceId: string
@@ -58,11 +125,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
         .limit(1),
     ])
 
-    if (blocks.length === 0) {
-      return null
-    }
-
-    if (!workflowRow?.workspaceId) {
+    if (!workflowRow) return null
+    if (!workflowRow.workspaceId) {
       throw new Error(`Workflow ${workflowId} has no workspace`)
     }
 
@@ -82,6 +146,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
         enabled: block.enabled,
         horizontalHandles: block.horizontalHandles,
         advancedMode: block.advancedMode,
+        errorEnabled: block.errorEnabled,
+        retry: normalizeStoredBlockRetry(block.retry),
         triggerMode: block.triggerMode,
         height: Number(block.height),
         subBlocks: (block.subBlocks as BlockState['subBlocks']) || {},
@@ -98,8 +164,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       id: edge.id,
       source: edge.sourceBlockId,
       target: edge.targetBlockId,
-      sourceHandle: edge.sourceHandle ?? undefined,
-      targetHandle: edge.targetHandle ?? undefined,
+      sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) ?? undefined,
+      targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle) ?? undefined,
       type: 'default',
       data: {},
     }))
@@ -121,13 +187,13 @@ export async function loadWorkflowFromNormalizedTablesRaw(
 
         const loop: Loop = {
           id: subflow.id,
-          nodes: Array.isArray((config as Loop).nodes) ? (config as Loop).nodes : [],
+          nodes: storedConfigNodes((config as Loop).nodes),
           iterations:
             typeof (config as Loop).iterations === 'number' ? (config as Loop).iterations : 1,
           loopType,
           forEachItems: (config as Loop).forEachItems ?? '',
-          whileCondition: (config as Loop).whileCondition ?? '',
-          doWhileCondition: (config as Loop).doWhileCondition ?? '',
+          whileCondition: storedConfigString((config as Loop).whileCondition),
+          doWhileCondition: storedConfigString((config as Loop).doWhileCondition),
           enabled: blocksMap[subflow.id]?.enabled ?? true,
         }
         loops[subflow.id] = loop
@@ -147,7 +213,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
         const parallel: Parallel = {
           id: subflow.id,
-          nodes: Array.isArray((config as Parallel).nodes) ? (config as Parallel).nodes : [],
+          nodes: storedConfigNodes((config as Parallel).nodes),
           count: typeof (config as Parallel).count === 'number' ? (config as Parallel).count : 5,
           distribution: (config as Parallel).distribution ?? '',
           parallelType:

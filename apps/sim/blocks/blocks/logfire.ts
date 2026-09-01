@@ -72,6 +72,8 @@ Return ONLY the SQL query. Do not include any explanations, markdown formatting,
 ### REMEMBER
 Return ONLY the SQL query - no explanations, no markdown, no extra text.`
 
+const SEARCH_FILTER_FIELD = ['query', 'service', 'spanName'] as const
+
 export const LogfireBlock: BlockConfig<LogfireResponse> = {
   type: 'logfire',
   name: 'Logfire',
@@ -82,9 +84,31 @@ export const LogfireBlock: BlockConfig<LogfireResponse> = {
   category: 'tools',
   authMode: AuthMode.ApiKey,
   integrationType: IntegrationType.Observability,
-  bgColor: '#E520E9',
-  iconColor: '#E520E9',
+  bgColor: '#000000',
+  iconColor: '#E620E9',
   icon: LogfireIcon,
+  canvasPresentation: {
+    defaultTitle: 'Logfire',
+    sentences: {
+      byOperation: {
+        logfire_search_records: [
+          { text: 'Search records for', field: SEARCH_FILTER_FIELD, core: true },
+          { text: ', at level', field: 'minLevel', after: 'or above' },
+          { text: ', in', field: 'environment' },
+        ],
+        logfire_query: [
+          { text: 'Run SQL query', field: 'sql', core: true },
+          { text: ', in', field: 'environment' },
+          { text: ', up to', field: 'limit', after: 'rows' },
+        ],
+        logfire_get_trace: [
+          { text: 'Fetch every span in trace', field: 'traceId', core: true },
+          { text: ', up to', field: 'limit', after: 'spans' },
+        ],
+        logfire_get_token_info: ['Read the organization and project the token targets'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -113,6 +137,7 @@ export const LogfireBlock: BlockConfig<LogfireResponse> = {
       placeholder: 'https://logfire-us.pydantic.dev',
       description:
         'Base URL of your Logfire instance. Leave blank for Logfire Cloud — the region is read from your token. Set this for a self-hosted deployment.',
+      mode: 'advanced',
     },
     {
       id: 'region',
@@ -291,7 +316,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
           host: params.host,
         }
 
-        const window = {
+        const timeWindow = {
           minTimestamp: params.minTimestamp,
           maxTimestamp: params.maxTimestamp,
           limit: toNumber(params.limit),
@@ -301,7 +326,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
           case 'logfire_query':
             return {
               ...baseParams,
-              ...window,
+              ...timeWindow,
               sql: params.sql,
               timezone: params.timezone,
               environment: params.environment,
@@ -310,7 +335,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
           case 'logfire_get_trace':
             return {
               ...baseParams,
-              ...window,
+              ...timeWindow,
               traceId: params.traceId,
             }
 
@@ -320,7 +345,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
           default:
             return {
               ...baseParams,
-              ...window,
+              ...timeWindow,
               query: params.query,
               service: params.service,
               spanName: params.spanName,
@@ -355,12 +380,50 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
       type: 'json',
       description:
         'Result rows. Raw SQL returns the query projection; Search Records and Get Trace return records (startTimestamp, endTimestamp, duration, level, message, spanName, kind, serviceName, deploymentEnvironment, traceId, spanId, parentSpanId, isException, exceptionType, exceptionMessage).',
+      condition: {
+        field: 'operation',
+        value: ['logfire_query', 'logfire_search_records', 'logfire_get_trace'],
+      },
     },
-    rowCount: { type: 'number', description: 'Number of rows returned' },
-    columns: { type: 'json', description: 'Column metadata (name, datatype, nullable)' },
-    sql: { type: 'string', description: 'SQL query that was executed against Logfire' },
-    organizationName: { type: 'string', description: 'Organization the read token belongs to' },
-    projectName: { type: 'string', description: 'Project the read token belongs to' },
+    rowCount: {
+      type: 'number',
+      description: 'Number of rows returned',
+      condition: {
+        field: 'operation',
+        value: ['logfire_query', 'logfire_search_records', 'logfire_get_trace'],
+      },
+    },
+    columns: {
+      type: 'json',
+      description: 'Column metadata (name, datatype, nullable)',
+      condition: { field: 'operation', value: 'logfire_query' },
+    },
+    sql: {
+      type: 'string',
+      description: 'SQL query that was executed against Logfire',
+      condition: { field: 'operation', value: ['logfire_search_records', 'logfire_get_trace'] },
+    },
+    organizationName: {
+      type: 'string',
+      description: 'Organization the read token belongs to',
+      condition: { field: 'operation', value: 'logfire_get_token_info' },
+    },
+    projectName: {
+      type: 'string',
+      description: 'Project the read token belongs to',
+      condition: { field: 'operation', value: 'logfire_get_token_info' },
+    },
+    expiresAt: {
+      type: 'string',
+      description: 'When the read token expires. Null when it never expires.',
+      condition: { field: 'operation', value: 'logfire_get_token_info' },
+    },
+    spendingCapReachedAt: {
+      type: 'string',
+      description:
+        "When the organization's spending cap was reached, which stops queries. Null when it has not been reached.",
+      condition: { field: 'operation', value: 'logfire_get_token_info' },
+    },
   },
 }
 
@@ -466,6 +529,18 @@ export const LogfireBlockMeta = {
       description: 'Walk a single Logfire trace end to end and explain what happened.',
       content:
         '# Reconstruct Logfire Trace\n\nTurn a trace ID into a readable story of one request.\n\n## Steps\n1. Run Get Trace with the trace ID. Spans come back earliest first.\n2. Build the tree using spanId and parentSpanId to see which operations nested inside which.\n3. Note each span duration to find where time was spent, and flag any span where isException is true.\n4. If the trace is truncated, raise the limit and refetch.\n\n## Output\nAn ordered walkthrough of the request: the entry point, each significant nested operation with its duration, and where it failed or ended. Call out the single slowest span and the first exception.',
+    },
+    {
+      name: 'track-logfire-llm-cost',
+      description: 'Aggregate LLM token usage and spend per model from Logfire GenAI spans.',
+      content:
+        "# Track Logfire LLM Cost\n\nAttribute AI spend to models and services.\n\n## Steps\n1. Run a SQL Query against the records table reading the GenAI attributes Logfire records under OpenTelemetry conventions, for example: SELECT date_trunc('day', start_timestamp) AS day, attributes->>'gen_ai.request.model' AS model, sum((attributes->'gen_ai.usage.input_tokens')::numeric) AS input_tokens, sum((attributes->'gen_ai.usage.output_tokens')::numeric) AS output_tokens FROM records WHERE attributes ? 'gen_ai.request.model' GROUP BY day, model ORDER BY day DESC.\n2. Add sum((attributes->'operation.cost')::numeric) AS cost_usd when the instrumentation records cost.\n3. Slice by service_name or deployment_environment to attribute spend to a team or environment.\n4. Cast JSON attributes to numeric before any arithmetic — they are stored as JSON, not numbers.\n\n## Output\nSpend and token totals broken down by model and day, the biggest contributor, and any model whose cost per call moved materially.",
+    },
+    {
+      name: 'verify-logfire-token-target',
+      description: 'Confirm which Logfire organization and project a read token points at.',
+      content:
+        '# Verify Logfire Token Target\n\nCheck a credential before trusting the data it returns.\n\n## Steps\n1. Run Get Token Info to resolve the organization and project the read token belongs to.\n2. Compare them against the project the user expected to query.\n3. If they differ, stop and report the mismatch rather than querying — the token points at another project.\n4. When they match, proceed with Search Records or a SQL Query.\n\n## Output\nThe organization and project names behind the token, and a clear statement of whether they match the expected target.',
     },
   ],
 } as const satisfies BlockMeta

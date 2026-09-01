@@ -19,10 +19,10 @@ import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
  * {@link NavbarShell} (which frosts the bar to glass on scroll) are isolated
  * client leaves, so the wordmark and links stay zero-hydration, crawlable HTML.
  *
- * Every item is a bare emcn chip. Both clusters use `gap-1`, which with
- * the chips' own `mx-0.5` margins yields 8px between pills; the nav's
- * `gap-3.5` (14px) plus the first chip's 2px margin puts exactly 16px -
- * twice the inter-chip gap - between the wordmark and the first menu chip.
+ * Every item is a bare emcn chip. Chips carry no margin of their own, so both
+ * clusters' `gap-1` is the full 4px between pills, and the nav's own `gap-4`
+ * is the full 16px between the wordmark and the first menu chip - twice the
+ * inter-chip gap. Only that first gap is live: the trailing cluster is `ml-auto`.
  * Horizontal padding (`px-20`, 48px) matches every section's edge gutter,
  * and the bar content is capped and centered at the shared
  * `max-w-[1460px]` (1300px content + the two 80px gutters) so the wordmark
@@ -59,7 +59,7 @@ export function Navbar({ stars, logoOnly = false }: NavbarProps) {
         aria-label='Primary navigation'
         itemScope
         itemType='https://schema.org/SiteNavigationElement'
-        className='relative mx-auto flex w-full max-w-[1460px] items-center gap-3.5 px-20 py-4 max-sm:px-5 max-lg:px-8'
+        className='relative mx-auto flex w-full max-w-[1460px] items-center gap-4 px-20 py-4 max-sm:px-5 max-lg:px-8'
       >
         <Link href='/' aria-label='Sim home' itemProp='url' className='flex h-[30px] items-center'>
           <span itemProp='name' className='sr-only'>

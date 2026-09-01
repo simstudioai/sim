@@ -4,38 +4,39 @@ import { usageLog, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, lte, notInArray, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  resolveSubscriptionUsagePeriod,
+  type UsagePeriodSource,
+} from '@/lib/billing/core/reporting-period'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
+import { HttpError } from '@/lib/core/utils/http-error'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
 
 /**
- * Usage log category types
+ * Usage log category types.
+ *
+ * `model_unbilled` is reporting-only — see {@link UNBILLED_USAGE_CATEGORIES}. Code
+ * that means "a charge" must not treat it as one.
  */
-export type UsageLogCategory = 'model' | 'fixed' | 'tool'
+export type UsageLogCategory = 'model' | 'fixed' | 'tool' | 'model_unbilled'
 
 /**
  * Usage log source types
  */
-export type UsageLogSource =
-  | 'workflow'
-  | 'wand'
-  | 'copilot'
-  | 'workspace-chat'
-  | 'mcp_copilot'
-  | 'mothership_block'
-  | 'knowledge-base'
-  | 'voice-input'
-  | 'enrichment'
+export type UsageLogSource = InternalUsageLogSource
 
 /**
- * usage_log sources that make up the "copilot" cost breakdown shown in billing
- * summaries: the copilot agent, mothership/workspace chat, MCP copilot, and
- * mothership blocks. Mirrors the source set billed via /api/billing/update-cost.
+ * Internal usage_log sources that make up the Sim Chat-family cost breakdown
+ * used by legacy billing summaries. Mirrors the source set billed via
+ * /api/billing/update-cost.
  */
 export const COPILOT_USAGE_SOURCES: UsageLogSource[] = [
   'copilot',
@@ -43,6 +44,26 @@ export const COPILOT_USAGE_SOURCES: UsageLogSource[] = [
   'mcp_copilot',
   'mothership_block',
 ]
+
+/**
+ * Categories that record usage Sim does not charge for. Their `cost` is always `0`
+ * and their value is the token counts in `metadata`, so usage reporting can show
+ * volume that the billing ledger has no reason to know about.
+ *
+ * These are the only categories exempt from {@link recordUsage}'s `cost > 0` filter.
+ * Every billing aggregate over usage_log is `SUM(cost)`, so zero-cost rows leave
+ * every existing total unchanged.
+ */
+export const UNBILLED_USAGE_CATEGORIES = [
+  'model_unbilled',
+] as const satisfies readonly UsageLogCategory[]
+
+const UNBILLED_USAGE_CATEGORY_SET: ReadonlySet<string> = new Set(UNBILLED_USAGE_CATEGORIES)
+
+/** True for a category whose rows are recorded for reporting rather than billing. */
+export function isUnbilledUsageCategory(category: UsageLogCategory): boolean {
+  return UNBILLED_USAGE_CATEGORY_SET.has(category)
+}
 
 /**
  * Metadata for 'model' category charges
@@ -132,7 +153,13 @@ type ResolvedSubscription = Awaited<ReturnType<typeof getHighestPrioritySubscrip
 
 export interface BillingContext {
   billingEntity: BillingEntity
-  billingPeriod: { start: Date; end: Date }
+  billingPeriod: UsageQueryPeriod
+}
+
+export interface UsageQueryPeriod {
+  start: Date
+  end: Date
+  source?: UsagePeriodSource
 }
 
 /**
@@ -150,10 +177,10 @@ export function deriveBillingContext(
       ? { type: 'organization', id: subscription.referenceId }
       : { type: 'user', id: userId }
 
-  const billingPeriod =
-    subscription?.periodStart && subscription.periodEnd
-      ? { start: subscription.periodStart, end: subscription.periodEnd }
-      : defaultBillingPeriod()
+  const billingPeriod = resolveSubscriptionUsagePeriod(subscription) ?? {
+    ...defaultBillingPeriod(),
+    source: 'default' as const,
+  }
 
   return { billingEntity, billingPeriod }
 }
@@ -176,20 +203,24 @@ async function resolveBillingContext(
 }
 
 /**
- * Returns post-cutover usage for an attributed billing entity/period.
- * Legacy pre-cutover usage remains in userStats as a baseline until reset.
+ * Returns attributed ledger usage for a billing entity/period. The ledger is
+ * the sole source of truth for usage — there is no userStats baseline.
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
-  billingPeriod: { start: Date; end: Date },
+  billingPeriod: UsageQueryPeriod,
   source?: UsageLogSource | UsageLogSource[],
   executor: DbClient = db
 ): Promise<number> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
     eq(usageLog.billingEntityId, billingEntity.id),
-    eq(usageLog.billingPeriodStart, billingPeriod.start),
-    eq(usageLog.billingPeriodEnd, billingPeriod.end),
+    ...(billingPeriod.source === 'reporting'
+      ? [gte(usageLog.createdAt, billingPeriod.start), lt(usageLog.createdAt, billingPeriod.end)]
+      : [
+          eq(usageLog.billingPeriodStart, billingPeriod.start),
+          eq(usageLog.billingPeriodEnd, billingPeriod.end),
+        ]),
   ]
   if (source) {
     conditions.push(
@@ -208,6 +239,56 @@ export async function getBillingPeriodUsageCost(
 }
 
 /**
+ * Counts distinct workflow executions that produced billable ledger entries in
+ * an attributed billing period. Multiple line items for one execution count as
+ * one run; executions with no billable usage are intentionally excluded.
+ *
+ * The category filter is what keeps that last clause true now that unbilled rows
+ * exist. A BYOK-only run whose base charge is zero writes nothing but a
+ * `model_unbilled` row, and without this it would newly appear in a count that
+ * feeds the enterprise billing preview — a customer-facing number moving because
+ * of a reporting-only row.
+ */
+export async function getBillingPeriodWorkflowRunCount(
+  billingEntity: BillingEntity,
+  billingPeriod: UsageQueryPeriod,
+  executor: DbClient = db
+): Promise<number> {
+  const [row] = await executor
+    .select({
+      /**
+       * The exclusion goes through `notInArray`, not `<> ALL(${array})`. Interpolating
+       * a JavaScript array into a `sql` template emits parenthesized scalar binds —
+       * `ALL(($1))` — which Postgres rejects outright with "op ANY/ALL (array)
+       * requires array on right side". Unit tests cannot catch it, because `@sim/db`
+       * is mocked and no statement is ever rendered.
+       */
+      workflowRuns:
+        sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow' AND ${notInArray(usageLog.category, [...UNBILLED_USAGE_CATEGORIES])})`.mapWith(
+          Number
+        ),
+    })
+    .from(usageLog)
+    .where(
+      and(
+        eq(usageLog.billingEntityType, billingEntity.type),
+        eq(usageLog.billingEntityId, billingEntity.id),
+        ...(billingPeriod.source === 'reporting'
+          ? [
+              gte(usageLog.createdAt, billingPeriod.start),
+              lt(usageLog.createdAt, billingPeriod.end),
+            ]
+          : [
+              eq(usageLog.billingPeriodStart, billingPeriod.start),
+              eq(usageLog.billingPeriodEnd, billingPeriod.end),
+            ])
+      )
+    )
+
+  return row?.workflowRuns ?? 0
+}
+
+/**
  * Period total plus the portion attributable to `source`, in a single scan.
  *
  * Two separate aggregates over the identical row set double the work and, because
@@ -216,7 +297,7 @@ export async function getBillingPeriodUsageCost(
  */
 export async function getBillingPeriodUsageCostWithSourceSubset(
   billingEntity: BillingEntity,
-  billingPeriod: { start: Date; end: Date },
+  billingPeriod: UsageQueryPeriod,
   source: UsageLogSource[],
   executor: DbClient = db
 ): Promise<{ total: number; subset: number }> {
@@ -230,8 +311,15 @@ export async function getBillingPeriodUsageCostWithSourceSubset(
       and(
         eq(usageLog.billingEntityType, billingEntity.type),
         eq(usageLog.billingEntityId, billingEntity.id),
-        eq(usageLog.billingPeriodStart, billingPeriod.start),
-        eq(usageLog.billingPeriodEnd, billingPeriod.end)
+        ...(billingPeriod.source === 'reporting'
+          ? [
+              gte(usageLog.createdAt, billingPeriod.start),
+              lt(usageLog.createdAt, billingPeriod.end),
+            ]
+          : [
+              eq(usageLog.billingPeriodStart, billingPeriod.start),
+              eq(usageLog.billingPeriodEnd, billingPeriod.end),
+            ])
       )
     )
 
@@ -243,15 +331,66 @@ export async function getBillingPeriodUsageCostWithSourceSubset(
 
 export async function getBillingPeriodUsageCostByUser(
   billingEntity: BillingEntity,
-  billingPeriod: { start: Date; end: Date },
+  billingPeriod: UsageQueryPeriod,
+  source?: UsageLogSource | UsageLogSource[],
+  executor: DbClient = db,
+  userIds?: readonly string[]
+): Promise<Map<string, number>> {
+  if (userIds?.length === 0) return new Map()
+  if (userIds && userIds.length > 1_000) {
+    throw new Error('Billing usage user filter cannot exceed 1,000 users')
+  }
+  const conditions = [
+    eq(usageLog.billingEntityType, billingEntity.type),
+    eq(usageLog.billingEntityId, billingEntity.id),
+    ...(billingPeriod.source === 'reporting'
+      ? [gte(usageLog.createdAt, billingPeriod.start), lt(usageLog.createdAt, billingPeriod.end)]
+      : [
+          eq(usageLog.billingPeriodStart, billingPeriod.start),
+          eq(usageLog.billingPeriodEnd, billingPeriod.end),
+        ]),
+  ]
+  if (source) {
+    conditions.push(
+      Array.isArray(source) ? inArray(usageLog.source, source) : eq(usageLog.source, source)
+    )
+  }
+  if (userIds) conditions.push(inArray(usageLog.userId, [...userIds]))
+
+  const rows = await executor
+    .select({
+      userId: usageLog.userId,
+      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+    })
+    .from(usageLog)
+    .where(and(...conditions))
+    .groupBy(usageLog.userId)
+
+  return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
+}
+
+/**
+ * Per-user ledger cost for every stamped billing period fully contained in
+ * `[from, to]`. Rows are matched on their write-time period stamps
+ * (`billing_period_start >= from AND billing_period_end <= to`), not on
+ * `created_at`, so a row written moments after rollover but stamped with the
+ * prior period is still attributed to that prior period.
+ *
+ * Used by the cycle-close sweep, whose window is normally exactly one period
+ * (`from` = the closed period's start, `to` = its end == the current period's
+ * start); a wider window absorbs multi-period catch-up after missed sweeps.
+ */
+export async function getStampedPeriodRangeUsageCostByUser(
+  billingEntity: BillingEntity,
+  range: { from: Date; to: Date },
   source?: UsageLogSource | UsageLogSource[],
   executor: DbClient = db
 ): Promise<Map<string, number>> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
     eq(usageLog.billingEntityId, billingEntity.id),
-    eq(usageLog.billingPeriodStart, billingPeriod.start),
-    eq(usageLog.billingPeriodEnd, billingPeriod.end),
+    gte(usageLog.billingPeriodStart, range.from),
+    lte(usageLog.billingPeriodEnd, range.to),
   ]
   if (source) {
     conditions.push(
@@ -294,7 +433,12 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
     tx,
   } = params
 
-  const validEntries = entries.filter((e) => e.cost > 0)
+  // An unbilled row is admitted only at exactly zero cost. The category's whole
+  // safety argument is that every billing aggregate is `SUM(cost)` and these rows
+  // contribute nothing; a nonzero one would quietly move real money.
+  const validEntries = entries.filter((e) =>
+    isUnbilledUsageCategory(e.category) ? e.cost === 0 : e.cost > 0
+  )
 
   if (validEntries.length === 0) {
     return
@@ -615,18 +759,78 @@ export async function recordCumulativeUsage(
 }
 
 interface UsageLogFilter {
-  source?: UsageLogSource
+  source?: UsageLogSource | UsageLogSource[]
   workspaceId?: string
   startDate?: Date
+  /**
+   * Inclusive by default, which is what the personal credit-usage surfaces have
+   * always meant by it.
+   */
   endDate?: Date
+  /**
+   * Treat {@link endDate} as exclusive instead.
+   *
+   * Analytics windows are half-open `[start, end)` — a billing period's end
+   * instant is the next period's start — so a row stamped exactly on the
+   * boundary belongs to the next window. Without this the event list and the
+   * export counted it while the summary and breakdowns did not, and the two
+   * disagreed by one row at exactly the moment a period rolls over.
+   */
+  endDateExclusive?: boolean
+  /**
+   * Match the stamped billing period instead of a `created_at` range.
+   *
+   * A stripe or default period is what rows are *stamped* with, and that is the
+   * predicate every analytics read uses for it. Filtering the same window on
+   * `created_at` selects a different set — a row created inside the period but
+   * stamped to another, or the reverse — so the event list and the CSV covered
+   * different rows than the totals above them. Mutually exclusive with
+   * {@link startDate}/{@link endDate}; a reporting period and a plain range still
+   * use those, exactly as `buildUsageAnalyticsScope` does.
+   */
+  billingPeriod?: { start: Date; end: Date }
 }
 
-function buildUsageLogConditions(userId: string, filter: UsageLogFilter) {
-  const conditions = [eq(usageLog.userId, userId)]
-  if (filter.source) conditions.push(eq(usageLog.source, filter.source))
+type UsageLogScope =
+  | { kind: 'user'; userId: string }
+  | { kind: 'workspace'; workspaceId: string }
+  /** Every event billed to a payer, regardless of which actor or workspace produced it. */
+  | { kind: 'billingEntity'; entity: BillingEntity }
+
+function scopeCondition(scope: UsageLogScope) {
+  if (scope.kind === 'user') return eq(usageLog.userId, scope.userId)
+  if (scope.kind === 'workspace') return eq(usageLog.workspaceId, scope.workspaceId)
+  return and(
+    eq(usageLog.billingEntityType, scope.entity.type),
+    eq(usageLog.billingEntityId, scope.entity.id)
+  )
+}
+
+function buildUsageLogConditions(scope: UsageLogScope, filter: UsageLogFilter) {
+  const conditions = [scopeCondition(scope)]
+  if (filter.source) {
+    conditions.push(
+      Array.isArray(filter.source)
+        ? inArray(usageLog.source, filter.source)
+        : eq(usageLog.source, filter.source)
+    )
+  }
   if (filter.workspaceId) conditions.push(eq(usageLog.workspaceId, filter.workspaceId))
+  if (filter.billingPeriod) {
+    conditions.push(
+      eq(usageLog.billingPeriodStart, filter.billingPeriod.start),
+      eq(usageLog.billingPeriodEnd, filter.billingPeriod.end)
+    )
+    return conditions
+  }
   if (filter.startDate) conditions.push(gte(usageLog.createdAt, filter.startDate))
-  if (filter.endDate) conditions.push(lte(usageLog.createdAt, filter.endDate))
+  if (filter.endDate) {
+    conditions.push(
+      filter.endDateExclusive
+        ? lt(usageLog.createdAt, filter.endDate)
+        : lte(usageLog.createdAt, filter.endDate)
+    )
+  }
   return conditions
 }
 
@@ -645,7 +849,7 @@ export async function getUsageCreditsByLogId(
   const rows = await dbReplica
     .select({ id: usageLog.id, cost: usageLog.cost })
     .from(usageLog)
-    .where(and(...buildUsageLogConditions(userId, filter)))
+    .where(and(...buildUsageLogConditions({ kind: 'user', userId }, filter)))
     .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
 
   return apportionCredits(
@@ -654,17 +858,73 @@ export async function getUsageCreditsByLogId(
 }
 
 /**
+ * Caller-facing message for a `cursor` that names no usage event.
+ *
+ * This ledger's cursor is a raw `usage_log.id` resolved by lookup rather than an
+ * opaque keyset cursor, so a value that resolves to no row carries no position at
+ * all. Applying no cursor condition in that case — the previous behaviour — restarts
+ * the sequence at page 1 while still reporting `hasMore`, so a pager that persisted a
+ * cursor across a deploy, or across environments, walks the first page forever and
+ * counts the same credits on every lap. Rejecting it makes the failure visible on the
+ * request that caused it.
+ *
+ * The wording deliberately does not reuse `INVALID_CURSOR_MESSAGE`: that message names
+ * `sortBy`/`sortOrder`, and this collection accepts neither param, so it would send the
+ * caller to look for a knob that does not exist. The actionable half — restart without
+ * a cursor — is the same.
+ */
+export const UNKNOWN_CURSOR_MESSAGE =
+  'cursor does not identify a usage event. Restart pagination without a cursor; a cursor is only valid against the ledger it was issued from.'
+
+/**
+ * The rejection for an unresolvable `cursor`, classified for both kinds of caller
+ * this shared ledger has.
+ *
+ * The v2 route reads the classification off the `cause` chain
+ * (`asOrchestrationError` walks it) and renders the v2 `BAD_REQUEST` envelope. The
+ * session-only internal route (`GET /api/users/me/usage-logs`) is a raw
+ * `withRouteHandler` with no error policy, and its `readTypedError` matches
+ * `instanceof HttpError` only — so an `OrchestrationError` alone would have made a
+ * hand-typed `?cursor=` a 500 there. Being both at once is what keeps every surface
+ * on 400 without either one having to learn about the other.
+ *
+ * `message` is the caller-facing constant above, so forwarding it verbatim (which is
+ * what `withRouteHandler` does for an `HttpError`) exposes nothing internal.
+ */
+export class UnknownUsageCursorError extends HttpError {
+  readonly statusCode = 400
+
+  constructor() {
+    super(UNKNOWN_CURSOR_MESSAGE, {
+      cause: new OrchestrationError('validation', UNKNOWN_CURSOR_MESSAGE),
+    })
+    this.name = 'UnknownUsageCursorError'
+  }
+}
+
+/**
  * Options for querying usage logs
  */
 export interface GetUsageLogsOptions {
   /** Filter by source */
-  source?: UsageLogSource
+  source?: UsageLogSource | UsageLogSource[]
   /** Filter by workspace */
   workspaceId?: string
   /** Start date (inclusive) */
   startDate?: Date
-  /** End date (inclusive) */
+  /** End date (inclusive, unless {@link endDateExclusive}) */
   endDate?: Date
+  /**
+   * Treat {@link endDate} as exclusive, matching a half-open analytics window.
+   * See {@link UsageLogFilter.endDateExclusive}.
+   */
+  endDateExclusive?: boolean
+  /**
+   * Match the stamped billing period instead of a `created_at` range, so a
+   * ledger listing covers the same rows an analytics read of the same window
+   * does. See {@link UsageLogFilter.billingPeriod}.
+   */
+  billingPeriod?: { start: Date; end: Date }
   /** Maximum number of results */
   limit?: number
   /** Cursor for pagination (log ID) */
@@ -711,7 +971,7 @@ export interface UsageLogsResult {
   /** `{ totalCost: 0, bySource: {} }` when `includeSummary` is `false`. */
   summary: {
     totalCost: number
-    bySource: Record<string, number>
+    bySource: Partial<Record<UsageLogSource, number>>
   }
   pagination: {
     nextCursor?: string
@@ -720,10 +980,10 @@ export interface UsageLogsResult {
 }
 
 /**
- * Get usage logs for a user with optional filtering and pagination
+ * Gets one bounded usage-log page for an explicit actor or workspace scope.
  */
-export async function getUserUsageLogs(
-  userId: string,
+async function getUsageLogs(
+  scope: UsageLogScope,
   options: GetUsageLogsOptions = {}
 ): Promise<UsageLogsResult> {
   const {
@@ -731,6 +991,8 @@ export async function getUserUsageLogs(
     workspaceId,
     startDate,
     endDate,
+    endDateExclusive,
+    billingPeriod,
     limit = 50,
     cursor,
     cursorCreatedAt,
@@ -738,15 +1000,24 @@ export async function getUserUsageLogs(
   } = options
 
   try {
-    const conditions = buildUsageLogConditions(userId, { source, workspaceId, startDate, endDate })
+    const conditions = buildUsageLogConditions(scope, {
+      source,
+      workspaceId,
+      startDate,
+      endDate,
+      endDateExclusive,
+      billingPeriod,
+    })
 
     if (cursor) {
       let resolvedCursorCreatedAt = cursorCreatedAt
 
       if (!resolvedCursorCreatedAt) {
-        // Cursor resolution stays on the primary: the page itself reads a
-        // load-balanced replica, and a laggier sibling replica missing the
-        // cursor row would silently restart pagination from page 1.
+        /**
+         * Cursor resolution stays on the primary: the page itself reads a
+         * load-balanced replica, and a laggier sibling replica missing the
+         * cursor row would reject a cursor that is in fact resumable.
+         */
         const cursorLog = await db
           .select({ createdAt: usageLog.createdAt })
           .from(usageLog)
@@ -755,13 +1026,13 @@ export async function getUserUsageLogs(
         resolvedCursorCreatedAt = cursorLog[0]?.createdAt
       }
 
-      if (resolvedCursorCreatedAt) {
-        const cursorCondition = or(
-          lt(usageLog.createdAt, resolvedCursorCreatedAt),
-          and(eq(usageLog.createdAt, resolvedCursorCreatedAt), lt(usageLog.id, cursor))
-        )
-        if (cursorCondition) conditions.push(cursorCondition)
-      }
+      if (!resolvedCursorCreatedAt) throw new UnknownUsageCursorError()
+
+      const cursorCondition = or(
+        lt(usageLog.createdAt, resolvedCursorCreatedAt),
+        and(eq(usageLog.createdAt, resolvedCursorCreatedAt), lt(usageLog.id, cursor))
+      )
+      if (cursorCondition) conditions.push(cursorCondition)
     }
 
     const logs = await dbReplica
@@ -805,11 +1076,13 @@ export async function getUserUsageLogs(
     let totalCost = 0
 
     if (includeSummary) {
-      const summaryConditions = buildUsageLogConditions(userId, {
+      const summaryConditions = buildUsageLogConditions(scope, {
         source,
         workspaceId,
         startDate,
         endDate,
+        endDateExclusive,
+        billingPeriod,
       })
 
       const summaryResult = await dbReplica
@@ -841,11 +1114,50 @@ export async function getUserUsageLogs(
       },
     }
   } catch (error) {
+    /**
+     * A classified failure is caller-fixable and already carries the message the
+     * surface will render, so it is reported as a warning rather than joining the
+     * genuine faults this logger's error volume is watched for.
+     */
+    if (asOrchestrationError(error)) {
+      logger.warn('Rejected a usage-log query', { error: toError(error).message, scope })
+      throw error
+    }
     logger.error('Failed to get usage logs', {
       error: toError(error).message,
-      userId,
+      scope,
       options,
     })
     throw error
   }
+}
+
+/** Gets usage logs whose actor is the selected user. */
+export function getUserUsageLogs(
+  userId: string,
+  options: GetUsageLogsOptions = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'user', userId }, options)
+}
+
+/**
+ * Gets every usage event billed to a payer, regardless of actor or workspace.
+ *
+ * This is the organization-wide ledger the usage panel pages through. It reuses this
+ * module's keyset pagination, cursor handling, and workflow-name join rather than
+ * reimplementing them — the only thing it adds is the scope predicate.
+ */
+export function getBillingEntityUsageLogs(
+  entity: BillingEntity,
+  options: GetUsageLogsOptions = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'billingEntity', entity }, options)
+}
+
+/** Gets usage logs attributed to the selected workspace, regardless of actor. */
+export function getWorkspaceUsageLogs(
+  workspaceId: string,
+  options: Omit<GetUsageLogsOptions, 'workspaceId'> = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'workspace', workspaceId }, options)
 }

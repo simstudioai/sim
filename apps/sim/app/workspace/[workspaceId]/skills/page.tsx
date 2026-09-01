@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
+import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
 import { Skills } from '@/app/workspace/[workspaceId]/skills/skills'
 
 export const metadata: Metadata = {

@@ -3,9 +3,15 @@ import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
+import { createRotatingEventSource } from '@/lib/events/rotating-event-source'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
 const logger = createLogger('MothershipChatEvents')
+
+/** Workspaces this process has subscribed to before, so a re-subscribe can be told from a first one. */
+const everSubscribed = new Set<string>()
 
 const CHAT_STATUS_TYPES = ['started', 'completed', 'created', 'deleted', 'renamed'] as const
 type ChatStatusEventType = (typeof CHAT_STATUS_TYPES)[number]
@@ -106,6 +112,10 @@ export function handleMothershipChatStatusEvent(
   queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
   if (!payload.chatId) return
   if (payload.type === 'deleted') {
+    // A task may be deleted from another window, browser, or device. Stop its
+    // local native resources here too; relying only on this renderer's delete
+    // mutation would leave pages and PTYs running indefinitely.
+    void suspendDesktopChatScopes(payload.chatId)
     queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
     return
   }
@@ -123,33 +133,66 @@ export function handleMothershipChatStatusEvent(
 }
 
 /**
+ * Re-syncs the workspace chat lists after a gap in the event stream.
+ *
+ * `task_status` events are transient — nothing replays what was published while
+ * no connection was open — so a reconnect may have missed a create, rename, or
+ * delete. The lists carry that workspace-level state, and refetching them is
+ * always safe.
+ *
+ * Chat details are deliberately left alone. The only one that would refetch is
+ * the mounted chat, which may be rendering an in-flight stream, and refetching
+ * there replaces the optimistic transcript with a server copy that does not yet
+ * hold the streaming message. Cached state cannot reliably say whether a turn is
+ * still running — the optimistic markers outlive it — so detail reconciliation
+ * stays as it is today and belongs with the streaming state that can answer it.
+ */
+export function resyncMothershipChatCaches(
+  queryClient: Pick<QueryClient, 'invalidateQueries'>,
+  workspaceId: string
+): void {
+  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
+}
+
+/**
  * Subscribes to chat status SSE events and invalidates chat caches on changes.
  * The SSE event name remains `task_status` for wire compatibility.
+ *
+ * No-ops when Chat is disabled — this is mounted from the persistent sidebar, so
+ * without the guard every session would hold an open connection to an endpoint
+ * that cannot serve it.
  */
 export function useMothershipChatEvents(workspaceId: string | undefined) {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    if (!workspaceId) return
+    if (!workspaceId || !isChatEnabled) return
 
-    const eventSource = new EventSource(
-      `/api/mothership/events?workspaceId=${encodeURIComponent(workspaceId)}`
-    )
-
-    eventSource.addEventListener('task_status', (event) => {
-      handleMothershipChatStatusEvent(
-        queryClient,
-        workspaceId,
-        event instanceof MessageEvent ? event.data : undefined
-      )
+    const isResubscribe = everSubscribed.has(workspaceId)
+    everSubscribed.add(workspaceId)
+    const connection = createRotatingEventSource({
+      url: `/api/mothership/events?workspaceId=${encodeURIComponent(workspaceId)}`,
+      events: {
+        task_status: (event) => {
+          handleMothershipChatStatusEvent(
+            queryClient,
+            workspaceId,
+            event instanceof MessageEvent ? event.data : undefined
+          )
+        },
+      },
+      onOpen: (reason) => {
+        if (reason === 'reconnect' || (reason === 'initial' && isResubscribe)) {
+          resyncMothershipChatCaches(queryClient, workspaceId)
+        }
+      },
+      onError: () => {
+        logger.warn(`SSE connection error for workspace ${workspaceId}`)
+      },
     })
 
-    eventSource.onerror = () => {
-      logger.warn(`SSE connection error for workspace ${workspaceId}`)
-    }
-
     return () => {
-      eventSource.close()
+      connection.close()
     }
   }, [workspaceId, queryClient])
 }

@@ -1,15 +1,14 @@
-import type { CreateExpectedExpenseParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { CreateExpectedExpenseParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createExpectedExpenseTool: ToolConfig<
+export const createExpectedExpenseTool: InternalToolConfig<
   CreateExpectedExpenseParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_create_expected_expense',
   name: 'SAP Concur Create Expected Expense',
@@ -79,16 +78,13 @@ export const createExpectedExpenseTool: ToolConfig<
       description: 'Expected expense payload',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const requestUuid = trimRequired(params.requestUuid, 'requestUuid')
       const query: Record<string, string> = {}
       if (params.userId?.trim()) query.userId = params.userId.trim()
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/requests/${encodeURIComponent(requestUuid)}/expenses`,
         method: 'POST',
         body: params.body,
@@ -96,7 +92,7 @@ export const createExpectedExpenseTool: ToolConfig<
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
@@ -117,17 +113,17 @@ export const createExpectedExpenseTool: ToolConfig<
         },
         transactionAmount: {
           type: 'json',
-          description: 'Transaction amount {value, currencyCode}',
+          description: 'Transaction amount {value, currency}',
           optional: true,
         },
         postedAmount: {
           type: 'json',
-          description: 'Posted amount {value, currencyCode}',
+          description: 'Posted amount {value, currency}',
           optional: true,
         },
         approvedAmount: {
           type: 'json',
-          description: 'Approved amount {value, currencyCode}',
+          description: 'Approved amount {value, currency}',
           optional: true,
         },
         remainingAmount: {
@@ -154,7 +150,7 @@ export const createExpectedExpenseTool: ToolConfig<
         allocations: {
           type: 'json',
           description:
-            'Budget allocations array (allocationId, allocationAmount, approvedAmount, postedAmount, expenseId, percentEdited, systemAllocation, percentage)',
+            'Budget allocations array (allocationId, allocationAmount {value, currency}, approvedAmount {value, currency}, postedAmount {value, currency}, expenseId, percentEdited, systemAllocation, percentage)',
           optional: true,
         },
         tripData: {

@@ -8,11 +8,14 @@ import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 
-const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
+export const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
 
 interface SettingsNavigationOptions {
   section?: SettingsSection
   mcpServerId?: string
+  browserView?: 'passwords'
+  browserImport?: boolean
+  browserClear?: boolean
 }
 
 interface UseSettingsNavigationReturn {
@@ -46,9 +49,37 @@ export function resolveSettingsHref({
 
   const searchParams = new URLSearchParams()
   if (options?.mcpServerId) searchParams.set('mcpServerId', options.mcpServerId)
+  if (options?.browserView) searchParams.set('browserView', options.browserView)
+  if (options?.browserImport) searchParams.set('browserImport', '1')
+  if (options?.browserClear) searchParams.set('browserClear', '1')
   const query = searchParams.toString()
   const pathname = `/workspace/${workspaceId}/settings/${section}`
   return query ? `${pathname}?${query}` : pathname
+}
+
+interface ResolveSettingsReturnUrlParams {
+  storedUrl: string | null
+  workspaceId?: string
+  fallback: string
+}
+
+/**
+ * Resolves the stored settings return url, discarding it when it points at a
+ * different workspace than the one currently open. Switching workspaces from
+ * settings keeps the user on the new workspace, so a return url captured in the
+ * old one would silently navigate them back out of it.
+ */
+export function resolveSettingsReturnUrl({
+  storedUrl,
+  workspaceId,
+  fallback,
+}: ResolveSettingsReturnUrlParams): string {
+  if (!storedUrl) return fallback
+  const [, root, storedWorkspaceId] = storedUrl.split('/')
+  if (root === 'workspace' && storedWorkspaceId && storedWorkspaceId !== workspaceId) {
+    return fallback
+  }
+  return storedUrl
 }
 
 export function useSettingsNavigation(): UseSettingsNavigationReturn {
@@ -71,15 +102,18 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
     [hostContext, session?.user?.id, workspaceId]
   )
 
-  const popSettingsReturnUrl = useCallback((fallback: string): string => {
-    try {
-      const url = sessionStorage.getItem(SETTINGS_RETURN_URL_KEY)
-      sessionStorage.removeItem(SETTINGS_RETURN_URL_KEY)
-      return url ?? fallback
-    } catch {
-      return fallback
-    }
-  }, [])
+  const popSettingsReturnUrl = useCallback(
+    (fallback: string): string => {
+      try {
+        const storedUrl = sessionStorage.getItem(SETTINGS_RETURN_URL_KEY)
+        sessionStorage.removeItem(SETTINGS_RETURN_URL_KEY)
+        return resolveSettingsReturnUrl({ storedUrl, workspaceId, fallback })
+      } catch {
+        return fallback
+      }
+    },
+    [workspaceId]
+  )
 
   const navigateToSettings = useCallback(
     (options?: SettingsNavigationOptions) => {

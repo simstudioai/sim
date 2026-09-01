@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
 
 const logger = createLogger('CustomToolsPersistence')
@@ -136,6 +137,17 @@ export async function persistCustomToolsToDatabase(
   const validTools = customToolsList.filter((tool) => {
     if (!tool.schema?.function?.name) {
       logger.warn(`Skipping custom tool without function name: ${tool.title}`)
+      return false
+    }
+    /**
+     * An imported graph can carry any inline declaration, and a stored tool
+     * whose schema the public API cannot serialize back breaks every read of
+     * the workspace's tool list. Skipped per tool, like the check above, so one
+     * unstorable declaration does not cost the rest of the import its tools —
+     * the tool itself still runs from the inline definition on the block.
+     */
+    if (!isValidCustomToolDeclaration(tool.schema)) {
+      logger.warn(`Skipping custom tool with an unstorable schema: ${tool.title}`)
       return false
     }
     return true

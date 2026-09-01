@@ -1,27 +1,109 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 
 const logger = createLogger('HtmlParser')
 
+/**
+ * Bounds the DOM tree, which costs ~500 bytes per markup token (`<`) on cheerio
+ * 1.1.2: measured at 0.2M/1M/2M tokens as 101/504/1008 MB retained, linear
+ * across all three.
+ *
+ * A 50,000-row by 8-column table export is ~900k tokens in only 8.7 MB, so a
+ * tighter cap rejects ordinary exports; 999k tokens in a 10 MB body parses
+ * inside a 2 GB heap.
+ */
+const MAX_HTML_MARKUP_TOKENS = 1_000_000
+
+/**
+ * Bounds the body, which governs peak memory: extraction materialises the text
+ * several times over (UTF-16 buffer copy, per-node strings, the joined output).
+ *
+ * Measured against a 2 GB heap with the token cap saturated: 32 MB parses,
+ * 48 MB parses, 64 MB aborts the process. Deliberately NOT raised to the
+ * shared 100 MB document limit — that limit governs what may be uploaded, and
+ * a 100 MB body aborts here even with few tokens. Any change to this number
+ * needs the same abort test, not a consistency argument.
+ */
+const MAX_HTML_INPUT_BYTES = 32 * 1024 * 1024
+
+const MARKUP_TOKEN_BYTE = 0x3c
+
+/**
+ * Raised when a document exceeds the limits above, so an input rejected on
+ * resource grounds is not reported as a malformed file.
+ */
+export class HtmlComplexityError extends FileParserError {
+  constructor(message: string) {
+    super('complexity_limit', message)
+    this.name = 'HtmlComplexityError'
+  }
+}
+
+export function isHtmlComplexityError(error: unknown): error is HtmlComplexityError {
+  return error instanceof HtmlComplexityError
+}
+
+function exceedsMarkupTokenLimit(buffer: Buffer): boolean {
+  let count = 0
+  let index = buffer.indexOf(MARKUP_TOKEN_BYTE)
+
+  while (index !== -1) {
+    if (++count > MAX_HTML_MARKUP_TOKENS) return true
+    index = buffer.indexOf(MARKUP_TOKEN_BYTE, index + 1)
+  }
+
+  return false
+}
+
+/**
+ * `cheerio.load` builds the entire parse5 tree before returning, so an outsized
+ * document has to be rejected on the buffer, before the string copy.
+ */
+function assertHtmlWithinLimits(buffer: Buffer): void {
+  if (buffer.length > MAX_HTML_INPUT_BYTES) {
+    throw new HtmlComplexityError(
+      `HTML document is ${buffer.length} bytes, above the maximum of ${MAX_HTML_INPUT_BYTES} bytes`
+    )
+  }
+
+  if (exceedsMarkupTokenLimit(buffer)) {
+    throw new HtmlComplexityError(
+      `HTML document exceeds the maximum of ${MAX_HTML_MARKUP_TOKENS} markup tokens`
+    )
+  }
+}
+
 export class HtmlParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
+    let buffer: Buffer
+
+    /** Scoped to the read alone so `parseBuffer`'s typed rejections reach callers intact. */
     try {
       if (!filePath) {
         throw new Error('No file path provided')
       }
 
-      const buffer = await readFile(filePath)
-      return this.parseBuffer(buffer)
+      buffer = await readFile(filePath)
     } catch (error) {
       logger.error('HTML file error:', error)
-      throw new Error(`Failed to parse HTML file: ${(error as Error).message}`)
+      throw new Error(`Failed to parse HTML file: ${getErrorMessage(error, 'Unknown error')}`)
     }
+
+    return this.parseBuffer(buffer)
   }
 
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
+    if (!buffer || buffer.length === 0) {
+      throw new FileParserError('empty_input', 'Empty buffer provided')
+    }
+
+    assertHtmlWithinLimits(buffer)
+
     try {
       logger.info('Parsing HTML buffer, size:', buffer.length)
 
@@ -72,8 +154,26 @@ export class HtmlParser implements FileParser {
         },
       }
     } catch (error) {
+      /**
+       * Every `RangeError` reachable here is resource exhaustion the pre-parse
+       * caps cannot predict: a stack overflow inside cheerio's recursive
+       * `.text()` on deeply nested markup, or an over-long string from joining
+       * the extracted parts. Both must stay fail-closed rather than degrade to
+       * the route's raw-text fallback.
+       */
+      if (error instanceof RangeError) {
+        logger.warn('HTML document exhausted parser resources:', error)
+        throw new HtmlComplexityError(
+          `HTML document could not be extracted within resource limits: ${error.message}`
+        )
+      }
+
       logger.error('HTML buffer parsing error:', error)
-      throw new Error(`Failed to parse HTML buffer: ${(error as Error).message}`)
+      throw new FileParserError(
+        'invalid_format',
+        `Failed to parse HTML buffer: ${getErrorMessage(error, 'Unknown error')}`,
+        error
+      )
     }
   }
 

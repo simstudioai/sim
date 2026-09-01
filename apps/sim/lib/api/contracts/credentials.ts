@@ -17,15 +17,22 @@ export const workspaceCredentialTypeSchema = z.enum([
   'env_personal',
   'service_account',
 ])
+const creatableWorkspaceCredentialTypeSchema = z.enum([
+  'oauth',
+  'env_workspace',
+  'env_personal',
+  'service_account',
+])
 export const workspaceCredentialRoleSchema = z.enum(['admin', 'member'])
 export const workspaceCredentialMemberStatusSchema = z.enum(['active', 'pending', 'revoked'])
-
 export const workspaceCredentialSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   type: workspaceCredentialTypeSchema,
   displayName: z.string(),
   description: z.string().nullable(),
+  /** True when an env_workspace secret opts out of redaction; always false for other types. */
+  unredacted: z.boolean(),
   providerId: z.string().nullable(),
   accountId: z.string().nullable(),
   envKey: z.string().nullable(),
@@ -42,21 +49,28 @@ export type WorkspaceCredentialRole = z.output<typeof workspaceCredentialRoleSch
 export type WorkspaceCredentialMemberStatus = z.output<typeof workspaceCredentialMemberStatusSchema>
 export type WorkspaceCredential = z.output<typeof workspaceCredentialSchema>
 
+const firstQueryStringSchema = z
+  .union([z.string(), z.array(z.string()).min(1)])
+  .transform((value) => (Array.isArray(value) ? value[0] : value))
+
+function trimmedOptionalQueryString<T extends z.ZodType<string, string>>(schema: T) {
+  return firstQueryStringSchema
+    .transform((value) => value.trim() || undefined)
+    .pipe(schema.optional())
+    .optional()
+}
+
 export const credentialsListQuerySchema = z.object({
-  workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-  type: workspaceCredentialTypeSchema.optional(),
-  providerId: z.string().optional(),
+  workspaceId: firstQueryStringSchema
+    .transform((value) => value.trim())
+    .pipe(z.string().uuid('Workspace ID must be a valid UUID')),
+  type: trimmedOptionalQueryString(workspaceCredentialTypeSchema),
+  providerId: trimmedOptionalQueryString(z.string()),
+  credentialId: trimmedOptionalQueryString(z.string()),
 })
 
 export const credentialIdParamsSchema = z.object({
   id: z.string().min(1),
-})
-
-export const credentialsListGetQuerySchema = z.object({
-  workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-  type: workspaceCredentialTypeSchema.optional(),
-  providerId: z.string().optional(),
-  credentialId: z.string().optional(),
 })
 
 export const serviceAccountJsonSchema = z
@@ -112,7 +126,7 @@ export const serviceAccountJsonSchema = z
 export const createCredentialBodySchema = z
   .object({
     workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-    type: workspaceCredentialTypeSchema,
+    type: creatableWorkspaceCredentialTypeSchema,
     displayName: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(500).optional(),
     providerId: z.string().trim().min(1).optional(),
@@ -132,7 +146,21 @@ export const createCredentialBodySchema = z
     botToken: z.string().trim().min(1).optional(),
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
+    certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
+    /** Optional provider region selector (Zoho Desk data center). */
+    dataCenter: z.string().trim().min(1).max(32).optional(),
+    /**
+     * Grant selector for providers offering more than one server-to-server
+     * flow (Salesforce: `client_credentials` | `jwt_bearer`). The descriptor's
+     * option list is the real allowlist — an unrecognized value resolves to the
+     * provider's default rather than failing, so this only bounds length.
+     */
+    authMethod: z.string().trim().min(1).max(64).optional(),
+    /** PEM private key for certificate/JWT-based grants (for example Salesforce or NetSuite). */
+    privateKey: z.string().trim().min(1).max(8192).optional(),
+    /** Run-as username for key-based grants (Salesforce JWT `sub`). */
+    username: z.string().trim().min(1).max(255).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -196,6 +224,8 @@ export const updateCredentialByIdBodySchema = z
   .object({
     displayName: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(500).nullish(),
+    /** Workspace-secret redaction opt-out; rejected for every type but env_workspace. */
+    unredacted: z.boolean().optional(),
     serviceAccountJson: z.string().min(1).optional(),
     /** Slack custom-bot secret rotation (reconnect). */
     signingSecret: z.string().trim().min(1).optional(),
@@ -206,13 +236,19 @@ export const updateCredentialByIdBodySchema = z
     /** Client-credential service-account secret rotation (reconnect). */
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
+    certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
+    dataCenter: z.string().trim().min(1).max(32).optional(),
+    authMethod: z.string().trim().min(1).max(64).optional(),
+    privateKey: z.string().trim().min(1).max(8192).optional(),
+    username: z.string().trim().min(1).max(255).optional(),
   })
   .strict()
   .refine(
     (data) =>
       data.displayName !== undefined ||
       data.description !== undefined ||
+      data.unredacted !== undefined ||
       data.serviceAccountJson !== undefined ||
       data.signingSecret !== undefined ||
       data.botToken !== undefined ||
@@ -220,7 +256,12 @@ export const updateCredentialByIdBodySchema = z
       data.domain !== undefined ||
       data.clientId !== undefined ||
       data.clientSecret !== undefined ||
-      data.orgId !== undefined,
+      data.certificateId !== undefined ||
+      data.orgId !== undefined ||
+      data.dataCenter !== undefined ||
+      data.authMethod !== undefined ||
+      data.privateKey !== undefined ||
+      data.username !== undefined,
     {
       message: 'At least one field must be provided',
       path: ['displayName'],
@@ -229,6 +270,18 @@ export const updateCredentialByIdBodySchema = z
 
 export const leaveCredentialQuerySchema = z.object({
   credentialId: z.string().min(1),
+})
+
+export const credentialMembershipSchema = z.object({
+  membershipId: z.string(),
+  credentialId: z.string(),
+  workspaceId: z.string(),
+  type: workspaceCredentialTypeSchema,
+  displayName: z.string(),
+  providerId: z.string().nullable(),
+  role: workspaceCredentialRoleSchema,
+  status: workspaceCredentialMemberStatusSchema,
+  joinedAt: z.string().nullable(),
 })
 
 export const workspaceCredentialMemberSchema = z.object({
@@ -277,6 +330,14 @@ export const oauthCredentialSchema = z.object({
   scopes: z.array(z.string()).optional(),
 })
 
+export const workspaceCredentialLookupSchema = workspaceCredentialSchema.pick({
+  id: true,
+  displayName: true,
+  type: true,
+  providerId: true,
+})
+export type WorkspaceCredentialLookup = z.output<typeof workspaceCredentialLookupSchema>
+
 export const oauthCredentialsQuerySchema = z
   .object({
     provider: z.string().nullish(),
@@ -295,9 +356,10 @@ export const listWorkspaceCredentialsContract = defineRouteContract({
   query: credentialsListQuerySchema,
   response: {
     mode: 'json',
-    schema: z.object({
-      credentials: z.array(workspaceCredentialSchema),
-    }),
+    schema: z.union([
+      z.object({ credentials: z.array(workspaceCredentialSchema) }),
+      z.object({ credential: workspaceCredentialLookupSchema.nullable() }),
+    ]),
   },
 })
 
@@ -345,6 +407,7 @@ export const createCredentialDraftContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
+      draftId: z.string().min(1),
     }),
   },
 })
@@ -355,6 +418,7 @@ export const createWorkspaceCredentialContract = defineRouteContract({
   body: createCredentialBodySchema,
   response: {
     mode: 'json',
+    status: [200, 201],
     schema: z.object({
       credential: workspaceCredentialSchema,
     }),
@@ -393,6 +457,7 @@ export const upsertWorkspaceCredentialMemberContract = defineRouteContract({
   body: upsertWorkspaceCredentialMemberBodySchema,
   response: {
     mode: 'json',
+    status: [200, 201],
     schema: z.object({
       success: z.literal(true),
       member: workspaceCredentialMemberSchema.optional(),
@@ -410,5 +475,24 @@ export const removeWorkspaceCredentialMemberContract = defineRouteContract({
     schema: z.object({
       success: z.literal(true),
     }),
+  },
+})
+
+export const listCredentialMembershipsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/credentials/memberships',
+  response: {
+    mode: 'json',
+    schema: z.object({ memberships: z.array(credentialMembershipSchema) }),
+  },
+})
+
+export const leaveCredentialMembershipContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/credentials/memberships',
+  query: leaveCredentialQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true) }),
   },
 })

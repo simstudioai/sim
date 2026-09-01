@@ -32,6 +32,32 @@ describe('async execution correlation fallbacks', () => {
     })
   })
 
+  it('preserves a trusted Copilot workflow tool binding', () => {
+    const correlation = buildWorkflowCorrelation({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      triggerType: 'copilot',
+      executionId: 'execution-copilot',
+      correlation: {
+        executionId: 'execution-copilot',
+        requestId: 'request-copilot',
+        source: 'workflow',
+        workflowId: 'workflow-1',
+        triggerType: 'copilot',
+        copilotToolCallId: 'tool-call-1',
+      },
+    })
+
+    expect(correlation).toEqual({
+      executionId: 'execution-copilot',
+      requestId: 'request-copilot',
+      source: 'workflow',
+      workflowId: 'workflow-1',
+      triggerType: 'copilot',
+      copilotToolCallId: 'tool-call-1',
+    })
+  })
+
   it('falls back for legacy schedule payloads missing preassigned request id', () => {
     const correlation = buildScheduleCorrelation({
       scheduleId: 'schedule-1',

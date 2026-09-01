@@ -43,10 +43,4 @@ describe('TikTokBlock', () => {
     expect(finalInputs.file).toEqual(file)
     expect(finalInputs.videoIds).toBeUndefined()
   })
-
-  it('declares file-like outputs with canonical block output types', () => {
-    expect(TikTokBlock.outputs.avatarFile.type).toBe('file')
-    expect(TikTokBlock.outputs.videos.type).toBe('array')
-    expect(TikTokBlock.outputs.publiclyAvailablePostId.type).toBe('array')
-  })
 })

@@ -16,6 +16,7 @@ import {
   X,
 } from '@sim/emcn'
 import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
+import { resolveLogWorkflowId } from '@/app/workspace/[workspaceId]/logs/utils'
 
 interface LogRowContextMenuProps {
   isOpen: boolean
@@ -30,6 +31,9 @@ interface LogRowContextMenuProps {
   onClearAllFilters: () => void
   onCancelExecution: () => void
   onRetryExecution: () => void
+  canCancelExecution: boolean
+  isCancelPending?: boolean
+  cancelPendingExecutionId?: string
   isRetryPending?: boolean
   isFilteredByThisWorkflow: boolean
   hasActiveFilters: boolean
@@ -52,14 +56,28 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onClearAllFilters,
   onCancelExecution,
   onRetryExecution,
+  canCancelExecution,
+  isCancelPending = false,
+  cancelPendingExecutionId,
   isRetryPending = false,
   isFilteredByThisWorkflow,
   hasActiveFilters,
 }: LogRowContextMenuProps) {
   const hasExecutionId = Boolean(log?.executionId)
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
+  /**
+   * "Open Workflow" needs a navigable target, which is stricter than
+   * `hasWorkflow`: Sim agent jobs have no workflow of their own. Cancel/retry
+   * keep using `hasWorkflow` so their gating is unchanged.
+   */
+  const hasOpenableWorkflow = Boolean(log && resolveLogWorkflowId(log))
   const isCancellable =
     (log?.status === 'running' || log?.status === 'pending') && hasExecutionId && hasWorkflow
+  const isStopping =
+    log?.status === 'cancelling' ||
+    (isCancelPending && cancelPendingExecutionId === log?.executionId)
+  const showCancelAction =
+    canCancelExecution && hasExecutionId && hasWorkflow && (isCancellable || isStopping)
   const isRetryable = log?.status === 'failed' && hasWorkflow && log?.trigger !== 'mothership'
 
   return (
@@ -85,23 +103,18 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {isRetryable && (
-          <>
-            <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
-              <Redo />
-              {isRetryPending ? 'Retrying...' : 'Retry'}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
+          <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
+            <Redo />
+            {isRetryPending ? 'Retrying…' : 'Retry'}
+          </DropdownMenuItem>
         )}
-        {isCancellable && (
-          <>
-            <DropdownMenuItem onSelect={onCancelExecution}>
-              <X />
-              Cancel Run
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
+        {showCancelAction && (
+          <DropdownMenuItem onSelect={onCancelExecution} disabled={isStopping}>
+            <X />
+            {isStopping ? 'Stopping…' : 'Cancel Run'}
+          </DropdownMenuItem>
         )}
+        {(isRetryable || showCancelAction) && <DropdownMenuSeparator />}
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
           <Duplicate />
           Copy Run ID
@@ -110,9 +123,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
           <Link />
           Copy Link
         </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={!hasWorkflow} onSelect={onOpenWorkflow}>
+        <DropdownMenuItem disabled={!hasOpenableWorkflow} onSelect={onOpenWorkflow}>
           <SquareArrowUpRight />
           Open Workflow
         </DropdownMenuItem>
@@ -120,8 +131,9 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
           <Eye />
           Open Snapshot
         </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
+        {/* Stops acting on this run and starts acting on the page's filters — the
+            second of the two scope changes this menu has. */}
+        {(!isFilteredByThisWorkflow || hasActiveFilters) && <DropdownMenuSeparator />}
         {!isFilteredByThisWorkflow && (
           <DropdownMenuItem disabled={!hasWorkflow} onSelect={onToggleWorkflowFilter}>
             <ListFilter />

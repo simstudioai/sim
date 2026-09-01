@@ -3,7 +3,7 @@
 import * as React from 'react'
 import * as SelectPrimitive from '@radix-ui/react-select'
 import { cn } from '@sim/emcn'
-import { Check, ChevronDown, ChevronUp } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp } from '@sim/emcn/icons'
 
 const Select = SelectPrimitive.Root
 
@@ -104,7 +104,7 @@ const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn('py-1.5 pr-2 pl-8 font-semibold text-sm', className)}
+    className={cn('py-1.5 pr-2 pl-8 text-sm', className)}
     {...props}
   />
 ))

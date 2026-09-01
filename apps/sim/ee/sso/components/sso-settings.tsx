@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import {
   Button,
+  Chip,
   ChipCombobox,
   ChipCopyInput,
   ChipInput,
   ChipSelect,
+  ChipSwitch,
   ChipTextarea,
   cn,
   Expandable,
@@ -14,17 +16,21 @@ import {
   Switch,
   toast,
 } from '@sim/emcn'
+import { ChevronDown, Eye, EyeOff } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, Eye, EyeOff } from 'lucide-react'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import type { SettingsAction } from '@/components/settings/settings-header'
 import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -45,7 +51,138 @@ interface SSOProvider {
   userId?: string
   oidcConfig?: string
   samlConfig?: string
+  jitProvisioningEnabled?: boolean
   providerType: 'oidc' | 'saml'
+}
+
+/** Claim names each protocol uses out of the box; shown as input placeholders. */
+const OIDC_DEFAULT_MAPPING = { id: 'sub', email: 'email', name: 'name', image: 'picture' } as const
+const SAML_DEFAULT_MAPPING = {
+  id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
+  email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+  name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+} as const
+
+const SAML_NAMEID_FORMATS = [
+  { label: 'Provider default', value: '' },
+  {
+    label: 'Email address',
+    value: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
+  },
+  { label: 'Persistent', value: 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent' },
+  { label: 'Transient', value: 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' },
+  { label: 'Unspecified', value: 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified' },
+] as const
+
+const PROVIDER_ID_SUGGESTIONS = SSO_TRUSTED_PROVIDERS.map((id) => ({ label: id, value: id }))
+
+const CLIENT_SECRET_FIELD_ID = 'sso-client-secret'
+/** Fixed width, so the mask never leaks how long the stored secret is. */
+const CLIENT_SECRET_MASK = '••••••••••••'
+
+interface ClientSecretFieldProps {
+  /** A secret is already saved, so the field opens as a masked fact rather than an input. */
+  hasStoredSecret: boolean
+  /** Last four characters of the saved secret, when the API judged it safe to hint. */
+  storedHint: string | null
+  isReplacing: boolean
+  onReplace: () => void
+  onCancelReplace: () => void
+  value: string
+  onChange: (value: string) => void
+  hasError: boolean
+}
+
+/**
+ * A saved client secret is a fact, not an editable value — the browser never
+ * receives it. Rendering it as a static masked row with an explicit Replace
+ * action avoids the "will blank clear it?" ambiguity an empty input invites, and
+ * keeps a stray keystroke from arming a replacement.
+ */
+function ClientSecretField({
+  hasStoredSecret,
+  storedHint,
+  isReplacing,
+  onReplace,
+  onCancelReplace,
+  value,
+  onChange,
+  hasError,
+}: ClientSecretFieldProps) {
+  const [isRevealed, setIsRevealed] = useState(false)
+
+  if (hasStoredSecret && !isReplacing) {
+    return (
+      <div className='flex items-center gap-2'>
+        <ChipInput
+          id={CLIENT_SECRET_FIELD_ID}
+          readOnly
+          value={storedHint ? `${CLIENT_SECRET_MASK}${storedHint}` : CLIENT_SECRET_MASK}
+          inputClassName='cursor-default font-mono'
+          className='min-w-0 flex-1'
+          aria-label={
+            storedHint ? `Saved client secret ending ${storedHint}` : 'Saved client secret'
+          }
+        />
+        <Chip onClick={onReplace}>Replace</Chip>
+      </div>
+    )
+  }
+
+  return (
+    <div className='flex items-center gap-2'>
+      <ChipInput
+        id={CLIENT_SECRET_FIELD_ID}
+        type='text'
+        placeholder='Enter Client Secret'
+        className='min-w-0 flex-1'
+        value={value}
+        name='sso_client_key'
+        autoComplete='off'
+        autoCapitalize='none'
+        spellCheck={false}
+        readOnly
+        // Kept from the original field: opening read-only and dropping the
+        // attribute on focus is what stops password managers autofilling here.
+        onFocus={(e) => {
+          e.target.removeAttribute('readOnly')
+          setIsRevealed(true)
+        }}
+        onBlurCapture={() => setIsRevealed(false)}
+        onChange={(e) => onChange(e.target.value)}
+        inputClassName={!isRevealed ? '[-webkit-text-security:disc]' : undefined}
+        error={hasError}
+        endAdornment={
+          // Only offer the reveal once there is something to reveal.
+          value ? (
+            <Button
+              type='button'
+              variant='ghost'
+              onClick={() => setIsRevealed((s) => !s)}
+              className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              aria-label={isRevealed ? 'Hide client secret' : 'Show client secret'}
+            >
+              {isRevealed ? <EyeOff className='size-[14px]' /> : <Eye className='size-[14px]' />}
+            </Button>
+          ) : undefined
+        }
+      />
+      {/* Not "Cancel" — the header already owns that label for discarding the
+          whole edit, and these two do very different things. */}
+      {hasStoredSecret && <Chip onClick={onCancelReplace}>Keep saved</Chip>}
+    </div>
+  )
+}
+
+/** Reads the display-only hint the API attaches beside the redacted client secret. */
+function readClientSecretHint(oidcConfig?: string): string | null {
+  if (!oidcConfig) return null
+  try {
+    const hint = JSON.parse(oidcConfig).clientSecretHint
+    return typeof hint === 'string' ? hint : null
+  } catch {
+    return null
+  }
 }
 
 const DEFAULT_FORM_DATA = {
@@ -62,6 +199,14 @@ const DEFAULT_FORM_DATA = {
   audience: '',
   wantAssertionsSigned: true,
   idpMetadata: '',
+  mapId: '',
+  mapEmail: '',
+  mapName: '',
+  identifierFormat: '',
+  authorizationEndpoint: '',
+  tokenEndpoint: '',
+  jwksEndpoint: '',
+  jitProvisioningEnabled: true,
 }
 
 const DEFAULT_ERRORS = {
@@ -88,15 +233,25 @@ export function SSO({ organizationId }: SSOProps) {
 
 function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const { data: session } = useSession()
-  const { data: organizationBillingData, isLoading: isLoadingOrganizationBilling } =
-    useOrganizationBilling(organizationId)
+  const {
+    data: organizationBillingData,
+    isLoading: isLoadingOrganizationBilling,
+    isFetching: isFetchingOrganizationBilling,
+    error: organizationBillingError,
+    refetch: refetchOrganizationBilling,
+  } = useOrganizationBilling(organizationId)
 
-  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders({
-    organizationId,
-  })
+  const {
+    data: providersData,
+    isLoading: isLoadingProviders,
+    isFetching: isFetchingProviders,
+    error: providersError,
+    refetch: refetchProviders,
+  } = useSSOProviders({ organizationId })
 
   const providers = providersData?.providers || []
   const existingProvider = providers[0] as SSOProvider | undefined
+  const existingJitProvisioningEnabled = existingProvider?.jitProvisioningEnabled ?? true
 
   const userId = session?.user?.id
   const hasEnterprisePlan = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
@@ -106,14 +261,27 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   const configureSSOMutation = useConfigureSSO()
 
-  const [showClientSecret, setShowClientSecret] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showMapping, setShowMapping] = useState(false)
 
   const [formData, setFormData] = useState(DEFAULT_FORM_DATA)
   const [originalFormData, setOriginalFormData] = useState(DEFAULT_FORM_DATA)
   const [errors, setErrors] = useState<Record<string, string[]>>(DEFAULT_ERRORS)
   const [showErrors, setShowErrors] = useState(false)
+
+  const [isReplacingClientSecret, setIsReplacingClientSecret] = useState(false)
+
+  /**
+   * Editing an OIDC provider always means a secret is stored — the contract
+   * requires one to register, and the API returns only its sentinel, never the
+   * value. Leaving the field blank therefore means "keep it", not "clear it".
+   */
+  const hasStoredClientSecret = isEditing && existingProvider?.providerType === 'oidc'
+  /** Last four characters of the saved secret, when the API judged it safe to hint. */
+  const storedClientSecretHint = hasStoredClientSecret
+    ? readClientSecretHint(existingProvider?.oidcConfig)
+    : null
 
   const hasChanges = (Object.keys(formData) as (keyof typeof formData)[]).some(
     (k) => formData[k] !== originalFormData[k]
@@ -123,6 +291,27 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   if (isLoadingProviders || (isBillingEnabled && isLoadingOrganizationBilling)) {
     return null
+  }
+
+  const providersLoadingError = providersData === undefined ? providersError : null
+  const organizationBillingLoadingError =
+    isBillingEnabled && organizationBillingData === undefined ? organizationBillingError : null
+  const loadingError = providersLoadingError ?? organizationBillingLoadingError
+  if (loadingError) {
+    return (
+      <SettingsQueryErrorState
+        error={loadingError}
+        fallback='Failed to load Single Sign-On settings'
+        isRetrying={
+          (Boolean(providersLoadingError) && isFetchingProviders) ||
+          (Boolean(organizationBillingLoadingError) && isFetchingOrganizationBilling)
+        }
+        onRetry={() => {
+          if (providersLoadingError) void refetchProviders()
+          if (organizationBillingLoadingError) void refetchOrganizationBilling()
+        }}
+      />
+    )
   }
 
   if (isBillingEnabled) {
@@ -179,7 +368,12 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     return out
   }
 
-  const validateAll = (data: typeof formData) => {
+  /**
+   * `isReplacingSecret` is a parameter rather than a closure read: callers that
+   * validate in the same tick as toggling it would otherwise see the previous
+   * value and leave a stale "required" error on a field that is no longer an input.
+   */
+  const validateAll = (data: typeof formData, isReplacingSecret = isReplacingClientSecret) => {
     const newErrors: Record<string, string[]> = {
       providerType: [],
       providerId: validateProviderId(data.providerId),
@@ -198,7 +392,13 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
     if (providerType === 'oidc') {
       newErrors.clientId = validateRequired('Client ID', data.clientId)
-      newErrors.clientSecret = validateRequired('Client Secret', data.clientSecret)
+      // Skipped only while the stored secret is being kept. Once Replace is
+      // clicked the field is a real input again, so a blank or whitespace-only
+      // value has to fail rather than quietly overwrite a working secret.
+      newErrors.clientSecret =
+        hasStoredClientSecret && !isReplacingSecret
+          ? []
+          : validateRequired('Client Secret', data.clientSecret)
       if (!data.scopes || !data.scopes.trim()) {
         newErrors.scopes = ['Scopes are required for OIDC providers']
       }
@@ -224,30 +424,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     setErrors(DEFAULT_ERRORS)
     setShowErrors(false)
     setShowAdvanced(false)
-  }
-
-  const isFormValid = () => {
-    const requiredFields = ['providerId', 'issuerUrl', 'domain']
-    const hasRequiredFields = requiredFields.every((field) => {
-      const value = formData[field as keyof typeof formData]
-      return typeof value === 'string' && value.trim() !== ''
-    })
-
-    const providerType = formData.providerType || 'oidc'
-
-    if (providerType === 'oidc') {
-      return (
-        hasRequiredFields &&
-        formData.clientId.trim() !== '' &&
-        formData.clientSecret.trim() !== '' &&
-        formData.scopes.trim() !== ''
-      )
-    }
-    if (providerType === 'saml') {
-      return hasRequiredFields && formData.entryPoint.trim() !== '' && formData.cert.trim() !== ''
-    }
-
-    return false
+    setIsReplacingClientSecret(false)
   }
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -270,15 +447,32 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               issuer: formData.issuerUrl,
               domain: formData.domain,
               orgId: organizationId,
+              jitProvisioningEnabled: formData.jitProvisioningEnabled,
               mapping: {
-                id: 'sub',
-                email: 'email',
-                name: 'name',
-                image: 'picture',
+                id: formData.mapId.trim() || OIDC_DEFAULT_MAPPING.id,
+                email: formData.mapEmail.trim() || OIDC_DEFAULT_MAPPING.email,
+                name: formData.mapName.trim() || OIDC_DEFAULT_MAPPING.name,
+                image: OIDC_DEFAULT_MAPPING.image,
               },
               clientId: formData.clientId,
-              clientSecret: formData.clientSecret,
+              // Blank on an edit means the admin did not retype it: send the
+              // sentinel so the server keeps the stored secret. Trimmed because a
+              // pasted secret often carries a trailing newline, and because a
+              // whitespace-only value must never be stored as the secret.
+              clientSecret:
+                hasStoredClientSecret && !formData.clientSecret.trim()
+                  ? REDACTED_MARKER
+                  : formData.clientSecret.trim(),
               scopes: formData.scopes.split(',').map((s) => s.trim()),
+              ...(formData.authorizationEndpoint.trim()
+                ? { authorizationEndpoint: formData.authorizationEndpoint.trim() }
+                : {}),
+              ...(formData.tokenEndpoint.trim()
+                ? { tokenEndpoint: formData.tokenEndpoint.trim() }
+                : {}),
+              ...(formData.jwksEndpoint.trim()
+                ? { jwksEndpoint: formData.jwksEndpoint.trim() }
+                : {}),
             }
           : {
               providerType: 'saml',
@@ -286,10 +480,11 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               issuer: formData.issuerUrl,
               domain: formData.domain,
               orgId: organizationId,
+              jitProvisioningEnabled: formData.jitProvisioningEnabled,
               mapping: {
-                id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
-                email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-                name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+                id: formData.mapId.trim() || SAML_DEFAULT_MAPPING.id,
+                email: formData.mapEmail.trim() || SAML_DEFAULT_MAPPING.email,
+                name: formData.mapName.trim() || SAML_DEFAULT_MAPPING.name,
               },
               entryPoint: formData.entryPoint,
               cert: formData.cert,
@@ -297,6 +492,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               ...(formData.callbackUrl ? { callbackUrl: formData.callbackUrl } : {}),
               ...(formData.audience ? { audience: formData.audience } : {}),
               ...(formData.idpMetadata ? { idpMetadata: formData.idpMetadata } : {}),
+              identifierFormat: formData.identifierFormat,
             }
 
       await configureSSOMutation.mutateAsync(requestBody)
@@ -309,6 +505,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       setShowErrors(false)
       setIsEditing(false)
       setShowAdvanced(false)
+      setIsReplacingClientSecret(false)
     } catch (err) {
       const message = getErrorMessage(err, 'Unknown error occurred')
       toast.error(message)
@@ -318,8 +515,11 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
     const next = { ...formData, [field]: value }
-
+    // Claim names are protocol-specific, so an override must not survive a switch.
     if (field === 'providerType') {
+      next.mapId = ''
+      next.mapEmail = ''
+      next.mapName = ''
       setShowErrors(false)
     }
 
@@ -327,7 +527,20 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     validateAll(next)
   }
 
+  /**
+   * Backs out of a replacement: drops what was typed and revalidates as "keeping
+   * the saved secret", so a required-error from a failed submit does not linger on
+   * a row that is no longer an input.
+   */
+  const handleKeepSavedSecret = () => {
+    setIsReplacingClientSecret(false)
+    const next = { ...formData, clientSecret: '' }
+    setFormData(next)
+    validateAll(next, false)
+  }
+
   const isSaml = formData.providerType === 'saml'
+  const mappingDefaults = isSaml ? SAML_DEFAULT_MAPPING : OIDC_DEFAULT_MAPPING
   const callbackUrl = `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
 
   const handleEdit = () => {
@@ -343,12 +556,26 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
       let audience = ''
       let wantAssertionsSigned = true
       let idpMetadata = ''
+      // Blank means "use the protocol default", so only carry over a stored value
+      // that differs — otherwise editing rewrites a default as an explicit override.
+      let mapping: { id?: string; email?: string; name?: string } = {}
+      let identifierFormat = ''
+      let authorizationEndpoint = ''
+      let tokenEndpoint = ''
+      let jwksEndpoint = ''
 
       if (existingProvider.providerType === 'oidc' && existingProvider.oidcConfig) {
         const config = JSON.parse(existingProvider.oidcConfig)
         clientId = config.clientId || ''
-        clientSecret = config.clientSecret || ''
+        // The API returns the sentinel, never the secret. Showing it verbatim put
+        // the literal "[REDACTED]" in the field; blanking it lets the placeholder
+        // say a secret is stored, and submit re-sends the sentinel to keep it.
+        clientSecret = config.clientSecret === REDACTED_MARKER ? '' : config.clientSecret || ''
         scopes = config.scopes?.join(',') || 'openid,profile,email'
+        mapping = config.mapping ?? {}
+        authorizationEndpoint = config.authorizationEndpoint || ''
+        tokenEndpoint = config.tokenEndpoint || ''
+        jwksEndpoint = config.jwksEndpoint || ''
       } else if (existingProvider.providerType === 'saml' && existingProvider.samlConfig) {
         const config = JSON.parse(existingProvider.samlConfig)
         entryPoint = config.entryPoint || ''
@@ -356,8 +583,21 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         callbackUrl = config.callbackUrl || ''
         audience = config.audience || ''
         wantAssertionsSigned = config.wantAssertionsSigned ?? true
-        idpMetadata = config.idpMetadata?.metadata || config.idpMetadata || ''
+        // Two stored shapes: `{ metadata }` from the route, a bare string from older
+        // rows. Narrow on type, not truthiness — `{ metadata: '' }` is falsy at
+        // `.metadata` but truthy as an object, putting an object in a string field.
+        idpMetadata =
+          typeof config.idpMetadata === 'string'
+            ? config.idpMetadata
+            : (config.idpMetadata?.metadata ?? '')
+        mapping = config.mapping ?? {}
+        identifierFormat = config.identifierFormat || ''
       }
+
+      const defaults =
+        existingProvider.providerType === 'saml' ? SAML_DEFAULT_MAPPING : OIDC_DEFAULT_MAPPING
+      const overrideOf = (value: string | undefined, fallback: string) =>
+        value && value !== fallback ? value : ''
 
       const snapshot = {
         providerType: existingProvider.providerType,
@@ -373,12 +613,22 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         audience,
         wantAssertionsSigned,
         idpMetadata,
+        mapId: overrideOf(mapping.id, defaults.id),
+        mapEmail: overrideOf(mapping.email, defaults.email),
+        mapName: overrideOf(mapping.name, defaults.name),
+        identifierFormat,
+        authorizationEndpoint,
+        tokenEndpoint,
+        jwksEndpoint,
+        jitProvisioningEnabled: existingProvider.jitProvisioningEnabled ?? true,
       }
       setFormData(snapshot)
       setOriginalFormData(snapshot)
       setIsEditing(true)
       setShowErrors(false)
       setShowAdvanced(false)
+      setIsReplacingClientSecret(false)
+      setShowMapping(Boolean(snapshot.mapId || snapshot.mapEmail || snapshot.mapName))
     } catch (err) {
       logger.error('Failed to parse provider config', { error: err })
       toast.error('Failed to load provider configuration')
@@ -414,13 +664,40 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </p>
             </SettingRow>
 
-            <SettingRow label='Callback URL'>
+            <SettingRow
+              label={
+                existingProvider.providerType === 'saml' ? 'ACS URL (Reply URL)' : 'Callback URL'
+              }
+            >
               <ChipCopyInput value={providerCallbackUrl} copyLabel='Copy callback URL' />
               <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>
             </SettingRow>
+
+            {existingProvider.providerType === 'saml' && (
+              <SettingRow label='SP Entity ID'>
+                <ChipCopyInput value={getBaseUrl()} copyLabel='Copy entity ID' />
+              </SettingRow>
+            )}
           </div>
+        </SettingsSection>
+
+        <SettingsSection label='Member provisioning'>
+          <SettingRow label='On first SSO sign-in'>
+            <p className='text-[var(--text-body)] text-small'>
+              {existingJitProvisioningEnabled ? 'Automatic' : 'Invite only'}
+            </p>
+            <p className='text-[var(--text-muted)] text-small'>
+              {existingJitProvisioningEnabled
+                ? 'Users authenticated through this verified SSO connection join as Members and consume a seat. No workspace access is granted automatically.'
+                : 'SSO authenticates users, but an invitation is required before they join the organization or gain workspace access.'}
+            </p>
+          </SettingRow>
+          <p className='text-[var(--text-muted)] text-small'>
+            Disabling a user in your identity provider does not remove their Sim membership or
+            active sessions. Remove or suspend access in Sim as part of offboarding.
+          </p>
         </SettingsSection>
       </SettingsPanel>
     )
@@ -468,7 +745,8 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
           ...saveDiscardActions({
             dirty: hasChanges,
             saving: configureSSOMutation.isPending,
-            saveDisabled: hasAnyErrors(errors) || !isFormValid(),
+            // Never disabled on validation errors: showErrors is only set by
+            // handleSubmit, so disabling Save left a greyed button and no message.
             saveLabel: isEditing ? 'Update' : 'Save',
             savingLabel: isEditing ? 'Updating...' : 'Saving...',
             onSave: () => void handleSubmit(),
@@ -506,16 +784,30 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
               }
             >
-              <ChipCombobox
-                value={formData.providerId}
-                onChange={(value: string) => handleInputChange('providerId', value)}
-                options={SSO_TRUSTED_PROVIDERS.map((id) => ({
-                  label: id,
-                  value: id,
-                }))}
-                placeholder='Select or enter a provider ID'
-                editable
-              />
+              {isEditing ? (
+                <>
+                  <ChipCopyInput value={formData.providerId} copyLabel='Copy provider ID' />
+                  <p className='text-[var(--text-muted)] text-small'>
+                    Fixed once saved — it forms the redirect URL registered with your identity
+                    provider.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <ChipCombobox
+                    value={formData.providerId}
+                    onChange={(value: string) => handleInputChange('providerId', value)}
+                    options={PROVIDER_ID_SUGGESTIONS}
+                    placeholder='Select or enter a provider ID'
+                    editable
+                  />
+                  <p className='text-[var(--text-muted)] text-small'>
+                    Must be unique across all Sim organizations — include something specific to you,
+                    like <span className='font-mono'>azure-ad-acme</span>. It cannot be changed
+                    later.
+                  </p>
+                </>
+              )}
             </SettingRow>
 
             <SettingRow
@@ -589,47 +881,92 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
                 <SettingRow
                   label='Client Secret'
+                  htmlFor={CLIENT_SECRET_FIELD_ID}
+                  description={
+                    isReplacingClientSecret ? 'Replaces the saved secret when you save.' : undefined
+                  }
                   error={
                     showErrors && errors.clientSecret.length > 0
                       ? errors.clientSecret.join(' ')
                       : undefined
                   }
                 >
-                  <ChipInput
-                    id='sso-client-secret'
-                    type='text'
-                    placeholder='Enter Client Secret'
+                  <ClientSecretField
+                    hasStoredSecret={hasStoredClientSecret}
+                    storedHint={storedClientSecretHint}
+                    isReplacing={isReplacingClientSecret}
+                    onReplace={() => setIsReplacingClientSecret(true)}
+                    onCancelReplace={handleKeepSavedSecret}
                     value={formData.clientSecret}
-                    name='sso_client_key'
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    readOnly
-                    onFocus={(e) => {
-                      e.target.removeAttribute('readOnly')
-                      setShowClientSecret(true)
-                    }}
-                    onBlurCapture={() => setShowClientSecret(false)}
-                    onChange={(e) => handleInputChange('clientSecret', e.target.value)}
-                    inputClassName={!showClientSecret ? '[-webkit-text-security:disc]' : undefined}
-                    error={showErrors && errors.clientSecret.length > 0}
-                    endAdornment={
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        onClick={() => setShowClientSecret((s) => !s)}
-                        className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                        aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
-                      >
-                        {showClientSecret ? (
-                          <EyeOff className='size-[14px]' />
-                        ) : (
-                          <Eye className='size-[14px]' />
-                        )}
-                      </Button>
-                    }
+                    onChange={(next) => handleInputChange('clientSecret', next)}
+                    hasError={showErrors && errors.clientSecret.length > 0}
                   />
                 </SettingRow>
+
+                <div className='flex flex-col gap-2'>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={() => setShowAdvanced((v) => !v)}
+                    className='w-fit gap-1.5 px-0 text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]'
+                  >
+                    <ChevronDown
+                      className={cn(
+                        'size-[14px] transition-transform',
+                        showAdvanced && 'rotate-180'
+                      )}
+                    />
+                    Advanced Options
+                  </Button>
+
+                  <Expandable expanded={showAdvanced}>
+                    <ExpandableContent>
+                      <div className='flex flex-col gap-4.5 pt-2'>
+                        <SettingRow label='Authorization endpoint' optional>
+                          <ChipInput
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.authorizationEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) =>
+                              handleInputChange('authorizationEndpoint', e.target.value)
+                            }
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='Token endpoint' optional>
+                          <ChipInput
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.tokenEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('tokenEndpoint', e.target.value)}
+                          />
+                        </SettingRow>
+
+                        <SettingRow label='JWKS endpoint' optional>
+                          <ChipInput
+                            type='url'
+                            placeholder='Discovered from the issuer'
+                            value={formData.jwksEndpoint}
+                            autoComplete='off'
+                            autoCapitalize='none'
+                            spellCheck={false}
+                            onChange={(e) => handleInputChange('jwksEndpoint', e.target.value)}
+                          />
+                          <p className='text-[var(--text-muted)] text-small'>
+                            Sim reads these from the issuer's discovery document. Set them only if
+                            your provider does not publish one.
+                          </p>
+                        </SettingRow>
+                      </div>
+                    </ExpandableContent>
+                  </Expandable>
+                </div>
 
                 <SettingRow
                   label='Scopes'
@@ -746,6 +1083,18 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                           />
                         </SettingRow>
 
+                        <SettingRow label='NameID format' optional>
+                          <ChipSelect
+                            align='start'
+                            value={formData.identifierFormat}
+                            onChange={(value: string) =>
+                              handleInputChange('identifierFormat', value)
+                            }
+                            options={[...SAML_NAMEID_FORMATS]}
+                            placeholder='Provider default'
+                          />
+                        </SettingRow>
+
                         <SettingRow label='IDP Metadata XML' optional>
                           <ChipTextarea
                             placeholder='Paste IDP metadata XML here'
@@ -765,13 +1114,111 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </>
             )}
 
-            <SettingRow label='Callback URL'>
+            <SettingRow label={isSaml ? 'ACS URL (Reply URL)' : 'Callback URL'}>
               <ChipCopyInput value={callbackUrl} copyLabel='Copy callback URL' />
               <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>
             </SettingRow>
+
+            {/* Sim publishes no SP metadata document; these are the values it would carry. */}
+            {isSaml && (
+              <SettingRow label='SP Entity ID'>
+                <ChipCopyInput value={getBaseUrl()} copyLabel='Copy entity ID' />
+                <p className='text-[var(--text-muted)] text-small'>
+                  Sim's identifier in your IdP. With the ACS URL above, this is everything needed to
+                  add Sim as a service provider.
+                </p>
+              </SettingRow>
+            )}
+
+            <div className='flex flex-col gap-2'>
+              <Button
+                type='button'
+                variant='ghost'
+                onClick={() => setShowMapping((v) => !v)}
+                className='w-fit gap-1.5 px-0 text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]'
+              >
+                <ChevronDown
+                  className={cn('size-[14px] transition-transform', showMapping && 'rotate-180')}
+                />
+                Attribute mapping
+              </Button>
+
+              <Expandable expanded={showMapping}>
+                <ExpandableContent>
+                  <div className='flex flex-col gap-4.5 pt-2'>
+                    <SettingRow label='Email attribute' optional>
+                      <ChipInput
+                        type='text'
+                        placeholder={mappingDefaults.email}
+                        value={formData.mapEmail}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        inputClassName='font-mono'
+                        onChange={(e) => handleInputChange('mapEmail', e.target.value)}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label='Name attribute' optional>
+                      <ChipInput
+                        type='text'
+                        placeholder={mappingDefaults.name}
+                        value={formData.mapName}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        inputClassName='font-mono'
+                        onChange={(e) => handleInputChange('mapName', e.target.value)}
+                      />
+                    </SettingRow>
+
+                    <SettingRow label='User ID attribute' optional>
+                      <ChipInput
+                        type='text'
+                        placeholder={mappingDefaults.id}
+                        value={formData.mapId}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        inputClassName='font-mono'
+                        onChange={(e) => handleInputChange('mapId', e.target.value)}
+                      />
+                      <p className='text-[var(--text-muted)] text-small'>
+                        Must be stable and unique per user — changing it later re-links accounts.
+                      </p>
+                    </SettingRow>
+                  </div>
+                </ExpandableContent>
+              </Expandable>
+            </div>
           </div>
+        </SettingsSection>
+
+        <SettingsSection label='Member provisioning'>
+          <SettingRow label='On first SSO sign-in'>
+            <ChipSwitch
+              value={formData.jitProvisioningEnabled ? 'automatic' : 'invite-only'}
+              onChange={(value) =>
+                handleInputChange('jitProvisioningEnabled', value === 'automatic')
+              }
+              aria-label='SSO member provisioning mode'
+              options={[
+                { value: 'automatic', label: 'Automatic' },
+                { value: 'invite-only', label: 'Invite only' },
+              ]}
+            />
+            <p className='text-[var(--text-muted)] text-small'>
+              {formData.jitProvisioningEnabled
+                ? 'Users authenticated through this verified SSO connection join as Members and consume a seat on first sign-in. They receive no workspace access until it is granted separately.'
+                : 'SSO only authenticates users. Invite them to grant organization membership or workspace access.'}
+            </p>
+          </SettingRow>
+          <p className='text-[var(--text-muted)] text-small'>
+            Existing members are not removed when you choose Invite only or disable them in your
+            identity provider. Offboarding remains an explicit Sim admin action.
+          </p>
         </SettingsSection>
       </SettingsPanel>
     </form>

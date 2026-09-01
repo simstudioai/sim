@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { getColumnId } from '@/lib/table/column-keys'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
+import { getTablePredicateTreeSizeError } from '@/lib/table/query-builder/predicate'
 import type {
   ColumnDefinition,
   ColumnType,
@@ -10,6 +11,7 @@ import type {
   PredicateNode,
   SortSpec,
   TablePredicate,
+  TablePredicateInput,
 } from '@/lib/table/types'
 
 /**
@@ -44,6 +46,15 @@ const SYSTEM_COLUMN_TYPES: ReadonlyArray<[string, ColumnType]> = [
   ['updatedAt', 'date'],
   ['id', 'string'],
 ]
+
+/**
+ * The system column names as a membership set, for the surfaces that decide
+ * whether a stored field still refers to something real — a check that would
+ * otherwise drop `createdAt` for the crime of not being in `schema.columns`.
+ */
+export const SYSTEM_COLUMN_FIELDS: ReadonlySet<string> = new Set(
+  SYSTEM_COLUMN_TYPES.map(([name]) => name)
+)
 
 function buildTypeByName(columns: ColumnDefinition[]): Map<string, ColumnType> {
   const typeByName = new Map<string, ColumnType>(columns.map((c) => [c.name, c.type]))
@@ -113,17 +124,26 @@ function validateLeaf(leaf: Predicate, typeByName: Map<string, ColumnType> | nul
  * dual-grammar boundaries where the predicate may be NAME- or ID-keyed, so a
  * column-existence check against either keying would be wrong.
  */
-export function validatePredicateShape(predicate: TablePredicate): void {
+export function validatePredicateShape(predicate: TablePredicateInput): void {
   validateNode(predicate, null)
 }
 
 function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> | null): void {
+  const sizeError = getTablePredicateTreeSizeError(node)
+  if (sizeError) throw new TableQueryValidationError(sizeError, 'INVALID_FILTER')
+  validateNodeStructure(node, typeByName)
+}
+
+function validateNodeStructure(
+  node: PredicateNode,
+  typeByName: Map<string, ColumnType> | null
+): void {
   // Guard before the `in` checks below: an untrusted caller (copilot args, a raw
   // block value) can hand us a string/number/null, where `'all' in node` throws
   // a raw TypeError. Fail with a clean, actionable message instead.
   if (typeof node !== 'object' || node === null) {
     throw new TableQueryValidationError(
-      'Filter must be a predicate object ({ all | any: [...] }).',
+      'Filter must be a predicate condition ({ field, op, value }) or group ({ all | any: [...] }).',
       'INVALID_FILTER'
     )
   }
@@ -165,7 +185,7 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> |
         'INVALID_FILTER'
       )
     }
-    for (const child of members) validateNode(child, typeByName)
+    for (const child of members) validateNodeStructure(child, typeByName)
     return
   }
   // Neither a group nor a leaf. Overwhelmingly this is the legacy `$`-grammar
@@ -179,7 +199,7 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> |
     )
     throw new TableQueryValidationError(
       looksLegacy
-        ? 'Filter uses the legacy operator-object grammar. Use a predicate tree instead: { all: [{ field, op, value }] } (or "any" for OR), with bare operators like eq/gte/contains/in.'
+        ? 'Filter uses the legacy operator-object grammar. Use a predicate condition instead: { field, op, value }, or an "all"/"any" group for multiple conditions, with bare operators like eq/gte/contains/in.'
         : 'A filter node must be a group ({ all | any: [...] }) or a condition ({ field, op, value }).',
       'INVALID_FILTER'
     )
@@ -192,7 +212,10 @@ function validateNode(node: PredicateNode, typeByName: Map<string, ColumnType> |
  * exists, no equality/containment op targets a `json` column, `in`/`nin` carry a
  * non-empty array. Throws {@link TableQueryValidationError} (`INVALID_FILTER`).
  */
-export function validatePredicate(predicate: TablePredicate, columns: ColumnDefinition[]): void {
+export function validatePredicate(
+  predicate: TablePredicateInput,
+  columns: ColumnDefinition[]
+): void {
   validateNode(predicate, buildTypeByName(columns))
 }
 
@@ -222,4 +245,21 @@ export function validateStoragePredicate(
   const typeById = new Map<string, ColumnType>(columns.map((c) => [getColumnId(c), c.type]))
   for (const [name, type] of SYSTEM_COLUMN_TYPES) typeById.set(name, type)
   validateNode(predicate, typeById)
+}
+
+/**
+ * Validates a STORAGE-keyed sort spec — fields are column ids (plus the system
+ * columns, which keep their names). The sort counterpart of
+ * {@link validateStoragePredicate}, for the same reason: after wire translation
+ * an unresolved field is a typo, and a typo must be refused rather than silently
+ * ordering by nothing.
+ */
+export function validateStorageSortSpec(spec: SortSpec, columns: ColumnDefinition[]): void {
+  const ids = new Set(columns.map(getColumnId))
+  for (const { field } of spec) {
+    validateFieldName(field)
+    if (!ids.has(field) && !SYSTEM_COLUMN_FIELDS.has(field)) {
+      throw new TableQueryValidationError(`Unknown sort column "${field}"`, 'INVALID_ORDER')
+    }
+  }
 }

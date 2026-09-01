@@ -5,9 +5,9 @@ import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/t
 function FileAttachmentPill(props: { mediaType: string; filename: string }) {
   const Icon = getDocumentIcon(props.mediaType, props.filename)
   return (
-    <div className='flex max-w-[140px] items-center gap-[5px] rounded-[10px] bg-[var(--surface-5)] px-[6px] py-[3px]'>
-      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate text-[11px] text-[var(--text-body)]'>{props.filename}</span>
+    <div className='flex max-w-[140px] items-center gap-[5px] rounded-lg bg-[var(--surface-5)] px-[6px] py-[3px]'>
+      <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate text-[var(--text-body)] text-xs'>{props.filename}</span>
     </div>
   )
 }
@@ -41,7 +41,7 @@ export function ChatMessageAttachments(props: {
           return (
             <div
               key={att.id}
-              className='relative size-[56px] overflow-hidden rounded-[8px] bg-[var(--surface-5)]'
+              className='relative size-[56px] overflow-hidden rounded-lg bg-[var(--surface-5)]'
             >
               <div className='absolute inset-0 flex items-center justify-center text-[var(--text-icon)]'>
                 <Icon className='size-[18px]' />
@@ -51,14 +51,14 @@ export function ChatMessageAttachments(props: {
                 muted
                 playsInline
                 preload='metadata'
-                className='relative h-full w-full object-cover'
+                className='relative size-full object-cover'
               />
             </div>
           )
         }
         return (
-          <div key={att.id} className='size-[56px] overflow-hidden rounded-[8px]'>
-            <img src={att.previewUrl} alt={att.filename} className='h-full w-full object-cover' />
+          <div key={att.id} className='size-[56px] overflow-hidden rounded-lg'>
+            <img src={att.previewUrl} alt={att.filename} className='size-full object-cover' />
           </div>
         )
       })}

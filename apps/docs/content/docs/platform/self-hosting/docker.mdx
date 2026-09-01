@@ -1,0 +1,175 @@
+---
+title: Docker
+description: Deploy Sim with Docker Compose
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+## Quick Start
+
+```bash
+npx sim-setup
+```
+
+Open [http://localhost:3000](http://localhost:3000)
+
+The setup package creates `./sim` with a generated `.env` and the production Compose file, then
+starts published container images. Pass `--dir <path>` to choose another directory.
+
+## Production Setup
+
+### 1. Configure Environment
+
+```bash
+cat > .env << EOF
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+API_ENCRYPTION_KEY=$(openssl rand -hex 32)
+CRON_SECRET=$(openssl rand -hex 32)
+
+# Your public origin. BETTER_AUTH_URL is derived from this automatically.
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+
+# Database credentials. DATABASE_URL is composed from these by the compose file.
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=$(openssl rand -hex 24)
+POSTGRES_DB=simstudio
+EOF
+```
+
+<Callout type="info">
+  Do not set `DATABASE_URL` or `BETTER_AUTH_URL` in `.env` — `docker-compose.prod.yml` composes both on the service definition, and a value set here is ignored. Change `POSTGRES_*` and `NEXT_PUBLIC_APP_URL` instead.
+</Callout>
+
+<Callout type="error">
+  Save `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` somewhere outside this server. `ENCRYPTION_KEY` encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets; `API_ENCRYPTION_KEY` encrypts user-generated Sim API keys. Neither can be regenerated — a database restore paired with a different key leaves the data it protected permanently unreadable.
+</Callout>
+
+The compose file refuses to start if `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, or `INTERNAL_API_SECRET` is missing, rather than booting with empty values. `CRON_SECRET` is treated more gently: without it the `cron` service prints what to set and exits, leaving the rest of the stack running — so upgrading from a compose file that predates the scheduler still works.
+
+Images track `latest` unless you pin them. For production, see [Upgrades](/platform/self-hosting/upgrades).
+
+### 2. Start Services
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Six services start:
+
+| Service | Port | Purpose |
+|---|---|---|
+| `simstudio` | 3000 | Main application (8 GB memory limit) |
+| `realtime` | 3002 | WebSocket server (1 GB memory limit) |
+| `db` | 5432 | PostgreSQL 17 with pgvector |
+| `redis` | internal | Pub/sub and shared cache — not published to the host |
+| `cron` | — | Runs the [background jobs](/platform/self-hosting/background-jobs) on a schedule |
+| `migrations` | — | Applies schema migrations once, then exits |
+
+Confirm the five long-running services are up and that `migrations` has exited cleanly (it is a one-shot job with no healthcheck):
+
+```bash
+docker compose -f docker-compose.prod.yml ps
+```
+
+### 3. Put it behind TLS
+
+Caddy is the least-effort option — it obtains and renews certificates automatically.
+
+```
+sim.yourdomain.com {
+    request_body {
+        max_size 250MB
+    }
+
+    handle /socket.io/* {
+        reverse_proxy localhost:3002
+    }
+
+    reverse_proxy localhost:3000 {
+        flush_interval -1
+    }
+}
+```
+
+Three things in that config are Sim-specific and easy to get wrong: `/socket.io` must reach the realtime service on 3002, `flush_interval -1` stops Caddy buffering streamed agent output into one delayed block, and `max_size` has to clear the chat endpoint's 220 MB limit.
+
+For nginx, Traefik, or a cloud load balancer — and for the GKE websocket timeout — see [Networking](/platform/self-hosting/networking).
+
+## Ollama
+
+```bash
+# With GPU
+docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
+
+# CPU only
+docker compose -f docker-compose.ollama.yml --profile cpu --profile setup up -d
+```
+
+Pull additional models — the service name differs by profile:
+```bash
+# GPU profile
+docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
+
+# CPU profile
+docker compose -f docker-compose.ollama.yml exec ollama-cpu ollama pull llama3.2
+```
+
+### External Ollama
+
+If Ollama runs on your host machine (not in Docker):
+
+```bash
+# macOS/Windows
+OLLAMA_URL=http://host.docker.internal:11434 docker compose -f docker-compose.prod.yml up -d
+
+# Linux - use your host IP
+OLLAMA_URL=http://192.168.1.100:11434 docker compose -f docker-compose.prod.yml up -d
+```
+
+<Callout type="warning">
+  Inside Docker, `localhost` refers to the container, not your host. Use `host.docker.internal` or your host's IP.
+</Callout>
+
+### LM Studio
+
+[LM Studio exposes an OpenAI-compatible API](https://lmstudio.ai/docs/developer/openai-compat). Start its local server, load a model, and enable **Serve on Local Network** so the Docker container can reach it. [Enable API authentication](https://lmstudio.ai/docs/developer/core/authentication), then set the endpoint and token in the `.env` file next to your Compose file:
+
+```bash
+# macOS/Windows
+VLLM_BASE_URL=http://host.docker.internal:1234
+
+# Linux - use your host IP instead
+# VLLM_BASE_URL=http://192.168.1.100:1234
+
+VLLM_API_KEY=your_lm_studio_api_token
+```
+
+Both the server root shown above and a URL ending in `/v1` are accepted. After recreating the `simstudio` service, its models appear in the model picker with a `vllm/` prefix; Sim removes that prefix before sending the model identifier to LM Studio.
+
+```bash
+docker compose -f docker-compose.ollama.yml up -d --force-recreate simstudio
+```
+
+## Commands
+
+```bash
+# Did migrations succeed?
+docker compose -f docker-compose.prod.yml logs migrations
+
+# Is the scheduler firing?
+docker compose -f docker-compose.prod.yml logs -f cron
+
+# Upgrade: bump SIM_VERSION in .env when pinned, then
+npx sim-setup update
+```
+
+<FAQ items={[
+  { question: "Do scheduled workflows work on Docker Compose?", answer: "Yes. The cron service runs the same jobs the Helm chart schedules as Kubernetes CronJobs, using the schedules in docker/crontab. It needs CRON_SECRET — without it the service prints what to set and exits, and the rest of the stack keeps running."},
+  { question: "Why is there a Redis container?", answer: "Redis backs pub/sub for live Chat task status and table events, plus shared caches. Pub/sub has no fallback that works across processes, so live status would not stream without it. The port is deliberately not published so it cannot collide with a local Redis."},
+  { question: "How do I back up and restore the database?", answer: "Back up with: docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio > backup.sql. Restore with: docker compose -f docker-compose.prod.yml exec -T db psql -U postgres simstudio < backup.sql. The database data is persisted in a Docker volume named postgres_data."},
+  { question: "Can I customize the PostgreSQL credentials?", answer: "Yes. The docker-compose.prod.yml uses environment variable defaults: POSTGRES_USER (default: postgres), POSTGRES_PASSWORD (default: postgres), POSTGRES_DB (default: simstudio), and POSTGRES_PORT (default: 5432). Set these in your .env file to override them." },
+]} />

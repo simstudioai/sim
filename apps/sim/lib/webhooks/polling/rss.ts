@@ -20,6 +20,17 @@ import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
 
 const MAX_GUIDS_TO_TRACK = 500
 
+/**
+ * Cap on the feed body read from `feedUrl`. The URL is attacker-choosable (anyone can save
+ * an RSS trigger pointing at their own host) and the poller runs unattended, so an
+ * unbounded body would let a malicious feed grow the polling worker's heap until it is
+ * OOM-killed. This also bounds the XML handed to `rss-parser`, which has no input-size
+ * limit of its own. Set well above any real feed (they are typically well under 1MB) so the
+ * bound never trips a legitimate poll. The request strips `accept-encoding`, so this counts
+ * decoded bytes.
+ */
+const MAX_RSS_FEED_BYTES = 10 * 1024 * 1024
+
 interface RssWebhookConfig {
   feedUrl: string
   lastCheckedTimestamp?: string
@@ -188,7 +199,7 @@ async function fetchNewRssItems(
   logger: Logger
 ): Promise<{ feed: RssFeed; items: RssItem[]; etag?: string; lastModified?: string }> {
   try {
-    const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl')
+    const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl', 'requestTarget')
     if (!urlValidation.isValid) {
       logger.error(`[${requestId}] Invalid RSS feed URL: ${urlValidation.error}`)
       throw new Error(`Invalid RSS feed URL: ${urlValidation.error}`)
@@ -205,9 +216,11 @@ async function fetchNewRssItems(
       headers['If-Modified-Since'] = config.lastModified
     }
 
-    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP!, {
+    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP, {
+      profile: 'requestTarget',
       headers,
       timeout: 30000,
+      maxResponseBytes: MAX_RSS_FEED_BYTES,
     })
 
     if (response.status === 304) {

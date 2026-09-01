@@ -1,4 +1,3 @@
-import { db } from '@sim/db'
 import { folder as folderTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
@@ -10,7 +9,9 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { folderResourceConfig } from '@/lib/folders/config'
+import { withTransactionRetry } from '@/lib/db/transaction'
+import { acquireFolderMutationLock } from '@/lib/folders/locks'
+import { folderResourceSupportsLocking } from '@/lib/folders/resource-traits'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderReorderAPI')
@@ -37,136 +38,146 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Write access required' }, { status: 403 })
     }
 
-    const folderIds = updates.map((u) => u.id)
-    /**
-     * Archived folders are excluded here for the same reason `PUT /api/folders/[id]` excludes
-     * them: `getFolderLockStatus` skips archived rows, so `assertFolderMutable` below is a
-     * guaranteed no-op on one — meaning a locked folder becomes freely reparentable the moment
-     * its parent is deleted. Reordering an archived folder is also a correctness problem in its
-     * own right: `collectArchivedSubtreeIds` walks the cascade by parent, so moving a branch out
-     * of an archived subtree silently drops it from that folder's restore.
-     */
-    const existingFolders = await db
-      .select({ id: folderTable.id, workspaceId: folderTable.workspaceId })
-      .from(folderTable)
-      .where(
-        and(
-          inArray(folderTable.id, folderIds),
-          eq(folderTable.resourceType, resourceType),
-          isNull(folderTable.deletedAt)
-        )
-      )
-
-    const validIds = new Set(
-      existingFolders.filter((f) => f.workspaceId === workspaceId).map((f) => f.id)
-    )
-
-    const validUpdates = updates.filter((u) => validIds.has(u.id))
-
-    if (validUpdates.length === 0) {
-      return NextResponse.json({ error: 'No valid folders to update' }, { status: 400 })
-    }
-
-    const targetParentIds = Array.from(
-      new Set(validUpdates.map((u) => u.parentId).filter((id): id is string => Boolean(id)))
-    )
-
-    if (targetParentIds.length > 0) {
-      const parentFolders = await db
-        .select({
-          id: folderTable.id,
-          workspaceId: folderTable.workspaceId,
-          archivedAt: folderTable.deletedAt,
-        })
-        .from(folderTable)
-        .where(
-          and(inArray(folderTable.id, targetParentIds), eq(folderTable.resourceType, resourceType))
-        )
-
-      const validParentIds = new Set(
-        parentFolders.filter((f) => f.workspaceId === workspaceId && !f.archivedAt).map((f) => f.id)
-      )
-
-      for (const update of validUpdates) {
-        if (!update.parentId) continue
-        if (update.parentId === update.id) {
-          return NextResponse.json({ error: 'Folder cannot be its own parent' }, { status: 400 })
-        }
-        if (!validParentIds.has(update.parentId)) {
-          return NextResponse.json({ error: 'Parent folder not found' }, { status: 400 })
-        }
-      }
-    }
-
-    const workspaceFolders = await db
-      .select({ id: folderTable.id, parentId: folderTable.parentId })
-      .from(folderTable)
-      .where(
-        and(eq(folderTable.workspaceId, workspaceId), eq(folderTable.resourceType, resourceType))
-      )
-
-    const parentById = new Map<string, string | null>()
-    for (const folder of workspaceFolders) {
-      parentById.set(folder.id, folder.parentId)
-    }
-    for (const update of validUpdates) {
-      if (update.parentId !== undefined) {
-        parentById.set(update.id, update.parentId || null)
-      }
-    }
-
-    for (const update of validUpdates) {
-      const visited = new Set<string>()
-      let cursor: string | null = update.id
-      while (cursor) {
-        if (visited.has(cursor)) {
-          return NextResponse.json(
-            { error: 'Cannot create circular folder reference' },
-            { status: 400 }
-          )
-        }
-        visited.add(cursor)
-        cursor = parentById.get(cursor) ?? null
-      }
-    }
-
-    // Folder locking is a workflow-only feature; other resource types leave `locked` false.
-    if (folderResourceConfig(resourceType).supportsLocking) {
-      for (const update of validUpdates) {
-        await assertFolderMutable(update.id)
-        if (update.parentId !== undefined) {
-          await assertFolderMutable(update.parentId)
-        }
-      }
-    }
-
-    await db.transaction(async (tx) => {
-      for (const update of validUpdates) {
-        const updateData: Partial<typeof folderTable.$inferInsert> = {
-          sortOrder: update.sortOrder,
-          updatedAt: new Date(),
-        }
-        if (update.parentId !== undefined) {
-          updateData.parentId = update.parentId || null
-        }
-        await tx
-          .update(folderTable)
-          .set(updateData)
+    return await withTransactionRetry(
+      async (tx) => {
+        await acquireFolderMutationLock(tx, workspaceId, resourceType)
+        const folderIds = updates.map((u) => u.id)
+        /**
+         * Archived folders are excluded here for the same reason `PUT /api/folders/[id]`
+         * excludes them: lock resolution skips archived rows, so an archived-but-locked
+         * folder would otherwise become mutable while its cascade is still recoverable.
+         */
+        const existingFolders = await tx
+          .select({ id: folderTable.id, workspaceId: folderTable.workspaceId })
+          .from(folderTable)
           .where(
             and(
-              eq(folderTable.id, update.id),
+              inArray(folderTable.id, folderIds),
               eq(folderTable.resourceType, resourceType),
               isNull(folderTable.deletedAt)
             )
           )
-      }
-    })
 
-    logger.info(
-      `[${requestId}] Reordered ${validUpdates.length} ${resourceType} folders in workspace ${workspaceId}`
+        const validIds = new Set(
+          existingFolders.filter((f) => f.workspaceId === workspaceId).map((f) => f.id)
+        )
+        const validUpdates = updates.filter((u) => validIds.has(u.id))
+
+        if (validUpdates.length === 0) {
+          return NextResponse.json({ error: 'No valid folders to update' }, { status: 400 })
+        }
+
+        const targetParentIds = Array.from(
+          new Set(validUpdates.map((u) => u.parentId).filter((id): id is string => Boolean(id)))
+        )
+
+        if (targetParentIds.length > 0) {
+          const parentFolders = await tx
+            .select({
+              id: folderTable.id,
+              workspaceId: folderTable.workspaceId,
+              archivedAt: folderTable.deletedAt,
+            })
+            .from(folderTable)
+            .where(
+              and(
+                inArray(folderTable.id, targetParentIds),
+                eq(folderTable.resourceType, resourceType)
+              )
+            )
+
+          const validParentIds = new Set(
+            parentFolders
+              .filter((f) => f.workspaceId === workspaceId && !f.archivedAt)
+              .map((f) => f.id)
+          )
+
+          for (const update of validUpdates) {
+            if (!update.parentId) continue
+            if (update.parentId === update.id) {
+              return NextResponse.json(
+                { error: 'Folder cannot be its own parent' },
+                { status: 400 }
+              )
+            }
+            if (!validParentIds.has(update.parentId)) {
+              return NextResponse.json({ error: 'Parent folder not found' }, { status: 400 })
+            }
+          }
+        }
+
+        const workspaceFolders = await tx
+          .select({ id: folderTable.id, parentId: folderTable.parentId })
+          .from(folderTable)
+          .where(
+            and(
+              eq(folderTable.workspaceId, workspaceId),
+              eq(folderTable.resourceType, resourceType)
+            )
+          )
+
+        const parentById = new Map<string, string | null>()
+        for (const folder of workspaceFolders) {
+          parentById.set(folder.id, folder.parentId)
+        }
+        for (const update of validUpdates) {
+          if (update.parentId !== undefined) {
+            parentById.set(update.id, update.parentId || null)
+          }
+        }
+
+        for (const update of validUpdates) {
+          const visited = new Set<string>()
+          let cursor: string | null = update.id
+          while (cursor) {
+            if (visited.has(cursor)) {
+              return NextResponse.json(
+                { error: 'Cannot create circular folder reference' },
+                { status: 400 }
+              )
+            }
+            visited.add(cursor)
+            cursor = parentById.get(cursor) ?? null
+          }
+        }
+
+        if (folderResourceSupportsLocking(resourceType)) {
+          for (const update of validUpdates) {
+            await assertFolderMutable(update.id)
+            if (update.parentId !== undefined) {
+              await assertFolderMutable(update.parentId)
+            }
+          }
+        }
+
+        for (const update of validUpdates) {
+          const updateData: Partial<typeof folderTable.$inferInsert> = {
+            sortOrder: update.sortOrder,
+            updatedAt: new Date(),
+          }
+          if (update.parentId !== undefined) {
+            updateData.parentId = update.parentId || null
+          }
+          await tx
+            .update(folderTable)
+            .set(updateData)
+            .where(
+              and(
+                eq(folderTable.id, update.id),
+                eq(folderTable.resourceType, resourceType),
+                isNull(folderTable.deletedAt)
+              )
+            )
+        }
+
+        logger.info(
+          `[${requestId}] Reordered ${validUpdates.length} ${resourceType} folders in workspace ${workspaceId}`
+        )
+
+        return NextResponse.json({ success: true, updated: validUpdates.length })
+      },
+      { label: 'reorder-folders' }
     )
-
-    return NextResponse.json({ success: true, updated: validUpdates.length })
   } catch (error) {
     if (error instanceof FolderLockedError) {
       return NextResponse.json({ error: error.message }, { status: error.status })

@@ -60,25 +60,24 @@ export const contentTypeMap: Record<string, string> = {
   gif: 'image/gif',
   svg: 'image/svg+xml',
   webp: 'image/webp',
+  avif: 'image/avif',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  flac: 'audio/flac',
+  aac: 'audio/aac',
+  opus: 'audio/opus',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  avi: 'video/x-msvideo',
+  mkv: 'video/x-matroska',
+  webm: 'video/webm',
   zip: 'application/zip',
   googleFolder: 'application/vnd.google-apps.folder',
 }
-
-export const binaryExtensions = [
-  'doc',
-  'docx',
-  'xls',
-  'xlsx',
-  'ppt',
-  'pptx',
-  'zip',
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'pdf',
-]
 
 export function getContentType(filename: string): string {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
@@ -159,6 +158,9 @@ const SAFE_INLINE_TYPES = new Set([
   'image/gif',
   'image/svg+xml',
   'image/webp',
+  'image/avif',
+  'image/bmp',
+  'image/x-icon',
   'application/pdf',
   'text/plain',
   'text/csv',
@@ -167,7 +169,7 @@ const SAFE_INLINE_TYPES = new Set([
 
 const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'js', 'css', 'xml'])
 
-function getSecureFileHeaders(filename: string, originalContentType: string) {
+export function getSecureFileHeaders(filename: string, originalContentType: string) {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
 
   if (FORCE_ATTACHMENT_EXTENSIONS.has(extension)) {
@@ -191,27 +193,69 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
   }
 }
 
+/**
+ * Percent-encode a filename as an RFC 8187 `ext-value`.
+ *
+ * `encodeURIComponent` alone is not enough: it leaves `'`, `(`, `)` and `*` raw, and
+ * none of those are `attr-char`. The apostrophe is the specific hazard — it is the
+ * delimiter in `UTF-8''name`, so a filename like `it's.pdf` would emit a third `'`
+ * and desync the parser.
+ */
+function encodeExtValue(filename: string): string {
+  return encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  )
+}
+
+/**
+ * Build the `filename` parameters for a Content-Disposition header.
+ *
+ * The name is attacker-controlled (it is the user's `originalName`), so it can never
+ * be interpolated raw: a `"` closes the quoted-string early and everything after it
+ * is parsed as further parameters. An injected `filename*` is the payload that
+ * matters, because RFC 6266 tells clients to prefer `filename*` over `filename` —
+ * so the attacker's value wins and the download lands under a name the product UI
+ * never showed. Both parameters are therefore always emitted from sanitized input:
+ * the quoted form keeps only printable ASCII minus `"` and `\`, and the `filename*`
+ * form is fully percent-encoded.
+ *
+ * `;` is neutralized too, even though a quoted string may legally contain one: the
+ * quoted parameter exists as the fallback for clients that do not implement
+ * `filename*`, and those are the same clients liable to split parameters on a bare
+ * `;` without honouring the quoting. The exact name still survives in `filename*`.
+ */
 export function encodeFilenameForHeader(storageKey: string): string {
   const filename = storageKey.split('/').pop() || storageKey
-
-  const hasNonAscii = /[^\x00-\x7F]/.test(filename)
-
-  if (!hasNonAscii) {
+  const asciiSafe = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\;]/g, '_')
+  // Unchanged input proves the name is printable ASCII with no `"` or `\`, so the
+  // quoted form alone is both safe and sufficient — `filename*` buys nothing here.
+  if (asciiSafe === filename) {
     return `filename="${filename}"`
   }
-
-  const encodedFilename = encodeURIComponent(filename)
-  const asciiSafe = filename.replace(/[^\x00-\x7F]/g, '_')
-  return `filename="${asciiSafe}"; filename*=UTF-8''${encodedFilename}`
+  return `filename="${asciiSafe}"; filename*=UTF-8''${encodeExtValue(filename)}`
 }
 
 export function createFileResponse(file: FileResponse): NextResponse {
-  const { contentType, disposition } = getSecureFileHeaders(file.filename, file.contentType)
+  // Sim pages store an extensionless name and serve/download as compiled
+  // HTML — re-append the extension so the saved file opens in a browser.
+  // Decided from the CALLER's content type (getSecureFileHeaders downgrades
+  // text/html), and BEFORE the header decision, so the .html name gets the
+  // same forced-attachment treatment a legacy .html file gets.
+  const servedFilename =
+    file.contentType === 'text/html' && !/\.[A-Za-z0-9]{1,8}$/.test(file.filename)
+      ? `${file.filename}.html`
+      : file.filename
+
+  const { contentType, disposition } = getSecureFileHeaders(servedFilename, file.contentType)
 
   const headers: Record<string, string> = {
     'Content-Type': contentType,
-    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
-    'Cache-Control': file.cacheControl || 'public, max-age=31536000',
+    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(servedFilename)}`,
+    // Default to PRIVATE: this response is served only after access verification, so it must never be
+    // stored by a shared cache/CDN and re-served cross-user. Genuinely public assets (avatars, OG images,
+    // workspace logos) pass an explicit `cacheControl` (see PUBLIC_ASSET_CACHE_CONTROL in the serve route).
+    'Cache-Control': file.cacheControl || 'private, no-cache',
     'X-Content-Type-Options': 'nosniff',
   }
 

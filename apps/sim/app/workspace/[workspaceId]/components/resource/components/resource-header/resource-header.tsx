@@ -1,5 +1,8 @@
+'use client'
+
 import {
   type ComponentType,
+  type DragEvent,
   Fragment,
   forwardRef,
   memo,
@@ -12,6 +15,7 @@ import {
   Chip,
   ChipChevronDown,
   chipContentIconClass,
+  chipDropTargetSurfaceClass,
   chipGeometryClass,
   chipVariants,
   cn,
@@ -20,6 +24,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   FloatingTooltip,
+  OverflowText,
+  overflowTextClipClass,
+  overflowTextFadeClass,
   POPOVER_ANIMATION_CLASSES,
   Popover,
   PopoverAnchor,
@@ -29,10 +36,11 @@ import {
   useFloatingTooltip,
   useIsOverflowing,
 } from '@sim/emcn'
-import { ArrowUpLeft } from 'lucide-react'
+import { ArrowUpLeft } from '@sim/emcn/icons'
 import { createPortal } from 'react-dom'
+import { HEADER_ACTION_CLUSTER, TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
+import { orderHeaderActions } from '@/components/settings/settings-header'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 export interface DropdownOption {
   label: string
@@ -58,6 +66,12 @@ export interface BreadcrumbEditing {
 
 export interface BreadcrumbItem {
   label: string
+  /**
+   * The folder this crumb navigates to (`null` is the workspace root). Supplying it makes the
+   * crumb a drag destination: hovering it mid-drag walks back up the tree, and releasing files
+   * the drag there. Omit on a crumb that is not a folder, such as a trailing detail segment.
+   */
+  folderId?: string | null
   icon?: React.ElementType
   onClick?: () => void
   dropdownItems?: DropdownOption[]
@@ -77,12 +91,32 @@ export interface BreadcrumbItem {
  * a selected/toggle state with `active` (e.g. the Logs/Dashboard view toggle).
  */
 export interface ResourceAction {
+  /**
+   * Stable render identity, and the action's slot in the row. `'delete'` and
+   * `'discard'` are ordered by {@link orderHeaderActions} rather than by where the
+   * caller listed them; any other id is just a key. Falls back to `text`, which
+   * remounts the chip whenever the label flips (Delete → Deleting...).
+   */
+  id?: string
   icon?: ComponentType<{ className?: string }>
   text: string
   variant?: 'primary' | 'destructive'
   active?: boolean
   onSelect: () => void
   disabled?: boolean
+}
+
+/**
+ * Makes breadcrumb crumbs drag destinations, so a drag can walk back up the tree it walked
+ * into. Hovering a crumb navigates to it after the same delay a folder row uses, and releasing
+ * on one files the drag there — the counterpart to spring-loading, which only ever goes deeper.
+ */
+export interface BreadcrumbDropConfig {
+  /** Index of the crumb currently under the drag, or `null`. Indexed because `null` is a folder. */
+  activeIndex: number | null
+  onDragOver: (e: DragEvent<HTMLElement>, folderId: string | null, index: number) => void
+  onDragLeave: (e: DragEvent<HTMLElement>, index: number) => void
+  onDrop: (e: DragEvent<HTMLElement>, folderId: string | null) => void
 }
 
 interface ResourceHeaderProps {
@@ -99,6 +133,7 @@ interface ResourceHeaderProps {
    * in `actions`; never stuff primary actions in here.
    */
   aside?: ReactNode
+  breadcrumbDrop?: BreadcrumbDropConfig
 }
 
 export const ResourceHeader = memo(function ResourceHeader({
@@ -107,6 +142,7 @@ export const ResourceHeader = memo(function ResourceHeader({
   breadcrumbs,
   actions,
   aside,
+  breadcrumbDrop,
 }: ResourceHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null)
   /**
@@ -131,7 +167,10 @@ export const ResourceHeader = memo(function ResourceHeader({
   return (
     <div
       ref={headerRef}
-      className='flex min-h-[48px] items-center border-[var(--border)] border-b px-4 py-[8.5px]'
+      className={cn(
+        'flex min-h-[48px] items-center border-[var(--border)] border-b px-4 pb-[8.5px]',
+        TITLE_BAR_LANE_PT
+      )}
     >
       <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
@@ -151,6 +190,22 @@ export const ResourceHeader = memo(function ResourceHeader({
                */
               const showLocationPopover = LocationIcon != null
 
+              /**
+               * Only a crumb that names a folder is a destination; a trailing detail segment
+               * has no `folderId` and stays inert.
+               */
+              const crumbDrag =
+                breadcrumbDrop && crumb.folderId !== undefined
+                  ? {
+                      isActive: breadcrumbDrop.activeIndex === i,
+                      onDragOver: (e: DragEvent<HTMLElement>) =>
+                        breadcrumbDrop.onDragOver(e, crumb.folderId as string | null, i),
+                      onDragLeave: (e: DragEvent<HTMLElement>) => breadcrumbDrop.onDragLeave(e, i),
+                      onDrop: (e: DragEvent<HTMLElement>) =>
+                        breadcrumbDrop.onDrop(e, crumb.folderId as string | null),
+                    }
+                  : undefined
+
               return (
                 <Fragment key={`${crumb.label}-${i}`}>
                   {i > 0 && (
@@ -164,6 +219,7 @@ export const ResourceHeader = memo(function ResourceHeader({
                       breadcrumbs={breadcrumbs}
                       className={segmentClassName}
                       veilBoundaryRef={headerRef}
+                      drag={crumbDrag}
                     />
                   ) : (
                     <BreadcrumbSegment
@@ -173,6 +229,7 @@ export const ResourceHeader = memo(function ResourceHeader({
                       dropdownItems={crumb.dropdownItems}
                       editing={crumb.editing}
                       className={segmentClassName}
+                      drag={crumbDrag}
                     />
                   )}
                 </Fragment>
@@ -191,20 +248,19 @@ export const ResourceHeader = memo(function ResourceHeader({
             <span className={cn(chipGeometryClass, 'inline-flex shrink-0 cursor-default')}>
               {TitleIcon && <TitleIcon className={chipContentIconClass} />}
               {titleLabel && (
-                <FloatingOverflowText
-                  label={titleLabel}
-                  className='block whitespace-nowrap text-[var(--text-body)] text-sm'
-                />
+                <span className='block whitespace-nowrap text-[var(--text-body)] text-sm'>
+                  {titleLabel}
+                </span>
               )}
             </span>
           )}
         </div>
         {(aside || (actions && actions.length > 0)) && (
-          <div className='flex shrink-0 items-center'>
+          <div className={cn(HEADER_ACTION_CLUSTER, 'shrink-0')}>
             {aside}
-            {actions?.map((action) => (
+            {orderHeaderActions(actions).map(({ action }) => (
               <Chip
-                key={action.text}
+                key={action.id ?? action.text}
                 variant={action.variant}
                 active={action.active}
                 leftIcon={action.icon}
@@ -257,6 +313,13 @@ interface BreadcrumbSegmentProps {
   dropdownItems?: DropdownOption[]
   editing?: BreadcrumbEditing
   className?: string
+  /** Drag handlers plus the active flag, when this crumb is a drag destination. */
+  drag?: {
+    isActive: boolean
+    onDragOver: (e: DragEvent<HTMLElement>) => void
+    onDragLeave: (e: DragEvent<HTMLElement>) => void
+    onDrop: (e: DragEvent<HTMLElement>) => void
+  }
 }
 
 const BreadcrumbSegment = memo(function BreadcrumbSegment({
@@ -266,6 +329,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
   dropdownItems,
   editing,
   className,
+  drag,
 }: BreadcrumbSegmentProps) {
   const { ref: labelRef, node: labelNode, isOverflowing } = useIsOverflowing<HTMLSpanElement>()
   const { state: tooltipState, handlers: tooltipHandlers } = useFloatingTooltip((target) =>
@@ -295,14 +359,10 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
   )
   /**
    * Interactive crumbs use a plain `<button>` with bare-chip geometry — NEVER
-   * the Button component, whose buttonVariants inject font-medium /
-   * rounded-[5px] / justify-center and break chip parity with the static/title
-   * crumbs.
+   * the Button component, whose buttonVariants inject rounded-[5px] /
+   * justify-center and break chip parity with the static/title crumbs.
    */
-  const triggerClassName = cn(
-    chipVariants({ flush: true }),
-    'group min-w-0 max-w-full justify-start'
-  )
+  const triggerClassName = cn(chipVariants(), 'group min-w-0 max-w-full justify-start')
 
   if (dropdownItems && dropdownItems.length > 0) {
     return (
@@ -310,7 +370,18 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
         <DropdownMenu>
           <FloatingTooltip label={label} state={tooltipState} />
           <DropdownMenuTrigger asChild>
-            <button type='button' className={cn(triggerClassName, className)} {...tooltipHandlers}>
+            <button
+              type='button'
+              className={cn(
+                triggerClassName,
+                className,
+                drag?.isActive && chipDropTargetSurfaceClass
+              )}
+              onDragOver={drag?.onDragOver}
+              onDragLeave={drag?.onDragLeave}
+              onDrop={drag?.onDrop}
+              {...tooltipHandlers}
+            >
               {content}
               <ChipChevronDown className='ml-auto' />
             </button>
@@ -337,8 +408,11 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
         <FloatingTooltip label={label} state={tooltipState} />
         <button
           type='button'
-          className={cn(triggerClassName, className)}
+          className={cn(triggerClassName, className, drag?.isActive && chipDropTargetSurfaceClass)}
           onClick={onClick}
+          onDragOver={drag?.onDragOver}
+          onDragLeave={drag?.onDragLeave}
+          onDrop={drag?.onDrop}
           {...tooltipHandlers}
         >
           {content}
@@ -354,8 +428,12 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
         className={cn(
           chipGeometryClass,
           'group inline-flex min-w-0 max-w-full cursor-default justify-start',
-          className
+          className,
+          drag?.isActive && chipDropTargetSurfaceClass
         )}
+        onDragOver={drag?.onDragOver}
+        onDragLeave={drag?.onDragLeave}
+        onDrop={drag?.onDrop}
         {...tooltipHandlers}
       >
         {content}
@@ -369,6 +447,7 @@ interface BreadcrumbLocationPopoverProps {
   breadcrumbs: BreadcrumbItem[]
   className?: string
   veilBoundaryRef: React.RefObject<HTMLDivElement | null>
+  drag?: BreadcrumbSegmentProps['drag']
 }
 
 /**
@@ -384,6 +463,7 @@ function BreadcrumbLocationPopover({
   breadcrumbs,
   className,
   veilBoundaryRef,
+  drag,
 }: BreadcrumbLocationPopoverProps) {
   const [open, setOpen] = useState(false)
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -448,24 +528,27 @@ function BreadcrumbLocationPopover({
             onBlur={scheduleClose}
             onMouseEnter={openPopover}
             onMouseLeave={scheduleClose}
+            onDragOver={drag?.onDragOver}
+            onDragLeave={drag?.onDragLeave}
+            onDrop={drag?.onDrop}
             className={cn(
-              chipVariants({ flush: true }),
+              chipVariants(),
               'max-w-none gap-1.5 px-2 transition-colors',
               open && 'relative z-[var(--z-popover)]',
-              className
+              className,
+              drag?.isActive && chipDropTargetSurfaceClass
             )}
           >
             <span className='relative inline-grid size-[16px] shrink-0 place-items-center'>
               <Icon className='col-start-1 row-start-1 size-[16px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
-              <ArrowUpLeft
-                strokeWidth={1.55}
-                className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none'
-              />
+              <ArrowUpLeft className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none' />
             </span>
             {rootBreadcrumb?.label && (
-              <span className='shrink-0 truncate text-[var(--text-body)] text-sm'>
-                {rootBreadcrumb.label}
-              </span>
+              <OverflowText
+                label={rootBreadcrumb.label}
+                className='flex-1 text-[var(--text-body)] text-sm'
+                tooltipEnabled={false}
+              />
             )}
           </button>
         </PopoverAnchor>
@@ -586,7 +669,7 @@ function BreadcrumbLocationItem({
           <span className='size-1.5 rounded-full bg-[var(--text-muted)]' />
         )}
       </span>
-      <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
+      <OverflowText label={label} className='flex-1 text-left' />
     </>
   )
 
@@ -623,9 +706,9 @@ const BreadcrumbLabel = memo(
       <span
         ref={ref}
         className={cn(
-          'min-w-0 truncate text-[var(--text-body)]',
-          isOverflowing &&
-            '[mask-image:linear-gradient(to_right,black_calc(100%-18px),transparent)] group-hover:[mask-image:none] group-focus-visible:[mask-image:none]'
+          overflowTextClipClass,
+          'text-[var(--text-body)]',
+          isOverflowing && overflowTextFadeClass
         )}
       >
         {label}

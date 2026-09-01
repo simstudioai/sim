@@ -1,47 +1,29 @@
+import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
-import { extractEmbeddedFileRefs } from '@/lib/uploads/utils/embedded-image-ref'
-
-/** View-URL embed (`/api/files/view/<id>`) — the only form the file agent writes; see {@link findUnembeddableImageRefs}. */
-const VIEW_EMBED_RE = /\/api\/files\/view\/([A-Za-z0-9_-]+)/g
+import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
 
 /**
- * De-duplicated workspace file **ids** embedded in `content` (view URL or in-app workspace path).
- * Shares the {@link extractEmbeddedFileRefs} grammar with the frontend renderer so the referenced-by-doc
- * gate authorizes exactly what the client links. Resolution and access are checked by the caller.
- */
-export function extractEmbeddedImageIds(content: string): string[] {
-  return extractEmbeddedFileRefs(content).ids
-}
-
-/**
- * De-duplicated workspace storage **keys** (`workspace/<wsId>/…`) embedded in `content` via the serve URL.
- * Same shared grammar as {@link extractEmbeddedImageIds}.
- */
-export function extractEmbeddedImageKeys(content: string): string[] {
-  return extractEmbeddedFileRefs(content).keys
-}
-
-/**
- * Returns the ids of `/api/files/view/<id>` image embeds in `content` that will not render or survive a
- * workspace export. An embed is valid only when its id resolves to a workspace file in this same
- * workspace — the only thing the view route serves and an export can bundle. Every other case (missing,
- * archived, a different workspace, or a non-`workspace` upload such as a chat-scoped `mothership` file)
- * is flagged by id alone, without disclosing the referenced file's real context or owning workspace, so
+ * Returns the ids of image embeds in `content` that will not render or survive a workspace export.
+ * An embed is valid only when its id resolves to a workspace file in this same workspace — the only
+ * thing the view route serves and an export can bundle. Every other case (missing, archived, a
+ * different workspace, or a non-`workspace` upload such as a chat-scoped `mothership` file) is
+ * flagged by id alone, without disclosing the referenced file's real context or owning workspace, so
  * the result can't be used to probe files outside this workspace. Best-effort and never throws, so a
  * content write is never blocked by this validation.
+ *
+ * Resolved through {@link storedFileId}, like the export bundler: an embed the export would resolve
+ * and bundle must not be reported here as one that will not survive it.
  */
 export async function findUnembeddableImageRefs(
   content: string,
   workspaceId: string
 ): Promise<string[]> {
-  const ids = new Set<string>()
-  for (const match of content.matchAll(VIEW_EMBED_RE)) ids.add(match[1])
-  if (ids.size === 0) return []
+  const { ids } = extractEmbeddedFileRefs(content)
 
   const checked = await Promise.all(
-    [...ids].map(async (id): Promise<string | null> => {
+    ids.map(async (id): Promise<string | null> => {
       try {
-        const record = await getFileMetadataById(id)
+        const record = await getFileMetadataById(storedFileId(id))
         const embeddable = record?.context === 'workspace' && record.workspaceId === workspaceId
         return embeddable ? null : id
       } catch {

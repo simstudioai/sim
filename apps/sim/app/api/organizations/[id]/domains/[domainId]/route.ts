@@ -1,9 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, ssoDomain } from '@sim/db/schema'
+import { member, ssoDomain, ssoProvider } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { removeOrganizationDomainContract } from '@/lib/api/contracts/organization'
 import { parseRequest } from '@/lib/api/server'
@@ -18,8 +18,10 @@ const logger = createLogger('OrgDomainDeleteAPI')
  * DELETE /api/organizations/[id]/domains/[domainId]
  * Removes a claimed/verified domain. Requires owner/admin role. Removing a
  * verified domain drops the ownership proof, so SSO can no longer be configured
- * for it until it is re-verified. It does not retroactively un-register an
- * already-configured SSO provider — that flows through the SSO provider itself.
+ * for it until it is re-verified, and any provider already on that domain loses
+ * its `domainVerified` trust in the same transaction. The provider itself is not
+ * un-registered — that flows through the SSO provider — but it can no longer
+ * auto-link sign-ins to existing accounts.
  */
 export const DELETE = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string; domainId: string }> }) => {
@@ -59,10 +61,30 @@ export const DELETE = withRouteHandler(
       )
     }
 
-    const [removed] = await db
-      .delete(ssoDomain)
-      .where(and(eq(ssoDomain.id, domainId), eq(ssoDomain.organizationId, organizationId)))
-      .returning({ domain: ssoDomain.domain })
+    // Removing the proof withdraws the trust it granted, in the same transaction
+    // so a domain can never be gone while its provider still claims verification.
+    const removed = await db.transaction(async (tx) => {
+      const [deleted] = await tx
+        .delete(ssoDomain)
+        .where(and(eq(ssoDomain.id, domainId), eq(ssoDomain.organizationId, organizationId)))
+        .returning({ domain: ssoDomain.domain })
+
+      if (!deleted) return null
+
+      // Normalize as migration 0268 did when grandfathering these rows (lower,
+      // trimmed, leading `*.` stripped), so `*.acme.com` matches proof `acme.com`.
+      await tx
+        .update(ssoProvider)
+        .set({ domainVerified: false })
+        .where(
+          and(
+            eq(ssoProvider.organizationId, organizationId),
+            sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${deleted.domain}`
+          )
+        )
+
+      return deleted
+    })
 
     if (!removed) {
       return NextResponse.json({ error: 'Domain not found' }, { status: 404 })

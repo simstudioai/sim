@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db, dbReplica } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
@@ -41,8 +42,11 @@ export async function verifyEffectiveSuperUser(userId: string): Promise<{
  * served from the replica: this gates features, not security-critical auth, so it
  * tolerates the replica's bounded staleness (admin role rarely changes). Falls back
  * to the primary when no replica is configured.
+ *
+ * Request-memoized: an account-settings render checks the same viewer in both the
+ * layout and the page.
  */
-export async function isPlatformAdmin(userId: string): Promise<boolean> {
+export const isPlatformAdmin = cache(async (userId: string): Promise<boolean> => {
   const [row] = await dbReplica
     .select({ role: user.role })
     .from(user)
@@ -50,4 +54,4 @@ export async function isPlatformAdmin(userId: string): Promise<boolean> {
     .limit(1)
 
   return row?.role === 'admin'
-}
+})

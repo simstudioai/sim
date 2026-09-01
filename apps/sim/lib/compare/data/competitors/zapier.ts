@@ -660,6 +660,21 @@ export const zapierProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'Partial: at the package level only. Code by Zapier lets a builder declare public npm (JavaScript) or PyPI (Python) packages for a Code step from a Packages panel in the editor, optionally pinned to a version, on Professional, Team, and Enterprise plans. There is no control over OS-level system packages or preinstalled CLI binaries, and private registries are not supported.',
+        detail:
+          'The standard Node.js library and fetch are available by default. Zapier documents three constraints on what can be declared: only ESM JavaScript packages work (CommonJS-only packages do not), native modules requiring compiled binaries or system-level access do not work, and installs must finish within 30 seconds (120 seconds on Enterprise) inside a 512 MB memory ceiling on all plans. The Free plan cannot use third-party packages at all.',
+        shortValue: 'Packages only: public npm/PyPI on paid plans, no OS-level control',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/43800622540045-Use-third-party-packages-in-Code-steps',
+            label: 'Use third-party packages in Code steps',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value: 'Unknown',
         detail:
@@ -975,6 +990,28 @@ export const zapierProfile: CompetitorProfile = {
             url: 'https://help.zapier.com/hc/en-us/articles/33678718215309-Team-plan-updates-SSO-is-now-included-and-new-user-limits',
             label: 'Team plan updates: SSO is now included and new user limits',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          "No: Zapier's session timeout is a fixed platform default of 7 days that an admin cannot change. The only way to shorten it is indirectly, through SAML SSO: if the identity provider sends a session timeout, Zapier honors it when it is shorter than the 7-day default, and falls back to its own default when it is longer.",
+        detail:
+          "Zapier's Enterprise admin tools cover SSO, SCIM, domain capture, managed apps, allowed domains, Zap approvals, usage alerts, and Zap history retention, but document no absolute session-lifetime or idle-timeout control. SAML SSO itself is limited to Team and Enterprise plans.",
+        shortValue: 'No: fixed 7-day session, shortened only by an IdP',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/8496279747085-Set-up-single-sign-on-with-SAML',
+            label:
+              'Set up single sign-on with SAML (7-day default session timeout; IdP wins only if shorter)',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/44796621276685-Set-up-admin-tools-for-your-Enterprise-account',
+            label:
+              'Set up admin tools for your Enterprise account (no session-lifetime setting listed)',
+            asOf: '2026-08-10',
           },
         ],
       },

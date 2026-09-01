@@ -3,7 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { granolaConnectorMeta } from '@/connectors/granola/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, looksLikeHtml, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GranolaConnector')
 
@@ -85,7 +85,7 @@ interface GranolaListNotesResponse {
 function granolaHeaders(accessToken: string): Record<string, string> {
   return {
     Authorization: `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
+    Accept: 'application/json',
   }
 }
 
@@ -136,15 +136,6 @@ function parseDateFilter(sourceConfig: Record<string, unknown>, key: string): st
   if (!trimmed) return undefined
   const parsed = new Date(trimmed)
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
-}
-
-/**
- * Detects whether a string contains HTML markup. Granola returns markdown for
- * `summary_markdown`, but this guard lets us defensively strip tags if the API
- * ever emits HTML, without mangling legitimate markdown.
- */
-function looksLikeHtml(value: string): boolean {
-  return /<\/?[a-z][\s\S]*?>/i.test(value)
 }
 
 /**
@@ -205,7 +196,7 @@ function noteSummaryToStub(note: GranolaNoteSummary): ExternalDocument {
     title: note.title?.trim() || 'Untitled Note',
     content: '',
     contentDeferred: true,
-    mimeType: 'text/markdown',
+    mimeType: 'text/plain',
     contentHash: buildContentHash(note.id, note.updated_at),
     metadata: {
       title: note.title?.trim() || undefined,
@@ -271,20 +262,42 @@ export const granolaConnector: ConnectorConfig = {
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     let documents = allStubs
+    let capDroppedNotes = false
     if (maxNotes > 0) {
       const remaining = Math.max(0, maxNotes - prevFetched)
       if (allStubs.length > remaining) {
         documents = allStubs.slice(0, remaining)
+        capDroppedNotes = true
       }
     }
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
 
+    /**
+     * Report Granola's own `hasMore` verbatim rather than ANDing the cursor into
+     * it. The sync engine treats `hasMore: true` with no cursor as a truncated
+     * listing and sets `listingTruncated`, which blocks deletion reconciliation
+     * outright. Collapsing that shape to `hasMore: false` here would hide the
+     * signal and present a partial page as the complete corpus, letting
+     * reconciliation hard-delete every note past it.
+     */
+    const sourceHasMore = Boolean(data.hasMore)
     const hitLimit = maxNotes > 0 && totalFetched >= maxNotes
-    if (hitLimit && syncContext) syncContext.listingCapped = true
 
-    const hasMore = !hitLimit && Boolean(data.hasMore) && Boolean(nextCursor)
+    /**
+     * Only report the listing as capped when the cap actually hid notes that
+     * still exist — either this page was sliced, or Granola reports further
+     * pages. A cap that lands exactly on the last note leaves the listing
+     * complete, and flagging it there would block deletion reconciliation on
+     * every ordinary sync, stranding notes deleted in Granola in the knowledge
+     * base indefinitely.
+     */
+    if (syncContext && hitLimit && (capDroppedNotes || sourceHasMore)) {
+      syncContext.listingCapped = true
+    }
+
+    const hasMore = !hitLimit && sourceHasMore
 
     return {
       documents,
@@ -309,7 +322,7 @@ export const granolaConnector: ConnectorConfig = {
       })
 
       if (!response.ok) {
-        if (response.status === 404 || response.status === 410) return null
+        if (response.status === 404) return null
         throw new Error(`Failed to fetch Granola note: ${response.status}`)
       }
 
@@ -332,7 +345,7 @@ export const granolaConnector: ConnectorConfig = {
         title: note.title?.trim() || 'Untitled Note',
         content,
         contentDeferred: false,
-        mimeType: 'text/markdown',
+        mimeType: 'text/plain',
         sourceUrl: note.web_url?.trim() || undefined,
         contentHash: buildContentHash(note.id, note.updated_at),
         metadata: {
@@ -349,11 +362,19 @@ export const granolaConnector: ConnectorConfig = {
         },
       }
     } catch (error) {
+      /**
+       * Only a confirmed 404 above returns null (the note is gone, or was never
+       * summarized — Granola 404s both). Everything else — 429 rate limiting,
+       * 5xx, network faults — is rethrown so the sync engine records a failed
+       * row and preserves the already-indexed document, instead of silently
+       * dropping a note that still exists. Granola's documented 5 req/s
+       * sustained limit makes transient 429s a realistic outcome on large syncs.
+       */
       logger.warn('Failed to get Granola note', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 

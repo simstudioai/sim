@@ -1,507 +1,213 @@
-import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
+import { readClientId } from '@/lib/api/client-id'
 import {
-  type BatchInsertTableRowsBodyInput,
-  batchUpdateTableRowsBodySchema,
-  deleteTableRowsBodySchema,
+  batchUpdateTableRowsContract,
+  deleteTableRowsContract,
   insertTableRowsContract,
-  tableRowsQuerySchema,
-  updateRowsByFilterBodySchema,
+  listTableRowsContract,
+  updateTableRowsByFilterContract,
 } from '@/lib/api/contracts/tables'
-import { parseRequest } from '@/lib/api/server'
-import { isZodError, parseJsonBody, validationErrorResponse } from '@/lib/api/server/validation'
-import { type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { Filter, RowData, Sort, SortSpec, TableRowsCursor, TableSchema } from '@/lib/table'
 import {
-  batchInsertRows,
-  batchUpdateRows,
-  deleteRowsByFilter,
-  deleteRowsByIds,
-  insertRow,
-  updateRowsByFilter,
-  validateBatchRows,
-  validateRowData,
-  validateRowSize,
-} from '@/lib/table'
-import { TableQueryValidationError } from '@/lib/table/errors'
-import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalRateLimits,
+} from '@/lib/api/server/routes'
+import type { Filter, RowData, Sort, SortSpec, TablePredicate } from '@/lib/table'
+import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { internalTableRowsErrorPolicy } from '@/lib/table/api/row-route-policies'
+import { tableOperations } from '@/lib/table/application/operations'
 import {
-  validatePredicateShape,
-  validateStoragePredicate,
-} from '@/lib/table/query-builder/validate'
-import { queryRows } from '@/lib/table/rows/service'
-import type { TablePredicate } from '@/lib/table/types'
-import { type RowWireTranslators, rowWireTranslators } from '@/app/api/table/row-wire'
-import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
+  batchUpdateTableRows,
+  createTableRows,
+  deleteTableRows,
+  queryTableRows,
+  updateTableRows,
+} from '@/lib/table/application/rows'
+import { TABLE_LIMITS } from '@/lib/table/constants'
+import { isTablePredicate } from '@/lib/table/query-builder/converters'
+import {
+  finalizeTableRowsProvenance,
+  negotiateTableRowsProvenance,
+  readTableRowProvenanceEnvelope,
+} from '@/app/api/table/row-secret-provenance'
+import { presentQueryRowForPrincipal, rowKeyingForPrincipal } from '@/app/api/table/row-wire'
 
-const logger = createLogger('TableRowsAPI')
+const rateLimit = internalRateLimits.none({
+  reason: 'Preserve existing internal table rows behavior',
+})
 
-/** Dual-grammar sort: an ordered spec (v2) or the legacy record, either keying. */
-function resolveWireSort(
-  sort: Sort | SortSpec | undefined,
-  wire: RowWireTranslators
-): Sort | undefined {
-  if (!sort) return undefined
-  if (!Array.isArray(sort)) return wire.sortIn(sort)
-  const spec = wire.sortSpecIn(sort)
-  return spec.length > 0 ? Object.fromEntries(spec.map((s) => [s.field, s.direction])) : undefined
-}
-
-/**
- * Resolves a bulk-op filter to a storage-id-keyed legacy `Filter`. The v2
- * predicate tree is column-NAME-keyed by construction (the caller authors
- * names), so it validates then translates names → ids unconditionally — unlike
- * the legacy object form, whose keying follows the caller's wire dialect
- * (`wire.filterIn`: ids from the UI, names from workflow tools).
- */
-function resolveBulkFilter(
-  raw: TablePredicate | Filter,
-  schema: TableSchema,
-  wire: RowWireTranslators
-): Filter {
-  if (isTablePredicate(raw)) {
-    // Shape first (keying-agnostic: hybrid nodes, leaf value rules), then let
-    // the wire translate — identity for the ID-keyed grid, names→ids for
-    // workflow tools — and validate the RESULT against storage keys. Post-
-    // translation, any unresolved field is a typo in the caller's own keying,
-    // and on a destructive path a typo must 400, not silently match nothing.
-    validatePredicateShape(raw)
-    const translated = wire.predicateIn(raw)
-    validateStoragePredicate(translated, schema.columns)
-    return predicateToFilter(translated)
-  }
-  return wire.filterIn(raw)
-}
-
-interface TableRowsRouteParams {
-  params: Promise<{ tableId: string }>
-}
-
-async function handleBatchInsert(
-  requestId: string,
-  tableId: string,
-  validated: BatchInsertTableRowsBodyInput,
-  userId: string,
-  authType: AuthTypeValue | undefined
-): Promise<NextResponse> {
-  const accessResult = await checkAccess(tableId, userId, 'write')
-  if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-
-  const { table } = accessResult
-
-  if (validated.workspaceId !== table.workspaceId) {
-    logger.warn(
-      `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-    )
-    return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-  }
-
-  const wire = rowWireTranslators(authType, table.schema as TableSchema)
-  const rows = (validated.rows as RowData[]).map((row) => wire.dataIn(row))
-
-  // Validate rows before calling service (service also validates, but route-level
-  // validation returns structured HTTP responses)
-  const validation = await validateBatchRows({
-    rows,
-    schema: table.schema as TableSchema,
-    tableId,
-  })
-  if (!validation.valid) return validation.response
-
-  try {
-    const insertedRows = await batchInsertRows(
-      {
-        tableId,
-        rows,
-        workspaceId: validated.workspaceId,
-        userId,
-        orderKeys: validated.orderKeys,
-      },
-      table,
-      requestId
-    )
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        rows: insertedRows.map((r) => ({
-          id: r.id,
-          data: wire.dataOut(r.data),
-          position: r.position,
-          orderKey: r.orderKey ?? undefined,
-          createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
-          updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
-        })),
-        insertedCount: insertedRows.length,
-        message: `Successfully inserted ${insertedRows.length} rows`,
-      },
-    })
-  } catch (error) {
-    const response = rowWriteErrorResponse(error)
-    if (response) return response
-
-    logger.error(`[${requestId}] Error batch inserting rows:`, error)
-    return NextResponse.json({ error: 'Failed to insert rows' }, { status: 500 })
+function rowErrorPolicy(fallback: string) {
+  return {
+    ...internalTableRowsErrorPolicy,
+    unhandled: () => internalErrorResponse(500, { error: fallback }),
   }
 }
 
-/** POST /api/table/[tableId]/rows - Inserts row(s). Supports single or batch insert. */
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: TableRowsRouteParams) => {
-    const requestId = generateRequestId()
-
-    try {
-      const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!authResult.success || !authResult.userId) {
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-      }
-
-      const parsed = await parseRequest(insertTableRowsContract, request, context)
-      if (!parsed.success) return parsed.response
-
-      const { tableId } = parsed.data.params
-      const body = parsed.data.body
-
-      if ('rows' in body) {
-        return handleBatchInsert(requestId, tableId, body, authResult.userId, authResult.authType)
-      }
-
-      const validated = body
-
-      const accessResult = await checkAccess(tableId, authResult.userId, 'write')
-      if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-
-      const { table } = accessResult
-
-      if (validated.workspaceId !== table.workspaceId) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
-
-      const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
-      const rowData = wire.dataIn(validated.data as RowData)
-
-      // Validate at route level for structured HTTP error responses
-      const validation = await validateRowData({
-        rowData,
-        schema: table.schema as TableSchema,
-        tableId,
-      })
-      if (!validation.valid) return validation.response
-
-      // Service handles atomic capacity check + insert in a transaction
-      const row = await insertRow(
-        {
-          tableId,
-          data: rowData,
-          workspaceId: validated.workspaceId,
-          userId: authResult.userId,
-          position: validated.position,
-          afterRowId: validated.afterRowId,
-          beforeRowId: validated.beforeRowId,
-        },
-        table,
-        requestId
-      )
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          row: {
-            id: row.id,
-            data: wire.dataOut(row.data),
-            position: row.position,
-            orderKey: row.orderKey ?? undefined,
-            createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
-            updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
+export const POST = defineInternalJsonRoute({
+  contract: insertTableRowsContract,
+  operation: tableOperations.createRows,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit,
+  errorPolicy: rowErrorPolicy('Failed to insert row'),
+  mapInput: ({ params, body }, { principal, request }) => {
+    const shared = {
+      tableId: params.tableId,
+      assertedWorkspaceId:
+        principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+      strictWrite: false,
+      dataKeying: rowKeyingForPrincipal(principal),
+      secretProvenanceEnvelope: readTableRowProvenanceEnvelope(request, body),
+      includePersistedSecretProvenance: negotiateTableRowsProvenance(
+        request,
+        principal.kind === 'delegated'
+      ),
+    }
+    return 'rows' in body
+      ? {
+          ...shared,
+          kind: 'batch' as const,
+          rows: body.rows as RowData[],
+          orderKeys: body.orderKeys,
+        }
+      : {
+          ...shared,
+          kind: 'single' as const,
+          data: body.data as RowData,
+          position: body.position,
+          afterRowId: body.afterRowId,
+          beforeRowId: body.beforeRowId,
+          actorClientId: readClientId(request),
+        }
+  },
+  useCase: createTableRows,
+  present: (result, { principal }) =>
+    result.kind === 'single'
+      ? {
+          success: true as const,
+          data: {
+            row: presentQueryRowForPrincipal(result.row, result.table.schema, principal),
+            message: 'Row inserted successfully',
           },
-
-          message: 'Row inserted successfully',
-        },
-      })
-    } catch (error) {
-      if (isZodError(error)) {
-        return validationErrorResponse(error)
-      }
-
-      const response = rowWriteErrorResponse(error)
-      if (response) return response
-
-      logger.error(`[${requestId}] Error inserting row:`, error)
-      return NextResponse.json({ error: 'Failed to insert row' }, { status: 500 })
-    }
-  }
-)
-
-/** GET /api/table/[tableId]/rows - Queries rows with filtering, sorting, and pagination. */
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: TableRowsRouteParams) => {
-    const requestId = generateRequestId()
-    const { tableId } = await params
-
-    try {
-      const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!authResult.success || !authResult.userId) {
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-      }
-
-      const { searchParams } = new URL(request.url)
-      const workspaceId = searchParams.get('workspaceId')
-      const filterParam = searchParams.get('filter')
-      const sortParam = searchParams.get('sort')
-      const afterParam = searchParams.get('after')
-      const limit = searchParams.get('limit')
-      const offset = searchParams.get('offset')
-      const includeTotalParam = searchParams.get('includeTotal')
-
-      let filter: Record<string, unknown> | undefined
-      let sort: Sort | undefined
-      let after: TableRowsCursor | undefined
-
-      try {
-        if (filterParam) {
-          filter = JSON.parse(filterParam) as Record<string, unknown>
         }
-        if (sortParam) {
-          sort = JSON.parse(sortParam) as Sort
-        }
-        if (afterParam) {
-          after = JSON.parse(afterParam) as TableRowsCursor
-        }
-      } catch {
-        return NextResponse.json({ error: 'Invalid filter, sort, or after JSON' }, { status: 400 })
-      }
-
-      const validated = tableRowsQuerySchema.parse({
-        workspaceId,
-        filter,
-        sort,
-        after,
-        limit,
-        offset,
-        includeTotal: includeTotalParam,
-      })
-
-      const accessResult = await checkAccess(tableId, authResult.userId, 'read')
-      if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-
-      const { table } = accessResult
-
-      if (validated.workspaceId !== table.workspaceId) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
-
-      const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
-      const result = await queryRows(
-        table,
-        {
-          ...(validated.filter && isTablePredicate(validated.filter as Filter | TablePredicate)
-            ? {
-                predicate: (() => {
-                  // Shape-check first: nothing upstream validates this branch, and
-                  // an unchecked hybrid node would silently widen the result.
-                  validatePredicateShape(validated.filter as TablePredicate)
-                  const translated = wire.predicateIn(validated.filter as TablePredicate)
-                  // Post-translation storage check, mirroring the bulk PUT/DELETE
-                  // paths: a typo'd field must 400, not compile to a clause that
-                  // matches nothing and read back as an empty page.
-                  validateStoragePredicate(translated, (table.schema as TableSchema).columns)
-                  return translated
-                })(),
-              }
-            : { filter: validated.filter ? wire.filterIn(validated.filter as Filter) : undefined }),
-          sort: resolveWireSort(validated.sort as Sort | SortSpec | undefined, wire),
-          limit: validated.limit,
-          offset: validated.offset,
-          after: validated.after,
-          includeTotal: validated.includeTotal,
-        },
-        requestId
-      )
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          rows: result.rows.map((r) => ({
-            id: r.id,
-            data: wire.dataOut(r.data),
-            executions: r.executions,
-            position: r.position,
-            orderKey: r.orderKey ?? undefined,
-            createdAt:
-              r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
-            updatedAt:
-              r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
-          })),
-          rowCount: result.rowCount,
-          totalCount: result.totalCount,
-          limit: result.limit,
-          offset: result.offset,
-          nextCursor: result.nextCursor,
-        },
-      })
-    } catch (error) {
-      if (isZodError(error)) {
-        return validationErrorResponse(error)
-      }
-
-      if (error instanceof TableQueryValidationError) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-
-      logger.error(`[${requestId}] Error querying rows:`, error)
-      return NextResponse.json({ error: 'Failed to query rows' }, { status: 500 })
-    }
-  }
-)
-
-/** PUT /api/table/[tableId]/rows - Updates rows matching filter criteria. */
-export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: TableRowsRouteParams) => {
-    const requestId = generateRequestId()
-    const { tableId } = await params
-
-    try {
-      const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!authResult.success || !authResult.userId) {
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-      }
-
-      // Bulk write bodies carry caller-supplied row data, so they can legitimately
-      // be large — but not unbounded. `parseJsonBody` applies the platform cap
-      // (413 past it) that a raw `request.json()` on this destructive surface skips.
-      const parsedBody = await parseJsonBody(request)
-      if (!parsedBody.success) return parsedBody.response
-      const body = parsedBody.data
-
-      const validated = updateRowsByFilterBodySchema.parse(body)
-
-      const accessResult = await checkAccess(tableId, authResult.userId, 'write')
-      if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-
-      const { table } = accessResult
-
-      if (validated.workspaceId !== table.workspaceId) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
-
-      const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
-      const patchData = wire.dataIn(validated.data as RowData)
-
-      const sizeValidation = validateRowSize(patchData)
-      if (!sizeValidation.valid) {
-        return NextResponse.json(
-          { error: 'Invalid row data', details: sizeValidation.errors },
-          { status: 400 }
-        )
-      }
-
-      const result = await updateRowsByFilter(
-        table,
-        {
-          filter: resolveBulkFilter(
-            validated.filter as TablePredicate | Filter,
-            table.schema as TableSchema,
-            wire
-          ),
-          data: patchData,
-          limit: validated.limit,
-          actorUserId: authResult.userId,
-        },
-        requestId
-      )
-
-      if (result.affectedCount === 0) {
-        return NextResponse.json(
-          {
-            success: true,
-            data: {
-              message: 'No rows matched the filter criteria',
-              updatedCount: 0,
-            },
+      : {
+          success: true as const,
+          data: {
+            rows: result.rows.map((row) =>
+              presentQueryRowForPrincipal(row, result.table.schema, principal)
+            ),
+            insertedCount: result.rows.length,
+            message: `Successfully inserted ${result.rows.length} rows`,
           },
-          { status: 200 }
-        )
-      }
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          message: 'Rows updated successfully',
-          updatedCount: result.affectedCount,
-          updatedRowIds: result.affectedRowIds,
         },
-      })
-    } catch (error) {
-      if (isZodError(error)) {
-        return validationErrorResponse(error)
-      }
+  finalizeResponse: ({ result }) => finalizeTableRowsProvenance(result.secretProvenance),
+})
 
-      if (error instanceof TableQueryValidationError) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-
-      const response = rowWriteErrorResponse(error)
-      if (response) return response
-
-      logger.error(`[${requestId}] Error updating rows by filter:`, error)
-      return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
+export const GET = defineInternalJsonRoute({
+  contract: listTableRowsContract,
+  operation: tableOperations.queryRows,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit,
+  errorPolicy: rowErrorPolicy('Failed to query rows'),
+  mapInput: ({ params, query }, { principal, request }) => {
+    const filter = query.filter as Filter | TablePredicate | undefined
+    const sort = query.sort as Sort | SortSpec | undefined
+    return {
+      tableId: params.tableId,
+      assertedWorkspaceId:
+        principal.kind === 'delegated' ? principal.workspaceId : query.workspaceId,
+      ...(filter && isTablePredicate(filter)
+        ? { predicate: filter }
+        : { legacyFilter: filter as Filter | undefined }),
+      ...(Array.isArray(sort)
+        ? { sort: sort as SortSpec }
+        : { legacySort: sort as Sort | undefined }),
+      legacyKeying: rowKeyingForPrincipal(principal),
+      limit: query.limit,
+      offset: query.offset,
+      after: query.after,
+      includeTotal: query.includeTotal,
+      includeRunState: query.limit !== undefined && query.limit <= TABLE_LIMITS.MAX_QUERY_LIMIT,
+      allowExpandedLimit: true,
+      includePersistedSecretProvenance: negotiateTableRowsProvenance(
+        request,
+        principal.kind === 'delegated'
+      ),
     }
-  }
-)
+  },
+  useCase: queryTableRows,
+  present: (result, { principal }) => ({
+    success: true as const,
+    data: {
+      rows: result.rows.map((row) =>
+        presentQueryRowForPrincipal(row, result.table.schema, principal)
+      ),
+      rowCount: result.rowCount,
+      totalCount: result.totalCount,
+      limit: result.limit,
+      offset: result.offset,
+      nextCursor: result.nextCursor,
+    },
+  }),
+  finalizeResponse: ({ result }) => finalizeTableRowsProvenance(result.secretProvenance),
+})
 
-/** DELETE /api/table/[tableId]/rows - Deletes rows matching filter criteria or by IDs. */
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: TableRowsRouteParams) => {
-    const requestId = generateRequestId()
-    const { tableId } = await params
+export const PUT = defineInternalJsonRoute({
+  contract: updateTableRowsByFilterContract,
+  operation: tableOperations.updateRows,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit,
+  errorPolicy: rowErrorPolicy('Failed to update rows'),
+  mapInput: ({ params, body }, { principal, request }) => ({
+    tableId: params.tableId,
+    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+    filter: body.filter,
+    filterKeying: rowKeyingForPrincipal(principal),
+    data: body.data as RowData,
+    dataKeying: rowKeyingForPrincipal(principal),
+    strictWrite: false,
+    limit: body.limit,
+    secretProvenanceEnvelope: readTableRowProvenanceEnvelope(request, body),
+  }),
+  useCase: updateTableRows,
+  present: ({ affectedCount, affectedRowIds }) => ({
+    success: true as const,
+    data: {
+      message:
+        affectedCount === 0 ? 'No rows matched the filter criteria' : 'Rows updated successfully',
+      updatedCount: affectedCount,
+      ...(affectedCount > 0 ? { updatedRowIds: affectedRowIds } : {}),
+    },
+  }),
+})
 
-    try {
-      const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!authResult.success || !authResult.userId) {
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-      }
-
-      // Bulk write bodies carry caller-supplied row data, so they can legitimately
-      // be large — but not unbounded. `parseJsonBody` applies the platform cap
-      // (413 past it) that a raw `request.json()` on this destructive surface skips.
-      const parsedBody = await parseJsonBody(request)
-      if (!parsedBody.success) return parsedBody.response
-      const body = parsedBody.data
-
-      const validated = deleteTableRowsBodySchema.parse(body)
-
-      const accessResult = await checkAccess(tableId, authResult.userId, 'write')
-      if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-
-      const { table } = accessResult
-
-      if (validated.workspaceId !== table.workspaceId) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
-
-      if (validated.rowIds) {
-        const result = await deleteRowsByIds(
-          table,
-          { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
-          requestId
-        )
-
-        return NextResponse.json({
-          success: true,
+export const DELETE = defineInternalJsonRoute({
+  contract: deleteTableRowsContract,
+  operation: tableOperations.deleteRows,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit,
+  errorPolicy: rowErrorPolicy('Failed to delete rows'),
+  mapInput: ({ params, body }, { principal }) =>
+    body.rowIds
+      ? {
+          kind: 'ids' as const,
+          tableId: params.tableId,
+          assertedWorkspaceId:
+            principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+          rowIds: body.rowIds,
+        }
+      : {
+          kind: 'filter' as const,
+          tableId: params.tableId,
+          assertedWorkspaceId:
+            principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+          filter: body.filter!,
+          filterKeying: rowKeyingForPrincipal(principal),
+          limit: body.limit,
+        },
+  useCase: deleteTableRows,
+  present: (result) =>
+    result.kind === 'ids'
+      ? {
+          success: true as const,
           data: {
             message:
               result.deletedCount === 0
@@ -512,114 +218,44 @@ export const DELETE = withRouteHandler(
             requestedCount: result.requestedCount,
             ...(result.missingRowIds.length > 0 ? { missingRowIds: result.missingRowIds } : {}),
           },
-        })
-      }
-
-      const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
-      const result = await deleteRowsByFilter(
-        table,
-        {
-          filter: resolveBulkFilter(
-            validated.filter as TablePredicate | Filter,
-            table.schema as TableSchema,
-            wire
-          ),
-          limit: validated.limit,
+        }
+      : {
+          success: true as const,
+          data: {
+            message:
+              result.affectedCount === 0
+                ? 'No rows matched the filter criteria'
+                : 'Rows deleted successfully',
+            deletedCount: result.affectedCount,
+            deletedRowIds: result.affectedRowIds,
+          },
         },
-        requestId
-      )
+})
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          message:
-            result.affectedCount === 0
-              ? 'No rows matched the filter criteria'
-              : 'Rows deleted successfully',
-          deletedCount: result.affectedCount,
-          deletedRowIds: result.affectedRowIds,
-        },
-      })
-    } catch (error) {
-      if (isZodError(error)) {
-        return validationErrorResponse(error)
-      }
-
-      if (error instanceof TableQueryValidationError) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-
-      const response = rowWriteErrorResponse(error)
-      if (response) return response
-
-      logger.error(`[${requestId}] Error deleting rows:`, error)
-      return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })
-    }
-  }
-)
-
-/** PATCH /api/table/[tableId]/rows - Batch updates rows by ID. */
-export const PATCH = withRouteHandler(
-  async (request: NextRequest, { params }: TableRowsRouteParams) => {
-    const requestId = generateRequestId()
-    const { tableId } = await params
-
-    try {
-      const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!authResult.success || !authResult.userId) {
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-      }
-
-      // Bulk write bodies carry caller-supplied row data, so they can legitimately
-      // be large — but not unbounded. `parseJsonBody` applies the platform cap
-      // (413 past it) that a raw `request.json()` on this destructive surface skips.
-      const parsedBody = await parseJsonBody(request)
-      if (!parsedBody.success) return parsedBody.response
-      const body = parsedBody.data
-
-      const validated = batchUpdateTableRowsBodySchema.parse(body)
-
-      const accessResult = await checkAccess(tableId, authResult.userId, 'write')
-      if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-
-      const { table } = accessResult
-
-      if (validated.workspaceId !== table.workspaceId) {
-        logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
-        )
-        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-      }
-
-      const result = await batchUpdateRows(
-        {
-          tableId,
-          updates: validated.updates as Array<{ rowId: string; data: RowData }>,
-          workspaceId: validated.workspaceId,
-          actorUserId: authResult.userId,
-        },
-        table,
-        requestId
-      )
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          message: 'Rows updated successfully',
-          updatedCount: result.affectedCount,
-          updatedRowIds: result.affectedRowIds,
-        },
-      })
-    } catch (error) {
-      if (isZodError(error)) {
-        return validationErrorResponse(error)
-      }
-
-      const response = rowWriteErrorResponse(error)
-      if (response) return response
-
-      logger.error(`[${requestId}] Error batch updating rows:`, error)
-      return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
-    }
-  }
-)
+export const PATCH = defineInternalJsonRoute({
+  contract: batchUpdateTableRowsContract,
+  operation: tableOperations.updateRows,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit,
+  errorPolicy: rowErrorPolicy('Failed to update rows'),
+  mapInput: ({ params, body }, { principal, request }) => ({
+    tableId: params.tableId,
+    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+    strictWrite: false,
+    dataKeying: rowKeyingForPrincipal(principal),
+    updates: body.updates.map((update) => ({
+      rowId: update.rowId,
+      data: update.data as RowData,
+    })),
+    secretProvenanceEnvelope: readTableRowProvenanceEnvelope(request, body),
+  }),
+  useCase: batchUpdateTableRows,
+  present: ({ affectedCount, affectedRowIds }) => ({
+    success: true as const,
+    data: {
+      message: 'Rows updated successfully',
+      updatedCount: affectedCount,
+      updatedRowIds: affectedRowIds,
+    },
+  }),
+})

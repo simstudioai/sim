@@ -146,47 +146,6 @@ export const POST_METADATA_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete posts array output definition
- */
-export const POSTS_ARRAY_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of posts with title, author, URL, score, comments count, and metadata',
-  items: {
-    type: 'object',
-    properties: POST_LISTING_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
- * Complete comments array output definition with nested replies
- */
-export const COMMENTS_ARRAY_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Nested comments with author, body, score, timestamps, and replies',
-  items: {
-    type: 'object',
-    properties: COMMENT_WITH_REPLIES_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
- * Post metadata output definition for get_comments tool
- */
-export const POST_METADATA_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Post information including ID, title, author, content, and metadata',
-  properties: POST_METADATA_OUTPUT_PROPERTIES,
-}
-
-/**
- * Write operation success output properties
- */
-export const WRITE_SUCCESS_OUTPUT_PROPERTIES = {
-  success: { type: 'boolean', description: 'Whether the operation was successful' },
-  message: { type: 'string', description: 'Success or error message' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
  * Submit post response data output properties
  */
 export const SUBMIT_POST_DATA_OUTPUT_PROPERTIES = {
@@ -195,15 +154,6 @@ export const SUBMIT_POST_DATA_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'Post URL from API response' },
   permalink: { type: 'string', description: 'Full Reddit permalink' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Submit post data output definition
- */
-export const SUBMIT_POST_DATA_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Post data including ID, name, URL, and permalink',
-  properties: SUBMIT_POST_DATA_OUTPUT_PROPERTIES,
-}
 
 /**
  * Reply comment response data output properties
@@ -216,15 +166,6 @@ export const REPLY_DATA_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Reply data output definition
- */
-export const REPLY_DATA_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Comment data including ID, name, permalink, and body',
-  properties: REPLY_DATA_OUTPUT_PROPERTIES,
-}
-
-/**
  * Edit response data output properties
  */
 export const EDIT_DATA_OUTPUT_PROPERTIES = {
@@ -232,15 +173,6 @@ export const EDIT_DATA_OUTPUT_PROPERTIES = {
   body: { type: 'string', description: 'Updated comment body (for comments)' },
   selftext: { type: 'string', description: 'Updated post text (for self posts)' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Edit data output definition
- */
-export const EDIT_DATA_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Updated content data',
-  properties: EDIT_DATA_OUTPUT_PROPERTIES,
-}
 
 export interface RedditPost {
   id: string

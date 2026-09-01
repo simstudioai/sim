@@ -26,9 +26,18 @@ export const chipFieldSurfaceClass = `rounded-lg ${chipFilledSurfaceTokens} tran
  */
 export const chipBorderShadowRing =
   'shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]'
-/** Typography shared by the chip text fields — normal weight, `--text-body`, muted placeholder, no focus outline. */
+/**
+ * Typography shared by the chip text fields — normal weight, `--text-body`, muted
+ * placeholder, no focus outline.
+ *
+ * `[letter-spacing:inherit]` undoes the UA stylesheet, which pins form controls to
+ * `letter-spacing: normal`. Without it a chip field's text tracks differently from
+ * the labels around it, and any transparent-field-over-mirror overlay diverges from
+ * its mirror by the inherited tracking on every character — so the caret drifts
+ * further from the visible text the longer the value. Matches `Input`/`Textarea`.
+ */
 export const chipFieldTextClass =
-  'text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
+  'text-[var(--text-body)] text-sm [letter-spacing:inherit] outline-none placeholder:text-[var(--text-muted)]'
 
 /**
  * Icon↔label gap of the canonical chip-content row — the icon↔label pair inside
@@ -37,6 +46,7 @@ export const chipFieldTextClass =
  * Like every token in this module, never re-derive the literal; import it.
  */
 export const chipContentGap = 'gap-1.5'
+
 /**
  * Chip pill geometry — height, centering, gap, radius, padding, text size — with
  * NO interactivity (no `cursor-pointer`, no hover). `chipVariants` composes this
@@ -47,8 +57,51 @@ export const chipContentGap = 'gap-1.5'
 export const chipGeometryClass = `h-[30px] items-center ${chipContentGap} rounded-lg px-2 text-left text-sm`
 /** Chip-content icon (non-inverse): 16px, non-shrinking, `--text-icon`. Inverse chip variants override the color to `currentColor`. */
 export const chipContentIconClass = 'size-[16px] flex-shrink-0 text-[var(--text-icon)]'
-/** Chip-content label (non-inverse): truncating `--text-body` at `text-sm`. Inverse chip variants override the color to `currentColor`. */
-export const chipContentLabelClass = 'min-w-0 truncate text-[var(--text-body)] text-sm'
+/** Fade-free single-line fallback for rich chip content. Plain text labels should render through `OverflowText`. */
+export const chipContentLabelClass =
+  'min-w-0 overflow-hidden text-clip whitespace-nowrap text-[var(--text-body)] text-sm'
+
+/**
+ * The two row surfaces. Mutually exclusive — a row paints one OR the other,
+ * never both, so a selected row holds its surface through hover.
+ *
+ * Hover used to be `--surface-active` (a hovered row looked selected, so lists
+ * appeared to have two selections) and active used to brighten to `--surface-6`
+ * on hover (read as the selection changing under the cursor). Do not reintroduce
+ * either. `chipVariants` wires this for pills; hand-rolled rows import these
+ * rather than restating the literals.
+ */
+export const chipHoverSurfaceClass = 'hover-hover:bg-[var(--surface-hover)]'
+/** @see {@link chipHoverSurfaceClass} — the selected half of the same pair. */
+export const chipActiveSurfaceClass = 'bg-[var(--surface-active)]'
+/**
+ * The third row surface: a drag is over this row and releasing would file into it.
+ *
+ * Neutral by design — hue is not how this app signals "release here"; the workflow sidebar's
+ * own drop affordance is a `--text-subtle` tint. Drawn inside the element's own box so the ring
+ * never overlaps its neighbours. Hand-rolled rows and breadcrumb crumbs import this rather than
+ * restating the literal, so every drop destination reads identically.
+ *
+ * Fills to `--surface-active`, the same weight as a selected row, and leans on the ring to tell
+ * the two apart. Not `--surface-4`: that is the button-base token, and in light mode it is
+ * *lighter* than `--surface-hover`, so the row under the cursor read weaker the moment it became
+ * a drop target — the strongest state painting the faintest fill.
+ */
+export const chipDropTargetSurfaceClass = `${chipActiveSurfaceClass} outline outline-1 outline-[var(--text-subtle)] outline-offset-[-1px]`
+/**
+ * The disclosure chevron that rotates to expand or collapse a sidebar section or a
+ * tree row: 14px at `--text-icon`, animating on the same 150ms curve the section
+ * body expands on so the chevron and what it reveals read as one gesture. Opacity
+ * is in the property list for the consumers that also fade the chevron in.
+ *
+ * Single source for the sidebar section headers and the two sidebar trees. Other
+ * collapsible surfaces still carry their own literals at 8-12px and 100-200ms;
+ * migrating them onto this token is the remaining half of the consolidation.
+ */
+export const disclosureChevronClass =
+  'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-[opacity,transform] duration-150'
+/** The 16px square a chip-row icon or chevron centers in, so every row's label starts on the same baseline. */
+export const chipIconSlotClass = 'inline-flex size-[16px] flex-shrink-0 items-center justify-center'
 /**
  * Force-sizes a PRE-RENDERED icon node (`<svg>`/`<img>`/`<span>` avatar) to the
  * 14px resource-row standard + `--text-icon` color — regardless of the size the

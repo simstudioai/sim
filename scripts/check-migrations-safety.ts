@@ -330,7 +330,7 @@ const ANNOTATE_GUIDANCE =
   'is a contract-phase op. Confirm the old code no longer reads/writes it (it must have shipped in an earlier deploy — not this same PR), then acknowledge with a `-- migration-safe: <reason>` comment on the line above.'
 
 /** Lint a single migration's SQL. Returns only actionable findings. */
-export function lintSql(content: string): Finding[] {
+function lintSql(content: string): Finding[] {
   const lines = content.split('\n')
   const statements = parseStatements(content)
   const createdTables = new Set<string>()
@@ -390,6 +390,24 @@ function git(args: string[]): string | null {
   }
 }
 
+/**
+ * Raised when the base ref cannot be compared against `HEAD`.
+ *
+ * Distinct from "no migrations changed", which is the same empty list. Conflating
+ * the two is how this check came to pass on a branch it had never read: an
+ * unresolvable base made `git diff` fail, the failure became `[]`, and `[]`
+ * printed as `✓ No new migrations to check`.
+ */
+class BaseRefUnusableError extends Error {
+  constructor(readonly baseRef: string) {
+    super(
+      `Cannot diff against '${baseRef}'. The ref is missing, or was fetched without enough ` +
+        `history for a merge-base. Fetch it with full history before running this check.`
+    )
+    this.name = 'BaseRefUnusableError'
+  }
+}
+
 /** New migration files on this branch vs base, plus uncommitted ones locally. */
 function changedMigrationFiles(baseRef: string): string[] {
   const files = new Set<string>()
@@ -405,7 +423,9 @@ function changedMigrationFiles(baseRef: string): string[] {
     '--',
     MIGRATIONS_DIR,
   ])
-  if (committed === null) return [] // git unavailable → fail open (handled by caller)
+  /* Only a missing git binary is a legitimate skip, and `resolveFiles` detects that
+     separately. A diff that fails with git present means the ref is unusable. */
+  if (committed === null) throw new BaseRefUnusableError(baseRef)
   for (const f of committed.split('\n')) if (inDir(f)) files.add(f)
 
   const status = git(['status', '--porcelain', '--', MIGRATIONS_DIR])
@@ -442,16 +462,26 @@ async function resolveFiles(argv: string[]): Promise<string[] | null> {
     return (await listSqlFiles(path.resolve(dir))).map((f) => path.relative(ROOT, f))
   }
   const baseRef = argv.find((a) => !a.startsWith('--')) ?? 'origin/staging'
-  const files = changedMigrationFiles(baseRef)
-  if (files.length === 0 && git(['rev-parse', 'HEAD']) === null) {
+  /* Checked before the diff: without git there is nothing to compare, and that is the
+     one case where skipping is right. Every other failure must be loud. */
+  if (git(['rev-parse', 'HEAD']) === null) {
     console.warn('⚠ git unavailable — skipping migration safety check.')
     return null
   }
-  return files
+  return changedMigrationFiles(baseRef)
 }
 
 async function main() {
-  const files = await resolveFiles(process.argv.slice(2))
+  let files: string[] | null
+  try {
+    files = await resolveFiles(process.argv.slice(2))
+  } catch (error) {
+    if (error instanceof BaseRefUnusableError) {
+      console.error(`✗ Migration safety check could not run.\n  ${error.message}`)
+      process.exit(1)
+    }
+    throw error
+  }
   if (files === null) process.exit(0)
 
   if (files.length === 0) {

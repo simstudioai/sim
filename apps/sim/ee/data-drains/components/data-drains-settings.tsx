@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ChipTag } from '@sim/emcn'
-import { ArrowRight, Database, Plus } from '@sim/emcn/icons'
+import { Database, Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import {
@@ -12,7 +12,10 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { DataDrainCreate } from '@/ee/data-drains/components/data-drain-create'
 import { DataDrainDetail } from '@/ee/data-drains/components/data-drain-detail'
@@ -105,42 +108,32 @@ export function DataDrainsSettings({ organizationId }: DataDrainsSettingsProps) 
       }}
     >
       {error ? (
-        <div className='flex h-full flex-col items-center justify-center gap-2'>
-          <p className='text-[var(--text-error)] text-sm leading-tight'>
-            {getErrorMessage(error, "Couldn't load data drains")}
-          </p>
-        </div>
+        <SettingsEmptyState tone='error'>
+          {getErrorMessage(error, "Couldn't load data drains")}
+        </SettingsEmptyState>
       ) : isPending ? null : drains && drains.length > 0 ? (
-        <div className='-mx-2 flex flex-col gap-y-0.5'>
+        <div className={RESOURCE_LIST_STACK}>
           {filteredDrains.map((drain) => (
-            <button
+            <SettingsResourceRow
               key={drain.id}
-              type='button'
+              icon={<Database className='text-[var(--text-icon)]' />}
+              iconFilled
+              title={drain.name}
+              description={
+                <>
+                  {`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]} · `}
+                  <span suppressHydrationWarning>
+                    {drain.lastRunAt
+                      ? `Last run ${new Date(drain.lastRunAt).toLocaleDateString()}`
+                      : 'Never run'}
+                  </span>
+                </>
+              }
               onClick={() => void setSelectedDrainId(drain.id)}
-              className='w-full rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-            >
-              <SettingsResourceRow
-                icon={<Database className='text-[var(--text-icon)]' />}
-                iconFilled
-                title={drain.name}
-                description={
-                  <>
-                    {`${SOURCE_LABELS[drain.source]} → ${DESTINATION_LABELS[drain.destinationType]} · ${CADENCE_LABELS[drain.scheduleCadence]} · `}
-                    <span suppressHydrationWarning>
-                      {drain.lastRunAt
-                        ? `Last run ${new Date(drain.lastRunAt).toLocaleDateString()}`
-                        : 'Never run'}
-                    </span>
-                  </>
-                }
-                trailing={
-                  <div className='flex flex-shrink-0 items-center gap-2'>
-                    {!drain.enabled && <ChipTag variant='gray'>Disabled</ChipTag>}
-                    <ArrowRight className='size-4 text-[var(--text-icon)]' />
-                  </div>
-                }
-              />
-            </button>
+              clickLabel={`Open ${drain.name}`}
+              navigable
+              badge={!drain.enabled ? <ChipTag variant='gray'>Disabled</ChipTag> : undefined}
+            />
           ))}
           {filteredDrains.length === 0 && (
             <SettingsEmptyState variant='inline'>

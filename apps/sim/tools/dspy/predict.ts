@@ -53,6 +53,10 @@ export const predictTool: ToolConfig<DSPyPredictParams, DSPyPredictResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ input: params.input, context: params.context }),
+    },
     method: 'POST',
     url: (params) => {
       const baseUrl = params.baseUrl.replace(/\/$/, '')

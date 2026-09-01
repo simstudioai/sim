@@ -3,6 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import {
   getCredentialOwner,
   getNotificationUrl,
@@ -18,7 +19,6 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { CLICKUP_API_BASE_URL, clickupAuthorizationHeader } from '@/tools/clickup/shared'
 
 const logger = createLogger('WebhookProvider:ClickUp')

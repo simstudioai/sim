@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { EMAIL_CAPABILITY, type FallbackFactories } from '@/lib/core/config/env-capabilities'
+import { wireServerFallback } from '@/lib/core/config/env-capabilities.server'
 import { createAzureProvider } from '@/lib/messaging/email/providers/azure'
 import { createGmailProvider } from '@/lib/messaging/email/providers/gmail'
 import { createResendProvider } from '@/lib/messaging/email/providers/resend'
@@ -8,23 +10,20 @@ import type { MailProvider } from '@/lib/messaging/email/types'
 
 const logger = createLogger('MailProviders')
 
-const factories = [
-  createResendProvider,
-  createSesProvider,
-  createSmtpProvider,
-  createAzureProvider,
-  createGmailProvider,
-] as const
+const factories = {
+  resend: createResendProvider,
+  ses: createSesProvider,
+  smtp: createSmtpProvider,
+  azure: createAzureProvider,
+  gmail: createGmailProvider,
+} satisfies FallbackFactories<typeof EMAIL_CAPABILITY, MailProvider>
 
-function safeCreate(factory: () => MailProvider | null): MailProvider | null {
-  try {
-    return factory()
-  } catch (error) {
-    logger.error('Mail provider factory threw at startup; skipping', error)
-    return null
-  }
-}
+export const emailFallback = wireServerFallback<typeof EMAIL_CAPABILITY, MailProvider>({
+  definition: EMAIL_CAPABILITY,
+  factories,
+  onFailure(providerId, error) {
+    logger.warn(`${providerId} failed, trying next provider`, error)
+  },
+})
 
-export const activeProviders: readonly MailProvider[] = factories
-  .map((factory) => safeCreate(factory))
-  .filter((provider): provider is MailProvider => provider !== null)
+export const activeProviders: readonly MailProvider[] = emailFallback.providers

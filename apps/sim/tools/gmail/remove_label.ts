@@ -1,7 +1,7 @@
 import type { GmailLabelParams, GmailToolResponse } from '@/tools/gmail/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const gmailRemoveLabelTool: ToolConfig<GmailLabelParams, GmailToolResponse> = {
+export const gmailRemoveLabelTool: InternalToolConfig<GmailLabelParams, GmailToolResponse> = {
   id: 'gmail_remove_label',
   name: 'Gmail Remove Label',
   description: 'Remove label(s) from a Gmail message',
@@ -33,13 +33,8 @@ export const gmailRemoveLabelTool: ToolConfig<GmailLabelParams, GmailToolRespons
     },
   },
 
-  request: {
-    url: '/api/tools/gmail/remove-label',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: GmailLabelParams) => ({
+  operation: {
+    input: (params: GmailLabelParams) => ({
       accessToken: params.accessToken,
       messageId: params.messageId,
       labelIds: params.labelIds,
@@ -92,14 +87,14 @@ interface GmailModifyV2Response {
   }
 }
 
-export const gmailRemoveLabelV2Tool: ToolConfig<GmailLabelParams, GmailModifyV2Response> = {
+export const gmailRemoveLabelV2Tool: InternalToolConfig<GmailLabelParams, GmailModifyV2Response> = {
   id: 'gmail_remove_label_v2',
   name: 'Gmail Remove Label',
   description: 'Remove label(s) from a Gmail message. Returns API-aligned fields only.',
   version: '2.0.0',
   oauth: gmailRemoveLabelTool.oauth,
   params: gmailRemoveLabelTool.params,
-  request: gmailRemoveLabelTool.request,
+  operation: gmailRemoveLabelTool.operation,
   transformResponse: async (response) => {
     const legacy = await gmailRemoveLabelTool.transformResponse!(response)
     if (!legacy.success) return { success: false, output: {}, error: legacy.error }

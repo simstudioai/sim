@@ -12,6 +12,12 @@ export type ShareAuthType = z.output<typeof shareAuthTypeSchema>
 /** An allowed email address or `@domain` pattern for email/SSO shares. */
 const allowedEmailSchema = z.string().min(1).max(320)
 
+/** Password accepted when a file share is created or its password is changed. */
+export const sharePasswordSchema = z
+  .string()
+  .min(15, 'Password must be at least 15 characters')
+  .max(1024, 'Password is too long')
+
 /**
  * Public-safe representation of a `public_share` row. Never carries the
  * underlying storage key or the (encrypted) password — `hasPassword` is the
@@ -19,15 +25,17 @@ const allowedEmailSchema = z.string().min(1).max(320)
  * email/SSO shares (visible only to workspace members via the authed share route).
  */
 export const shareRecordSchema = z.object({
-  id: z.string(),
-  token: z.string(),
-  url: z.string(),
-  isActive: z.boolean(),
-  resourceType: shareResourceTypeSchema,
-  resourceId: z.string(),
-  authType: shareAuthTypeSchema,
-  hasPassword: z.boolean(),
-  allowedEmails: z.array(allowedEmailSchema),
+  id: z.string().describe('Unique share identifier.'),
+  token: z.string().describe('Server-generated token embedded in the public share URL.'),
+  url: z.string().describe('Public share URL.'),
+  isActive: z.boolean().describe('Whether the public share currently resolves.'),
+  resourceType: shareResourceTypeSchema.describe('Kind of resource being shared.'),
+  resourceId: z.string().describe('Identifier of the shared resource.'),
+  authType: shareAuthTypeSchema.describe('How access to the share is gated.'),
+  hasPassword: z.boolean().describe('Whether a password is stored for this share.'),
+  allowedEmails: z
+    .array(allowedEmailSchema)
+    .describe('Allowed addresses or @domain patterns for email and SSO shares.'),
 })
 
 export type ShareRecord = z.output<typeof shareRecordSchema>
@@ -40,14 +48,9 @@ const fileShareParamsSchema = z.object({
 export const upsertFileShareBodySchema = z.object({
   isActive: z.boolean(),
   authType: shareAuthTypeSchema.optional(),
-  password: z
-    .string()
-    .min(1, 'Password cannot be empty')
-    .max(1024, 'Password is too long')
-    .optional(),
+  password: sharePasswordSchema.optional(),
   allowedEmails: z.array(allowedEmailSchema).max(200, 'Too many allowed emails').optional(),
-  // Client-reserved token shown as the link before saving; persisted on first
-  // enable so a copied link resolves. Ignored once the share row already exists.
+  /** Client-reserved token persisted on first share. Ignored once the share row exists. */
   token: z
     .string()
     .regex(/^[A-Za-z0-9_-]+$/, 'Invalid token')
@@ -116,11 +119,17 @@ export const getPublicFileContract = defineRouteContract({
   },
 })
 
+const publicFileContentQuerySchema = z.object({
+  /** `1` => rendering, not downloading — a HEIC may be substituted with a JPEG derivative. */
+  preview: z.string().nullish(),
+})
+
 /** Binary stream of the shared file's bytes. Authorized solely by an active token. */
 export const getPublicFileContentContract = defineRouteContract({
   method: 'GET',
   path: '/api/files/public/[token]/content',
   params: publicFileTokenParamsSchema,
+  query: publicFileContentQuerySchema,
   response: {
     mode: 'binary',
   },
@@ -142,7 +151,7 @@ export const getPublicInlineFileContract = defineRouteContract({
   },
 })
 
-const authenticatePublicFileBodySchema = z.object({
+export const authenticatePublicFileBodySchema = z.object({
   password: z.string().min(1, 'Password is required').max(1024, 'Password is too long'),
 })
 
@@ -155,8 +164,9 @@ const authenticatePublicFileResponseSchema = z.object({
 export type AuthenticatePublicFileResponse = z.output<typeof authenticatePublicFileResponseSchema>
 
 /**
- * Exchanges a share password for a `file_auth_{shareId}` cookie. IP rate-limited;
- * returns 401 (`Invalid password`) on mismatch and 429 when throttled.
+ * Exchanges a share password for a `file_auth_{shareId}` cookie. Client-IP and
+ * share-resource rate-limited; returns 401 (`Invalid password`) on mismatch and
+ * 429 when throttled.
  */
 export const authenticatePublicFileContract = defineRouteContract({
   method: 'POST',

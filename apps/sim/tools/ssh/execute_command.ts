@@ -1,7 +1,7 @@
 import type { SSHExecuteCommandParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const executeCommandTool: ToolConfig<SSHExecuteCommandParams, SSHResponse> = {
+export const executeCommandTool: InternalToolConfig<SSHExecuteCommandParams, SSHResponse> = {
   id: 'ssh_execute_command',
   name: 'SSH Execute Command',
   description: 'Execute a shell command on a remote SSH server',
@@ -58,13 +58,8 @@ export const executeCommandTool: ToolConfig<SSHExecuteCommandParams, SSHResponse
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/execute-command',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

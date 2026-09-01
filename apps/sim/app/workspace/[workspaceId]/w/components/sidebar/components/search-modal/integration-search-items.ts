@@ -1,6 +1,5 @@
 import type { ComponentType } from 'react'
-import { blockTypeToIconMap, INTEGRATIONS } from '@/lib/integrations'
-import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { blockTypeToIconMap, INTEGRATIONS, resolveCredentialDisplay } from '@/lib/integrations'
 import {
   CONNECT_MODE,
   CONNECT_QUERY_PARAM,
@@ -10,12 +9,6 @@ import type { WorkspaceCredential } from '@/hooks/queries/credentials'
 
 /** Fallback brand color for credentials whose integration metadata cannot be resolved. */
 const FALLBACK_BG_COLOR = '#6B7280'
-
-/**
- * Module-level lookup of integration metadata by OAuth service display name
- * (case-insensitive). Mirrors the same map in `integrations.tsx`.
- */
-const INTEGRATION_BY_LOWER_NAME = new Map(INTEGRATIONS.map((i) => [i.name.toLowerCase(), i]))
 
 /**
  * Module-level base array of resolvable integrations (entries without a
@@ -29,6 +22,7 @@ const INTEGRATION_BASES: readonly {
   bgColor: string
   slug: string
   authType: string
+  blockType: string
 }[] = INTEGRATIONS.flatMap((integration) => {
   const icon = blockTypeToIconMap[integration.type]
   if (!icon) return []
@@ -40,6 +34,7 @@ const INTEGRATION_BASES: readonly {
       bgColor: integration.bgColor,
       slug: integration.slug,
       authType: integration.authType,
+      blockType: integration.type,
     },
   ]
 })
@@ -50,10 +45,16 @@ const INTEGRATION_BASES: readonly {
  * the connect modal auto-opens (via the detail page's `useEffect` on
  * `CONNECT_QUERY_PARAM`). Non-OAuth integrations link to the plain detail page.
  */
-export function buildIntegrationSearchItems(workspaceId: string): IntegrationSearchItem[] {
-  return INTEGRATION_BASES.map((base) => {
-    const connectSuffix =
-      base.authType === 'oauth' ? `?${CONNECT_QUERY_PARAM}=${CONNECT_MODE.oauth}` : ''
+export function buildIntegrationSearchItems(
+  workspaceId: string,
+  isBlockAllowed: (blockType: string) => boolean = () => true,
+  getConnectMode: (
+    blockType: string
+  ) => (typeof CONNECT_MODE)[keyof typeof CONNECT_MODE] | null = () => CONNECT_MODE.oauth
+): IntegrationSearchItem[] {
+  return INTEGRATION_BASES.filter((base) => isBlockAllowed(base.blockType)).map((base) => {
+    const connectMode = base.authType === 'oauth' ? getConnectMode(base.blockType) : null
+    const connectSuffix = connectMode ? `?${CONNECT_QUERY_PARAM}=${connectMode}` : ''
     return {
       id: base.id,
       name: base.name,
@@ -76,19 +77,16 @@ export function buildConnectedAccountSearchItems(
 ): IntegrationSearchItem[] {
   return credentials.flatMap((credential) => {
     if (credential.type !== 'oauth' && credential.type !== 'service_account') return []
-    if (!credential.providerId) return []
 
-    const service = getServiceConfigByProviderId(credential.providerId)
-    if (!service) return []
-
-    const integration = INTEGRATION_BY_LOWER_NAME.get(service.name.toLowerCase())
+    const display = resolveCredentialDisplay(credential)
+    if (!display.service || !display.icon) return []
 
     return [
       {
         id: credential.id,
         name: credential.displayName,
-        icon: service.icon as ComponentType<{ className?: string }>,
-        bgColor: integration?.bgColor ?? FALLBACK_BG_COLOR,
+        icon: display.icon,
+        bgColor: display.integration?.bgColor ?? FALLBACK_BG_COLOR,
         href: `/workspace/${workspaceId}/integrations/connected/${credential.id}`,
       },
     ]

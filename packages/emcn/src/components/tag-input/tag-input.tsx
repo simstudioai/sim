@@ -39,7 +39,7 @@
 
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Paperclip, Plus, X } from 'lucide-react'
+import { Paperclip, Plus, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { handleKeyboardActivation } from '../../lib/keyboard'
 import { ChipTag, chipTagVariants } from '../chip-tag/chip-tag'
@@ -99,7 +99,7 @@ export interface FileInputOptions {
   /** Accepted file types (default: '.csv,.txt,text/csv,text/plain') */
   accept?: string
   /** Icon component to render (default: Paperclip) */
-  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  icon?: React.ComponentType<{ className?: string }>
   /** Extract values from file content. Each extracted value will be passed to onAdd. */
   extractValues?: (text: string) => string[]
   /** Tooltip text for the file input button */
@@ -117,6 +117,8 @@ interface TagInputProps extends VariantProps<typeof tagInputVariants> {
    * Return true if the value was valid and added, false if invalid.
    */
   onAdd: (value: string) => boolean
+  /** Batch counterpart used by paste/file import to avoid one render per value. */
+  onAddMany?: (values: string[]) => void
   /** Callback when a tag is removed (receives value, index, and isValid) */
   onRemove: (value: string, index: number, isValid: boolean) => void
   /** Callback when the input value changes (useful for clearing errors) */
@@ -180,7 +182,7 @@ const TagInputTag = React.memo(function TagInputTag({
       onRightIconClick={disabled ? undefined : handleRemove}
       rightIconLabel={`Remove ${item.value}`}
     >
-      <span className='min-w-0 flex-1 translate-y-[0.5px] truncate font-medium font-sans text-sm leading-5'>
+      <span className='min-w-0 flex-1 translate-y-[0.5px] truncate font-sans text-sm leading-5'>
         {item.value}
       </span>
       {showError && <span className='sr-only'>{item.error}</span>}
@@ -212,6 +214,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
     {
       items,
       onAdd,
+      onAddMany,
       onRemove,
       onInputChange,
       placeholder = 'Enter values',
@@ -255,11 +258,12 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           const extractValues = fileInputOptions?.extractValues
           if (extractValues) {
             const values = extractValues(text)
-            values.forEach((value) => onAdd(value))
+            if (onAddMany) onAddMany(values)
+            else values.forEach((value) => onAdd(value))
           }
         } catch {}
       },
-      [fileInputOptions?.extractValues, onAdd]
+      [fileInputOptions?.extractValues, onAdd, onAddMany]
     )
 
     const handleDragOver = React.useCallback(
@@ -346,12 +350,18 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       (e: React.ClipboardEvent<HTMLInputElement>) => {
         e.preventDefault()
         const pastedText = e.clipboardData.getData('text')
-        const pastedValues = pastedText.split(/[\s,;]+/).filter(Boolean)
-        pastedValues.forEach((value) => {
-          onAdd(value.trim())
-        })
+        const pastedValues = Array.from(
+          new Set(
+            pastedText
+              .split(/[\s,;]+/)
+              .map((value) => value.trim())
+              .filter(Boolean)
+          )
+        )
+        if (onAddMany) onAddMany(pastedValues)
+        else pastedValues.forEach((value) => onAdd(value))
       },
-      [onAdd]
+      [onAdd, onAddMany]
     )
 
     const handleBlur = React.useCallback(() => {
@@ -423,7 +433,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           <div className='relative inline-flex h-5 min-w-0 max-w-full items-center overflow-hidden'>
             {inputValue.trim() && (
               <span
-                className='invisible whitespace-pre font-medium font-sans text-sm leading-5'
+                className='invisible whitespace-pre font-sans text-sm leading-5'
                 aria-hidden='true'
               >
                 {inputValue}
@@ -447,8 +457,8 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               className={cn(
                 'appearance-none border-none bg-transparent align-middle font-sans outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
                 inputValue.trim()
-                  ? 'absolute top-0 left-0 h-full w-full p-0 font-medium text-inherit text-sm leading-5'
-                  : 'h-5 w-auto min-w-0 p-0 font-medium text-[var(--text-body)] text-sm leading-5',
+                  ? 'absolute top-0 left-0 h-full w-full p-0 text-inherit text-sm leading-5'
+                  : 'h-5 w-auto min-w-0 p-0 text-[var(--text-body)] text-sm leading-5',
                 inputClassName
               )}
               disabled={disabled}
@@ -492,7 +502,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                 className='-m-1.5 absolute right-2 bottom-[9px] p-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
               >
-                <FileIcon className='size-3.5' strokeWidth={2} />
+                <FileIcon className='size-3.5' />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>

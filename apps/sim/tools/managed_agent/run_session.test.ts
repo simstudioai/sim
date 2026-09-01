@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { executeManagedAgentRunSessionOperation } from '@/lib/internal/managed-agent/operations/run-session'
 import * as runSessionModule from '@/lib/managed-agents/run-session'
-import { managedAgentRunSessionTool } from '@/tools/managed_agent/run_session'
 import type { ManagedAgentRunSessionParams } from '@/tools/managed_agent/types'
 
 /**
@@ -18,7 +18,7 @@ afterAll(() => {
 })
 
 const run = (params: Partial<ManagedAgentRunSessionParams>) =>
-  managedAgentRunSessionTool.directExecution!({
+  executeManagedAgentRunSessionOperation({
     credential: 'cred_1',
     accessToken: 'sk-ant-fake',
     agent: 'agent_1',
@@ -38,7 +38,7 @@ beforeEach(() => {
   })
 })
 
-describe('managedAgentRunSessionTool.directExecution', () => {
+describe('executeManagedAgentRunSessionOperation', () => {
   it('errors when no credential key was injected', async () => {
     const res = await run({ accessToken: undefined })
     expect(res.success).toBe(false)

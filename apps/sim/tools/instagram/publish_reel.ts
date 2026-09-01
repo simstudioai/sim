@@ -4,16 +4,15 @@ import {
   PUBLISH_OUTPUTS,
 } from '@/tools/instagram/types'
 import { createPublishTransform } from '@/tools/instagram/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const instagramPublishReelTool: ToolConfig<
+export const instagramPublishReelTool: InternalToolConfig<
   InstagramPublishReelParams,
   InstagramPublishResponse
 > = {
   id: 'instagram_publish_reel',
   name: 'Instagram Publish Reel',
-  description:
-    'Create and publish a Reel from an uploaded video file or public HTTPS URL (polls until ready)',
+  description: 'Create and publish a Reel from a Sim video file (polls until ready)',
   version: '1.0.0',
 
   oauth: {
@@ -38,7 +37,7 @@ export const instagramPublishReelTool: ToolConfig<
       type: 'file',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Reel video file or public HTTPS URL',
+      description: 'Reel video uploaded to Sim or referenced from a previous block',
     },
     caption: {
       type: 'string',
@@ -50,7 +49,7 @@ export const instagramPublishReelTool: ToolConfig<
       type: 'file',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional JPEG cover image file or public HTTPS URL',
+      description: 'Optional JPEG cover uploaded to Sim or referenced from a previous block',
     },
     shareToFeed: {
       type: 'boolean',
@@ -66,13 +65,8 @@ export const instagramPublishReelTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/instagram/publish-reel',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: InstagramPublishReelParams) => ({
+  operation: {
+    input: (params: InstagramPublishReelParams) => ({
       accessToken: params.accessToken,
       igUserId: params.igUserId,
       video: params.video,

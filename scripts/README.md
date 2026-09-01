@@ -1,7 +1,7 @@
 # Integration documentation generator
 
 `generate-docs.ts` compiles the per-service **integration** pages under
-`apps/docs/content/docs/en/integrations/` from the block/tool/trigger registry in
+`apps/docs/content/docs/integrations/` from the block/tool/trigger registry in
 `apps/sim`. The ontology it encodes: everything is a block, and an integration is one
 block that has **Actions** and, optionally, a **Trigger**.
 
@@ -79,7 +79,7 @@ matching spot in the freshly generated structure.
 
 - **Never hand-edit `apps/docs/components/icons.tsx`** — step 1 overwrites it from the sim
   app. Components that need an icon the sim app lacks should define it locally or use
-  `lucide-react` (see `components/workflow-preview/block-icons.tsx`).
+  `@sim/emcn/icons` (see `components/workflow-preview/block-icons.tsx`).
 - The generator is the source of truth for `integrations/` and its `meta.json`; manual
   edits there are transient.
 

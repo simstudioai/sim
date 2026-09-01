@@ -22,6 +22,7 @@ import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
 import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/parallel-expansion'
+import { isResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   computeExecutionSets,
   type RunFromBlockContext,
@@ -410,6 +411,7 @@ export class DAGExecutor {
     }
 
     const state = new ExecutionState(blockStates, executedBlocks)
+    const restoredBlockLogs = overrides?.runFromBlockContext ? [] : (snapshotState?.blockLogs ?? [])
 
     const context: ExecutionContext = {
       workflowId,
@@ -420,11 +422,31 @@ export class DAGExecutor {
       fileKeys: this.contextExtensions.fileKeys,
       allowLargeValueWorkflowScope: this.contextExtensions.allowLargeValueWorkflowScope,
       userId: this.contextExtensions.userId,
+      principal: this.contextExtensions.principal,
+      executorDelegationOrigin: this.contextExtensions.executorDelegationOrigin,
       isDeployedContext: this.contextExtensions.isDeployedContext,
       enforceCredentialAccess: this.contextExtensions.enforceCredentialAccess,
       piiBlockOutputRedaction: this.contextExtensions.piiBlockOutputRedaction,
       blockStates: state.getBlockStates(),
-      blockLogs: overrides?.runFromBlockContext ? [] : (snapshotState?.blockLogs ?? []),
+      blockLogs: restoredBlockLogs,
+      /*
+       * Resumed runs continue the counter rather than restarting it.
+       *
+       * `executionOrder` is not in the pause snapshot, so it used to reset to 0
+       * on resume — and a loop or parallel body that runs on both sides of a
+       * pause would then reuse a pre-pause value. That is only a cosmetic log
+       * ordering problem until something derives identity from it: a `keyed`
+       * tool takes its provider idempotency token from this number, so two
+       * distinct writes would present the same token and the provider would
+       * silently drop the second. Suppressing a real payment is worse than the
+       * duplicate the token exists to prevent, because it looks like success.
+       *
+       * Seeded from the restored logs rather than a new snapshot field so
+       * snapshots written before this change are repaired on resume too.
+       */
+      executionOrderCounter: {
+        value: restoredBlockLogs.reduce((max, log) => Math.max(max, log.executionOrder ?? 0), 0),
+      },
       metadata: {
         ...this.contextExtensions.metadata,
         ...(this.contextExtensions.billingAttribution
@@ -438,7 +460,26 @@ export class DAGExecutor {
       },
       startRunMetadata: this.contextExtensions.startRunMetadata,
       environmentVariables: this.environmentVariables,
+      resolvedSecretTraceRegistry: this.contextExtensions.resolvedSecretTraceRegistry,
       workflowVariables: this.workflowVariables,
+      workflowVariableResolvedSecretTraceProvenance: {
+        ...(snapshotState?.workflowVariableResolvedSecretTraceProvenance ?? {}),
+      },
+      ...(this.contextExtensions.workflowInputResolvedSecretTraceProvenance
+        ? {
+            workflowInputResolvedSecretTraceProvenance:
+              this.contextExtensions.workflowInputResolvedSecretTraceProvenance,
+          }
+        : {}),
+      ...(snapshotState && Object.hasOwn(snapshotState, 'finalOutputResolvedSecretTraceProvenance')
+        ? {
+            finalOutputResolvedSecretTraceProvenance: isResolvedSecretTraceProvenanceV1(
+              snapshotState.finalOutputResolvedSecretTraceProvenance
+            )
+              ? snapshotState.finalOutputResolvedSecretTraceProvenance
+              : { version: 1, complete: false, entries: [] },
+          }
+        : {}),
       decisions: {
         router: snapshotState?.decisions?.router
           ? new Map(Object.entries(snapshotState.decisions.router))
@@ -450,6 +491,8 @@ export class DAGExecutor {
       completedLoops: snapshotState?.completedLoops
         ? new Set(snapshotState.completedLoops)
         : new Set(),
+      // Deliberately not restored from a snapshot: it is a cache, so a resumed run re-resolves.
+      toolBindingLabelCache: new Map(),
       loopExecutions: snapshotState?.loopExecutions
         ? new Map(
             Object.entries(snapshotState.loopExecutions).map(([loopId, scope]) => [
@@ -503,6 +546,8 @@ export class DAGExecutor {
       runFromBlockContext: overrides?.runFromBlockContext,
       stopAfterBlockId: this.contextExtensions.stopAfterBlockId,
       callChain: this.contextExtensions.callChain,
+      liveTraceViewerUserId: this.contextExtensions.liveTraceViewerUserId,
+      liveStreamCallbacks: this.contextExtensions.liveStreamCallbacks,
     }
 
     if (this.contextExtensions.resumeFromSnapshot) {
@@ -622,12 +667,21 @@ export class DAGExecutor {
       resolution: startResolution,
       workflowInput: this.workflowInput,
       runMetadata: this.contextExtensions.startRunMetadata,
+      workspaceId: this.contextExtensions.workspaceId,
     })
 
     state.setBlockState(startResolution.block.id, {
       output: blockOutput,
       executed: false,
       executionTime: 0,
+      ...(this.contextExtensions.resolvedSecretTraceRegistry
+        ? {
+            resolvedSecretTraceProvenance:
+              this.contextExtensions.resolvedSecretTraceRegistry.exportCommittedProvenanceForValue(
+                blockOutput
+              ),
+          }
+        : {}),
     })
   }
 }

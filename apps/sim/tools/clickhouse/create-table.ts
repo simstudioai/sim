@@ -2,9 +2,12 @@ import type {
   ClickHouseCreateTableParams,
   ClickHouseMessageResponse,
 } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createTableTool: ToolConfig<ClickHouseCreateTableParams, ClickHouseMessageResponse> = {
+export const createTableTool: InternalToolConfig<
+  ClickHouseCreateTableParams,
+  ClickHouseMessageResponse
+> = {
   id: 'clickhouse_create_table',
   name: 'ClickHouse Create Table',
   description: 'Create a new MergeTree-family table in ClickHouse',
@@ -80,13 +83,8 @@ export const createTableTool: ToolConfig<ClickHouseCreateTableParams, ClickHouse
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/create-table',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

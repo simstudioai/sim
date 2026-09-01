@@ -101,28 +101,6 @@ export const SEARCH_METADATA_OUTPUT: OutputProperty = {
 }
 
 /**
- * Output properties for scrape tool response
- * Based on POST /v2/scrape response data object
- */
-export const SCRAPE_OUTPUT_PROPERTIES = {
-  markdown: { type: 'string', description: 'Page content converted to clean markdown format' },
-  html: { type: 'string', description: 'Processed HTML content of the page', optional: true },
-  rawHtml: { type: 'string', description: 'Unprocessed raw HTML content', optional: true },
-  links: {
-    type: 'array',
-    description: 'Array of links found on the page',
-    optional: true,
-    items: { type: 'string', description: 'URL found on the page' },
-  },
-  screenshot: {
-    type: 'string',
-    description: 'Base64-encoded screenshot or URL (expires after 24 hours)',
-    optional: true,
-  },
-  metadata: PAGE_METADATA_OUTPUT,
-} as const satisfies Record<string, OutputProperty>
-
-/**
  * Output properties for crawled page items
  * Based on GET /v2/crawl/{id} response data[] array items
  */
@@ -145,31 +123,6 @@ export const CRAWLED_PAGE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete crawled page output definition
- */
-export const CRAWLED_PAGE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Crawled page data with content and metadata',
-  properties: CRAWLED_PAGE_OUTPUT_PROPERTIES,
-}
-
-/**
- * Output properties for crawl tool response
- * Based on GET /v2/crawl/{id} response (completed status)
- */
-export const CRAWL_OUTPUT_PROPERTIES = {
-  pages: {
-    type: 'array',
-    description: 'Array of crawled pages with their content and metadata',
-    items: {
-      type: 'object',
-      properties: CRAWLED_PAGE_OUTPUT_PROPERTIES,
-    },
-  },
-  total: { type: 'number', description: 'Total number of pages found during crawl' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
  * Output properties for search result items
  * Based on POST /v2/search response data[] array items
  */
@@ -182,29 +135,33 @@ export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'URL of the search result' },
   markdown: {
     type: 'string',
-    description: 'Page content in markdown (when scrapeOptions.formats includes "markdown")',
+    description:
+      'Page content in markdown; returned only when scraping was requested via the hidden scrapeOptions input',
     optional: true,
   },
   html: {
     type: 'string',
-    description: 'Processed HTML content (when scrapeOptions.formats includes "html")',
+    description:
+      'Processed HTML content; returned only when "html" is among the scrape formats requested via the hidden scrapeOptions input',
     optional: true,
   },
   rawHtml: {
     type: 'string',
-    description: 'Unprocessed raw HTML (when scrapeOptions.formats includes "rawHtml")',
+    description:
+      'Unprocessed raw HTML; returned only when "rawHtml" is among the scrape formats requested via the hidden scrapeOptions input',
     optional: true,
   },
   links: {
     type: 'array',
-    description: 'Links found on the page (when scrapeOptions.formats includes "links")',
+    description:
+      'Links found on the page; returned only when "links" is among the scrape formats requested via the hidden scrapeOptions input',
     optional: true,
     items: { type: 'string', description: 'URL found on the page' },
   },
   screenshot: {
     type: 'string',
     description:
-      'Screenshot URL (expires after 24 hours, when scrapeOptions.formats includes "screenshot")',
+      'Screenshot URL (expires after 24 hours); returned only when "screenshot" is among the scrape formats requested via the hidden scrapeOptions input',
     optional: true,
   },
   metadata: SEARCH_METADATA_OUTPUT,
@@ -219,81 +176,24 @@ export const SEARCH_RESULT_OUTPUT: OutputProperty = {
   properties: SEARCH_RESULT_OUTPUT_PROPERTIES,
 }
 
-/**
- * Output properties for search tool response
- * Based on POST /v2/search response
- */
-export const SEARCH_OUTPUT_PROPERTIES = {
-  data: {
-    type: 'array',
-    description: 'Array of search results with scraped content and metadata',
-    items: {
-      type: 'object',
-      properties: SEARCH_RESULT_OUTPUT_PROPERTIES,
-    },
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output properties for map tool response
- * Based on POST /v2/map response
- */
-export const MAP_OUTPUT_PROPERTIES = {
-  success: { type: 'boolean', description: 'Whether the mapping operation completed successfully' },
-  links: {
-    type: 'array',
-    description: 'Array of discovered URLs from the website',
-    items: { type: 'string', description: 'Discovered URL' },
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output properties for extract tool response
- * Based on GET /v2/extract/{id} response (completed status)
- */
-export const EXTRACT_OUTPUT_PROPERTIES = {
-  success: { type: 'boolean', description: 'Whether the extraction completed successfully' },
-  data: {
-    type: 'object',
-    description: 'Extracted structured data according to the provided schema or prompt',
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output properties for agent tool response
- * Based on GET /v2/agent/{id} response (completed status)
- */
-export const AGENT_OUTPUT_PROPERTIES = {
-  success: { type: 'boolean', description: 'Whether the agent task completed successfully' },
-  status: {
-    type: 'string',
-    description: 'Current status of the agent job (processing, completed, failed)',
-  },
-  data: {
-    type: 'object',
-    description: 'Extracted data from the agent based on the prompt and schema',
-  },
-  expiresAt: {
-    type: 'string',
-    description: 'ISO timestamp when the results expire (24 hours after completion)',
-    optional: true,
-  },
-  sources: {
-    type: 'array',
-    description: 'Array of source URLs visited and used by the agent',
-    optional: true,
-    items: { type: 'string', description: 'Source URL' },
-  },
-} as const satisfies Record<string, OutputProperty>
-
 // Common types
 interface LocationConfig {
   country?: string
   languages?: string[]
 }
 
-interface ScrapeOptions {
-  formats?: string[]
+export type FirecrawlFormat =
+  | string
+  | {
+      type: string
+      prompt?: string
+      schema?: Record<string, unknown>
+      question?: string
+      [key: string]: unknown
+    }
+
+export interface ScrapeOptions {
+  formats?: FirecrawlFormat[]
   onlyMainContent?: boolean
   includeTags?: string[]
   excludeTags?: string[]
@@ -321,7 +221,7 @@ export interface ScrapeParams {
   scrapeOptions?: ScrapeOptions
   // Additional top-level scrape params
   onlyMainContent?: boolean
-  formats?: string[]
+  formats?: FirecrawlFormat[]
   includeTags?: string[]
   excludeTags?: string[]
   maxAge?: number
@@ -362,7 +262,7 @@ export interface FirecrawlCrawlParams {
   url: string
   limit?: number
   maxDepth?: number
-  formats?: string[]
+  formats?: FirecrawlFormat[]
   onlyMainContent?: boolean
   prompt?: string
   maxDiscoveryDepth?: number
@@ -524,7 +424,7 @@ export interface AgentResponse extends ToolResponse {
 export interface ParseParams {
   apiKey: string
   file: unknown
-  formats?: Array<{ type: string } | string>
+  formats?: FirecrawlFormat[]
   onlyMainContent?: boolean
   includeTags?: string[]
   excludeTags?: string[]
@@ -606,7 +506,7 @@ export interface FirecrawlCancelCrawlResponse extends ToolResponse {
 export interface FirecrawlBatchScrapeParams {
   apiKey: string
   urls: string[] | string
-  formats?: string[]
+  formats?: FirecrawlFormat[]
   onlyMainContent?: boolean
   maxConcurrency?: number
   ignoreInvalidURLs?: boolean

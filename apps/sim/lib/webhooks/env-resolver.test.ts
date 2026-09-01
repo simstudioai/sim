@@ -68,4 +68,38 @@ describe('webhook env resolver', () => {
     expect(result).not.toBe(webhookRecord)
     expect(result.providerConfig).not.toBe(webhookRecord.providerConfig)
   })
+
+  it('reports only successful substitutions when resolving with a prepared environment', async () => {
+    const onResolved = vi.fn()
+
+    const result = await resolveWebhookProviderConfig(
+      {
+        exact: '{{SLACK_BOT_TOKEN}}',
+        embedded: 'https://{{ SLACK_HOST }}/files',
+        missing: '{{MISSING_SECRET}}',
+        directLiteral: 'xoxb-resolved',
+      },
+      'user-1',
+      'workspace-1',
+      {
+        envVars: {
+          SLACK_BOT_TOKEN: 'xoxb-resolved',
+          SLACK_HOST: 'files.slack.com',
+        },
+        onResolved,
+      }
+    )
+
+    expect(result).toEqual({
+      exact: 'xoxb-resolved',
+      embedded: 'https://files.slack.com/files',
+      missing: '{{MISSING_SECRET}}',
+      directLiteral: 'xoxb-resolved',
+    })
+    expect(onResolved.mock.calls).toEqual([
+      ['SLACK_BOT_TOKEN', 'xoxb-resolved'],
+      ['SLACK_HOST', 'files.slack.com'],
+    ])
+    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+  })
 })

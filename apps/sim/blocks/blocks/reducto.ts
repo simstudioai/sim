@@ -10,6 +10,10 @@ import {
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { ReductoParserOutput } from '@/tools/reducto/types'
 
+const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
+/* v2 swaps the advanced URL input for a file reference, so the pair differs. */
+const DOCUMENT_V2_FIELD = ['fileUpload', 'fileReference'] as const
+
 export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
   type: 'reducto',
   name: 'Reducto',
@@ -23,6 +27,16 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
   integrationType: IntegrationType.AI,
   bgColor: '#5c0c5c',
   icon: ReductoIcon,
+  canvasPresentation: {
+    defaultTitle: 'Reducto',
+    sentences: {
+      default: [
+        { text: 'Parse text from', field: DOCUMENT_FIELD, core: true },
+        { text: ', pages', field: 'pages' },
+        { text: ', with tables as', field: 'tableOutputFormat' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'fileUpload',
@@ -174,6 +188,16 @@ export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
   name: 'Reducto',
   hideFromToolbar: false,
   longDescription: `Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents or file references.`,
+  canvasPresentation: {
+    defaultTitle: 'Reducto',
+    sentences: {
+      default: [
+        { text: 'Parse text from', field: DOCUMENT_V2_FIELD, core: true },
+        { text: ', pages', field: 'pages' },
+        { text: ', with tables as', field: 'tableOutputFormat' },
+      ],
+    },
+  },
   subBlocks: reductoV2SubBlocks,
   tools: {
     access: ['reducto_parser_v2'],

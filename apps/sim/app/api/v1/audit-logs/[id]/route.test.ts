@@ -28,7 +28,7 @@ vi.mock('@/app/api/v1/audit-logs/auth', () => ({
   validateEnterpriseAuditAccess: mockValidateEnterpriseAuditAccess,
 }))
 
-vi.mock('@/app/api/v1/audit-logs/query', () => ({
+vi.mock('@/lib/audit-logs/query', () => ({
   buildOrgScopeCondition: mockBuildOrgScopeCondition,
   getOrgWorkspaceIds: mockGetOrgWorkspaceIds,
 }))

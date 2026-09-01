@@ -6,6 +6,13 @@ import { normalizeFileInput } from '@/blocks/utils'
 import type { JiraResponse } from '@/tools/jira/types'
 import { getTrigger } from '@/triggers'
 
+/** Canonical `issueKey` pair: issue picker (basic) and raw issue key (advanced). */
+const ISSUE_FIELD = ['issueKey', 'manualIssueKey'] as const
+/** Canonical `projectId` pair: project picker (basic) and raw project id (advanced). */
+const PROJECT_FIELD = ['projectId', 'manualProjectId'] as const
+/** Canonical `files` pair: upload (basic) and file reference (advanced). */
+const ATTACHMENT_FIELD = ['attachmentFiles', 'files'] as const
+
 export const JiraBlock: BlockConfig<JiraResponse> = {
   type: 'jira',
   name: 'Jira',
@@ -19,6 +26,114 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: JiraIcon,
+  canvasPresentation: {
+    defaultTitle: 'Jira',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: ', matching', field: 'jqlFilter' },
+        { text: ', on changes to', field: 'fieldFilters' },
+      ],
+    },
+    sentences: {
+      byOperation: {
+        read: [{ text: 'Read issue', field: ISSUE_FIELD, core: true }],
+        'read-bulk': [{ text: 'Read all issues in', field: PROJECT_FIELD, core: true }],
+        update: [
+          { text: 'Update issue', field: ISSUE_FIELD, core: true },
+          { text: ', setting summary to', field: 'summary' },
+          { text: ', with priority', field: 'priority' },
+        ],
+        write: [
+          { text: 'Create', field: 'issueType', after: 'in', core: true },
+          { field: PROJECT_FIELD, core: true },
+          { text: ', titled', field: 'summary' },
+        ],
+        delete: [{ text: 'Delete issue', field: ISSUE_FIELD, core: true }],
+        assign: [
+          { text: 'Assign issue', field: ISSUE_FIELD, core: true },
+          { text: 'to', field: 'accountId' },
+        ],
+        transition: [
+          { text: 'Move issue', field: ISSUE_FIELD, core: true },
+          { text: 'via transition', field: 'transitionId' },
+          { text: ', resolving as', field: 'resolution' },
+        ],
+        search: [
+          { text: 'Search issues matching', field: 'jql', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        add_comment: [
+          { text: 'Add comment', field: 'commentBody', core: true },
+          { text: 'to issue', field: ISSUE_FIELD, core: true },
+        ],
+        get_comments: [{ text: 'List comments on issue', field: ISSUE_FIELD, core: true }],
+        update_comment: [
+          { text: 'Update comment', field: 'commentId', core: true },
+          { text: 'on issue', field: ISSUE_FIELD, core: true },
+          { text: ', setting text to', field: 'commentBody' },
+        ],
+        delete_comment: [
+          { text: 'Delete comment', field: 'commentId', core: true },
+          { text: 'from issue', field: ISSUE_FIELD, core: true },
+        ],
+        get_attachments: [{ text: 'List attachments on issue', field: ISSUE_FIELD, core: true }],
+        add_attachment: [
+          { text: 'Attach', field: ATTACHMENT_FIELD, core: true },
+          { text: 'to issue', field: ISSUE_FIELD, core: true },
+        ],
+        delete_attachment: [{ text: 'Delete attachment', field: 'attachmentId', core: true }],
+        add_worklog: [
+          {
+            text: 'Log',
+            field: 'timeSpentSeconds',
+            after: 'seconds on issue',
+            core: true,
+          },
+          { field: ISSUE_FIELD, core: true },
+        ],
+        get_worklogs: [{ text: 'List worklogs on issue', field: ISSUE_FIELD, core: true }],
+        update_worklog: [
+          { text: 'Update worklog', field: 'worklogId', core: true },
+          { text: 'on issue', field: ISSUE_FIELD, core: true },
+          { text: ', setting time to', field: 'timeSpentSecondsUpdate', after: 'seconds' },
+        ],
+        delete_worklog: [
+          { text: 'Delete worklog', field: 'worklogId', core: true },
+          { text: 'from issue', field: ISSUE_FIELD, core: true },
+        ],
+        create_link: [
+          { text: 'Create', field: 'linkType', after: 'link from', core: true },
+          { field: 'inwardIssueKey', core: true },
+          { text: 'to', field: 'outwardIssueKey' },
+        ],
+        delete_link: [{ text: 'Delete issue link', field: 'linkId', core: true }],
+        add_watcher: [
+          { text: 'Add watcher', field: 'accountId', core: true },
+          { text: 'to issue', field: ISSUE_FIELD, core: true },
+        ],
+        remove_watcher: [
+          { text: 'Remove watcher', field: 'accountId', core: true },
+          { text: 'from issue', field: ISSUE_FIELD, core: true },
+        ],
+        get_users: [
+          'List users',
+          { text: 'in', field: 'domain', core: true },
+          { text: ', limited to account', field: 'userAccountId' },
+        ],
+        search_users: [{ text: 'Search users matching', field: 'searchUsersQuery', core: true }],
+        list_projects: [
+          { text: 'List projects in', field: 'domain', core: true },
+          { text: ', matching', field: 'projectSearchQuery' },
+        ],
+        get_project: [{ text: 'Read project', field: PROJECT_FIELD, core: true }],
+        get_transitions: [{ text: 'List transitions for issue', field: ISSUE_FIELD, core: true }],
+        list_issue_types: [{ text: 'List issue types in', field: 'domain', core: true }],
+        get_fields: [{ text: 'List fields in', field: 'domain', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -104,7 +104,7 @@ export function FileLibraryGraphic() {
       >
         <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div className='mb-4 flex items-center justify-between'>
-            <span className='font-medium text-[var(--text-primary)] text-base'>Files</span>
+            <span className='text-[var(--text-primary)] text-base'>Files</span>
             <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
               Shared
             </ChipTag>
@@ -126,7 +126,7 @@ export function FileLibraryGraphic() {
                 >
                   <OwnerBadge row={row} />
                   <span className='min-w-0 flex-1'>
-                    <span className={cn('block truncate font-medium text-small', ROW_TONES[index])}>
+                    <span className={cn('block truncate text-small', ROW_TONES[index])}>
                       {row.name}
                     </span>
                     <span className='block truncate text-[var(--text-muted)] text-caption'>

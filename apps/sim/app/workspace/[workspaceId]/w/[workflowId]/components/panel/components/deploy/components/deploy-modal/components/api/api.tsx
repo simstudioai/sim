@@ -11,7 +11,7 @@ import {
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
-import { Check, Clipboard } from 'lucide-react'
+import { Check, Clipboard } from '@sim/emcn/icons'
 import {
   AGENT_STREAM_PROTOCOL_HEADER_LABEL,
   AGENT_STREAM_PROTOCOL_V1,
@@ -101,13 +101,9 @@ export function ApiDeploy({
     const inputExample = getInputFormatExample ? getInputFormatExample(false) : ''
     const match = inputExample.match(/-d\s*'([\s\S]*)'/)
     if (match) {
-      try {
-        return JSON.parse(match[1]) as Record<string, unknown>
-      } catch {
-        return { input: 'your data here' }
-      }
+      return JSON.parse(match[1]) as Record<string, unknown>
     }
-    return { input: 'your data here' }
+    return { input: {} }
   }
 
   const getStreamPayloadObject = (): Record<string, unknown> => {
@@ -260,18 +256,23 @@ while (true) {
 
   const getAsyncCommand = (): string => {
     if (!info) return ''
+    if (info.isPublicApi) throw new Error('Async execution requires an API key')
     const endpoint = getBaseEndpoint()
-    const baseUrl = endpoint.split('/api/workflows/')[0]
-    const payload = getPayloadObject()
-    const isPublic = info.isPublicApi
+    const v2WorkflowPrefix = '/api/v2/workflows/'
+    if (!endpoint.includes(v2WorkflowPrefix) || !endpoint.endsWith('/execute')) {
+      throw new Error(`Invalid workflow execution endpoint: ${endpoint}`)
+    }
+    const baseUrl = endpoint.split(v2WorkflowPrefix)[0]
+    const statusEndpoint = `${endpoint.slice(0, -'/execute'.length)}/runs/RUN_ID_FROM_EXECUTION`
+    const payload = { ...getPayloadObject(), async: true }
 
     switch (asyncExampleType) {
       case 'execute':
         switch (language) {
           case 'curl':
             return `curl -X POST \\
-${isPublic ? '' : '  -H "X-API-Key: $SIM_API_KEY" \\\n'}  -H "Content-Type: application/json" \\
-  -H "X-Execution-Mode: async" \\
+  -H "X-API-Key: $SIM_API_KEY" \\
+  -H "Content-Type: application/json" \\
   -d '${JSON.stringify(payload)}' \\
   ${endpoint}`
 
@@ -282,40 +283,40 @@ import requests
 response = requests.post(
     "${endpoint}",
     headers={
-${isPublic ? '' : '        "X-API-Key": os.environ.get("SIM_API_KEY"),\n'}        "Content-Type": "application/json",
-        "X-Execution-Mode": "async"
+        "X-API-Key": os.environ.get("SIM_API_KEY"),
+        "Content-Type": "application/json",
     },
     json=${JSON.stringify(payload, null, 4).replace(/\n/g, '\n    ')}
 )
 
-job = response.json()
-print(job)  # Contains jobId and executionId`
+execution = response.json()["data"]
+print(execution)`
 
           case 'javascript':
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json",
-    "X-Execution-Mode": "async"
+    "X-API-Key": process.env.SIM_API_KEY,
+    "Content-Type": "application/json",
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const job = await response.json();
-console.log(job); // Contains jobId and executionId`
+const { data: execution } = await response.json();
+console.log(execution);`
 
           case 'typescript':
             return `const response = await fetch("${endpoint}", {
   method: "POST",
   headers: {
-${isPublic ? '' : '    "X-API-Key": process.env.SIM_API_KEY,\n'}    "Content-Type": "application/json",
-    "X-Execution-Mode": "async"
+    "X-API-Key": process.env.SIM_API_KEY,
+    "Content-Type": "application/json",
   },
   body: JSON.stringify(${JSON.stringify(payload)})
 });
 
-const job: { jobId: string; executionId: string } = await response.json();
-console.log(job); // Contains jobId and executionId`
+const { data: execution }: { data: { runId: string; statusUrl: string } } = await response.json();
+console.log(execution);`
 
           default:
             return ''
@@ -325,40 +326,41 @@ console.log(job); // Contains jobId and executionId`
         switch (language) {
           case 'curl':
             return `curl -H "X-API-Key: $SIM_API_KEY" \\
-  ${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION`
+  "${statusEndpoint}?includeOutput=true"`
 
           case 'python':
             return `import os
 import requests
 
 response = requests.get(
-    "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
+    "${statusEndpoint}",
+    params={"includeOutput": "true"},
     headers={"X-API-Key": os.environ.get("SIM_API_KEY")}
 )
 
-status = response.json()
+status = response.json()["data"]
 print(status)`
 
           case 'javascript':
             return `const response = await fetch(
-  "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
+  "${statusEndpoint}?includeOutput=true",
   {
     headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
-const status = await response.json();
+const { data: status } = await response.json();
 console.log(status);`
 
           case 'typescript':
             return `const response = await fetch(
-  "${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION",
+  "${statusEndpoint}?includeOutput=true",
   {
     headers: { "X-API-Key": process.env.SIM_API_KEY }
   }
 );
 
-const status: Record<string, unknown> = await response.json();
+const { data: status }: { data: Record<string, unknown> } = await response.json();
 console.log(status);`
 
           default:
@@ -417,13 +419,13 @@ console.log(limits);`
   const getAsyncExampleTitle = () => {
     switch (asyncExampleType) {
       case 'execute':
-        return 'Execute Job'
+        return 'Start Execution'
       case 'status':
         return 'Check Status'
       case 'rate-limits':
-        return 'Rate Limits'
+        return 'Usage Limits'
       default:
-        return 'Execute Job'
+        return 'Start Execution'
     }
   }
 
@@ -456,9 +458,7 @@ console.log(limits);`
     <div className='space-y-4'>
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-            Language
-          </Label>
+          <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>Language</Label>
         </div>
         <ButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
           {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang) => (
@@ -471,9 +471,7 @@ console.log(limits);`
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-            Run workflow
-          </Label>
+          <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>Run workflow</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
@@ -500,7 +498,7 @@ console.log(limits);`
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+          <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
             Run workflow (stream response)
           </Label>
           <div className='flex items-center gap-1.5'>
@@ -537,49 +535,51 @@ console.log(limits);`
         />
       </div>
 
-      <div>
-        <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-            Run workflow (async)
-          </Label>
-          <div className='flex items-center gap-1.5'>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  onClick={() => handleCopy('async', getAsyncCommand())}
-                  aria-label='Copy command'
-                  className='!p-1.5 -my-1.5'
-                >
-                  {copied.async ? <Check className='size-3' /> : <Clipboard className='size-3' />}
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content>
-                <span>{copied.async ? 'Copied' : 'Copy'}</span>
-              </Tooltip.Content>
-            </Tooltip.Root>
-            <Combobox
-              size='sm'
-              className='!w-fit !py-0.5 min-w-[100px] rounded-md px-[9px]'
-              options={[
-                { label: 'Execute Job', value: 'execute' },
-                { label: 'Check Status', value: 'status' },
-                { label: 'Rate Limits', value: 'rate-limits' },
-              ]}
-              value={asyncExampleType}
-              onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}
-              align='end'
-              dropdownWidth={160}
-            />
+      {!info.isPublicApi && (
+        <div>
+          <div className='mb-[6.5px] flex items-center justify-between'>
+            <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
+              Run workflow (async)
+            </Label>
+            <div className='flex items-center gap-1.5'>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={() => handleCopy('async', getAsyncCommand())}
+                    aria-label='Copy command'
+                    className='!p-1.5 -my-1.5'
+                  >
+                    {copied.async ? <Check className='size-3' /> : <Clipboard className='size-3' />}
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>{copied.async ? 'Copied' : 'Copy'}</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+              <Combobox
+                size='sm'
+                className='!w-fit !py-0.5 min-w-[100px] rounded-md px-[9px]'
+                options={[
+                  { label: 'Start Execution', value: 'execute' },
+                  { label: 'Check Status', value: 'status' },
+                  { label: 'Usage Limits', value: 'rate-limits' },
+                ]}
+                value={asyncExampleType}
+                onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}
+                align='end'
+                dropdownWidth={160}
+              />
+            </div>
           </div>
+          <Code.Viewer
+            code={getAsyncCommand()}
+            language={LANGUAGE_SYNTAX[language]}
+            wrapText
+            className='!min-h-0 rounded-sm border border-[var(--border-1)]'
+          />
         </div>
-        <Code.Viewer
-          code={getAsyncCommand()}
-          language={LANGUAGE_SYNTAX[language]}
-          wrapText
-          className='!min-h-0 rounded-sm border border-[var(--border-1)]'
-        />
-      </div>
+      )}
     </div>
   )
 }

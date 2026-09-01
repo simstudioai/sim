@@ -39,6 +39,7 @@ import {
 } from '@/ee/workspace-forking/lib/copy/storage-quota'
 import { buildForkWorkflowIdMap } from '@/ee/workspace-forking/lib/copy/workflow-id-map'
 import { copyForkWorkflowMcpAttachments } from '@/ee/workspace-forking/lib/copy/workflow-mcp-attachments'
+import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 import { setForkLockTimeout } from '@/ee/workspace-forking/lib/lineage/lineage'
 import {
   type ForkBlockPair,
@@ -161,6 +162,61 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   }
   const { result, blobTasks, contentPlan, contentRefMaps } = await db.transaction(async (tx) => {
     await setForkLockTimeout(tx)
+    /**
+     * The lock alone is not enough: `policy.organizationId` was captured by
+     * `assertCanFork` BEFORE this transaction, so a re-home that commits in
+     * between leaves us locking the organization the parent has already left
+     * and inserting the child there, which is the exact cross-organization
+     * edge the lock was added to prevent. Re-read the parent under the lock
+     * and refuse if it moved; the caller can retry against the new
+     * organization.
+     */
+    const [currentSource] = await tx
+      .select({ organizationId: workspace.organizationId })
+      .from(workspace)
+      .where(eq(workspace.id, source.id))
+      /**
+       * The row lock IS the serialization, and deliberately the only one.
+       *
+       * A fork parent and child must always share an organization. Every writer
+       * that can re-home the parent takes `FOR NO KEY UPDATE` on its row: the
+       * admin workspace move, and `lockWorkspaceRowsForPayerChanges` on the
+       * organization-attach path. Locking it here makes those wait, and the
+       * comparison below then sees their committed result.
+       *
+       * Scope, stated plainly. This closes the ordering the admin move
+       * introduces: a re-home that commits first can no longer be forked
+       * against a stale policy. It does NOT close the reverse ordering, where
+       * a fork commits while a bulk attach or detach is already waiting on
+       * this row with a workspace list snapshotted before the child existed.
+       * That batch would then re-home the parent alone. It is a pre-existing
+       * gap in `attachOwnedWorkspacesToOrganizationTx` and
+       * `detachOrganizationWorkspacesTx`, not one the move creates, and
+       * closing it needs the descendant closure, the disclosure set, and the
+       * advisory-lock plan to move together. Tracked separately rather than
+       * half-fixed here, because a partial repair at commit time is strictly
+       * worse than a documented gap.
+       *
+       * An organization mutation lock was tried here and removed: it bought
+       * nothing the row lock does not already provide, could not cover a null
+       * policy organization at all, and cost three real problems. A lock-order
+       * inversion against invitation acceptance (which takes the workspace row
+       * before the organization lock), a 5s timeout overwriting this
+       * transaction's 10s one, and an organization-wide lock held across the
+       * whole content copy.
+       */
+      .for('no key update')
+      .limit(1)
+    if (!currentSource) {
+      throw new ForkError('Source workspace no longer exists', 404)
+    }
+    if ((currentSource.organizationId ?? null) !== (policy.organizationId ?? null)) {
+      throw new ForkError(
+        'The source workspace changed organizations while this fork was being created. Try again.',
+        409
+      )
+    }
+
     const now = new Date()
 
     await tx.insert(workspace).values({
@@ -170,7 +226,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       organizationId: policy.organizationId,
       workspaceMode: policy.workspaceMode,
       billedAccountUserId: policy.billedAccountUserId,
-      allowPersonalApiKeys: true,
+      allowPersonalApiKeys: source.allowPersonalApiKeys,
       forkedFromWorkspaceId: source.id,
       createdAt: now,
       updatedAt: now,
@@ -228,14 +284,15 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     // feeds the post-commit content-ref rewrite (`sim:folder/<id>` mentions in skill/file bodies).
     // Scoped to the folders that will actually receive a copied workflow (plus ancestors): a
     // fork copies only DEPLOYED workflows, so folders holding none would be created empty in
-    // the child and are pruned instead. Copied files don't extend this set - they use the
-    // separate workspace-file-folder entity and land at the child's root.
-    const folderIdMap = await resolveForkFolderMapping({
+    // the child and are pruned instead. The file/table/knowledge-base trees are mirrored
+    // separately by their own copies and merged in below.
+    const workflowFolderIdMap = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId: source.id,
       targetWorkspaceId: childWorkspaceId,
       userId,
       now,
+      resourceType: 'workflow',
       contentFolderIds: deployedWorkflows
         .filter((wf) => workflowIdMap.has(wf.id))
         .map((wf) => wf.folderId),
@@ -257,8 +314,23 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       },
       workflowIdMap,
       referencedDocumentIds: Array.from(referencedDocumentIds),
+      documentMappingContext: {
+        edgeChildWorkspaceId: childWorkspaceId,
+        sourceIsParent: true,
+      },
     })
     forkedResourceNames = resourceResult.names
+
+    /**
+     * Every mirrored folder tree in one map. The four families own disjoint trees and folder ids
+     * are globally unique, so the union is unambiguous: a `sim:folder/<id>` ref in copied content
+     * resolves regardless of which family's folder it names.
+     */
+    const folderIdMap = new Map<string, string>([
+      ...workflowFolderIdMap,
+      ...fileResult.folderIdMap,
+      ...resourceResult.folderIdMap,
+    ])
 
     const resolveCopied = (kind: ForkRemapKind, sourceId: string): string | null => {
       if (kind === 'file') return fileResult.keyMap.get(sourceId) ?? null
@@ -267,6 +339,10 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       return resourceResult.idMap.get(resourceType)?.get(sourceId) ?? null
     }
     const transform = createForkBootstrapTransform(resolveCopied)
+    // No block-type transform here: custom blocks are never copied into a fork and a fresh
+    // fork has no mappings yet, so a placed custom block necessarily keeps the parent's type.
+    // It surfaces as an unmapped reference in the sync view (via `scanWorkflowReferences`) and
+    // blocks the first promote until the environment's own block is mapped to it.
 
     // The child is brand new, so this loads an empty registry; name collisions can only
     // arise among the copied workflows themselves, which the in-loop claims resolve.
@@ -414,7 +490,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
           organizationId: policy.organizationId,
           workspaceMode: policy.workspaceMode,
           billedAccountUserId: policy.billedAccountUserId,
-          allowPersonalApiKeys: true,
+          allowPersonalApiKeys: source.allowPersonalApiKeys,
           forkedFromWorkspaceId: source.id,
         },
         workflowsCopied,

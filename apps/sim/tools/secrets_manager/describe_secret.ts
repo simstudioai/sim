@@ -2,9 +2,9 @@ import type {
   SecretsManagerDescribeSecretParams,
   SecretsManagerDescribeSecretResponse,
 } from '@/tools/secrets_manager/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const describeSecretTool: ToolConfig<
+export const describeSecretTool: InternalToolConfig<
   SecretsManagerDescribeSecretParams,
   SecretsManagerDescribeSecretResponse
 > = {
@@ -41,11 +41,8 @@ export const describeSecretTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/secrets_manager/describe-secret',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

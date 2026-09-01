@@ -11,6 +11,10 @@ import {
 import { eq, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
+import {
+  FOLDER_RESOURCE_LABELS,
+  FOLDER_RESOURCE_SUPPORTS_LOCKING,
+} from '@/lib/folders/resource-traits'
 
 /**
  * Counts of cascaded resources returned by a folder delete/restore, keyed per resource
@@ -57,7 +61,7 @@ export interface FolderDeleteRejection {
 
 /**
  * Everything that differs between the four folder-bearing resource types, expressed as
- * data. The folder engine in `lib/folders/lifecycle.ts` and the cascade in
+ * data. The folder engine in `lib/folders/orchestration.ts` and the cascade in
  * `lib/folders/cascade.ts` read this instead of branching on `resourceType`, so
  * create/update/delete/restore/reorder each exist exactly once and adding a fifth
  * foldered resource means adding one entry here.
@@ -97,8 +101,13 @@ export interface FolderResourceConfig {
    * Declared here rather than checked as `resourceType === 'workflow'` at each call site, so
    * every surface that touches locking asks the same question and a future lockable resource
    * is one flag rather than a hunt through routes.
+   *
+   * Required, and every entry composes it from {@link FOLDER_RESOURCE_SUPPORTS_LOCKING} — the
+   * same treatment as `label`. Routes read the trait module directly (it is a leaf, so a
+   * lock check costs no db-schema graph) while orchestration reads this field; declaring the
+   * value twice would let those two answers drift.
    */
-  supportsLocking?: boolean
+  supportsLocking: boolean
   /** Narrows which rows of `table` participate in folder membership at all. */
   scope?: SQL
   /**
@@ -304,8 +313,10 @@ async function archiveTableChildren(context: CascadeChildrenContext): Promise<nu
   const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'active')
 
   for (const id of ids) {
-    await deleteTable(id, `folder-cascade-${context.folderIds[0]}`, undefined, {
+    await deleteTable(id, `folder-cascade-${context.folderIds[0]}`, {
       archivedAt: context.timestamp,
+      // deleteFolder fires one folder-level live-list notify for the whole subtree.
+      skipNotify: true,
     })
   }
 
@@ -323,7 +334,11 @@ async function restoreTableChildren(context: CascadeChildrenContext): Promise<nu
   const restoringFolderIds = new Set(context.folderIds)
 
   for (const id of ids) {
-    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, { restoringFolderIds })
+    // restoreFolder fires one folder-level live-list notify for the whole subtree.
+    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, {
+      restoringFolderIds,
+      skipNotify: true,
+    })
   }
 
   return ids.length
@@ -373,7 +388,7 @@ async function guardLockedTables({
 export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> = {
   workflow: {
     resourceType: 'workflow',
-    label: 'workflow',
+    label: FOLDER_RESOURCE_LABELS.workflow,
     countKey: 'workflows',
     table: workflow,
     idColumn: workflow.id,
@@ -434,7 +449,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
           >,
       },
     ],
-    supportsLocking: true,
+    supportsLocking: FOLDER_RESOURCE_SUPPORTS_LOCKING.workflow,
     archiveChildren: archiveWorkflowChildren,
     guardDelete: guardLastWorkflows,
   },
@@ -448,7 +463,8 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
    */
   file: {
     resourceType: 'file',
-    label: 'file',
+    label: FOLDER_RESOURCE_LABELS.file,
+    supportsLocking: FOLDER_RESOURCE_SUPPORTS_LOCKING.file,
     countKey: 'files',
     table: workspaceFiles,
     idColumn: workspaceFiles.id,
@@ -466,7 +482,8 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
   },
   knowledge_base: {
     resourceType: 'knowledge_base',
-    label: 'knowledge base',
+    label: FOLDER_RESOURCE_LABELS.knowledge_base,
+    supportsLocking: FOLDER_RESOURCE_SUPPORTS_LOCKING.knowledge_base,
     countKey: 'knowledgeBases',
     table: knowledgeBase,
     idColumn: knowledgeBase.id,
@@ -483,7 +500,8 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
   },
   table: {
     resourceType: 'table',
-    label: 'table',
+    label: FOLDER_RESOURCE_LABELS.table,
+    supportsLocking: FOLDER_RESOURCE_SUPPORTS_LOCKING.table,
     countKey: 'tables',
     table: userTableDefinitions,
     idColumn: userTableDefinitions.id,

@@ -5,20 +5,26 @@ import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
+import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
+import {
+  readXlsxPreviewData,
+  XLSX_MAX_COLUMNS,
+  XLSX_MAX_ROWS,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/xlsx-preview-data'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 const logger = createLogger('XlsxPreview')
 
-const XLSX_MAX_ROWS = 1_000
-
 interface XlsxSheet {
   name: string
   headers: string[]
   rows: string[][]
-  truncated: boolean
+  rowTruncated: boolean
+  columnTruncated: boolean
 }
 
 export const XlsxPreview = memo(function XlsxPreview({
@@ -28,6 +34,7 @@ export const XlsxPreview = memo(function XlsxPreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  const scrollRef = useHorizontalWheelScroll()
   const preview = useDocPreviewBinary(workspaceId, file)
   const fileData = preview.data
 
@@ -46,6 +53,7 @@ export const XlsxPreview = memo(function XlsxPreview({
     async function parse() {
       try {
         setRenderError(null)
+        await assertOoxmlPreviewWithinLimits(data)
         const XLSX = await import('xlsx')
         const workbook = XLSX.read(new Uint8Array(data), { type: 'array' })
         if (!cancelled) {
@@ -79,16 +87,14 @@ export const XlsxPreview = memo(function XlsxPreview({
         const workbook = workbookRef.current!
         const name = sheetNames[activeSheet]
         const sheet = workbook.Sheets[name]
-        const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
-        const headers = (allRows[0] ?? []) as string[]
-        const dataRows = allRows.slice(1) as string[][]
-        const truncated = dataRows.length > XLSX_MAX_ROWS
+        const { headers, rows, rowTruncated, columnTruncated } = readXlsxPreviewData(XLSX, sheet)
         if (!cancelled) {
           setCurrentSheet({
             name,
             headers,
-            rows: truncated ? dataRows.slice(0, XLSX_MAX_ROWS) : dataRows,
-            truncated,
+            rows,
+            rowTruncated,
+            columnTruncated,
           })
         }
       } catch (err) {
@@ -115,7 +121,7 @@ export const XlsxPreview = memo(function XlsxPreview({
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
       <div className='flex shrink-0 items-center border-[var(--border)] border-b bg-[var(--surface-1)] px-2 py-1'>
-        <div className='flex items-center overflow-x-auto'>
+        <div className='flex items-center gap-1 overflow-x-auto'>
           {sheetNames.map((name, i) => (
             <Chip
               key={name}
@@ -128,11 +134,16 @@ export const XlsxPreview = memo(function XlsxPreview({
           ))}
         </div>
       </div>
-      <div className='flex-1 overflow-auto p-6'>
+      <div ref={scrollRef} className='flex-1 overflow-auto p-6'>
         <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
-        {currentSheet.truncated && (
+        {(currentSheet.rowTruncated || currentSheet.columnTruncated) && (
           <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>
-            Showing first {XLSX_MAX_ROWS.toLocaleString()} rows. Download the file to view all data.
+            {currentSheet.rowTruncated && currentSheet.columnTruncated
+              ? `Showing first ${XLSX_MAX_ROWS.toLocaleString()} rows and ${XLSX_MAX_COLUMNS.toLocaleString()} columns.`
+              : currentSheet.rowTruncated
+                ? `Showing first ${XLSX_MAX_ROWS.toLocaleString()} rows.`
+                : `Showing first ${XLSX_MAX_COLUMNS.toLocaleString()} columns.`}{' '}
+            Download the file to view all data.
           </p>
         )}
       </div>

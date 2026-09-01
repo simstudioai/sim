@@ -1,13 +1,12 @@
-import type { ListBudgetsParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListBudgetsParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listBudgetsTool: ToolConfig<ListBudgetsParams, SapConcurProxyResponse> = {
+export const listBudgetsTool: InternalToolConfig<ListBudgetsParams, SapConcurResponse> = {
   id: 'sap_concur_list_budgets',
   name: 'SAP Concur List Budgets',
   description: 'List budget item headers (GET /budget/v4/budgetItemHeader).',
@@ -71,15 +70,13 @@ export const listBudgetsTool: ToolConfig<ListBudgetsParams, SapConcurProxyRespon
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Response schema variant: "COMPACT" returns a smaller payload',
+      description:
+        'Response schema variant: "COMPACT" returns a smaller payload. Defaults to the non-compact schema',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: `/budget/v4/budgetItemHeader`,
       method: 'GET',
       query: buildListQuery({
@@ -89,23 +86,49 @@ export const listBudgetsTool: ToolConfig<ListBudgetsParams, SapConcurProxyRespon
       }),
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
       type: 'json',
       description: 'Budget headers collection payload',
       properties: {
-        items: {
+        budgetItemHeaders: {
           type: 'array',
           optional: true,
           description:
             'Array of budget item header summaries (id, name, description, budgetItemStatusType, budgetType, currencyCode, fiscalYear, budgetAmounts, owner, ...)',
           items: { type: 'json' },
         },
-        offset: { type: 'number', optional: true, description: 'Page offset' },
-        limit: { type: 'number', optional: true, description: 'Page size' },
-        totalCount: { type: 'number', optional: true, description: 'Total result count' },
+        totalRows: {
+          type: 'number',
+          optional: true,
+          description: 'Total number of budget headers',
+        },
+        offset: { type: 'number', optional: true, description: 'Offset of the current page' },
+        limit: {
+          type: 'number',
+          optional: true,
+          description: 'Page size (Concur returns up to 50)',
+        },
+        href: { type: 'string', optional: true, description: 'URL of the current page' },
+        previous: {
+          type: 'json',
+          optional: true,
+          description: 'Previous page link ({ href }); null on the first page',
+          properties: {
+            href: { type: 'string', optional: true, description: 'Previous page URL' },
+          },
+        },
+        next: {
+          type: 'json',
+          optional: true,
+          description:
+            'Next page link ({ href }); null when no results remain. This is the only forward cursor for paging',
+          properties: {
+            href: { type: 'string', optional: true, description: 'Next page URL' },
+          },
+        },
       },
     },
   },

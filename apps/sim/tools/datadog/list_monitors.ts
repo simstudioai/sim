@@ -1,8 +1,6 @@
-import { createLogger } from '@sim/logger'
-import type { ListMonitorsParams, ListMonitorsResponse } from '@/tools/datadog/types'
+import type { ListMonitorsParams, ListMonitorsResponse, MonitorData } from '@/tools/datadog/types'
+import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DatadogListMonitors')
 
 export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsResponse> = {
   id: 'datadog_list_monitors',
@@ -16,7 +14,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated group states to filter by (e.g., "alert,warn", "alert,warn,no data,ok")',
+        'Comma-separated group states to filter by. Valid values are "all", "alert", "warn", and "no data" (e.g., "alert,warn").',
     },
     name: {
       type: 'string',
@@ -47,13 +45,15 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number for pagination (0-indexed, e.g., 0, 1, 2)',
+      description:
+        'Page to start paginating from (0-indexed, e.g., 0, 1, 2). Datadog returns every monitor in the org without pagination when this is not specified, so set it to bound the response. Setting Page Size alone implies page 0.',
     },
     pageSize: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of monitors per page (e.g., 50, max: 1000)',
+      description:
+        'Number of monitors per page (e.g., 50, max: 1000). Datadog only applies this when a page is specified — otherwise it returns all monitors with no page size limit — so setting this alone sends page 0. With a page but no page size, Datadog defaults to 100.',
     },
     apiKey: {
       type: 'string',
@@ -77,7 +77,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       const queryParams = new URLSearchParams()
 
       if (params.groupStates) queryParams.set('group_states', params.groupStates)
@@ -85,22 +85,25 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       if (params.tags) queryParams.set('tags', params.tags)
       if (params.monitorTags) queryParams.set('monitor_tags', params.monitorTags)
       if (params.withDowntimes) queryParams.set('with_downtimes', 'true')
-      if (params.page !== undefined) queryParams.set('page', String(params.page))
+      /**
+       * Datadog ignores `page_size` unless `page` is also sent — without a page
+       * it "returns all monitors without a `page_size` limit". A user who sets
+       * only a page size gets every monitor in the org from a control that reads
+       * as a bound, so imply the first page for them. `page` is not defaulted
+       * when neither is set: that would silently truncate a caller who is
+       * relying on the documented return-everything behavior.
+       */
+      const page =
+        params.page !== undefined && params.page !== null
+          ? params.page
+          : params.pageSize
+            ? 0
+            : undefined
+      if (page !== undefined) queryParams.set('page', String(page))
       if (params.pageSize) queryParams.set('page_size', String(params.pageSize))
 
       const queryString = queryParams.toString()
-      const url = `https://api.${site}/api/v1/monitor${queryString ? `?${queryString}` : ''}`
-      logger.info(
-        '[Datadog List Monitors] URL:',
-        url,
-        'Site param:',
-        params.site,
-        'API Key present:',
-        !!params.apiKey,
-        'App Key present:',
-        !!params.applicationKey
-      )
-      return url
+      return `https://api.${site}/api/v1/monitor${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -112,18 +115,18 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           monitors: [],
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 
     const text = await response.text()
-    let data: any
+    let data: unknown
     try {
       data = JSON.parse(text)
     } catch (e) {
@@ -142,7 +145,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       }
     }
 
-    const monitors = data.map((m: any) => ({
+    const monitors = (data as MonitorData[]).map((m) => ({
       id: m.id,
       name: m.name,
       type: m.type,
@@ -176,8 +179,17 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
           name: { type: 'string', description: 'Monitor name' },
           type: { type: 'string', description: 'Monitor type' },
           query: { type: 'string', description: 'Monitor query' },
+          message: { type: 'string', description: 'Notification message' },
           overall_state: { type: 'string', description: 'Current state' },
           tags: { type: 'array', description: 'Tags' },
+          priority: { type: 'number', description: 'Monitor priority' },
+          options: {
+            type: 'json',
+            description: 'Monitor options (thresholds, notification settings)',
+          },
+          created: { type: 'string', description: 'Creation timestamp' },
+          modified: { type: 'string', description: 'Last modification timestamp' },
+          creator: { type: 'json', description: 'Monitor creator (email, handle, name)' },
         },
       },
     },

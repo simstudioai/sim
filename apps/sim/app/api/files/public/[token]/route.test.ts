@@ -52,7 +52,7 @@ const publicShare = {
     workspaceId: 'ws-secret',
     originalName: 'report.pdf',
     contentType: 'application/pdf',
-    size: 2048,
+    sizeBytes: 2048,
   },
   workspaceName: 'Acme Workspace',
   ownerName: 'Jane Doe',
@@ -140,13 +140,11 @@ describe('POST /api/files/public/[token]', () => {
     const res = await POST(postRequest('hunter2'), params())
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ authType: 'password' })
-    expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith(
-      expect.anything(),
-      'file',
-      'sh_1',
-      'password',
-      'enc:secret'
-    )
+    expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith({
+      response: expect.anything(),
+      cookiePrefix: 'file',
+      resource: passwordShare.share,
+    })
   })
 
   it('refuses to mint a cookie for a non-password (e.g. public) share', async () => {

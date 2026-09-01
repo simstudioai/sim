@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { createLogger } from '@sim/logger'
+import { ChunkBudget } from '@/lib/chunkers/chunk-budget'
 import { TextChunker } from '@/lib/chunkers/text-chunker'
 import type { DocChunk, DocsChunkerOptions } from '@/lib/chunkers/types'
 import { estimateTokens } from '@/lib/chunkers/utils'
@@ -21,13 +22,54 @@ interface Frontmatter {
 
 const logger = createLogger('DocsChunker')
 
+/**
+ * One `{ question: "...", answer: "..." }` FAQ item, in either quote style and
+ * with an optional trailing comma (`session-policies.mdx` uses single-quoted
+ * multiline items). Each captured value keeps its surrounding quotes — the
+ * quoted strings are consumed escape-aware per style, so quotes of the other
+ * style, braces, or escapes inside an answer never end a match early.
+ */
+const FAQ_ITEM_PATTERN =
+  /\{\s*question:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*,\s*answer:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*,?\s*\}/g
+
+/** Strip a captured value's surrounding quotes (either style), then unescape. */
+function unquoteJsxString(value: string): string {
+  return unescapeJsxString(value.slice(1, -1))
+}
+
+function unescapeJsxString(value: string): string {
+  return value.replace(/\\(.)/g, (_, char: string) =>
+    char === 'n' ? '\n' : char === 't' ? '\t' : char
+  )
+}
+
+/**
+ * Emit an FAQ block's question/answer strings as plain prose lines. Must run
+ * BEFORE the tag strip: a `<FAQ items={[` opening tag has no `>` until the
+ * closing `]} />`, so the multiline tag regex would otherwise swallow the
+ * items whole (ending at the first `>` inside an answer). Angle brackets and
+ * braces around inline tokens (`<gmail.attachments[0]>`, `data:{mime}`) are
+ * dropped so the later tag and brace strips cannot re-consume the emitted
+ * text.
+ */
+function extractFaqProse(items: string): string {
+  const lines: string[] = []
+  for (const match of items.matchAll(FAQ_ITEM_PATTERN)) {
+    lines.push(unquoteJsxString(match[1]), unquoteJsxString(match[2]))
+  }
+  if (lines.length === 0) return ' '
+  return `\n${lines.join('\n').replace(/[<>{}]/g, '')}\n`
+}
+
 export class DocsChunker {
   private readonly textChunker: TextChunker
   private readonly baseUrl: string
   private readonly chunkSize: number
+  private readonly maxChunks?: number
 
   constructor(options: DocsChunkerOptions = {}) {
     this.chunkSize = options.chunkSize ?? 300
+    this.maxChunks = options.maxChunks
     this.textChunker = new TextChunker({
       chunkSize: this.chunkSize,
       minCharactersPerChunk: options.minCharactersPerChunk ?? 1,
@@ -216,6 +258,9 @@ export class DocsChunker {
       .replace(/\r/g, '\n')
       .replace(/^import\s+.*$/gm, '')
       .replace(/^export\s+.*$/gm, '')
+      .replace(/<FAQ\s+items=\{\[([\s\S]*?)\]\}\s*\/>/g, (_m, items: string) =>
+        extractFaqProse(items)
+      )
       .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
       .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
       .replace(/\{[^{}]*\}/g, ' ')
@@ -353,12 +398,17 @@ export class DocsChunker {
 
   private enforceSizeLimit(chunks: string[]): string[] {
     const finalChunks: string[] = []
+    const budget = new ChunkBudget(this.maxChunks)
+    const addFinalChunk = (chunk: string): void => {
+      const normalized = chunk.trim()
+      if (normalized.length > 100) budget.add(finalChunks, normalized)
+    }
 
     for (const chunk of chunks) {
       const tokens = estimateTokens(chunk)
 
       if (tokens <= this.chunkSize) {
-        finalChunks.push(chunk)
+        addFinalChunk(chunk)
       } else {
         const lines = chunk.split('\n')
         let currentChunk = ''
@@ -370,18 +420,18 @@ export class DocsChunker {
             currentChunk = testChunk
           } else {
             if (currentChunk.trim()) {
-              finalChunks.push(currentChunk.trim())
+              addFinalChunk(currentChunk)
             }
             currentChunk = line
           }
         }
 
         if (currentChunk.trim()) {
-          finalChunks.push(currentChunk.trim())
+          addFinalChunk(currentChunk)
         }
       }
     }
 
-    return finalChunks.filter((chunk) => chunk.trim().length > 100)
+    return finalChunks
   }
 }

@@ -24,7 +24,6 @@ const instagramGraphIdSchema = z.union([
 
 const instagramShortLivedTokenSchema = z.object({
   access_token: z.string().min(1).max(INSTAGRAM_ACCESS_TOKEN_MAX_LENGTH),
-  user_id: instagramGraphIdSchema.optional(),
   permissions: z
     .union([
       z.string().min(1).max(INSTAGRAM_ACCESS_TOKEN_MAX_LENGTH),
@@ -57,7 +56,12 @@ export type InstagramShortLivedToken = z.output<typeof instagramShortLivedTokenS
 export type InstagramLongLivedToken = z.output<typeof instagramLongLivedTokenResponseSchema>
 export type InstagramProfile = z.output<typeof instagramProfileResponseSchema>
 
-/** Parses the direct or legacy data-array shape returned by Instagram's code exchange. */
+/**
+ * Parses the direct or legacy data-array shape returned by Instagram's code exchange.
+ * The exchange's user_id is intentionally ignored: Meta may serialize it as a number too
+ * large for JavaScript to represent safely, and the callback resolves the authoritative
+ * professional-account ID from /me instead.
+ */
 export function parseInstagramShortLivedToken(value: unknown): InstagramShortLivedToken | null {
   const parsed = instagramShortLivedTokenResponseSchema.safeParse(value)
   if (!parsed.success) return null

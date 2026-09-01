@@ -57,7 +57,7 @@ describe('GET /api/users/me/usage-logs', () => {
         source: 'workflow',
         workflowName: null,
         creditCost: 100,
-        dollarCost: 0.5,
+        hasCost: true,
       },
     ])
     expect(body.summary).toEqual({
@@ -91,6 +91,52 @@ describe('GET /api/users/me/usage-logs', () => {
     const body = await response.json()
 
     expect(body.logs[0].workflowName).toBe('ITSM_Prod_main')
+  })
+
+  it('presents copilot and workspace-chat usage as one sim-chat source', async () => {
+    mockGetUserUsageLogs.mockResolvedValue({
+      logs: [
+        {
+          id: 'log-copilot',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          category: 'model',
+          source: 'copilot',
+          description: 'claude-opus',
+          cost: 0.4,
+        },
+        {
+          id: 'log-workspace-chat',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          category: 'model',
+          source: 'workspace-chat',
+          description: 'claude-opus',
+          cost: 0.2,
+        },
+      ],
+      summary: { totalCost: 0.6, bySource: { copilot: 0.4, 'workspace-chat': 0.2 } },
+      pagination: { hasMore: false },
+    })
+    mockGetUsageCreditsByLogId.mockResolvedValue({
+      'log-copilot': 80,
+      'log-workspace-chat': 40,
+    })
+
+    const body = await (await GET(createMockRequest('GET'))).json()
+
+    expect(body.logs.map((log: { source: string }) => log.source)).toEqual(['sim-chat', 'sim-chat'])
+    expect(body.summary.bySourceCredits).toEqual({ 'sim-chat': 120 })
+  })
+
+  it('filters sim-chat across both internal ledgers', async () => {
+    const response = await GET(
+      createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/test?source=sim-chat')
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetUserUsageLogs).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ source: ['copilot', 'workspace-chat'] })
+    )
   })
 
   it('rejects "custom" period without a startDate', async () => {

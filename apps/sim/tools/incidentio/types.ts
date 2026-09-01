@@ -62,7 +62,6 @@ export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Incident ID' },
   name: { type: 'string', description: 'Incident name/title' },
   summary: { type: 'string', description: 'Incident summary', optional: true },
-  description: { type: 'string', description: 'Incident description', optional: true },
   mode: {
     type: 'string',
     description: 'Incident mode (standard, retrospective, test)',
@@ -89,7 +88,11 @@ export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
   },
   created_at: { type: 'string', description: 'When the incident was created (ISO 8601)' },
   updated_at: { type: 'string', description: 'When the incident was last updated (ISO 8601)' },
-  incident_url: { type: 'string', description: 'URL to the incident page', optional: true },
+  permalink: {
+    type: 'string',
+    description: 'Permalink to the incident in incident.io',
+    optional: true,
+  },
   slack_channel_id: { type: 'string', description: 'Slack channel ID', optional: true },
   slack_channel_name: { type: 'string', description: 'Slack channel name', optional: true },
   visibility: {
@@ -98,15 +101,6 @@ export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete incident output definition
- */
-export const INCIDENTIO_INCIDENT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io incident object',
-  properties: INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for action objects.
@@ -130,15 +124,6 @@ export const INCIDENTIO_ACTION_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete action output definition
- */
-export const INCIDENTIO_ACTION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io action object',
-  properties: INCIDENTIO_ACTION_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for follow-up objects.
  * @see https://api-docs.incident.io/#tag/Follow-ups
  */
@@ -158,15 +143,6 @@ export const INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES = {
   incident_id: { type: 'string', description: 'Associated incident ID', optional: true },
   completed_at: { type: 'string', description: 'When the follow-up was completed', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete follow-up output definition
- */
-export const INCIDENTIO_FOLLOW_UP_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io follow-up object',
-  properties: INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for workflow objects.
@@ -203,15 +179,6 @@ export const INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete workflow output definition
- */
-export const INCIDENTIO_WORKFLOW_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io workflow object',
-  properties: INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for custom field objects.
  * @see https://api-docs.incident.io/#tag/Custom-Fields
  */
@@ -228,15 +195,6 @@ export const INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete custom field output definition
- */
-export const INCIDENTIO_CUSTOM_FIELD_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io custom field object',
-  properties: INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for schedule objects.
  * @see https://api-docs.incident.io/#tag/Schedules
  */
@@ -247,15 +205,6 @@ export const INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES = {
   created_at: { type: 'string', description: 'When the schedule was created', optional: true },
   updated_at: { type: 'string', description: 'When the schedule was last updated', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete schedule output definition
- */
-export const INCIDENTIO_SCHEDULE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io schedule object',
-  properties: INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for incident role objects.
@@ -274,15 +223,6 @@ export const INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete incident role output definition
- */
-export const INCIDENTIO_INCIDENT_ROLE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io incident role object',
-  properties: INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES,
-}
-
-/**
  * Pagination output properties
  */
 export const INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES = {
@@ -291,8 +231,150 @@ export const INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES = {
   total_record_count: { type: 'number', description: 'Total number of records', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
+/**
+ * Output definition for alert objects.
+ * @see https://docs.incident.io/api-reference
+ */
+export const INCIDENTIO_ALERT_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Alert ID' },
+  title: { type: 'string', description: 'Alert title, parsed from the alert payload' },
+  status: { type: 'string', description: 'Alert status (firing, resolved)' },
+  alert_source_id: { type: 'string', description: 'ID of the alert source this alert fired on' },
+  deduplication_key: {
+    type: 'string',
+    description: 'Key that uniquely references this alert from its source',
+  },
+  description: { type: 'string', description: 'Alert description', optional: true },
+  source_url: {
+    type: 'string',
+    description: 'Link to the alert in the upstream system',
+    optional: true,
+  },
+  resolved_at: { type: 'string', description: 'When this alert was resolved', optional: true },
+  created_at: { type: 'string', description: 'When this alert was created' },
+  updated_at: { type: 'string', description: 'When this alert was last updated' },
+  alert_group_ids: {
+    type: 'array',
+    description: 'IDs of every alert group this alert belongs to',
+    optional: true,
+    items: { type: 'string' },
+  },
+  attributes: {
+    type: 'array',
+    description: 'Attribute values parsed from the alert payload',
+    optional: true,
+    items: { type: 'object' },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for catalog type objects.
+ * @see https://docs.incident.io/api-reference
+ */
+export const INCIDENTIO_CATALOG_TYPE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Catalog type ID' },
+  name: { type: 'string', description: 'Human readable name of this type' },
+  description: { type: 'string', description: 'Human readable description of this type' },
+  type_name: {
+    type: 'string',
+    description: 'Type name used when defining attributes (e.g., Custom["Service"])',
+  },
+  engine_resource_type: {
+    type: 'string',
+    description: 'How this resource type is referenced in the incident.io engine',
+  },
+  categories: {
+    type: 'array',
+    description: 'Categories this type is considered part of',
+    items: { type: 'string' },
+  },
+  color: { type: 'string', description: 'Display color of this type in the dashboard' },
+  icon: { type: 'string', description: 'Display icon of this type in the dashboard' },
+  ranked: { type: 'boolean', description: 'Whether entries of this type are ranked' },
+  is_editable: {
+    type: 'boolean',
+    description: 'Whether this type can be edited (types synced externally cannot)',
+  },
+  use_name_as_identifier: {
+    type: 'boolean',
+    description: 'Whether entries can be referenced by name as well as external ID',
+  },
+  estimated_count: {
+    type: 'number',
+    description: 'Estimated number of entries for this type',
+    optional: true,
+  },
+  is_team_type: {
+    type: 'boolean',
+    description: 'Whether this is the designated team type in team settings',
+    optional: true,
+  },
+  registry_type: {
+    type: 'string',
+    description: 'The registry resource this type is synced from, if any',
+    optional: true,
+  },
+  last_synced_at: { type: 'string', description: 'When this type was last synced', optional: true },
+  owning_team_ids: {
+    type: 'array',
+    description: 'IDs of the teams that own this catalog type',
+    optional: true,
+    items: { type: 'string' },
+  },
+  schema: {
+    type: 'object',
+    description: 'Attribute schema for this catalog type',
+    properties: {
+      version: { type: 'number', description: 'Version number of this schema' },
+      attributes: {
+        type: 'array',
+        description: 'Attributes of this catalog type',
+        items: { type: 'object' },
+      },
+    },
+  },
+  annotations: { type: 'json', description: 'Metadata annotations tracked about this type' },
+  created_at: { type: 'string', description: 'When this type was created' },
+  updated_at: { type: 'string', description: 'When this type was last updated' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for team objects.
+ * @see https://docs.incident.io/api-reference
+ */
+export const INCIDENTIO_TEAM_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Team ID' },
+  name: { type: 'string', description: 'Team name' },
+  members: {
+    type: 'array',
+    description: 'Members of the team',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'User ID' },
+        name: { type: 'string', description: 'User display name' },
+        email: { type: 'string', description: 'User email address', optional: true },
+        slack_user_id: { type: 'string', description: 'Slack user ID', optional: true },
+      },
+    },
+  },
+  catalog_entry: {
+    type: 'object',
+    description: 'The catalog entry backing this team',
+    properties: {
+      id: { type: 'string', description: 'Catalog entry ID' },
+      name: { type: 'string', description: 'Catalog entry name' },
+      external_id: {
+        type: 'string',
+        description: 'Alternative ID for this entry, unique within the type',
+        optional: true,
+      },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
+
 // Common parameters for all incident.io tools
-interface IncidentioBaseParams {
+export interface IncidentioBaseParams {
   apiKey: string
 }
 
@@ -308,7 +390,6 @@ interface IncidentioIncident {
   id: string
   name: string
   summary?: string
-  description?: string
   mode?: string
   call_url?: string
   severity?: {
@@ -327,7 +408,7 @@ interface IncidentioIncident {
   }
   created_at: string
   updated_at: string
-  incident_url?: string
+  permalink?: string
   slack_channel_id?: string
   slack_channel_name?: string
   visibility?: string
@@ -537,8 +618,8 @@ export interface Workflow {
   include_private_escalations: boolean
   runs_on_incident_modes: string[]
   continue_on_step_error: boolean
-  runs_on_incidents: 'newly_created' | 'newly_created_and_active' | 'active' | 'all'
-  state: 'active' | 'draft' | 'disabled'
+  runs_on_incidents: 'newly_created' | 'newly_created_and_active'
+  state: 'active' | 'draft' | 'disabled' | 'error'
   delay?: unknown
   folder?: string
   runs_from?: string
@@ -562,7 +643,7 @@ export interface WorkflowsCreateParams extends IncidentioBaseParams {
   trigger?: string
   steps?: string
   condition_groups?: string
-  runs_on_incidents?: 'newly_created' | 'newly_created_and_active' | 'active' | 'all'
+  runs_on_incidents?: 'newly_created' | 'newly_created_and_active'
   runs_on_incident_modes?: string
   include_private_incidents?: boolean
   continue_on_step_error?: boolean
@@ -597,7 +678,7 @@ export interface WorkflowsUpdateParams extends IncidentioBaseParams {
   name: string
   steps: string
   condition_groups: string
-  runs_on_incidents: 'newly_created' | 'newly_created_and_active' | 'active' | 'all'
+  runs_on_incidents: 'newly_created' | 'newly_created_and_active'
   runs_on_incident_modes: string
   include_private_incidents: boolean
   continue_on_step_error: boolean
@@ -834,6 +915,25 @@ export type IncidentioResponse =
   | IncidentioEscalationPathsShowResponse
   | IncidentioEscalationPathsUpdateResponse
   | IncidentioEscalationPathsDeleteResponse
+  | IncidentioOnCallNowResponse
+  | IncidentioScheduleOverridesListResponse
+  | IncidentioAlertsListResponse
+  | IncidentioAlertsShowResponse
+  | IncidentioAlertsResolveResponse
+  | IncidentioAlertEventsCreateResponse
+  | IncidentioIncidentAlertsListResponse
+  | IncidentioEscalationsCancelResponse
+  | IncidentioCatalogTypesListResponse
+  | IncidentioCatalogEntriesListResponse
+  | IncidentioTeamsListResponse
+  | IncidentioTeamsShowResponse
+  | IncidentioFollowUpsCreateResponse
+  | IncidentioFollowUpsUpdateResponse
+  | IncidentioActionsCreateResponse
+  | IncidentioActionsUpdateResponse
+  | IncidentioIncidentParticipantsListResponse
+  | IncidentioIncidentMembershipsCreateResponse
+  | IncidentioIncidentMembershipsRevokeResponse
 
 // Escalations types
 export interface IncidentioEscalationsListParams extends IncidentioBaseParams {
@@ -843,7 +943,8 @@ export interface IncidentioEscalationsListParams extends IncidentioBaseParams {
 
 interface IncidentioEscalation {
   id: string
-  name: string
+  title: string
+  status: string
   created_at?: string
   updated_at?: string
 }
@@ -1049,24 +1150,26 @@ export interface IncidentioIncidentTimestampsShowResponse extends ToolResponse {
 interface IncidentioIncidentUpdate {
   id: string
   incident_id: string
-  message: string
+  message?: string
+  merged_into_incident_id?: string
   new_severity?: {
     id: string
     name: string
     rank: number
   }
-  new_status?: {
+  new_incident_status: {
     id: string
     name: string
     category: string
   }
   updater: {
-    id: string
-    name: string
-    email: string
+    user?: {
+      id: string
+      name: string
+      email?: string
+    }
   }
   created_at: string
-  updated_at: string
 }
 
 export interface IncidentioIncidentUpdatesListParams extends IncidentioBaseParams {
@@ -1260,6 +1363,650 @@ export interface IncidentioEscalationPathsDeleteParams extends IncidentioBasePar
 }
 
 export interface IncidentioEscalationPathsDeleteResponse extends ToolResponse {
+  output: {
+    message: string
+  }
+}
+
+/**
+ * A user as returned on alerting, on-call, catalog, and team payloads, where the API
+ * documents `email`, `role`, and `slack_user_id` as optional.
+ * @see https://docs.incident.io/api-reference
+ */
+export interface IncidentioSlimUser {
+  id: string
+  name: string
+  email?: string
+  role?: string
+  slack_user_id?: string
+}
+
+/** Pagination envelope returned by incident.io list endpoints. */
+export interface IncidentioPaginationMeta {
+  after?: string
+  page_size: number
+  total_record_count?: number
+}
+
+/**
+ * A single on-call shift, flattened from a schedule's `current_shifts` or `next_shifts`.
+ * @see https://docs.incident.io/api-reference
+ */
+export interface IncidentioOnCallShift {
+  schedule_id: string
+  schedule_name: string
+  schedule_timezone: string
+  schedule_permalink: string | null
+  entry_id: string | null
+  rotation_id: string | null
+  layer_id: string | null
+  start_at: string | null
+  end_at: string | null
+  user_id: string | null
+  user_name: string | null
+  user_email: string | null
+  user_slack_user_id: string | null
+}
+
+export interface IncidentioOnCallNowParams extends IncidentioBaseParams {
+  schedule_id?: string
+  page_size?: number
+  after?: string
+}
+
+export interface IncidentioOnCallNowResponse extends ToolResponse {
+  output: {
+    on_call: IncidentioOnCallShift[]
+    next_on_call: IncidentioOnCallShift[]
+    pagination_meta?: IncidentioPaginationMeta
+  }
+}
+
+/** A one-off change layered over a schedule's rotations, as the list endpoint returns it. */
+export interface IncidentioScheduleOverrideRecord {
+  id: string
+  schedule_id: string
+  rotation_id: string
+  layer_id: string
+  start_at: string
+  end_at: string
+  created_at: string
+  updated_at: string
+  user?: IncidentioSlimUser
+}
+
+export interface IncidentioScheduleOverridesListParams extends IncidentioBaseParams {
+  schedule_id: string
+  rotation_id?: string
+  layer_id?: string
+  page_size?: number
+  after?: string
+}
+
+export interface IncidentioScheduleOverridesListResponse extends ToolResponse {
+  output: {
+    overrides: IncidentioScheduleOverrideRecord[]
+    pagination_meta?: IncidentioPaginationMeta
+  }
+}
+
+/** A single value on an alert attribute, either a literal or a catalog entry reference. */
+export interface IncidentioAlertAttributeValue {
+  literal?: string
+  label?: string
+  catalog_entry?: {
+    id: string
+    name: string
+    catalog_type_id: string
+  }
+}
+
+/** An attribute value parsed from an alert's payload by its alert source config. */
+export interface IncidentioAlertAttributeEntry {
+  attribute: {
+    id: string
+    name: string
+    type: string
+    array: boolean
+    required: boolean
+    emoji?: string
+  }
+  value?: IncidentioAlertAttributeValue
+  array_value?: IncidentioAlertAttributeValue[]
+}
+
+export interface IncidentioAlert {
+  id: string
+  title: string
+  status: string
+  alert_source_id: string
+  deduplication_key: string
+  created_at: string
+  updated_at: string
+  attributes: IncidentioAlertAttributeEntry[]
+  alert_group_ids?: string[]
+  description?: string
+  resolved_at?: string
+  source_url?: string
+}
+
+/** The alert shape returned on incident-alert connections, which omits `attributes`. */
+export type IncidentioAlertSlim = Omit<IncidentioAlert, 'attributes'>
+
+export interface IncidentioAlertsListParams extends IncidentioBaseParams {
+  page_size?: number
+  after?: string
+  status?: string
+  status_operator?: 'one_of' | 'not_in'
+  alert_source_id?: string
+  alert_source_operator?: 'one_of' | 'not_in'
+  deduplication_key?: string
+  created_at_gte?: string
+  created_at_lte?: string
+  has_notes?: boolean
+  include_maintenance_window?: boolean
+}
+
+export interface IncidentioAlertsListResponse extends ToolResponse {
+  output: {
+    alerts: IncidentioAlert[]
+    pagination_meta?: IncidentioPaginationMeta
+  }
+}
+
+export interface IncidentioAlertsShowParams extends IncidentioBaseParams {
+  id: string
+}
+
+export interface IncidentioAlertsShowResponse extends ToolResponse {
+  output: {
+    alert: IncidentioAlert
+  }
+}
+
+export interface IncidentioAlertsResolveParams extends IncidentioBaseParams {
+  id: string
+}
+
+export interface IncidentioAlertsResolveResponse extends ToolResponse {
+  output: {
+    alert: IncidentioAlert
+  }
+}
+
+/**
+ * Alert events authenticate with the token generated when configuring the HTTP alert source,
+ * not with the organisation API key, so these params deliberately do not extend the base params.
+ */
+export interface IncidentioAlertEventsCreateParams {
+  alert_source_config_id: string
+  alert_source_token: string
+  title: string
+  status: 'firing' | 'resolved'
+  description?: string
+  deduplication_key?: string
+  source_url?: string
+  metadata?: string
+}
+
+export interface IncidentioAlertEventsCreateResponse extends ToolResponse {
+  output: {
+    deduplication_key: string
+    message: string
+    status: string
+  }
+}
+
+/** The connection between an alert and the incident it was attached to. */
+export interface IncidentioIncidentAlert {
+  id: string
+  alert: IncidentioAlertSlim
+  incident: {
+    id: string
+    name: string
+    reference: string
+    external_id: number
+    status_category: string
+    visibility: string
+    summary?: string
+  }
+  alert_route_id?: string
+}
+
+export interface IncidentioIncidentAlertsListParams extends IncidentioBaseParams {
+  page_size?: number
+  after?: string
+  alert_id?: string
+  incident_id?: string
+}
+
+export interface IncidentioIncidentAlertsListResponse extends ToolResponse {
+  output: {
+    incident_alerts: IncidentioIncidentAlert[]
+    pagination_meta?: IncidentioPaginationMeta
+  }
+}
+
+export interface IncidentioEscalationsCancelParams extends IncidentioBaseParams {
+  id: string
+}
+
+export interface IncidentioEscalationsCancelResponse extends ToolResponse {
+  output: {
+    message: string
+  }
+}
+
+/** A catalog type, describing the schema shared by all entries of that type. */
+export interface IncidentioCatalogType {
+  id: string
+  name: string
+  description: string
+  type_name: string
+  engine_resource_type: string
+  categories: string[]
+  color: string
+  icon: string
+  ranked: boolean
+  is_editable: boolean
+  use_name_as_identifier: boolean
+  created_at: string
+  updated_at: string
+  annotations: Record<string, string>
+  schema: {
+    version: number
+    attributes: Array<{
+      id: string
+      name: string
+      type: string
+      array: boolean
+      mode: string
+    }>
+  }
+  estimated_count?: number
+  is_team_type?: boolean
+  last_synced_at?: string
+  owning_team_ids?: string[]
+  registry_type?: string
+  required_integrations?: string[]
+  source_repo_url?: string
+  dynamic_resource_parameter?: string
+}
+
+export interface IncidentioCatalogTypesListParams extends IncidentioBaseParams {}
+
+export interface IncidentioCatalogTypesListResponse extends ToolResponse {
+  output: {
+    catalog_types: IncidentioCatalogType[]
+  }
+}
+
+/** A single entry of a catalog type, such as one service or one team. */
+export interface IncidentioCatalogEntry {
+  id: string
+  name: string
+  catalog_type_id: string
+  aliases: string[]
+  rank: number
+  attribute_values: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  external_id?: string
+  archived_at?: string
+}
+
+export interface IncidentioCatalogEntriesListParams extends IncidentioBaseParams {
+  catalog_type_id: string
+  page_size?: number
+  after?: string
+  identifier?: string
+}
+
+export interface IncidentioCatalogEntriesListResponse extends ToolResponse {
+  output: {
+    catalog_entries: IncidentioCatalogEntry[]
+    catalog_type: IncidentioCatalogType | null
+    pagination_meta?: IncidentioPaginationMeta
+  }
+}
+
+export interface IncidentioTeam {
+  id: string
+  name: string
+  members: IncidentioSlimUser[]
+  catalog_entry: {
+    id: string
+    name: string
+    external_id?: string
+  }
+}
+
+export interface IncidentioTeamsListParams extends IncidentioBaseParams {
+  page_size?: number
+  after?: string
+}
+
+export interface IncidentioTeamsListResponse extends ToolResponse {
+  output: {
+    teams: IncidentioTeam[]
+    pagination_meta?: IncidentioPaginationMeta
+  }
+}
+
+export interface IncidentioTeamsShowParams extends IncidentioBaseParams {
+  id: string
+}
+
+export interface IncidentioTeamsShowResponse extends ToolResponse {
+  output: {
+    team: IncidentioTeam
+  }
+}
+
+/**
+ * Output definition for the actor envelope. Unlike a plain user, exactly one of these keys is
+ * populated depending on what caused the change.
+ */
+const INCIDENTIO_ACTOR_OUTPUT_PROPERTIES = {
+  user: {
+    type: 'object',
+    description: 'The user who caused this, if a person did',
+    optional: true,
+    properties: {
+      id: { type: 'string', description: 'User ID' },
+      name: { type: 'string', description: 'User display name' },
+      email: { type: 'string', description: 'User email address', optional: true },
+      role: { type: 'string', description: 'User role', optional: true },
+      slack_user_id: { type: 'string', description: 'Slack user ID', optional: true },
+    },
+  },
+  api_key: {
+    type: 'object',
+    description: 'The API key that caused this, if an integration did',
+    optional: true,
+    properties: {
+      id: { type: 'string', description: 'API key ID' },
+      name: { type: 'string', description: 'API key name' },
+    },
+  },
+  workflow: {
+    type: 'object',
+    description: 'The incident.io workflow that caused this, if automation did',
+    optional: true,
+    properties: {
+      id: { type: 'string', description: 'Workflow ID' },
+      name: { type: 'string', description: 'Workflow name' },
+    },
+  },
+  alert: {
+    type: 'object',
+    description: 'The alert that caused this, if an alert did',
+    optional: true,
+    properties: {
+      id: { type: 'string', description: 'Alert ID' },
+      title: { type: 'string', description: 'Alert title' },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+const INCIDENTIO_EXTERNAL_ISSUE_REFERENCE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'The external issue this was exported to',
+  optional: true,
+  properties: {
+    provider: { type: 'string', description: 'Issue tracker provider' },
+    issue_name: { type: 'string', description: 'Human readable issue ID' },
+    issue_permalink: { type: 'string', description: 'Link to the issue in the tracker' },
+  },
+}
+
+const INCIDENTIO_ASSIGNEE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'The assigned user',
+  optional: true,
+  properties: {
+    id: { type: 'string', description: 'User ID' },
+    name: { type: 'string', description: 'User display name' },
+    email: { type: 'string', description: 'User email address', optional: true },
+    role: { type: 'string', description: 'User role', optional: true },
+    slack_user_id: { type: 'string', description: 'Slack user ID', optional: true },
+  },
+}
+
+/**
+ * Output definition for a follow-up exactly as the API returns it, including the fields the
+ * legacy list/show tools drop.
+ */
+export const INCIDENTIO_FOLLOW_UP_RECORD_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Follow-up ID' },
+  incident_id: { type: 'string', description: 'ID of the incident the follow-up belongs to' },
+  title: { type: 'string', description: 'Follow-up title' },
+  status: {
+    type: 'string',
+    description: 'Follow-up status (outstanding, completed, deleted, not_doing)',
+  },
+  description: { type: 'string', description: 'Follow-up description', optional: true },
+  labels: {
+    type: 'array',
+    description: 'Labels associated with this follow-up',
+    items: { type: 'string' },
+  },
+  assignee: INCIDENTIO_ASSIGNEE_OUTPUT,
+  assignee_team: {
+    type: 'object',
+    description: 'The team the follow-up is assigned to',
+    optional: true,
+    properties: {
+      id: { type: 'string', description: 'Team ID' },
+      name: { type: 'string', description: 'Team name' },
+    },
+  },
+  priority: {
+    type: 'object',
+    description: 'Follow-up priority',
+    optional: true,
+    properties: {
+      id: { type: 'string', description: 'Priority ID' },
+      name: { type: 'string', description: 'Priority name' },
+      rank: { type: 'number', description: 'Priority rank' },
+      description: { type: 'string', description: 'Priority description', optional: true },
+    },
+  },
+  external_issue_reference: INCIDENTIO_EXTERNAL_ISSUE_REFERENCE_OUTPUT,
+  creator: {
+    type: 'object',
+    description: 'Who created the follow-up',
+    properties: INCIDENTIO_ACTOR_OUTPUT_PROPERTIES,
+  },
+  completed_at: {
+    type: 'string',
+    description: 'When the follow-up was completed',
+    optional: true,
+  },
+  created_at: { type: 'string', description: 'When the follow-up was created' },
+  updated_at: { type: 'string', description: 'When the follow-up was last updated' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for an action exactly as the API returns it, including the fields the legacy
+ * list/show tools drop.
+ */
+export const INCIDENTIO_ACTION_RECORD_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Action ID' },
+  incident_id: { type: 'string', description: 'ID of the incident the action belongs to' },
+  description: { type: 'string', description: 'Action description' },
+  status: {
+    type: 'string',
+    description: 'Action status (outstanding, completed, deleted, not_doing)',
+  },
+  assignee: INCIDENTIO_ASSIGNEE_OUTPUT,
+  external_issue_reference: INCIDENTIO_EXTERNAL_ISSUE_REFERENCE_OUTPUT,
+  creator: {
+    type: 'object',
+    description: 'Who created the action',
+    properties: INCIDENTIO_ACTOR_OUTPUT_PROPERTIES,
+  },
+  completed_at: { type: 'string', description: 'When the action was completed', optional: true },
+  created_at: { type: 'string', description: 'When the action was created' },
+  updated_at: { type: 'string', description: 'When the action was last updated' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Whoever caused something to happen. Exactly one of these is populated, so consumers should
+ * check each in turn rather than assuming a user.
+ */
+export interface IncidentioActor {
+  user?: IncidentioSlimUser
+  api_key?: { id: string; name: string }
+  workflow?: { id: string; name: string }
+  alert?: { id: string; title: string }
+}
+
+/** A reference to the issue an action or follow-up was exported to. */
+export interface IncidentioExternalIssueReference {
+  provider: string
+  issue_name: string
+  issue_permalink: string
+}
+
+/** A follow-up exactly as the incident.io API returns it. */
+export interface IncidentioFollowUpRecord {
+  id: string
+  incident_id: string
+  title: string
+  status: string
+  labels: string[]
+  creator: IncidentioActor
+  created_at: string
+  updated_at: string
+  description?: string
+  completed_at?: string
+  assignee?: IncidentioSlimUser
+  assignee_team?: { id: string; name: string }
+  priority?: {
+    id: string
+    name: string
+    rank: number
+    description?: string
+  }
+  external_issue_reference?: IncidentioExternalIssueReference
+}
+
+/** An action exactly as the incident.io API returns it. */
+export interface IncidentioActionRecord {
+  id: string
+  incident_id: string
+  description: string
+  status: string
+  creator: IncidentioActor
+  created_at: string
+  updated_at: string
+  completed_at?: string
+  assignee?: IncidentioSlimUser
+  external_issue_reference?: IncidentioExternalIssueReference
+}
+
+export interface IncidentioFollowUpsCreateParams extends IncidentioBaseParams {
+  incident_id: string
+  title: string
+  description?: string
+  assignee_id?: string
+  assignee_team_id?: string
+  follow_up_category_id?: string
+  follow_up_priority_option_id?: string
+  external_issue_reference_id?: string
+  labels?: string
+}
+
+export interface IncidentioFollowUpsCreateResponse extends ToolResponse {
+  output: {
+    follow_up: IncidentioFollowUpRecord
+  }
+}
+
+export interface IncidentioFollowUpsUpdateParams extends IncidentioBaseParams {
+  id: string
+  title: string
+  status: 'outstanding' | 'completed' | 'not_doing'
+  description?: string
+  assignee_id?: string
+  assignee_team_id?: string
+  follow_up_category_id?: string
+  follow_up_priority_option_id?: string
+  labels?: string
+}
+
+export interface IncidentioFollowUpsUpdateResponse extends ToolResponse {
+  output: {
+    follow_up: IncidentioFollowUpRecord
+  }
+}
+
+export interface IncidentioActionsCreateParams extends IncidentioBaseParams {
+  incident_id: string
+  description: string
+  assignee_id?: string
+}
+
+export interface IncidentioActionsCreateResponse extends ToolResponse {
+  output: {
+    action: IncidentioActionRecord
+  }
+}
+
+export interface IncidentioActionsUpdateParams extends IncidentioBaseParams {
+  id: string
+  description: string
+  status: 'outstanding' | 'completed' | 'not_doing'
+  assignee_id?: string
+}
+
+export interface IncidentioActionsUpdateResponse extends ToolResponse {
+  output: {
+    action: IncidentioActionRecord
+  }
+}
+
+/** A person who took part in an incident, annotated with how they participated. */
+export interface IncidentioIncidentParticipant {
+  participant_type: string
+  user: IncidentioSlimUser
+}
+
+export interface IncidentioIncidentParticipantsListParams extends IncidentioBaseParams {
+  incident_id: string
+}
+
+export interface IncidentioIncidentParticipantsListResponse extends ToolResponse {
+  output: {
+    active: IncidentioIncidentParticipant[]
+    passive: IncidentioIncidentParticipant[]
+  }
+}
+
+export interface IncidentioIncidentMembershipsCreateParams extends IncidentioBaseParams {
+  incident_id: string
+  user_id: string
+}
+
+export interface IncidentioIncidentMembershipsCreateResponse extends ToolResponse {
+  output: {
+    incident_membership: {
+      id: string
+      incident_id: string
+      created_at: string
+      updated_at: string
+      user: IncidentioSlimUser
+    }
+  }
+}
+
+export interface IncidentioIncidentMembershipsRevokeParams extends IncidentioBaseParams {
+  incident_id: string
+  user_id: string
+}
+
+export interface IncidentioIncidentMembershipsRevokeResponse extends ToolResponse {
   output: {
     message: string
   }

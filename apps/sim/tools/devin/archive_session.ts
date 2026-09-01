@@ -7,7 +7,7 @@ export const devinArchiveSessionTool: ToolConfig<
   DevinArchiveSessionResponse
 > = {
   id: 'devin_archive_session',
-  name: 'archive_session',
+  name: 'Devin Archive Session',
   description:
     'Archive a Devin session. Archived sessions can still be viewed but cannot be modified or resumed.',
   version: '1.0.0',

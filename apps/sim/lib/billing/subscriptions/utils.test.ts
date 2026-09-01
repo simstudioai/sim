@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canEditUsageLimit,
   checkEnterprisePlan,
+  checkOrgPlan,
   checkProPlan,
   checkTeamPlan,
   getEffectiveSeats,
@@ -33,6 +34,19 @@ describe('billing subscription status helpers', () => {
     expect(checkProPlan({ plan: 'pro_4000', status: 'past_due' })).toBe(true)
     expect(checkTeamPlan({ plan: 'team_8000', status: 'past_due' })).toBe(true)
     expect(checkEnterprisePlan({ plan: 'enterprise', status: 'past_due' })).toBe(true)
+  })
+
+  it('accepts every organization-referenceable plan and no personal one', () => {
+    expect(checkOrgPlan({ plan: 'team_6000', status: 'active' })).toBe(true)
+    expect(checkOrgPlan({ plan: 'team_25000', status: 'active' })).toBe(true)
+    expect(checkOrgPlan({ plan: 'team', status: 'active' })).toBe(true)
+    expect(checkOrgPlan({ plan: 'enterprise', status: 'active' })).toBe(true)
+
+    expect(checkOrgPlan({ plan: 'pro_6000', status: 'active' })).toBe(false)
+    expect(checkOrgPlan({ plan: 'pro_25000', status: 'active' })).toBe(false)
+    expect(checkOrgPlan({ plan: 'free', status: 'active' })).toBe(false)
+    expect(checkOrgPlan({ plan: 'team_6000', status: 'canceled' })).toBe(false)
+    expect(checkOrgPlan(null)).toBe(false)
   })
 
   it('only allows usage limit editing for active usable subscriptions', () => {

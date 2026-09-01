@@ -9,26 +9,26 @@ import type { ExecutionContext } from '@/lib/copilot/request/types'
 const {
   ensureWorkflowAccessMock,
   getWorkspaceWithOwnerMock,
-  isFeatureEnabledMock,
-  isOrganizationOnEnterprisePlanMock,
+  isCustomBlocksDeploymentEnabledMock,
+  isCustomBlocksEligibleForOrganizationMock,
   publishCustomBlockMock,
   updateCustomBlockMock,
   deleteCustomBlockMock,
   getCustomBlockWithInputsByWorkflowIdMock,
-  listWorkspaceFilesMock,
-  fetchWorkspaceFileBufferMock,
+  resolveWorkspaceFileReferenceMock,
+  readWorkspaceFileContentMock,
   uploadFileMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   getWorkspaceWithOwnerMock: vi.fn(),
-  isFeatureEnabledMock: vi.fn(),
-  isOrganizationOnEnterprisePlanMock: vi.fn(),
+  isCustomBlocksDeploymentEnabledMock: vi.fn(),
+  isCustomBlocksEligibleForOrganizationMock: vi.fn(),
   publishCustomBlockMock: vi.fn(),
   updateCustomBlockMock: vi.fn(),
   deleteCustomBlockMock: vi.fn(),
   getCustomBlockWithInputsByWorkflowIdMock: vi.fn(),
-  listWorkspaceFilesMock: vi.fn(),
-  fetchWorkspaceFileBufferMock: vi.fn(),
+  resolveWorkspaceFileReferenceMock: vi.fn(),
+  readWorkspaceFileContentMock: vi.fn(),
   uploadFileMock: vi.fn(),
 }))
 
@@ -43,17 +43,18 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: getWorkspaceWithOwnerMock,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: isFeatureEnabledMock,
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  resolveCopilotWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
+  executeCopilotFileUseCase: vi.fn(
+    async (_context, _useCase, input: { fileId: string; maxBytes: number }) =>
+      readWorkspaceFileContentMock(input)
+  ),
 }))
-
-vi.mock('@/lib/billing', () => ({
-  isOrganizationOnEnterprisePlan: isOrganizationOnEnterprisePlanMock,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  listWorkspaceFiles: listWorkspaceFilesMock,
-  fetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: {
+    operation: { id: 'files.read_content' },
+    execute: readWorkspaceFileContentMock,
+  },
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => ({
@@ -72,12 +73,20 @@ vi.mock('@/lib/workflows/custom-blocks/operations', () => {
     updateCustomBlock: updateCustomBlockMock,
     deleteCustomBlock: deleteCustomBlockMock,
     getCustomBlockWithInputsByWorkflowId: getCustomBlockWithInputsByWorkflowIdMock,
+    isCustomBlocksDeploymentEnabled: isCustomBlocksDeploymentEnabledMock,
+    isCustomBlocksEligibleForOrganization: isCustomBlocksEligibleForOrganizationMock,
   }
 })
 
 import { executeDeployCustomBlock } from './custom-block'
 
-const context = { userId: 'user-1', workflowId: 'wf-1' } as ExecutionContext
+const context = {
+  userId: 'user-1',
+  workflowId: 'wf-1',
+  workspaceId: 'ws-1',
+  toolCallId: 'tool-1',
+  copilotToolExecution: true,
+} as ExecutionContext
 
 const publishedBlock = {
   id: 'cb-1',
@@ -102,8 +111,8 @@ describe('executeDeployCustomBlock', () => {
       workflow: { id: 'wf-1', workspaceId: 'ws-1', name: 'Test Workflow', isDeployed: true },
     })
     getWorkspaceWithOwnerMock.mockResolvedValue({ id: 'ws-1', organizationId: 'org-1' })
-    isFeatureEnabledMock.mockResolvedValue(true)
-    isOrganizationOnEnterprisePlanMock.mockResolvedValue(true)
+    isCustomBlocksDeploymentEnabledMock.mockReturnValue(true)
+    isCustomBlocksEligibleForOrganizationMock.mockResolvedValue(true)
     getCustomBlockWithInputsByWorkflowIdMock.mockResolvedValue(null)
   })
 
@@ -142,6 +151,21 @@ describe('executeDeployCustomBlock', () => {
     })
   })
 
+  it('rejects a workflowId whose workspace differs from the execution workspace', async () => {
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: { id: 'wf-other', workspaceId: 'ws-other', name: 'Other', isDeployed: true },
+    })
+
+    const result = await executeDeployCustomBlock(
+      { workflowId: 'wf-other', name: 'Enrich Lead' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('does not match the Copilot execution workspace')
+    expect(publishCustomBlockMock).not.toHaveBeenCalled()
+  })
+
   it('returns a clean admin-permission error when workflow access is denied', async () => {
     ensureWorkflowAccessMock.mockRejectedValue(new Error('Unauthorized workflow access'))
 
@@ -177,7 +201,7 @@ describe('executeDeployCustomBlock', () => {
     const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('deploy_api')
+    expect(result.error).toContain('deploy_as_api')
     expect(publishCustomBlockMock).not.toHaveBeenCalled()
   })
 
@@ -215,8 +239,8 @@ describe('executeDeployCustomBlock', () => {
     })
   })
 
-  it('updates an existing block without requiring the enterprise plan', async () => {
-    isOrganizationOnEnterprisePlanMock.mockResolvedValue(false)
+  it('updates an existing block after organization eligibility lapses', async () => {
+    isCustomBlocksEligibleForOrganizationMock.mockResolvedValue(false)
     getCustomBlockWithInputsByWorkflowIdMock
       .mockResolvedValueOnce(publishedBlock)
       .mockResolvedValueOnce(publishedBlock)
@@ -228,8 +252,8 @@ describe('executeDeployCustomBlock', () => {
     expect(publishCustomBlockMock).not.toHaveBeenCalled()
   })
 
-  it('undeploys without requiring the enterprise plan', async () => {
-    isOrganizationOnEnterprisePlanMock.mockResolvedValue(false)
+  it('undeploys after organization eligibility lapses', async () => {
+    isCustomBlocksEligibleForOrganizationMock.mockResolvedValue(false)
     getCustomBlockWithInputsByWorkflowIdMock.mockResolvedValue(publishedBlock)
 
     const result = await executeDeployCustomBlock({ action: 'undeploy' }, context)
@@ -308,8 +332,8 @@ describe('executeDeployCustomBlock', () => {
     expect(deleteCustomBlockMock).not.toHaveBeenCalled()
   })
 
-  it('fails when the feature flag is off', async () => {
-    isFeatureEnabledMock.mockResolvedValue(false)
+  it('fails when custom blocks are not enabled for the organization', async () => {
+    isCustomBlocksEligibleForOrganizationMock.mockResolvedValue(false)
 
     const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
 
@@ -317,31 +341,41 @@ describe('executeDeployCustomBlock', () => {
     expect(result.error).toContain('not enabled')
   })
 
-  it('fails when the org is not on the enterprise plan', async () => {
-    isOrganizationOnEnterprisePlanMock.mockResolvedValue(false)
+  it('blocks existing custom blocks when the deployment entitlement is disabled', async () => {
+    isCustomBlocksDeploymentEnabledMock.mockReturnValue(false)
+    getCustomBlockWithInputsByWorkflowIdMock.mockResolvedValue(publishedBlock)
 
-    const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
+    const result = await executeDeployCustomBlock({ action: 'undeploy' }, context)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('enterprise')
+    expect(result).toEqual({
+      success: false,
+      error: 'Custom blocks are not enabled for this organization',
+    })
+    expect(deleteCustomBlockMock).not.toHaveBeenCalled()
   })
 
   it('ingests a workspace-file icon into public icon storage', async () => {
-    listWorkspaceFilesMock.mockResolvedValue([
-      {
-        name: 'icon.png',
-        folderPath: null,
-        type: 'image/png',
-        size: 1024,
-        key: 'workspace/ws-1/123-abc-icon.png',
-      },
-    ])
-    fetchWorkspaceFileBufferMock.mockResolvedValue(Buffer.from('png-bytes'))
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'file-1',
+      name: 'icon.png',
+      folderPath: null,
+      type: 'image/png',
+      size: 1024,
+      key: 'workspace/ws-1/123-abc-icon.png',
+    })
+    readWorkspaceFileContentMock.mockResolvedValue({
+      file: { id: 'file-1', name: 'icon.png' },
+      content: Buffer.from('png-bytes'),
+    })
     uploadFileMock.mockResolvedValue({ path: '/api/files/serve/s3/workspace-logos%2Ficon.png' })
     publishCustomBlockMock.mockResolvedValue(publishedBlock)
 
     const result = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'files/icon.png' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'files/icon.png',
+      },
       context
     )
 
@@ -364,7 +398,11 @@ describe('executeDeployCustomBlock', () => {
     publishCustomBlockMock.mockResolvedValue(publishedBlock)
 
     const result = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'https://example.com/icon.png' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'https://example.com/icon.png',
+      },
       context
     )
 
@@ -376,10 +414,14 @@ describe('executeDeployCustomBlock', () => {
   })
 
   it('fails when the icon workspace file does not exist', async () => {
-    listWorkspaceFilesMock.mockResolvedValue([])
+    resolveWorkspaceFileReferenceMock.mockRejectedValue(new Error('File not found'))
 
     const result = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'files/missing.png' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'files/missing.png',
+      },
       context
     )
 
@@ -390,14 +432,22 @@ describe('executeDeployCustomBlock', () => {
 
   it('rejects non-https icon URL schemes on pass-through', async () => {
     const dataUri = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'data:image/svg+xml;base64,PHN2Zy8+' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
+      },
       context
     )
     expect(dataUri.success).toBe(false)
     expect(dataUri.error).toContain('https')
 
     const plainHttp = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'http://example.com/icon.png' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'http://example.com/icon.png',
+      },
       context
     )
     expect(plainHttp.success).toBe(false)
@@ -405,19 +455,32 @@ describe('executeDeployCustomBlock', () => {
 
     publishCustomBlockMock.mockResolvedValue(publishedBlock)
     const servePath = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: '/api/files/serve/workspace-logos%2Ficon.png' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: '/api/files/serve/workspace-logos%2Ficon.png',
+      },
       context
     )
     expect(servePath.success).toBe(true)
   })
 
   it('fails when the icon workspace file is not an image', async () => {
-    listWorkspaceFilesMock.mockResolvedValue([
-      { name: 'notes.pdf', folderPath: null, type: 'application/pdf', size: 1024, key: 'k' },
-    ])
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'file-2',
+      name: 'notes.pdf',
+      folderPath: null,
+      type: 'application/pdf',
+      size: 1024,
+      key: 'k',
+    })
 
     const result = await executeDeployCustomBlock(
-      { name: 'Enrich Lead', iconUrl: 'files/notes.pdf' },
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'answer' }],
+        iconUrl: 'files/notes.pdf',
+      },
       context
     )
 
@@ -433,5 +496,13 @@ describe('executeDeployCustomBlock', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('organization')
+  })
+
+  it('refuses to publish without curated outputs', async () => {
+    const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('exposedOutputs is required')
+    expect(publishCustomBlockMock).not.toHaveBeenCalled()
   })
 })

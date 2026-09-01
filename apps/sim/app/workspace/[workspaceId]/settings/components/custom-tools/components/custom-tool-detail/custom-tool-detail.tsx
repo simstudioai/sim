@@ -2,14 +2,11 @@
 
 import { useMemo, useState } from 'react'
 import { ChipConfirmModal, toast } from '@sim/emcn'
-import { ArrowLeft, Wrench } from '@sim/emcn/icons'
+import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ResourceTile } from '@/app/workspace/[workspaceId]/components'
-import {
-  CredentialDetailHeading,
-  UnsavedChangesModal,
-} from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
   CUSTOM_TOOL_DELETE_CONFIRM_TEXT,
   CustomToolCodeField,
@@ -23,8 +20,6 @@ import {
   useSchemaGeneration,
   validateCustomToolSchema,
 } from '@/app/workspace/[workspaceId]/components/custom-tool-editor'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
-import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -50,9 +45,9 @@ interface CustomToolDetailProps {
 
 /**
  * Full-page custom tool editor rendered as a settings detail sub-view: a back
- * chip, dirty-gated Discard/Save, Delete, and the Schema and Code editors
- * stacked (no tabs — the page has room for both). Uses the same fields as the
- * canvas modal so the two surfaces never drift.
+ * chip, Save/Discard, Delete, and the Schema and Code editors stacked (no tabs —
+ * the page has room for both). Uses the same fields as the canvas modal so the
+ * two surfaces never drift.
  */
 export function CustomToolDetail({
   workspaceId,
@@ -200,44 +195,32 @@ export function CustomToolDetail({
     }
   }
 
-  /**
-   * On create, the primary action is always visible so the page announces what
-   * it is for — disabled until the schema is a valid function definition.
-   * (`saveDiscardActions` is dirty-gated and would render nothing on an empty
-   * draft.) Discard still only appears once there is something to discard.
-   */
-  const createToolActions: SettingsAction[] = [
-    ...(dirty ? [{ text: 'Discard', onSelect: handleDiscard, disabled: saving }] : []),
-    {
-      text: saving ? 'Creating...' : 'Create',
-      variant: 'primary' as const,
-      onSelect: handleSave,
-      disabled: saving || streaming || !isSchemaValid,
-    },
-  ]
-
   return (
     <>
       <SettingsPanel
         back={{ text: 'Custom tools', icon: ArrowLeft, onSelect: () => guard.guardBack(onBack) }}
         title={identity.name || tool?.title || 'New tool'}
+        description={
+          identity.description ||
+          tool?.schema.function.description ||
+          'Define the JSON schema your agents call, and the code that runs.'
+        }
         actions={[
           ...(readOnly
             ? []
-            : isEditing
-              ? saveDiscardActions({
-                  dirty,
-                  saving,
-                  onSave: handleSave,
-                  onDiscard: handleDiscard,
-                  saveDisabled: !isSchemaValid || streaming,
-                })
-              : createToolActions),
+            : saveDiscardActions({
+                dirty,
+                saving,
+                onSave: handleSave,
+                onDiscard: handleDiscard,
+                saveDisabled: !isSchemaValid || streaming,
+                creating: !isEditing,
+              })),
           ...(tool && !readOnly
             ? [
                 {
+                  id: 'delete',
                   text: deleteTool.isPending ? 'Deleting...' : 'Delete',
-                  variant: 'destructive' as const,
                   onSelect: () => setShowDeleteConfirm(true),
                   disabled: deleteTool.isPending,
                 },
@@ -246,16 +229,6 @@ export function CustomToolDetail({
         ]}
       >
         <div className='flex flex-col gap-7'>
-          <CredentialDetailHeading
-            leading={<ResourceTile icon={Wrench} />}
-            title={identity.name || tool?.title || 'New tool'}
-            subtitle={
-              identity.description ||
-              tool?.schema.function.description ||
-              'Define the JSON schema your agents call, and the code that runs.'
-            }
-          />
-
           <SettingsSection
             label='Schema'
             headerAccessory={

@@ -52,13 +52,7 @@ export function EmptyAreaContextMenu({
   disableCreateFolder = false,
 }: EmptyAreaContextMenuProps) {
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-      colorScheme='inverted'
-    >
+    <Popover open={isOpen} onOpenChange={(open) => !open && onClose()} size='sm'>
       <PopoverAnchor
         style={{
           position: 'fixed',

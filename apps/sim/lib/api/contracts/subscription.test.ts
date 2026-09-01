@@ -68,6 +68,13 @@ const ORGANIZATION_BILLING_DATA = {
   averageUsagePerMember: 10.5,
   billingPeriodStart: '2026-07-01T00:00:00.000Z',
   billingPeriodEnd: '2026-08-01T00:00:00.000Z',
+  membersTotal: 2,
+  memberPagination: {
+    total: 2,
+    limit: 50,
+    offset: 0,
+    hasMore: false,
+  },
   members: [],
   billingBlocked: true,
   billingBlockedReason: 'payment_failed',
@@ -87,7 +94,7 @@ describe('subscription billing contracts', () => {
     expect(subscriptionBillingDataSchema.safeParse(withoutUpgradeTarget).success).toBe(false)
   })
 
-  it('requires target organization credits, interval, cancellation, and blocked status', () => {
+  it('requires target organization billing state and member pagination', () => {
     expect(organizationBillingDataSchema.safeParse(ORGANIZATION_BILLING_DATA).success).toBe(true)
 
     for (const field of [
@@ -95,6 +102,8 @@ describe('subscription billing contracts', () => {
       'billingInterval',
       'cancelAtPeriodEnd',
       'billingBlocked',
+      'membersTotal',
+      'memberPagination',
     ] as const) {
       const incomplete = { ...ORGANIZATION_BILLING_DATA }
       delete incomplete[field]

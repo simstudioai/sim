@@ -338,7 +338,25 @@ export const blocksMock = {
 
 /**
  * Pre-configured tools/utils mock for use with vi.mock('@/tools/utils', () => toolsUtilsMock).
+ *
+ * Only mocks the *executable* lookup. Code that reads a tool's shape now goes
+ * through `@/tools/metadata`, so mocking this alone leaves such code reading the
+ * real generated artifacts — see {@link toolsMetadataMock}.
  */
 export const toolsUtilsMock = {
   getTool: createMockGetTool(),
+}
+
+/**
+ * Pre-configured metadata mock for use with
+ * `vi.mock('@/tools/metadata', () => toolsMetadataMock)`.
+ *
+ * Backed by the same `mockToolConfigs` as {@link toolsUtilsMock}, so a test that
+ * mocks both sees one consistent tool universe. Mock this wherever the code under
+ * test reads `params`, `outputs` or `name` — mocking `@/tools/utils` there is a
+ * no-op that only appears to work because the real artifacts happen to agree.
+ */
+export const toolsMetadataMock = {
+  getToolMetadata: createMockGetTool(),
+  getToolParams: (toolId: string) => createMockGetTool()(toolId)?.params,
 }

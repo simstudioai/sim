@@ -1,9 +1,0 @@
-{
-  "pages": [
-    "listPausedExecutions",
-    "getPausedExecution",
-    "getPausedExecutionByResumePath",
-    "getPauseContext",
-    "resumeExecution"
-  ]
-}

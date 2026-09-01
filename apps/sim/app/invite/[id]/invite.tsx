@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
@@ -11,19 +10,92 @@ import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { acceptInvitationContract } from '@/lib/api/contracts/invitations'
 import { client, useSession } from '@/lib/auth/auth-client'
-import {
-  buildMembershipNotice,
-  buildWorkspaceMigrationNotice,
-  MAX_LISTED_WORKSPACE_NAMES,
-} from '@/lib/invitations/disclosure-copy'
+import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { useInvitationDetails } from '@/hooks/queries/invitations'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
-import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('InviteById')
+
+/** Workspace names listed in the invitation title before collapsing into an "and N more" tail. */
+const MAX_LISTED_WORKSPACE_NAMES = 3
+
+/**
+ * Goes through the shared builder so the invite page cannot drift from the
+ * cross-link shape the auth pages use.
+ */
+function inviteAuthLink(
+  path: '/login' | '/signup',
+  callbackUrl: string,
+  isNewUser = false
+): string {
+  return buildAuthCrossLink(path, { callbackUrl, isInviteFlow: true, isNewUser })
+}
+
+interface InviteAction {
+  label: string
+  onClick: () => void
+}
+
+interface SignedOutPromptParams {
+  registrationDisabled: boolean
+  isNewUser: boolean
+  callbackUrl: string
+  navigate: (href: string) => void
+}
+
+/**
+ * What a signed-out visitor is offered, as one branch so the copy and the
+ * buttons under it can never disagree about what they may do.
+ *
+ * Under DISABLE_REGISTRATION only signing in is possible — `/signup` rejects
+ * the visitor server-side, so offering it would be a dead end.
+ */
+function signedOutPrompt({
+  registrationDisabled,
+  isNewUser,
+  callbackUrl,
+  navigate,
+}: SignedOutPromptParams): { description: string; actions: InviteAction[] } {
+  const signIn: InviteAction = {
+    label: 'Sign in',
+    onClick: () => navigate(inviteAuthLink('/login', callbackUrl)),
+  }
+
+  if (registrationDisabled) {
+    return {
+      description: 'Account creation is disabled on this instance',
+      actions: [signIn],
+    }
+  }
+
+  if (isNewUser) {
+    return {
+      description: 'Create an account to join this workspace on Sim',
+      actions: [
+        {
+          label: 'Create an account',
+          onClick: () => navigate(inviteAuthLink('/signup', callbackUrl)),
+        },
+        { ...signIn, label: 'I already have an account' },
+      ],
+    }
+  }
+
+  return {
+    description: 'Sign in to your account to accept this invitation',
+    actions: [
+      signIn,
+      {
+        label: 'Create an account',
+        onClick: () => navigate(inviteAuthLink('/signup', callbackUrl, true)),
+      },
+    ],
+  }
+}
 
 function runBestEffortCacheRefresh(cache: string, refresh: () => Promise<unknown>): void {
   void Promise.resolve()
@@ -192,7 +264,12 @@ function codeFromApiClientError(error: ApiClientError): string {
   return codeFromStatus(error.status)
 }
 
-export default function Invite() {
+interface InviteProps {
+  /** DISABLE_REGISTRATION. See {@link signedOutPrompt}. */
+  registrationDisabled: boolean
+}
+
+export default function Invite({ registrationDisabled }: InviteProps) {
   const router = useRouter()
   const params = useParams()
   const inviteId = params.id as string
@@ -201,40 +278,38 @@ export default function Invite() {
   const { data: session, isPending } = useSession()
   const queryClient = useQueryClient()
   const [actionError, setActionError] = useState<InviteError | null>(null)
-  const [urlError, setUrlError] = useState<InviteError | null>(null)
   const [isAccepting, setIsAccepting] = useState(false)
   const [accepted, setAccepted] = useState(false)
-  const [isNewUser, setIsNewUser] = useState(false)
-  const [token, setToken] = useState<string | null>(null)
+  /** `undefined` until the effect reads storage; `null` once read and empty. */
+  const [storedToken, setStoredToken] = useState<string | null | undefined>(undefined)
+
+  const isNewUser = searchParams.get('new') === 'true'
+  const errorReason = searchParams.get('error')
+  const urlError = errorReason ? getInviteError(errorReason) : null
+  /** `|| null` so an empty `?token=` falls back to storage rather than querying with ''. */
+  const tokenFromQuery = searchParams.get('token') || null
+  /**
+   * Derived during render so the invitation query key is correct on the first
+   * commit; an effect-set token refetches under a second key whenever the
+   * session cache is already warm at mount.
+   */
+  const token = tokenFromQuery ?? storedToken ?? null
+  const isTokenResolved = tokenFromQuery !== null || storedToken !== undefined
 
   useEffect(() => {
-    const errorReason = searchParams.get('error')
-    const isNew = searchParams.get('new') === 'true'
-    setIsNewUser(isNew)
-
-    const tokenFromQuery = searchParams.get('token')
     if (tokenFromQuery) {
-      setToken(tokenFromQuery)
       sessionStorage.setItem(inviteTokenStorageKey, tokenFromQuery)
-    } else {
-      const storedToken = sessionStorage.getItem(inviteTokenStorageKey)
-      if (storedToken) {
-        setToken(storedToken)
-      }
+      return
     }
-
-    if (errorReason) {
-      setUrlError(getInviteError(errorReason))
-    }
-  }, [searchParams, inviteId, inviteTokenStorageKey])
+    setStoredToken(sessionStorage.getItem(inviteTokenStorageKey))
+  }, [tokenFromQuery, inviteTokenStorageKey])
 
   const invitationQuery = useInvitationDetails(inviteId, token, session?.user?.id ?? null, {
-    enabled: Boolean(session?.user),
+    enabled: Boolean(session?.user) && isTokenResolved,
   })
   const invitation = invitationQuery.data?.invitation ?? null
   const joinPreview = invitationQuery.data?.joinPreview ?? null
-  const joinPreviewUnavailable = invitationQuery.data?.joinPreviewUnavailable === true
-  const isLoading = Boolean(session?.user) && invitationQuery.isPending
+  const isLoading = Boolean(session?.user) && (!isTokenResolved || invitationQuery.isPending)
 
   const fetchError = invitationQuery.error
     ? getInviteError(
@@ -318,48 +393,23 @@ export default function Invite() {
   }
 
   if (!session?.user && !isPending) {
-    const callbackUrl = encodeURIComponent(getCallbackUrl())
+    const prompt = signedOutPrompt({
+      registrationDisabled,
+      isNewUser,
+      callbackUrl: getCallbackUrl(),
+      navigate: router.push,
+    })
+
     return (
       <InviteLayout>
         <InviteStatusCard
           type='login'
           title="You've been invited!"
-          description={
-            isNewUser
-              ? 'Create an account to join this workspace on Sim'
-              : 'Sign in to your account to accept this invitation'
-          }
+          description={prompt.description}
           icon='userPlus'
           actions={[
-            ...(isNewUser
-              ? [
-                  {
-                    label: 'Create an account',
-                    onClick: () =>
-                      router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`),
-                  },
-                  {
-                    label: 'I already have an account',
-                    onClick: () =>
-                      router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
-                  },
-                ]
-              : [
-                  {
-                    label: 'Sign in',
-                    onClick: () =>
-                      router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
-                  },
-                  {
-                    label: 'Create an account',
-                    onClick: () =>
-                      router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true&new=true`),
-                  },
-                ]),
-            {
-              label: 'Return to Home',
-              onClick: () => router.push('/'),
-            },
+            ...prompt.actions,
+            { label: 'Return to Home', onClick: () => router.push('/') },
           ]}
         />
       </InviteLayout>
@@ -375,7 +425,7 @@ export default function Invite() {
   }
 
   if (error) {
-    const callbackUrl = encodeURIComponent(getCallbackUrl())
+    const callbackUrl = getCallbackUrl()
 
     if (error.code === 'email-mismatch') {
       return (
@@ -390,7 +440,7 @@ export default function Invite() {
                 label: 'Sign in with a different account',
                 onClick: async () => {
                   await client.signOut()
-                  router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)
+                  router.push(inviteAuthLink('/login', callbackUrl))
                 },
               },
               { label: 'Return to Home', onClick: () => router.push('/') },
@@ -428,12 +478,16 @@ export default function Invite() {
             actions={[
               {
                 label: 'Sign in to continue',
-                onClick: () => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
+                onClick: () => router.push(inviteAuthLink('/login', callbackUrl)),
               },
-              {
-                label: 'Create an account',
-                onClick: () => router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`),
-              },
+              ...(registrationDisabled
+                ? []
+                : [
+                    {
+                      label: 'Create an account',
+                      onClick: () => router.push(inviteAuthLink('/signup', callbackUrl)),
+                    },
+                  ]),
               { label: 'Return to Home', onClick: () => router.push('/') },
             ]}
           />
@@ -491,53 +545,13 @@ export default function Invite() {
   }
 
   const isOrg = invitation?.kind === 'organization'
-  /**
-   * Prefer the preview's organization (the one acceptance will really join)
-   * over the invitation's stamped name — a granted workspace may have moved
-   * organizations since the invite was sent.
-   */
-  const organizationLabel =
-    joinPreview?.organizationName || invitation?.organizationName || 'the organization'
-  /**
-   * When the server could not compute the preview, fall back to a generic
-   * migration notice for membership invites — a missing preview must never
-   * read as "nothing moves".
-   */
-  const migrationNotice = buildWorkspaceMigrationNotice({
-    joinPreview,
-    joinPreviewUnavailable,
-    membershipIntent: invitation?.membershipIntent,
-    organizationLabel,
-  })
-  /**
-   * Only disclosed when the invitation actually carries organization standing —
-   * a personal-workspace invite has no seat or membership to explain.
-   */
-  const membershipNotice = buildMembershipNotice({
-    joinPreview,
-    membershipIntent: invitation?.membershipIntent,
-    isOrganizationAdminRole: Boolean(invitation?.role && isOrgAdminRole(invitation.role)),
-    organizationLabel,
-    /**
-     * A personal-workspace invite has no organization id and no organization
-     * name yet — acceptance creates one by converting the billed owner's Pro to
-     * Team — so a `will-join` outcome is the authoritative signal that a
-     * membership and seat are involved. Gating on the ids alone silenced the
-     * disclosure for exactly the case that creates the membership.
-     */
-    isOrganizationScoped: Boolean(
-      invitation?.organizationId ||
-        joinPreview?.organizationName ||
-        joinPreview?.outcome === 'will-join'
-    ),
-  })
 
   return (
     <InviteLayout>
       <InviteStatusCard
         type='invitation'
         title={isOrg ? 'Organization Invitation' : 'Workspace Invitation'}
-        description={`You've been invited to join ${displayName}.${membershipNotice}${migrationNotice}`}
+        description={`You've been invited to join ${displayName}.`}
         icon={isOrg ? 'users' : 'mail'}
         actions={[
           {

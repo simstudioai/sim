@@ -8,6 +8,7 @@ import type {
   NormalizedBlockOutput,
   ProviderTimingSegment,
 } from '@/executor/types'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export type { WorkflowState }
@@ -131,6 +132,14 @@ export interface WorkflowExecutionLog {
   }>
   // Execution details
   executionData: {
+    secretProjectionVersion?: 1
+    /**
+     * Run-level provenance, stored alongside the contract marker rather than
+     * only inside `executionState` so it survives both compaction and PII
+     * redaction dropping the state. The display projection needs it to rebuild
+     * its registry.
+     */
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
     environment?: ExecutionEnvironment
     trigger?: ExecutionTrigger
     billingAttribution?: BillingAttributionSnapshot
@@ -195,6 +204,57 @@ export interface WorkflowExecutionLog {
   createdAt: string
 }
 
+/**
+ * Every value written into `workflow_execution_logs.status`. The column is free text and
+ * one writer sets it through a raw `sql` CASE Drizzle cannot type-check, so this list —
+ * not the column type — is the only source of truth. API contracts that pass the column
+ * through derive their enums from it, so adding a status here widens the public wire; the
+ * contract tests fail until that widening is reviewed and the OpenAPI specs regenerated.
+ *
+ * `redacting` is transient while a finished run's output is scrubbed. `paused` is written
+ * only by `PauseResumeManager.markResumeAttemptFailed`, when a resume attempt does not run
+ * to completion — it failed admission, the run buffer was unavailable, the resume job could
+ * not be enqueued, or the attempt was cancelled. An ordinary human-in-the-loop pause
+ * persists `pending`.
+ */
+export const PERSISTED_WORKFLOW_EXECUTION_STATUSES = [
+  'pending',
+  'running',
+  'paused',
+  'redacting',
+  'completed',
+  'failed',
+  'cancelled',
+] as const
+
+export type PersistedWorkflowExecutionStatus =
+  (typeof PERSISTED_WORKFLOW_EXECUTION_STATUSES)[number]
+
+/** Narrows an already-validated status string onto the persisted vocabulary. */
+export function isPersistedWorkflowExecutionStatus(
+  value: string
+): value is PersistedWorkflowExecutionStatus {
+  return (PERSISTED_WORKFLOW_EXECUTION_STATUSES as readonly string[]).includes(value)
+}
+/**
+ * In-flight statuses a crashed worker can strand, which the stale-execution
+ * cron terminalizes. `pending` and `paused` are excluded: both are written as
+ * the resting state of a run waiting on a resume, so sweeping them would fail
+ * live work. Each status here needs its own partial index on
+ * `workflow_execution_logs` — the sweep runs one status per pass so it can use
+ * them.
+ */
+export const STALE_SWEEPABLE_EXECUTION_STATUSES = [
+  'running',
+  'redacting',
+] as const satisfies readonly PersistedWorkflowExecutionStatus[]
+
+export type StaleSweepableExecutionStatus = (typeof STALE_SWEEPABLE_EXECUTION_STATUSES)[number]
+
+export interface CompletedWorkflowExecutionLog extends WorkflowExecutionLog {
+  persistedStatus: PersistedWorkflowExecutionStatus
+}
+
 export type WorkflowExecutionLogInsert = Omit<WorkflowExecutionLog, 'id' | 'createdAt'>
 export type WorkflowExecutionLogSelect = WorkflowExecutionLog
 
@@ -223,6 +283,8 @@ export interface TraceSpan {
   status?: 'success' | 'error'
   /** Whether this block's error was handled by an error handler path */
   errorHandled?: boolean
+  /** Total handler tries, present only when the block retried at least once. */
+  tries?: number
   tokens?: TokenInfo
   relativeStartMs?: number
   blockId?: string
@@ -231,6 +293,33 @@ export interface TraceSpan {
   output?: Record<string, unknown>
   childWorkflowSnapshotId?: string
   childWorkflowId?: string
+  /**
+   * For a custom-block span: the child run's own execution id, in the SOURCE
+   * workspace. Only this opaque handle is persisted — the child's spans are
+   * joined at read time by `hydrateChildTraces`. Written only for a block whose
+   * publisher opted its runs into consumer traces, so its presence IS the permission
+   * and no check runs at read time.
+   */
+  childExecutionId?: string
+  /**
+   * A custom block ran a child whose publisher has not opened it to consumers, so
+   * no {@link childExecutionId} was ever written and there is nothing to join.
+   * Persisted, unlike {@link childTraceAccess}: it describes the run, not a read.
+   * Without it an untraced boundary renders exactly like a leaf block.
+   */
+  childTraceDisabled?: boolean
+  /**
+   * Set by read-time hydration on a span carrying {@link childExecutionId}: whether
+   * the child run was joined, whether the block's publisher currently allows it
+   * (`disabled`), whether the run still exists, and — for `truncated` — whether
+   * hydration simply never attempted it (past the nesting/row cap, or the lookup
+   * failed). It carries no verdict about the READER; the only policy is the
+   * publisher's. `truncated` must never be conflated with an empty child: a boundary
+   * span with no children and no marker is indistinguishable from a leaf block, which
+   * would render a partial trace as a complete one. Never persisted — it describes
+   * one read, not the run.
+   */
+  childTraceAccess?: 'granted' | 'disabled' | 'missing' | 'truncated'
   model?: string
   cost?: {
     input?: number
@@ -243,6 +332,8 @@ export interface TraceSpan {
   parallelId?: string
   iterationIndex?: number
   parentIterations?: ParentIteration[]
+  /** Internal encrypted sidecar removed by trace projection before persistence or display. */
+  displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /**
    * For model child spans: the assistant's thinking/reasoning blocks from this
    * iteration, stringified. Surfaces Anthropic extended thinking and equivalents.
@@ -433,6 +524,22 @@ export interface SnapshotCreationResult {
 }
 
 export interface ExecutionLoggerService {
+  loadTraceSpansForProjection(params: {
+    executionId: string
+    workflowId: string
+    workspaceId: string | null
+    traceSpans: TraceSpan[]
+    isResume?: boolean
+  }): Promise<TraceSpan[]>
+
+  prepareTraceSpansForProjection(params: {
+    executionId: string
+    workflowId: string
+    workspaceId: string | null
+    userId?: string | null
+    traceSpans: TraceSpan[]
+  }): Promise<TraceSpan[]>
+
   startWorkflowExecution(params: {
     workflowId: string
     workspaceId: string
@@ -469,5 +576,5 @@ export interface ExecutionLoggerService {
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
     actorUserId?: string | null
     billingAttribution?: BillingAttributionSnapshot
-  }): Promise<WorkflowExecutionLog>
+  }): Promise<CompletedWorkflowExecutionLog>
 }

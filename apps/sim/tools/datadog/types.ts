@@ -2,13 +2,27 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Datadog Site/Region options
-export type DatadogSite =
-  | 'datadoghq.com'
-  | 'us3.datadoghq.com'
-  | 'us5.datadoghq.com'
-  | 'datadoghq.eu'
-  | 'ap1.datadoghq.com'
-  | 'ddog-gov.com'
+/**
+ * Regional sites Datadog serves the API from, per the `site` server variable enum.
+ *
+ * A runtime array rather than a bare type union: `site` is interpolated into the
+ * request host, and a type union is erased at runtime, so it cannot keep a value
+ * that arrived from a stored workflow out of the URL. {@link DatadogSite} is
+ * derived from this list so the two can never drift.
+ */
+export const DATADOG_SITES = [
+  'datadoghq.com',
+  'us3.datadoghq.com',
+  'us5.datadoghq.com',
+  'datadoghq.eu',
+  'ap1.datadoghq.com',
+  'ap2.datadoghq.com',
+  'uk1.datadoghq.com',
+  'ddog-gov.com',
+  'us2.ddog-gov.com',
+] as const
+
+export type DatadogSite = (typeof DATADOG_SITES)[number]
 
 // Base parameters for write-only operations (only need API key)
 interface DatadogWriteOnlyParams {
@@ -21,23 +35,34 @@ interface DatadogBaseParams extends DatadogWriteOnlyParams {
   applicationKey: string
 }
 
-// ========================
+/**
+ * A JSON:API resource object as returned by Datadog v2 endpoints. v1 endpoints
+ * return flat objects instead, so this wrapper is only used for v2 payloads.
+ */
+export interface DatadogV2Resource<TAttributes> {
+  id?: string
+  type?: string
+  attributes?: TAttributes
+}
+
 // METRICS TYPES
-// ========================
 
 export type MetricType = 'gauge' | 'rate' | 'count' | 'distribution'
 
-interface MetricPoint {
+export interface MetricPoint {
   timestamp: number
   value: number
 }
 
-interface MetricSeries {
+export interface MetricSeries {
   metric: string
   type?: MetricType
   points: MetricPoint[]
   tags?: string[]
   unit?: string
+  /** Required by Datadog when `type` is `rate` or `count`, in seconds. */
+  interval?: number
+  sourceTypeName?: string
   resources?: { name: string; type: string }[]
 }
 
@@ -65,6 +90,18 @@ interface TimeseriesPoint {
   value: number
 }
 
+/**
+ * One series of a v1 metrics query response (`MetricsQueryMetadata`). Datadog
+ * returns the metric under `metric` for plain queries and `expression` for
+ * arithmetic/function queries.
+ */
+export interface MetricsQuerySeries {
+  metric?: string
+  expression?: string
+  tag_set?: string[]
+  pointlist?: [number, number][]
+}
+
 interface TimeseriesResult {
   metric: string
   tags: string[]
@@ -73,51 +110,14 @@ interface TimeseriesResult {
 
 interface QueryTimeseriesOutput {
   series: TimeseriesResult[]
-  status: string
+  status?: string
 }
 
 export interface QueryTimeseriesResponse extends ToolResponse {
   output: QueryTimeseriesOutput
 }
 
-interface ListMetricsParams extends DatadogBaseParams {
-  from?: number // Unix timestamp - only return metrics active since this time
-  host?: string // Filter by host name
-  tags?: string // Filter by tags (comma-separated)
-}
-
-interface ListMetricsOutput {
-  metrics: string[]
-}
-
-interface ListMetricsResponse extends ToolResponse {
-  output: ListMetricsOutput
-}
-
-interface GetMetricMetadataParams extends DatadogBaseParams {
-  metricName: string
-}
-
-interface MetricMetadata {
-  description?: string
-  short_name?: string
-  unit?: string
-  per_unit?: string
-  type?: string
-  integration?: string
-}
-
-interface GetMetricMetadataOutput {
-  metadata: MetricMetadata
-}
-
-interface GetMetricMetadataResponse extends ToolResponse {
-  output: GetMetricMetadataOutput
-}
-
-// ========================
 // EVENTS TYPES
-// ========================
 
 export type EventAlertType =
   | 'error'
@@ -141,13 +141,13 @@ export interface CreateEventParams extends DatadogWriteOnlyParams {
   dateHappened?: number // Unix timestamp
 }
 
-interface EventData {
-  id: number
-  title: string
-  text: string
-  date_happened: number
-  priority: string
-  alert_type: string
+export interface EventData {
+  id?: number
+  title?: string
+  text?: string
+  date_happened?: number
+  priority?: string
+  alert_type?: string
   host?: string
   tags?: string[]
   url?: string
@@ -161,40 +161,7 @@ export interface CreateEventResponse extends ToolResponse {
   output: CreateEventOutput
 }
 
-interface GetEventParams extends DatadogBaseParams {
-  eventId: string
-}
-
-interface GetEventOutput {
-  event: EventData
-}
-
-interface GetEventResponse extends ToolResponse {
-  output: GetEventOutput
-}
-
-interface QueryEventsParams extends DatadogBaseParams {
-  start: number // Unix timestamp
-  end: number // Unix timestamp
-  priority?: EventPriority
-  sources?: string // Comma-separated source names
-  tags?: string // Comma-separated tags
-  unaggregated?: boolean
-  excludeAggregate?: boolean
-  page?: number
-}
-
-interface QueryEventsOutput {
-  events: EventData[]
-}
-
-interface QueryEventsResponse extends ToolResponse {
-  output: QueryEventsOutput
-}
-
-// ========================
 // MONITORS TYPES
-// ========================
 
 export type MonitorType =
   | 'metric alert'
@@ -241,11 +208,11 @@ export interface CreateMonitorParams extends DatadogBaseParams {
   options?: string // JSON string of MonitorOptions
 }
 
-interface MonitorData {
-  id: number
-  name: string
-  type: string
-  query: string
+export interface MonitorData {
+  id?: number
+  name?: string
+  type?: string
+  query?: string
   message?: string
   tags?: string[]
   priority?: number
@@ -278,37 +245,6 @@ export interface GetMonitorResponse extends ToolResponse {
   output: GetMonitorOutput
 }
 
-interface UpdateMonitorParams extends DatadogBaseParams {
-  monitorId: string
-  name?: string
-  query?: string
-  message?: string
-  tags?: string // Comma-separated tags
-  priority?: number
-  options?: string // JSON string of MonitorOptions
-}
-
-interface UpdateMonitorOutput {
-  monitor: MonitorData
-}
-
-interface UpdateMonitorResponse extends ToolResponse {
-  output: UpdateMonitorOutput
-}
-
-interface DeleteMonitorParams extends DatadogBaseParams {
-  monitorId: string
-  force?: boolean
-}
-
-interface DeleteMonitorOutput {
-  deleted_monitor_id: number
-}
-
-interface DeleteMonitorResponse extends ToolResponse {
-  output: DeleteMonitorOutput
-}
-
 export interface ListMonitorsParams extends DatadogBaseParams {
   groupStates?: string // Comma-separated states
   name?: string // Filter by name
@@ -328,44 +264,52 @@ export interface ListMonitorsResponse extends ToolResponse {
   output: ListMonitorsOutput
 }
 
+/**
+ * Mute/unmute monitor are served by `POST /api/v1/monitor/{monitor_id}/mute` and
+ * `/unmute`. They are absent from the datadog-api-client-go generator spec but are
+ * still implemented by Datadog's official Python client (`datadogpy` Monitor.mute /
+ * Monitor.unmute), which is the source for these request shapes.
+ */
 export interface MuteMonitorParams extends DatadogBaseParams {
   monitorId: string
-  scope?: string // Scope to mute (e.g., "host:myhost")
-  end?: number // Unix timestamp when mute ends
+  scope?: string
+  end?: number
 }
 
-interface MuteMonitorOutput {
-  success: boolean
-}
-
-export interface MuteMonitorResponse extends ToolResponse {
-  output: MuteMonitorOutput
-}
-
-interface UnmuteMonitorParams extends DatadogBaseParams {
+export interface UnmuteMonitorParams extends DatadogBaseParams {
   monitorId: string
   scope?: string
   allScopes?: boolean
 }
 
-interface UnmuteMonitorOutput {
+interface MonitorMuteOutput {
   success: boolean
+  monitorId?: number
+  name?: string
+  overallState?: string
 }
 
-interface UnmuteMonitorResponse extends ToolResponse {
-  output: UnmuteMonitorOutput
+export interface MuteMonitorResponse extends ToolResponse {
+  output: MonitorMuteOutput
 }
 
-// ========================
+export interface UnmuteMonitorResponse extends ToolResponse {
+  output: MonitorMuteOutput
+}
+
 // LOGS TYPES
-// ========================
 
-interface LogEntry {
+/**
+ * One entry for the Datadog log intake. Datadog treats any key beyond the reserved
+ * ones as a structured log attribute, so extra properties are carried through.
+ */
+export interface LogEntry {
   ddsource?: string
   ddtags?: string
   hostname?: string
   message: string
   service?: string
+  [attribute: string]: unknown
 }
 
 export interface SendLogsParams extends DatadogWriteOnlyParams {
@@ -385,21 +329,25 @@ export interface QueryLogsParams extends DatadogBaseParams {
   from: string // ISO-8601 or relative (now-1h)
   to: string // ISO-8601 or relative (now)
   limit?: number
+  cursor?: string
   sort?: 'timestamp' | '-timestamp'
   indexes?: string // Comma-separated index names
 }
 
+/** Attributes of a v2 log event (`LogAttributes` in the Datadog v2 schema). */
+export interface LogAttributes {
+  timestamp?: string
+  host?: string
+  service?: string
+  message?: string
+  status?: string
+  attributes?: Record<string, unknown>
+  tags?: string[]
+}
+
 interface LogData {
-  id: string
-  content: {
-    timestamp: string
-    host?: string
-    service?: string
-    message: string
-    status?: string
-    attributes?: Record<string, any>
-    tags?: string[]
-  }
+  id?: string
+  content: LogAttributes
 }
 
 interface QueryLogsOutput {
@@ -411,9 +359,7 @@ export interface QueryLogsResponse extends ToolResponse {
   output: QueryLogsOutput
 }
 
-// ========================
 // DOWNTIME TYPES
-// ========================
 
 export interface CreateDowntimeParams extends DatadogBaseParams {
   scope: string // Scope to apply downtime (e.g., "host:myhost" or "*")
@@ -424,25 +370,32 @@ export interface CreateDowntimeParams extends DatadogBaseParams {
   monitorId?: string // Monitor ID to mute
   monitorTags?: string // Comma-separated tags to match monitors
   muteFirstRecoveryNotification?: boolean
-  notifyEndTypes?: string // Comma-separated: "canceled", "expired"
-  recurrence?: string // JSON string of recurrence config
+}
+
+/**
+ * Attributes of a v2 downtime (`DowntimeResponseAttributes`). `scope` is a single
+ * query string, and every timestamp is an ISO-8601 string rather than epoch seconds.
+ */
+export interface DowntimeAttributes {
+  scope?: string
+  message?: string
+  schedule?: { start?: string | null; end?: string | null; timezone?: string }
+  status?: string
+  display_timezone?: string | null
+  created?: string
+  modified?: string
+  canceled?: string | null
 }
 
 interface DowntimeData {
-  id: number
+  id?: string
   scope: string[]
   message?: string
   start?: number
   end?: number
   timezone?: string
-  monitor_id?: number
-  monitor_tags?: string[]
-  mute_first_recovery_notification?: boolean
-  disabled?: boolean
   created?: number
   modified?: number
-  creator_id?: number
-  canceled?: number
   active?: boolean
 }
 
@@ -456,12 +409,13 @@ export interface CreateDowntimeResponse extends ToolResponse {
 
 export interface ListDowntimesParams extends DatadogBaseParams {
   currentOnly?: boolean
-  withCreator?: boolean
-  monitorId?: string
+  limit?: number
+  offset?: number
 }
 
 interface ListDowntimesOutput {
   downtimes: DowntimeData[]
+  totalCount?: number
 }
 
 export interface ListDowntimesResponse extends ToolResponse {
@@ -479,126 +433,220 @@ interface CancelDowntimeOutput {
 export interface CancelDowntimeResponse extends ToolResponse {
   output: CancelDowntimeOutput
 }
-
-// ========================
 // SLO TYPES
-// ========================
 
 export type SloType = 'metric' | 'monitor' | 'time_slice'
 
+export type SloTimeframe = '7d' | '30d' | '90d' | 'custom'
+
 interface SloThreshold {
-  timeframe: '7d' | '30d' | '90d' | 'custom'
-  target: number // Target percentage (e.g., 99.9)
+  timeframe: SloTimeframe
+  target: number
   target_display?: string
   warning?: number
   warning_display?: string
-}
-
-interface CreateSloParams extends DatadogBaseParams {
-  name: string
-  type: SloType
-  description?: string
-  tags?: string // Comma-separated tags
-  thresholds: string // JSON string of SloThreshold[]
-  // For metric-based SLO
-  query?: string // JSON string of { numerator: string, denominator: string }
-  // For monitor-based SLO
-  monitorIds?: string // Comma-separated monitor IDs
-  groups?: string // Comma-separated group names
 }
 
 interface SloData {
   id: string
   name: string
   type: string
-  description?: string
+  description?: string | null
   tags?: string[]
-  thresholds: SloThreshold[]
-  creator?: { email: string; handle: string; name: string }
+  thresholds?: SloThreshold[]
+  target_threshold?: number
+  warning_threshold?: number
+  timeframe?: string
+  monitor_ids?: number[]
+  monitor_tags?: string[]
+  groups?: string[]
+  query?: { numerator: string; denominator: string } | null
+  creator?: { email?: string; handle?: string; name?: string | null } | null
   created_at?: number
   modified_at?: number
+  configured_alert_ids?: number[]
+}
+
+export interface ListSlosParams extends DatadogBaseParams {
+  ids?: string
+  query?: string
+  tagsQuery?: string
+  metricsQuery?: string
+  limit?: number
+  offset?: number
+  isDeleted?: boolean
+}
+
+interface ListSlosOutput {
+  slos: SloData[]
+}
+
+export interface ListSlosResponse extends ToolResponse {
+  output: ListSlosOutput
+}
+
+export interface GetSloParams extends DatadogBaseParams {
+  sloId: string
+  withConfiguredAlertIds?: boolean
+}
+
+interface GetSloOutput {
+  slo: SloData
+}
+
+export interface GetSloResponse extends ToolResponse {
+  output: GetSloOutput
+}
+
+export interface CreateSloParams extends DatadogBaseParams {
+  name: string
+  type: SloType
+  description?: string
+  tags?: string
+  thresholds: string
+  query?: string
+  monitorIds?: string
+  groups?: string
+  targetThreshold?: number
+  warningThreshold?: number
+  timeframe?: SloTimeframe
 }
 
 interface CreateSloOutput {
   slo: SloData
 }
 
-interface CreateSloResponse extends ToolResponse {
+export interface CreateSloResponse extends ToolResponse {
   output: CreateSloOutput
 }
 
-interface GetSloHistoryParams extends DatadogBaseParams {
+/**
+ * `PUT /api/v1/slo/{slo_id}` is a full replacement that Sim fills from the stored SLO,
+ * so every identifying field is optional here: an omitted `type` means "keep the stored
+ * type" rather than "rewrite this SLO as a metric SLO".
+ */
+export interface UpdateSloParams extends Omit<CreateSloParams, 'name' | 'type' | 'thresholds'> {
   sloId: string
-  fromTs: number // Unix timestamp
-  toTs: number // Unix timestamp
-  target?: number // Target SLO percentage
+  name?: string
+  type?: SloType
+  thresholds?: string
+}
+
+interface UpdateSloOutput {
+  slo: SloData
+}
+
+export interface UpdateSloResponse extends ToolResponse {
+  output: UpdateSloOutput
+}
+
+export interface DeleteSloParams extends DatadogBaseParams {
+  sloId: string
+  force?: boolean
+}
+
+interface DeleteSloOutput {
+  success: boolean
+  deletedIds: string[]
+}
+
+export interface DeleteSloResponse extends ToolResponse {
+  output: DeleteSloOutput
+}
+
+export interface GetSloHistoryParams extends DatadogBaseParams {
+  sloId: string
+  fromTs: number
+  toTs: number
+  target?: number
+  applyCorrection?: boolean
+}
+
+interface SloHistorySliData {
+  name?: string
+  group?: string
+  sli_value?: number | null
+  span_precision?: number
+  precision?: Record<string, number>
+  error_budget_remaining?: Record<string, number>
+  monitor_type?: string
+  monitor_modified?: number
+  preview?: boolean
+  history?: number[][]
 }
 
 interface SloHistoryData {
-  from_ts: number
-  to_ts: number
-  type: string
-  type_id: number
-  sli_value?: number
-  overall: {
-    name: string
-    sli_value: number
-    span_precision: number
-    precision: { [key: string]: number }
-  }
-  series?: {
-    times: number[]
-    values: number[]
-  }
+  from_ts?: number
+  to_ts?: number
+  type?: string
+  type_id?: number
+  group_by?: string[]
+  overall?: SloHistorySliData
+  groups?: SloHistorySliData[]
+  monitors?: SloHistorySliData[]
+  thresholds?: Record<string, SloThreshold>
 }
 
 interface GetSloHistoryOutput {
   history: SloHistoryData
+  sliValue?: number | null
 }
 
-interface GetSloHistoryResponse extends ToolResponse {
+export interface GetSloHistoryResponse extends ToolResponse {
   output: GetSloHistoryOutput
 }
 
-// ========================
 // DASHBOARD TYPES
-// ========================
 
 export type DashboardLayoutType = 'ordered' | 'free'
 
-interface CreateDashboardParams extends DatadogBaseParams {
-  title: string
-  layoutType: DashboardLayoutType
-  description?: string
-  widgets?: string // JSON string of widget definitions
-  isReadOnly?: boolean
-  notifyList?: string // Comma-separated user handles to notify
-  templateVariables?: string // JSON string of template variable definitions
-  tags?: string // Comma-separated tags
+interface DashboardData {
+  id?: string
+  title?: string
+  layout_type?: string
+  description?: string | null
+  url?: string
+  author_handle?: string
+  author_name?: string | null
+  created_at?: string
+  modified_at?: string
+  is_read_only?: boolean
+  reflow_type?: string
+  tags?: string[] | null
+  notify_list?: string[] | null
+  restricted_roles?: string[]
+  template_variables?: unknown[] | null
+  widgets?: unknown[]
 }
 
-interface DashboardData {
-  id: string
-  title: string
-  layout_type: string
-  description?: string
+interface DashboardSummaryData {
+  id?: string
+  title?: string
+  description?: string | null
+  layout_type?: string
   url?: string
   author_handle?: string
   created_at?: string
   modified_at?: string
   is_read_only?: boolean
-  tags?: string[]
 }
 
-interface CreateDashboardOutput {
-  dashboard: DashboardData
+export interface ListDashboardsParams extends DatadogBaseParams {
+  filterShared?: boolean
+  filterDeleted?: boolean
+  count?: number
+  start?: number
 }
 
-interface CreateDashboardResponse extends ToolResponse {
-  output: CreateDashboardOutput
+interface ListDashboardsOutput {
+  dashboards: DashboardSummaryData[]
 }
 
-interface GetDashboardParams extends DatadogBaseParams {
+export interface ListDashboardsResponse extends ToolResponse {
+  output: ListDashboardsOutput
+}
+
+export interface GetDashboardParams extends DatadogBaseParams {
   dashboardId: string
 }
 
@@ -606,164 +654,525 @@ interface GetDashboardOutput {
   dashboard: DashboardData
 }
 
-interface GetDashboardResponse extends ToolResponse {
+export interface GetDashboardResponse extends ToolResponse {
   output: GetDashboardOutput
 }
 
-interface ListDashboardsParams extends DatadogBaseParams {
-  filterShared?: boolean
-  filterDeleted?: boolean
-  count?: number
-  start?: number
-}
-
-interface DashboardSummary {
-  id: string
+export interface CreateDashboardParams extends DatadogBaseParams {
   title: string
+  layoutType: DashboardLayoutType
+  widgets: string
   description?: string
-  layout_type: string
-  url?: string
-  author_handle?: string
-  created_at?: string
-  modified_at?: string
-  is_read_only?: boolean
-  popularity?: number
+  notifyList?: string
+  templateVariables?: string
+  tags?: string
+  reflowType?: 'auto' | 'fixed'
 }
 
-interface ListDashboardsOutput {
-  dashboards: DashboardSummary[]
-  total?: number
+interface CreateDashboardOutput {
+  dashboard: DashboardData
 }
 
-interface ListDashboardsResponse extends ToolResponse {
-  output: ListDashboardsOutput
+export interface CreateDashboardResponse extends ToolResponse {
+  output: CreateDashboardOutput
 }
 
-// ========================
-// HOSTS TYPES
-// ========================
-
-interface ListHostsParams extends DatadogBaseParams {
-  filter?: string // Filter hosts by name, alias, or tag
-  sortField?: string // Field to sort by
-  sortDir?: 'asc' | 'desc'
-  start?: number // Starting offset
-  count?: number // Max hosts to return
-  from?: number // Unix timestamp - hosts seen in last N seconds
-  includeMutedHostsData?: boolean
-  includeHostsMetadata?: boolean
+export interface DeleteDashboardParams extends DatadogBaseParams {
+  dashboardId: string
 }
 
-interface HostData {
-  name: string
-  id: number
-  aliases?: string[]
-  apps?: string[]
-  aws_name?: string
-  host_name?: string
-  is_muted?: boolean
-  last_reported_time?: number
-  meta?: {
-    agent_version?: string
-    cpu_cores?: number
-    gohai?: string
-    machine?: string
-    platform?: string
+interface DeleteDashboardOutput {
+  success: boolean
+  deletedDashboardId?: string
+}
+
+export interface DeleteDashboardResponse extends ToolResponse {
+  output: DeleteDashboardOutput
+}
+
+// SYNTHETICS TYPES
+
+export type SyntheticsTestPauseStatus = 'live' | 'paused'
+
+export interface SyntheticsTestData {
+  public_id?: string
+  name?: string
+  status?: string
+  type?: string
+  subtype?: string
+  message?: string
+  monitor_id?: number
+  tags?: string[]
+  locations?: string[]
+  config?: unknown
+  options?: unknown
+  creator?: { email?: string; handle?: string; name?: string | null } | null
+}
+
+export interface ListSyntheticsTestsParams extends DatadogBaseParams {
+  pageSize?: number
+  pageNumber?: number
+}
+
+interface ListSyntheticsTestsOutput {
+  tests: SyntheticsTestData[]
+}
+
+export interface ListSyntheticsTestsResponse extends ToolResponse {
+  output: ListSyntheticsTestsOutput
+}
+
+export interface GetSyntheticsTestParams extends DatadogBaseParams {
+  publicId: string
+}
+
+interface GetSyntheticsTestOutput {
+  test: SyntheticsTestData
+}
+
+export interface GetSyntheticsTestResponse extends ToolResponse {
+  output: GetSyntheticsTestOutput
+}
+
+export interface GetSyntheticsResultsParams extends DatadogBaseParams {
+  publicId: string
+  fromTs?: number
+  toTs?: number
+  probeDc?: string
+}
+
+interface SyntheticsResultData {
+  result_id?: string
+  check_time?: number
+  probe_dc?: string
+  status?: number
+  result?: { passed?: boolean; timings?: Record<string, number> }
+}
+
+interface GetSyntheticsResultsOutput {
+  results: SyntheticsResultData[]
+  lastTimestampFetched?: number
+}
+
+export interface GetSyntheticsResultsResponse extends ToolResponse {
+  output: GetSyntheticsResultsOutput
+}
+
+export interface GetBrowserSyntheticsResultsParams extends DatadogBaseParams {
+  publicId: string
+  fromTs?: number
+  toTs?: number
+  probeDc?: string
+}
+
+/**
+ * Result of a single browser test run (`SyntheticsBrowserTestResultShortResult`).
+ * Unlike the API-test result shape, these fields are camelCase.
+ */
+interface SyntheticsBrowserResultData {
+  result_id?: string
+  check_time?: number
+  probe_dc?: string
+  status?: number
+  result?: {
+    duration?: number
+    errorCount?: number
+    stepCountCompleted?: number
+    stepCountTotal?: number
+    device?: Record<string, unknown>
   }
-  metrics?: {
-    cpu?: number
-    iowait?: number
-    load?: number
-  }
-  mute_timeout?: number
-  sources?: string[]
-  tags_by_source?: Record<string, string[]>
-  up?: boolean
 }
 
-interface ListHostsOutput {
-  hosts: HostData[]
-  total_matching?: number
-  total_returned?: number
+interface GetBrowserSyntheticsResultsOutput {
+  results: SyntheticsBrowserResultData[]
+  lastTimestampFetched?: number
 }
 
-interface ListHostsResponse extends ToolResponse {
-  output: ListHostsOutput
+export interface GetBrowserSyntheticsResultsResponse extends ToolResponse {
+  output: GetBrowserSyntheticsResultsOutput
 }
 
-// ========================
+export interface TriggerSyntheticsTestsParams extends DatadogBaseParams {
+  publicIds: string
+}
+
+interface TriggerSyntheticsTestsOutput {
+  batchId?: string | null
+  triggeredCheckIds: string[]
+  results: {
+    public_id?: string
+    result_id?: string
+    location?: number
+    device?: string
+  }[]
+  locations: { id?: number; name?: string }[]
+}
+
+export interface TriggerSyntheticsTestsResponse extends ToolResponse {
+  output: TriggerSyntheticsTestsOutput
+}
+
+export interface UpdateSyntheticsStatusParams extends DatadogBaseParams {
+  publicId: string
+  newStatus: SyntheticsTestPauseStatus
+}
+
+interface UpdateSyntheticsStatusOutput {
+  success: boolean
+  status?: SyntheticsTestPauseStatus
+}
+
+export interface UpdateSyntheticsStatusResponse extends ToolResponse {
+  output: UpdateSyntheticsStatusOutput
+}
+
+// SECURITY MONITORING TYPES
+
+export type SecuritySignalState = 'open' | 'archived' | 'under_review'
+
+export type SecuritySignalArchiveReason =
+  | 'none'
+  | 'false_positive'
+  | 'testing_or_maintenance'
+  | 'remediated'
+  | 'investigated_case_opened'
+  | 'true_positive_benign'
+  | 'true_positive_malicious'
+  | 'other'
+
+/** Attributes of a Cloud SIEM signal (`SecurityMonitoringSignalAttributes`). */
+export interface SecuritySignalAttributes {
+  message?: string
+  timestamp?: string
+  tags?: string[]
+  custom?: Record<string, unknown>
+}
+
+interface SecuritySignalData {
+  id?: string
+  type?: string
+  attributes: SecuritySignalAttributes
+}
+
+export interface ListSecuritySignalsParams extends DatadogBaseParams {
+  query?: string
+  from?: string
+  to?: string
+  sort?: 'timestamp' | '-timestamp'
+  cursor?: string
+  limit?: number
+}
+
+interface ListSecuritySignalsOutput {
+  signals: SecuritySignalData[]
+  nextCursor?: string
+}
+
+export interface ListSecuritySignalsResponse extends ToolResponse {
+  output: ListSecuritySignalsOutput
+}
+
+export interface GetSecuritySignalParams extends DatadogBaseParams {
+  signalId: string
+}
+
+interface GetSecuritySignalOutput {
+  signal: SecuritySignalData
+}
+
+export interface GetSecuritySignalResponse extends ToolResponse {
+  output: GetSecuritySignalOutput
+}
+
+export interface SecuritySignalTriageData {
+  id?: string
+  type?: string
+  state?: string
+  assignee?: { uuid?: string; handle?: string; name?: string | null; id?: number }
+  incidentIds?: number[]
+  archiveReason?: string
+  archiveComment?: string
+  stateUpdateTimestamp?: number
+}
+
+export interface UpdateSecuritySignalStateParams extends DatadogBaseParams {
+  signalId: string
+  state: SecuritySignalState
+  archiveReason?: SecuritySignalArchiveReason
+  archiveComment?: string
+}
+
+interface UpdateSecuritySignalStateOutput {
+  signal: SecuritySignalTriageData
+}
+
+export interface UpdateSecuritySignalStateResponse extends ToolResponse {
+  output: UpdateSecuritySignalStateOutput
+}
+
+export interface UpdateSecuritySignalAssigneeParams extends DatadogBaseParams {
+  signalId: string
+  assigneeUuid: string
+}
+
+interface UpdateSecuritySignalAssigneeOutput {
+  signal: SecuritySignalTriageData
+}
+
+export interface UpdateSecuritySignalAssigneeResponse extends ToolResponse {
+  output: UpdateSecuritySignalAssigneeOutput
+}
+
+export interface ListSecurityRulesParams extends DatadogBaseParams {
+  query?: string
+  sort?: string
+  pageSize?: number
+  pageNumber?: number
+}
+
+export interface SecurityRuleData {
+  id?: string
+  name?: string
+  type?: string
+  message?: string
+  tags?: string[]
+  isEnabled?: boolean
+  isDefault?: boolean
+  createdAt?: number
+  version?: number
+}
+
+interface ListSecurityRulesOutput {
+  rules: SecurityRuleData[]
+}
+
+export interface ListSecurityRulesResponse extends ToolResponse {
+  output: ListSecurityRulesOutput
+}
+
+// APM / SPANS TYPES
+
+export interface SearchSpansParams extends DatadogBaseParams {
+  query?: string
+  from?: string
+  to?: string
+  sort?: 'timestamp' | '-timestamp'
+  cursor?: string
+  limit?: number
+}
+
+/** Attributes of an indexed APM span (`SpansAttributes`). */
+export interface SpanAttributes {
+  service?: string
+  resource_name?: string
+  env?: string
+  host?: string
+  type?: string
+  trace_id?: string
+  span_id?: string
+  parent_id?: string
+  start_timestamp?: string
+  end_timestamp?: string
+  ingestion_reason?: string
+  retained_by?: string
+  single_span?: boolean
+  tags?: string[]
+  custom?: Record<string, unknown>
+  attributes?: Record<string, unknown>
+}
+
+interface SpanData {
+  id?: string
+  type?: string
+  attributes: SpanAttributes
+}
+
+interface SearchSpansOutput {
+  spans: SpanData[]
+  nextCursor?: string
+  elapsed?: number
+}
+
+export interface SearchSpansResponse extends ToolResponse {
+  output: SearchSpansOutput
+}
+
+export interface ListServicesParams extends DatadogBaseParams {
+  pageSize?: number
+  pageNumber?: number
+  schemaVersion?: string
+}
+
+/**
+ * Attributes of a service definition (`ServiceDefinitionDataAttributes`). `schema`
+ * is a union of the v2, v2.1 and v2.2 schema versions, so it stays opaque.
+ */
+export interface ServiceDefinitionAttributes {
+  schema?: unknown
+  meta?: Record<string, unknown>
+}
+
+interface ServiceDefinitionData {
+  id?: string
+  type?: string
+  schema?: unknown
+  meta?: Record<string, unknown>
+}
+
+interface ListServicesOutput {
+  services: ServiceDefinitionData[]
+}
+
+export interface ListServicesResponse extends ToolResponse {
+  output: ListServicesOutput
+}
+
 // INCIDENTS TYPES
-// ========================
 
-export type IncidentSeverity = 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5' | 'UNKNOWN'
-export type IncidentState = 'active' | 'stable' | 'resolved'
+export type IncidentSeverity = 'UNKNOWN' | 'SEV-0' | 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5'
 
-interface CreateIncidentParams extends DatadogBaseParams {
-  title: string
-  customerImpacted: boolean
-  severity?: IncidentSeverity
-  fields?: string // JSON string of additional fields
+interface IncidentFieldValue {
+  type?: string
+  value?: string | string[] | null
+}
+
+/** Attributes of an incident (`IncidentResponseAttributes`). */
+export interface IncidentAttributes {
+  title?: string
+  state?: string | null
+  severity?: string
+  visibility?: string | null
+  customer_impacted?: boolean
+  customer_impact_scope?: string | null
+  customer_impact_start?: string | null
+  customer_impact_end?: string | null
+  customer_impact_duration?: number
+  fields?: Record<string, IncidentFieldValue>
+  incident_type_uuid?: string
+  is_test?: boolean
+  public_id?: number
+  created?: string
+  modified?: string
+  declared?: string
+  detected?: string | null
+  resolved?: string | null
+  archived?: string | null
+  time_to_detect?: number
+  time_to_internal_response?: number
+  time_to_repair?: number
+  time_to_resolve?: number
 }
 
 interface IncidentData {
-  id: string
-  type: string
-  attributes: {
-    title: string
-    customer_impacted: boolean
-    severity?: IncidentSeverity
-    state?: IncidentState
-    created?: string
-    modified?: string
-    resolved?: string
-    detected?: string
-    customer_impact_scope?: string
-    customer_impact_start?: string
-    customer_impact_end?: string
-    public_id?: number
-    time_to_detect?: number
-    time_to_internal_response?: number
-    time_to_repair?: number
-    time_to_resolve?: number
-  }
+  id?: string
+  type?: string
+  attributes: IncidentAttributes
+}
+
+export interface ListIncidentsParams extends DatadogBaseParams {
+  include?: string
+  pageSize?: number
+  pageOffset?: number
+}
+
+interface ListIncidentsOutput {
+  incidents: IncidentData[]
+  nextOffset?: number
+}
+
+export interface ListIncidentsResponse extends ToolResponse {
+  output: ListIncidentsOutput
+}
+
+export interface GetIncidentParams extends DatadogBaseParams {
+  incidentId: string
+  include?: string
+}
+
+interface GetIncidentOutput {
+  incident: IncidentData
+}
+
+export interface GetIncidentResponse extends ToolResponse {
+  output: GetIncidentOutput
+}
+
+export interface CreateIncidentParams extends DatadogBaseParams {
+  title: string
+  customerImpacted: boolean
+  severity?: IncidentSeverity
+  customerImpactScope?: string
+  incidentTypeUuid?: string
+  isTest?: boolean
+  fields?: string
+  notificationHandles?: string
 }
 
 interface CreateIncidentOutput {
   incident: IncidentData
 }
 
-interface CreateIncidentResponse extends ToolResponse {
+export interface CreateIncidentResponse extends ToolResponse {
   output: CreateIncidentOutput
 }
 
-interface ListIncidentsParams extends DatadogBaseParams {
-  query?: string
-  pageSize?: number
-  pageOffset?: number
-  include?: string // Comma-separated: users, attachments
+export interface UpdateIncidentParams extends DatadogBaseParams {
+  incidentId: string
+  title?: string
+  severity?: IncidentSeverity
+  customerImpacted?: boolean
+  customerImpactScope?: string
+  customerImpactStart?: string
+  customerImpactEnd?: string
+  detected?: string
+  fields?: string
+  notificationHandles?: string
 }
 
-interface ListIncidentsOutput {
-  incidents: IncidentData[]
+interface UpdateIncidentOutput {
+  incident: IncidentData
 }
 
-interface ListIncidentsResponse extends ToolResponse {
-  output: ListIncidentsOutput
+export interface UpdateIncidentResponse extends ToolResponse {
+  output: UpdateIncidentOutput
+}
+
+export interface AddIncidentTodoParams extends DatadogBaseParams {
+  incidentId: string
+  content: string
+  assignees: string
+  dueDate?: string
+}
+
+interface IncidentTodoData {
+  id?: string
+  type?: string
+  attributes: {
+    content?: string
+    assignees?: string[]
+    completed?: string | null
+    due_date?: string | null
+    incident_id?: string
+    created?: string
+    modified?: string
+  }
+}
+
+interface AddIncidentTodoOutput {
+  todo: IncidentTodoData
+}
+
+export interface AddIncidentTodoResponse extends ToolResponse {
+  output: AddIncidentTodoOutput
 }
 
 // Union type for all Datadog responses
 export type DatadogResponse =
   | SubmitMetricsResponse
   | QueryTimeseriesResponse
-  | ListMetricsResponse
-  | GetMetricMetadataResponse
   | CreateEventResponse
-  | GetEventResponse
-  | QueryEventsResponse
   | CreateMonitorResponse
   | GetMonitorResponse
-  | UpdateMonitorResponse
-  | DeleteMonitorResponse
   | ListMonitorsResponse
   | MuteMonitorResponse
   | UnmuteMonitorResponse
@@ -772,11 +1181,31 @@ export type DatadogResponse =
   | CreateDowntimeResponse
   | ListDowntimesResponse
   | CancelDowntimeResponse
+  | ListSlosResponse
+  | GetSloResponse
   | CreateSloResponse
+  | UpdateSloResponse
+  | DeleteSloResponse
   | GetSloHistoryResponse
-  | CreateDashboardResponse
-  | GetDashboardResponse
   | ListDashboardsResponse
-  | ListHostsResponse
-  | CreateIncidentResponse
+  | GetDashboardResponse
+  | CreateDashboardResponse
+  | DeleteDashboardResponse
+  | ListSyntheticsTestsResponse
+  | GetSyntheticsTestResponse
+  | GetSyntheticsResultsResponse
+  | GetBrowserSyntheticsResultsResponse
+  | TriggerSyntheticsTestsResponse
+  | UpdateSyntheticsStatusResponse
+  | ListSecuritySignalsResponse
+  | GetSecuritySignalResponse
+  | UpdateSecuritySignalStateResponse
+  | UpdateSecuritySignalAssigneeResponse
+  | ListSecurityRulesResponse
+  | SearchSpansResponse
+  | ListServicesResponse
   | ListIncidentsResponse
+  | GetIncidentResponse
+  | CreateIncidentResponse
+  | UpdateIncidentResponse
+  | AddIncidentTodoResponse

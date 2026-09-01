@@ -31,29 +31,22 @@ vi.mock('@/blocks/registry', () => ({
   registry: {},
 }))
 
-vi.mock('@/lib/workflows/subblocks/context', () => ({
-  buildSelectorContextFromBlock: vi.fn(() => ({})),
-}))
-
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
   fetchOAuthCredentialDetail: vi.fn(() => []),
 }))
 
-vi.mock('@/hooks/selectors/registry', () => ({
-  getSelectorDefinition: vi.fn(() => ({ fetchList: vi.fn(() => []) })),
-}))
-
-vi.mock('@/hooks/selectors/resolution', () => ({
-  resolveSelectorForSubBlock: vi.fn(),
+vi.mock('@/lib/selectors/client/execute-selector', () => ({
+  executeSelectorRequest: vi.fn(() => ({ kind: 'detail', item: null })),
+  loadAllSelectorOptions: vi.fn(() => []),
 }))
 
 import { WorkflowBuilder } from '@sim/testing'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
+import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
 import {
   formatDiffSummaryForDescription,
   formatDiffSummaryForDescriptionAsync,
-  generateWorkflowDiffSummary,
-} from '@/lib/workflows/comparison/compare'
+} from '@/lib/workflows/comparison/describe'
 import { formatValueForDisplay, resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
 
 function emptyDiffSummary(overrides: Partial<WorkflowDiffSummary> = {}): WorkflowDiffSummary {

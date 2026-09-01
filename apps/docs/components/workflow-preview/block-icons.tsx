@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react'
-import { Clock, Database, Layers, Repeat, Table } from 'lucide-react'
+import { Clock, Database, Repeat, Split, Table } from '@sim/emcn/icons'
 import {
   ApiIcon,
   ChartBarIcon,
@@ -21,7 +21,7 @@ import { blockTypeToIconMap } from '@/components/ui/icon-mapping'
 /**
  * The two Sim-specific block glyphs we need, ported verbatim from
  * `apps/sim/components/icons.tsx` so the preview matches the real builder.
- * Other block types fall back to lucide-react stand-ins for now.
+ * Other block types fall back to `@sim/emcn/icons` stand-ins for now.
  */
 export function StartIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -76,7 +76,7 @@ export function AgentIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-/** Block type → glyph. Brand glyphs from the app for core blocks; lucide stand-ins for the rest. */
+/** Block type → glyph. Brand glyphs from the app for core blocks; `@sim/emcn/icons` stand-ins for the rest. */
 export const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   starter: StartIcon,
   start_trigger: StartIcon,
@@ -97,7 +97,7 @@ export const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: strin
   schedule: ScheduleIcon,
   rss: RssIcon,
   loop: Repeat,
-  parallel: Layers,
+  parallel: Split,
   knowledge_base: Database,
   knowledge: Database,
   table: Table,

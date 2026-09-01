@@ -1,5 +1,5 @@
 import { CONTENT_BODY_OUTPUT_PROPERTIES, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreatePageParams {
   accessToken: string
@@ -26,7 +26,7 @@ export interface ConfluenceCreatePageResponse {
   }
 }
 
-export const confluenceCreatePageTool: ToolConfig<
+export const confluenceCreatePageTool: InternalToolConfig<
   ConfluenceCreatePageParams,
   ConfluenceCreatePageResponse
 > = {
@@ -80,23 +80,14 @@ export const confluenceCreatePageTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    url: () => '/api/tools/confluence/create-page',
-    method: 'POST',
-    headers: (params: ConfluenceCreatePageParams) => {
-      return {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceCreatePageParams) => {
+  operation: {
+    input: (params: ConfluenceCreatePageParams) => {
       return {
         domain: params.domain,
         accessToken: params.accessToken,

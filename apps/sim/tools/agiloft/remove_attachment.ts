@@ -2,9 +2,9 @@ import type {
   AgiloftRemoveAttachmentParams,
   AgiloftRemoveAttachmentResponse,
 } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftRemoveAttachmentTool: ToolConfig<
+export const agiloftRemoveAttachmentTool: InternalToolConfig<
   AgiloftRemoveAttachmentParams,
   AgiloftRemoveAttachmentResponse
 > = {
@@ -64,11 +64,8 @@ export const agiloftRemoveAttachmentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: () => '/api/tools/agiloft/remove_attachment',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,

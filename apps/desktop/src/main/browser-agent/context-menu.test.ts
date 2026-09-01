@@ -33,11 +33,18 @@ function params(overrides: Partial<Params> = {}): Params {
 
 function page(overrides: Partial<Page> = {}): Page {
   // A fresh tab sits at the panel's baseline, which the menu reports as 100%.
-  return { canGoBack: true, canGoForward: true, zoomFactor: BASE_ZOOM_FACTOR, ...overrides }
+  return {
+    canGoBack: true,
+    canGoForward: true,
+    zoomFactor: BASE_ZOOM_FACTOR,
+    defaultZoomFactor: BASE_ZOOM_FACTOR,
+    ...overrides,
+  }
 }
 
 function handlers(): Handlers {
   return {
+    addToChat: vi.fn(),
     copy: vi.fn(),
     paste: vi.fn(),
     back: vi.fn(),
@@ -99,6 +106,22 @@ describe('buildAgentContextMenuTemplate', () => {
     expect(labels(readOnly)).not.toContain('Paste')
   })
 
+  it('puts Add to chat first and preserves the exact nonblank selection', () => {
+    const handled = handlers()
+    const template = buildAgentContextMenuTemplate(
+      params({ selectionText: '  selected\ntext  ', linkURL: 'https://example.com/docs' }),
+      page(),
+      handled
+    )
+
+    expect(labels(template)[0]).toBe('Add to chat')
+    item(template, 'Add to chat')?.click?.({} as never, undefined as never, {} as never)
+    expect(handled.addToChat).toHaveBeenCalledWith('  selected\ntext  ')
+    expect(
+      labels(buildAgentContextMenuTemplate(params({ selectionText: ' \n ' }), page(), handlers()))
+    ).not.toContain('Add to chat')
+  })
+
   it('offers link items for http(s) targets only', () => {
     const handled = handlers()
     const template = buildAgentContextMenuTemplate(
@@ -153,16 +176,21 @@ describe('buildAgentContextMenuTemplate', () => {
     ).toBe(false)
   })
 
-  it('resets to exactly the baseline, undoing accumulated drift', () => {
+  it('resets to the configured default, undoing accumulated drift', () => {
     const handled = handlers()
     // Three rungs of float multiplication up, so the factor no longer sits on a
     // clean value — reset has to restore the baseline exactly, not step back.
     const drifted = [1, 1, 1].reduce((factor) => steppedZoomFactor(factor, 1), BASE_ZOOM_FACTOR)
-    const template = buildAgentContextMenuTemplate(params(), page({ zoomFactor: drifted }), handled)
+    const configuredDefault = BASE_ZOOM_FACTOR * 1.25
+    const template = buildAgentContextMenuTemplate(
+      params(),
+      page({ zoomFactor: drifted, defaultZoomFactor: configuredDefault }),
+      handled
+    )
 
     item(template, 'Actual Size (133%)')?.click?.({} as never, undefined as never, {} as never)
 
-    expect(handled.setZoomFactor).toHaveBeenCalledWith(BASE_ZOOM_FACTOR)
+    expect(handled.setZoomFactor).toHaveBeenCalledWith(configuredDefault)
   })
 
   it('never leaves a separator with nothing above it', () => {
@@ -190,7 +218,11 @@ describe('attachAgentContextMenu', () => {
   it('pops a menu built from the page that was right-clicked', () => {
     const contents = new WebContentsView().webContents
     vi.mocked(contents.navigationHistory.canGoBack).mockReturnValue(true)
-    attachAgentContextMenu(contents, { openTab: vi.fn() })
+    attachAgentContextMenu(contents, {
+      addToChat: vi.fn(),
+      openTab: vi.fn(),
+      defaultZoomFactor: () => BASE_ZOOM_FACTOR,
+    })
 
     const listeners = vi.mocked(contents.on).mock.calls as unknown as [
       string,

@@ -52,6 +52,10 @@ export const queryTool: ToolConfig<GreptileQueryParams, GreptileQueryResponse> =
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ query: params.query }),
+    },
     url: 'https://api.greptile.com/v2/query',
     method: 'POST',
     headers: (params) => ({

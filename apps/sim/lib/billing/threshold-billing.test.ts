@@ -17,6 +17,7 @@ const {
   mockIsFree,
   mockIsOrgScopedSubscription,
   mockIsOrganizationBillingBlocked,
+  mockIsSubscriptionCycleCloseCurrent,
   mockRecordAudit,
   mockCaptureServerEvent,
 } = vi.hoisted(() => ({
@@ -32,6 +33,7 @@ const {
   mockIsFree: vi.fn(),
   mockIsOrgScopedSubscription: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
+  mockIsSubscriptionCycleCloseCurrent: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
 }))
@@ -59,6 +61,10 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
   getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
+}))
+
+vi.mock('@/lib/billing/cycle-close', () => ({
+  isSubscriptionCycleCloseCurrent: mockIsSubscriptionCycleCloseCurrent,
 }))
 
 vi.mock('@/lib/billing/plan-helpers', () => ({
@@ -107,29 +113,14 @@ const expectedBillingPeriod = {
   end: new Date('2026-06-01T00:00:00.000Z'),
 }
 
-const defaultUsageSnapshotRow = {
-  currentPeriodCost: '0',
-  proPeriodCostSnapshot: '0',
-  proPeriodCostSnapshotAt: null as Date | null,
-  lastPeriodCost: '0',
-}
-
-/**
- * Queues the two pre-transaction personal reads: the user_stats usage snapshot
- * and the subscription's Stripe customer row.
- */
-function queuePersonalReads(
-  snapshot: Record<string, unknown> = defaultUsageSnapshotRow,
-  customerId = 'cus_1'
-) {
-  queueTableRows(schemaMock.userStats, [snapshot])
+/** Queues the pre-transaction personal read: the subscription's Stripe customer row. */
+function queuePersonalReads(customerId = 'cus_1') {
   queueTableRows(schemaMock.subscription, [{ stripeCustomerId: customerId }])
 }
 
 /** Builds the locked in-transaction user_stats row. */
 function lockedStatsRow(overrides: Record<string, unknown> = {}) {
   return {
-    ...defaultUsageSnapshotRow,
     billedOverageThisPeriod: '0',
     creditBalance: '0',
     ...overrides,
@@ -144,20 +135,18 @@ function queueLockedStats(row: Record<string, unknown>) {
 const orgMemberUsageRow = {
   userId: 'owner-1',
   role: 'owner',
-  currentPeriodCost: '350',
-  departedMemberUsage: '25',
 }
 
 /**
  * Queues the organization settlement reads in table order: the pre-transaction
- * member usage join, then the locked owner row, owner stats, organization row,
- * and locked member usage join inside the transaction.
+ * member join, then the locked owner row, owner stats, organization row, and
+ * locked member join inside the transaction.
  */
 function queueOrgReads({
   memberUsageRows = [orgMemberUsageRow],
   lockedOwnerRows = [{ userId: 'owner-1' }],
   ownerStatsRows = [{ billedOverageThisPeriod: '0' }],
-  organizationRows = [{ creditBalance: '0', departedMemberUsage: '25' }],
+  organizationRows = [{ creditBalance: '0' }],
   lockedMemberUsageRows = memberUsageRows,
 }: {
   memberUsageRows?: unknown[]
@@ -174,6 +163,7 @@ function queueOrgReads({
 }
 
 const usableOrgSubscription = {
+  id: 'sub-db-team-1',
   plan: 'team',
   seats: 2,
   periodStart: new Date('2026-05-01T00:00:00.000Z'),
@@ -195,6 +185,7 @@ describe('checkAndBillOverageThreshold', () => {
     mockIsEnterprise.mockReturnValue(false)
     mockIsOrgScopedSubscription.mockReturnValue(false)
     mockGetBillingPeriodUsageCost.mockResolvedValue(0)
+    mockIsSubscriptionCycleCloseCurrent.mockResolvedValue(true)
   })
 
   afterAll(() => {
@@ -202,7 +193,6 @@ describe('checkAndBillOverageThreshold', () => {
   })
 
   it('does not lock user_stats when calculated overage is below threshold', async () => {
-    queuePersonalReads()
     mockCalculateSubscriptionOverage.mockResolvedValue(99)
 
     await checkAndBillOverageThreshold('user-1')
@@ -216,7 +206,7 @@ describe('checkAndBillOverageThreshold', () => {
       periodEnd: userSubscription.periodEnd,
     })
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
@@ -392,6 +382,46 @@ describe('checkAndBillOverageThreshold', () => {
     expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
   })
 
+  it('does not compare an Enterprise reporting window to Stripe before the ineligible no-op', async () => {
+    mockIsEnterprise.mockReturnValue(true)
+
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, {
+        onError: 'throw',
+        expectedBillingPeriod: {
+          start: new Date('2025-08-13T00:00:00.000Z'),
+          end: new Date('2026-08-13T00:00:00.000Z'),
+        },
+      })
+    ).resolves.toEqual({ status: 'no-op', reason: 'plan-ineligible' })
+
+    expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
+  })
+
+  it('does not compare an organization Enterprise reporting window to Stripe', async () => {
+    mockGetOrganizationSubscriptionUsable.mockResolvedValue({
+      ...usableOrgSubscription,
+      plan: 'enterprise',
+    })
+    mockIsEnterprise.mockReturnValue(true)
+
+    await expect(
+      checkAndBillPayerOverageThreshold(
+        { type: 'organization', id: 'org-1' },
+        {
+          onError: 'throw',
+          expectedBillingPeriod: {
+            start: new Date('2025-08-13T00:00:00.000Z'),
+            end: new Date('2026-08-13T00:00:00.000Z'),
+          },
+        }
+      )
+    ).resolves.toEqual({ status: 'no-op', reason: 'plan-ineligible' })
+
+    expect(mockIsOrganizationBillingBlocked).not.toHaveBeenCalled()
+    expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
+  })
+
   it('wraps organization provider failures through the strict payer helper', async () => {
     mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
     mockIsOrganizationBillingBlocked.mockRejectedValue(new Error('Organization lookup unavailable'))
@@ -500,22 +530,12 @@ describe('checkAndBillOverageThreshold', () => {
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
-  it('skips personal threshold billing when locked usage inputs changed', async () => {
-    queuePersonalReads({ ...defaultUsageSnapshotRow, currentPeriodCost: '250' })
-    queueLockedStats(lockedStatsRow({ lastPeriodCost: '250' }))
+  it('aborts settlement when the period advances between preflight and the locked transaction', async () => {
+    queuePersonalReads()
+    queueLockedStats(lockedStatsRow())
     mockCalculateSubscriptionOverage.mockResolvedValue(250)
-
-    await checkAndBillOverageThreshold('user-1')
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-  })
-
-  it('throws retryably in markerless strict mode when locked personal usage changes', async () => {
-    queuePersonalReads({ ...defaultUsageSnapshotRow, currentPeriodCost: '250' })
-    queueLockedStats(lockedStatsRow({ lastPeriodCost: '250' }))
-    mockCalculateSubscriptionOverage.mockResolvedValue(250)
+    // Preflight passes; the under-lock revalidation sees the rollover.
+    mockIsSubscriptionCycleCloseCurrent.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
 
     await expect(
       checkAndBillOverageThreshold('user-1', undefined, { onError: 'throw' })
@@ -524,7 +544,48 @@ describe('checkAndBillOverageThreshold', () => {
       code: 'concurrent_state_change',
       retryable: true,
     })
+
+    expect(mockIsSubscriptionCycleCloseCurrent).toHaveBeenLastCalledWith(
+      userSubscription.id,
+      expect.objectContaining({ expectedPeriodStart: userSubscription.periodStart })
+    )
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
+  it('defers personal settlement while the previous period cycle close is pending', async () => {
+    mockIsSubscriptionCycleCloseCurrent.mockResolvedValue(false)
+    mockCalculateSubscriptionOverage.mockResolvedValue(250)
+
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, {
+        onError: 'throw',
+        expectedBillingPeriod,
+      })
+    ).resolves.toEqual({ status: 'no-op', reason: 'pending-cycle-close' })
+
+    expect(mockIsSubscriptionCycleCloseCurrent).toHaveBeenCalledWith(userSubscription.id)
+    expect(mockCalculateSubscriptionOverage).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
+  it('defers organization settlement while the previous period cycle close is pending', async () => {
+    mockIsOrgScopedSubscription.mockReturnValue(true)
+    mockIsOrganizationBillingBlocked.mockResolvedValue(false)
+    mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
+    mockIsSubscriptionCycleCloseCurrent.mockResolvedValue(false)
+
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, {
+        onError: 'throw',
+        expectedBillingPeriod,
+      })
+    ).resolves.toEqual({ status: 'no-op', reason: 'pending-cycle-close' })
+
+    expect(mockIsSubscriptionCycleCloseCurrent).toHaveBeenCalledWith(usableOrgSubscription.id)
+    expect(mockComputeOrgOverageAmount).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
@@ -548,6 +609,8 @@ describe('checkAndBillOverageThreshold', () => {
     mockIsOrgScopedSubscription.mockReturnValue(true)
     mockIsOrganizationBillingBlocked.mockResolvedValue(false)
     mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
+    // Pooled entity read — departed members' org-stamped rows are already in.
+    mockGetBillingPeriodUsageCost.mockResolvedValue(350)
     queueOrgReads()
     mockComputeOrgOverageAmount.mockResolvedValue({
       totalOverage: 250,
@@ -563,9 +626,7 @@ describe('checkAndBillOverageThreshold', () => {
       periodStart: new Date('2026-05-01T00:00:00.000Z'),
       periodEnd: new Date('2026-06-01T00:00:00.000Z'),
       organizationId: userSubscription.referenceId,
-      pooledCurrentPeriodCost: 350,
-      departedMemberUsage: 25,
-      memberIds: ['owner-1'],
+      pooledLedgerUsage: 350,
     })
     expect(dbChainMockFns.transaction).toHaveBeenCalled()
     expect(mockComputeOrgOverageAmount.mock.invocationCallOrder[0]).toBeLessThan(
@@ -573,27 +634,6 @@ describe('checkAndBillOverageThreshold', () => {
     )
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
     expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
-  })
-
-  it('skips stale organization overage when locked usage inputs changed', async () => {
-    mockIsOrgScopedSubscription.mockReturnValue(true)
-    mockIsOrganizationBillingBlocked.mockResolvedValue(false)
-    mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
-    queueOrgReads({
-      organizationRows: [{ creditBalance: '0', departedMemberUsage: '75' }],
-      lockedMemberUsageRows: [{ ...orgMemberUsageRow, departedMemberUsage: '75' }],
-    })
-    mockComputeOrgOverageAmount.mockResolvedValue({
-      totalOverage: 250,
-      baseSubscriptionAmount: 100,
-      effectiveUsage: 350,
-    })
-
-    await checkAndBillOverageThreshold('user-1')
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalled()
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('rechecks organization billed overage on the locked owner tracker', async () => {
@@ -619,29 +659,11 @@ describe('checkAndBillOverageThreshold', () => {
     mockIsOrganizationBillingBlocked.mockResolvedValue(false)
     mockGetOrganizationSubscriptionUsable.mockResolvedValue(usableOrgSubscription)
     queueOrgReads({
-      memberUsageRows: [
-        orgMemberUsageRow,
-        {
-          userId: 'member-1',
-          role: 'member',
-          currentPeriodCost: '25',
-          departedMemberUsage: '25',
-        },
-      ],
+      memberUsageRows: [orgMemberUsageRow, { userId: 'member-1', role: 'member' }],
       lockedOwnerRows: [{ userId: 'member-1' }],
       lockedMemberUsageRows: [
-        {
-          userId: 'owner-1',
-          role: 'member',
-          currentPeriodCost: '350',
-          departedMemberUsage: '25',
-        },
-        {
-          userId: 'member-1',
-          role: 'owner',
-          currentPeriodCost: '25',
-          departedMemberUsage: '25',
-        },
+        { userId: 'owner-1', role: 'member' },
+        { userId: 'member-1', role: 'owner' },
       ],
     })
     mockComputeOrgOverageAmount.mockResolvedValue({

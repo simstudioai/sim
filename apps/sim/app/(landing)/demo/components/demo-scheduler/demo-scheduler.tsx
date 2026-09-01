@@ -2,6 +2,9 @@
 
 import { useEffect } from 'react'
 import Cal, { getCalApi } from '@calcom/embed-react'
+import { trackGoogleEvent } from '@/lib/analytics/google'
+import { X_DEMO_BOOKED_EVENT_ID } from '@/lib/consent/scripts'
+import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import type { DemoLead } from '@/app/(landing)/demo/components/demo-form'
 
 /** The Cal.com event the demo books - set `NEXT_PUBLIC_CAL_LINK` to override. */
@@ -54,14 +57,41 @@ export function preloadCalEmbed(): void {
  * card stays the same height across the form→calendar transition.
  */
 export function DemoScheduler({ lead }: DemoSchedulerProps) {
+  const { marketing, measurement } = useTrackingConsent()
+
   useEffect(() => {
-    getCalApi({ namespace: CAL_NAMESPACE }).then((cal) => {
-      cal('ui', {
-        hideEventTypeDetails: true,
-        styles: { branding: { brandColor: CAL_BRAND_COLOR } },
+    let cancelled = false
+    const trackDemoBooked = () => {
+      if (measurement) {
+        trackGoogleEvent('get_a_demo', {
+          page_path: '/demo',
+          form_name: 'sim_demo',
+          booking_status: 'scheduled',
+        })
+      }
+      if (marketing) window.twq?.('event', X_DEMO_BOOKED_EVENT_ID, {})
+    }
+    const api = getCalApi({ namespace: CAL_NAMESPACE })
+    api
+      .then((cal) => {
+        if (cancelled) return
+        cal('ui', {
+          hideEventTypeDetails: true,
+          styles: { branding: { brandColor: CAL_BRAND_COLOR } },
+        })
+        if (measurement || marketing) {
+          cal('on', { action: 'bookingSuccessfulV2', callback: trackDemoBooked })
+        }
       })
-    })
-  }, [])
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      if (!measurement && !marketing) return
+      api
+        .then((cal) => cal('off', { action: 'bookingSuccessfulV2', callback: trackDemoBooked }))
+        .catch(() => {})
+    }
+  }, [marketing, measurement])
 
   return (
     <div className='flex h-full min-w-0 flex-col p-6 max-sm:p-5'>

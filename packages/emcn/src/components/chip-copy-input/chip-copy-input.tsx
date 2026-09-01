@@ -52,7 +52,7 @@ export const ChipCopyInput = React.forwardRef<HTMLInputElement, ChipCopyInputPro
               <Button
                 type='button'
                 variant='quiet'
-                className='size-[18px] rounded-sm p-0'
+                size='icon'
                 onClick={() => copy(value)}
                 aria-label={copyLabel}
               >

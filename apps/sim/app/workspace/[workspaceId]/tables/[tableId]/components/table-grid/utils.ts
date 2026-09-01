@@ -1,4 +1,9 @@
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
+import {
+  buildTableSelectionLabel,
+  MAX_TABLE_SELECTION_COLUMNS,
+  MAX_TABLE_SELECTION_ROWS,
+} from '@/lib/copilot/chat/selection-context'
 import type {
   ColumnDefinition,
   RowExecutionMetadata,
@@ -7,7 +12,9 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
+import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import type { DisplayColumn } from './types'
 
@@ -23,6 +30,43 @@ export type RowSelection =
 
 export const ROW_SELECTION_NONE: RowSelection = { kind: 'none' }
 export const ROW_SELECTION_ALL: RowSelection = { kind: 'all' }
+
+interface HorizontalEdgeScrollVelocityInput {
+  pointerX: number
+  visibleLeft: number
+  visibleRight: number
+  hotZone: number
+  maxVelocity: number
+}
+
+export function horizontalEdgeScrollVelocity({
+  pointerX,
+  visibleLeft,
+  visibleRight,
+  hotZone,
+  maxVelocity,
+}: HorizontalEdgeScrollVelocityInput): number {
+  if (hotZone <= 0) throw new Error('hotZone must be greater than zero')
+  if (maxVelocity <= 0) throw new Error('maxVelocity must be greater than zero')
+  const visibleWidth = visibleRight - visibleLeft
+  if (visibleWidth <= 0) return 0
+
+  const edgeZone = Math.min(hotZone, visibleWidth / 2)
+
+  const distanceFromLeft = pointerX - visibleLeft
+  if (distanceFromLeft < edgeZone) {
+    const intensity = 1 - Math.max(0, distanceFromLeft) / edgeZone
+    return -Math.ceil(intensity * maxVelocity)
+  }
+
+  const distanceFromRight = visibleRight - pointerX
+  if (distanceFromRight < edgeZone) {
+    const intensity = 1 - Math.max(0, distanceFromRight) / edgeZone
+    return Math.ceil(intensity * maxVelocity)
+  }
+
+  return 0
+}
 
 export function rowSelectionIncludes(sel: RowSelection, id: string): boolean {
   if (sel.kind === 'all') return !sel.excluded?.has(id)
@@ -81,6 +125,25 @@ export interface NormalizedSelection {
   endCol: number
   anchorRow: number
   anchorCol: number
+}
+
+/**
+ * Whether a (row, col) index pair falls inside a normalized selection rectangle.
+ * Row/col may be `undefined` (e.g. an id that didn't resolve to an index) → `false`.
+ */
+export function isCellInSelection(
+  row: number | undefined,
+  col: number | undefined,
+  sel: NormalizedSelection
+): boolean {
+  return (
+    row !== undefined &&
+    col !== undefined &&
+    row >= sel.startRow &&
+    row <= sel.endRow &&
+    col >= sel.startCol &&
+    col <= sel.endCol
+  )
 }
 
 /** A run of consecutive `displayColumns` rendered together in the meta header row. */
@@ -331,4 +394,95 @@ export function collectRowSnapshots(rows: Iterable<TableRowType>): DeletedRowSna
     })
   }
   return snapshots
+}
+
+/** Column ids spanned by a normalized selection's column range. */
+export function selectedColumnIds(
+  columns: DisplayColumn[],
+  selection: { startCol: number; endCol: number }
+): string[] {
+  const ids: string[] = []
+  for (let c = selection.startCol; c <= selection.endCol && c < columns.length; c++) {
+    ids.push(getColumnId(columns[c]))
+  }
+  return ids
+}
+
+/**
+ * Materializes a `table_selection` chat context from a grid selection, applying
+ * the shared row/column caps. `columnIds` narrows the context to a cell range;
+ * omit it for a whole-row selection, where the agent should see every column.
+ * Returns null before the table name has loaded or when nothing is selected.
+ *
+ * A range is never widened back to an open scope for "covering everything":
+ * the only counts available to callers come from the rendered grid, which both
+ * drops hidden columns and expands workflow groups, so "all of them" cannot be
+ * compared to the schema. Treating a full-width range as whole rows would let
+ * the server re-fetch columns the user had hidden.
+ */
+export function buildTableSelectionContext(opts: {
+  tableId: string
+  tableName: string | undefined
+  rowIds: string[]
+  columnIds?: string[]
+}): ChatContext | null {
+  const { tableId, tableName, columnIds } = opts
+  if (!tableName || opts.rowIds.length === 0) return null
+  const rowIds = opts.rowIds.slice(0, MAX_TABLE_SELECTION_ROWS)
+  const scopedColumnIds =
+    columnIds && columnIds.length > 0 ? columnIds.slice(0, MAX_TABLE_SELECTION_COLUMNS) : undefined
+  return {
+    kind: 'table_selection',
+    tableId,
+    tableName,
+    label: buildTableSelectionLabel(tableName, rowIds.length, scopedColumnIds?.length),
+    rowIds,
+    ...(scopedColumnIds ? { columnIds: scopedColumnIds } : {}),
+  }
+}
+
+/**
+ * How many rows to load before building a select-all chip. A gutter select-all
+ * can carry exclusions anywhere in the table, and they are filtered out AFTER
+ * loading — so loading only {@link MAX_TABLE_SELECTION_ROWS} yields fewer than
+ * the cap whenever an excluded row sits in that prefix, leaving the chip short
+ * of the count the menu advertised. Loading the cap plus the exclusion count
+ * covers the worst case, where every exclusion falls inside the prefix.
+ */
+export function drainTargetForChip(excludedCount: number): number {
+  return MAX_TABLE_SELECTION_ROWS + excludedCount
+}
+
+/**
+ * Rows a chip will actually reference for a selection of `requested` rows —
+ * {@link buildTableSelectionContext} caps its `rowIds`, so any count shown to
+ * the user must pass through here or the UI promises more than it sends.
+ */
+export function chipRowCount(requested: number): number {
+  return Math.min(requested, MAX_TABLE_SELECTION_ROWS)
+}
+
+/**
+ * Whether a copy can be written synchronously on the event — the only way a
+ * chat-selection chip survives, since the paged path's async Clipboard API write
+ * replaces the whole clipboard and cannot carry a custom MIME type.
+ *
+ * Bounded by the TEXT limit, not the chip's row cap: a context slices its own
+ * `rowIds` to {@link MAX_TABLE_SELECTION_ROWS}, so a larger selection should
+ * still copy in full here and carry a chip for as many rows as a chip can
+ * reference — matching what Add to Chat does with the same selection. Gating on
+ * the chip cap instead drops the chip entirely. Past `MAX_COPY_ROWS` the paged
+ * path must take over, because it owns truncation and its user-facing notice.
+ *
+ * @param complete - Whether the caller's rows are everything the copy should
+ * contain. False when the paged path would load rows the caller cannot see yet,
+ * so deferring to it copies strictly more.
+ */
+export function canWriteRowsWithChip(opts: {
+  rowCount: number
+  complete: boolean
+  hasContext: boolean
+}): boolean {
+  if (!opts.hasContext || !opts.complete) return false
+  return opts.rowCount > 0 && opts.rowCount <= TABLE_LIMITS.MAX_COPY_ROWS
 }

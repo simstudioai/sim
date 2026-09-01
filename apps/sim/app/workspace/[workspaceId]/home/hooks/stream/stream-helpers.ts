@@ -2,36 +2,37 @@ import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import {
   CallIntegrationTool,
-  CrawlWebsite,
-  CreateFile,
+  CreateEmptyFile,
   CreateWorkflow,
-  DeployApi,
-  DeployChat,
-  DeployMcp,
+  DeployAsApi,
+  DeployAsChat,
+  DeployAsMcp,
   EditWorkflow,
-  FunctionExecute,
   Glob,
   Grep,
   ManageCredential,
   ManageCustomTool,
-  ManageMcpTool,
-  ManageScheduledTask,
+  ManageMcpConnection,
   ManageSkill,
+  PrepareFileEdit,
+  PrepareFileEditOperation,
   QueryLogs,
   Redeploy,
   Rm,
   RunFromBlock,
+  RunFunction,
   RunWorkflow,
   RunWorkflowUntilBlock,
-  ScrapePage,
-  SearchOnline,
-  WorkspaceFile,
-  WorkspaceFileOperation,
+  WebCrawl,
+  WebScrape,
+  WebSearch,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/copilot/tools/tool-display'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { getWorkflowById } from '@/hooks/queries/utils/workflow-cache'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -41,9 +42,9 @@ const logger = createLogger('StreamHelpers')
 export const FILE_SUBAGENT_ID = 'file'
 
 export const DEPLOY_TOOL_NAMES: Set<string> = new Set([
-  DeployApi.id,
-  DeployChat.id,
-  DeployMcp.id,
+  DeployAsApi.id,
+  DeployAsChat.id,
+  DeployAsMcp.id,
   Redeploy.id,
 ])
 
@@ -124,6 +125,33 @@ function resolveTargetWorkflowName(args: Record<string, unknown> | undefined): s
   return resolveWorkflowNameForDisplay(args?.workflowId ?? registry.hydration.workflowId)
 }
 
+/**
+ * Table name for a nested `args.tableId`. Tables reach the client through
+ * React Query rather than a Zustand store, so the cached workspace list is
+ * the synchronous source a title can read; an uncached id simply stays
+ * unnamed rather than blocking the row.
+ */
+function resolveTableNameForDisplay(tableId: unknown): string | undefined {
+  const id = stringParam(tableId)
+  if (!id) return undefined
+  const cache = getQueryClient().getQueryCache()
+  for (const query of cache.findAll({ queryKey: tableKeys.lists() })) {
+    const data = query.state.data
+    const tables = Array.isArray(data)
+      ? data
+      : isRecordLike(data) && Array.isArray((data as { tables?: unknown }).tables)
+        ? ((data as { tables: unknown[] }).tables as unknown[])
+        : []
+    for (const table of tables) {
+      if (!isRecordLike(table)) continue
+      if (stringParam(table.id) !== id) continue
+      const name = stringParam(table.name)
+      if (name) return name
+    }
+  }
+  return undefined
+}
+
 function resolveBlockNameForDisplay(blockId: unknown): string | undefined {
   const id = stringParam(blockId)
   if (!id) return undefined
@@ -140,13 +168,13 @@ function resolveWorkspaceFileDisplayTitle(
   let verb = 'Writing'
 
   switch (operation) {
-    case WorkspaceFileOperation.append:
+    case PrepareFileEditOperation.append:
       verb = 'Adding'
       break
-    case WorkspaceFileOperation.patch:
+    case PrepareFileEditOperation.patch:
       verb = 'Editing'
       break
-    case WorkspaceFileOperation.update:
+    case PrepareFileEditOperation.update:
       verb = 'Writing'
       break
   }
@@ -187,6 +215,40 @@ export function resolveIntegrationToolDisplayTitle(tool: {
   return tool.integrationDescription
 }
 
+/**
+ * Tools whose subject is one workflow. They accept a `workflowId` (or imply
+ * the current workflow), so their titles can only name the workflow once the
+ * client resolves the id against the workflow registry.
+ */
+const TABLE_SCOPED_TOOL_IDS = new Set<string>([
+  'table_automations',
+  'table_columns',
+  'table_enrichments',
+  'table_manage',
+  'table_rows',
+  'table_views',
+])
+
+const WORKFLOW_SCOPED_TOOL_IDS = new Set<string>([
+  'deploy_as_api',
+  'diff_workflows',
+  'list_deployment_versions',
+  'publish_custom_block',
+  'deploy_as_chat',
+  'deploy_as_mcp',
+  'get_block_outputs',
+  'get_block_upstream_references',
+  'get_deployed_workflow_state',
+  'get_deployment_status',
+  'get_workflow_data',
+  'get_workflow_run_options',
+  'promote_to_live',
+  'redeploy',
+  'run_block',
+  'set_block_enabled',
+  'set_global_workflow_variables',
+])
+
 export function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
   // Cases that enrich the title with live workspace/block names from the client
   // stores. Everything else is resolved by the shared name+args resolver, which
@@ -223,6 +285,39 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
     const workflowName =
       resolveWorkflowNameForDisplay(args?.workflowId) ?? stringParam(args?.workflowName)
     if (workflowName) return `Querying logs for ${workflowName}`
+  }
+
+  // Workflow-scoped tools carry an id, not a name — and often not even that,
+  // defaulting to the current workflow. Resolve the name here and hand it to
+  // the shared resolver as `workflowName`, which every workflow title already
+  // reads, so deployments, reads, and block work all say WHICH workflow.
+  // Table tools keep their operands nested under `args`, and identify the
+  // table by id — so the shared resolver sees neither the column being added
+  // nor which table it belongs to. Lift both here.
+  if (TABLE_SCOPED_TOOL_IDS.has(name)) {
+    const nested = isRecordLike(args?.args) ? (args?.args as Record<string, unknown>) : undefined
+    const tableName =
+      stringParam(args?.tableName) ?? resolveTableNameForDisplay(nested?.tableId ?? args?.tableId)
+    if (nested || tableName) {
+      return getToolDisplayTitle(name, {
+        ...args,
+        ...(nested ?? {}),
+        ...(tableName ? { tableName } : {}),
+      })
+    }
+  }
+
+  if (WORKFLOW_SCOPED_TOOL_IDS.has(name) && !stringParam(args?.workflowName)) {
+    const workflowName = resolveTargetWorkflowName(args)
+    // Block-scoped tools carry a blockId for the same reason; resolve it too,
+    // so a row says which block ran rather than an opaque id (or nothing).
+    const blockName = stringParam(args?.blockName) ?? resolveBlockNameForDisplay(args?.blockId)
+    const enriched = {
+      ...args,
+      ...(workflowName ? { workflowName } : {}),
+      ...(blockName ? { blockName } : {}),
+    }
+    if (workflowName || blockName) return getToolDisplayTitle(name, enriched)
   }
 
   return getToolDisplayTitle(name, args)
@@ -271,11 +366,11 @@ export function resolveStreamingToolDisplayTitle(
   name: string,
   streamingArgs: string
 ): string | undefined {
-  if (name === FunctionExecute.id) {
+  if (name === RunFunction.id) {
     return functionExecuteTitle(matchStreamingStringArg(streamingArgs, 'title'))
   }
 
-  if (name === WorkspaceFile.id) {
+  if (name === PrepareFileEdit.id) {
     return resolveWorkspaceFileDisplayTitle(
       matchStreamingStringArg(streamingArgs, 'operation'),
       matchStreamingStringArg(streamingArgs, 'title'),
@@ -283,7 +378,7 @@ export function resolveStreamingToolDisplayTitle(
     )
   }
 
-  if (name === CreateFile.id) {
+  if (name === CreateEmptyFile.id) {
     const target =
       matchStreamingStringArg(streamingArgs, 'path') ??
       matchStreamingStringArg(streamingArgs, 'fileName')
@@ -300,7 +395,7 @@ export function resolveStreamingToolDisplayTitle(
     return workflowId ? resolveToolDisplayTitle(name, { workflowId }) : undefined
   }
 
-  if (name === SearchOnline.id) {
+  if (name === WebSearch.id) {
     const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
     return toolTitle ? `Searching online for ${toolTitle}` : undefined
   }
@@ -350,12 +445,12 @@ export function resolveStreamingToolDisplayTitle(
     return toolTitle ? `Deleting ${toolTitle}` : undefined
   }
 
-  if (name === ScrapePage.id) {
+  if (name === WebScrape.id) {
     const url = matchStreamingStringArg(streamingArgs, 'url')
     return url ? `Scraping ${url}` : undefined
   }
 
-  if (name === CrawlWebsite.id) {
+  if (name === WebCrawl.id) {
     const url = matchStreamingStringArg(streamingArgs, 'url')
     return url ? `Crawling ${url}` : undefined
   }
@@ -364,7 +459,7 @@ export function resolveStreamingToolDisplayTitle(
     return resolveStreamingManagedResourceTitle(name, streamingArgs, ['toolTitle', 'title', 'name'])
   }
 
-  if (name === ManageMcpTool.id) {
+  if (name === ManageMcpConnection.id) {
     return resolveStreamingManagedResourceTitle(name, streamingArgs, [
       'serverName',
       'name',
@@ -374,10 +469,6 @@ export function resolveStreamingToolDisplayTitle(
 
   if (name === ManageSkill.id) {
     return resolveStreamingManagedResourceTitle(name, streamingArgs, ['name', 'skillName', 'title'])
-  }
-
-  if (name === ManageScheduledTask.id) {
-    return resolveStreamingManagedResourceTitle(name, streamingArgs, ['title', 'taskName', 'name'])
   }
 
   if (name === ManageCredential.id) {

@@ -12,8 +12,8 @@ import {
   Label,
   Trash,
 } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -211,7 +211,7 @@ export function DocumentTagEntry({
     const tagCount = tags.filter((t) => t.tagName?.trim()).length
     return (
       <div className='space-y-1'>
-        <Label className='font-medium text-muted-foreground text-xs'>Document Tags</Label>
+        <Label className='text-muted-foreground text-xs'>Document Tags</Label>
         <div className='text-muted-foreground text-sm'>
           {tagCount > 0 ? `${tagCount} tag(s) configured` : 'No tags'}
         </div>
@@ -223,7 +223,7 @@ export function DocumentTagEntry({
     return (
       <div className='flex h-32 items-center justify-center rounded-sm border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'>
         <div className='text-center'>
-          <p className='font-medium text-[var(--text-secondary)] text-sm'>
+          <p className='text-[var(--text-secondary)] text-sm'>
             No tags defined for this knowledge base
           </p>
           <p className='mt-1 text-[var(--text-muted)] text-xs'>
@@ -250,7 +250,7 @@ export function DocumentTagEntry({
       }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
           {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
         </span>
         {tag.collapsed && tag.tagName && (
@@ -334,14 +334,14 @@ export function DocumentTagEntry({
           disabled={isReadOnly}
           autoComplete='off'
           placeholder={placeholder}
-          className='allow-scroll w-full overflow-auto text-transparent caret-foreground'
+          className='allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
         />
         <div
           ref={(el) => {
             if (el) overlayRefs.current[cellKey] = el
           }}
           className={cn(
-            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
             !isReadOnly && 'pointer-events-none'
           )}
         >

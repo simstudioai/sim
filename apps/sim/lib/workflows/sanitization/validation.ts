@@ -4,7 +4,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { getBlock } from '@/blocks/registry'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-import { getTool } from '@/tools/utils'
+import { hasToolId } from '@/tools/tool-ids'
 
 const logger = createLogger('WorkflowValidation')
 
@@ -305,8 +305,7 @@ export function validateToolReference(
 
   if (!isCustomTool(toolId) && !isMcpTool(toolId)) {
     // For built-in tools, verify they exist
-    const tool = getTool(toolId)
-    if (!tool) {
+    if (!hasToolId(toolId)) {
       return `Block ${blockName || 'unknown'} (${blockType}): references non-existent tool '${toolId}'`
     }
   }

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
-import { document, embedding, knowledgeBase } from '@sim/db/schema'
+import { embedding, knowledgeBase } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
+import { getKnowledgeDocument } from '@/lib/knowledge/documents/service'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 interface KnowledgeBaseData {
@@ -243,27 +244,14 @@ async function resolveDocumentAccess(
     }
   }
 
-  const doc = await db
-    .select()
-    .from(document)
-    .where(
-      and(
-        eq(document.id, documentId),
-        eq(document.knowledgeBaseId, knowledgeBaseId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
-    .limit(1)
-
-  if (doc.length === 0) {
+  const doc = await getKnowledgeDocument(knowledgeBaseId, documentId)
+  if (!doc) {
     return { hasAccess: false, notFound: true, reason: 'Document not found' }
   }
 
   return {
     hasAccess: true,
-    document: doc[0] as DocumentData,
+    document: doc,
     knowledgeBase: kbAccess.knowledgeBase!,
   }
 }
@@ -313,25 +301,12 @@ async function resolveChunkAccess(
     }
   }
 
-  const doc = await db
-    .select()
-    .from(document)
-    .where(
-      and(
-        eq(document.id, documentId),
-        eq(document.knowledgeBaseId, knowledgeBaseId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
-    .limit(1)
-
-  if (doc.length === 0) {
+  const doc = await getKnowledgeDocument(knowledgeBaseId, documentId)
+  if (!doc) {
     return { hasAccess: false, notFound: true, reason: 'Document not found' }
   }
 
-  const docData = doc[0] as DocumentData
+  const docData = doc
 
   // Chunks are only accessible once the document has finished processing.
   if (docData.processingStatus !== 'completed') {

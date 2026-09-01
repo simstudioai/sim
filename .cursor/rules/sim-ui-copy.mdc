@@ -1,0 +1,44 @@
+---
+description: UI copy conventions — no default subtitles or helper text under headings, labels, cards, or settings
+globs: ["apps/sim/**/*.tsx"]
+---
+# UI Copy
+
+**Do not add subtitles, helper text, or descriptive copy beneath headings, labels, cards, or settings by default.** Prefer one concise, self-explanatory heading or label. Only add supporting copy when the user explicitly asks for it, or when it is necessary to prevent misunderstanding or error — and never use it to restate the heading.
+
+This applies to product surfaces: settings rows, modals, panels, cards, list rows, empty states, form fields, and section headers. Marketing surfaces (`app/(landing)`, docs) are governed by `constitution.mdc` instead.
+
+**Carve-out — settings section metadata.** `SettingsNavigationItem.description` in `components/settings/navigation.ts` stays required, and `SettingsPanel` keeps rendering it as the page subtitle. Settings sections are reached through a nav list where the description is the only thing distinguishing adjacent sections. Everything else on a settings page — inline `<p>` blurbs under section headings, field hints, modal bodies, row subtitles — follows the default rule above.
+
+## The default is no description
+
+```tsx
+// ✗ Bad — the subtitle restates the heading
+<h3>API Keys</h3>
+<p className='text-[var(--text-muted)] text-caption'>Manage your API keys.</p>
+
+// ✗ Bad — decorative filler under a field label
+<ChipModalField title='Workspace name' hint='The name of your workspace.' />
+
+// ✓ Good — the label carries the whole meaning
+<h3>API Keys</h3>
+<ChipModalField title='Workspace name' />
+```
+
+If a heading needs a subtitle to be understood, the heading is wrong. Fix the heading — don't append a second line.
+
+## When supporting copy earns its place
+
+Keep (or add) a description only when it carries information the label cannot, and its absence would cause a mistake:
+
+- **Irreversible or destructive consequences** — "Deleting this workspace removes every workflow and log. This cannot be undone."
+- **A non-obvious format, unit, or bound** — "Comma-separated. Max 50 domains.", "Cost per 1M input tokens."
+- **A security or access implication** — "This key is shown once and grants full workspace access."
+- **A state the user cannot otherwise see** — "Inherited from your organization's policy."
+- **Instructional copy that advances a flow** — "We sent a 6-digit code to you@example.com."
+
+Everything else — restatements, "Manage your X", "Configure your Y", feature blurbs, encouragement — gets deleted.
+
+## Component APIs
+
+Description/hint slots on shared components are **optional**, never required, and must reserve no layout space when omitted. A component that forces every consumer to supply a subtitle forces every consumer to violate this rule. When adding a new shared component, ship it without a description slot and add one only once a real caller meets the bar above.

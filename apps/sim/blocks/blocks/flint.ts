@@ -25,6 +25,22 @@ export const FlintBlock: BlockConfig = {
   bgColor: '#F6F54F',
   icon: FlintIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Flint',
+    sentences: {
+      byOperation: {
+        flint_create_task: [
+          { text: 'Run agent task', field: 'prompt', core: true },
+          { text: 'on site', field: 'siteId' },
+        ],
+        flint_generate_pages: [
+          { text: 'Generate pages from template', field: 'templatePageSlug', core: true },
+          { text: 'on site', field: 'siteId' },
+        ],
+        flint_get_task: [{ text: 'Check status of task', field: 'taskId', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {

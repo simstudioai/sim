@@ -1,6 +1,6 @@
 import type { CSSProperties, RefObject } from 'react'
 import { cn } from '@sim/emcn'
-import { Upload, X } from 'lucide-react'
+import { Upload, X } from '@sim/emcn/icons'
 import {
   GRAPH_EDGES,
   GRAPH_NODES,
@@ -46,9 +46,7 @@ export function KnowledgeBasePanel({
       )}
     >
       <div className='flex items-center justify-between px-4 pt-3 pb-2.5'>
-        <span className='font-medium text-[15px] text-[var(--text-primary)]'>
-          Create Knowledge Base
-        </span>
+        <span className='text-[15px] text-[var(--text-primary)]'>Create Knowledge Base</span>
         <X className='size-4 text-[var(--text-muted)]' />
       </div>
 

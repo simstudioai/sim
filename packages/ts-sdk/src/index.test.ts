@@ -4,6 +4,21 @@ import { SimStudioClient, SimStudioError } from './index'
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
+function v2ExecutionResponse(output: unknown = {}, status = 'completed') {
+  return {
+    data: {
+      runId: 'execution-123',
+      workflowId: 'workflow-id',
+      status,
+      output,
+      error: null,
+      startedAt: '2026-08-11T12:00:00.000Z',
+      endedAt: '2026-08-11T12:00:00.010Z',
+      durationMs: 10,
+    },
+  }
+}
+
 describe('SimStudioClient', () => {
   let client: SimStudioClient
 
@@ -100,11 +115,10 @@ describe('SimStudioClient', () => {
         ok: true,
         status: 202,
         json: vi.fn().mockResolvedValue({
-          success: true,
-          jobId: 'job-123',
-          statusUrl: 'https://test.sim.ai/api/jobs/job-123',
-          message: 'Workflow execution queued',
-          async: true,
+          data: {
+            runId: 'execution-123',
+            statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-id/runs/execution-123',
+          },
         }),
         headers: {
           get: vi.fn().mockReturnValue(null),
@@ -118,14 +132,19 @@ describe('SimStudioClient', () => {
         { async: true }
       )
 
-      expect(result).toHaveProperty('jobId', 'job-123')
-      expect(result).toHaveProperty('statusUrl', 'https://test.sim.ai/api/jobs/job-123')
+      expect(result).toHaveProperty('runId', 'execution-123')
+      expect(result).toHaveProperty(
+        'statusUrl',
+        'https://test.sim.ai/api/v2/workflows/workflow-id/runs/execution-123'
+      )
       expect(result).toHaveProperty('async', true)
 
-      // Verify headers were set correctly
       const calls = vi.mocked(mockFetch).mock.calls
-      expect(calls[0][1]?.headers).toMatchObject({
-        'X-Execution-Mode': 'async',
+      expect(calls[0][0]).toBe('https://test.sim.ai/api/v2/workflows/workflow-id/execute')
+      expect(calls[0][1]?.headers).not.toHaveProperty('X-Execution-Mode')
+      expect(JSON.parse(calls[0][1]?.body as string)).toEqual({
+        input: { message: 'Hello' },
+        async: true,
       })
     })
 
@@ -133,11 +152,7 @@ describe('SimStudioClient', () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: { result: 'completed' },
-          logs: [],
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse({ result: 'completed' })),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -151,18 +166,66 @@ describe('SimStudioClient', () => {
       )
 
       expect(result).toHaveProperty('success', true)
+      expect(result).toHaveProperty('executionId', 'execution-123')
       expect(result).toHaveProperty('output')
+      expect(result).toHaveProperty('metadata.executionId', 'execution-123')
+      expect(result).toHaveProperty('metadata.startTime', '2026-08-11T12:00:00.000Z')
+      expect(result).toHaveProperty('metadata.endTime', '2026-08-11T12:00:00.010Z')
       expect(result).not.toHaveProperty('jobId')
+    })
+
+    it('throws when a sync workflow run completes with failed status', async () => {
+      const failed = v2ExecutionResponse({ partial: true })
+      failed.data.status = 'failed'
+      failed.data.error = {
+        code: 'BLOCK_EXECUTION_FAILED',
+        message: 'Invalid credentials',
+      }
+      vi.mocked(mockFetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue(failed),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      })
+
+      await expect(client.executeWorkflow('workflow-id', {})).rejects.toMatchObject({
+        name: 'SimStudioError',
+        code: 'BLOCK_EXECUTION_FAILED',
+        message: 'Invalid credentials',
+      })
+    })
+
+    it('reports a cancelled sync run as unsuccessful', async () => {
+      vi.mocked(mockFetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse({}, 'cancelled')),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      })
+
+      const result = await client.executeWorkflow('workflow-id', {})
+
+      expect(result).toHaveProperty('success', false)
+    })
+
+    it('reports a paused sync run as successful', async () => {
+      vi.mocked(mockFetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse({}, 'paused')),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      })
+
+      const result = await client.executeWorkflow('workflow-id', {})
+
+      expect(result).toHaveProperty('success', true)
     })
 
     it('should not set X-Execution-Mode header when async is undefined', async () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -174,21 +237,62 @@ describe('SimStudioClient', () => {
       const calls = vi.mocked(mockFetch).mock.calls
       expect(calls[0][1]?.headers).not.toHaveProperty('X-Execution-Mode')
     })
+
+    it('sets the server-side timeout in the v2 async execution body', async () => {
+      vi.mocked(mockFetch).mockResolvedValue({
+        ok: true,
+        status: 202,
+        json: vi.fn().mockResolvedValue({
+          data: {
+            runId: 'execution-123',
+            statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-id/runs/execution-123',
+          },
+        }),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      } as any)
+
+      await client.executeWorkflow('workflow-id', {}, { async: true, executionTimeoutSeconds: 90 })
+
+      expect(vi.mocked(mockFetch).mock.calls[0][1]?.headers).not.toHaveProperty(
+        'X-Execution-Timeout-Seconds'
+      )
+      expect(JSON.parse(String(vi.mocked(mockFetch).mock.calls[0][1]?.body))).toMatchObject({
+        async: true,
+        executionTimeoutSeconds: 90,
+      })
+    })
+
+    it('rejects a server-side timeout for sync execution', async () => {
+      await expect(
+        client.executeWorkflow('workflow-id', {}, { executionTimeoutSeconds: 90 })
+      ).rejects.toMatchObject({ code: 'INVALID_EXECUTION_TIMEOUT' })
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('rejects a server-side timeout above seven days', async () => {
+      await expect(
+        client.executeWorkflow(
+          'workflow-id',
+          {},
+          {
+            async: true,
+            executionTimeoutSeconds: 604_801,
+          }
+        )
+      ).rejects.toMatchObject({ code: 'INVALID_EXECUTION_TIMEOUT' })
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
   })
 
   describe('getJobStatus', () => {
-    it('should fetch job status with correct endpoint', async () => {
+    it('should fetch legacy job status with the correct endpoint', async () => {
       const mockResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
           success: true,
           taskId: 'task-123',
           status: 'completed',
-          metadata: {
-            startedAt: '2024-01-01T00:00:00Z',
-            completedAt: '2024-01-01T00:01:00Z',
-            duration: 60000,
-          },
+          metadata: { duration: 60000 },
           output: { result: 'done' },
         }),
         headers: {
@@ -202,13 +306,10 @@ describe('SimStudioClient', () => {
       expect(result).toHaveProperty('taskId', 'task-123')
       expect(result).toHaveProperty('status', 'completed')
       expect(result).toHaveProperty('output')
-
-      // Verify correct endpoint was called
-      const calls = vi.mocked(mockFetch).mock.calls
-      expect(calls[0][0]).toBe('https://test.sim.ai/api/jobs/task-123')
+      expect(vi.mocked(mockFetch).mock.calls[0][0]).toBe('https://test.sim.ai/api/jobs/task-123')
     })
 
-    it('should handle job not found error', async () => {
+    it('should handle legacy job not found errors', async () => {
       const mockResponse = {
         ok: false,
         status: 404,
@@ -223,8 +324,66 @@ describe('SimStudioClient', () => {
       }
       vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
 
-      await expect(client.getJobStatus('invalid-task')).rejects.toThrow(SimStudioError)
       await expect(client.getJobStatus('invalid-task')).rejects.toThrow('Job not found')
+    })
+  })
+
+  describe('getWorkflowRun', () => {
+    it('should fetch run status and outputs from the v2 run resource', async () => {
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: {
+            runId: 'execution-123',
+            workflowId: 'workflow-123',
+            status: 'completed',
+            output: { result: 'done' },
+          },
+        }),
+        headers: {
+          get: vi.fn().mockReturnValue(null),
+        },
+      }
+      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
+
+      const result = await client.getWorkflowRun('workflow-123', 'execution-123', {
+        includeOutput: true,
+        selectedOutputs: ['agent.content'],
+      })
+
+      expect(result).toHaveProperty('runId', 'execution-123')
+      expect(result).toHaveProperty('status', 'completed')
+      expect(result).toHaveProperty('output')
+
+      const calls = vi.mocked(mockFetch).mock.calls
+      expect(calls[0][0]).toBe(
+        'https://test.sim.ai/api/v2/workflows/workflow-123/runs/execution-123?includeOutput=true&selectedOutputs=agent.content'
+      )
+    })
+
+    it('should handle run not found errors', async () => {
+      const mockResponse = {
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        json: vi.fn().mockResolvedValue({
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Run not found',
+          },
+        }),
+        headers: {
+          get: vi.fn().mockReturnValue(null),
+        },
+      }
+      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
+
+      await expect(client.getWorkflowRun('workflow-123', 'invalid-run')).rejects.toThrow(
+        SimStudioError
+      )
+      await expect(client.getWorkflowRun('workflow-123', 'invalid-run')).rejects.toThrow(
+        'Run not found'
+      )
     })
   })
 
@@ -233,10 +392,7 @@ describe('SimStudioClient', () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: { result: 'success' },
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse({ result: 'success' })),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -273,10 +429,7 @@ describe('SimStudioClient', () => {
       const successResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: { result: 'success' },
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse({ result: 'success' })),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -334,8 +487,10 @@ describe('SimStudioClient', () => {
         status: 500,
         statusText: 'Internal Server Error',
         json: vi.fn().mockResolvedValue({
-          error: 'Server error',
-          code: 'INTERNAL_ERROR',
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Server error',
+          },
         }),
         headers: {
           get: vi.fn().mockReturnValue(null),
@@ -362,7 +517,7 @@ describe('SimStudioClient', () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({ success: true, output: {} }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
         headers: {
           get: vi.fn((header: string) => {
             if (header === 'x-ratelimit-limit') return '100'
@@ -382,6 +537,28 @@ describe('SimStudioClient', () => {
       expect(info?.limit).toBe(100)
       expect(info?.remaining).toBe(95)
       expect(info?.reset).toBe(1704067200)
+    })
+
+    it('parses an ISO x-ratelimit-reset, the format the v2 API sends', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
+        headers: {
+          get: vi.fn((header: string) => {
+            if (header === 'x-ratelimit-limit') return '100'
+            if (header === 'x-ratelimit-remaining') return '99'
+            if (header === 'x-ratelimit-reset') return '2024-01-01T00:00:00.000Z'
+            return null
+          }),
+        },
+      }
+
+      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
+
+      await client.executeWorkflow('workflow-id', {})
+
+      expect(client.getRateLimitInfo()?.reset).toBe(1704067200000)
     })
   })
 
@@ -468,10 +645,7 @@ describe('SimStudioClient', () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -488,7 +662,7 @@ describe('SimStudioClient', () => {
       const calls = vi.mocked(mockFetch).mock.calls
       const requestBody = JSON.parse(calls[0][1]?.body as string)
 
-      expect(requestBody).toHaveProperty('message', 'test')
+      expect(requestBody.input).toEqual({ message: 'test' })
       expect(requestBody).toHaveProperty('stream', true)
       expect(requestBody).toHaveProperty('selectedOutputs')
       expect(requestBody.selectedOutputs).toEqual(['agent1.content', 'agent2.content'])
@@ -500,10 +674,7 @@ describe('SimStudioClient', () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -516,7 +687,7 @@ describe('SimStudioClient', () => {
       const calls = vi.mocked(mockFetch).mock.calls
       const requestBody = JSON.parse(calls[0][1]?.body as string)
 
-      expect(requestBody).toHaveProperty('input', 'NVDA')
+      expect(requestBody.input).toEqual({ input: 'NVDA' })
       expect(requestBody).not.toHaveProperty('0') // Should not spread string characters
     })
 
@@ -524,10 +695,7 @@ describe('SimStudioClient', () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -540,17 +708,14 @@ describe('SimStudioClient', () => {
       const calls = vi.mocked(mockFetch).mock.calls
       const requestBody = JSON.parse(calls[0][1]?.body as string)
 
-      expect(requestBody).toHaveProperty('input', 42)
+      expect(requestBody.input).toEqual({ input: 42 })
     })
 
     it('should wrap array input in input field', async () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -563,8 +728,7 @@ describe('SimStudioClient', () => {
       const calls = vi.mocked(mockFetch).mock.calls
       const requestBody = JSON.parse(calls[0][1]?.body as string)
 
-      expect(requestBody).toHaveProperty('input')
-      expect(requestBody.input).toEqual(['NVDA', 'AAPL', 'GOOG'])
+      expect(requestBody.input).toEqual({ input: ['NVDA', 'AAPL', 'GOOG'] })
       expect(requestBody).not.toHaveProperty('0') // Should not spread array
     })
 
@@ -572,10 +736,7 @@ describe('SimStudioClient', () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -588,19 +749,14 @@ describe('SimStudioClient', () => {
       const calls = vi.mocked(mockFetch).mock.calls
       const requestBody = JSON.parse(calls[0][1]?.body as string)
 
-      expect(requestBody).toHaveProperty('ticker', 'NVDA')
-      expect(requestBody).toHaveProperty('quantity', 100)
-      expect(requestBody).not.toHaveProperty('input') // Should not wrap in input field
+      expect(requestBody.input).toEqual({ ticker: 'NVDA', quantity: 100 })
     })
 
     it('should handle null input as no input (empty body)', async () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -613,8 +769,7 @@ describe('SimStudioClient', () => {
       const calls = vi.mocked(mockFetch).mock.calls
       const requestBody = JSON.parse(calls[0][1]?.body as string)
 
-      // null treated as "no input" - sends empty body (consistent with Python SDK)
-      expect(requestBody).toEqual({})
+      expect(requestBody).toEqual({ input: {} })
     })
   })
 })

@@ -38,16 +38,27 @@ export function SettingsSectionProvider({
   )
 }
 
-interface SettingsPanelProps {
+interface SettingsPanelBaseProps {
   children?: ReactNode
   actions?: SettingsAction[]
-  back?: SettingsBackAction
   search?: SettingsHeaderSearch
-  title?: string
-  description?: string
   docsLink?: string
   scrollContainerRef?: Ref<HTMLDivElement>
 }
+
+type SettingsPanelProps = SettingsPanelBaseProps &
+  (
+    | {
+        back: SettingsBackAction
+        title?: string
+        description?: string
+      }
+    | {
+        back?: undefined
+        title?: never
+        description?: never
+      }
+  )
 
 export function SettingsPanel({
   children,

@@ -1,8 +1,10 @@
 import { Skeleton } from '@sim/emcn'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 
 export default function ChatLoading() {
   return (
-    <div className='light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div className='light desktop-title-bar-page fixed inset-0 z-[var(--z-dropdown)] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+      <DesktopTitleBarLane />
       <div className='border-[var(--border-1)] border-b px-4 py-3'>
         <div className='mx-auto flex max-w-3xl items-center justify-between'>
           <div className='flex items-center gap-[12px]'>

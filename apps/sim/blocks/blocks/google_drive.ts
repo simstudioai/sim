@@ -7,6 +7,16 @@ import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleDriveResponse } from '@/tools/google_drive/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * Destination folder for both file-creating operations, the one canonical pair
+ * shared across operations here. Listing both members keeps the sentence alive
+ * for an advanced-mode user, who has only the manual id filled.
+ */
+const UPLOAD_FOLDER_FIELD = ['uploadFolderSelector', 'uploadManualFolderId'] as const
+
+/** The folder the poller watches — the trigger's own canonical pair. */
+const TRIGGER_FOLDER_FIELD = ['folderId', 'manualFolderId'] as const
+
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   type: 'google_drive',
   name: 'Google Drive',
@@ -19,6 +29,165 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: GoogleDriveIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Drive',
+    triggerSentences: {
+      default: [
+        'Run on a file change',
+        { text: 'in', field: TRIGGER_FOLDER_FIELD, core: true },
+        { text: ', for', field: 'mimeTypeFilter' },
+        { text: ', limited to', field: 'eventTypeFilter' },
+      ],
+    },
+    sentences: {
+      byOperation: {
+        list: [
+          'List files',
+          { text: 'in', field: ['listFolderSelector', 'listManualFolderId'] },
+          { text: ', matching', field: 'query' },
+        ],
+        search: [
+          { text: 'Search files matching', field: 'searchQuery', core: true },
+          { text: ', up to', field: 'searchPageSize', after: 'results' },
+        ],
+        get_file: [
+          {
+            text: 'Read metadata for',
+            field: ['getFileSelector', 'getManualFileId'],
+            core: true,
+          },
+        ],
+        get_content: [
+          {
+            text: 'Read the contents of',
+            field: ['getContentFileSelector', 'getContentManualFileId'],
+            core: true,
+          },
+        ],
+        create_folder: [
+          { text: 'Create folder', field: 'fileName', core: true },
+          { text: 'in', field: ['createFolderParentSelector', 'createFolderManualParentId'] },
+        ],
+        create_file: [
+          { text: 'Create file', field: 'fileName', core: true },
+          { text: 'in', field: UPLOAD_FOLDER_FIELD },
+        ],
+        upload: [
+          { text: 'Upload', field: ['fileUpload', 'file'], core: true },
+          { text: 'to', field: UPLOAD_FOLDER_FIELD },
+          { text: ', named', field: 'fileName' },
+        ],
+        download: [
+          {
+            text: 'Download',
+            field: ['downloadFileSelector', 'downloadManualFileId'],
+            core: true,
+          },
+        ],
+        copy: [
+          { text: 'Copy', field: ['copyFileSelector', 'copyManualFileId'], core: true },
+          { text: 'to', field: ['copyDestFolderSelector', 'copyManualDestFolderId'] },
+          { text: ', named', field: 'newName' },
+        ],
+        move: [
+          { text: 'Move', field: ['moveFileSelector', 'moveManualFileId'], core: true },
+          { text: 'to', field: ['moveDestFolderSelector', 'moveManualDestFolderId'] },
+        ],
+        update: [
+          {
+            text: 'Update metadata on',
+            field: ['updateFileSelector', 'updateManualFileId'],
+            core: true,
+          },
+          { text: ', renaming to', field: 'name' },
+        ],
+        trash: [
+          {
+            text: 'Move',
+            field: ['trashFileSelector', 'trashManualFileId'],
+            after: 'to trash',
+            core: true,
+          },
+        ],
+        untrash: [
+          {
+            text: 'Restore',
+            field: ['untrashFileSelector', 'untrashManualFileId'],
+            after: 'from trash',
+            core: true,
+          },
+        ],
+        delete: [
+          {
+            text: 'Permanently delete',
+            field: ['deleteFileSelector', 'deleteManualFileId'],
+            core: true,
+          },
+        ],
+        share: [
+          { text: 'Share', field: ['shareFileSelector', 'shareManualFileId'], core: true },
+          { text: 'with', field: ['email', 'domain'] },
+          { text: ', as', field: 'role' },
+        ],
+        unshare: [
+          { text: 'Revoke permission', field: 'permissionId', core: true },
+          { text: 'on', field: ['unshareFileSelector', 'unshareManualFileId'], core: true },
+        ],
+        list_permissions: [
+          {
+            text: 'List who has access to',
+            field: ['listPermissionsFileSelector', 'listPermissionsManualFileId'],
+            core: true,
+          },
+        ],
+        export: [
+          { text: 'Export', field: ['exportFileSelector', 'exportManualFileId'], core: true },
+          { text: 'as', field: 'exportMimeType' },
+        ],
+        list_revisions: [
+          {
+            text: 'List revisions of',
+            field: ['listRevisionsFileSelector', 'listRevisionsManualFileId'],
+            core: true,
+          },
+          { text: ', up to', field: 'revisionsPageSize', after: 'results' },
+        ],
+        get_revision: [
+          { text: 'Read revision', field: 'revisionId', core: true },
+          {
+            text: 'of',
+            field: ['getRevisionFileSelector', 'getRevisionManualFileId'],
+            core: true,
+          },
+        ],
+        list_comments: [
+          {
+            text: 'List comments on',
+            field: ['listCommentsFileSelector', 'listCommentsManualFileId'],
+            core: true,
+          },
+          { text: ', up to', field: 'commentsPageSize', after: 'results' },
+        ],
+        create_comment: [
+          { text: 'Add comment', field: 'content', core: true },
+          {
+            text: 'to',
+            field: ['createCommentFileSelector', 'createCommentManualFileId'],
+            core: true,
+          },
+        ],
+        delete_comment: [
+          { text: 'Delete comment', field: 'commentId', core: true },
+          {
+            text: 'from',
+            field: ['deleteCommentFileSelector', 'deleteCommentManualFileId'],
+            core: true,
+          },
+        ],
+        get_about: ['Read account and storage details'],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {
@@ -294,6 +463,14 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       placeholder: 'Number of results (default: 100, max: 100)',
       condition: { field: 'operation', value: 'list' },
     },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous nextPageToken',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list' },
+    },
     // Download File Fields - File Selector (basic mode)
     {
       id: 'downloadFileSelector',
@@ -384,6 +561,7 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
     {
       id: 'copyFileSelector',
       title: 'Select File to Copy',
+      canvasNoun: 'a file',
       type: 'file-selector',
       canonicalParamId: 'copyFileId',
       serviceId: 'google-drive',
@@ -439,6 +617,7 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
     {
       id: 'updateFileSelector',
       title: 'Select File to Update',
+      canvasNoun: 'a file',
       type: 'file-selector',
       canonicalParamId: 'updateFileId',
       serviceId: 'google-drive',
@@ -515,6 +694,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     {
       id: 'trashFileSelector',
       title: 'Select File to Trash',
+      canvasNoun: 'a file',
       type: 'file-selector',
       canonicalParamId: 'trashFileId',
       serviceId: 'google-drive',
@@ -540,6 +720,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     {
       id: 'deleteFileSelector',
       title: 'Select File to Delete',
+      canvasNoun: 'a file',
       type: 'file-selector',
       canonicalParamId: 'deleteFileId',
       serviceId: 'google-drive',
@@ -565,6 +746,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     {
       id: 'shareFileSelector',
       title: 'Select File to Share',
+      canvasNoun: 'a file',
       type: 'file-selector',
       canonicalParamId: 'shareFileId',
       serviceId: 'google-drive',
@@ -731,6 +913,14 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
       condition: { field: 'operation', value: 'list_permissions' },
       required: true,
     },
+    {
+      id: 'permissionsPageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous nextPageToken',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_permissions' },
+    },
     // Get File Content Fields
     {
       id: 'getContentFileSelector',
@@ -801,6 +991,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
     {
       id: 'moveFileSelector',
       title: 'Select File to Move',
+      canvasNoun: 'a file',
       type: 'file-selector',
       canonicalParamId: 'moveFileId',
       serviceId: 'google-drive',
@@ -898,10 +1089,19 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       mode: 'advanced',
       condition: { field: 'operation', value: 'search' },
     },
+    {
+      id: 'searchPageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous nextPageToken',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search' },
+    },
     // Untrash File Fields
     {
       id: 'untrashFileSelector',
       title: 'Select File to Restore',
+      canvasNoun: 'a file',
       type: 'file-selector',
       canonicalParamId: 'untrashFileId',
       serviceId: 'google-drive',
@@ -926,6 +1126,7 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
     {
       id: 'exportFileSelector',
       title: 'Select File to Export',
+      canvasNoun: 'a file',
       type: 'file-selector',
       canonicalParamId: 'exportFileId',
       serviceId: 'google-drive',
@@ -1015,6 +1216,14 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       condition: { field: 'operation', value: 'list_revisions' },
     },
     {
+      id: 'revisionsPageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous nextPageToken',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_revisions' },
+    },
+    {
       id: 'getRevisionFileSelector',
       title: 'Select File',
       type: 'file-selector',
@@ -1075,6 +1284,14 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       title: 'Results Per Page',
       type: 'short-input',
       placeholder: 'Number of comments (default: 20, max: 100)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_comments' },
+    },
+    {
+      id: 'commentsPageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous nextPageToken',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_comments' },
     },
@@ -1296,6 +1513,11 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           searchPageSize,
           revisionsPageSize,
           commentsPageSize,
+          pageToken,
+          searchPageToken,
+          permissionsPageToken,
+          revisionsPageToken,
+          commentsPageToken,
           getContentExportMimeType,
           exportMimeType,
           ...rest
@@ -1409,6 +1631,13 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
         else if (params.operation === 'list_revisions') effectivePageSize = revisionsPageSize
         else if (params.operation === 'list_comments') effectivePageSize = commentsPageSize
 
+        let effectivePageToken: string | undefined = pageToken
+        if (params.operation === 'search') effectivePageToken = searchPageToken
+        else if (params.operation === 'list_permissions') effectivePageToken = permissionsPageToken
+        else if (params.operation === 'list_revisions') effectivePageToken = revisionsPageToken
+        else if (params.operation === 'list_comments') effectivePageToken = commentsPageToken
+        else if (params.operation !== 'list') effectivePageToken = undefined
+
         const effectiveQuery = params.operation === 'search' ? searchQuery : query
         const effectiveMimeType =
           params.operation === 'get_content'
@@ -1426,6 +1655,7 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           pageSize: effectivePageSize
             ? Number.parseInt(effectivePageSize as string, 10)
             : undefined,
+          pageToken: effectivePageToken?.trim() || undefined,
           query: effectiveQuery,
           mimeType: effectiveMimeType === 'auto' ? undefined : effectiveMimeType,
           type: shareType, // Map shareType to type for share tool
@@ -1483,6 +1713,7 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
     // List operation inputs
     query: { type: 'string', description: 'Search query' },
     pageSize: { type: 'number', description: 'Results per page' },
+    pageToken: { type: 'string', description: 'Pagination token from a previous nextPageToken' },
     // Copy operation inputs
     newName: { type: 'string', description: 'New name for copied file' },
     // Update operation inputs

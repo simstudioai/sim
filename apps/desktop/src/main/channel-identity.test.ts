@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('electron', () => import('@/test/electron-mock'))
+
 import { APP_NAME_FOR_CHANNEL, channelForOrigin, DEFAULT_ORIGIN } from '@/main/config'
 import { classifyNavigation } from '@/main/navigation'
 import { DEV, identityForOrigin, LOCAL, PROD, STAGING } from '../../scripts/channels'
@@ -24,6 +27,13 @@ describe('channel identity', () => {
 
   it('treats an unrecognized (self-hosted) origin as production', () => {
     expect(identityForOrigin('https://sim.acme-corp.example')).toBe(PROD)
+  })
+
+  it('selects the icon owned by the resolved build channel', () => {
+    expect(identityForOrigin('').icon).toBe('build/icon.icon')
+    expect(identityForOrigin(LOCAL.origin).icon).toBe('build/icon-local.icon')
+    expect(identityForOrigin(DEV.origin).icon).toBe('build/icon-dev.icon')
+    expect(identityForOrigin(STAGING.origin).icon).toBe('build/icon-staging.icon')
   })
 })
 

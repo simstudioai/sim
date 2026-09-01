@@ -36,6 +36,16 @@ describe('env mock', () => {
     expect(envMock.getEnv('SOME_UNPINNED_TEST_VAR')).toBe('from-process-env')
   })
 
+  it('does not inherit process.env for pinned capability defaults', () => {
+    vi.stubEnv('REDIS_URL', 'redis://localhost:6379')
+    vi.stubEnv('STORAGE_PROVIDER', 's3')
+    resetEnvMock()
+    expect(envMock.env.REDIS_URL).toBeUndefined()
+    expect(envMock.getEnv('REDIS_URL')).toBeUndefined()
+    expect(envMock.env.STORAGE_PROVIDER).toBe('local')
+    expect(envMock.getEnv('STORAGE_PROVIDER')).toBe('local')
+  })
+
   it('pins explicitly-undefined overrides without process.env fallback', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://shadowed.example.com')
     setEnv({ NEXT_PUBLIC_APP_URL: undefined })

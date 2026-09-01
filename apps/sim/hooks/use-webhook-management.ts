@@ -100,13 +100,24 @@ export function useWebhookManagement({
     useCallback((state) => state.getValue(blockId, 'triggerPath') as string | null, [blockId])
   )
 
+  /**
+   * Derived only when the caller actually renders the URL. `getBaseUrl()` throws
+   * when `NEXT_PUBLIC_APP_URL` is unset, and `sub-block.tsx` mounts this hook for
+   * every sub-block in the editor panel — deriving the URL unconditionally turns
+   * a missing deployment value into a render throw for fields that never display
+   * one, taking down the whole editor instead of the single webhook field.
+   * Consumers already gate their reads on `useWebhookUrl`.
+   */
   const webhookUrl = useMemo(() => {
+    if (!useWebhookUrl) {
+      return ''
+    }
     const baseUrl = getBaseUrl()
     if (!webhookPath) {
       return `${baseUrl}/api/webhooks/trigger/${blockId}`
     }
     return `${baseUrl}/api/webhooks/trigger/${webhookPath}`
-  }, [webhookPath, blockId])
+  }, [useWebhookUrl, webhookPath, blockId])
 
   useEffect(() => {
     if (triggerId && !isPreview) {

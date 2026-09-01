@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
+import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { isCustomBlocksEligible } from '@/lib/workflows/custom-blocks/operations'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotEntitlements')
 
@@ -10,9 +12,11 @@ const logger = createLogger('CopilotEntitlements')
  * its `core.Entitlement*` constants to gate agent surfaces.
  */
 export const CUSTOM_BLOCKS_ENTITLEMENT = 'custom-blocks'
+export const SIM_SANDBOXES_ENTITLEMENT = 'sim-sandboxes'
+export const ORGANIZATION_CONTEXT_ENTITLEMENT = 'organization-context'
 
 /**
- * Workspace entitlements — plan/flag-gated org capabilities sent to the
+ * Workspace entitlements — gated organization capabilities sent to the
  * mothership as the chat payload's `entitlements` array. The Go side hides the
  * matching tools, skills, and prompt sections when an entitlement is absent, so
  * a non-entitled org's agents never hear of the feature.
@@ -33,6 +37,19 @@ const ENTITLEMENT_EVALUATORS: Record<
   (workspaceId: string, userId?: string) => Promise<boolean>
 > = {
   [CUSTOM_BLOCKS_ENTITLEMENT]: isCustomBlocksEligible,
+  [SIM_SANDBOXES_ENTITLEMENT]: hasWorkspaceSandboxAccess,
+  [ORGANIZATION_CONTEXT_ENTITLEMENT]: isOrganizationContextAvailable,
+}
+
+/**
+ * True when this workspace belongs to an organization, which is exactly when
+ * the copilot's `organization/` VFS namespace has anything in it. Advertising
+ * it keeps a personal workspace's agents from ever hearing that org standing,
+ * access-control groups, or fork topology exist.
+ */
+async function isOrganizationContextAvailable(workspaceId: string): Promise<boolean> {
+  const workspace = await getWorkspaceWithOwner(workspaceId)
+  return Boolean(workspace?.organizationId)
 }
 
 const entitlementsCache = new LRUCache<string, Promise<string[]>>({

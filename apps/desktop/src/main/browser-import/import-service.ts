@@ -6,7 +6,7 @@ import type {
   BrowserPasswordImportResult,
 } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
-import { normalizeOrigin } from '@/main/browser-credentials/origin'
+import { normalizeOrigin, normalizeUsername } from '@/main/browser-credentials/origin'
 import type { ImportCandidate, ImportOutcome } from '@/main/browser-credentials/vault'
 import type { ReadCookiesResult } from '@/main/browser-import/chromium-cookies'
 import { deriveEncryptionKey } from '@/main/browser-import/chromium-crypto'
@@ -43,6 +43,8 @@ export interface ImportServiceDeps {
   readSites: (historyPath: string, domains: ReadonlySet<string>) => Promise<ImportedSite[]>
   /** Records the hosts an import brought over, with their names and icons. */
   rememberSites: (records: readonly SiteRecord[]) => Promise<void>
+  /** Admits a final persistent write only while its originating account is current. */
+  commit: <T>(operation: () => Promise<T>) => Promise<T>
   vault: {
     isAvailable: () => boolean
     importCredentials: (
@@ -218,7 +220,7 @@ async function runCookieImport(
     }
   }
 
-  const written = await deps.writeCookies(read.cookies)
+  const written = await deps.commit(() => deps.writeCookies(read.cookies))
   const result: BrowserImportResult = {
     cookiesImported: written.imported,
     cookiesSkipped: skippedReading + written.failed,
@@ -269,11 +271,11 @@ async function runPasswordImport(
   policy: BrowserCredentialConflictPolicy,
   deps: ImportServiceDeps
 ): Promise<PasswordOutcome> {
-  if (profile.loginDataPath === null) {
+  if (profile.loginDataPaths.length === 0) {
     return { result: passwordFailure('profile-unreadable'), domains: new Set() }
   }
 
-  const read: ReadPasswordsResult = await deps.readPasswords(profile.loginDataPath, key)
+  const read = await readProfilePasswords(profile.loginDataPaths, key, deps)
   if (read.credentials.length === 0) {
     return {
       result:
@@ -289,10 +291,13 @@ async function runPasswordImport(
     }
   }
 
-  const outcome = await deps.vault.importCredentials(
-    await withFavicons(read.credentials, profile.faviconsPath, deps),
-    policy
+  // Source timestamps are conflict-resolution metadata, not credential data;
+  // strip them before anything reaches the encrypted vault.
+  const candidates = read.credentials.map(
+    ({ sourceModifiedAt: _sourceModifiedAt, ...candidate }) => candidate
   )
+  const importedCandidates = await withFavicons(candidates, profile.faviconsPath, deps)
+  const outcome = await deps.commit(() => deps.vault.importCredentials(importedCandidates, policy))
   const result: BrowserPasswordImportResult = {
     passwordsAdded: outcome.added,
     passwordsUpdated: outcome.updated,
@@ -303,7 +308,79 @@ async function runPasswordImport(
     updated: result.passwordsUpdated,
     skipped: result.passwordsSkipped,
   })
-  return { result, domains: credentialHostnames(read.credentials) }
+  return { result, domains: credentialHostnames(candidates) }
+}
+
+/**
+ * Reads every Chromium password store belonging to one profile.
+ *
+ * Modern Chromium profiles can split credentials between the device-local
+ * `Login Data` database and the signed-in account's `Login Data For Account`
+ * database. Discovery returns the local store first and the account store
+ * second. A shared identity resolves to the most recently modified row;
+ * source order breaks ties deterministically before applying the vault policy.
+ *
+ * One damaged store does not discard credentials already read from the other.
+ * If no store can produce any useful signal, the first concrete reader error
+ * is surfaced instead of reporting a misleading successful import of zero.
+ */
+async function readProfilePasswords(
+  paths: readonly string[],
+  key: Buffer,
+  deps: ImportServiceDeps
+): Promise<ReadPasswordsResult> {
+  const combined: ReadPasswordsResult = { credentials: [], skipped: 0, rowsSeen: 0 }
+  const credentialIndexes = new Map<string, number>()
+  let successfulReads = 0
+  let firstFailure: unknown
+
+  for (const path of paths) {
+    try {
+      const read = await deps.readPasswords(path, key)
+      successfulReads += 1
+      combined.skipped += read.skipped
+      combined.rowsSeen += read.rowsSeen
+      for (const credential of read.credentials) {
+        const origin = normalizeOrigin(credential.origin)
+        if (origin === null) {
+          // Keep invalid candidates for the vault to reject and count using
+          // its canonical validation path.
+          combined.credentials.push(credential)
+          continue
+        }
+        const identity = `${origin}\u0000${normalizeUsername(credential.username)}`
+        const existingIndex = credentialIndexes.get(identity)
+        if (existingIndex === undefined) {
+          credentialIndexes.set(identity, combined.credentials.length)
+          combined.credentials.push(credential)
+          continue
+        }
+
+        // Sim can hold only one password per origin+username. Prefer the most
+        // recently modified Chromium row before applying the user's policy
+        // against the Sim vault; account-store order breaks timestamp ties.
+        const existing = combined.credentials[existingIndex]
+        if ((credential.sourceModifiedAt ?? 0n) >= (existing.sourceModifiedAt ?? 0n)) {
+          combined.credentials[existingIndex] = credential
+        }
+        combined.skipped += 1
+      }
+    } catch (error) {
+      firstFailure ??= error
+    }
+  }
+
+  const hasImportableCredential = combined.credentials.some(
+    (credential) => normalizeOrigin(credential.origin) !== null && credential.password.length > 0
+  )
+  if (firstFailure !== undefined && (successfulReads === 0 || !hasImportableCredential)) {
+    throw firstFailure
+  }
+  if (firstFailure !== undefined) {
+    // Category only: database names and paths are deliberately absent.
+    logger.warn('Could not read every password store in the selected browser profile')
+  }
+  return combined
 }
 
 /**
@@ -481,14 +558,16 @@ async function rememberImportedSites(
       : new Map<string, string>()
 
     const importedAt = new Date().toISOString()
-    await deps.rememberSites(
-      sites.map((site) => ({
-        hostname: site.hostname,
-        name: site.name,
-        icon: icons.get(originOf(site.hostname)),
-        visits: site.visits,
-        importedAt,
-      }))
+    await deps.commit(() =>
+      deps.rememberSites(
+        sites.map((site) => ({
+          hostname: site.hostname,
+          name: site.name,
+          icon: icons.get(originOf(site.hostname)),
+          visits: site.visits,
+          importedAt,
+        }))
+      )
     )
   } catch {
     // Category only, like every other failure path here: the detail that would

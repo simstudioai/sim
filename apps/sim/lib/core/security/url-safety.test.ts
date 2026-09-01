@@ -2,7 +2,11 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest'
-import { isAllowedExternalUrl, sanitizeRenderedHyperlinks } from '@/lib/core/security/url-safety'
+import {
+  isAllowedExternalUrl,
+  sanitizeRenderedHyperlinks,
+  stripEmbeddedFrames,
+} from '@/lib/core/security/url-safety'
 
 describe('isAllowedExternalUrl', () => {
   it('allows http, https, and mailto URLs', () => {
@@ -57,5 +61,23 @@ describe('sanitizeRenderedHyperlinks', () => {
     const anchor = container.querySelector('a')
     expect(anchor?.getAttribute('href')).toBe('https://example.com/report')
     expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer')
+  })
+})
+
+describe('stripEmbeddedFrames', () => {
+  it('removes a srcdoc iframe and leaves sibling content intact', () => {
+    const container = document.createElement('div')
+    container.innerHTML =
+      '<p>page</p><iframe srcdoc="&lt;script&gt;fetch(1)&lt;/script&gt;"></iframe>'
+    stripEmbeddedFrames(container)
+    expect(container.querySelector('iframe')).toBeNull()
+    expect(container.querySelector('p')?.textContent).toBe('page')
+  })
+
+  it('removes object and embed plugin elements', () => {
+    const container = document.createElement('div')
+    container.innerHTML = '<object data="x"></object><embed src="x" />'
+    stripEmbeddedFrames(container)
+    expect(container.querySelectorAll('object, embed').length).toBe(0)
   })
 })

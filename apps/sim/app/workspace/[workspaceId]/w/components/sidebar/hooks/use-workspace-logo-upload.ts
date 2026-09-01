@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
-import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
+import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'
+import { validateWorkspaceLogoFile } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/workspace-logo-file'
 
 const logger = createLogger('WorkspaceLogoUpload')
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp']
 
 interface UseWorkspaceLogoUploadProps {
   workspaceId?: string
@@ -52,46 +50,24 @@ export function useWorkspaceLogoUpload({
     setPreviewUrl(currentLogoUrl || null)
   }, [currentLogoUrl])
 
-  const validateFile = useCallback((file: File): string | null => {
-    if (file.size > MAX_FILE_SIZE) {
-      return `File "${file.name}" is too large. Maximum size is 5MB.`
-    }
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      return `File "${file.name}" is not a supported image format. Please use PNG, JPEG, SVG, or WebP.`
-    }
-    return null
-  }, [])
-
   const uploadFileToServer = useCallback(async (file: File): Promise<string> => {
     const targetWorkspaceId = workspaceIdRef.current
     if (!targetWorkspaceId) {
       throw new Error('workspaceId is required for workspace logo upload')
     }
 
-    const presignedEndpoint = `/api/files/presigned?type=workspace-logos&workspaceId=${encodeURIComponent(targetWorkspaceId)}`
-
-    try {
-      const result = await runUploadStrategy({
-        file,
-        workspaceId: targetWorkspaceId,
-        context: 'workspace-logos',
-        presignedEndpoint,
-      })
-      logger.info(`Workspace logo uploaded successfully: ${result.path}`)
-      return result.path
-    } catch (error) {
-      if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
-        const { path } = await uploadViaApiFallback(file, 'workspace-logos', targetWorkspaceId)
-        logger.info(`Workspace logo uploaded via API fallback: ${path}`)
-        return path
-      }
-      throw error
-    }
+    const result = await uploadInternalFileSession({
+      purpose: 'workspace_logo',
+      file,
+      workspaceId: targetWorkspaceId,
+    })
+    logger.info(`Workspace logo uploaded successfully: ${result.path}`)
+    return result.path
   }, [])
 
   const processFile = useCallback(
     async (file: File) => {
-      const validationError = validateFile(file)
+      const validationError = validateWorkspaceLogoFile(file)
       if (validationError) {
         onErrorRef.current?.(validationError)
         return
@@ -119,7 +95,7 @@ export function useWorkspaceLogoUpload({
         setIsUploading(false)
       }
     },
-    [uploadFileToServer, validateFile]
+    [uploadFileToServer]
   )
 
   const handleFileChange = useCallback(

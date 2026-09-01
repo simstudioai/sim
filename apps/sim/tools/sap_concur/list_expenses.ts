@@ -1,13 +1,12 @@
-import type { ListExpensesParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListExpensesParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listExpensesTool: ToolConfig<ListExpensesParams, SapConcurProxyResponse> = {
+export const listExpensesTool: InternalToolConfig<ListExpensesParams, SapConcurResponse> = {
   id: 'sap_concur_list_expenses',
   name: 'SAP Concur List Expenses',
   description:
@@ -66,7 +65,7 @@ export const listExpensesTool: ToolConfig<ListExpensesParams, SapConcurProxyResp
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Access context: TRAVELER, MANAGER, or PROXY',
+      description: 'Access context: TRAVELER (the only value the endpoint supports)',
     },
     reportId: {
       type: 'string',
@@ -75,22 +74,19 @@ export const listExpensesTool: ToolConfig<ListExpensesParams, SapConcurProxyResp
       description: 'Expense report ID',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userId = trimRequired(params.userId, 'userId')
       const contextType = trimRequired(params.contextType, 'contextType')
       const reportId = trimRequired(params.reportId, 'reportId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/context/${encodeURIComponent(contextType)}/reports/${encodeURIComponent(reportId)}/expenses`,
         method: 'GET',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
@@ -198,6 +194,16 @@ export const listExpensesTool: ToolConfig<ListExpensesParams, SapConcurProxyResp
             optional: true,
           },
           exchangeRate: { type: 'json', description: 'Exchange rate', optional: true },
+          fuelTypeListItem: {
+            type: 'json',
+            description: 'Fuel type list item {id, value, isValid}',
+            optional: true,
+          },
+          jptRouteId: {
+            type: 'string',
+            description: 'Japan Public Transport route id',
+            optional: true,
+          },
           travelAllowance: {
             type: 'json',
             description: 'Travel allowance',

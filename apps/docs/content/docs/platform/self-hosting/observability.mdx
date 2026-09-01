@@ -1,0 +1,187 @@
+---
+title: Observability
+description: Health checks, logs, tracing, and what to alert on
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+## Health endpoints
+
+| Service | Endpoint | Returns |
+|---|---|---|
+| app | `GET /api/health` | `{"status":"ok","timestamp":"..."}` |
+| realtime | `GET /health` on port 3002 | `{"status":"ok","timestamp":"...","connections":0}` |
+
+<Callout type="warn">
+  `/api/health` is a **liveness** signal only. It returns `200` as long as the process is serving HTTP — it does not check the database, Redis, or object storage. A healthy response does not mean the app can serve traffic successfully, so do not treat it as a dependency check. Verify dependencies with the [smoke test](/platform/self-hosting/verify) instead.
+</Callout>
+
+## Kubernetes probes
+
+The chart ships probes tuned for a Next.js cold start. Defaults for the app:
+
+| Probe | Path | Budget |
+|---|---|---|
+| `startupProbe` | `/` | 60 × 5s = **5 minutes** to become ready |
+| `livenessProbe` | `/` | 6 × 30s = 180s of failure before restart |
+| `readinessProbe` | `/` | 3 × 10s = ~30s to shift traffic |
+
+Realtime uses `/health` on port 3002 with a 150-second startup budget.
+
+The generous startup budget matters: a cold Next.js start on a large bundle can take minutes, and a tighter liveness probe will restart the pod mid-boot in a loop. If you customize probes, keep the startup budget well above your observed cold-start time.
+
+```yaml
+app:
+  startupProbe:
+    httpGet:
+      path: /
+      port: 3000
+    periodSeconds: 5
+    failureThreshold: 60
+```
+
+## Logs
+
+Both services log structured JSON to stdout. Collect them with whatever you already run — Fluent Bit, Vector, Datadog Agent, Loki.
+
+<Callout type="warn">
+  In production builds the logger defaults to `ERROR`, and the Helm chart does not set `LOG_LEVEL` for the app or realtime. Until you raise it, the only thing in the logs is errors — which is why a healthy-looking deployment can appear to log nothing at all. Set `LOG_LEVEL: "info"` while commissioning a deployment or debugging.
+</Callout>
+
+```bash
+kubectl logs -n simstudio -l app.kubernetes.io/component=app --tail=200 -f
+kubectl logs -n simstudio -l app.kubernetes.io/component=realtime --tail=200 -f
+kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
+```
+
+```bash
+docker compose -f docker-compose.prod.yml logs -f simstudio
+```
+
+Every API request carries a request ID that appears in all log lines for that request — the fastest way to reconstruct a failing call.
+
+<Callout type="info">
+  Workflow execution logs are a separate, product-level surface stored in the database and visible in the Logs view of the app. They are not the same as container logs: use container logs for infrastructure problems and the Logs view for workflow behavior.
+</Callout>
+
+### Redacting PII from logs
+
+Enable the PII service and log redaction if execution logs may contain sensitive data:
+
+```yaml
+pii:
+  enabled: true
+app:
+  env:
+    INTERNAL_API_BASE_URL: "http://sim-app.simstudio.svc.cluster.local:3000"
+```
+
+See [Security](/platform/self-hosting/security) for the `INTERNAL_API_BASE_URL` requirement — the path fails closed without a cluster-reachable value.
+
+## Anonymous telemetry
+
+<Callout type="warn">
+  **Sim sends anonymous usage telemetry by default.** OpenTelemetry traces are exported to `https://telemetry.simstudio.ai/v1/traces` unless you turn it off. Self-hosted deployments with an egress policy should decide about this explicitly.
+</Callout>
+
+What is collected, per `apps/sim/telemetry.config.ts`: feature-usage statistics, error rates, performance metrics (sampled at 10%), and AI/LLM operation traces. What is **not** collected: personal information, workflow content or outputs, API keys or tokens, and IP addresses or geolocation.
+
+Three ways to change it:
+
+```bash
+# Disable entirely
+NEXT_TELEMETRY_DISABLED=1
+
+# Or redirect to your own OTLP collector instead of Sim's
+TELEMETRY_ENDPOINT=http://otel-collector.observability.svc.cluster.local:4318/v1/traces
+```
+
+Users can also toggle it off individually under **Settings → Privacy → Allow anonymous telemetry**.
+
+## Tracing
+
+Sim emits OpenTelemetry traces. The chart can also deploy a collector for you:
+
+```yaml
+telemetry:
+  enabled: true
+```
+
+Or point the app at a collector you already run:
+
+| Variable | Purpose |
+|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector endpoint (OTLP) |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Auth headers, `key=value` comma-separated |
+| `OTEL_TRACES_SAMPLER_ARG` | Sampling ratio |
+| `OTEL_DEPLOYMENT_ENVIRONMENT` | Environment label on emitted spans |
+| `TELEMETRY_SAMPLING_RATIO` | Application-level sampling ratio |
+| `TELEMETRY_ENDPOINT` | Custom telemetry endpoint |
+
+For Grafana Cloud specifically:
+
+| Variable | Purpose |
+|---|---|
+| `GRAFANA_OTLP_ENDPOINT` | Grafana OTLP endpoint |
+| `GRAFANA_OTLP_HEADERS` | e.g. `Authorization=Basic <base64(instanceId:token)>` |
+| `GRAFANA_DEPLOYMENT_ENVIRONMENT` | Deployment tier label |
+
+If you enable the chart's Jaeger export, point `telemetry.jaeger.endpoint` at Jaeger's **OTLP gRPC port (4317)** — the collector exports over OTLP.
+
+## Metrics
+
+<Callout type="warn">
+  The default app and realtime images **do not expose a `/metrics` endpoint**. The chart's `monitoring.serviceMonitor` option exists for builds that do — enabling it against the stock images produces a ServiceMonitor that scrapes nothing.
+</Callout>
+
+Until an application metrics endpoint ships, build alerting from the signals that do exist:
+
+- **Kubernetes state** — pod restarts, `CrashLoopBackOff`, OOMKills, replica count vs desired, PVC utilization (kube-state-metrics).
+- **Ingress/load balancer** — request rate, 5xx rate, p99 latency, websocket connection count.
+- **PostgreSQL** — connection count vs `max_connections`, replication lag, disk usage, long-running queries.
+- **Redis** — memory usage, evictions, connected clients.
+- **CronJobs** — last successful completion per job.
+
+## What to alert on
+
+| Alert | Why it matters |
+|---|---|
+| App pod restart loop / OOMKilled | Memory is the constraining resource; OOMKills mean executions are dying mid-run |
+| A CronJob has not succeeded within ~3× its own schedule interval | Scheduled workflows and polling triggers are silently dead. Threshold per job — the per-minute jobs justify ~15 minutes; the hourly, twice-daily, and daily jobs need proportionally longer windows |
+| Ingress 5xx rate above baseline | Broad user impact |
+| Postgres connections above 80% of `max_connections` | Next replica or traffic spike will start failing |
+| Postgres disk above 80% | Knowledge base embeddings grow steadily |
+| Redis unreachable | Live collaboration and status updates stop, without app errors |
+| Certificate expiry within 14 days | Especially with manually managed certs |
+| Object storage 4xx/5xx rate | Broken uploads usually show here first |
+
+<Callout type="warn">
+  The CronJob alert is the one most deployments lack and most need. Background job failures produce no user-visible error — schedules simply stop firing. Alert on `kube_cronjob_status_last_successful_time` lagging, with a per-job threshold derived from that job's schedule.
+</Callout>
+
+## Quick diagnosis
+
+```bash
+# Overall state
+kubectl get pods,cronjobs -n simstudio
+
+# Why is a pod unhealthy
+kubectl describe pod -n simstudio <pod>
+
+# Did migrations succeed
+kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
+
+# Are background jobs running
+kubectl get jobs -n simstudio --sort-by=.metadata.creationTimestamp | tail
+
+# Resource pressure
+kubectl top pods -n simstudio
+```
+
+<FAQ items={[
+  { question: "Does Sim send telemetry to Sim by default?", answer: "Yes. Anonymous OpenTelemetry traces go to https://telemetry.simstudio.ai/v1/traces unless you set NEXT_TELEMETRY_DISABLED=1 or point TELEMETRY_ENDPOINT at your own collector. It excludes personal information, workflow content, API keys, and IP addresses, but it is outbound traffic you should decide about deliberately on a self-hosted deployment."},
+  { question: "Does Sim expose Prometheus metrics?", answer: "The default images do not expose a /metrics endpoint. The chart's monitoring.serviceMonitor option exists for builds that do; against stock images it scrapes nothing. Build alerting from Kubernetes, ingress, Postgres, and Redis signals instead."},
+  { question: "Why is the startup probe so lenient?", answer: "A cold Next.js start on a large bundle can take minutes. The 5-minute startup budget prevents the liveness probe from restarting the pod mid-boot, which would otherwise loop forever. Keep the budget above your observed cold-start time if you customize probes."},
+  { question: "How do I trace a single failing API request?", answer: "Every request carries a request ID that appears in all log lines for that request. Find it in the response or the first log line and grep your log aggregator for it." },
+]} />

@@ -22,21 +22,20 @@ const SUBFLOW_START_HANDLES = new Set(['loop-start-source', 'parallel-start-sour
 /**
  * Calculates the Y offset for a source handle based on block type and handle ID.
  *
- * The error handle sits relative to the block's bottom, so it must use the same
- * height the rest of the layout uses (`node.metrics.height`). Reading the raw
- * `block.height` field instead would mis-place the handle for any block sized
- * from `layout.measuredHeight` or from an estimate, pulling error branches far
- * above their real handle.
+ * Every offset here is measured against `metrics.portHeight`, the height the
+ * card paints — never `metrics.height`, which is padded for spacing. The error
+ * handle rides the painted bottom edge, and the default ports its centre, so
+ * padding either would pull the edge off the knob it terminates at.
  */
 function getSourceHandleYOffset(node: GraphNode, sourceHandle?: string | null): number {
   const block = node.block
 
   if (sourceHandle === 'error') {
-    return node.metrics.height - HANDLE_POSITIONS.ERROR_BOTTOM_OFFSET
+    return node.metrics.portHeight
   }
 
   if (sourceHandle && SUBFLOW_START_HANDLES.has(sourceHandle)) {
-    return HANDLE_POSITIONS.SUBFLOW_START_Y_OFFSET
+    return HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y
   }
 
   if (block.type === 'condition' && sourceHandle?.startsWith(EDGE.CONDITION_PREFIX)) {
@@ -58,14 +57,27 @@ function getSourceHandleYOffset(node: GraphNode, sourceHandle?: string | null): 
     }
   }
 
-  return HANDLE_POSITIONS.DEFAULT_Y_OFFSET
+  return getDefaultHandleYOffset(node)
+}
+
+/**
+ * Default handle Y for a block: regular cards anchor their side ports at the
+ * vertical centre; a subflow container anchors its input and output on the
+ * centre of its inset Start card, which is a fixed inset from the container's
+ * top rather than a function of the container's height.
+ */
+function getDefaultHandleYOffset(node: GraphNode): number {
+  if (node.block.type === 'loop' || node.block.type === 'parallel') {
+    return HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y
+  }
+  return node.metrics.portHeight / 2
 }
 
 /**
  * Calculates the Y offset for a target handle based on block type and handle ID.
  */
-function getTargetHandleYOffset(_block: BlockState, _targetHandle?: string | null): number {
-  return HANDLE_POSITIONS.DEFAULT_Y_OFFSET
+function getTargetHandleYOffset(node: GraphNode, _targetHandle?: string | null): number {
+  return getDefaultHandleYOffset(node)
 }
 
 /**
@@ -336,11 +348,19 @@ export function calculatePositions(
         }
       }
 
-      if (bestSourceHandleY < 0) {
-        bestSourceHandleY = padding.y + HANDLE_POSITIONS.DEFAULT_Y_OFFSET
-      }
+      const targetHandleOffset = getTargetHandleYOffset(node, bestEdge?.targetHandle)
 
-      const targetHandleOffset = getTargetHandleYOffset(node.block, bestEdge?.targetHandle)
+      /*
+       * No positioned predecessor (its source sits outside this layout scope),
+       * so there is no handle to line up with — fall back to the top of the
+       * content area. Anchoring at `padding.y + targetHandleOffset` keeps the
+       * subtraction below on one convention; using a bare constant here while
+       * the offset is `height / 2` pushed tall blocks above the padding, and
+       * for a container child that meant outside its own parent.
+       */
+      if (bestSourceHandleY < 0) {
+        bestSourceHandleY = padding.y + targetHandleOffset
+      }
 
       node.position = { x: xPosition, y: bestSourceHandleY - targetHandleOffset }
     }

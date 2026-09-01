@@ -16,8 +16,9 @@ import { db } from '@sim/db'
 import { userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
 import { getColumnId } from '@/lib/table/column-keys'
-import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
+import { formatCsvCell } from '@/lib/table/export-format'
 import { selectExportRowPage } from '@/lib/table/jobs/service'
 import type { TableDefinition } from '@/lib/table/types'
 import { createMultipartUpload, deleteFile, headObject } from '@/lib/uploads/core/storage-service'
@@ -95,6 +96,7 @@ async function materialize(table: TableDefinition, key: string): Promise<number>
     key,
     context: SNAPSHOT_STORAGE_CONTEXT,
     contentType: SNAPSHOT_CONTENT_TYPE,
+    completionPolicy: 'reuse-existing',
   })
 
   try {

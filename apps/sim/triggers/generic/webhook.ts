@@ -51,6 +51,24 @@ export const genericWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'acceptOtherMethods',
+      title: 'Accept Other HTTP Methods',
+      type: 'switch',
+      description:
+        'Also accept GET, PUT, PATCH and DELETE — no others — and expose the method under "method". Leave off unless you need it: a GET URL can be replayed by link prefetchers and scanners, and a request with no body cannot be deduplicated.',
+      defaultValue: false,
+      mode: 'trigger',
+    },
+    {
+      id: 'exposeRequestHeaders',
+      title: 'Expose Request Headers',
+      type: 'switch',
+      description:
+        'Make the request headers available under "headers". Headers that carry credentials are withheld. Leave off unless you need it: exposed headers are stored in execution logs and trace spans, where they outlive the request.',
+      defaultValue: false,
+      mode: 'trigger',
+    },
+    {
       id: 'idempotencyField',
       title: 'Deduplication Field (Optional)',
       type: 'short-input',
@@ -118,9 +136,9 @@ export const genericWebhookTrigger: TriggerConfig = {
       defaultValue: [
         'Copy the webhook URL and use it in your external service or API.',
         'Configure your service to send webhooks to this URL.',
-        'The webhook will receive any HTTP method (GET, POST, PUT, DELETE, etc.).',
-        'All request data (headers, body, query parameters) will be available in your workflow.',
-        'If authentication is enabled, include the token in requests using either the custom header or "Authorization: Bearer TOKEN".',
+        'The webhook accepts POST. Turn on "Accept Other HTTP Methods" to also accept GET, PUT, PATCH and DELETE — for example to trigger the workflow from a link in an email.',
+        'Body fields are available in your workflow, and URL query parameters under "query" (for example "query.id"). Turn on "Expose Request Headers" to also get "headers" (for example "headers.x-event-name"), and "Accept Other HTTP Methods" to also get "method".',
+        'Authentication is header-based, so it cannot be used with a plain link. If authentication is enabled, include the token in the Secret Header Name you configured, or in "Authorization: Bearer TOKEN" if you left it blank — only the configured one is accepted, not either.',
         'To deduplicate incoming events, set the Deduplication Field to the dot-notation path of a unique identifier in the payload (e.g. "event.id"). Duplicate values within 7 days will be skipped.',
         'Enable "Verify Test Events" only if the sending service needs a temporary 200 response while validating the webhook URL.',
       ]
@@ -133,6 +151,21 @@ export const genericWebhookTrigger: TriggerConfig = {
     },
   ],
 
+  /**
+   * Deliberately empty, and it must stay that way.
+   *
+   * A generic webhook receives whatever the caller sends, so its output shape is unknowable. The
+   * executor treats any non-empty output declaration as an exhaustive schema: `collectBlockData`
+   * registers it, and `resolveBlockReference` then throws `InvalidFieldError` for any reference
+   * outside it that resolves to `undefined`. Declaring `method`, `query` and `headers` here
+   * therefore did not add three completions — it made those three the *only* legal fields, and
+   * every workflow reading a body field failed the moment a delivery omitted it.
+   *
+   * The metadata is still merged into the input at delivery time by the generic provider's
+   * `formatInput`; it is only undeclared, which is what keeps the block's shape open. Offering
+   * these as editor completions needs a way to mark outputs as hints rather than a closed schema,
+   * which is a change to `getRegistrySchema`, not to this list.
+   */
   outputs: {},
 
   webhook: {

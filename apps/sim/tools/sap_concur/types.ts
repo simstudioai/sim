@@ -1,12 +1,29 @@
 import type { ToolResponse } from '@/tools/types'
 
+/**
+ * User-selectable token hosts, mirroring `SAP_CONCUR_ALLOWED_DATACENTERS` in the direct
+ * operation schema. Every datacenter is published twice — the bare host and its `www-`
+ * twin — except GLZ, which has no twin.
+ */
 export type SapConcurDatacenter =
   | 'us.api.concursolutions.com'
+  | 'www-us.api.concursolutions.com'
   | 'us2.api.concursolutions.com'
+  | 'www-us2.api.concursolutions.com'
   | 'eu.api.concursolutions.com'
   | 'eu2.api.concursolutions.com'
-  | 'cn.api.concursolutions.com'
+  | 'www-eu2.api.concursolutions.com'
   | 'emea.api.concursolutions.com'
+  | 'www-emea.api.concursolutions.com'
+  | 'apj1.api.concursolutions.com'
+  | 'www-apj1.api.concursolutions.com'
+  | 'usg.api.concursolutions.com'
+  | 'www-usg.api.concursolutions.com'
+  | 'glz.api.concursolutions.com'
+  | 'us-impl.api.concursolutions.com'
+  | 'www-us-impl.api.concursolutions.com'
+  | 'emea-impl.api.concursolutions.com'
+  | 'www-emea-impl.api.concursolutions.com'
 
 export type SapConcurGrantType = 'client_credentials' | 'password'
 
@@ -20,13 +37,13 @@ export interface SapConcurBaseParams {
   companyUuid?: string
 }
 
-interface ProxyOutput {
+interface SapConcurOutput {
   status: number
   data: unknown
 }
 
-export interface SapConcurProxyResponse extends ToolResponse {
-  output: ProxyOutput
+export interface SapConcurResponse extends ToolResponse {
+  output: SapConcurOutput
 }
 
 export interface ListExpenseReportsParams extends SapConcurBaseParams {
@@ -81,19 +98,17 @@ export interface DeleteExpenseReportParams extends SapConcurBaseParams {
 export interface SubmitExpenseReportParams extends SapConcurBaseParams {
   userId: string
   reportId: string
-  body?: Record<string, unknown> | string
 }
 
 export interface RecallExpenseReportParams extends SapConcurBaseParams {
   userId: string
   contextType: 'TRAVELER' | 'PROXY'
   reportId: string
-  body?: Record<string, unknown> | string
 }
 
 export interface ApproveExpenseReportParams extends SapConcurBaseParams {
   reportId: string
-  body: Record<string, unknown> | string
+  body?: Record<string, unknown> | string
 }
 
 export interface SendBackExpenseReportParams extends SapConcurBaseParams {
@@ -103,7 +118,7 @@ export interface SendBackExpenseReportParams extends SapConcurBaseParams {
 
 export interface ListExpensesParams extends SapConcurBaseParams {
   userId: string
-  contextType: 'TRAVELER' | 'MANAGER'
+  contextType: 'TRAVELER'
   reportId: string
 }
 
@@ -116,7 +131,7 @@ export interface GetExpenseParams extends SapConcurBaseParams {
 
 export interface GetItemizationsParams extends SapConcurBaseParams {
   userId: string
-  contextType: 'TRAVELER' | 'MANAGER'
+  contextType: 'TRAVELER'
   reportId: string
   expenseId: string
 }
@@ -134,14 +149,14 @@ export interface DeleteExpenseParams extends SapConcurBaseParams {
 
 export interface ListAllocationsParams extends SapConcurBaseParams {
   userId: string
-  contextType: 'TRAVELER' | 'MANAGER' | 'PROXY'
+  contextType: 'TRAVELER' | 'MANAGER'
   reportId: string
   expenseId: string
 }
 
 export interface GetAllocationParams extends SapConcurBaseParams {
   userId: string
-  contextType: 'TRAVELER' | 'MANAGER' | 'PROXY'
+  contextType: 'TRAVELER' | 'PROXY'
   reportId: string
   allocationId: string
 }
@@ -178,14 +193,14 @@ export interface RemoveAllAttendeesParams extends SapConcurBaseParams {
 
 export interface ListReportCommentsParams extends SapConcurBaseParams {
   userId: string
-  contextType: 'TRAVELER' | 'PROXY'
+  contextType: 'TRAVELER' | 'MANAGER' | 'PROXY'
   reportId: string
   includeAllComments?: boolean
 }
 
 export interface CreateReportCommentParams extends SapConcurBaseParams {
   userId: string
-  contextType: 'TRAVELER' | 'PROXY'
+  contextType: 'TRAVELER' | 'MANAGER' | 'PROXY'
   reportId: string
   comment: string
 }
@@ -194,6 +209,7 @@ export interface ListExceptionsParams extends SapConcurBaseParams {
   userId: string
   contextType: 'TRAVELER' | 'MANAGER' | 'PROXY'
   reportId: string
+  excludeExpenses?: boolean
 }
 
 export interface CreateQuickExpenseParams extends SapConcurBaseParams {
@@ -239,6 +255,7 @@ export interface CreateTravelRequestParams extends SapConcurBaseParams {
 
 export interface UpdateTravelRequestParams extends SapConcurBaseParams {
   requestUuid: string
+  userId?: string
   body: Record<string, unknown> | string
 }
 
@@ -251,6 +268,9 @@ export interface MoveTravelRequestParams extends SapConcurBaseParams {
   requestUuid: string
   action: string
   userId?: string
+  companyID?: string
+  /** Only applies when `action` is `sendback`; surfaced wherever Request comments appear. */
+  comment?: string
   body?: Record<string, unknown> | string
 }
 
@@ -312,6 +332,8 @@ export interface ListItinerariesParams extends SapConcurBaseParams {
   page?: number
   includeMetadata?: boolean
   includeCanceledTrips?: boolean
+  includeVirtualTrip?: string
+  includeGuestBookings?: boolean
   createdAfterDate?: string
   createdBeforeDate?: string
   lastModifiedDate?: string
@@ -355,8 +377,6 @@ export interface DeleteUserParams extends SapConcurBaseParams {
 }
 
 export interface GetTravelProfileParams extends SapConcurBaseParams {
-  loginId?: string
-  userId?: string
   useridType?: 'login' | 'xmlsyncid' | 'uuid'
   useridValue?: string
 }
@@ -366,6 +386,7 @@ export interface ListTravelProfilesSummaryParams extends SapConcurBaseParams {
   page?: number
   itemsPerPage?: number
   travelConfigs?: string
+  active?: string
 }
 
 export interface SearchLocationsParams extends SapConcurBaseParams {
@@ -405,7 +426,6 @@ export interface UserFileLike {
 export interface UploadReceiptImageParams extends SapConcurBaseParams {
   userId: string
   receipt: UserFileLike
-  forwardId?: string
 }
 
 export interface CreateQuickExpenseWithImageParams extends SapConcurBaseParams {
@@ -413,37 +433,6 @@ export interface CreateQuickExpenseWithImageParams extends SapConcurBaseParams {
   contextType: 'TRAVELER'
   receipt: UserFileLike
   body: Record<string, unknown> | string
-}
-
-interface ListInvoicesParams extends SapConcurBaseParams {
-  limit?: number
-  offset?: number
-  modifiedAfter?: string
-}
-
-interface GetInvoiceParams extends SapConcurBaseParams {
-  invoiceId: string
-}
-
-interface ListPurchaseOrdersParams extends SapConcurBaseParams {
-  limit?: number
-  offset?: number
-}
-
-interface GetPurchaseOrderParams extends SapConcurBaseParams {
-  purchaseOrderId: string
-}
-
-interface ListVendorsParams extends SapConcurBaseParams {
-  limit?: number
-  offset?: number
-  vendorCode?: string
-}
-
-interface ListPurchaseRequestsParams extends SapConcurBaseParams {
-  limit?: number
-  offset?: number
-  modifiedAfter?: string
 }
 
 export interface GetPurchaseRequestParams extends SapConcurBaseParams {
@@ -454,19 +443,14 @@ export interface CreatePurchaseRequestParams extends SapConcurBaseParams {
   body: Record<string, unknown> | string
 }
 
-interface UpdatePurchaseRequestParams extends SapConcurBaseParams {
-  purchaseRequestId: string
-  body: Record<string, unknown> | string
-}
-
 export interface ListListsParams extends SapConcurBaseParams {
   page?: number
   sortBy?: string
   sortDirection?: 'asc' | 'desc'
   value?: string
   categoryType?: string
-  isDeleted?: boolean
-  levelCount?: number
+  isDeleted?: string
+  levelCount?: string
 }
 
 export interface GetListParams extends SapConcurBaseParams {
@@ -479,7 +463,7 @@ export interface ListListItemsParams extends SapConcurBaseParams {
   sortBy?: 'value' | 'shortCode'
   sortDirection?: 'asc' | 'desc'
   hasChildren?: boolean
-  isDeleted?: boolean
+  isDeleted?: string
   shortCode?: string
   value?: string
   shortCodeOrValue?: string
@@ -499,32 +483,8 @@ export interface GetBudgetParams extends SapConcurBaseParams {
   budgetId: string
 }
 
-interface ListBudgetItemsParams extends SapConcurBaseParams {
-  budgetId: string
-  limit?: number
-  offset?: number
-}
-
 export type ListBudgetCategoriesParams = SapConcurBaseParams
-
-interface ListCardTransactionsParams extends SapConcurBaseParams {
-  limit?: number
-  offset?: number
-  cardAccountId?: string
-  user?: string
-  modifiedAfter?: string
-}
-
-interface GetCardTransactionParams extends SapConcurBaseParams {
-  cardTransactionId: string
-}
 
 export interface UploadExchangeRatesParams extends SapConcurBaseParams {
   body: Record<string, unknown> | string
-}
-
-interface ListLocalitiesParams extends SapConcurBaseParams {
-  limit?: number
-  offset?: number
-  countryCode?: string
 }

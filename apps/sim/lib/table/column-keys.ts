@@ -18,6 +18,7 @@ import type {
   SortSpec,
   TablePredicate,
   TableSchema,
+  TableViewConfig,
   WorkflowGroup,
 } from '@/lib/table/types'
 
@@ -122,24 +123,72 @@ export function remapGroupColumnRefs(
   }
 }
 
+/** `name → id` over a bare column list, for callers that hold no full schema. */
+export function buildColumnIdByName(columns: readonly ColumnDefinition[]): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const col of columns) map.set(col.name, getColumnId(col))
+  return map
+}
+
+/** `id → name` over a bare column list, for callers that hold no full schema. */
+export function buildColumnNameById(columns: readonly ColumnDefinition[]): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const col of columns) map.set(getColumnId(col), col.name)
+  return map
+}
+
 /** `name → id` for translating inbound wire data (v1 / mothership / CSV import). */
 export function buildIdByName(schema: TableSchema): Map<string, string> {
-  const map = new Map<string, string>()
-  for (const col of schema.columns) map.set(col.name, getColumnId(col))
-  return map
+  return buildColumnIdByName(schema.columns)
 }
 
 /** `id → name` for translating outbound wire data (v1 / mothership / CSV export). */
 export function buildNameById(schema: TableSchema): Map<string, string> {
-  const map = new Map<string, string>()
-  for (const col of schema.columns) map.set(getColumnId(col), col.name)
-  return map
+  return buildColumnNameById(schema.columns)
+}
+
+/**
+ * Rewrites every column reference in a saved-view config through `refMap`: the
+ * layout keys (`columnOrder`, `pinnedColumns`, `hiddenColumns`, and the keys of
+ * `columnWidths`), each `sort[].field`, and each `filter` leaf `field`.
+ *
+ * A ref the map does not know is left as-is, so the rewrite is safe in both
+ * directions and both vocabularies: call it with {@link buildColumnIdByName} to
+ * store a name-keyed config, and with {@link buildColumnNameById} to present a
+ * stored one. Pass-through is what keeps an already-id-keyed config (the
+ * first-party UI), a system row column (`createdAt`), and a ref to a
+ * since-deleted column intact. The saved-view analogue of
+ * {@link remapGroupColumnRefs}.
+ */
+export function remapViewConfigColumnRefs(
+  config: TableViewConfig,
+  refMap: ReadonlyMap<string, string>
+): TableViewConfig {
+  const remap = (ref: string) => refMap.get(ref) ?? ref
+  const next: TableViewConfig = { ...config }
+  if (config.columnOrder) next.columnOrder = config.columnOrder.map(remap)
+  if (config.pinnedColumns) next.pinnedColumns = config.pinnedColumns.map(remap)
+  if (config.hiddenColumns) next.hiddenColumns = config.hiddenColumns.map(remap)
+  if (config.columnWidths) {
+    const widths: Record<string, number> = {}
+    for (const [ref, width] of Object.entries(config.columnWidths)) widths[remap(ref)] = width
+    next.columnWidths = widths
+  }
+  if (config.sort) next.sort = sortSpecNamesToIds(config.sort, refMap)
+  if (config.filter) next.filter = predicateNamesToIds(config.filter, refMap)
+  return next
 }
 
 /**
  * Remaps a wire row keyed by column **name** to the stored **id** keying. Used
  * at the name-translating boundaries on the way in. Keys not matching a known
- * column are dropped (validation has already run against the schema).
+ * column are dropped.
+ *
+ * Dropping is only safe once someone has established that there are none to
+ * drop — a key that survives to here unrecognised is a cell the caller asked to
+ * write and the table never stored. Callers on a surface that can answer the
+ * client check {@link unknownColumnNames} first; see
+ * `rowDataToStorage` in `application/rows.ts`.
  */
 export function rowDataNameToId(data: RowData, idByName: Map<string, string>): RowData {
   const out: RowData = {}
@@ -148,6 +197,21 @@ export function rowDataNameToId(data: RowData, idByName: Map<string, string>): R
     if (id !== undefined) out[id] = value
   }
   return out
+}
+
+/**
+ * Wire row keys naming no column in `idByName`, in the order they were sent.
+ *
+ * The v2 row surface is keyed by column **name**, so a stored column **id** is
+ * as unknown here as a typo — it names no key the caller could have read off a
+ * row, and letting it through would reinstate the silent drop for exactly the
+ * callers most likely to believe they had written something.
+ */
+export function unknownColumnNames(
+  data: RowData,
+  knownKeys: ReadonlyMap<string, unknown>
+): string[] {
+  return Object.keys(data).filter((key) => !knownKeys.has(key))
 }
 
 /**

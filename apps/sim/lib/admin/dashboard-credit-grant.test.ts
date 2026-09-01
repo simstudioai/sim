@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { member, organization, subscription, user, userStats, workspace } from '@sim/db/schema'
+import { member, organization, user, userStats } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -57,6 +57,9 @@ vi.mock('@/lib/billing/organizations/seats', () => ({
 vi.mock('@/lib/billing/core/usage', () => ({
   syncUsageLimitsFromSubscription: mocks.syncUsageLimits,
 }))
+vi.mock('@/lib/workspaces/organization-workspaces', () => ({
+  ownedAttachableWorkspacesWhere: vi.fn(() => undefined),
+}))
 vi.mock('@/lib/workspaces/admin-move', () => ({
   moveWorkspaceToOrganization: mocks.moveWorkspace,
 }))
@@ -69,11 +72,7 @@ vi.mock('@/lib/billing/enterprise-outbox', () => ({
 }))
 vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: vi.fn() }))
 
-import {
-  addDashboardOrganizationMember,
-  grantDashboardOrganizationBalance,
-  grantDashboardUserBalance,
-} from '@/lib/admin/dashboard'
+import { grantDashboardOrganizationBalance, grantDashboardUserBalance } from '@/lib/admin/dashboard'
 
 /** The values object passed to the nth `update(...).set(...)` call. */
 const updateSetValues = (index = 0): Record<string, unknown> =>
@@ -202,91 +201,5 @@ describe('grantDashboardUserBalance', () => {
 
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-})
-
-describe('addDashboardOrganizationMember', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    mocks.billingSubscriptions = []
-    mocks.idempotencyCalls = []
-  })
-
-  it('rejects an existing member inside the transaction before touching their cap', async () => {
-    queueTableRows(subscription, [{ plan: 'enterprise' }])
-    mocks.ensureMembership.mockResolvedValue({
-      success: true,
-      memberId: 'member-1',
-      alreadyMember: true,
-      billingActions: { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false },
-    })
-
-    await expect(
-      addDashboardOrganizationMember(
-        'org-1',
-        {
-          userId: 'user-1',
-          role: 'member',
-          usageLimitDollars: null,
-          personalWorkspaceIds: [],
-        },
-        { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
-      )
-    ).rejects.toThrow('User is already a member')
-
-    expect(mocks.setMemberLimit).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('uses the canonical transfer service and reports each selected personal workspace move', async () => {
-    queueTableRows(workspace, [{ id: 'workspace-1' }, { id: 'workspace-2' }])
-    queueTableRows(member, [{ id: 'member-old', organizationId: 'org-old' }])
-    mocks.transferMembership.mockResolvedValue({
-      success: true,
-      memberId: 'member-new',
-      workspaceAccessRevoked: 2,
-      credentialMembershipsRevoked: 1,
-      pendingInvitationsCancelled: 0,
-      usageCaptured: 3,
-    })
-    mocks.moveWorkspace
-      .mockResolvedValueOnce({})
-      .mockRejectedValueOnce(new Error('Workspace changed concurrently'))
-
-    const result = await addDashboardOrganizationMember(
-      'org-new',
-      {
-        userId: 'user-1',
-        role: 'admin',
-        usageLimitDollars: 25,
-        personalWorkspaceIds: ['workspace-1', 'workspace-2'],
-      },
-      { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
-    )
-
-    expect(mocks.transferMembership).toHaveBeenCalledWith({
-      userId: 'user-1',
-      sourceOrganizationId: 'org-old',
-      destinationOrganizationId: 'org-new',
-      role: 'admin',
-      usageLimitDollars: 25,
-      setBy: 'admin-1',
-    })
-    expect(mocks.moveWorkspace).toHaveBeenCalledTimes(2)
-    expect(result).toEqual({
-      memberId: 'member-new',
-      transferredFromOrganizationId: 'org-old',
-      workspaceMoves: [
-        { workspaceId: 'workspace-1', success: true },
-        {
-          workspaceId: 'workspace-2',
-          success: false,
-          error: 'Workspace changed concurrently',
-        },
-      ],
-    })
-    expect(mocks.reconcileSeats).toHaveBeenCalledTimes(2)
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(2)
   })
 })

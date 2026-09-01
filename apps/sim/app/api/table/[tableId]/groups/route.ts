@@ -1,214 +1,66 @@
-import { createLogger } from '@sim/logger'
-import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
-import { type NextRequest, NextResponse } from 'next/server'
 import {
   addWorkflowGroupContract,
   deleteWorkflowGroupContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
-import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { internalTableErrorPolicies, internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import {
-  addWorkflowGroup,
-  deleteWorkflowGroup,
-  updateWorkflowGroup,
-} from '@/lib/table/workflow-groups/service'
-import {
-  accessError,
-  checkAccess,
-  normalizeColumn,
-  tableLockErrorResponse,
-} from '@/app/api/table/utils'
+  createTableGroupUseCase,
+  deleteTableGroupUseCase,
+  updateTableGroupUseCase,
+} from '@/lib/table/application/groups'
+import { tableOperations } from '@/lib/table/application/operations'
+import type { TableDefinition } from '@/lib/table/types'
+import { normalizeColumn } from '@/lib/table/wire'
 
-const logger = createLogger('TableWorkflowGroupsAPI')
-
-interface RouteParams {
-  params: Promise<{ tableId: string }>
-}
-
-/**
- * Confirms `workflowId` resolves to an active workflow in `workspaceId` before it is
- * persisted onto a table's workflow group. Returns a 400 response when the workflow
- * doesn't exist or belongs to a different workspace, otherwise `null`.
- */
-async function validateWorkflowInWorkspace(
-  workflowId: string,
-  workspaceId: string
-): Promise<NextResponse | null> {
-  const context = await getActiveWorkflowContext(workflowId)
-  if (!context || context.workspaceId !== workspaceId) {
-    return NextResponse.json({ error: 'Invalid workflow ID' }, { status: 400 })
-  }
-  return null
-}
-
-/**
- * Maps known service-layer error messages onto HTTP responses; falls through
- * to a 500 with a generic message for anything unrecognized. The three
- * group-route handlers all surface the same error shapes from
- * `addWorkflowGroup` / `updateWorkflowGroup` / `deleteWorkflowGroup`, so they
- * share this mapper instead of repeating the if-chain three times.
- */
-function mapWorkflowGroupError(error: unknown, fallbackMessage: string): NextResponse {
-  const lockError = tableLockErrorResponse(error)
-  if (lockError) return lockError
-  if (error instanceof Error) {
-    const msg = error.message
-    if (msg === 'Table not found' || msg.includes('not found')) {
-      return NextResponse.json({ error: msg }, { status: 404 })
-    }
-    if (
-      msg.includes('Schema validation') ||
-      msg.includes('Missing column definition') ||
-      msg.includes('already exists') ||
-      msg.includes('exceed')
-    ) {
-      return NextResponse.json({ error: msg }, { status: 400 })
-    }
-  }
-  logger.error(fallbackMessage, error)
-  return NextResponse.json({ error: fallbackMessage }, { status: 500 })
-}
-
-/** POST /api/table/[tableId]/groups — create a workflow group + its output columns. */
-export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
-  const requestId = generateRequestId()
-  try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-    const parsed = await parseRequest(addWorkflowGroupContract, request, { params })
-    if (!parsed.success) return parsed.response
-    const { tableId } = parsed.data.params
-    const validated = parsed.data.body
-    const result = await checkAccess(tableId, authResult.userId, 'write')
-    if (!result.ok) return accessError(result, requestId, tableId)
-    if (result.table.workspaceId !== validated.workspaceId) {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-    if (validated.group.workflowId) {
-      const workflowError = await validateWorkflowInWorkspace(
-        validated.group.workflowId,
-        result.table.workspaceId
-      )
-      if (workflowError) return workflowError
-    }
-    const updatedTable = await addWorkflowGroup(
-      {
-        tableId,
-        group: validated.group,
-        outputColumns: validated.outputColumns,
-        autoRun: validated.autoRun,
-        actorUserId: authResult.userId,
-      },
-      requestId
-    )
-    return NextResponse.json({
-      success: true,
-      data: {
-        columns: updatedTable.schema.columns.map(normalizeColumn),
-        workflowGroups: updatedTable.schema.workflowGroups ?? [],
-      },
-    })
-  } catch (error) {
-    return mapWorkflowGroupError(error, 'Failed to add workflow group')
-  }
+const rateLimit = internalRateLimits.none({
+  reason: 'Existing authenticated table group mutations have no request-rate policy',
 })
 
-/** PATCH /api/table/[tableId]/groups — update a workflow group (deps / outputs). */
-export const PATCH = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
-  const requestId = generateRequestId()
-  try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-    const parsed = await parseRequest(updateWorkflowGroupContract, request, { params })
-    if (!parsed.success) return parsed.response
-    const { tableId } = parsed.data.params
-    const validated = parsed.data.body
-    const result = await checkAccess(tableId, authResult.userId, 'write')
-    if (!result.ok) return accessError(result, requestId, tableId)
-    if (result.table.workspaceId !== validated.workspaceId) {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-    if (validated.workflowId !== undefined) {
-      const workflowError = await validateWorkflowInWorkspace(
-        validated.workflowId,
-        result.table.workspaceId
-      )
-      if (workflowError) return workflowError
-    }
-    const updatedTable = await updateWorkflowGroup(
-      {
-        tableId,
-        groupId: validated.groupId,
-        actorUserId: authResult.userId,
-        ...(validated.workflowId !== undefined ? { workflowId: validated.workflowId } : {}),
-        ...(validated.name !== undefined ? { name: validated.name } : {}),
-        ...(validated.dependencies !== undefined ? { dependencies: validated.dependencies } : {}),
-        ...(validated.outputs !== undefined ? { outputs: validated.outputs } : {}),
-        ...(validated.newOutputColumns !== undefined
-          ? { newOutputColumns: validated.newOutputColumns }
-          : {}),
-        ...(validated.mappingUpdates !== undefined
-          ? { mappingUpdates: validated.mappingUpdates }
-          : {}),
-        ...(validated.inputMappings !== undefined
-          ? { inputMappings: validated.inputMappings }
-          : {}),
-        ...(validated.deploymentMode !== undefined
-          ? { deploymentMode: validated.deploymentMode }
-          : {}),
-        ...(validated.type !== undefined ? { type: validated.type } : {}),
-        ...(validated.autoRun !== undefined ? { autoRun: validated.autoRun } : {}),
-      },
-      requestId
-    )
-    return NextResponse.json({
-      success: true,
-      data: {
-        columns: updatedTable.schema.columns.map(normalizeColumn),
-        workflowGroups: updatedTable.schema.workflowGroups ?? [],
-      },
-    })
-  } catch (error) {
-    return mapWorkflowGroupError(error, 'Failed to update workflow group')
+function presentTable(table: TableDefinition) {
+  return {
+    success: true as const,
+    data: {
+      columns: table.schema.columns.map(normalizeColumn),
+      workflowGroups: table.schema.workflowGroups ?? [],
+    },
   }
+}
+
+export const POST = defineInternalJsonRoute({
+  contract: addWorkflowGroupContract,
+  operation: tableOperations.createGroup,
+  useCase: createTableGroupUseCase,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit,
+  errorPolicy: internalTableErrorPolicies.concealTableGroupAuthorization,
+  mapInput: ({ params, body }) => ({
+    tableId: params.tableId,
+    ...body,
+    autoRun: body.autoRun ?? true,
+  }),
+  present: ({ table }) => presentTable(table),
 })
 
-/** DELETE /api/table/[tableId]/groups — remove a workflow group + its columns. */
-export const DELETE = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
-  const requestId = generateRequestId()
-  try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-    const parsed = await parseRequest(deleteWorkflowGroupContract, request, { params })
-    if (!parsed.success) return parsed.response
-    const { tableId } = parsed.data.params
-    const validated = parsed.data.body
-    const result = await checkAccess(tableId, authResult.userId, 'write')
-    if (!result.ok) return accessError(result, requestId, tableId)
-    if (result.table.workspaceId !== validated.workspaceId) {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-    const updatedTable = await deleteWorkflowGroup(
-      { tableId, groupId: validated.groupId },
-      requestId
-    )
-    return NextResponse.json({
-      success: true,
-      data: {
-        columns: updatedTable.schema.columns.map(normalizeColumn),
-        workflowGroups: updatedTable.schema.workflowGroups ?? [],
-      },
-    })
-  } catch (error) {
-    return mapWorkflowGroupError(error, 'Failed to delete workflow group')
-  }
+export const PATCH = defineInternalJsonRoute({
+  contract: updateWorkflowGroupContract,
+  operation: tableOperations.updateGroup,
+  useCase: updateTableGroupUseCase,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit,
+  errorPolicy: internalTableErrorPolicies.concealTableGroupAuthorization,
+  mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
+  present: ({ table }) => presentTable(table),
+})
+
+export const DELETE = defineInternalJsonRoute({
+  contract: deleteWorkflowGroupContract,
+  operation: tableOperations.deleteGroup,
+  useCase: deleteTableGroupUseCase,
+  auth: internalTableSessionOrExecutorAuth,
+  rateLimit,
+  errorPolicy: internalTableErrorPolicies.concealTableGroupAuthorization,
+  mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
+  present: ({ table }) => presentTable(table),
 })

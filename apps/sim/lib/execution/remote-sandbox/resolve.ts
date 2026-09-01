@@ -1,0 +1,644 @@
+import { createLogger } from '@sim/logger'
+import { CodeLanguage } from '@/lib/execution/languages'
+import { classifyInstallOutput, tailBuildLog } from '@/lib/execution/remote-sandbox/build-errors'
+import {
+  canonicalizeSandboxCliTools,
+  type SandboxCliToolId,
+} from '@/lib/execution/remote-sandbox/cli-tools'
+import {
+  assertSandboxCliToolsSupported,
+  sandboxCliEnvironment,
+  sandboxCliToolRecipes,
+  sandboxCliVerificationCommand,
+} from '@/lib/execution/remote-sandbox/cli-tools.server'
+import { MAX_SANDBOX_PROCESS_OUTPUT_BYTES } from '@/lib/execution/remote-sandbox/output-limits'
+import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
+import {
+  isSandboxLanguage,
+  renderDependencyManifest,
+  type SandboxLanguage,
+  SIM_DEPS_DIR,
+  SIM_NODE_MODULES_DIR,
+  SIM_PACKAGE_JSON_PATH,
+  SIM_REQUIREMENTS_PATH,
+  systemPackageInstallCommand,
+  validateSystemPackages,
+} from '@/lib/execution/remote-sandbox/sandbox-spec'
+import {
+  SANDBOX_BASE_RELEASE_REFRESH_CODE,
+  type SandboxDependencyStrategy,
+  type SandboxHandle,
+  type SandboxKind,
+} from '@/lib/execution/remote-sandbox/types'
+
+const logger = createLogger('SandboxResolve')
+
+/**
+ * The DB is reached lazily so the sandbox barrel stays importable without one.
+ * `withPiSandbox`, the copilot doc compilers, and `verify-sandbox-parity.ts` all
+ * pull in this module through `remote-sandbox/index.ts` but never select a
+ * workspace sandbox — a static `@sim/db` import would make every one of them
+ * throw at module load when `DATABASE_URL` is unset.
+ */
+async function sandboxDb() {
+  const [{ db }, schema, orm] = await Promise.all([
+    import('@sim/db'),
+    import('@sim/db/schema'),
+    import('drizzle-orm'),
+  ])
+  return {
+    db,
+    sandboxImage: schema.sandboxImage,
+    workspaceSandbox: schema.workspaceSandbox,
+    and: orm.and,
+    eq: orm.eq,
+  }
+}
+
+/**
+ * Ceiling on a dependency install.
+ *
+ * This is an upper bound, not a separate allowance: the caller carves the actual
+ * budget out of the execution timeout it is itself willing to wait for (see
+ * `installBudgetMs` in the sandbox barrel). Letting the install run past that
+ * would only produce a bare client-side "Request timed out" in place of the
+ * classified installer error.
+ */
+export const RUNTIME_INSTALL_TIMEOUT_MS = 240_000
+
+/**
+ * How long a resolved BUILD stays cached in-process.
+ *
+ * Only the content-addressed half is cached: `sandbox_image` is keyed by
+ * `(provider, specHash)`, and a spec hash names one immutable dependency set, so
+ * a hit can never describe the wrong packages. The `workspace_sandbox` row is
+ * re-read every time (one indexed lookup) because it is the mutable half — that
+ * is what makes a delete or an edit take effect immediately on EVERY replica
+ * rather than only the one that served the mutation.
+ */
+const IMAGE_TTL_MS = 30_000
+
+/** `lastUsedAt` is a retention signal, not an audit trail — hourly is precise enough. */
+const LAST_USED_DEBOUNCE_MS = 60 * 60 * 1000
+
+/** Only these kinds honor a workspace sandbox; see {@link resolveWorkspaceSandbox}. */
+const SANDBOX_AWARE_KINDS: ReadonlySet<SandboxKind> = new Set<SandboxKind>(['code', 'shell'])
+
+export interface ResolvedSandbox {
+  id: string
+  name: string
+  language: SandboxLanguage
+  dependencies: string[]
+  cliTools: SandboxCliToolId[]
+  systemPackages: string[]
+  /** Content address of the package set, so a failed create can rebuild it. */
+  specHash: string
+  strategy: SandboxDependencyStrategy
+  /** Provider image to create from. Present under the `prebuilt` strategy. */
+  imageRef?: string
+  /** Environment the execution must carry for the dependencies to be importable. */
+  envs?: Record<string, string>
+}
+
+/** A `sandbox_image` row, cached by its content address. */
+interface CachedImage {
+  status: string
+  imageRef: string | null
+  materializationGeneration: number | null
+  errorCode: string | null
+  errorMessage: string | null
+}
+
+interface CacheEntry {
+  expiresAt: number
+  value: CachedImage
+}
+
+/**
+ * Both maps are process-lifetime and keyed by an unbounded space (every spec
+ * hash ever executed), so each drops its oldest entry rather than growing for
+ * the life of the worker.
+ */
+const IMAGE_CACHE_LIMIT = 1000
+const LAST_USED_CACHE_LIMIT = 1000
+
+const imageCache = new Map<string, CacheEntry>()
+const lastUsedWrites = new Map<string, number>()
+
+/**
+ * JavaScript packages live outside the default resolution roots, so Node needs
+ * `NODE_PATH` to find them. Both strategies install into the same directory, so
+ * both hand back the same environment.
+ */
+function envsFor(
+  language: SandboxLanguage,
+  cliTools: readonly SandboxCliToolId[],
+  systemPackages: readonly string[]
+): Record<string, string> | undefined {
+  const envs: Record<string, string> = {}
+  if (language === CodeLanguage.JavaScript) envs.NODE_PATH = SIM_NODE_MODULES_DIR
+  if (cliTools.length > 0 || systemPackages.length > 0) {
+    Object.assign(envs, sandboxCliEnvironment(cliTools))
+  }
+  return Object.keys(envs).length > 0 ? envs : undefined
+}
+
+/**
+ * Records that a build was used, so the retention sweep can tell a live image
+ * from an abandoned one. Debounced and fire-and-forget: this is bookkeeping, and
+ * a failed write must never fail an execution.
+ */
+function touchImage(specHash: string, provider: string): void {
+  const key = `${provider}:${specHash}`
+  const now = Date.now()
+  const written = lastUsedWrites.get(key)
+  if (written && now - written < LAST_USED_DEBOUNCE_MS) return
+  if (lastUsedWrites.size >= LAST_USED_CACHE_LIMIT) lastUsedWrites.clear()
+  lastUsedWrites.set(key, now)
+  void sandboxDb()
+    .then(({ db, sandboxImage, and, eq }) =>
+      db
+        .update(sandboxImage)
+        .set({ lastUsedAt: new Date() })
+        .where(and(eq(sandboxImage.provider, provider), eq(sandboxImage.specHash, specHash)))
+    )
+    .catch((error) => logger.warn('Failed to record sandbox image use', { specHash, error }))
+}
+
+/**
+ * Resolves the sandbox an execution should run against, or `null` when none is
+ * selected (today's behavior: the env-configured template, no install step).
+ *
+ * Fails closed rather than degrading. A selection that cannot be honored —
+ * deleted, cross-workspace, wrong language, or a build that is not `ready` —
+ * throws with the reason, because the alternative is a baffling
+ * `ModuleNotFoundError` inside the user's code.
+ *
+ * Deliberately not plan-gated here: authoring and new Copilot selection are
+ * gated at their boundaries, while a workspace that downgrades keeps executing
+ * sandboxes already attached to Function blocks.
+ */
+export async function resolveWorkspaceSandbox(args: {
+  kind: SandboxKind
+  /**
+   * The language the caller will execute. Omitted by the shell path, which runs
+   * commands rather than a language runtime and so has nothing to mismatch.
+   */
+  language?: CodeLanguage
+  workspaceId?: string
+  sandboxId?: string
+}): Promise<ResolvedSandbox | null> {
+  const { kind, language, workspaceId, sandboxId } = args
+  if (!sandboxId) return null
+  // Mothership, doc, and Pi keep their vetted images unconditionally.
+  if (!SANDBOX_AWARE_KINDS.has(kind)) return null
+  if (!workspaceId) {
+    throw new Error('A sandbox was selected but this execution has no workspace to resolve it in')
+  }
+
+  const provider = resolveProvider()
+  const { db, sandboxImage, workspaceSandbox, and, eq } = await sandboxDb()
+  const [row] = await db
+    .select({
+      id: workspaceSandbox.id,
+      name: workspaceSandbox.name,
+      language: workspaceSandbox.language,
+      dependencies: workspaceSandbox.dependencies,
+      cliTools: workspaceSandbox.cliTools,
+      systemPackages: workspaceSandbox.systemPackages,
+      specHash: workspaceSandbox.specHash,
+    })
+    .from(workspaceSandbox)
+    .where(and(eq(workspaceSandbox.id, sandboxId), eq(workspaceSandbox.workspaceId, workspaceId)))
+    .limit(1)
+
+  if (!row) {
+    throw new Error(
+      `The selected sandbox no longer exists in this workspace. Pick another one, or clear the selection to run on the Function base.`
+    )
+  }
+  if (!isSandboxLanguage(row.language)) {
+    throw new Error(`Sandbox "${row.name}" has an unsupported language (${row.language})`)
+  }
+
+  const cliTools = canonicalizeSandboxCliTools(row.cliTools ?? [])
+  assertSandboxCliToolsSupported(cliTools, provider.id)
+  const systemPackageValidation = validateSystemPackages(row.systemPackages ?? [])
+  if (!systemPackageValidation.ok) {
+    throw new Error(
+      `Sandbox "${row.name}" has an invalid system package: ${systemPackageValidation.issues[0]?.reason ?? 'validation failed'}`
+    )
+  }
+  const systemPackages = systemPackageValidation.systemPackages
+  const base = {
+    id: row.id,
+    name: row.name,
+    language: row.language,
+    dependencies: row.dependencies ?? [],
+    cliTools,
+    systemPackages,
+    specHash: row.specHash,
+    envs: envsFor(row.language, cliTools, systemPackages),
+  }
+
+  let resolved: ResolvedSandbox
+  if (
+    base.dependencies.length === 0 &&
+    base.cliTools.length === 0 &&
+    base.systemPackages.length === 0
+  ) {
+    // A sandbox with no language packages, managed CLI recipes, or Debian
+    // packages resolves to the base image under either strategy. Looking for a
+    // build row here would fail closed on an image that never existed.
+    resolved = { ...base, strategy: provider.dependencyStrategy }
+  } else if (provider.dependencyStrategy === 'runtime') {
+    resolved = { ...base, strategy: 'runtime' }
+  } else {
+    const images = provider.images
+    if (!images) {
+      throw new Error(`Sandbox provider ${provider.id} cannot materialize dependency images`)
+    }
+    const materialization = images.materialization(row.specHash)
+    const image = await readImage(
+      provider.id,
+      row.specHash,
+      materialization.generation,
+      materialization.imageRefPrefix
+    )
+    const targetGeneration = image?.materializationGeneration ?? 0
+    const activeGeneration = image?.imageRef ? images.imageRefGeneration(image.imageRef) : undefined
+    const isCurrentMaterialization =
+      image?.imageRef?.startsWith(materialization.imageRefPrefix) === true
+    const isNewerMaterialization =
+      image?.status === 'ready' &&
+      targetGeneration > materialization.generation &&
+      activeGeneration === targetGeneration
+    const hasRetainedFallback =
+      Boolean(image?.imageRef) && image?.errorCode === SANDBOX_BASE_RELEASE_REFRESH_CODE
+
+    if (hasRetainedFallback && image?.imageRef) {
+      if (targetGeneration <= materialization.generation) {
+        await scheduleImageRepair(base, row.specHash)
+      }
+      logger.info('Using prior sandbox image while the current Function base layer builds', {
+        sandboxId: row.id,
+        specHash: row.specHash,
+        status: image.status,
+      })
+      touchImage(row.specHash, provider.id)
+      resolved = { ...base, strategy: 'prebuilt', imageRef: image.imageRef }
+    } else if (image?.status === 'ready' && image.imageRef && isCurrentMaterialization) {
+      touchImage(row.specHash, provider.id)
+      resolved = { ...base, strategy: 'prebuilt', imageRef: image.imageRef }
+    } else if (isNewerMaterialization && image?.imageRef) {
+      touchImage(row.specHash, provider.id)
+      resolved = { ...base, strategy: 'prebuilt', imageRef: image.imageRef }
+    } else if (
+      image?.status === 'ready' &&
+      image.imageRef &&
+      targetGeneration < materialization.generation
+    ) {
+      await scheduleImageRepair(base, row.specHash)
+      touchImage(row.specHash, provider.id)
+      resolved = { ...base, strategy: 'prebuilt', imageRef: image.imageRef }
+    } else if (
+      image?.status === 'ready' &&
+      image.imageRef &&
+      targetGeneration === materialization.generation &&
+      !isCurrentMaterialization
+    ) {
+      throw new Error(
+        `Sandbox "${row.name}" has an E2B materialization generation that does not match its immutable Function base. Build the base again with a new generation.`
+      )
+    } else if (!image || image.status !== 'ready' || !image.imageRef) {
+      if (targetGeneration <= materialization.generation) {
+        await scheduleImageRepair(base, row.specHash)
+      }
+      throw new Error(describeUnusableImage(row.name, image?.status, image?.errorMessage))
+    } else {
+      throw new Error(`Sandbox "${row.name}" has an unusable provider image reference.`)
+    }
+  }
+
+  assertLanguageMatches(resolved, language)
+  return resolved
+}
+
+/**
+ * Reads a build row, memoized on its content address.
+ *
+ * Editing a sandbox produces a different hash and deleting one is caught by the
+ * `workspace_sandbox` read that always runs, so those cannot serve a stale hit. A
+ * non-ready row is NOT cached either: it is precisely the value that flips
+ * underneath us while a build completes, and caching it would keep a just-finished
+ * build unusable.
+ *
+ * A `ready` row is no longer strictly terminal, though, and this cache is
+ * per-process. `releaseSandboxImage` clears only the replica that ran it, so
+ * another replica can serve a cached `ready` image for up to {@link IMAGE_TTL_MS}
+ * after its template was deleted — and because the hit looks healthy, resolution
+ * hands back a dead `imageRef` instead of reaching the repair path. Sandbox
+ * creation then fails on that replica until the entry expires and the row read
+ * finds nothing. Bounded and self-healing, but real; closing it needs either
+ * cross-replica invalidation or a provider-error path that invalidates on
+ * "template not found".
+ */
+async function readImage(
+  providerId: string,
+  specHash: string,
+  materializationGeneration: number,
+  materializationRefPrefix: string
+): Promise<CachedImage | undefined> {
+  const cacheKey = `${providerId}:${specHash}:${materializationGeneration}:${materializationRefPrefix}`
+  const cached = imageCache.get(cacheKey)
+  if (cached) {
+    if (cached.expiresAt > Date.now()) return cached.value
+    imageCache.delete(cacheKey)
+  }
+
+  const { db, sandboxImage, and, eq } = await sandboxDb()
+  const [image] = await db
+    .select({
+      status: sandboxImage.status,
+      imageRef: sandboxImage.imageRef,
+      materializationGeneration: sandboxImage.materializationGeneration,
+      errorCode: sandboxImage.errorCode,
+      errorMessage: sandboxImage.errorMessage,
+    })
+    .from(sandboxImage)
+    .where(and(eq(sandboxImage.provider, providerId), eq(sandboxImage.specHash, specHash)))
+    .limit(1)
+
+  if (image?.status === 'ready') {
+    if (imageCache.size >= IMAGE_CACHE_LIMIT) {
+      const oldest = imageCache.keys().next()
+      if (!oldest.done) imageCache.delete(oldest.value)
+    }
+    imageCache.set(cacheKey, { expiresAt: Date.now() + IMAGE_TTL_MS, value: image })
+  }
+  return image
+}
+
+/**
+ * Re-enqueues a build for a sandbox whose image is unusable.
+ *
+ * `ensureSandboxImage` otherwise runs only when a sandbox is saved, which left
+ * three states permanently stuck until someone re-saved it in Settings: a build
+ * that failed, a build whose worker died mid-flight, and — after switching a
+ * deployment from a `runtime` provider to a `prebuilt` one — every sandbox
+ * created while the old provider was active, since `runtime` writes no image
+ * rows at all. Repairing here costs an execution that was going to fail either
+ * way and lets the next one succeed, instead of making the user reconfigure a
+ * sandbox whose definition was never wrong.
+ *
+ * Rate-limited, unlike the save path. This fires once per execution, and a bad
+ * package name fails in seconds, so re-claiming a failed row on sight would let a
+ * per-minute schedule enqueue a per-minute build of something that will never
+ * succeed. The cooldown caps that at one attempt per window while a save — an
+ * explicit request from a person — still retries immediately. Executions arriving
+ * during a healthy build enqueue nothing either way.
+ *
+ * Imported dynamically for the same reason as {@link sandboxDb} — the registry
+ * pulls `@sim/db` into the static import graph, which this module keeps out of
+ * the executor bundle. A repair that fails must never replace the caller's
+ * message, which is the one naming the sandbox and its build error.
+ */
+async function scheduleImageRepair(
+  spec: {
+    language: SandboxLanguage
+    dependencies: string[]
+    cliTools: SandboxCliToolId[]
+    systemPackages: string[]
+  },
+  specHash: string,
+  options?: { missingImageRef?: string }
+): Promise<void> {
+  try {
+    const { ensureSandboxImage, FAILED_BUILD_RETRY_COOLDOWN_MS } = await import(
+      '@/lib/execution/remote-sandbox/image-registry'
+    )
+    await ensureSandboxImage(
+      {
+        language: spec.language,
+        dependencies: spec.dependencies,
+        cliTools: spec.cliTools,
+        systemPackages: spec.systemPackages,
+      },
+      specHash,
+      // A create that just failed on a missing image has observed the truth, so it
+      // reclaims whatever the row says and skips the cooldown. Resolution reading a
+      // row it cannot verify only gets the rate-limited retry.
+      options?.missingImageRef
+        ? { missingImageRef: options.missingImageRef }
+        : { minFailureAgeMs: FAILED_BUILD_RETRY_COOLDOWN_MS }
+    )
+  } catch (error) {
+    logger.warn('Failed to schedule sandbox image repair', { specHash, error })
+  }
+}
+
+/**
+ * Repairs a sandbox whose image turned out to be gone when the provider was asked
+ * to create from it.
+ *
+ * This is the backstop the registry cannot be: the row and the provider template
+ * are two systems with no shared transaction, so every attempt to keep them in step
+ * leaves some window — a released image adopted mid-delete, a stale cache on another
+ * replica, a rebuild that did not take. Create is the one place that observes ground
+ * truth, so a `ready` row pointing at nothing repairs itself here on first use
+ * instead of needing someone to re-save the sandbox.
+ *
+ * Returns the message to fail this execution with, or `null` when the failure was
+ * anything else and must surface unchanged.
+ */
+export async function repairMissingSandboxImage(
+  selected: ResolvedSandbox,
+  error: unknown
+): Promise<string | null> {
+  if (selected.strategy !== 'prebuilt' || !selected.imageRef) return null
+
+  const provider = resolveProvider()
+  if (!provider.images) return null
+  if (!(await provider.images.isMissingImage(error))) return null
+
+  invalidateSandboxResolution()
+  await scheduleImageRepair(selected, selected.specHash, { missingImageRef: selected.imageRef })
+  logger.warn('Sandbox image was missing at create; rebuilding it', {
+    sandbox: selected.name,
+    specHash: selected.specHash,
+  })
+
+  return `Sandbox "${selected.name}" is being rebuilt because its image is no longer available. Run again in a moment.`
+}
+
+function assertLanguageMatches(sandbox: ResolvedSandbox, language?: CodeLanguage): void {
+  if (!language || sandbox.language === language) return
+  throw new Error(
+    `Sandbox "${sandbox.name}" installs ${sandbox.language} dependencies, but this block runs ${language}. Select a ${language} sandbox or clear the selection.`
+  )
+}
+
+function describeUnusableImage(
+  name: string,
+  status: string | undefined,
+  errorMessage: string | null | undefined
+): string {
+  if (status === 'failed') {
+    return `Sandbox "${name}" failed to build: ${errorMessage ?? 'installation failed'}. A rebuild has been queued — run again in a moment. If it keeps failing, fix its dependencies in Settings → Sandboxes.`
+  }
+  if (status === 'pending' || status === 'building') {
+    return `Sandbox "${name}" is still building. Wait for it to finish, then run again.`
+  }
+  return `Sandbox "${name}" has no completed build yet. A build has been queued — run again in a moment.`
+}
+
+/**
+ * Clears the in-process build cache.
+ *
+ * Best-effort only, and no longer load-bearing: it clears one process, so on a
+ * multi-replica deployment the others keep their entries. Correctness comes from
+ * what is NOT cached — the `workspace_sandbox` row is re-read on every resolve,
+ * and the cache is keyed by content address, so a stale entry can only ever
+ * describe a build that is still exactly what its hash says it is. This just
+ * lets the replica that served a mutation pick up a rebuild a little sooner.
+ */
+export function invalidateSandboxResolution(): void {
+  imageCache.clear()
+}
+
+function installCommandFor(language: SandboxLanguage): string {
+  if (language === CodeLanguage.Python) {
+    return `pip install --no-input --disable-pip-version-check -r ${SIM_REQUIREMENTS_PATH}`
+  }
+  // `--prefix` is the install target; the manifest is copied in as root first,
+  // because the filesystem API cannot write into a root-owned directory.
+  return `cp ${SIM_PACKAGE_JSON_PATH} ${SIM_DEPS_DIR}/package.json && npm install --prefix ${SIM_DEPS_DIR} --no-audit --no-fund --omit=dev`
+}
+
+/**
+ * Installs a runtime-strategy sandbox's dependencies before user code runs.
+ *
+ * The dependency list reaches the sandbox as a file written through the
+ * filesystem API, never interpolated into a shell command, so a package name is
+ * never parsed as shell syntax. The installer's own output is returned to the
+ * caller rather than merged into the execution's stdout, so a package whose name
+ * contains the `__SIM_RESULT__` marker cannot corrupt the parsed result.
+ *
+ * A non-zero exit throws: user code must never run against a half-installed
+ * environment and report a confusing `ModuleNotFoundError` instead of the real
+ * installation failure.
+ */
+export async function provisionRuntimeDependencies(
+  sandbox: SandboxHandle,
+  resolved: ResolvedSandbox,
+  options?: { timeoutMs?: number; signal?: AbortSignal }
+): Promise<void> {
+  const systemPackages = resolved.systemPackages ?? []
+  if (
+    resolved.strategy !== 'runtime' ||
+    (resolved.dependencies.length === 0 &&
+      (resolved.cliTools?.length ?? 0) === 0 &&
+      systemPackages.length === 0)
+  ) {
+    return
+  }
+
+  const installTimeoutMs = options?.timeoutMs ?? RUNTIME_INSTALL_TIMEOUT_MS
+  if (installTimeoutMs <= 0) {
+    throw new Error(
+      `Sandbox "${resolved.name}" installs its packages at run time, which needs more time than this block's timeout allows. Raise the block's timeout and try again.`
+    )
+  }
+
+  const started = Date.now()
+  const deadline = started + installTimeoutMs
+  const signal = options?.signal
+
+  const runWithinBudget = async (
+    command: string,
+    label: string,
+    commandOptions?: { envs?: Record<string, string>; classifyDependencyError?: boolean }
+  ) => {
+    if (signal?.aborted) {
+      throw signal.reason instanceof Error
+        ? signal.reason
+        : new DOMException('Execution cancelled', 'AbortError')
+    }
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) {
+      throw new DOMException('timeout', 'AbortError')
+    }
+    const result = await sandbox.runCommand(command, {
+      timeoutMs: remainingMs,
+      maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+      signal,
+      rootUser: true,
+      atMostOnce: true,
+      ...(commandOptions?.envs ? { envs: commandOptions.envs } : {}),
+    })
+    if (signal?.aborted) {
+      throw signal.reason instanceof Error
+        ? signal.reason
+        : new DOMException('Execution cancelled', 'AbortError')
+    }
+    if (result.timedOut) throw new DOMException('timeout', 'AbortError')
+    if (result.exitCode === 0) return
+
+    const output = result.stderr || result.stdout || `installer exited ${result.exitCode}`
+    if (commandOptions?.classifyDependencyError) {
+      const classified = classifyInstallOutput(resolved.language, output)
+      logger.error('Runtime dependency install failed', {
+        sandboxId: sandbox.sandboxId,
+        sandbox: resolved.name,
+        code: classified.code,
+        exitCode: result.exitCode,
+      })
+      throw new Error(`${classified.message}\n\n${tailBuildLog(output)}`)
+    }
+    logger.error('Runtime sandbox provisioning failed', {
+      sandboxId: sandbox.sandboxId,
+      sandbox: resolved.name,
+      component: label,
+      exitCode: result.exitCode,
+    })
+    throw new Error(`Failed to install ${label}.\n\n${tailBuildLog(output)}`)
+  }
+
+  if (systemPackages.length > 0) {
+    await runWithinBudget(systemPackageInstallCommand(systemPackages), 'system packages')
+  }
+
+  for (const recipe of sandboxCliToolRecipes(resolved.cliTools)) {
+    await runWithinBudget(recipe.installCommand, recipe.label)
+    await runWithinBudget(recipe.cleanupCommand, `${recipe.label} cleanup`)
+    await runWithinBudget(sandboxCliVerificationCommand(recipe, resolved.cliTools), recipe.label)
+  }
+
+  if (resolved.dependencies.length > 0) {
+    const manifest = renderDependencyManifest({
+      language: resolved.language,
+      dependencies: resolved.dependencies,
+      cliTools: resolved.cliTools,
+      systemPackages,
+    })
+    const manifestPath =
+      resolved.language === CodeLanguage.Python ? SIM_REQUIREMENTS_PATH : SIM_PACKAGE_JSON_PATH
+
+    await sandbox.writeFile(manifestPath, manifest)
+    if (resolved.language === CodeLanguage.JavaScript) {
+      await runWithinBudget(`mkdir -p ${SIM_DEPS_DIR}`, 'npm packages')
+    }
+    await runWithinBudget(installCommandFor(resolved.language), `${resolved.language} packages`, {
+      classifyDependencyError: true,
+    })
+  }
+
+  logger.info('Installed sandbox dependencies at run time', {
+    sandboxId: sandbox.sandboxId,
+    sandbox: resolved.name,
+    dependencyCount: resolved.dependencies.length,
+    cliToolCount: resolved.cliTools?.length ?? 0,
+    systemPackageCount: systemPackages.length,
+    durationMs: Date.now() - started,
+  })
+}

@@ -81,19 +81,12 @@ export function useVerification({
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<VerificationStatus>('idle')
   const [isResending, setIsResending] = useState(false)
-  const [isSendingInitialOtp, setIsSendingInitialOtp] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     const storedEmail = sessionStorage.getItem('verificationEmail')
     if (storedEmail) setEmail(storedEmail)
   }, [])
-
-  useEffect(() => {
-    if (email && !isSendingInitialOtp && hasEmailService) {
-      setIsSendingInitialOtp(true)
-    }
-  }, [email, isSendingInitialOtp, hasEmailService])
 
   const isOtpComplete = otp.length === 6
 

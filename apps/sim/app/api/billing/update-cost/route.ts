@@ -34,7 +34,7 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { isBillingEnabled, isCopilotBillingProtocolRequired } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -163,7 +163,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     const suppliedAttributionHeader = parsed.data.headers?.[BILLING_ATTRIBUTION_HEADER]
     const suppliedAccountDecisionHeader = parsed.data.headers?.[BILLING_ACCOUNT_DECISION_HEADER]
     const isMarkerlessLegacy = requestedProtocol === undefined
-    if (isMarkerlessLegacy && isCopilotBillingProtocolRequired) {
+    if (isMarkerlessLegacy && isHosted) {
       return invalidBillingProtocolResponse(requestId, span)
     }
     const protocol: CopilotBillingProtocol = requestedProtocol ?? COPILOT_BILLING_PROTOCOL.legacy
@@ -229,11 +229,9 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     let billingAttribution = suppliedBillingAttribution
     /**
-     * Old Go creates its random idempotency key after admission and returns no
-     * protocol or payer envelope. The markerless legacy-v0 path therefore
-     * re-resolves a locally known workspace at callback time. This mutable
-     * compatibility semantic is intentionally unreachable from modern
-     * attributed-v1/direct-v1 callbacks.
+     * Local self-hosted markerless callbacks have no immutable payer envelope,
+     * so they re-resolve a locally known workspace at callback time. Hosted
+     * attributed-v1/direct-v1 callbacks can never reach this mutable path.
      */
     if (isMarkerlessLegacy && workspaceId) {
       billingAttribution =
@@ -280,6 +278,9 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
             billingPeriod: {
               start: new Date(accountDecision.billingPeriod.start),
               end: new Date(accountDecision.billingPeriod.end),
+              ...(accountDecision.billingPeriod.source
+                ? { source: accountDecision.billingPeriod.source }
+                : {}),
             },
           }
         : undefined

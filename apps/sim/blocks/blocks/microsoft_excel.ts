@@ -54,6 +54,12 @@ function quoteSheetName(sheetName: string): string {
   return `'${sheetName.replace(/'/g, "''")}'`
 }
 
+/** Canonical pair for the workbook: picker in basic mode, raw id in advanced. */
+const SPREADSHEET_FIELD = ['spreadsheetId', 'manualSpreadsheetId'] as const
+
+/** Canonical pair for the worksheet tab, on the `_v2` block only. */
+const SHEET_FIELD = ['sheetName', 'manualSheetName'] as const
+
 export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   type: 'microsoft_excel',
   name: 'Microsoft Excel (Legacy)',
@@ -68,6 +74,54 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: MicrosoftExcelIcon,
+  canvasPresentation: {
+    defaultTitle: 'Microsoft Excel',
+    sentences: {
+      byOperation: {
+        read: [
+          { text: 'Read', field: 'range', core: true },
+          { text: 'from', field: SPREADSHEET_FIELD, core: true },
+        ],
+        write: [
+          { text: 'Write values to', field: SPREADSHEET_FIELD, core: true },
+          { text: ', at', field: 'range' },
+        ],
+        table_add: [
+          {
+            text: 'Append rows to table',
+            field: 'tableName',
+            core: true,
+          },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        worksheet_add: [
+          { text: 'Add worksheet', field: 'worksheetName', core: true },
+          { text: 'to', field: SPREADSHEET_FIELD, core: true },
+        ],
+        clear_range: [
+          { text: 'Clear', field: 'range', core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        format_range: [
+          { text: 'Format', field: 'range', core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        create_table: [
+          { text: 'Create a table over', field: 'range', core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        sort_range: [
+          { text: 'Sort', field: ['sortTableName', 'range'], core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+          { text: ', by column', field: 'sortColumn' },
+        ],
+        delete_worksheet: [
+          { text: 'Delete worksheet', field: 'worksheetName', core: true },
+          { text: 'from', field: SPREADSHEET_FIELD, core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -116,7 +170,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       requiredScopes: [],
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
-      dependsOn: ['credential'],
+      dependsOn: { all: ['credential'], any: ['credential', 'driveId'] },
       mode: 'basic',
     },
     {
@@ -642,6 +696,46 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: MicrosoftExcelIcon,
+  canvasPresentation: {
+    defaultTitle: 'Microsoft Excel',
+    sentences: {
+      byOperation: {
+        read: [
+          { text: 'Read', field: 'cellRange', core: true },
+          { text: 'from', field: SPREADSHEET_FIELD, core: true },
+          { text: ', sheet', field: SHEET_FIELD },
+        ],
+        write: [
+          { text: 'Write values to', field: SPREADSHEET_FIELD, core: true },
+          { text: ', sheet', field: SHEET_FIELD },
+          { text: ', at', field: 'cellRange' },
+        ],
+        clear_range: [
+          { text: 'Clear', field: 'cellRange', core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+          { text: ', sheet', field: SHEET_FIELD },
+        ],
+        format_range: [
+          { text: 'Format', field: 'cellRange', core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+          { text: ', sheet', field: SHEET_FIELD },
+        ],
+        create_table: [
+          { text: 'Create a table over', field: 'cellRange', core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        sort_range: [
+          { text: 'Sort', field: ['sortTableName', 'cellRange'], core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+          { text: ', by column', field: 'sortColumn' },
+        ],
+        delete_worksheet: [
+          { text: 'Delete sheet', field: SHEET_FIELD, core: true },
+          { text: 'from', field: SPREADSHEET_FIELD, core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {

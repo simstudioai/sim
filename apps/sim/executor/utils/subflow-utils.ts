@@ -39,10 +39,6 @@ export function isParallelSentinelNodeId(nodeId: string): boolean {
   return SubflowNodeIdCodec.isParallelSentinelNodeId(nodeId)
 }
 
-export function isSentinelNodeId(nodeId: string): boolean {
-  return isLoopSentinelNodeId(nodeId) || isParallelSentinelNodeId(nodeId)
-}
-
 export function extractLoopIdFromSentinel(sentinelId: string): string | null {
   return SubflowNodeIdCodec.extractLoopIdFromSentinel(sentinelId)
 }
@@ -297,6 +293,7 @@ export async function emitSubflowSuccessEvents(
   const block = ctx.workflow?.blocks.find((b) => b.id === blockId)
   const blockName = block?.metadata?.name ?? blockType
   const iterationContext = buildContainerIterationContext(ctx, blockId)
+  const provenance = ctx.blockStates.get(blockId)?.resolvedSecretTraceProvenance
 
   ctx.blockLogs.push({
     blockId,
@@ -308,6 +305,7 @@ export async function emitSubflowSuccessEvents(
     success: true,
     output,
     executionOrder,
+    ...(provenance ? { displayResolvedSecretTraceProvenance: provenance } : {}),
   })
 
   if (contextExtensions?.onBlockComplete) {
@@ -318,6 +316,8 @@ export async function emitSubflowSuccessEvents(
         blockType,
         {
           output,
+          ...(provenance ? { resolvedSecretTraceProvenance: provenance } : {}),
+          ...(provenance ? { displayResolvedSecretTraceProvenance: provenance } : {}),
           executionTime: DEFAULTS.EXECUTION_TIME,
           startedAt: now,
           executionOrder,

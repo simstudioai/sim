@@ -7,13 +7,17 @@ import { requestUtilsMockFns, resetEnvMock, setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnqueueTikTokWebhookIngress, mockRelease } = vi.hoisted(() => ({
-  mockEnqueueTikTokWebhookIngress: vi.fn(),
-  mockRelease: vi.fn(),
-}))
+const { mockDispatchResolvedWebhookTarget, mockFindWebhooksByRoutingKey, mockRelease } = vi.hoisted(
+  () => ({
+    mockDispatchResolvedWebhookTarget: vi.fn(),
+    mockFindWebhooksByRoutingKey: vi.fn(),
+    mockRelease: vi.fn(),
+  })
+)
 
-vi.mock('@/background/tiktok-webhook-ingress', () => ({
-  enqueueTikTokWebhookIngress: mockEnqueueTikTokWebhookIngress,
+vi.mock('@/lib/webhooks/processor', () => ({
+  dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
+  findWebhooksByRoutingKey: mockFindWebhooksByRoutingKey,
 }))
 
 vi.mock('@/lib/core/admission/gate', () => ({
@@ -29,12 +33,17 @@ vi.mock('@/lib/core/utils/with-route-handler', () => ({
 
 import { POST } from '@/app/api/webhooks/tiktok/route'
 
-function signedRequest(overrides?: { clientKey?: string }): NextRequest {
+const target = (id: string) => ({
+  webhook: { id, path: null, provider: 'tiktok' },
+  workflow: { id: `workflow-${id}` },
+})
+
+function signedRequest(overrides?: { clientKey?: string; userOpenId?: string }): NextRequest {
   const body = JSON.stringify({
     client_key: overrides?.clientKey ?? 'client-key',
     event: 'post.publish.complete',
     create_time: 1_725_000_000,
-    user_openid: 'act.user',
+    user_openid: overrides?.userOpenId ?? 'act.user',
     content: '{"publish_id":"publish-1"}',
   })
   const timestamp = String(Math.floor(Date.now() / 1000))
@@ -53,12 +62,13 @@ function signedRequest(overrides?: { clientKey?: string }): NextRequest {
   })
 }
 
-describe('TikTok webhook ingress route', () => {
+describe('TikTok app webhook route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnv({ TIKTOK_CLIENT_ID: 'client-key', TIKTOK_CLIENT_SECRET: 'client-secret' })
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
-    mockEnqueueTikTokWebhookIngress.mockResolvedValue('ingress-job-1')
+    mockFindWebhooksByRoutingKey.mockResolvedValue([])
+    mockDispatchResolvedWebhookTarget.mockResolvedValue({ outcome: 'queued', reason: 'queued' })
   })
 
   afterAll(() => {
@@ -66,25 +76,64 @@ describe('TikTok webhook ingress route', () => {
     requestUtilsMockFns.mockGenerateRequestId.mockReset()
   })
 
-  it('returns 200 only after the verified delivery is accepted by the job queue', async () => {
-    const response = await POST(signedRequest())
+  it('routes a verified delivery by user_openid on the TikTok provider', async () => {
+    mockFindWebhooksByRoutingKey.mockResolvedValue([target('webhook-1')])
+
+    const response = await POST(signedRequest({ userOpenId: 'user-open-id' }))
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ ok: true })
-    expect(mockEnqueueTikTokWebhookIngress).toHaveBeenCalledWith(
+    expect(mockFindWebhooksByRoutingKey).toHaveBeenCalledWith('user-open-id', 'request-1', 'tiktok')
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'webhook-1' }),
+      expect.objectContaining({ id: 'workflow-webhook-1' }),
+      expect.objectContaining({ user_openid: 'user-open-id' }),
+      expect.any(NextRequest),
       expect.objectContaining({
-        envelope: expect.objectContaining({
-          client_key: 'client-key',
-          user_openid: 'act.user',
-        }),
         requestId: 'request-1',
+        triggerTimestampMs: 1_725_000_000_000,
       })
     )
     expect(mockRelease).toHaveBeenCalledOnce()
   })
 
-  it('returns 503 when durable acceptance fails so TikTok retries', async () => {
-    mockEnqueueTikTokWebhookIngress.mockRejectedValue(new Error('queue unavailable'))
+  it('acknowledges a verified delivery when no workflow targets match', async () => {
+    const response = await POST(signedRequest())
+
+    expect(response.status).toBe(200)
+    expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
+  })
+
+  it('dispatches matching workflows sequentially', async () => {
+    mockFindWebhooksByRoutingKey.mockResolvedValue([target('webhook-1'), target('webhook-2')])
+    const order: string[] = []
+    mockDispatchResolvedWebhookTarget.mockImplementation(async (webhook: { id: string }) => {
+      order.push(`start:${webhook.id}`)
+      await Promise.resolve()
+      order.push(`end:${webhook.id}`)
+      return { outcome: 'queued', reason: 'queued' }
+    })
+
+    const response = await POST(signedRequest())
+
+    expect(response.status).toBe(200)
+    expect(order).toEqual(['start:webhook-1', 'end:webhook-1', 'start:webhook-2', 'end:webhook-2'])
+  })
+
+  it('returns a retryable response when a target cannot be dispatched', async () => {
+    mockFindWebhooksByRoutingKey.mockResolvedValue([target('webhook-1')])
+    mockDispatchResolvedWebhookTarget.mockResolvedValue({
+      outcome: 'failed',
+      reason: 'queue-failed',
+    })
+
+    const response = await POST(signedRequest())
+
+    expect(response.status).toBe(503)
+  })
+
+  it('returns 503 when target lookup fails', async () => {
+    mockFindWebhooksByRoutingKey.mockRejectedValue(new Error('database unavailable'))
 
     const response = await POST(signedRequest())
 
@@ -96,6 +145,6 @@ describe('TikTok webhook ingress route', () => {
     const response = await POST(signedRequest({ clientKey: 'other-client-key' }))
 
     expect(response.status).toBe(401)
-    expect(mockEnqueueTikTokWebhookIngress).not.toHaveBeenCalled()
+    expect(mockFindWebhooksByRoutingKey).not.toHaveBeenCalled()
   })
 })

@@ -654,6 +654,36 @@ export const crewaiProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'Partial: CrewAI no longer ships a sandbox of its own. The Docker-backed CodeInterpreterTool was removed from crewai-tools in April 2026 and the docs now direct users to a third-party sandbox service, so the execution environment is configured in that provider. What remains first-party is AMP deployment: a deployed crew installs whatever the project declares in pyproject.toml/uv.lock, including private-registry packages.',
+        detail:
+          "The CodeInterpreterTool page now carries a deprecation warning stating that the tool 'has been removed from crewai-tools' and that the allow_code_execution and code_execution_mode parameters on Agent are also deprecated, directing users to a dedicated sandbox service (E2B or Modal) instead; CERT/CC VU#221883 records the same vendor statement, that the tool including its Docker sandbox and its restricted-Python fallback was removed in response to code-execution vulnerabilities. In its place crewai-tools ships wrappers for third-party sandboxes (e2b_sandbox_tool, daytona_sandbox_tool), so image, package, and resource configuration follow that provider's model and account rather than CrewAI's. Separately, a crew deployed to CrewAI AMP is built from the repository's own pyproject.toml with a required uv.lock, so the deployed runtime contains the packages the developer declared, including packages from a private registry configured through [[tool.uv.index]] plus UV_INDEX_*_USERNAME/PASSWORD environment variables. Outside AMP, CrewAI is a Python library with no sandbox of its own: crew code runs in whatever interpreter and virtualenv the developer starts it in, so the dependency set is fully theirs to control and equally unisolated.",
+        shortValue: 'Partial, AMP deploy dependencies; code sandbox delegated to E2B/Daytona',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.crewai.com/en/tools/ai-ml/codeinterpretertool',
+            label: 'Code Interpreter (removal notice) - CrewAI Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://www.kb.cert.org/vuls/id/221883',
+            label: 'VU#221883 vendor statement - CERT Coordination Center',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs-platform.crewai.com/platform/en/guides/deploy-to-amp',
+            label: 'Deploy to AMP - CrewAI Platform Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs-platform.crewai.com/platform/en/guides/private-package-registry',
+            label: 'Private Package Registries - CrewAI Platform Docs',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value: 'Yes: CrewAI AMP deploys a crew as a callable REST API (kickoff/status endpoints)',
         detail:
@@ -902,6 +932,31 @@ export const crewaiProfile: CompetitorProfile = {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          "Not publicly documented: no admin-configurable session lifetime or idle timeout appears in CrewAI AMP's public docs; the SSO, RBAC, and self-hosted configuration pages name no session control",
+        detail:
+          "CrewAI's platform SSO page documents WorkOS (the SaaS default), Microsoft Entra ID, Okta, Auth0, and Keycloak as identity providers and delegates MFA enforcement to the IdP, but names no session-lifetime, absolute-cap, or inactivity-timeout setting; the RBAC permission matrix likewise covers default_settings and organization_settings without a session control. The self-hosted Helm chart's WorkOS variables (WORKOS_CLIENT_ID, WORKOS_AUTHKIT_DOMAIN, WORKOS_COOKIE_PASSWORD, WORKOS_API_KEY) document credentials and cookie encryption but no lifetime or expiry setting. CrewAI does not document where session length is controlled, and no session-duration behavior is stated either way. The open-source framework has no user accounts or sign-in at all, so the question does not apply to it.",
+        shortValue: 'No documented session-lifetime or idle-timeout setting',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs-platform.crewai.com/platform/en/features/sso',
+            label: 'SSO - CrewAI Platform Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs-platform.crewai.com/platform/en/features/rbac',
+            label: 'RBAC - CrewAI Platform Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://enterprise-docs.crewai.com/features/workos-sso',
+            label: 'WorkOS SSO - CrewAI Platform Helm Chart',
+            asOf: '2026-08-10',
           },
         ],
       },

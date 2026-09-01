@@ -9,7 +9,6 @@ import {
   mcpServers,
   userTableDefinitions,
   workflowMcpServer,
-  workflowSchedule,
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
@@ -144,23 +143,6 @@ export async function archiveWorkspace(
         updatedAt: now,
       })
       .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
-
-    await tx
-      .update(workflowSchedule)
-      .set({
-        archivedAt: now,
-        updatedAt: now,
-        status: 'disabled',
-        nextRunAt: null,
-        lastQueuedAt: null,
-      })
-      .where(
-        and(
-          eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-          eq(workflowSchedule.sourceType, 'job'),
-          isNull(workflowSchedule.archivedAt)
-        )
-      )
 
     await tx
       .update(workspace)

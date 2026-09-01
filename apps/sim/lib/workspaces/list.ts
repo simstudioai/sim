@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { settings, type workspace as workspaceTable } from '@sim/db/schema'
+import { pinnedItem, settings, type workspace as workspaceTable } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import {
   evaluateWorkspaceInvitePolicy,
@@ -22,12 +22,22 @@ export type WorkspaceWithInviteFlags = WorkspaceRow &
   WorkspaceInviteFlags & {
     role: 'owner' | 'admin' | 'member'
     permissions: PermissionType
+    /**
+     * The viewer's admin access to this workspace derives from their
+     * organization role. `role: 'admin'` alone cannot say so — an explicit
+     * workspace admin looks identical — and the two differ in what the viewer
+     * can do: derived access has no permission row to give up, so leaving is
+     * refused by `DELETE /api/workspaces/members/[id]`.
+     */
+    isOrgAdmin: boolean
   }
 
 /** The GET /api/workspaces payload assembled by {@link listWorkspacesForViewer}. */
 export interface WorkspaceListPayload {
   workspaces: WorkspaceWithInviteFlags[]
   lastActiveWorkspaceId: string | null
+  /** Workspace ids the viewer pinned to the top of the switcher. */
+  pinnedWorkspaceIds: string[]
   creationPolicy: WorkspaceCreationPolicy
 }
 
@@ -37,7 +47,11 @@ export interface WorkspaceListPayload {
  * billed user / organization).
  */
 async function buildWorkspacesWithInviteFlags(
-  userWorkspaces: Array<{ workspace: WorkspaceRow; permissionType: PermissionType }>,
+  userWorkspaces: Array<{
+    workspace: WorkspaceRow
+    permissionType: PermissionType
+    viaOrgAdmin: boolean
+  }>,
   userId: string
 ): Promise<WorkspaceWithInviteFlags[]> {
   const nonOrgBilledUserIds = [
@@ -68,7 +82,7 @@ async function buildWorkspacesWithInviteFlags(
     }),
   ])
 
-  return userWorkspaces.map(({ workspace: workspaceDetails, permissionType }) => {
+  return userWorkspaces.map(({ workspace: workspaceDetails, permissionType, viaOrgAdmin }) => {
     const billedPlanCategory: PlanCategory =
       workspaceDetails.workspaceMode === WORKSPACE_MODE.ORGANIZATION
         ? workspaceDetails.organizationId
@@ -86,6 +100,7 @@ async function buildWorkspacesWithInviteFlags(
             ? ('admin' as const)
             : ('member' as const),
       permissions: permissionType,
+      isOrgAdmin: viaOrgAdmin,
       ...resolveInviteFlags(invitePolicy, workspaceDetails.billedAccountUserId === userId),
     }
   })
@@ -108,7 +123,8 @@ export async function listWorkspacesForViewer(params: {
 }): Promise<WorkspaceListPayload> {
   const { userId, activeOrganizationId, scope = 'active' } = params
 
-  const [creationPolicy, workspaces, userSettings] = await Promise.all([
+  /** Workspace pins ride along here; see `pinnedResourceTypeSchema` for why. */
+  const [creationPolicy, workspaces, userSettings, workspacePins] = await Promise.all([
     getWorkspaceCreationPolicy({ userId, activeOrganizationId }),
     listAccessibleWorkspaceRowsForUser(userId, scope).then((rows) =>
       buildWorkspacesWithInviteFlags(rows, userId)
@@ -118,11 +134,16 @@ export async function listWorkspacesForViewer(params: {
       .from(settings)
       .where(eq(settings.userId, userId))
       .limit(1),
+    db
+      .select({ resourceId: pinnedItem.resourceId })
+      .from(pinnedItem)
+      .where(and(eq(pinnedItem.userId, userId), eq(pinnedItem.resourceType, 'workspace'))),
   ])
 
   return {
     workspaces,
     lastActiveWorkspaceId: userSettings[0]?.lastActiveWorkspaceId ?? null,
+    pinnedWorkspaceIds: workspacePins.map((row) => row.resourceId),
     creationPolicy,
   }
 }

@@ -12,9 +12,7 @@
 
 import { parseXml, type SafeXmlNode } from '../parser/xml-parser'
 
-// ---------------------------------------------------------------------------
 // UUID → (styleName, accent) map — 74 entries across 11 style groups
-// ---------------------------------------------------------------------------
 
 const styleIdMap = new Map<string, [string, string]>([
   // Themed-Style-1
@@ -114,9 +112,7 @@ const styleIdMap = new Map<string, [string, string]>([
   ['{46F890A9-2807-4EBB-B81D-B2AA78EC7F39}', ['Dark-Style-2', 'accent5']],
 ])
 
-// ---------------------------------------------------------------------------
 // XML helpers — reduce boilerplate in style generators
-// ---------------------------------------------------------------------------
 
 const NS = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
 
@@ -166,9 +162,7 @@ function stylePart(
   return parts.join('')
 }
 
-// ---------------------------------------------------------------------------
 // Style group XML generators
-// ---------------------------------------------------------------------------
 
 function themedStyle1(accent: string, styleId: string): string {
   const hasAccent = accent !== ''
@@ -740,17 +734,13 @@ function darkStyle2(accent: string, styleId: string): string {
   return wrapTblStyle(styleId, 'Dark-Style-2', parts.join(''))
 }
 
-// ---------------------------------------------------------------------------
 // XML wrapper
-// ---------------------------------------------------------------------------
 
 function wrapTblStyle(styleId: string, styleName: string, innerXml: string): string {
   return `<a:tblStyle ${NS} styleId="${styleId}" styleName="${styleName}">${innerXml}</a:tblStyle>`
 }
 
-// ---------------------------------------------------------------------------
 // Style generator dispatch
-// ---------------------------------------------------------------------------
 
 const styleGenerators: Record<string, (accent: string, styleId: string) => string> = {
   'Themed-Style-1': themedStyle1,
@@ -766,9 +756,7 @@ const styleGenerators: Record<string, (accent: string, styleId: string) => strin
   'Dark-Style-2': darkStyle2,
 }
 
-// ---------------------------------------------------------------------------
 // Module-level cache & public API
-// ---------------------------------------------------------------------------
 
 const cache = new Map<string, SafeXmlNode>()
 
@@ -794,12 +782,4 @@ export function getPredefinedTableStyle(styleId: string): SafeXmlNode | undefine
 
   cache.set(styleId, node)
   return node
-}
-
-/** Exported for testing: number of known predefined style UUIDs. */
-export const PREDEFINED_STYLE_COUNT = styleIdMap.size
-
-/** Exported for testing: all known style IDs. */
-export function getAllPredefinedStyleIds(): string[] {
-  return Array.from(styleIdMap.keys())
 }

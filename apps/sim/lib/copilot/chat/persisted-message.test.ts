@@ -235,6 +235,101 @@ describe('persisted-message', () => {
     expect(msg.fileAttachments).toBeUndefined()
     expect(msg.contexts).toBeUndefined()
   })
+
+  it('persists the source names a selection chip renders from, but not its payload', () => {
+    const msg = buildPersistedUserMessage({
+      id: 'user-1',
+      content: 'explain this',
+      contexts: [
+        {
+          kind: 'file_selection',
+          label: 'notes.md:12-40',
+          fileId: 'f1',
+          fileName: 'notes.md',
+          // Send-time payload: resolved server-side, never re-read for display.
+          text: 'the exact passage',
+          startLine: 12,
+          endLine: 40,
+        },
+        {
+          kind: 'table_selection',
+          label: 'Sales (2 rows)',
+          tableId: 't1',
+          tableName: 'Sales',
+          rowIds: ['r1', 'r2'],
+        },
+      ],
+    })
+
+    // fileName must survive: the label carries a `:12-40` suffix, so the chip's
+    // icon cannot recover an extension from it after a reload.
+    expect(msg.contexts?.[0]).toEqual({
+      kind: 'file_selection',
+      label: 'notes.md:12-40',
+      fileId: 'f1',
+      fileName: 'notes.md',
+    })
+    expect(msg.contexts?.[1]).toEqual({
+      kind: 'table_selection',
+      label: 'Sales (2 rows)',
+      tableId: 't1',
+      tableName: 'Sales',
+    })
+  })
+
+  it('round-trips browser and terminal selection snapshots', () => {
+    const persisted = buildPersistedUserMessage({
+      id: 'user-selection',
+      content: '@Docs @Terminal',
+      contexts: [
+        {
+          kind: 'browser_tab',
+          label: 'Docs',
+          tabId: 'tab-1',
+          selection: {
+            text: 'Selected browser text',
+            url: 'https://example.com/docs',
+            title: 'Example docs',
+          },
+        },
+        {
+          kind: 'terminal_tab',
+          label: 'Terminal',
+          terminalId: 'terminal-1',
+          selection: {
+            text: 'bun test',
+            startLine: 12,
+            endLine: 13,
+          },
+        },
+      ],
+    })
+
+    const normalized = normalizeMessage(persisted as unknown as Record<string, unknown>)
+
+    expect(normalized.contexts).toEqual([
+      {
+        kind: 'browser_tab',
+        label: 'Docs',
+        tabId: 'tab-1',
+        selection: {
+          text: 'Selected browser text',
+          url: 'https://example.com/docs',
+          title: 'Example docs',
+        },
+      },
+      {
+        kind: 'terminal_tab',
+        label: 'Terminal',
+        terminalId: 'terminal-1',
+        selection: {
+          text: 'bun test',
+          startLine: 12,
+          endLine: 13,
+        },
+      },
+    ])
+  })
 })
 
 describe('stripToolResultOutput', () => {
@@ -296,6 +391,41 @@ describe('stripToolResultOutput', () => {
     expect(stripToolResultOutput(message).contentBlocks?.[0].toolCall?.result).toEqual({
       success: true,
     })
+  })
+
+  it('keeps only the answered browser takeover instruction for its question recap', () => {
+    const message: PersistedMessage = {
+      id: 'msg-takeover',
+      role: 'assistant',
+      content: '',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      contentBlocks: [
+        {
+          type: 'tool',
+          phase: 'call',
+          toolCall: {
+            id: 'takeover-1',
+            name: 'browser_request_takeover',
+            state: 'success',
+            result: {
+              success: true,
+              output: {
+                completed: true,
+                elapsedMs: 5_000,
+                userInstruction: '  Open the second match  ',
+              },
+            },
+          },
+        },
+      ],
+    }
+
+    const stripped = stripToolResultOutput(message)
+    expect(stripped.contentBlocks?.[0].toolCall?.result).toEqual({
+      success: true,
+      output: { userInstruction: 'Open the second match' },
+    })
+    expect(stripToolResultOutput(stripped)).toBe(stripped)
   })
 
   it('returns the same reference when there is nothing to strip', () => {

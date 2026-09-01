@@ -2,8 +2,9 @@ import { createReadStream, existsSync } from 'fs'
 import { Readable } from 'stream'
 import { createLogger } from '@sim/logger'
 import { type Options, parse } from 'csv-parse'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
-import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
+import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
 
 const logger = createLogger('CsvParser')
 
@@ -111,19 +112,26 @@ export class CsvParser implements FileParser {
         if (errorCount >= CONFIG.MAX_ERRORS) {
           aborted = true
           parser.destroy()
-          reject(new Error(`Too many errors (${errorCount}). File may be corrupted.`))
+          reject(
+            new FileParserError(
+              'invalid_format',
+              `Too many errors (${errorCount}). File may be corrupted.`
+            )
+          )
         }
       })
 
       parser.on('error', (err: Error) => {
         logger.error('CSV parser error:', err)
-        reject(new Error(`CSV parsing failed: ${err.message}`))
+        reject(new FileParserError('invalid_format', `CSV parsing failed: ${err.message}`, err))
       })
 
       parser.on('end', () => {
         if (!aborted) {
           if (rowCount > CONFIG.MAX_PREVIEW_ROWS) {
-            processedContent += `\n[... ${rowCount.toLocaleString()} total rows, showing first ${CONFIG.MAX_PREVIEW_ROWS} ...]\n`
+            processedContent += truncationNotice(
+              `${rowCount.toLocaleString()} total rows, showing first ${CONFIG.MAX_PREVIEW_ROWS}`
+            )
           }
 
           logger.info(`CSV parsing complete: ${rowCount} rows, ${errorCount} errors`)

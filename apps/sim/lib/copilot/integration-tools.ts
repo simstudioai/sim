@@ -1,18 +1,25 @@
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
+import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import { isHiddenUnder } from '@/blocks/visibility/context'
 import { tools as toolRegistry } from '@/tools/registry'
-import type { ToolConfig } from '@/tools/types'
+import type { ExecutableToolConfig } from '@/tools/types'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 
-export interface ExposedIntegrationTool {
+export interface ExposedIntegrationToolOwner {
+  service: string
+  blockType: string
+  preview?: boolean
+}
+
+export interface ExposedIntegrationTool extends ExposedIntegrationToolOwner {
   /**
    * Full registry tool id — also the agent-callable id and the schema `id`
    * field (e.g. gmail_read_v2). No stripping: discovery, the schema id, and the
    * callable id are all this exact value, matching the block's tools.access.
    */
   toolId: string
-  config: ToolConfig
+  config: ExecutableToolConfig
   /** Service directory name, e.g. "gmail". */
   service: string
   /** Operation stem within the service (used for the VFS path filename), e.g. "read". */
@@ -21,6 +28,8 @@ export interface ExposedIntegrationTool {
   blockType: string
   /** Owning block's static `preview` marker, for the per-viewer filter. */
   preview?: boolean
+  /** Every visible block that declares this tool, including preview successors. */
+  owners: readonly ExposedIntegrationToolOwner[]
 }
 
 let cached: ExposedIntegrationTool[] | null = null
@@ -46,7 +55,7 @@ export function getExposedIntegrationTools(): ExposedIntegrationTool[] {
 
   // Map the tool ids each visible block exposes (both the raw id and its
   // version-stripped base name) to that block's service directory + type.
-  const toolToBlock = new Map<string, { service: string; blockType: string; preview?: boolean }>()
+  const toolToBlocks = new Map<string, ExposedIntegrationToolOwner[]>()
   for (const block of Object.values(BLOCK_REGISTRY)) {
     if (block.hideFromToolbar) continue
     if (!block.tools?.access) continue
@@ -54,13 +63,14 @@ export function getExposedIntegrationTools(): ExposedIntegrationTool[] {
     const owner = { service, blockType: block.type, preview: block.preview }
     for (const toolId of block.tools.access) {
       for (const key of [toolId, stripVersionSuffix(toolId)]) {
-        // A preview block must not steal ownership of tools it shares with a
-        // released block (e.g. slack_v2 spreads slack's tools.access), or the
-        // per-viewer filter would hide those tools from everyone without the
-        // preview reveal.
-        const existing = toolToBlock.get(key)
-        if (existing && !existing.preview && owner.preview) continue
-        toolToBlock.set(key, owner)
+        const owners = toolToBlocks.get(key)
+        if (owners) {
+          if (!owners.some((existing) => existing.blockType === owner.blockType)) {
+            owners.push(owner)
+          }
+        } else {
+          toolToBlocks.set(key, [owner])
+        }
       }
     }
   }
@@ -69,8 +79,9 @@ export function getExposedIntegrationTools(): ExposedIntegrationTool[] {
   const seen = new Set<string>()
   for (const [toolId, config] of Object.entries(getLatestVersionTools(toolRegistry))) {
     const baseName = stripVersionSuffix(toolId)
-    const owner = toolToBlock.get(toolId) ?? toolToBlock.get(baseName)
-    if (!owner) continue
+    const owners = toolToBlocks.get(toolId) ?? toolToBlocks.get(baseName)
+    if (!owners || owners.length === 0) continue
+    const owner = owners.find((candidate) => !candidate.preview) ?? owners[0]
     if (seen.has(baseName)) continue
     seen.add(baseName)
     const prefix = `${owner.service}_`
@@ -82,6 +93,7 @@ export function getExposedIntegrationTools(): ExposedIntegrationTool[] {
       operation,
       blockType: owner.blockType,
       preview: owner.preview,
+      owners,
     })
   }
 
@@ -92,16 +104,28 @@ export function getExposedIntegrationTools(): ExposedIntegrationTool[] {
 /**
  * Per-viewer projection of the exposed set: drops tools whose owning block is
  * hidden under `vis` (unrevealed preview blocks — including with a null state —
- * and kill-switched types). Apply at every surface that hands the set to a
- * viewer: VFS stamping, the deferred tool payload, `list_integration_tools`.
+ * and kill-switched types), and tools the viewer's permission group denies
+ * outright. Both gates are required rather than defaulted: a surface that
+ * applied only one of them would advertise tools its viewer cannot use, so the
+ * omission is a compile error instead of a convention. Call
+ * {@link projectIntegrationToolsForViewer}, which resolves both from a
+ * permission config.
  */
 export function filterExposedIntegrationTools(
   tools: ExposedIntegrationTool[],
-  vis: BlockVisibilityState | null
+  vis: BlockVisibilityState | null,
+  isOwnerAllowed: (owner: ExposedIntegrationToolOwner) => boolean,
+  isToolAllowed: IsToolAllowed
 ): ExposedIntegrationTool[] {
-  return tools.filter(
-    (tool) => !isHiddenUnder(vis, { type: tool.blockType, preview: tool.preview })
-  )
+  return tools.flatMap((tool) => {
+    if (!isToolAllowed(tool.toolId)) return []
+    const owner = tool.owners.find(
+      (candidate) =>
+        !isHiddenUnder(vis, { type: candidate.blockType, preview: candidate.preview }) &&
+        isOwnerAllowed(candidate)
+    )
+    return owner ? [{ ...tool, ...owner }] : []
+  })
 }
 
 /** Test-only: clears the memoized set so registry changes are picked up. */

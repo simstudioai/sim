@@ -1,10 +1,14 @@
+import {
+  applyProjectedElevenLabsAudioFileNameModelInput,
+  selectElevenLabsAudioFileNameModelInput,
+} from '@/tools/elevenlabs/model-input'
 import type {
   ElevenLabsAudioResponse,
   ElevenLabsSpeechToSpeechParams,
 } from '@/tools/elevenlabs/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const elevenLabsSpeechToSpeechTool: ToolConfig<
+export const elevenLabsSpeechToSpeechTool: InternalToolConfig<
   ElevenLabsSpeechToSpeechParams,
   ElevenLabsAudioResponse
 > = {
@@ -46,26 +50,18 @@ export const elevenLabsSpeechToSpeechTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/elevenlabs/audio',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: ElevenLabsSpeechToSpeechParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
-      operation: 'speech_to_speech',
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: selectElevenLabsAudioFileNameModelInput,
+      applyProjected: applyProjectedElevenLabsAudioFileNameModelInput,
+    },
+    input: (params) => ({
       apiKey: params.apiKey,
       voiceId: params.voiceId,
       audioFile: params.audioFile,
       modelId: params.modelId,
       removeBackgroundNoise: params.removeBackgroundNoise,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

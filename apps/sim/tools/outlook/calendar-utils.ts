@@ -19,8 +19,11 @@ import type { ToolRetryConfig } from '@/tools/types'
  * The executor retries **429 and 5xx** (`isRetryableFailure`), not 429 alone, so each
  * non-idempotent method has to be safe against a retry that follows an already-committed
  * write:
- * - `create_event` (POST) sends a per-execution `transactionId`; Graph uses it to discard
- *   the duplicate POST, so a 5xx-after-commit cannot create a second event.
+ * - `create_event` (POST) sends a `transactionId` derived from the execution identity;
+ *   Graph uses it to discard the duplicate POST, so a 5xx-after-commit cannot create a
+ *   second event. The derivation is what makes the token identical across this loop, the
+ *   transport loop, and the block executor's retry policy — see `calendar-idempotency.ts`
+ *   for why minting one per request build protects only the innermost of the three.
  * - `update_event` (PATCH) resends the same partial body, so replaying it is a no-op.
  * - `respond` (POST accept/decline) is state-idempotent — the resulting `responseStatus`
  *   is identical — but a retry after a committed write can send the organizer a second

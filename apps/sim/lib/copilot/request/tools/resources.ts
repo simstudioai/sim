@@ -29,6 +29,7 @@ export async function handleResourceSideEffects(
   toolName: string,
   params: Record<string, unknown> | undefined,
   result: ToolCallResult,
+  projectedResult: ToolCallResult,
   chatId: string,
   onEvent: ((event: StreamEvent) => void | Promise<void>) | undefined,
   isAborted: () => boolean
@@ -57,6 +58,11 @@ export async function handleResourceSideEffects(
 
       if (hasDeleteCapability(toolName)) {
         const deleted = extractDeletedResourcesFromToolResult(toolName, params, result.output)
+        const projectedDeleted = extractDeletedResourcesFromToolResult(
+          toolName,
+          params,
+          projectedResult.output
+        )
         if (deleted.length > 0) {
           isDeleteOp = true
           removedCount = deleted.length
@@ -71,13 +77,19 @@ export async function handleResourceSideEffects(
             })
           })
 
-          for (const resource of deleted) {
+          for (let index = 0; index < deleted.length; index += 1) {
             if (isAborted()) break
+            const resource = deleted[index]
+            const projected = projectedDeleted[index]
             await onEvent?.({
               type: MothershipStreamV1EventType.resource,
               payload: {
                 op: MothershipStreamV1ResourceOp.remove,
-                resource: { type: resource.type, id: resource.id, title: resource.title },
+                resource: {
+                  type: resource.type,
+                  id: resource.id,
+                  title: projected?.title ?? '',
+                },
               },
             })
           }
@@ -85,12 +97,29 @@ export async function handleResourceSideEffects(
       }
 
       if (!isDeleteOp && !isAborted()) {
-        const resources =
+        const rawResources =
           result.resources && result.resources.length > 0
             ? result.resources
             : isResourceToolName(toolName)
               ? extractResourcesFromToolResult(toolName, params, result.output)
               : []
+        const projectedResources =
+          result.resources && result.resources.length > 0
+            ? (projectedResult.resources ?? [])
+            : isResourceToolName(toolName)
+              ? extractResourcesFromToolResult(toolName, params, projectedResult.output)
+              : []
+        const resources =
+          projectedResources.length === rawResources.length
+            ? rawResources.map((resource, index) => ({
+                type: resource.type,
+                id: resource.id,
+                title: projectedResources[index].title,
+                ...(projectedResources[index].path !== undefined
+                  ? { path: projectedResources[index].path }
+                  : {}),
+              }))
+            : []
 
         if (resources.length > 0) {
           upsertedCount = resources.length

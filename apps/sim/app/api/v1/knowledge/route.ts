@@ -1,13 +1,16 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   v1CreateKnowledgeBaseContract,
   v1ListKnowledgeBasesContract,
 } from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
+import {
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowledge/embeddings'
-import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
+import { performCreateKnowledgeBase } from '@/lib/knowledge/orchestration'
+import { listWorkspaceAndLegacyKnowledgeBases } from '@/lib/knowledge/service'
 import { formatKnowledgeBase, handleError } from '@/app/api/v1/knowledge/utils'
 import {
   authenticateRequest,
@@ -40,7 +43,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
     if (accessError) return accessError
 
-    const knowledgeBases = await getKnowledgeBases(userId, workspaceId)
+    /** Read only after `validateWorkspaceAccess` authorized this caller; same list the
+     *  internal surface serves, from the same place. */
+    const knowledgeBases = await listWorkspaceAndLegacyKnowledgeBases(userId, workspaceId)
 
     return NextResponse.json({
       success: true,
@@ -76,35 +81,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
     if (accessError) return accessError
 
-    const kb = await createKnowledgeBase(
-      {
-        name,
-        description,
-        workspaceId,
-        userId,
-        embeddingModel: getConfiguredEmbeddingModel(),
-        embeddingDimension: EMBEDDING_DIMENSIONS,
-        chunkingConfig: chunkingConfig ?? { maxSize: 1024, minSize: 100, overlap: 200 },
-      },
-      requestId
-    )
-
-    recordAudit({
+    const outcome = await performCreateKnowledgeBase({
+      userId,
+      source: 'api',
       workspaceId,
-      actorId: userId,
-      action: AuditAction.KNOWLEDGE_BASE_CREATED,
-      resourceType: AuditResourceType.KNOWLEDGE_BASE,
-      resourceId: kb.id,
-      resourceName: kb.name,
-      description: `Created knowledge base "${kb.name}" via API`,
-      metadata: { chunkingConfig },
+      name,
+      description,
+      chunkingConfig,
+      requestId,
       request,
     })
+    if (!outcome.success) {
+      return NextResponse.json(
+        { error: messageForOrchestrationError(outcome, 'Failed to create knowledge base') },
+        { status: statusForOrchestrationError(outcome.errorCode) }
+      )
+    }
 
     return NextResponse.json({
       success: true,
       data: {
-        knowledgeBase: formatKnowledgeBase(kb),
+        knowledgeBase: formatKnowledgeBase(outcome.knowledgeBase),
         message: 'Knowledge base created successfully',
       },
     })

@@ -11,6 +11,11 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import {
+  getSlackBotCredential,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/lib/oauth/credential-service'
 import type {
   AuthContext,
   EventFilterContext,
@@ -18,11 +23,6 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import {
-  getSlackBotCredential,
-  refreshAccessTokenIfNeeded,
-  resolveOAuthAccountId,
-} from '@/app/api/auth/oauth/utils'
 import { type SlackEventFilter, slackEventSupportsFilter } from '@/triggers/slack/shared'
 
 const logger = createLogger('WebhookProvider:Slack')
@@ -341,7 +341,7 @@ async function downloadSlackFiles(
     }
 
     try {
-      const urlValidation = await validateUrlWithDNS(urlPrivate, 'url_private')
+      const urlValidation = await validateUrlWithDNS(urlPrivate, 'url_private', 'contentFetch')
       if (!urlValidation.isValid) {
         logger.warn('Slack file url_private failed DNS validation, skipping', {
           fileId: f.id,
@@ -350,7 +350,8 @@ async function downloadSlackFiles(
         continue
       }
 
-      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP!, {
+      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP, {
+        profile: 'contentFetch',
         headers: { Authorization: `Bearer ${botToken}` },
       })
 
@@ -860,7 +861,7 @@ export const slackHandler: WebhookProviderHandler = {
   },
 
   formatQueueErrorResponse() {
-    return new NextResponse(null, { status: 200 })
+    return new NextResponse(null, { status: 500 })
   },
 
   /**

@@ -7,6 +7,7 @@ describe('redis-config mock', () => {
   })
 
   it('defaults to the Redis-unavailable behavior of the real module', async () => {
+    expect(redisConfigMock.getConfiguredRedisUrl()).toBeNull()
     expect(redisConfigMock.getRedisClient()).toBeNull()
     await expect(redisConfigMock.acquireLock('k', 'v', 10)).resolves.toBe(true)
     await expect(redisConfigMock.releaseLock('k', 'v')).resolves.toBe(true)
@@ -24,12 +25,15 @@ describe('redis-config mock', () => {
 
   it('resetRedisConfigMock restores defaults after overrides', async () => {
     const fakeClient = { ping: () => 'PONG' }
+    redisConfigMockFns.mockGetConfiguredRedisUrl.mockReturnValue('redis://localhost:6379')
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(fakeClient)
     redisConfigMockFns.mockAcquireLock.mockResolvedValue(false)
+    expect(redisConfigMock.getConfiguredRedisUrl()).toBe('redis://localhost:6379')
     expect(redisConfigMock.getRedisClient()).toBe(fakeClient)
     await expect(redisConfigMock.acquireLock('k', 'v', 10)).resolves.toBe(false)
 
     resetRedisConfigMock()
+    expect(redisConfigMock.getConfiguredRedisUrl()).toBeNull()
     expect(redisConfigMock.getRedisClient()).toBeNull()
     await expect(redisConfigMock.acquireLock('k', 'v', 10)).resolves.toBe(true)
   })

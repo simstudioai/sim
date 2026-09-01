@@ -4,7 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
-  buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   isNonEmptyValue,
   normalizeDependencyValue,
   parseDependsOn,
@@ -41,9 +41,15 @@ export function useDependsOnGate(
     : blockState?.type
       ? getBlock(blockState.type)
       : null
+  /**
+   * A nested tool's params are always the ACTION surface — `dependencyBlockType` means
+   * `blockConfig` describes the tool, not the host block, so the host's trigger mode says
+   * nothing about which of the tool's fields are live.
+   */
+  const triggerSurface = !dependencyBlockType && blockState?.triggerMode === true
   const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+    () => buildCanonicalIndexForSurface(blockConfig?.subBlocks || [], triggerSurface),
+    [blockConfig?.subBlocks, triggerSurface]
   )
   const canonicalModeOverrides = blockState?.data?.canonicalModes
 
@@ -136,5 +142,8 @@ export function useDependsOnGate(
     finalDisabled,
     dependencyValues: dependencyValuesMap,
     canonicalIndex,
+    contextConfigs: blockConfig?.subBlocks ?? [],
+    canonicalModeOverrides,
+    triggerSurface,
   }
 }

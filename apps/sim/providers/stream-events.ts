@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 /**
  * Canonical agent stream event contract (provider → executor).
  *
@@ -56,10 +57,6 @@ export type AgentStreamSink = {
 
 export type UnsubscribeAgentStreamSink = () => void
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 export function isToolCallEndStatus(value: unknown): value is ToolCallEndStatus {
   return value === 'success' || value === 'error' || value === 'cancelled'
 }
@@ -73,7 +70,7 @@ export function isTextDeltaClassification(value: unknown): value is TextDeltaCla
 }
 
 export function isAgentStreamEvent(value: unknown): value is AgentStreamEvent {
-  if (!isRecord(value) || typeof value.type !== 'string') {
+  if (!isRecordLike(value) || typeof value.type !== 'string') {
     return false
   }
 

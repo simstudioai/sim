@@ -111,6 +111,7 @@ app:
 
     # Azure Blob Storage Configuration (RECOMMENDED for production)
     # Create a storage account and containers in your Azure subscription
+    STORAGE_PROVIDER: "azure"
     AZURE_ACCOUNT_NAME: "simstudiostorageacct"           # Azure storage account name
     AZURE_ACCOUNT_KEY: ""                                 # Storage account access key
     # Or use connection string instead of account name/key:
@@ -127,10 +128,9 @@ app:
 # Realtime service
 realtime:
   enabled: true
-  # Keep realtime at 1 replica unless REDIS_URL is set (in app.env — realtime
-  # shares the app secret): Socket.IO only bridges events across pods through
-  # its Redis adapter, so multi-replica realtime without Redis silently drops
-  # cross-pod collaboration updates.
+  # Safe to scale past 1: Socket.IO bridges cross-pod events through its Redis
+  # adapter, and the chart bundles Redis by default. Only keep this at 1 if you
+  # set redis.enabled=false without supplying app.env.REDIS_URL.
   replicaCount: 1
 
   # Node selector for realtime pods

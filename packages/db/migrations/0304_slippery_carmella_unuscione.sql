@@ -1,0 +1,1 @@
+ALTER TABLE "credential" ADD COLUMN "unredacted" boolean DEFAULT false NOT NULL;

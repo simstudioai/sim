@@ -1,12 +1,13 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { cn, Input } from '@sim/emcn'
-import { Wand2 } from 'lucide-react'
+import { Wand } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
-  formatDisplayText,
-  getValidWorkflowSearchRange,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -50,8 +51,6 @@ interface ShortInputProps {
   wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
   /** Whether to hide the internal wand button (controlled by parent) */
   hideInternalWand?: boolean
-  /** Whether workflow search is actively highlighting this input */
-  isSearchHighlighted?: boolean
   workflowSearchValuePath?: Array<string | number>
 }
 
@@ -63,7 +62,7 @@ interface ShortInputProps {
  * - Auto-detects API key fields and provides environment variable suggestions
  * - Handles drag-and-drop for connections and variable references
  * - Provides environment variable and tag autocomplete
- * - Password masking with reveal on focus
+ * - Password masking, revealed only while focused
  * - Integrates with ReactFlow for zoom control
  */
 export const ShortInput = memo(function ShortInput({
@@ -81,7 +80,6 @@ export const ShortInput = memo(function ShortInput({
   useWebhookUrl = false,
   wandControlRef,
   hideInternalWand = false,
-  isSearchHighlighted = false,
   workflowSearchValuePath = [],
 }: ShortInputProps) {
   const activeSearchTarget = useActiveSearchTarget()
@@ -348,18 +346,11 @@ export const ShortInput = memo(function ShortInput({
               subBlockId,
               valuePath: workflowSearchValuePath,
             })
-            const hasExactSearchHighlight = Boolean(
-              getValidWorkflowSearchRange(actualValueString, workflowSearchHighlight)
-            )
-
-            const shouldMask =
-              password && !isFocused && !isSearchHighlighted && !hasExactSearchHighlight
-            const displayValue = shouldMask
-              ? '•'.repeat(actualValueString.length)
-              : actualValueString
+            const shouldMask = shouldMaskSecretValue({ password, isFocused })
+            const displayValue = shouldMask ? maskSecretText(actualValueString) : actualValueString
 
             const formattedText = shouldMask
-              ? '•'.repeat(actualValueString.length)
+              ? maskSecretText(actualValueString)
               : formatDisplayText(actualValueString, {
                   accessiblePrefixes,
                   highlightAll: !accessiblePrefixes,
@@ -370,7 +361,7 @@ export const ShortInput = memo(function ShortInput({
               <>
                 <Input
                   ref={ref as React.RefObject<HTMLInputElement>}
-                  className='allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden'
+                  className='allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [letter-spacing:inherit] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden'
                   readOnly={readOnly}
                   placeholder={placeholder ?? ''}
                   type='text'
@@ -393,7 +384,7 @@ export const ShortInput = memo(function ShortInput({
                 <div
                   ref={overlayRef}
                   className={cn(
-                    'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 pr-3 font-medium font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                    'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 pr-3 font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
                     (isPreview || disabled) && 'opacity-50',
                     !(isPreview || disabled) && 'pointer-events-none'
                   )}
@@ -418,7 +409,7 @@ export const ShortInput = memo(function ShortInput({
               aria-label='Generate content with AI'
               className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
             >
-              <Wand2 className='size-4' />
+              <Wand className='size-4' />
             </Button>
           </div>
         )}

@@ -1,22 +1,63 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import { createLogger } from '@sim/logger'
-import { SubBlockRowView, WorkflowBlockView } from '@sim/workflow-renderer'
+import { type ComponentType, Fragment, memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import {
+  ArrowLeftRight,
+  ArrowUpDown,
+  Clock,
+  Globe,
+  Key,
+  ListFilter,
+  MessageSquareText,
+  Paperclip,
+  SkipForward,
+  SlidersHorizontal,
+  Sparkles,
+  ToggleLeft,
+  TypeJson,
+  TypeNumber,
+  Wrench,
+} from '@sim/emcn/icons'
+import {
+  BLOCK_DIMENSIONS,
+  CanvasSentenceView,
+  SubBlockRowView,
+  WorkflowBlockView,
+} from '@sim/workflow-renderer'
+import { wouldCreateCycle } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { type NodeProps, useUpdateNodeInternals } from 'reactflow'
+import { type NodeProps, useStore as useReactFlowStore, useUpdateNodeInternals } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureEvent } from '@/lib/posthog/client'
+import { getCardSubBlocks } from '@/lib/workflows/blocks/canvas-card-fields'
+import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
+import {
+  showsCanvasDefaultHandles,
+  showsCanvasErrorRow,
+  splitCanvasChipBlocks,
+} from '@/lib/workflows/blocks/canvas-rows'
+import {
+  type CardSelector,
+  estimateSentenceLines,
+  getOperationSubBlockId,
+  resolveCanvasSentence,
+} from '@/lib/workflows/blocks/canvas-sentence'
+import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
+import { resolveCanvasCodePreview } from '@/lib/workflows/blocks/code-preview'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import {
   getDisplayValue,
+  hasDisplayableRowValue,
   resolveDropdownLabel,
   resolveFilterFieldLabel,
+  resolveSandboxLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
   resolveVariablesLabel,
@@ -25,12 +66,8 @@ import {
 } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
-  evaluateSubBlockCondition,
+  buildCanonicalIndexForSurface,
   hasAdvancedValues,
-  isSubBlockFeatureEnabled,
-  isSubBlockHidden,
-  isSubBlockVisibleForMode,
-  isTriggerModeSubBlock,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -45,8 +82,16 @@ import {
   getProviderName,
   shouldSkipBlockRender,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
-import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import {
+  useBlockVisual,
+  useIsBlockInActiveExecutionHandoff,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import {
+  isEdgeConnectedToEditor,
+  isEdgeHighlighted,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/edge-highlight'
+import { hasBlockAccent } from '@/blocks/accent'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlock } from '@/blocks/registry'
 import {
@@ -54,12 +99,13 @@ import {
   SELECTOR_TYPES_HYDRATION_REQUIRED,
   type SubBlockConfig,
 } from '@/blocks/types'
-import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
+import { useDynamicSubBlockOptionDisplayName } from '@/hooks/queries/dynamic-subblock-options'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
+import { useSandboxes } from '@/hooks/queries/sandboxes'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -67,19 +113,78 @@ import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { getModelSunsetStatus } from '@/providers/models'
+import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
+import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
 import { formatParameterLabel } from '@/tools/params'
-
-const logger = createLogger('WorkflowBlock')
+import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
 /** Stable empty map for rows that never resolve MCP tool names */
 const EMPTY_MCP_TOOL_NAMES: ReadonlyMap<string, string> = new Map()
+
+type MetaIcon = ComponentType<{ className?: string }>
+
+/** Leading icons for compact meta rows, keyed by subblock id. */
+const SUBBLOCK_META_ICONS_BY_ID: Record<string, MetaIcon> = {
+  filterBuilder: ListFilter,
+  bulkFilterBuilder: ListFilter,
+  filter: ListFilter,
+  filterCriteria: ListFilter,
+  sortBuilder: ArrowUpDown,
+  sort: ArrowUpDown,
+  limit: TypeNumber,
+  offset: SkipForward,
+  rowId: Key,
+  url: Globe,
+  method: ArrowLeftRight,
+  body: TypeJson,
+  data: TypeJson,
+}
+
+/** Leading icons for compact meta rows, keyed by subblock type. */
+const SUBBLOCK_META_ICONS_BY_TYPE: Record<string, MetaIcon> = {
+  code: TypeJson,
+  'messages-input': MessageSquareText,
+  'tool-input': Wrench,
+  'skill-input': Sparkles,
+  'oauth-input': Key,
+  switch: ToggleLeft,
+  'file-upload': Paperclip,
+  'time-input': Clock,
+  slider: SlidersHorizontal,
+}
+
+/** Resolves the meta-row icon for a subblock; null keeps the labeled row. */
+function getMetaIcon(subBlock: SubBlockConfig): MetaIcon | null {
+  return (
+    SUBBLOCK_META_ICONS_BY_ID[subBlock.id] ?? SUBBLOCK_META_ICONS_BY_TYPE[subBlock.type] ?? null
+  )
+}
+
+/** Usable sentence width inside the card: the 250px card less its `p-2`. */
+const SENTENCE_WRAP_WIDTH_PX =
+  BLOCK_DIMENSIONS.FIXED_WIDTH - BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING
+
+/**
+ * Names of MCP tool-schema parameters whose argument values are displayable
+ * on the collapsed node. Params without a set value are hidden from the
+ * preview, matching the empty-row filtering applied to regular subblocks.
+ */
+function getDisplayableMcpParamNames(schemaValue: unknown, argsValue: unknown): string[] {
+  const schema = schemaValue as { properties?: Record<string, unknown> } | undefined
+  const properties = schema?.properties
+  if (!properties || typeof properties !== 'object') return []
+  const args = (argsValue && typeof argsValue === 'object' ? argsValue : {}) as Record<
+    string,
+    unknown
+  >
+  return Object.keys(properties).filter((name) => getDisplayValue(args[name]) !== '-')
+}
 
 interface BlockSunset {
   status: 'legacy' | 'deprecated'
@@ -167,6 +272,10 @@ interface SubBlockRowProps {
   displayAdvancedOptions?: boolean
   canonicalIndex?: ReturnType<typeof buildCanonicalIndex>
   canonicalModeOverrides?: Record<string, 'basic' | 'advanced'>
+  /** Presentation variant forwarded to the row view. */
+  variant?: 'row' | 'meta' | 'statement-primary' | 'statement-muted' | 'inline-value'
+  /** Leading icon forwarded to the row view (meta variant). */
+  icon?: MetaIcon
 }
 
 /**
@@ -180,6 +289,9 @@ const areSubBlockRowPropsEqual = (
   const prevValue = subBlockId ? prevProps.allSubBlockValues?.[subBlockId]?.value : undefined
   const nextValue = subBlockId ? nextProps.allSubBlockValues?.[subBlockId]?.value : undefined
   const valueEqual = prevValue === nextValue || isEqual(prevValue, nextValue)
+  const codeLanguageEqual =
+    prevProps.subBlock?.type !== 'code' ||
+    prevProps.allSubBlockValues?.language?.value === nextProps.allSubBlockValues?.language?.value
 
   return (
     prevProps.title === nextProps.title &&
@@ -190,9 +302,12 @@ const areSubBlockRowPropsEqual = (
     prevProps.workflowId === nextProps.workflowId &&
     prevProps.blockId === nextProps.blockId &&
     valueEqual &&
+    codeLanguageEqual &&
     prevProps.displayAdvancedOptions === nextProps.displayAdvancedOptions &&
     prevProps.canonicalIndex === nextProps.canonicalIndex &&
-    prevProps.canonicalModeOverrides === nextProps.canonicalModeOverrides
+    prevProps.canonicalModeOverrides === nextProps.canonicalModeOverrides &&
+    prevProps.variant === nextProps.variant &&
+    prevProps.icon === nextProps.icon
   )
 }
 
@@ -213,16 +328,9 @@ const SubBlockRow = memo(function SubBlockRow({
   displayAdvancedOptions,
   canonicalIndex,
   canonicalModeOverrides,
+  variant,
+  icon,
 }: SubBlockRowProps) {
-  const getStringValue = useCallback(
-    (key?: string): string | undefined => {
-      if (!key || !allSubBlockValues) return undefined
-      const candidate = allSubBlockValues[key]?.value
-      return typeof candidate === 'string' && candidate.length > 0 ? candidate : undefined
-    },
-    [allSubBlockValues]
-  )
-
   const rawValues = useMemo(() => {
     if (!allSubBlockValues) return {}
     return Object.entries(allSubBlockValues).reduce<Record<string, unknown>>(
@@ -279,6 +387,12 @@ const SubBlockRow = memo(function SubBlockRow({
     () => resolveDropdownLabel(subBlock, rawValue),
     [subBlock, rawValue]
   )
+  const dynamicOptionDisplayName = useDynamicSubBlockOptionDisplayName({
+    workspaceId,
+    blockId,
+    subBlock,
+    value: rawValue,
+  })
 
   const resolveContextValue = useCallback(
     (key: string): string | undefined => {
@@ -392,6 +506,12 @@ const SubBlockRow = memo(function SubBlockRow({
     if (!subBlock?.id?.startsWith('webhookUrlDisplay') || !blockId) {
       return null
     }
+    /* Deliberately unguarded. `getBaseUrl` throws when no application base URL is
+       configured, and that is the right outcome here: this value gets copied into
+       a third-party provider, so a guessed origin would hand the user a URL that
+       provider accepts and then never delivers to, and a blank row explains
+       nothing. The error boundary reports what it caught, so the throw names its
+       own cause. */
     const baseUrl = getBaseUrl()
     const triggerPath = allSubBlockValues?.triggerPath?.value as string | undefined
     return triggerPath
@@ -446,6 +566,19 @@ const SubBlockRow = memo(function SubBlockRow({
     [subBlock, rawValue, workspaceSkills]
   )
 
+  /**
+   * Hydrates the Function block's sandbox id to its name. Deliberately scoped to
+   * the sandbox row: this row is memoized per subblock, and the shared list query
+   * polls while a build is in flight, so subscribing unconditionally would
+   * re-render every row on the canvas on each poll tick.
+   */
+  const isSandboxField = subBlock?.id === 'sandboxId' && subBlock?.type === 'combobox'
+  const { data: sandboxData } = useSandboxes(isSandboxField ? workspaceId || undefined : undefined)
+  const sandboxDisplayValue = useMemo(
+    () => resolveSandboxLabel(subBlock, rawValue, sandboxData?.sandboxes ?? []),
+    [subBlock, rawValue, sandboxData]
+  )
+
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
   const isMonospaceField = Boolean(filterDisplayValue)
@@ -454,10 +587,12 @@ const SubBlockRow = memo(function SubBlockRow({
   const hydratedName =
     credentialName ||
     dropdownLabel ||
+    dynamicOptionDisplayName ||
     variablesDisplayValue ||
     filterDisplayValue ||
     toolsDisplayValue ||
     skillsDisplayValue ||
+    sandboxDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||
     mcpServerDisplayName ||
@@ -466,9 +601,18 @@ const SubBlockRow = memo(function SubBlockRow({
     webhookUrlDisplayValue ||
     selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
+  const codePreview =
+    variant === 'inline-value' ? resolveCanvasCodePreview(subBlock, rawValue, rawValues) : undefined
 
   return (
-    <SubBlockRowView title={title} displayValue={displayValue} isMonospace={isMonospaceField} />
+    <SubBlockRowView
+      title={title}
+      displayValue={displayValue}
+      isMonospace={isMonospaceField}
+      codePreview={codePreview}
+      variant={variant}
+      icon={icon}
+    />
   )
 }, areSubBlockRowPropsEqual)
 
@@ -488,6 +632,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     currentWorkflow,
     activeWorkflowId,
     isEnabled,
+    isExecuting,
     isLocked,
     handleClick,
     hasRing,
@@ -495,6 +640,15 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     runPathStatus,
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
 
+  /*
+   * Three separate signals, deliberately. `isExecuting` (per-block, from
+   * `useBlockVisual`) and `isExecutionHighlighted` drive this card's own loader
+   * and border; `isWorkflowRunning` only swaps Run for Stop and disables
+   * mutations. Driving the visuals off the workflow instead would light up
+   * every card on the canvas for the whole run.
+   */
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
+  const isExecutionHighlighted = useIsBlockInActiveExecutionHandoff(id)
   const currentWorkflowId = (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
@@ -563,6 +717,87 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     isEqual
   )
 
+  /**
+   * Whether a persisted legacy error route is wired from this block. The
+   * renderer uses this only to retain a non-interactive edge anchor.
+   */
+  const hasErrorConnection = useWorkflowStore(
+    useCallback(
+      (state) => state.edges.some((edge) => edge.source === id && edge.sourceHandle === 'error'),
+      [id]
+    )
+  )
+
+  /**
+   * Handle ids whose connected edge is highlighted because an endpoint block
+   * is selected — the view darkens those tabs to the edge highlight color so
+   * port and line read as one piece. Serialized to a string so the ReactFlow
+   * store subscription only re-renders on real changes.
+   */
+  const editorBlockId = usePanelEditorStore((state) => state.currentBlockId)
+  const panelActiveTab = usePanelStore((state) => state.activeTab)
+  const editorOpenBlockId = panelActiveTab === 'editor' ? editorBlockId : null
+  const highlightedHandleKey = useReactFlowStore(
+    useCallback(
+      (state) => {
+        const keys: string[] = []
+        for (const edge of state.edges) {
+          if (edge.source !== id && edge.target !== id) continue
+          /* Same predicate the line itself uses — a knob checking fewer
+             conditions than the edge leaves a dark line running into a light
+             knob. */
+          const isHighlighted = isEdgeHighlighted({
+            isEndpointSelected:
+              state.nodeInternals.get(edge.source)?.selected ||
+              state.nodeInternals.get(edge.target)?.selected ||
+              (edge.data as { isConnectedToSelection?: boolean } | undefined)
+                ?.isConnectedToSelection,
+            isConnectedToEditor: isEdgeConnectedToEditor(
+              editorOpenBlockId,
+              edge.source,
+              edge.target
+            ),
+          })
+          if (!isHighlighted) continue
+          if (edge.source === id) keys.push(edge.sourceHandle || 'source')
+          if (edge.target === id) keys.push(edge.targetHandle || 'target')
+        }
+        return keys.sort().join('|')
+      },
+      [id, editorOpenBlockId]
+    )
+  )
+  const highlightedHandles = useMemo(
+    () => new Set(highlightedHandleKey ? highlightedHandleKey.split('|') : []),
+    [highlightedHandleKey]
+  )
+  /*
+   * An existing error edge means the output is on, whatever the flag says.
+   * Every released version drew the error port with no toggle in front of it, so
+   * a block already wired that way had no other way to make the connection —
+   * reading the flag alone would unmount a port a live workflow routes failures
+   * through, and React Flow drops an edge whose handle is not mounted. The
+   * migration backfills those rows, but this keeps the rule true for any state
+   * that reaches the canvas without passing through it (an imported workflow, a
+   * deployment snapshot, a copilot edit).
+   */
+  const errorOutputEnabled = Boolean(currentBlock?.errorEnabled || hasErrorConnection)
+  const handleToggleErrorOutput = useCallback(
+    (next: boolean) => {
+      const store = useWorkflowStore.getState()
+      data.onSetErrorOutputEnabled?.(id, next)
+      if (!next) {
+        /* Turning the branch off removes its connections — a hidden error
+           edge would still reroute failures with no visible affordance. */
+        const errorEdgeIds = store.edges
+          .filter((edge) => edge.source === id && edge.sourceHandle === 'error')
+          .map((edge) => edge.id)
+        if (errorEdgeIds.length > 0) data.onRemoveEdges?.(errorEdgeIds)
+      }
+    },
+    [data.onRemoveEdges, data.onSetErrorOutputEnabled, id]
+  )
+
   const posthog = usePostHog()
 
   const sunset = getBlockSunset(config, name, blockSubBlockValues.model, currentWorkflow.isDiffMode)
@@ -579,14 +814,18 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     ])
   }
 
-  const canonicalIndex = useMemo(() => buildCanonicalIndex(config.subBlocks), [config.subBlocks])
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndexForSurface(config.subBlocks, displayTriggerMode),
+    [config.subBlocks, displayTriggerMode]
+  )
   const canonicalModeOverrides = currentStoreBlock?.data?.canonicalModes
 
   const hiddenByReactiveCondition = useReactiveConditions(
     config.subBlocks,
     id,
     activeWorkflowId,
-    canonicalModeOverrides
+    canonicalModeOverrides,
+    displayTriggerMode
   )
 
   const subBlockRowsData = useMemo(() => {
@@ -622,48 +861,35 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       ? displayAdvancedMode
       : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
     const effectiveTrigger = displayTriggerMode
+    const canvasPresentation = resolveCanvasBlockPresentation(config, name, rawValues)
 
-    const visibleSubBlocks = config.subBlocks.filter((block) => {
-      if (block.hidden) return false
-      if (block.hideFromPreview) return false
-      if (hiddenByReactiveCondition.has(block.id)) return false
-      if (!isSubBlockFeatureEnabled(block)) return false
-      if (isSubBlockHidden(block)) return false
-
-      const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
-
-      if (effectiveTrigger) {
-        const isValidTriggerSubblock = isPureTriggerBlock
-          ? isTriggerModeSubBlock(block) || !block.mode
-          : isTriggerModeSubBlock(block)
-
-        if (!isValidTriggerSubblock) {
-          return false
-        }
-      } else {
-        if (isTriggerModeSubBlock(block)) {
-          return false
-        }
-      }
-
-      if (
-        !isSubBlockVisibleForMode(
-          block,
-          effectiveAdvanced,
-          canonicalIndex,
-          rawValues,
-          canonicalModeOverrides
-        )
-      ) {
-        return false
-      }
-
-      if (!block.condition) return true
-
-      return evaluateSubBlockCondition(block.condition, rawValues)
+    /*
+     * Visible on the card, whether or not it holds a value. A sentence's core
+     * slots render either way — the chip shows the field's noun until it is
+     * filled — so the sentence needs this set, while the field rows below it
+     * need the value-bearing subset.
+     */
+    const displayableSubBlocks = getCardSubBlocks(config, {
+      advanced: effectiveAdvanced,
+      values: rawValues,
+      canonicalModeOverrides,
+      triggerMode: effectiveTrigger,
+      hiddenIds: hiddenByReactiveCondition,
+      titleOperationSubBlockId: canvasPresentation.titleShowsOperation
+        ? canvasPresentation.operationSubBlockId
+        : null,
     })
 
-    visibleSubBlocks.forEach((block) => {
+    const visibleSubBlocks = displayableSubBlocks.filter((block) =>
+      hasDisplayableRowValue(block, rawValues[block.id])
+    )
+
+    const { chipBlocks, rowSubBlocks } = splitCanvasChipBlocks(visibleSubBlocks, {
+      titleShowsOperation: canvasPresentation.titleShowsOperation,
+      operationSubBlockId: canvasPresentation.operationSubBlockId,
+    })
+
+    rowSubBlocks.forEach((block) => {
       if (currentRowWidth + blockWidth > 1) {
         if (currentRow.length > 0) {
           rows.push([...currentRow])
@@ -680,7 +906,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       rows.push(currentRow)
     }
 
-    return { rows, stateToUse }
+    return { rows, stateToUse, chipBlocks, canvasPresentation, displayableSubBlocks }
   }, [
     config.subBlocks,
     config.category,
@@ -698,10 +924,14 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     hiddenByReactiveCondition,
     blockSubBlockValues,
     activeWorkflowId,
+    name,
   ])
 
   const subBlockRows = subBlockRowsData.rows
   const subBlockState = subBlockRowsData.stateToUse
+  const chipBlocks = subBlockRowsData.chipBlocks
+  const canvasPresentation = subBlockRowsData.canvasPresentation
+  const displayableSubBlocks = subBlockRowsData.displayableSubBlocks
   const topologySubBlocks = data.isPreview
     ? (data.blockState?.subBlocks ?? {})
     : (currentStoreBlock?.subBlocks ?? {})
@@ -718,13 +948,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
   }, [subBlockState, displayAdvancedMode, config.subBlocks, canonicalIndex, canEditWorkflow])
 
-  /**
-   * Determine if block has content below the header (subblocks or error row).
-   * Controls header border visibility and content container rendering.
-   */
-  const shouldShowDefaultHandles =
-    config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode
-  const hasContentBelowHeader = subBlockRows.length > 0 || shouldShowDefaultHandles
+  const shouldShowDefaultHandles = showsCanvasDefaultHandles(config, type, displayTriggerMode)
 
   /**
    * Compute per-condition rows (title/value/id) for condition blocks so we can render
@@ -751,6 +975,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     }))
   }, [type, topologySubBlocks, id])
 
+  const showsErrorRow = showsCanvasErrorRow(config, type, displayTriggerMode)
+
   /**
    * Total rendered row count. `mcp-dynamic-args` expands one row per parameter
    * in the cached tool schema, so we count those properties instead of 1.
@@ -760,11 +986,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     for (const row of subBlockRows) {
       for (const subBlock of row) {
         if (subBlock.type === 'mcp-dynamic-args') {
-          const schema = subBlockState._toolSchema?.value as
-            | { properties?: Record<string, unknown> }
-            | undefined
-          const properties = schema?.properties
-          count += properties && typeof properties === 'object' ? Object.keys(properties).length : 0
+          count += getDisplayableMcpParamNames(
+            subBlockState._toolSchema?.value,
+            subBlockState[subBlock.id]?.value
+          ).length
         } else {
           count += 1
         }
@@ -772,6 +997,87 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     }
     return count
   }, [subBlockRows, subBlockState])
+
+  /**
+   * Natural-language summary data: segments + line estimate for the block
+   * types with a sentence template. Null keeps the field-row layout.
+   *
+   * A card in trigger mode gets its own sentence, not the action one: the
+   * operation dropdown still holds its action-mode default, so reusing it would
+   * narrate an action the block is not going to run.
+   */
+  const sentenceData = useMemo(() => {
+    if (type === 'condition' || type === 'router_v2') return null
+    const visibleSubBlocksById = new Map<string, SubBlockConfig>()
+    for (const subBlock of chipBlocks) visibleSubBlocksById.set(subBlock.id, subBlock)
+    for (const row of subBlockRows) {
+      for (const subBlock of row) visibleSubBlocksById.set(subBlock.id, subBlock)
+    }
+    /*
+     * The operation is read straight off state rather than through the visible
+     * set: it is filtered out of the rows whenever it supplies the card title,
+     * so it would never resolve.
+     */
+    const operationSubBlockId = getOperationSubBlockId(config)
+    const rawValues: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(subBlockState)) rawValues[key] = entry?.value
+
+    const card: CardSelector = displayTriggerMode
+      ? (() => {
+          const triggerId = resolveSelectedTriggerId(config, rawValues)
+          return {
+            mode: 'trigger' as const,
+            triggerId,
+            triggerName: triggerId ? (TRIGGER_REGISTRY[triggerId]?.name ?? null) : null,
+          }
+        })()
+      : {
+          mode: 'action',
+          operationValue: operationSubBlockId ? rawValues[operationSubBlockId] : undefined,
+        }
+
+    /* The definition this operation actually shows, so a core slot's noun comes
+       from the right one — ids repeat across operations with different titles. */
+    const onCardById = new Map<string, SubBlockConfig>()
+    for (const subBlock of displayableSubBlocks) {
+      if (!onCardById.has(subBlock.id)) onCardById.set(subBlock.id, subBlock)
+    }
+    const segments = resolveCanvasSentence(
+      config,
+      card,
+      (subBlockId) => visibleSubBlocksById.has(subBlockId),
+      (subBlockId) => onCardById.get(subBlockId) ?? null
+    )
+    if (!segments) return null
+    const lines = estimateSentenceLines(
+      segments,
+      (subBlockId) => getDisplayValue(subBlockState[subBlockId]?.value),
+      SENTENCE_WRAP_WIDTH_PX
+    )
+    return { segments, visibleSubBlocksById, lines }
+  }, [
+    type,
+    config,
+    chipBlocks,
+    subBlockRows,
+    subBlockState,
+    displayableSubBlocks,
+    displayTriggerMode,
+  ])
+
+  /**
+   * Whether anything renders below the header — the summary sentence, subblock
+   * rows, chips, or the condition/router branch rows. The sentence counts on
+   * its own: one built purely from literals and fallbacks resolves no field, so
+   * it contributes no rows or chips, but it still paints.
+   */
+  const hasContentBelowHeader =
+    sentenceData !== null ||
+    subBlockRows.length > 0 ||
+    chipBlocks.length > 0 ||
+    conditionRows.length > 0 ||
+    routerRows.length > 0 ||
+    showsErrorRow
 
   /**
    * Compute and publish deterministic layout metrics for workflow blocks.
@@ -782,11 +1088,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     calculateDimensions: () => {
       return calculateWorkflowBlockDimensions({
         blockType: type,
-        category: config.category,
-        displayTriggerMode,
-        visibleSubBlockCount: totalRenderedRowCount,
+        visibleSubBlockCount: sentenceData ? 0 : totalRenderedRowCount,
         conditionRowCount: conditionRows.length,
         routerRowCount: routerRows.length,
+        chipCount: sentenceData ? 0 : chipBlocks.length,
+        sentenceLineCount: sentenceData?.lines ?? 0,
+        hasErrorRow: showsErrorRow,
       })
     },
     dependencies: [
@@ -796,7 +1103,11 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       totalRenderedRowCount,
       conditionRows.length,
       routerRows.length,
+      chipBlocks.length,
+      sentenceData?.lines ?? 0,
+      Boolean(sentenceData),
       horizontalHandles,
+      showsErrorRow,
     ],
   })
 
@@ -818,7 +1129,67 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const wouldCreateConnectionCycle = (source: string, target: string) =>
     wouldCreateCycle(useWorkflowStore.getState().edges, source, target)
 
+  const getCanvasRowTitle = (subBlock: SubBlockConfig) =>
+    subBlock.id === canvasPresentation.operationSubBlockId &&
+    !canvasPresentation.titleShowsOperation
+      ? (canvasPresentation.operationRowTitle ?? subBlock.title ?? subBlock.id)
+      : (subBlock.title ?? subBlock.id)
+
   const webhookProviderName = webhookProvider ? getProviderName(webhookProvider) : undefined
+
+  const isBranchBlock = type === 'condition' || type === 'router_v2'
+
+  const sentence = sentenceData ? (
+    <CanvasSentenceView
+      segments={sentenceData.segments}
+      renderChip={(subBlockId) => {
+        const subBlock = sentenceData.visibleSubBlocksById.get(subBlockId)
+        if (!subBlock) return null
+        const rawValue = subBlockState[subBlockId]?.value
+        return (
+          <SubBlockRow
+            title={getCanvasRowTitle(subBlock)}
+            value={getDisplayValue(rawValue)}
+            subBlock={subBlock}
+            rawValue={rawValue}
+            workspaceId={workspaceId}
+            workflowId={currentWorkflowId}
+            blockId={id}
+            allSubBlockValues={subBlockState}
+            displayAdvancedOptions={effectiveAdvanced}
+            canonicalIndex={canonicalIndex}
+            canonicalModeOverrides={canonicalModeOverrides}
+            variant='inline-value'
+          />
+        )
+      }}
+    />
+  ) : undefined
+
+  const chips =
+    isBranchBlock || sentenceData || chipBlocks.length === 0 ? undefined : (
+      <>
+        {chipBlocks.map((subBlock, index) => (
+          <Fragment key={`statement-${subBlock.id}`}>
+            {index > 0 && <span className='flex-shrink-0 text-[var(--text-muted)] text-sm'>·</span>}
+            <SubBlockRow
+              title={getCanvasRowTitle(subBlock)}
+              value={getDisplayValue(subBlockState[subBlock.id]?.value)}
+              subBlock={subBlock}
+              rawValue={subBlockState[subBlock.id]?.value}
+              workspaceId={workspaceId}
+              workflowId={currentWorkflowId}
+              blockId={id}
+              allSubBlockValues={subBlockState}
+              displayAdvancedOptions={effectiveAdvanced}
+              canonicalIndex={canonicalIndex}
+              canonicalModeOverrides={canonicalModeOverrides}
+              variant={subBlock.id === 'operation' ? 'statement-primary' : 'statement-muted'}
+            />
+          </Fragment>
+        ))}
+      </>
+    )
 
   const rows =
     type === 'condition' || type === 'router_v2' ? null : (
@@ -827,29 +1198,25 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           row.flatMap((subBlock) => {
             const rawValue = subBlockState[subBlock.id]?.value
             if (subBlock.type === 'mcp-dynamic-args') {
-              const schema = subBlockState._toolSchema?.value as
-                | { properties?: Record<string, unknown> }
-                | undefined
-              const properties = schema?.properties
-              if (properties && typeof properties === 'object') {
-                const args = (rawValue && typeof rawValue === 'object' ? rawValue : {}) as Record<
-                  string,
-                  unknown
-                >
-                return Object.keys(properties).map((paramName) => (
+              const args = (rawValue && typeof rawValue === 'object' ? rawValue : {}) as Record<
+                string,
+                unknown
+              >
+              return getDisplayableMcpParamNames(subBlockState._toolSchema?.value, rawValue).map(
+                (paramName) => (
                   <SubBlockRow
                     key={`${subBlock.id}-${paramName}-${rowIndex}`}
                     title={formatParameterLabel(paramName)}
                     value={getDisplayValue(args[paramName])}
                   />
-                ))
-              }
-              return []
+                )
+              )
             }
+            const metaIcon = getMetaIcon(subBlock)
             return [
               <SubBlockRow
                 key={`${subBlock.id}-${rowIndex}`}
-                title={subBlock.title ?? subBlock.id}
+                title={getCanvasRowTitle(subBlock)}
                 value={getDisplayValue(rawValue)}
                 subBlock={subBlock}
                 rawValue={rawValue}
@@ -860,6 +1227,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
                 displayAdvancedOptions={effectiveAdvanced}
                 canonicalIndex={canonicalIndex}
                 canonicalModeOverrides={canonicalModeOverrides}
+                variant={metaIcon ? 'meta' : 'row'}
+                icon={metaIcon ?? undefined}
               />,
             ]
           })
@@ -871,17 +1240,21 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     <WorkflowBlockView
       id={id}
       type={type}
-      name={name}
+      name={canvasPresentation.title}
       isPending={isPending}
       isEnabled={isEnabled}
       isLocked={isLocked}
       hasRing={hasRing}
       ringStyles={ringStyles}
       runPathStatus={runPathStatus}
+      isRunning={isExecuting}
+      isExecutionHighlighted={isExecutionHighlighted}
       Icon={config.icon}
       iconBgColor={config.bgColor}
+      isIntegration={!hasBlockAccent(config.type)}
       horizontalHandles={horizontalHandles}
       shouldShowDefaultHandles={shouldShowDefaultHandles}
+      blockHeight={blockHeight}
       hasContentBelowHeader={hasContentBelowHeader}
       conditionRows={conditionRows}
       routerRows={routerRows}
@@ -900,7 +1273,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       }}
       sunsetStatus={sunset?.status}
       sunsetTooltip={sunset?.tooltip}
-      canFixSunset={canEditWorkflow}
+      canFixSunset={canEditWorkflow && isChatEnabled}
       onFixSunset={onFixSunset}
       shouldShowScheduleBadge={shouldShowScheduleBadge}
       scheduleIsDisabled={Boolean(scheduleInfo?.isDisabled)}
@@ -925,10 +1298,26 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       contentRef={contentRef}
       actionBar={
         !data.isPreview && !data.isEmbedded ? (
-          <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />
+          <ActionBar
+            blockId={id}
+            blockType={type}
+            disabled={!canEditWorkflow}
+            variant='swell'
+            isRunning={isExecuting}
+            isWorkflowRunning={isWorkflowRunning}
+          />
         ) : undefined
       }
       rows={rows}
+      chips={chips}
+      typeLabel={canvasPresentation.typeLabel}
+      sentence={sentence}
+      hasErrorConnection={hasErrorConnection}
+      errorOutputEnabled={errorOutputEnabled}
+      onToggleErrorOutput={
+        canEditWorkflow && data.onSetErrorOutputEnabled ? handleToggleErrorOutput : undefined
+      }
+      highlightedHandles={highlightedHandles}
     />
   )
 }, shouldSkipBlockRender)

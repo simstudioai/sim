@@ -17,6 +17,7 @@ import {
   type TokenServiceAccountDescriptor,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import {
   useCreateWorkspaceCredential,
   useUpdateWorkspaceCredential,
@@ -46,7 +47,7 @@ interface TokenServiceAccountModalProps {
   credentialId?: string
   initialDisplayName?: string
   initialDescription?: string
-  /** Called with the new credential id after a successful create (not reconnect). */
+  /** Called with the credential id after a successful create or reconnect. */
   onCreated?: (credentialId: string) => void
 }
 
@@ -115,6 +116,7 @@ export function TokenServiceAccountModal({
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })
+        onCreated?.(credentialId)
       } else {
         const created = await createCredential.mutateAsync({
           workspaceId,
@@ -140,7 +142,7 @@ export function TokenServiceAccountModal({
       onOpenChange={onOpenChange}
       srTitle={`Add ${serviceName} ${descriptor.connectNoun}`}
     >
-      <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
         Add {serviceName} {descriptor.connectNoun}
       </ChipModalHeader>
       <ChipModalBody>

@@ -4,6 +4,10 @@ import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
+import {
+  projectKnowledgeModelInput,
+  projectKnowledgeModelInputs,
+} from '@/lib/knowledge/model-input-provenance'
 import { isSupportedRerankerModel } from '@/lib/knowledge/reranker-models'
 
 const logger = createLogger('Reranker')
@@ -60,7 +64,7 @@ async function resolveCohereKey(
   if (workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, 'cohere')
     if (byokResult) {
-      logger.info('Using workspace BYOK key for Cohere reranker')
+      logger.info('Using BYOK key for Cohere reranker', { scope: byokResult.scope })
       return { apiKey: byokResult.apiKey, isBYOK: true }
     }
   }
@@ -118,7 +122,8 @@ export async function rerank<T extends RerankItem>(
   if (items.length > MAX_DOCUMENTS_PER_RERANK) {
     logger.warn(`Rerank input capped from ${items.length} to ${MAX_DOCUMENTS_PER_RERANK} documents`)
   }
-  const documents = cappedItems.map((it) => it.text)
+  const modelQuery = projectKnowledgeModelInput(query)
+  const documents = projectKnowledgeModelInputs(cappedItems.map((it) => it.text))
 
   const response = await retryWithExponentialBackoff(
     async () => {
@@ -133,7 +138,7 @@ export async function rerank<T extends RerankItem>(
         },
         body: JSON.stringify({
           model: options.model,
-          query,
+          query: modelQuery,
           documents,
           top_n: options.topN ?? cappedItems.length,
         }),

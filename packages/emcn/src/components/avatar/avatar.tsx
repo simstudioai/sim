@@ -133,6 +133,11 @@ AvatarImage.displayName = 'AvatarImage'
 
 /**
  * Fallback component for Avatar. Displays initials or icon when image is unavailable.
+ *
+ * Carries the package's only hardcoded `font-medium`, and deliberately: one or
+ * two capitals at `text-xs` on a filled disc are a glyph, not running text, and
+ * need the extra mass to read at avatar sizes. This is the sanctioned "step up
+ * from body" — every other primitive inherits the document 400.
  */
 const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,

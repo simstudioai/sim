@@ -1,15 +1,14 @@
-import type { CreateExpenseReportParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { CreateExpenseReportParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createExpenseReportTool: ToolConfig<
+export const createExpenseReportTool: InternalToolConfig<
   CreateExpenseReportParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_create_expense_report',
   name: 'SAP Concur Create Expense Report',
@@ -80,22 +79,19 @@ export const createExpenseReportTool: ToolConfig<
         'Report payload — `name` and `policyId` are required. Optional fields: businessPurpose, comment, customData, countryCode, countrySubDivisionCode, etc.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userId = trimRequired(params.userId, 'userId')
       const contextType = trimRequired(params.contextType, 'contextType')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/context/${encodeURIComponent(contextType)}/reports`,
         method: 'POST',
         body: params.body,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

@@ -6,16 +6,35 @@
  * (unknown field, json-op) runs server-side in `validate.ts`.
  */
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   deleteTableRowsBodySchema,
+  predicateInputSchema,
   predicateSchema,
   rowQueryBodySchema,
   tableRowsQuerySchema,
+  tableViewConfigSchema,
   updateRowsByFilterBodySchema,
 } from '@/lib/api/contracts/tables'
+import { FILTER_OPS } from '@/lib/table/constants'
+import { MAX_PREDICATE_GROUP_SIZE } from '@/lib/table/query-builder/predicate'
 import { validatePredicate } from '@/lib/table/query-builder/validate'
 
+/** Loose view of the generated JSON Schema, which is untyped by construction. */
+type JsonSchemaNode = Record<string, JsonSchemaNode> & Record<number, JsonSchemaNode>
+
 describe('rowQueryBodySchema', () => {
+  it('accepts a root condition and normalizes it to the canonical all group', () => {
+    const parsed = rowQueryBodySchema.parse({
+      workspaceId: 'ws-1',
+      predicate: { field: 'status', op: 'eq', value: 'active' },
+    })
+
+    expect(parsed.predicate).toEqual({
+      all: [{ field: 'status', op: 'eq', value: 'active' }],
+    })
+  })
+
   it('accepts a predicate/sort object, leaves limit unbounded, has no offset', () => {
     const parsed = rowQueryBodySchema.parse({
       workspaceId: 'ws-1',
@@ -57,6 +76,17 @@ describe('rowQueryBodySchema', () => {
     expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1' }).success).toBe(true)
   })
 
+  it('accepts selected column references and treats an empty list as all columns', () => {
+    expect(
+      rowQueryBodySchema.parse({ workspaceId: 'ws-1', columns: ['col_status', 'wins'] }).columns
+    ).toEqual(['col_status', 'wins'])
+    expect(rowQueryBodySchema.parse({ workspaceId: 'ws-1', columns: [] }).columns).toEqual([])
+  })
+
+  it('rejects blank column references', () => {
+    expect(rowQueryBodySchema.safeParse({ workspaceId: 'ws-1', columns: [''] }).success).toBe(false)
+  })
+
   it('rejects an unknown operator and a malformed leaf', () => {
     expect(
       rowQueryBodySchema.safeParse({
@@ -78,6 +108,16 @@ describe('rowQueryBodySchema', () => {
   })
 })
 
+describe('tableViewConfigSchema', () => {
+  it('normalizes a root condition before it is persisted', () => {
+    expect(
+      tableViewConfigSchema.parse({
+        filter: { field: 'status', op: 'eq', value: 'active' },
+      }).filter
+    ).toEqual({ all: [{ field: 'status', op: 'eq', value: 'active' }] })
+  })
+})
+
 describe('bulk schemas accept either a predicate tree or the legacy filter object', () => {
   it('delete accepts a predicate filter', () => {
     expect(
@@ -93,6 +133,15 @@ describe('bulk schemas accept either a predicate tree or the legacy filter objec
       deleteTableRowsBodySchema.safeParse({ workspaceId: 'ws-1', filter: { status: 'archived' } })
         .success
     ).toBe(true)
+  })
+
+  it('does not reinterpret a legacy object with field/op/value columns as a root predicate', () => {
+    const filter = { field: 'status', op: 'eq', value: 'active' }
+    const parsed = deleteTableRowsBodySchema.parse({ workspaceId: 'ws-1', filter })
+
+    expect(parsed.filter).toEqual(filter)
+    expect(predicateSchema.safeParse(filter).success).toBe(false)
+    expect(predicateInputSchema.parse(filter)).toEqual({ all: [filter] })
   })
 
   it('update accepts a predicate filter', () => {
@@ -259,3 +308,59 @@ function rowQueryStringSchemaProbe(input: Record<string, unknown>) {
   if (!result.success) throw new Error(JSON.stringify(result.error.issues[0]))
   return result.data
 }
+
+/**
+ * The predicate is a `pipe` over `z.unknown()`, so `z.toJSONSchema` documents
+ * it from an input side that carries no shape: the leaf keys `field`, `op`, and
+ * `value` were named nowhere in the published contract and were discoverable
+ * only by reading an example. The shape is now supplied through `.meta()`,
+ * which means it is hand-written beside a runtime schema that can move without
+ * it. These assertions are the join.
+ */
+describe('the published predicate schema', () => {
+  const published = z.toJSONSchema(predicateSchema, { io: 'input', unrepresentable: 'any' })
+  const leaf = (published.oneOf as JsonSchemaNode[])[0].properties.all.items.anyOf[1]
+
+  it('names the leaf keys the server actually requires', () => {
+    expect(Object.keys(leaf.properties)).toEqual(['field', 'op', 'value'])
+    expect(leaf.required).toEqual(['field', 'op'])
+    expect(leaf.additionalProperties).toBe(false)
+  })
+
+  it('publishes exactly the operators the server accepts', () => {
+    expect(leaf.properties.op.enum).toEqual([...FILTER_OPS])
+  })
+
+  it('publishes the group keys and their size bound', () => {
+    const [all, any] = published.oneOf as JsonSchemaNode[]
+    expect(Object.keys(all.properties)).toEqual(['all'])
+    expect(Object.keys(any.properties)).toEqual(['any'])
+    expect(all.properties.all.minItems).toBe(1)
+    expect(all.properties.all.maxItems).toBe(MAX_PREDICATE_GROUP_SIZE)
+  })
+
+  it('rejects the v1-shaped leaf a caller would guess without the schema', () => {
+    expect(
+      predicateSchema.safeParse({ all: [{ column: 'a', operator: 'eq', value: 1 }] }).success
+    ).toBe(false)
+    expect(predicateSchema.safeParse({ all: [{ field: 'a', op: 'eq', value: 1 }] }).success).toBe(
+      true
+    )
+  })
+
+  /**
+   * The description published a null rule the compiler never implemented:
+   * multi-select `ncontains` was called "the exception" that excludes nulls,
+   * while `sql.ts` emits a bare `NOT (data @> …)` — TRUE for an absent key,
+   * exactly like every other negation. A wrong null rule is worse than none:
+   * it reads as deliberate, so a caller writes a predicate that silently
+   * returns rows it was told were excluded.
+   */
+  it('does not claim a multi-select null exception the compiler never had', () => {
+    const description = String(published.description)
+
+    expect(description).toContain('The negating operators include nulls')
+    expect(description).not.toMatch(/exception/i)
+    expect(description).toMatch(/multi-select included/i)
+  })
+})

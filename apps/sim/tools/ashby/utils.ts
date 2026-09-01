@@ -31,7 +31,11 @@ export function ashbyAuthHeaders(apiKey: string): Record<string, string> {
 
 /**
  * Extract a human-readable error message from an Ashby error response. Ashby
- * returns errors as either `errorInfo.message` or an `errors` string array.
+ * documents two shapes and uses both: `errorInfo.message`, and an `errors`
+ * array whose entries are either plain strings or `{ message, parameter }`
+ * objects. An object entry stringifies to `[object Object]` unless its message
+ * is read explicitly, which is the form a 403 for a missing module permission
+ * arrives in.
  */
 export function ashbyErrorMessage(data: unknown, fallback: string): string {
   if (!data || typeof data !== 'object') return fallback
@@ -39,7 +43,20 @@ export function ashbyErrorMessage(data: unknown, fallback: string): string {
   const info = d.errorInfo as Unknown | undefined
   if (info && typeof info.message === 'string' && info.message) return info.message
   if (Array.isArray(d.errors) && d.errors.length > 0) {
-    return d.errors.map((e) => String(e)).join('; ')
+    const messages = d.errors
+      .map((e) => {
+        if (typeof e === 'string') return e
+        if (e && typeof e === 'object') {
+          const entry = e as Unknown
+          const message = typeof entry.message === 'string' ? entry.message : ''
+          const parameter = typeof entry.parameter === 'string' ? entry.parameter : ''
+          if (message && parameter) return `${message} (${parameter})`
+          if (message) return message
+        }
+        return ''
+      })
+      .filter(Boolean)
+    if (messages.length > 0) return messages.join('; ')
   }
   return fallback
 }
@@ -59,18 +76,44 @@ function mapContactArray(raw: unknown): AshbyContactInfo[] {
   return raw.map((c) => mapContact(c)).filter((c): c is AshbyContactInfo => c !== null)
 }
 
+const CUSTOM_FIELD_OBJECT_TYPES = ['Application', 'Candidate', 'Job', 'Opening'] as const
+
+/**
+ * Normalize and validate the objectType a custom field write targets. Ashby's
+ * enum is case-sensitive, and this param is `user-or-llm` - a model emitting
+ * `candidate` instead of `Candidate` would otherwise fail at the API with a
+ * generic error instead of here with a message naming the allowed values.
+ */
+export function normalizeObjectType(value: string): string {
+  const trimmed = (value ?? '').trim()
+  const match = CUSTOM_FIELD_OBJECT_TYPES.find((t) => t.toLowerCase() === trimmed.toLowerCase())
+  if (!match) {
+    throw new Error(
+      `Invalid Ashby object type "${value}". Expected one of: ${CUSTOM_FIELD_OBJECT_TYPES.join(', ')}.`
+    )
+  }
+  return match
+}
+
+/**
+ * Map a single custom field value as returned on an object. Ashby returns
+ * `valueLabel` as a string for ValueSelect fields and an array of strings for
+ * MultiValueSelect, and omits it entirely for every other field type.
+ */
+export function mapCustomFieldOnObject(raw: unknown): AshbyCustomField {
+  const cf = (raw ?? {}) as Unknown
+  return {
+    id: (cf.id as string) ?? null,
+    title: (cf.title as string) ?? '',
+    isPrivate: (cf.isPrivate as boolean) ?? false,
+    valueLabel: (cf.valueLabel as string | string[]) ?? null,
+    value: cf.value ?? null,
+  }
+}
+
 function mapCustomFields(raw: unknown): AshbyCustomField[] {
   if (!Array.isArray(raw)) return []
-  return raw.map((f) => {
-    const cf = f as Unknown
-    return {
-      id: (cf.id as string) ?? null,
-      title: (cf.title as string) ?? '',
-      isPrivate: (cf.isPrivate as boolean) ?? false,
-      valueLabel: (cf.valueLabel as string) ?? null,
-      value: cf.value ?? null,
-    }
-  })
+  return raw.map(mapCustomFieldOnObject)
 }
 
 function mapFileHandle(raw: unknown): AshbyFileHandle | null {
@@ -373,18 +416,30 @@ export const CONTACT_INFO_OUTPUT = {
   },
 } as const satisfies OutputProperty
 
+/**
+ * Shape of a custom field as it exists on an Application, Candidate, Job, or
+ * Opening - the value, not the field definition. Shared by every tool that
+ * reads or writes custom field values.
+ */
+export const CUSTOM_FIELD_ON_OBJECT_OUTPUT = {
+  id: { type: 'string', description: 'Custom field UUID' },
+  title: { type: 'string', description: 'Field title' },
+  isPrivate: { type: 'boolean', description: 'Whether the field is private' },
+  valueLabel: {
+    type: 'json',
+    description:
+      'Human-readable value label, present only for ValueSelect and MultiValueSelect fields. A string for ValueSelect, an array of strings for MultiValueSelect.',
+    optional: true,
+  },
+  value: { type: 'string', description: 'Raw field value (type depends on fieldType)' },
+} as const satisfies Record<string, OutputProperty>
+
 export const CUSTOM_FIELDS_OUTPUT = {
   type: 'array',
   description: 'Custom field values',
   items: {
     type: 'object',
-    properties: {
-      id: { type: 'string', description: 'Custom field UUID' },
-      title: { type: 'string', description: 'Field title' },
-      isPrivate: { type: 'boolean', description: 'Whether the field is private' },
-      valueLabel: { type: 'string', description: 'Human-readable value label', optional: true },
-      value: { type: 'string', description: 'Raw field value (type depends on fieldType)' },
-    },
+    properties: CUSTOM_FIELD_ON_OBJECT_OUTPUT,
   },
 } as const satisfies OutputProperty
 
