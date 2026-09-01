@@ -316,13 +316,44 @@ async function clearPausedCancellationIntentWithRetry(
 
 async function finalizePausedCancellationForTerminalRunWithRetry(
   executionId: string,
-  workflowId: string
+  workflowId: string,
+  executionDeadlineAt: Date | null,
+  stopSummary: ExecutionStopSummary
 ): Promise<boolean> {
   for (let attempt = 1; attempt <= PAUSED_CANCELLATION_DB_ATTEMPTS; attempt++) {
     try {
-      const finalized = await PauseResumeManager.finalizePausedCancellationForTerminalRun(
+      const activeResumeTargets = await PauseResumeManager.getActiveResumeCancellationTargets(
         executionId,
         workflowId
+      )
+      const stoppedResumeEntryIds: string[] = []
+      for (const target of activeResumeTargets) {
+        const stopped = await signalAndRecordActiveResumeStop({
+          workflowId,
+          executionId,
+          executionDeadlineAt,
+          target,
+          summary: stopSummary,
+        })
+        if (!stopped) break
+        stoppedResumeEntryIds.push(target.resumeEntryId)
+      }
+
+      if (stoppedResumeEntryIds.length !== activeResumeTargets.length) {
+        logger.warn('Claimed resume could not be stopped during terminal cleanup', {
+          executionId,
+          attempt,
+        })
+        if (attempt < PAUSED_CANCELLATION_DB_ATTEMPTS) {
+          await sleep(PAUSED_CANCELLATION_DB_RETRY_MS)
+        }
+        continue
+      }
+
+      const finalized = await PauseResumeManager.finalizePausedCancellationForTerminalRun(
+        executionId,
+        workflowId,
+        stoppedResumeEntryIds
       )
       if (finalized) return true
       logger.warn('Paused cancellation terminal cleanup was rejected', {
@@ -771,9 +802,12 @@ export async function cancelWorkflowExecution({
     }
 
     if (execution.status !== 'running' && execution.status !== 'pending') {
+      const stopSummary = createExecutionStopSummary()
       const pausedCancellationFinalized = await finalizePausedCancellationForTerminalRunWithRetry(
         executionId,
-        workflowId
+        workflowId,
+        execution.executionDeadlineAt,
+        stopSummary
       )
       if (!pausedCancellationFinalized) throwPausedCancellationReconciliationFailed()
 
@@ -975,7 +1009,9 @@ export async function cancelWorkflowExecution({
       } else if (effectivePausedCancellationPath) {
         const pausedCancellationFinalized = await finalizePausedCancellationForTerminalRunWithRetry(
           executionId,
-          workflowId
+          workflowId,
+          execution.executionDeadlineAt,
+          stopSummary
         )
         if (!pausedCancellationFinalized) throwPausedCancellationReconciliationFailed()
       } else {

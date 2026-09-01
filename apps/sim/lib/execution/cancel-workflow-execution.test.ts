@@ -17,6 +17,7 @@ const {
   mockFinalizePausedCancellationForTerminalRun,
   mockGetPausedCancellationStatus,
   mockGetActiveResumeCancellationTarget,
+  mockGetActiveResumeCancellationTargets,
   mockRollbackActiveResumeCancellation,
   mockFinalizeExecutionStream,
   mockReadExecutionMetaState,
@@ -39,6 +40,7 @@ const {
   mockFinalizePausedCancellationForTerminalRun: vi.fn(),
   mockGetPausedCancellationStatus: vi.fn(),
   mockGetActiveResumeCancellationTarget: vi.fn(),
+  mockGetActiveResumeCancellationTargets: vi.fn(),
   mockRollbackActiveResumeCancellation: vi.fn(),
   mockFinalizeExecutionStream: vi.fn(),
   mockReadExecutionMetaState: vi.fn(),
@@ -82,6 +84,8 @@ vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
     getPausedCancellationStatus: (...args: unknown[]) => mockGetPausedCancellationStatus(...args),
     getActiveResumeCancellationTarget: (...args: unknown[]) =>
       mockGetActiveResumeCancellationTarget(...args),
+    getActiveResumeCancellationTargets: (...args: unknown[]) =>
+      mockGetActiveResumeCancellationTargets(...args),
     rollbackActiveResumeCancellation: (...args: unknown[]) =>
       mockRollbackActiveResumeCancellation(...args),
   },
@@ -191,6 +195,7 @@ describe('cancelWorkflowExecution', () => {
     mockFinalizePausedCancellationForTerminalRun.mockReset().mockResolvedValue(true)
     mockGetPausedCancellationStatus.mockReset().mockResolvedValue(null)
     mockGetActiveResumeCancellationTarget.mockReset().mockResolvedValue(null)
+    mockGetActiveResumeCancellationTargets.mockReset().mockResolvedValue([])
     mockRollbackActiveResumeCancellation.mockReset().mockResolvedValue(true)
     mockFinalizeExecutionStream.mockReset().mockResolvedValue(true)
     mockReadExecutionMetaState.mockReset().mockResolvedValue({ status: 'missing' })
@@ -1650,7 +1655,7 @@ describe('cancelWorkflowExecution', () => {
     })
     expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
     expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
-    expect(mockFinalizePausedCancellationForTerminalRun).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockFinalizePausedCancellationForTerminalRun).toHaveBeenCalledWith('ex-1', 'wf-1', [])
   })
 
   it('retries paused cancellation finalization before returning a terminal-race conflict', async () => {
@@ -1682,6 +1687,7 @@ describe('cancelWorkflowExecution', () => {
       kind: 'active_resume',
       target: ACTIVE_RESUME_TARGET,
     })
+    mockGetActiveResumeCancellationTargets.mockResolvedValue([ACTIVE_RESUME_TARGET])
     mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
     const returning = vi.fn().mockResolvedValue([])
     const where = vi.fn(() => ({ returning }))
@@ -1698,10 +1704,38 @@ describe('cancelWorkflowExecution', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Execution cannot be cancelled while completed',
     })
-    expect(mockFinalizePausedCancellationForTerminalRun).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockFinalizePausedCancellationForTerminalRun).toHaveBeenCalledWith('ex-1', 'wf-1', [
+      'resume-entry-1',
+    ])
     expect(mockRollbackActiveResumeCancellation).not.toHaveBeenCalled()
     expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
     expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+  })
+
+  it('does not finalize a claimed resume that cannot be stopped after its parent is terminal', async () => {
+    mockGetActiveResumeCancellationTargets.mockResolvedValue([ACTIVE_RESUME_TARGET])
+    mockGetActiveResumeCancellationTarget.mockResolvedValue(ACTIVE_RESUME_TARGET)
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: null,
+        status: 'completed',
+        workspaceId: 'workspace-1',
+      },
+    ])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Failed to reconcile paused execution after cancellation was rejected',
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledTimes(3)
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockFinalizePausedCancellationForTerminalRun).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
   it('treats a concurrent cancellation as an idempotent success', async () => {

@@ -2736,10 +2736,12 @@ export class PauseResumeManager {
    * Finalizes only pause and resume state when a non-cancellation terminal
    * transition wins the parent execution race. The parent log is locked and
    * inspected but never mutated, so a late claimed resume cannot revive it.
+   * Every claimed resume must be stopped before its queue row is finalized.
    */
   static async finalizePausedCancellationForTerminalRun(
     executionId: string,
-    workflowId: string
+    workflowId: string,
+    stoppedResumeEntryIds: string[]
   ): Promise<boolean> {
     const now = new Date()
 
@@ -2790,6 +2792,11 @@ export class PauseResumeManager {
           )
         )
         .for('update')
+
+      const stoppedResumeEntryIdSet = new Set(stoppedResumeEntryIds)
+      if (claimedResumeEntries.some((entry) => !stoppedResumeEntryIdSet.has(entry.id))) {
+        return { finalized: false, claimedResumeEntryIds: [] as string[] }
+      }
 
       if (pausedExecution.status !== 'cancelled') {
         await tx
@@ -2886,7 +2893,18 @@ export class PauseResumeManager {
     executionId: string,
     workflowId: string
   ): Promise<ActiveResumeCancellationTarget | null> {
-    const activeResume = await execDb
+    const activeResumes = await PauseResumeManager.getActiveResumeCancellationTargets(
+      executionId,
+      workflowId
+    )
+    return activeResumes[0] ?? null
+  }
+
+  static async getActiveResumeCancellationTargets(
+    executionId: string,
+    workflowId: string
+  ): Promise<ActiveResumeCancellationTarget[]> {
+    return await execDb
       .select({
         resumeEntryId: resumeQueue.id,
         pausedExecutionId: resumeQueue.pausedExecutionId,
@@ -2904,10 +2922,6 @@ export class PauseResumeManager {
         )
       )
       .orderBy(desc(resumeQueue.claimedAt))
-      .limit(1)
-      .then((rows) => rows[0])
-
-    return activeResume ?? null
   }
 
   static async rollbackActiveResumeCancellation(
