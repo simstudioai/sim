@@ -2,13 +2,9 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-<<<<<<< HEAD:apps/sim/lib/copilot/tools/handlers/workflow/mutations.test.ts
-import type { ExecutionContext } from '@/lib/copilot/request/types'
-import type { CancelWorkflowRunParams } from '@/lib/copilot/tools/handlers/param-types'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
-=======
 import type { ExecutionContext } from '@/lib/mothership/request/types'
->>>>>>> 2ff9a4fa01 (feat: sim side of the mothership revamp):apps/sim/lib/mothership/tools/handlers/workflow/mutations.test.ts
+import type { CancelWorkflowRunParams } from '@/lib/mothership/tools/handlers/param-types'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {

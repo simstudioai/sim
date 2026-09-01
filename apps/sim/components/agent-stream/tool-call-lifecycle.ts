@@ -7,11 +7,7 @@
  * implementation so the three surfaces cannot drift.
  */
 
-<<<<<<< HEAD
-import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
-=======
-import { humanizeToolName } from '@/lib/mothership/tools/tool-display'
->>>>>>> 2ff9a4fa01 (feat: sim side of the mothership revamp)
+import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
 
 export type AgentStreamToolStatus = 'running' | 'success' | 'error' | 'cancelled'
 

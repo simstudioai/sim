@@ -15,16 +15,12 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   uploadFile: mockUploadFile,
 }))
 
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   loadPublishedCompiledDoc,
   storeCompiledDoc,
-<<<<<<< HEAD:apps/sim/lib/copilot/tools/server/files/doc-compiled-store.test.ts
-} from '@/lib/copilot/tools/server/files/doc-compiled-store'
-import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-=======
 } from '@/lib/mothership/tools/server/files/doc-compiled-store'
->>>>>>> 2ff9a4fa01 (feat: sim side of the mothership revamp):apps/sim/lib/mothership/tools/server/files/doc-compiled-store.test.ts
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 describe('compiled document publication', () => {
   beforeEach(() => {

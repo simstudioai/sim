@@ -29,12 +29,8 @@ vi.mock('@/lib/mothership/tools/client/completion', () => ({
   reportClientToolCompletionOnPageExit: mockReportCompletionOnPageExit,
 }))
 
-<<<<<<< HEAD:apps/sim/lib/copilot/tools/client/browser-tool-execution.test.ts
-import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
-import { BrowserToolReplayLedger } from '@/lib/copilot/tools/client/browser-tool-replay-ledger'
-=======
 import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
->>>>>>> 2ff9a4fa01 (feat: sim side of the mothership revamp):apps/sim/lib/mothership/tools/client/browser-tool-execution.test.ts
+import { BrowserToolReplayLedger } from '@/lib/mothership/tools/client/browser-tool-replay-ledger'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const CHAT_SCOPE = 'chat-test'
