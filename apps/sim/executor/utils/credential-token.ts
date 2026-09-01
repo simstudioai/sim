@@ -1,67 +1,79 @@
 import { createLogger } from '@sim/logger'
-import { generateInternalToken } from '@/lib/auth/internal'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { AuthType } from '@/lib/auth/hybrid'
+import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
+import {
+  type CredentialTokenPayload,
+  resolveCredentialAccessToken,
+} from '@/lib/oauth/token-resolution'
+import type { ExecutorDelegationOrigin } from '@/executor/types'
 
 const logger = createLogger('ExecutorCredentialToken')
 
-/**
- * Fetches a credential's access token from the app rather than resolving it here.
- *
- * Refreshing an OAuth token needs the provider's client id and secret, read through
- * `requireOAuthClientCapability`, which THROWS when they are absent. Only the app
- * container loads those (from `SIM_ENV_SECRET_ID`); workflow execution runs in a
- * Trigger.dev worker whose environment does not carry them. Resolving in-process there
- * turns every credential whose access token has expired into a refresh failure, and a
- * still-valid token hides it until the token lapses.
- *
- * See `.claude/rules/sim-architecture.md`, "The app/worker runtime boundary".
- *
- * The route authorizes the credential itself, so this never widens access.
- */
-export async function fetchCredentialAccessToken(params: {
+export interface ResolveExecutorCredentialTokenParams {
   requestId: string
   credentialId: string
-  userId: string
+  userId?: string
   workflowId?: string
-}): Promise<string> {
-  const { requestId, credentialId, userId, workflowId } = params
+  /** Tool consuming the token; required by the managed-OAuth scope policy. */
+  toolId?: string
+  /** Display label for the thrown failure ("Failed to obtain credential for X: ..."). */
+  toolLabel?: string
+  scopes?: string[]
+  impersonateEmail?: string
+  /** Asserts the acting user alongside the credential lookup, mirroring the HTTP surface. */
+  enforceCredentialAccess?: boolean
+  /** Proves managed-credential delegations in-process when the run carries one. */
+  executorDelegationOrigin?: ExecutorDelegationOrigin
+}
 
-  const url = new URL('/api/auth/oauth/token', getInternalApiBaseUrl())
-  if (workflowId) url.searchParams.set('workflowId', workflowId)
+/**
+ * Resolves a credential's access token in-process for server-side workflow
+ * execution. Goes through the same authorized application dispatch as
+ * `POST /api/auth/oauth/token` (`resolveCredentialAccessToken`), replacing the
+ * HTTP hop the executor used to make to its own route — both runtimes hold the
+ * OAuth client config the refresh branch needs, so authorization, refresh, and
+ * audit run identically without the round trip.
+ */
+export async function resolveExecutorCredentialToken(
+  params: ResolveExecutorCredentialTokenParams
+): Promise<CredentialTokenPayload> {
+  const { requestId, credentialId, userId, workflowId, toolId, executorDelegationOrigin } = params
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  try {
-    headers.Authorization = `Bearer ${await generateInternalToken(userId)}`
-  } catch (_e) {
-    // Swallow mint errors; the request then fails authentication and reports upstream.
+  if (executorDelegationOrigin && !executorDelegationOrigin.currentWorkflow) {
+    throw new Error('Managed credential delegation is missing current workflow authority')
   }
 
-  // boundary-raw-fetch: same-origin token route, authenticated by the internal JWT minted above
-  const response = await fetch(url.toString(), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ credentialId, ...(workflowId ? { workflowId } : {}) }),
+  const result = await resolveCredentialAccessToken({
+    requestId,
+    credentialId,
+    workflowId,
+    toolId,
+    scopes: params.scopes,
+    impersonateEmail: params.impersonateEmail,
+    callerUserId: userId && params.enforceCredentialAccess ? userId : undefined,
+    authenticate: () => ({
+      success: true,
+      ...(userId ? { userId } : {}),
+      authType: AuthType.INTERNAL_JWT,
+    }),
+    ...(executorDelegationOrigin
+      ? {
+          resolveManagedPrincipal: (managedCredentialId: string) =>
+            bindExecutorManagedOAuthDelegation(executorDelegationOrigin, managedCredentialId),
+        }
+      : {}),
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    logger.error(`[${requestId}] Credential token request failed`, {
-      status: response.status,
+  if (!result.ok) {
+    logger.error(`[${requestId}] Credential token resolution failed`, {
+      status: result.status,
       credentialId,
+      ...(result.code ? { code: result.code } : {}),
     })
-    let message = errorText
-    try {
-      const parsed = JSON.parse(errorText)
-      if (parsed.error) message = parsed.error
-    } catch {
-      // Use raw text
-    }
-    throw new Error(message)
+    throw new Error(
+      `Failed to obtain credential for ${params.toolLabel ?? credentialId}: ${result.error}`
+    )
   }
 
-  const { accessToken } = (await response.json()) as { accessToken?: string }
-  if (!accessToken) {
-    throw new Error('Credential token response carried no access token')
-  }
-  return accessToken
+  return result.token
 }

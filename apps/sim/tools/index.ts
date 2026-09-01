@@ -6,9 +6,8 @@ import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import type { FunctionExecuteBody } from '@/lib/api/contracts'
-import { MANAGED_OAUTH_DELEGATION_HEADER } from '@/lib/api/contracts/oauth-connections'
 import { getBYOKKey } from '@/lib/api-key/byok'
-import { generateInternalToken, type InternalSandboxProfile } from '@/lib/auth/internal'
+import type { InternalSandboxProfile } from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
@@ -75,7 +74,6 @@ import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-c
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
-import { buildExecutorDelegationHeaders } from '@/executor/utils/http'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import {
@@ -1534,6 +1532,59 @@ function getPrivateToolMetadataPolicy(toolId: string): PrivateToolMetadataPolicy
 }
 
 /**
+ * Resolves a credential token from the browser through `POST /api/auth/oauth/token`,
+ * authenticated by the session cookie. Server-side execution resolves in-process
+ * through `resolveExecutorCredentialToken` instead; this HTTP path exists only
+ * because the browser holds no server credentials.
+ */
+async function fetchCredentialTokenFromRoute(params: {
+  requestId: string
+  toolId: string
+  toolLabel: string
+  credentialId: string
+  workflowId?: string
+  impersonateEmail?: string
+  scopes?: string[]
+  callerUserId?: string
+}): Promise<CredentialTokenPayload> {
+  const { requestId, toolId, toolLabel, credentialId, workflowId } = params
+
+  const tokenPayload: OAuthTokenPayload = { credentialId, toolId }
+  if (workflowId) tokenPayload.workflowId = workflowId
+  if (params.impersonateEmail) tokenPayload.impersonateEmail = params.impersonateEmail
+  if (params.scopes) tokenPayload.scopes = params.scopes
+
+  const tokenUrlObj = new URL('/api/auth/oauth/token', getInternalApiBaseUrl())
+  if (workflowId) tokenUrlObj.searchParams.set('workflowId', workflowId)
+  if (params.callerUserId) tokenUrlObj.searchParams.set('userId', params.callerUserId)
+
+  // boundary-raw-fetch: same-origin token route, authenticated by the browser session cookie
+  const response = await fetch(tokenUrlObj.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(tokenPayload),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
+      status: response.status,
+      error: errorText,
+    })
+    let parsedError = errorText
+    try {
+      const parsed = JSON.parse(errorText)
+      if (parsed.error) parsedError = parsed.error
+    } catch {
+      // Use raw text
+    }
+    throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
+  }
+
+  return (await response.json()) as CredentialTokenPayload
+}
+
+/**
  * Runs private-provenance tools against an isolated registry. Unavailable authenticated lineage
  * marks the parent unknown without replacing the tool's functional result; malformed metadata is
  * rejected inside the transport consumer and never committed to the parent.
@@ -1779,106 +1830,59 @@ async function executeToolImplementation(
       try {
         const workflowId = scope.workflowId
         const userId = scope.userId
+        const credentialId = contextParams.credential as string
+        const toolLabel = tool?.name || toolId
+        const impersonateEmail = contextParams.impersonateUserEmail as string | undefined
 
-        const tokenPayload: OAuthTokenPayload = {
-          credentialId: contextParams.credential as string,
-          toolId,
-        }
-        if (workflowId) {
-          tokenPayload.workflowId = workflowId
-        }
-        if (contextParams.impersonateUserEmail) {
-          tokenPayload.impersonateEmail = contextParams.impersonateUserEmail as string
-        }
+        let providerScopes: string[] | undefined
         if (tool?.oauth?.provider) {
-          const providerScopes =
+          const scopesForProvider =
             tool.oauth.requiredScopes ??
             (await import('@/lib/oauth/utils')).getCanonicalScopesForProvider(tool.oauth.provider)
-          if (providerScopes.length > 0) {
-            tokenPayload.scopes = providerScopes
+          if (scopesForProvider.length > 0) {
+            providerScopes = scopesForProvider
           }
         }
 
         /**
-         * The acting user asserted alongside an internal token. Only sent when the
-         * run enforces credential access, matching the `userId` query param the HTTP
-         * surface accepted — it never widens access, it only pins the assertion to
-         * the token subject.
+         * The acting user asserted alongside the credential. Only asserted when the
+         * run enforces credential access — it never widens access, it only pins the
+         * assertion to the authenticated subject.
          */
-        const callerUserId =
-          userId && contextParams._context?.enforceCredentialAccess ? userId : undefined
+        const enforceCredentialAccess = Boolean(contextParams._context?.enforceCredentialAccess)
 
-        const baseUrl = getInternalApiBaseUrl()
-        logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
-
-        const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
-        if (workflowId) {
-          tokenUrlObj.searchParams.set('workflowId', workflowId)
-        }
-        if (callerUserId) {
-          tokenUrlObj.searchParams.set('userId', callerUserId)
-        }
-
-        /**
-         * Deliberately an HTTP hop rather than an in-process call to
-         * `resolveCredentialToken`, even though both run the same authorization rule.
-         *
-         * An OAuth refresh needs the provider's client id and secret
-         * (`requireOAuthClientCapability`, which THROWS when they are absent). Only the
-         * app container loads those, from `SIM_ENV_SECRET_ID`. Tool calls execute inside
-         * the Trigger.dev worker, whose environment does not carry them, so resolving
-         * in-process there turns every credential whose access token has expired into
-         * `Failed to refresh access token`. A still-valid token hides it — the refresh
-         * path is only reached once the token lapses.
-         *
-         * Moving this in-process requires the worker to hold the OAuth client config,
-         * not just a code change.
-         */
-        const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+        let data: CredentialTokenPayload
         if (typeof window === 'undefined') {
-          const managedCredentialDelegation = executionContext?.executorDelegationOrigin
-          if (managedCredentialDelegation && !managedCredentialDelegation.currentWorkflow) {
-            throw new Error('Managed credential delegation is missing current workflow authority')
-          }
-          try {
-            const internalToken = await generateInternalToken(userId)
-            tokenHeaders.Authorization = `Bearer ${internalToken}`
-          } catch (_e) {
-            // Swallow token generation errors; the request will fail and be reported upstream
-          }
-          if (managedCredentialDelegation) {
-            const delegationHeaders = await buildExecutorDelegationHeaders(
-              managedCredentialDelegation
-            )
-            tokenHeaders[MANAGED_OAUTH_DELEGATION_HEADER] = delegationHeaders.Authorization
-          }
-        }
-
-        // boundary-raw-fetch: same-origin token route, authenticated by internal JWT on the server and the session cookie in the browser
-        const response = await fetch(tokenUrlObj.toString(), {
-          method: 'POST',
-          headers: tokenHeaders,
-          body: JSON.stringify(tokenPayload),
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
-            status: response.status,
-            error: errorText,
+          // Dynamic import for the same client-bundle reason as the workflow_executor
+          // runner below: the resolver pulls the db/audit dependency graph, which must
+          // never enter the client-bundled tool registry.
+          const { resolveExecutorCredentialToken } = await import(
+            '@/executor/utils/credential-token'
+          )
+          data = await resolveExecutorCredentialToken({
+            requestId,
+            credentialId,
+            userId,
+            workflowId,
+            toolId,
+            toolLabel,
+            scopes: providerScopes,
+            impersonateEmail,
+            enforceCredentialAccess,
+            executorDelegationOrigin: executionContext?.executorDelegationOrigin,
           })
-          let parsedError = errorText
-          try {
-            const parsed = JSON.parse(errorText)
-            if (parsed.error) parsedError = parsed.error
-          } catch {
-            // Use raw text
-          }
-          const toolLabel = tool?.name || toolId
-          throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
+        } else {
+          data = await fetchCredentialTokenFromRoute({
+            requestId,
+            toolId,
+            toolLabel,
+            credentialId,
+            workflowId,
+            impersonateEmail,
+            scopes: providerScopes,
+            callerUserId: userId && enforceCredentialAccess ? userId : undefined,
+          })
         }
-
-        const data = (await response.json()) as CredentialTokenPayload
 
         if (tool.oauth?.credentialKind) {
           const actualCredentialKind =

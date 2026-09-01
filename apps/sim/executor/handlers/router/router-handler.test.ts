@@ -22,7 +22,7 @@ vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/executor/utils/credential-token', () => ({
-  fetchCredentialAccessToken: vi.fn().mockResolvedValue('mock-access-token'),
+  resolveExecutorCredentialToken: vi.fn().mockResolvedValue({ accessToken: 'mock-access-token' }),
 }))
 
 vi.mock('@/lib/credentials/access', () => ({

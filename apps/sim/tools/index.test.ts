@@ -156,6 +156,15 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
     mockMarkWorkspaceFileSecretProvenanceUnknown(...args),
 }))
 
+const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
+  mockResolveExecutorCredentialToken: vi.fn(),
+}))
+
+vi.mock('@/executor/utils/credential-token', () => ({
+  resolveExecutorCredentialToken: (...args: unknown[]) =>
+    mockResolveExecutorCredentialToken(...args),
+}))
+
 vi.mock('@/executor/handlers/workflow/workflow-tool-runner', () => ({
   runWorkflowTool: (...args: unknown[]) => mockRunWorkflowTool(...args),
 }))
@@ -2989,15 +2998,7 @@ describe('Internal Route Trust', () => {
     ;(tools as Record<string, unknown>)[ordinaryToolId] = createAuthorityTool(ordinaryToolId, false)
 
     const setTokenPayload = (payload: Record<string, unknown>) => {
-      global.fetch = Object.assign(
-        vi.fn().mockResolvedValue(
-          new Response(JSON.stringify(payload), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          })
-        ),
-        { preconnect: vi.fn() }
-      ) as typeof fetch
+      mockResolveExecutorCredentialToken.mockResolvedValue(payload)
     }
 
     try {
@@ -4429,21 +4430,15 @@ describe('Copilot OAuth Credential Enforcement', () => {
 
 describe('Managed OAuth Credential Delegation', () => {
   it('passes an opaque credential ID with trusted tool scope and origin-bound delegation', async () => {
-    mockGenerateInternalToken.mockResolvedValueOnce('legacy-token')
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ accessToken: 'managed-access-token' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ messages: [] }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
+    mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+      accessToken: 'managed-access-token',
+    })
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ messages: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
     global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
 
     const executorDelegationOrigin = {
@@ -4469,23 +4464,24 @@ describe('Managed OAuth Credential Delegation', () => {
       { executionContext: context }
     )
 
-    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith(executorDelegationOrigin)
-    const [tokenUrl, tokenRequest] = fetchMock.mock.calls[0]
-    expect(String(tokenUrl)).toContain('/api/auth/oauth/token')
-    expect(tokenRequest.headers).toMatchObject({
-      Authorization: 'Bearer legacy-token',
-      'x-sim-managed-oauth-delegation': 'Bearer executor-token',
-    })
-    expect(JSON.parse(tokenRequest.body)).toMatchObject({
-      credentialId: 'managed-credential-id',
-      toolId: 'gmail_read',
-      scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
-    })
+    expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'managed-credential-id',
+        toolId: 'gmail_read',
+        scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+        executorDelegationOrigin,
+      })
+    )
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes('/api/auth/oauth/token'))
+    ).toBe(false)
   })
 
   it('fails before transport when managed credential delegation lacks current workflow authority', async () => {
     mockGenerateInternalDelegationToken.mockClear()
-    mockGenerateInternalToken.mockResolvedValueOnce('legacy-token')
+    mockResolveExecutorCredentialToken.mockRejectedValueOnce(
+      new Error('Managed credential delegation is missing current workflow authority')
+    )
     const fetchMock = vi.fn()
     global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
 
