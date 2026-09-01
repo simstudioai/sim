@@ -106,6 +106,7 @@ import { listWorkflowVersions } from '@/lib/workflows/application/list-workflow-
 import { readWorkflow } from '@/lib/workflows/application/read-workflow'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
+import { createHistoricalSlackV2Block } from '@/lib/workflows/compatibility/slack-v2-auth.fixtures'
 
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'
@@ -465,5 +466,32 @@ describe('authorized workflow CRUD and version reads', () => {
       })
     ).resolves.toMatchObject({ version: { id: 'version-1', version: 1 } })
     expect(mocks.resolveWorkflowContext).toHaveBeenCalledBefore(mocks.readVersion)
+  })
+
+  it('presents historical Slack v2 auth canonically without mutating the stored version', async () => {
+    const historicalSlack = createHistoricalSlackV2Block('slack')
+    const state = {
+      blocks: { slack: historicalSlack },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+    mocks.readVersion.mockResolvedValue({
+      id: 'version-legacy-slack',
+      version: 1,
+      state,
+    })
+
+    const result = await readWorkflowVersion.execute({
+      principal: personalPrincipal,
+      input: { workflowId: WORKFLOW_ID, version: 1, includeCredentialValues: true },
+    })
+
+    expect(result.version.state.blocks.slack.subBlocks.credential.value).toBe(
+      'credential-custom-bot'
+    )
+    expect(result.version.state.blocks.slack.subBlocks).not.toHaveProperty('authMethod')
+    expect(historicalSlack.subBlocks.authMethod.value).toBe('bot_token')
+    expect(historicalSlack.subBlocks.credential.value).toBe('dormant-oauth')
   })
 })
