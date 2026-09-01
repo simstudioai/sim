@@ -373,7 +373,10 @@ describe('resolveCredentialAccessToken', () => {
       resolveManagedPrincipal,
     })
 
-    expect(result).toEqual({ ok: true, token: { accessToken: 'fresh', idToken: undefined } })
+    expect(result).toEqual({
+      ok: true,
+      token: { accessToken: 'fresh', credentialType: 'oauth', idToken: undefined },
+    })
     expect(authenticate).toHaveBeenCalledTimes(1)
     expect(resolveManagedPrincipal).not.toHaveBeenCalled()
     expect(mockResolveOAuthAccountId).toHaveBeenCalledTimes(1)
@@ -402,7 +405,10 @@ describe('resolveCredentialAccessToken', () => {
       authenticate,
     })
 
-    expect(result).toEqual({ ok: true, token: { accessToken: 'fresh', idToken: undefined } })
+    expect(result).toEqual({
+      ok: true,
+      token: { accessToken: 'fresh', credentialType: 'oauth', idToken: undefined },
+    })
   })
 
   it('rejects a managed credential when no delegation resolver is wired', async () => {
