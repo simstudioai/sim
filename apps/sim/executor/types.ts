@@ -638,6 +638,10 @@ export interface ExecutionResult {
 }
 
 export interface StreamingExecution {
+  /** Workflow block invocation that owns this stream. */
+  blockId?: string
+  /** Per-run invocation order, unique across loop and parallel executions. */
+  executionOrder?: number
   /**
    * Provider stream payload. Format is declared by {@link streamFormat}:
    * - `'text'` (default): UTF-8 answer bytes (`ReadableStream<Uint8Array>`)

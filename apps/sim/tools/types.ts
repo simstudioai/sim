@@ -122,6 +122,8 @@ export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication
   provider: OAuthService // The service that needs to be authorized
   requiredScopes?: string[] // Specific scopes this tool needs (for granular scope validation)
+  /** Restricts execution to one stored credential kind after authorized token resolution. */
+  credentialKind?: 'oauth' | 'service-account'
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
   authoritativeParams?: readonly (
     | 'apiDomain'

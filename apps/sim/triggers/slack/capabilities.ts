@@ -26,13 +26,6 @@ export interface SlackCapability {
   scopes: readonly string[]
   events: readonly string[]
   /**
-   * Marks the AI Assistant capability. When enabled the manifest additionally
-   * declares the app as an Agents & AI app (`features.assistant_view`) and
-   * enables the App Home messages tab — required for assistant threads, the
-   * "thinking" status (`assistant.threads.setStatus`), and DM-style chat to work.
-   */
-  assistant?: boolean
-  /**
    * Marks the interactivity capability. When enabled the manifest declares
    * `settings.interactivity` (pointing at the same ingest URL) — required for
    * Slack to deliver `block_actions` (button/select clicks) and `view_submission`
@@ -134,24 +127,6 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
     events: ['team_join'],
   },
   {
-    id: 'trigger_app_home',
-    label: 'App home opened',
-    description: "Trigger when a user opens your app's Home tab.",
-    defaultChecked: false,
-    group: 'trigger',
-    scopes: [],
-    events: ['app_home_opened'],
-  },
-  {
-    id: 'action_send',
-    label: 'Send messages',
-    description: 'Let the bot post messages into channels it is a member of.',
-    defaultChecked: true,
-    group: 'action',
-    scopes: ['chat:write'],
-    events: [],
-  },
-  {
     id: 'action_add_reaction',
     label: 'Add reactions',
     description: 'Let the bot add emoji reactions to messages.',
@@ -169,17 +144,6 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
     group: 'action',
     scopes: ['channels:history', 'groups:history', 'im:history'],
     events: [],
-  },
-  {
-    id: 'action_assistant',
-    label: 'AI assistant',
-    description:
-      'Register the bot as an AI assistant: users open an assistant thread, the bot shows a "thinking" status, and can set the thread title and suggested prompts (assistant.threads.*).',
-    defaultChecked: true,
-    group: 'action',
-    scopes: ['assistant:write', 'im:history'],
-    events: ['assistant_thread_started', 'assistant_thread_context_changed', 'message.im'],
-    assistant: true,
   },
   {
     id: 'action_read_files',
@@ -231,15 +195,94 @@ export function getSlackManagedUserAuthorizationManifestConfig(baseUrl: string) 
 
 const WEBHOOK_URL_PLACEHOLDER = '<deploy workflow to generate webhook URL>'
 
+export const SLACK_AGENT_SCOPES = [
+  'assistant:write',
+  'chat:write',
+  'chat:write.customize',
+  'im:history',
+  'im:write',
+] as const
+
+export const SLACK_AGENT_EVENTS = [
+  'agent_session_stopped',
+  'agent_session_title_changed',
+  'app_context_changed',
+  'app_home_opened',
+  'assistant_thread_context_changed',
+  'assistant_thread_started',
+  'message.im',
+] as const
+
+export interface SlackSlashCommand {
+  command: string
+  description: string
+  usageHint?: string
+}
+
 export interface BuildManifestOptions {
   appName: string
   webhookUrl: string | null
-  /** Shown on the bot's Slack profile and as the assistant description. */
+  /** Shown on the bot's Slack profile and as the agent description. */
   description?: string
+  slashCommands?: readonly SlackSlashCommand[]
   managedUserAuthorization?: {
     redirectUrls: readonly string[]
     userScopes: readonly string[]
   }
+}
+
+function normalizeSlashCommands(
+  commands: readonly SlackSlashCommand[],
+  webhookUrl: string
+): Array<{
+  command: string
+  description: string
+  should_escape: true
+  url: string
+  usage_hint?: string
+}> {
+  if (commands.length > 50) {
+    throw new Error('Slack apps support at most 50 slash commands')
+  }
+
+  const seen = new Set<string>()
+  return commands.map((entry, index) => {
+    const command = entry.command.trim()
+    const description = entry.description.trim()
+    const usageHint = entry.usageHint?.trim() || ''
+
+    if (!command || !description) {
+      throw new Error(`Slack slash command ${index + 1} requires a command and description`)
+    }
+    if (!command.startsWith('/') || command.length === 1 || /\s/.test(command)) {
+      throw new Error(`Slack slash command ${index + 1} must be one word beginning with /`)
+    }
+    if (command.length > 32) {
+      throw new Error(`Slack slash command ${index + 1} must be 32 characters or fewer`)
+    }
+    if (description.length > 2000) {
+      throw new Error(
+        `Slack slash command ${index + 1} description must be 2000 characters or fewer`
+      )
+    }
+    if (usageHint.length > 1000) {
+      throw new Error(
+        `Slack slash command ${index + 1} usage hint must be 1000 characters or fewer`
+      )
+    }
+    if (seen.has(command)) {
+      throw new Error(`Slack slash command ${command} is configured more than once`)
+    }
+    seen.add(command)
+
+    return {
+      command,
+      description,
+      should_escape: true,
+      url: webhookUrl,
+      ...(usageHint ? { usage_hint: usageHint } : {}),
+    }
+  })
 }
 
 /**
@@ -247,44 +290,53 @@ export interface BuildManifestOptions {
  *
  * @remarks
  * - Deduplicates scopes and events across overlapping capabilities.
- * - Omits `settings.event_subscriptions` entirely when no events are selected —
- *   Slack's manifest validator rejects an empty `bot_events` array.
+ * - Every custom bot is an Agent View app with Agent Sessions, streaming, and
+ *   direct-message support. Optional capabilities only add to that baseline.
  * - When `webhookUrl` is null, embeds a human-readable placeholder so the
  *   shape is visible before the workflow is deployed.
  */
 export function buildSlackManifest(
   enabled: ReadonlySet<string>,
-  { appName, webhookUrl, description, managedUserAuthorization }: BuildManifestOptions
+  {
+    appName,
+    webhookUrl,
+    description,
+    slashCommands = [],
+    managedUserAuthorization,
+  }: BuildManifestOptions
 ): Record<string, unknown> {
   const active = SLACK_CAPABILITIES.filter((c) => enabled.has(c.id))
+  const requestUrl = webhookUrl ?? WEBHOOK_URL_PLACEHOLDER
+  const normalizedSlashCommands = normalizeSlashCommands(slashCommands, requestUrl)
   const scopes = [
     ...new Set([
+      ...SLACK_AGENT_SCOPES,
       ...active.flatMap((c) => c.scopes),
+      ...(normalizedSlashCommands.length > 0 ? ['commands'] : []),
       ...(managedUserAuthorization ? ['users:read'] : []),
     ]),
   ].sort()
-  const events = [...new Set(active.flatMap((c) => c.events))].sort()
+  const events = [...new Set([...SLACK_AGENT_EVENTS, ...active.flatMap((c) => c.events)])].sort()
   const displayName = appName.trim() || 'Sim Workflow Bot'
   const trimmedDescription = description?.trim() || ''
-  const isAssistant = active.some((c) => c.assistant)
   const isInteractive = active.some((c) => c.interactivity)
+  const agentDescription = trimmedDescription || `${displayName} — an AI agent powered by Sim.`
+
+  if (agentDescription.length > 300) {
+    throw new Error('Slack agent description must be 300 characters or fewer')
+  }
 
   const features: Record<string, unknown> = {
     bot_user: { display_name: displayName, always_online: true },
-  }
-  if (isAssistant) {
-    // Declares the app as an Agents & AI app; without this Slack won't surface
-    // the assistant thread UI or fire assistant_thread_* events. The messages
-    // tab must be enabled so users can chat the assistant.
-    features.assistant_view = {
-      assistant_description:
-        trimmedDescription || `${displayName} — an AI assistant powered by Sim.`,
-    }
-    features.app_home = {
+    agent_view: {
+      agent_description: agentDescription,
+    },
+    ...(normalizedSlashCommands.length > 0 ? { slash_commands: normalizedSlashCommands } : {}),
+    app_home: {
       home_tab_enabled: false,
       messages_tab_enabled: true,
       messages_tab_read_only_enabled: false,
-    }
+    },
   }
 
   const oauthConfig: Record<string, unknown> = { scopes: { bot: scopes } }
@@ -315,21 +367,18 @@ export function buildSlackManifest(
     },
   }
 
-  if (events.length > 0) {
-    const settings = manifest.settings as Record<string, unknown>
-    settings.event_subscriptions = {
-      request_url: webhookUrl ?? WEBHOOK_URL_PLACEHOLDER,
-      bot_events: events,
-    }
+  const settings = manifest.settings as Record<string, unknown>
+  settings.event_subscriptions = {
+    request_url: requestUrl,
+    bot_events: events,
   }
 
   // Interactivity is independent of event subscriptions — a bot can have
   // buttons/modals with no bot_events. Points at the same ingest URL.
   if (isInteractive) {
-    const settings = manifest.settings as Record<string, unknown>
     settings.interactivity = {
       is_enabled: true,
-      request_url: webhookUrl ?? WEBHOOK_URL_PLACEHOLDER,
+      request_url: requestUrl,
     }
   }
 
