@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { cn } from '@sim/emcn'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
+import type { AgentPlanItem } from '@/lib/mothership/request/types'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/mothership/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
@@ -29,6 +30,7 @@ import {
   hasPendingAgentGroup,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
 import { getActivityStatusTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
+import { PlanChecklist } from '@/app/workspace/[workspaceId]/home/components/message-content/components/plan-checklist'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
@@ -88,7 +90,17 @@ interface StoppedSegment {
   type: 'stopped'
 }
 
-type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment | StoppedSegment
+interface PlanSegment {
+  type: 'plan'
+  items: AgentPlanItem[]
+}
+
+type MessageSegment =
+  | TextSegment
+  | AgentGroupSegment
+  | OptionsSegment
+  | StoppedSegment
+  | PlanSegment
 
 function getAgentGroupActivityKey(items: AgentGroupItem[]): string {
   return items
@@ -129,6 +141,9 @@ function getVisibleStreamActivityKey(segments: MessageSegment[]): string {
         return `options:${segment.items.map((item) => `${item.id}:${item.label.length}`).join(',')}`
       }
       if (segment.type === 'stopped') return 'stopped'
+      if (segment.type === 'plan') {
+        return `plan:${segment.items.map((item) => `${item.status}:${item.step.length}`).join(',')}`
+      }
       return [
         'agent',
         segment.id,
@@ -481,6 +496,12 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       continue
     }
 
+    if (block.type === 'plan') {
+      if (!block.planItems?.length) continue
+      segments.push({ type: 'plan', items: block.planItems })
+      continue
+    }
+
     if (block.type === 'subagent_end') {
       if (block.spanId) {
         const g = groupsBySpanId.get(block.spanId)
@@ -728,6 +749,13 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       if (!block.options?.length) continue
       flushLanes()
       segments.push({ type: 'options', items: block.options })
+      continue
+    }
+
+    if (block.type === 'plan') {
+      if (!block.planItems?.length) continue
+      flushLanes()
+      segments.push({ type: 'plan', items: block.planItems })
       continue
     }
 
@@ -1087,6 +1115,8 @@ function MessageContentInner({
                   <Options items={segment.items} onSelect={onOptionSelect} />
                 </div>
               )
+            case 'plan':
+              return <PlanChecklist key={`plan-${i}`} items={segment.items} />
             // The stopped row renders in the tail region below, in the
             // shimmer's place — a stop while the shimmer is visible must read
             // as an in-place replacement, not the shimmer vanishing from the
