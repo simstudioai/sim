@@ -139,11 +139,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/public ./apps/sim/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/.next/static
 
-# Keep the project license and runtime notices next to the distributed app.
-# libheif's package license includes the LGPLv3 and incorporated GPLv3 text.
-COPY --from=pruner --chown=nextjs:nodejs /app/LICENSE /app/NOTICE /app/THIRD-PARTY-NOTICES.md ./
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules/libheif-js/libheif/LICENSE ./third-party-licenses/libheif-LICENSE
-
 # Self-contained secrets-loading bootstrap (bundled in the builder stage). Runs
 # before the standalone server.js to hydrate process.env from the runtime secret.
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/bootstrap.js ./apps/sim/bootstrap.js
