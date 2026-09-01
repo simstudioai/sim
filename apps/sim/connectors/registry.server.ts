@@ -4,6 +4,7 @@ import { ashbyConnector } from '@/connectors/ashby'
 import { azureDevopsConnector } from '@/connectors/azure-devops'
 import { bitbucketConnector } from '@/connectors/bitbucket'
 import { boxConnector } from '@/connectors/box'
+import { circlebackConnector } from '@/connectors/circleback'
 import { clickupConnector } from '@/connectors/clickup'
 import { confluenceConnector } from '@/connectors/confluence'
 import { databricksConnector } from '@/connectors/databricks'
@@ -78,6 +79,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   azure_devops: azureDevopsConnector,
   bitbucket: bitbucketConnector,
   box: boxConnector,
+  circleback: circlebackConnector,
   clickup: clickupConnector,
   confluence: confluenceConnector,
   databricks: databricksConnector,
