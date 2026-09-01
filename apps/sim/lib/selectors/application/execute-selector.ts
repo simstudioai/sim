@@ -18,12 +18,17 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
+import {
+  assertSelectorIntegrationAllowed,
+  selectorIntegrationBlockTypes,
+} from '@/lib/selectors/server/integration-access'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { resolveSelectorReferences } from '@/lib/selectors/server/references'
 import { getServerSelectorAttachment } from '@/lib/selectors/server/registry'
 import { sanitizeSelectorResult } from '@/lib/selectors/server/sanitize'
 import type { ResolvedSelectorReference } from '@/lib/selectors/server/types'
 import type { SelectorExecutionResult, SelectorRequest } from '@/lib/selectors/types'
+import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('ExecuteSelector')
 
@@ -146,16 +151,39 @@ async function executeAuthorizedSelector(args: {
     }
 
     const credential = attachment.credential
-      ? await authorizeSelectorCredential({
-          principal: args.principal,
-          context: resolvedContext,
-          scope: args.input.scope,
-          workspaceId: args.context.workspaceId,
-          policy: attachment.credential,
-          protectedValues,
-          references: resolved.references,
-        })
+      ? {
+          ...(await authorizeSelectorCredential({
+            principal: args.principal,
+            context: resolvedContext,
+            scope: args.input.scope,
+            workspaceId: args.context.workspaceId,
+            policy: attachment.credential,
+            protectedValues,
+            references: resolved.references,
+          })),
+          signal: args.input.signal,
+        }
       : undefined
+
+    /**
+     * Enforces the permission group's `allowedIntegrations` decision, which the
+     * funnel cannot apply because it never sees which integration a selector
+     * reaches. Not a `permission-group-enforced:` annotation because that names
+     * a capability, and this key's enforcement mechanism is `executor`, not
+     * `capability`.
+     *
+     * Judged against the selector's own resource — the API it calls — not the
+     * set of credentials it accepts, and not the bound credential's provider.
+     * A selector the OAuth catalog cannot identify (raw-context credentials, an
+     * API-key integration) declares its block types instead of resolving to
+     * none and passing untested. Placed before the provider call so a denied
+     * integration is never reached.
+     */
+    await assertSelectorIntegrationAllowed({
+      principal: args.principal,
+      workspaceId: args.context.workspaceId,
+      blockTypes: selectorIntegrationBlockTypes(attachment),
+    })
 
     const credentialAccess = credential?.access
     let credentialUseRecorded = false
@@ -195,6 +223,7 @@ async function executeAuthorizedSelector(args: {
         ? undefined
         : await attachment.destination.prepare(selectorArgs)
     const providerResult = await attachment.execute(selectorArgs, preparedDestination)
+    args.input.signal?.throwIfAborted()
     if (providerResult.diagnostics?.truncated) {
       logger.warn('Selector provider result reached a configured cap', {
         selectorKey: args.input.selectorKey,
@@ -240,7 +269,10 @@ async function executeAuthorizedSelector(args: {
     if (
       error instanceof SelectorContextUnavailableError ||
       error instanceof SelectorConnectionUnavailableError ||
-      error instanceof SelectorOptionsUnavailableError
+      error instanceof SelectorOptionsUnavailableError ||
+      // A refusal, not a provider failure: it reaches the caller as its own 403
+      // rather than being folded into "Options unavailable".
+      error instanceof IntegrationNotAllowedError
     ) {
       throw error
     }

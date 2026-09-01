@@ -8,9 +8,7 @@ import {
   filterSchemaForLLM,
   formatParameterLabel,
   getSubBlocksForToolInput,
-  getToolParametersConfig,
   isPasswordParameter,
-  type ToolParameterConfig,
   type ToolSchema,
   ToolSchemaEnrichmentError,
   type ValidationResult,
@@ -78,6 +76,38 @@ const getToolSpy = vi.spyOn(toolMetadata, 'getToolMetadata').mockImplementation(
       params: {},
     }
   }
+  if (toolId === 'bool_tool') {
+    return {
+      ...mockToolConfig,
+      id: 'bool_tool',
+      params: {
+        includeAttachments: {
+          type: 'boolean',
+          required: false,
+          visibility: 'user-or-llm' as ParameterVisibility,
+          description: 'Download attachment file contents',
+        },
+        payload: {
+          type: 'json',
+          required: false,
+          visibility: 'user-or-llm' as ParameterVisibility,
+        },
+      },
+    }
+  }
+  if (toolId === 'checkbox_tool') {
+    return {
+      ...mockToolConfig,
+      id: 'checkbox_tool',
+      params: {
+        completed: {
+          type: 'boolean',
+          required: false,
+          visibility: 'user-or-llm' as ParameterVisibility,
+        },
+      },
+    }
+  }
   return null
 }) as unknown as typeof toolMetadata.getToolMetadata)
 
@@ -86,25 +116,83 @@ afterAll(() => {
 })
 
 describe('Tool Parameters Utils', () => {
-  describe('getToolParametersConfig', () => {
-    it.concurrent('should return tool parameters configuration', () => {
-      const result = getToolParametersConfig('test_tool')
-
-      expect(result).toBeDefined()
-      expect(result?.toolConfig).toEqual(mockToolConfig)
-      expect(result?.allParameters).toHaveLength(4)
-      expect(result?.userInputParameters).toHaveLength(4) // apiKey, message, channel, timeout (all have visibility)
-      expect(result?.requiredParameters).toHaveLength(2) // apiKey, message (both required: true)
-      expect(result?.optionalParameters).toHaveLength(2) // channel, timeout (both user-only + required: false)
-    })
-
-    it.concurrent('should return null for non-existent tool', () => {
-      const result = getToolParametersConfig('non_existent_tool')
-      expect(result).toBeNull()
-    })
-  })
-
   describe('createLLMToolSchema', () => {
+    it('preserves structured object properties and nested array item constraints', async () => {
+      const structuredTool = {
+        ...mockToolConfig,
+        id: 'structured_tool',
+        params: {
+          payload: {
+            type: 'object',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Structured payload',
+            items: {
+              type: 'object',
+              required: ['recipients'],
+              properties: {
+                recipients: {
+                  type: 'array',
+                  minItems: 1,
+                  maxItems: 10,
+                  items: {
+                    type: 'object',
+                    required: ['id'],
+                    properties: { id: { type: 'string', minLength: 1 } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }
+
+      const { schema } = await createLLMToolSchema(structuredTool, {})
+
+      expect(schema.properties.payload).toMatchObject({
+        type: 'object',
+        required: ['recipients'],
+        properties: {
+          recipients: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 10,
+            items: {
+              type: 'object',
+              required: ['id'],
+              properties: { id: { type: 'string', minLength: 1 } },
+            },
+          },
+        },
+      })
+    })
+
+    it('does not reinterpret legacy JSON item metadata as a root object schema', async () => {
+      const legacyJsonTool = {
+        ...mockToolConfig,
+        id: 'legacy_json_tool',
+        params: {
+          payload: {
+            type: 'json',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Legacy JSON array payload',
+            items: {
+              type: 'object',
+              properties: { id: { type: 'string' } },
+            },
+          },
+        },
+      }
+
+      const { schema } = await createLLMToolSchema(legacyJsonTool, {})
+
+      expect(schema.properties.payload).toEqual({
+        type: 'object',
+        description: 'Legacy JSON array payload',
+      })
+    })
+
     it.concurrent('should create schema excluding user-provided parameters', async () => {
       const userProvidedParams = {
         apiKey: 'user-provided-key',
@@ -935,26 +1023,6 @@ describe('Tool Parameters Utils', () => {
       expect(Array.isArray(result.missingParams)).toBe(true)
       expect(result.missingParams.every((param) => typeof param === 'string')).toBe(true)
     })
-
-    it.concurrent('should have properly typed ToolParameterConfig', () => {
-      const config = getToolParametersConfig('test_tool')
-      expect(config).toBeDefined()
-
-      if (config) {
-        config.allParameters.forEach((param: ToolParameterConfig) => {
-          expect(typeof param.id).toBe('string')
-          expect(typeof param.type).toBe('string')
-          expect(typeof param.required).toBe('boolean')
-          expect(
-            ['user-or-llm', 'user-only', 'llm-only', 'hidden'].includes(param.visibility!)
-          ).toBe(true)
-          if (param.description) expect(typeof param.description).toBe('string')
-          if (param.uiComponent) {
-            expect(typeof param.uiComponent.type).toBe('string')
-          }
-        })
-      }
-    })
   })
 })
 
@@ -970,24 +1038,6 @@ describe('custom block agent-tool rendering', () => {
     ],
   } as any
 
-  describe('getToolParametersConfig', () => {
-    it('surfaces the field sub-blocks, never workflowId/inputMapping', () => {
-      const result = getToolParametersConfig(
-        'workflow_executor',
-        'custom_block_abc',
-        undefined,
-        customBlockConfig
-      )
-      expect(result).not.toBeNull()
-      const ids = result!.userInputParameters.map((p) => p.id)
-      expect(ids).toEqual(['field-question', 'field-files'])
-      expect(ids).not.toContain('workflowId')
-      expect(ids).not.toContain('inputMapping')
-      expect(result!.userInputParameters.every((p) => p.visibility === 'user-or-llm')).toBe(true)
-      expect(result!.requiredParameters.map((p) => p.id)).toEqual(['field-question'])
-    })
-  })
-
   describe('getSubBlocksForToolInput', () => {
     it('returns field sub-blocks as user-or-llm and drops reserved/hidden wiring', () => {
       const result = getSubBlocksForToolInput(
@@ -1001,5 +1051,109 @@ describe('custom block agent-tool rendering', () => {
       expect(result!.subBlocks.map((sb) => sb.id)).toEqual(['field-question', 'field-files'])
       expect(result!.subBlocks.every((sb) => sb.paramVisibility === 'user-or-llm')).toBe(true)
     })
+  })
+})
+
+describe('getSubBlocksForToolInput synthesis', () => {
+  it('synthesizes a field for every user-facing param the block does not declare', () => {
+    const result = getSubBlocksForToolInput('test_tool', 'test_block', undefined, undefined, {
+      subBlocks: [{ id: 'message', title: 'Message', type: 'long-input' }],
+    } as any)
+
+    expect(result).not.toBeNull()
+    const byId = new Map(result!.subBlocks.map((sb) => [sb.id, sb]))
+
+    // Declared by the block: kept verbatim, never re-synthesized as a short-input.
+    expect(byId.get('message')?.type).toBe('long-input')
+    // Not declared: synthesized from the param's own type.
+    expect(byId.get('apiKey')?.type).toBe('short-input')
+    expect(byId.get('apiKey')?.password).toBe(true)
+    expect(byId.get('timeout')?.type).toBe('short-input')
+    expect(byId.get('timeout')?.paramVisibility).toBe('user-only')
+    expect(result!.subBlocks).toHaveLength(4)
+  })
+
+  it('maps a boolean param to a switch rather than a text box', () => {
+    const result = getSubBlocksForToolInput('bool_tool', 'bool_block', undefined, undefined, {
+      subBlocks: [],
+    } as any)
+    const byId = new Map(result!.subBlocks.map((sb) => [sb.id, sb]))
+    expect(byId.get('includeAttachments')?.type).toBe('switch')
+    expect(byId.get('payload')?.type).toBe('code')
+    expect(byId.get('payload')?.language).toBe('json')
+  })
+
+  it('does not resurrect a param whose sub-block exists but whose condition fails', () => {
+    const result = getSubBlocksForToolInput(
+      'test_tool',
+      'test_block',
+      { operation: 'other' },
+      undefined,
+      {
+        subBlocks: [
+          {
+            id: 'message',
+            title: 'Message',
+            type: 'long-input',
+            condition: { field: 'operation', value: 'send' },
+          },
+        ],
+      } as any
+    )
+
+    expect(result!.subBlocks.map((sb) => sb.id)).not.toContain('message')
+  })
+
+  it('does not synthesize a param already claimed by a canonical group member', () => {
+    const result = getSubBlocksForToolInput('test_tool', 'test_block', undefined, undefined, {
+      subBlocks: [
+        {
+          id: 'channelSelector',
+          type: 'channel-selector',
+          canonicalParamId: 'channel',
+          mode: 'basic',
+        },
+        { id: 'manualChannel', type: 'short-input', canonicalParamId: 'channel', mode: 'advanced' },
+      ],
+    } as any)
+
+    expect(result!.subBlocks.map((sb) => sb.id)).not.toContain('channel')
+  })
+
+  it('does not synthesize a boolean claimed by a checkbox-list option', () => {
+    const result = getSubBlocksForToolInput(
+      'checkbox_tool',
+      'checkbox_block',
+      undefined,
+      undefined,
+      {
+        subBlocks: [
+          {
+            id: 'filters',
+            type: 'checkbox-list',
+            options: [{ label: 'Completed', id: 'completed' }],
+          },
+        ],
+      } as any
+    )
+    expect(result!.subBlocks.map((sb) => sb.id)).not.toContain('completed')
+  })
+
+  it('still returns fields for a block that declares no sub-blocks at all', () => {
+    const result = getSubBlocksForToolInput('test_tool', 'bare_block', undefined, undefined, {
+      subBlocks: [],
+    } as any)
+
+    expect(result).not.toBeNull()
+    expect(result!.subBlocks.map((sb) => sb.id).sort()).toEqual([
+      'apiKey',
+      'channel',
+      'message',
+      'timeout',
+    ])
+  })
+
+  it('returns null for an unknown tool', () => {
+    expect(getSubBlocksForToolInput('non_existent_tool', 'test_block')).toBeNull()
   })
 })

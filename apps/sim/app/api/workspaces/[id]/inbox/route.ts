@@ -10,6 +10,8 @@ import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { disableInbox, enableInbox, updateInboxAddress } from '@/lib/mothership/inbox/lifecycle'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InboxConfigAPI')
@@ -25,6 +27,11 @@ export const GET = withRouteHandler(
     const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (!permission) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
+    // permission-group-enforced: inbox.use — raw handler with inline queries, which the authorization funnel never sees
+    if (await isWorkspaceCapabilityWithheld(session.user.id, workspaceId, 'inbox.use')) {
+      return capabilityRefusalResponse('inbox.use')
     }
 
     const [wsResult, statsResult, entitled] = await Promise.all([
@@ -92,6 +99,11 @@ export const PATCH = withRouteHandler(
     const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (permission !== 'admin') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+
+    // permission-group-enforced: inbox.use — raw handler with inline queries, which the authorization funnel never sees
+    if (await isWorkspaceCapabilityWithheld(session.user.id, workspaceId, 'inbox.use')) {
+      return capabilityRefusalResponse('inbox.use')
     }
 
     const parsed = await parseRequest(updateInboxConfigContract, req, context)

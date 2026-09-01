@@ -238,14 +238,24 @@ const credential = {
   serviceIds: ['netsuite'],
 } as const
 
+/**
+ * The integration this selector reaches. Declared rather than derived: NetSuite is an
+ * API-key integration with no entry in the deployment OAuth catalog, so its
+ * service id maps to no block type and the allowlist would have nothing to
+ * judge it on.
+ */
+const integrationBlockTypes = ['netsuite'] as const
+
 export const netsuiteSelectorAttachments = {
   'netsuite.recordTypes': definePreparedSelectorAttachment({
     credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareNetSuiteDestination },
     execute: executeNetSuite,
   }),
   'netsuite.asyncTasks': definePreparedSelectorAttachment({
     credential,
+    integrationBlockTypes,
     destination: { kind: 'credential-bound', prepare: prepareNetSuiteDestination },
     execute: executeNetSuite,
   }),

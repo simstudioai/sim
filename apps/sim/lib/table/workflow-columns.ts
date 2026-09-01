@@ -192,6 +192,11 @@ export interface ScheduleOpts {
   groupIds?: string[]
   isManualRun?: boolean
   mode?: DispatchMode
+  /** Person whose permission group gates every cell this batch emits, or `null`
+   *  for an actorless run. Required so a new call site cannot emit a payload
+   *  with no gate by simply not thinking about one; see
+   *  {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`. */
+  capabilityGovernedUserId: string | null
 }
 
 /** Pure eligibility filter + payload building. Shared by the auto-fire path
@@ -199,15 +204,15 @@ export interface ScheduleOpts {
 export function buildPendingRuns(
   table: TableDefinition,
   rows: TableRow[],
-  opts?: ScheduleOpts
+  opts: ScheduleOpts
 ): WorkflowGroupCellPayload[] {
   const allGroups = table.schema.workflowGroups ?? []
   if (allGroups.length === 0) return []
   if (rows.length === 0) return []
 
-  const groupIdFilter = opts?.groupIds
+  const groupIdFilter = opts.groupIds
     ? new Set(opts.groupIds)
-    : opts?.groupId
+    : opts.groupId
       ? new Set([opts.groupId])
       : null
   const groups = groupIdFilter ? allGroups.filter((g) => groupIdFilter.has(g.id)) : allGroups
@@ -221,8 +226,8 @@ export function buildPendingRuns(
   for (const row of orderedRows) {
     for (const group of groups) {
       const reason = classifyEligibility(group, row, {
-        isManualRun: opts?.isManualRun,
-        mode: opts?.mode,
+        isManualRun: opts.isManualRun,
+        mode: opts.mode,
       })
       reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1
       if (reason !== 'eligible' && reason !== 'manual-bypass') continue
@@ -235,6 +240,7 @@ export function buildPendingRuns(
         ...(group.enrichmentId ? { enrichmentId: group.enrichmentId } : {}),
         workspaceId: table.workspaceId,
         executionId: generateId(),
+        capabilityGovernedUserId: opts.capabilityGovernedUserId,
       })
     }
   }
@@ -449,6 +455,13 @@ export interface WorkflowGroupCellPayload {
    *  auto-fire (row writes, CSV import) → billing falls back to the workspace
    *  billed account. */
   triggeredByUserId?: string
+  /** Person whose permission group gates this cell's tools. Null/absent means
+   *  no acting person, so no per-tool gate applies. Not `triggeredByUserId`;
+   *  see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
+   *  Required like every sibling in `@/lib/table/types`: an omitted key and a
+   *  deliberate `null` both read as "ungated", so the compiler is what makes a
+   *  caller state which one it means. */
+  capabilityGovernedUserId: string | null
 }
 
 export type QueuedWorkflowGroupCellPayload = Omit<
@@ -730,6 +743,8 @@ export async function cancelWorkflowGroupRuns(
             secretProvenance: undefined,
             workspaceId: table.workspaceId,
             executionsPatch: mutation.executionsPatch,
+            /** A cancellation stamp writes no cell values and fires no enrichment. */
+            capabilityGovernedUserId: null,
           },
           table,
           `wfgrp-cancel-${mutation.rowId}`
@@ -865,6 +880,10 @@ export async function runWorkflowColumn(opts: {
    *  callers (row writes, CSV import) → falls back to the workspace billed
    *  account at billing time. */
   triggeredByUserId?: string | null
+  /** Person whose permission group gates the run's cells; `null` when the run
+   *  has no acting person (workspace key, schedule, auto-fire). Required, and
+   *  never defaulted from `triggeredByUserId`; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`. */
+  capabilityGovernedUserId: string | null
 }): Promise<{ dispatchId: string | null; shouldSignalRowsChanged: boolean }> {
   const {
     tableId,
@@ -877,6 +896,7 @@ export async function runWorkflowColumn(opts: {
     excludeRowIds,
     limit,
     triggeredByUserId,
+    capabilityGovernedUserId,
   } = opts
   const isManualRun = opts.isManualRun ?? true
   // Empty `rowIds` array means "scope explicitly empty" — auto-fire callers
@@ -945,6 +965,7 @@ export async function runWorkflowColumn(opts: {
     limit,
     isManualRun,
     triggeredByUserId,
+    capabilityGovernedUserId,
   })
 
   try {
@@ -1083,10 +1104,24 @@ export interface CellResumeContext {
   groupId: string
   workspaceId: string
   workflowId: string
+  /**
+   * Person whose permission group gates the tools of everything this cell's
+   * run still has to do. Required, because a pause is the one boundary where
+   * the subject would otherwise be reconstructed from scratch: the resumed
+   * cascade is driven by the resume worker, whose payload carries no dispatch
+   * and no row marker to re-read it from. `null` is the actorless run — no
+   * per-tool gate — and has to be written, not inferred from an absent key.
+   *
+   * Lives in `paused_executions.metadata`, a jsonb document, so carrying it
+   * needs no schema change: a pause row written before this field existed
+   * reads back `undefined`, which the resume worker normalizes to `null`.
+   */
+  capabilityGovernedUserId: string | null
 }
 
 interface PausedMetadataPatch {
-  cellContext?: CellResumeContext
+  /** Read back from jsonb, so a pause written before a field existed lacks it. */
+  cellContext?: Partial<CellResumeContext> & Omit<CellResumeContext, 'capabilityGovernedUserId'>
   [key: string]: unknown
 }
 
@@ -1132,7 +1167,13 @@ export async function findCellContextByExecutionId(
       .where(eq(pausedExecutions.executionId, executionId))
       .limit(1)
     const meta = row?.metadata as PausedMetadataPatch | null
-    return meta?.cellContext ?? null
+    const stored = meta?.cellContext
+    if (!stored) return null
+    return {
+      ...stored,
+      /** A pause stashed before the subject was carried is an ungated resume. */
+      capabilityGovernedUserId: stored.capabilityGovernedUserId ?? null,
+    }
   } catch (err) {
     logger.error(`Failed to read cell context for executionId=${executionId}:`, err)
     return null

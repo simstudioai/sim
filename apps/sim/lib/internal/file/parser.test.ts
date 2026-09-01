@@ -346,6 +346,29 @@ describe('file parser operation', () => {
     expect(data.output.content).toBe('plain text content')
   })
 
+  it('forwards request cancellation to specialized buffer parsers', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('office bytes', {
+        status: 200,
+        headers: { 'content-type': 'application/octet-stream' },
+      })
+    )
+    const req = createMockRequest('POST', {
+      filePath: 'https://example.com/report.docx',
+    })
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(mockParseBuffer).toHaveBeenCalledWith(expect.any(Buffer), 'docx', {
+      signal: req.signal,
+    })
+  })
+
   it('should reject parser complexity limits instead of returning raw text', async () => {
     setupFileApiMocks({
       cloudEnabled: true,

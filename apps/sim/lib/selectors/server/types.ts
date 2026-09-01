@@ -14,17 +14,33 @@ export type SelectorDestinationPolicy = 'fixed' | 'credential-bound' | 'user-con
 
 export type SelectorProtectedValueKind = 'secret' | 'reference'
 
+/**
+ * The service whose API a selector actually reaches.
+ *
+ * `serviceIds` names which *credentials* a selector accepts, which is not the
+ * same question as which *resource* it reads. `google.drive` accepts a Drive,
+ * Docs, Sheets or Forms connection because all four carry Drive scope, but it
+ * only ever calls the Drive API. Judging the integration allowlist against the
+ * accepted set let a group that permits `google_sheets_v2` and excludes
+ * `google_drive` read Drive through it.
+ *
+ * Required whenever `serviceIds` names more than one service, and must be one
+ * of them; `lib/selectors/manifest.test.ts` pins both. A single-service
+ * declaration is its own resource and omits it.
+ */
 export type SelectorCredentialPolicy =
   | {
       kind: 'stored'
       field: 'oauthCredential'
       serviceIds: readonly string[]
+      resourceServiceId?: string
     }
   | {
       kind: 'stored-or-fixed-token'
       field: 'oauthCredential'
       serviceIds: readonly string[]
       tokenPrefixes: readonly string[]
+      resourceServiceId?: string
     }
 
 export interface AuthorizedSelectorCredential {
@@ -33,6 +49,8 @@ export interface AuthorizedSelectorCredential {
   fixedToken?: string
   /** Trusted provider id loaded during server-side credential binding. */
   providerId?: string
+  /** Cancels only this selector's wait for shared credential resolution. */
+  signal?: AbortSignal
 }
 
 export interface SelectorProtectedValues {
@@ -82,6 +100,21 @@ export interface PreparedSelectorDestination {
 
 export interface ServerSelectorAttachment {
   credential?: SelectorCredentialPolicy
+  /**
+   * The block type(s) whose integration this selector's API belongs to, for a
+   * selector the OAuth credential catalog cannot identify.
+   *
+   * The integration gate normally derives the block type from the credential
+   * policy's service ids. Two shapes defeat that: a selector authenticated from
+   * raw context fields rather than a stored connection (CloudWatch's AWS keys,
+   * IMAP's host and password) declares no policy at all, and an API-key
+   * integration (Snowflake, NetSuite, Harmonic) owns no OAuth catalog entry, so
+   * its service id maps to nothing. Both still reach a third-party API with the
+   * caller's credentials, so both must name their integration here. Internal
+   * selectors — the ones reading only Sim's own workspace data — name none, and
+   * that is what leaves them ungated.
+   */
+  integrationBlockTypes?: readonly string[]
   destination: 'fixed' | PreparedSelectorDestination
   auditCredentialUse?: boolean
   execute(
@@ -125,6 +158,7 @@ export function detailSelectorResult(item: SafeSelectorOption | null): SelectorE
 
 export function definePreparedSelectorAttachment<TPrepared>(input: {
   credential?: SelectorCredentialPolicy
+  integrationBlockTypes?: readonly string[]
   destination: {
     kind: Exclude<SelectorDestinationPolicy, 'fixed'>
     prepare(args: ExecuteServerSelectorArgs): Promise<TPrepared>
@@ -137,6 +171,7 @@ export function definePreparedSelectorAttachment<TPrepared>(input: {
 }): ServerSelectorAttachment {
   return {
     ...(input.credential ? { credential: input.credential } : {}),
+    ...(input.integrationBlockTypes ? { integrationBlockTypes: input.integrationBlockTypes } : {}),
     destination: {
       kind: input.destination.kind,
       prepare: input.destination.prepare,

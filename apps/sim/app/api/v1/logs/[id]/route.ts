@@ -5,12 +5,19 @@ import { v1GetLogContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
-import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
-import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
+  projectCostTotal,
+  projectExecutionData,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
+import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
+import { createApiResponse, getUserLimits, projectUserLimits } from '@/app/api/v1/logs/meta'
+import {
+  capabilityGovernedUserId,
   checkRateLimit,
+  concealedWorkspaceAccessResponse,
   createRateLimitResponse,
-  validateWorkspaceAccess,
+  resolveWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1LogDetailsAPI')
@@ -41,10 +48,20 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Log not found' }, { status: 404 })
       }
 
-      const accessError = await validateWorkspaceAccess(rateLimit, userId, log.workspaceId)
+      const accessError = await resolveWorkspaceAccess(rateLimit, userId, log.workspaceId, 'none')
       if (accessError) {
-        return NextResponse.json({ error: 'Log not found' }, { status: 404 })
+        return concealedWorkspaceAccessResponse(accessError, 'Log not found')
       }
+
+      /**
+       * `logs.trace_spans` and `logs.cost` are projections, not gates — this
+       * route declares `'none'` above and withholds the fields here instead,
+       * through the same helper the internal/v2 detail path uses.
+       */
+      const projection = await resolveLogFieldProjection(
+        capabilityGovernedUserId(rateLimit),
+        log.workspaceId
+      )
 
       const workflowSummary = {
         id: log.workflowId,
@@ -68,21 +85,24 @@ export const GET = withRouteHandler(
         totalDurationMs: log.totalDurationMs,
         files: log.files || undefined,
         workflow: workflowSummary,
-        executionData: (await materializeExecutionDataForDisplay(
-          log.executionData as Record<string, unknown> | null,
-          {
-            workspaceId: log.workspaceId,
-            workflowId: log.workflowId,
-            executionId: log.executionId,
-            userId,
-          }
-        )) as any,
-        cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
+        executionData: projectExecutionData(
+          (await materializeExecutionDataForDisplay(
+            log.executionData as Record<string, unknown> | null,
+            {
+              workspaceId: log.workspaceId,
+              workflowId: log.workflowId,
+              executionId: log.executionId,
+              userId,
+            }
+          )) as Record<string, unknown> | null,
+          projection
+        ) as any,
+        cost: projectCostTotal(log.costTotal, projection),
         createdAt: log.createdAt.toISOString(),
       }
 
       // Get user's workflow execution limits and usage
-      const limits = await getUserLimits(userId)
+      const limits = projectUserLimits(await getUserLimits(userId), projection)
 
       // Create response with limits information
       const apiResponse = createApiResponse({ data: response }, limits, rateLimit)

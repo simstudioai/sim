@@ -7,18 +7,21 @@ export const secretOperations = {
     id: 'secrets.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'secrets.manage',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
   }),
   set: defineWorkspaceOperation({
     id: 'secrets.set',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'secrets.manage',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
   }),
   delete: defineWorkspaceOperation({
     id: 'secrets.delete',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'secrets.manage',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
   }),
   /**
@@ -29,6 +32,7 @@ export const secretOperations = {
     id: 'secrets.usage',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'secrets.manage',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
   }),
   /**
@@ -40,6 +44,7 @@ export const secretOperations = {
     id: 'secrets.references',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'secrets.manage',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
   }),
 } as const

@@ -134,6 +134,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolPermissions: {
         enabled: false,
         autoAllowed: new Set(),
+        autoAllowPermitted: true,
       },
     }
     execContext = {
@@ -238,6 +239,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: true,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     }
 
     const event = {
@@ -275,6 +277,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: false,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     }
 
     const event = {
@@ -302,6 +305,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: true,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     }
 
     const event = {
@@ -331,6 +335,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: true,
       autoAllowed: new Set(['deploy_as_api']),
+      autoAllowPermitted: true,
     }
 
     const event = {

@@ -11,25 +11,32 @@ import {
   sailpointCredentialParams,
   sailpointPaginationParams,
   sailpointRolePaginationParams,
+  sailpointSearchPaginationParams,
   unwrapSailPointOutput,
   validatePagination,
 } from '@/tools/sailpoint/common'
 import {
   SAILPOINT_ACCESS_PROFILE_OUTPUT_PROPERTIES,
+  SAILPOINT_ACCESS_REQUEST_CONFIG_OUTPUT_PROPERTIES,
   SAILPOINT_ACCESS_REQUEST_STATUS_OUTPUT_PROPERTIES,
   SAILPOINT_ACCESS_REQUEST_TRACKING_PROPERTIES,
   SAILPOINT_ACCOUNT_ACTIVITY_OUTPUT_PROPERTIES,
   SAILPOINT_ACCOUNT_OUTPUT_PROPERTIES,
+  SAILPOINT_ACCOUNT_SELECTIONS_OUTPUT_PROPERTIES,
   SAILPOINT_CAMPAIGN_OUTPUT_PROPERTIES,
   SAILPOINT_CERTIFICATION_OUTPUT_PROPERTIES,
   SAILPOINT_ENTITLEMENT_OUTPUT_PROPERTIES,
+  SAILPOINT_ENTITLEMENT_REQUEST_CONFIG_OUTPUT_PROPERTIES,
+  SAILPOINT_ENTITLEMENT_V2_OUTPUT_PROPERTIES,
   SAILPOINT_IDENTITY_ENTITLEMENT_OUTPUT_PROPERTIES,
   SAILPOINT_IDENTITY_OUTPUT_PROPERTIES,
+  SAILPOINT_LOAD_ACCOUNTS_TASK_OUTPUT_PROPERTIES,
+  SAILPOINT_LOAD_ENTITLEMENTS_TASK_OUTPUT_PROPERTIES,
   SAILPOINT_PENDING_APPROVAL_OUTPUT_PROPERTIES,
   SAILPOINT_REVIEW_ITEM_OUTPUT_PROPERTIES,
   SAILPOINT_ROLE_OUTPUT_PROPERTIES,
   SAILPOINT_SOURCE_OUTPUT_PROPERTIES,
-  SAILPOINT_TASK_OUTPUT_PROPERTIES,
+  SAILPOINT_TASK_STATUS_OUTPUT_PROPERTIES,
 } from '@/tools/sailpoint/outputs'
 import type {
   SailPointAccessRequestStatusParams,
@@ -62,7 +69,7 @@ import type {
   SailPointSegmentedListParams,
   SailPointSourceItemRef,
 } from '@/tools/sailpoint/types'
-import type { InternalToolConfig, ToolConfig } from '@/tools/types'
+import type { InternalToolConfig, ToolConfig, ToolParameterItemSchema } from '@/tools/types'
 
 type ToolParams = ToolConfig['params']
 
@@ -107,6 +114,81 @@ const INCLUDE_UNSEGMENTED_PARAM = {
   visibility: 'user-or-llm',
   description: 'Include resources not assigned to a segment (default true)',
 } as const
+
+const REQUESTED_ITEM_TYPE_PARAM_SCHEMA = {
+  type: 'string',
+  anyOf: [
+    { type: 'string', const: 'ACCESS_PROFILE' },
+    { type: 'string', const: 'ROLE' },
+    { type: 'string', const: 'ENTITLEMENT' },
+  ],
+} as const satisfies ToolParameterItemSchema
+
+const REQUESTED_ITEM_BASE_PARAM_PROPERTIES = {
+  type: REQUESTED_ITEM_TYPE_PARAM_SCHEMA,
+  id: { type: 'string', minLength: 1 },
+  comment: { type: 'string' },
+  clientMetadata: { type: 'object', additionalProperties: true },
+  startDate: { type: 'string', format: 'date-time' },
+  removeDate: { type: 'string', format: 'date-time' },
+  nativeIdentity: {
+    anyOf: [{ type: 'string' }, { type: 'null' }],
+  },
+  formInstanceId: {
+    anyOf: [{ type: 'string' }, { type: 'null' }],
+  },
+} as const satisfies Readonly<Record<string, ToolParameterItemSchema>>
+
+const REQUESTED_ITEM_PARAM_SCHEMA = {
+  type: 'object',
+  required: ['type', 'id'],
+  properties: {
+    ...REQUESTED_ITEM_BASE_PARAM_PROPERTIES,
+    assignmentId: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+    },
+  },
+} as const satisfies ToolParameterItemSchema
+
+const NESTED_REQUESTED_ITEM_PARAM_SCHEMA = {
+  ...REQUESTED_ITEM_PARAM_SCHEMA,
+  properties: {
+    ...REQUESTED_ITEM_BASE_PARAM_PROPERTIES,
+    accountSelection: {
+      anyOf: [
+        {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              sourceId: {
+                anyOf: [{ type: 'string' }, { type: 'null' }],
+              },
+              accounts: {
+                anyOf: [
+                  {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        accountUuid: {
+                          anyOf: [{ type: 'string' }, { type: 'null' }],
+                        },
+                        nativeIdentity: { type: 'string' },
+                      },
+                    },
+                  },
+                  { type: 'null' },
+                ],
+              },
+            },
+          },
+        },
+        { type: 'null' },
+      ],
+    },
+  },
+} as const satisfies ToolParameterItemSchema
 
 interface SailPointDefinition<P extends SailPointCredentials> {
   id: string
@@ -248,7 +330,7 @@ function searchParams(): ToolParams {
   return {
     ...sailpointCredentialParams,
     indices: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
@@ -268,7 +350,7 @@ function searchParams(): ToolParams {
       description: 'Elasticsearch query language version (default 5.2)',
     },
     query: {
-      type: 'json',
+      type: 'object',
       required: false,
       visibility: 'user-or-llm',
       description: 'SAILPOINT query object: {query?, fields?, timeZone?, innerHit?}',
@@ -289,7 +371,7 @@ function searchParams(): ToolParams {
       description: 'Elasticsearch Query DSL object used with queryType=DSL',
     },
     textQuery: {
-      type: 'json',
+      type: 'object',
       required: false,
       visibility: 'user-or-llm',
       description: 'TEXT query object with required terms[] and fields[]',
@@ -297,15 +379,15 @@ function searchParams(): ToolParams {
         type: 'object',
         required: ['terms', 'fields'],
         properties: {
-          terms: { type: 'array' },
-          fields: { type: 'array' },
+          terms: { type: 'array', items: { type: 'string' } },
+          fields: { type: 'array', items: { type: 'string' } },
           matchAny: { type: 'boolean' },
           contains: { type: 'boolean' },
         },
       },
     },
     typeAheadQuery: {
-      type: 'json',
+      type: 'object',
       required: false,
       visibility: 'user-or-llm',
       description:
@@ -331,13 +413,16 @@ function searchParams(): ToolParams {
       description: 'Include nested objects in search results (default true)',
     },
     queryResultFilter: {
-      type: 'json',
+      type: 'object',
       required: false,
       visibility: 'user-or-llm',
       description: 'Result projection object with includes[] and/or excludes[]',
       items: {
         type: 'object',
-        properties: { includes: { type: 'array' }, excludes: { type: 'array' } },
+        properties: {
+          includes: { type: 'array', items: { type: 'string' } },
+          excludes: { type: 'array', items: { type: 'string' } },
+        },
       },
     },
     aggregationType: {
@@ -365,14 +450,14 @@ function searchParams(): ToolParams {
       description: 'Typed SailPoint aggregation specification',
     },
     sort: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description: 'Ordered search fields; prefix + or - for direction',
       items: { type: 'string' },
     },
     searchAfter: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description: 'String values from the final sorted record of the previous search page',
@@ -422,7 +507,7 @@ export const sailpointSearchTool = defineSailPointTool<SailPointSearchParams>({
   id: 'sailpoint_search',
   name: 'SailPoint Search',
   description: 'Search current SailPoint indices with every documented search query mode.',
-  params: { ...searchParams(), ...sailpointPaginationParams },
+  params: { ...searchParams(), ...sailpointSearchPaginationParams },
   input: (params) => {
     validatePagination(params.limit, params.offset, 10_000)
     return {
@@ -658,10 +743,28 @@ export const sailpointGetEntitlementTool = defineSailPointTool<SailPointGetByIdP
   input: (params) => getInput(params, 'Entitlement ID'),
   outputs: createSailPointResourceOutput(
     'entitlement',
-    SAILPOINT_ENTITLEMENT_OUTPUT_PROPERTIES,
+    SAILPOINT_ENTITLEMENT_V2_OUTPUT_PROPERTIES,
     'SailPoint entitlement'
   ),
 })
+
+export const sailpointGetEntitlementRequestConfigTool = defineSailPointTool<SailPointGetByIdParams>(
+  {
+    id: 'sailpoint_get_entitlement_request_config',
+    name: 'SailPoint Get Entitlement Request Config',
+    description: 'Get grant, revocation, duration, approval, and form settings for an entitlement.',
+    params: {
+      ...sailpointCredentialParams,
+      id: { ...ID_PARAM, description: 'Entitlement ID' },
+    },
+    input: (params) => getInput(params, 'Entitlement ID'),
+    outputs: createSailPointResourceOutput(
+      'entitlementRequestConfig',
+      SAILPOINT_ENTITLEMENT_REQUEST_CONFIG_OUTPUT_PROPERTIES,
+      'Entitlement request configuration'
+    ),
+  }
+)
 
 export const sailpointListEntitlementsTool = defineSailPointTool<SailPointListEntitlementsParams>({
   id: 'sailpoint_list_entitlements',
@@ -688,9 +791,6 @@ export const sailpointListEntitlementsTool = defineSailPointTool<SailPointListEn
     ...sailpointPaginationParams,
   },
   input: (params) => {
-    if (params.segmentedForIdentity && params.forSegmentIds) {
-      throw new Error('segmentedForIdentity and forSegmentIds are mutually exclusive')
-    }
     if (
       params.includeUnsegmented === false &&
       !params.segmentedForIdentity &&
@@ -706,7 +806,7 @@ export const sailpointListEntitlementsTool = defineSailPointTool<SailPointListEn
     })
   },
   outputs: createSailPointListOutputs(
-    SAILPOINT_ENTITLEMENT_OUTPUT_PROPERTIES,
+    SAILPOINT_ENTITLEMENT_V2_OUTPUT_PROPERTIES,
     'Entitlements in this page'
   ),
 })
@@ -1001,6 +1101,9 @@ function normalizeCertificationDecisions(
     if (typeof decision.bulk !== 'boolean') {
       throw new Error(`decisions[${index}].bulk must be a boolean`)
     }
+    if (decision.decision !== 'REVOKE' && decision.proposedEndDate) {
+      throw new Error(`decisions[${index}].proposedEndDate is only allowed for REVOKE`)
+    }
     return { ...decision, id }
   })
 }
@@ -1014,20 +1117,43 @@ export const sailpointDecideCertificationReviewItemsTool =
       ...sailpointCredentialParams,
       id: { ...ID_PARAM, description: 'Certification ID' },
       decisions: {
-        type: 'json',
+        type: 'array',
         required: true,
         visibility: 'user-or-llm',
         description:
           'Array of {id, decision: APPROVE|REVOKE, bulk, proposedEndDate?, recommendation?, comments?}',
+        minItems: 1,
+        maxItems: 250,
         items: {
           type: 'object',
           required: ['id', 'decision', 'bulk'],
           properties: {
             id: { type: 'string', minLength: 1 },
-            decision: { type: 'string' },
+            decision: {
+              type: 'string',
+              anyOf: [
+                { type: 'string', const: 'APPROVE' },
+                { type: 'string', const: 'REVOKE' },
+              ],
+            },
             bulk: { type: 'boolean' },
-            proposedEndDate: { type: 'string' },
-            recommendation: { type: 'object', additionalProperties: false },
+            proposedEndDate: { type: 'string', format: 'date-time' },
+            recommendation: {
+              anyOf: [
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    recommendation: {
+                      anyOf: [{ type: 'string' }, { type: 'null' }],
+                    },
+                    reasons: { type: 'array', items: { type: 'string' } },
+                    timestamp: { type: 'string', format: 'date-time' },
+                  },
+                },
+                { type: 'null' },
+              ],
+            },
             comments: { type: 'string' },
           },
         },
@@ -1068,7 +1194,7 @@ export const sailpointGetTaskStatusTool = defineSailPointTool<SailPointGetByIdPa
   input: (params) => getInput(params, 'Task ID'),
   outputs: createSailPointResourceOutput(
     'task',
-    SAILPOINT_TASK_OUTPUT_PROPERTIES,
+    SAILPOINT_TASK_STATUS_OUTPUT_PROPERTIES,
     'SailPoint task status'
   ),
 })
@@ -1097,7 +1223,13 @@ function validateAccountSelection(
     if (source.sourceId !== undefined && source.sourceId !== null) {
       requireNonEmptyString(source.sourceId, `${label}[${sourceIndex}].sourceId`)
     }
+    if (source.accounts != null && !Array.isArray(source.accounts)) {
+      throw new Error(`${label}[${sourceIndex}].accounts must be an array`)
+    }
     source.accounts?.forEach((account, accountIndex) => {
+      if (!account || typeof account !== 'object') {
+        throw new Error(`${label}[${sourceIndex}].accounts[${accountIndex}] must be an object`)
+      }
       if (!account.accountUuid && !account.nativeIdentity) {
         throw new Error(
           `${label}[${sourceIndex}].accounts[${accountIndex}] requires accountUuid or nativeIdentity`
@@ -1107,7 +1239,10 @@ function validateAccountSelection(
   })
 }
 
-function requestAccessInput(params: SailPointRequestAccessParams): Record<string, unknown> {
+function requestAccessInput(
+  params: SailPointRequestAccessParams,
+  options: { forAccountSelection?: boolean } = {}
+): Record<string, unknown> {
   const requestType = params.requestType ?? 'GRANT_ACCESS'
   if (
     requestType !== 'GRANT_ACCESS' &&
@@ -1139,6 +1274,9 @@ function requestAccessInput(params: SailPointRequestAccessParams): Record<string
     const normalizedItems = requestedItems.map((item, index) =>
       normalizeRequestedItemId(item, `requestedItems[${index}]`)
     )
+    if (options.forAccountSelection && normalizedItems.length > 25) {
+      throw new Error('Account selection supports at most 25 requested items')
+    }
     const entitlementCount = normalizedItems.filter((item) => item.type === 'ENTITLEMENT').length
     if (entitlementCount > 0 && (entitlementCount > 25 || requestedFor.length > 10)) {
       throw new Error('Entitlement requests allow at most 25 entitlements and 10 identities')
@@ -1168,6 +1306,14 @@ function requestAccessInput(params: SailPointRequestAccessParams): Record<string
   ) {
     throw new Error('requestedForWithRequestedItems must contain at least one identity')
   }
+  requestedForWithRequestedItems.forEach((entry, identityIndex) => {
+    if (!isRecordLike(entry)) {
+      throw new Error(`requestedForWithRequestedItems[${identityIndex}] must be an object`)
+    }
+    if (!Array.isArray(entry.requestedItems) || entry.requestedItems.length === 0) {
+      throw new Error(`requestedForWithRequestedItems[${identityIndex}].requestedItems is required`)
+    }
+  })
   const identityTypes = new Set(
     requestedForWithRequestedItems.map((entry) => entry.identityType ?? 'HUMAN')
   )
@@ -1191,15 +1337,15 @@ function requestAccessInput(params: SailPointRequestAccessParams): Record<string
   ) {
     throw new Error('Entitlement requests allow at most 25 entitlements and 10 identities')
   }
+  if (requestType === 'REVOKE_ACCESS' && nestedEntitlementCount > 1) {
+    throw new Error('REVOKE_ACCESS allows at most one entitlement item')
+  }
 
   const normalizedNested = requestedForWithRequestedItems.map((entry, identityIndex) => {
     const identityId = requireNonEmptyString(
       entry.identityId,
       `requestedForWithRequestedItems[${identityIndex}].identityId`
     )
-    if (!Array.isArray(entry.requestedItems) || entry.requestedItems.length === 0) {
-      throw new Error(`requestedForWithRequestedItems[${identityIndex}].requestedItems is required`)
-    }
     const items = entry.requestedItems.map((item, itemIndex) => {
       const label = `requestedForWithRequestedItems[${identityIndex}].requestedItems[${itemIndex}]`
       const normalized = normalizeRequestedItemId(item, label)
@@ -1207,12 +1353,18 @@ function requestAccessInput(params: SailPointRequestAccessParams): Record<string
       if (isMachine && normalized.type !== 'ENTITLEMENT') {
         throw new Error(`${label}.type must be ENTITLEMENT for machine identities`)
       }
-      if (isMachine && requestType !== 'REVOKE_ACCESS' && !normalized.accountSelection?.length) {
+      if (
+        isMachine &&
+        requestType !== 'REVOKE_ACCESS' &&
+        !options.forAccountSelection &&
+        !normalized.accountSelection?.length
+      ) {
         throw new Error(`${label}.accountSelection is required for machine grant/modify requests`)
       }
       if (
         isMachine &&
         requestType !== 'REVOKE_ACCESS' &&
+        !options.forAccountSelection &&
         (normalized.accountSelection?.length !== 1 ||
           normalized.accountSelection[0].accounts?.length !== 1)
       ) {
@@ -1258,46 +1410,47 @@ export const sailpointRequestAccessTool = defineSailPointTool<SailPointRequestAc
       description: 'GRANT_ACCESS (default), REVOKE_ACCESS, or MODIFY_ACCESS',
     },
     requestedFor: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description: 'Human identity IDs for the flat request shape',
+      minItems: 1,
       items: { type: 'string', minLength: 1 },
     },
     requestedItems: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description: 'Flat human request items',
-      items: {
-        type: 'object',
-        required: ['type', 'id'],
-        properties: {
-          type: { type: 'string' },
-          id: { type: 'string', minLength: 1 },
-          comment: { type: 'string' },
-          clientMetadata: { type: 'object', additionalProperties: true },
-          startDate: { type: 'string' },
-          removeDate: { type: 'string' },
-          assignmentId: { type: 'string' },
-          nativeIdentity: { type: 'string' },
-          formInstanceId: { type: 'string' },
-        },
-      },
+      minItems: 1,
+      items: REQUESTED_ITEM_PARAM_SCHEMA,
     },
     requestedForWithRequestedItems: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Per-identity request items for account selection and all machine identity requests',
+      minItems: 1,
+      maxItems: 10,
       items: {
         type: 'object',
         required: ['identityId', 'requestedItems'],
         properties: {
           identityId: { type: 'string', minLength: 1 },
-          identityType: { type: 'string' },
-          requestedItems: { type: 'array' },
+          identityType: {
+            type: 'string',
+            anyOf: [
+              { type: 'string', const: 'HUMAN' },
+              { type: 'string', const: 'MACHINE' },
+            ],
+          },
+          requestedItems: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 250,
+            items: NESTED_REQUESTED_ITEM_PARAM_SCHEMA,
+          },
         },
       },
     },
@@ -1323,6 +1476,40 @@ export const sailpointRequestAccessTool = defineSailPointTool<SailPointRequestAc
       items: { type: 'object', properties: SAILPOINT_ACCESS_REQUEST_TRACKING_PROPERTIES },
     },
   },
+})
+
+export const sailpointGetAccountSelectionsTool = defineSailPointTool<SailPointRequestAccessParams>({
+  id: 'sailpoint_get_account_selections',
+  name: 'SailPoint Get Account Selections',
+  description:
+    'Resolve eligible source accounts before submitting a machine or multi-account access request.',
+  params: {
+    ...sailpointRequestAccessTool.params,
+    requestedItems: {
+      ...sailpointRequestAccessTool.params.requestedItems,
+      maxItems: 25,
+    },
+  },
+  input: (params) => requestAccessInput(params, { forAccountSelection: true }),
+  outputs: createSailPointResourceOutput(
+    'accountSelections',
+    SAILPOINT_ACCOUNT_SELECTIONS_OUTPUT_PROPERTIES,
+    'Eligible account selections grouped by identity and requested item'
+  ),
+})
+
+export const sailpointGetAccessRequestConfigTool = defineSailPointTool<SailPointCredentials>({
+  id: 'sailpoint_get_access_request_config',
+  name: 'SailPoint Get Access Request Config',
+  description:
+    'Get tenant access-request, request-on-behalf-of, and machine-identity configuration.',
+  params: sailpointCredentialParams,
+  input: () => ({}),
+  outputs: createSailPointResourceOutput(
+    'accessRequestConfig',
+    SAILPOINT_ACCESS_REQUEST_CONFIG_OUTPUT_PROPERTIES,
+    'Tenant access-request configuration'
+  ),
 })
 
 export const sailpointCancelAccessRequestTool =
@@ -1359,10 +1546,30 @@ export const sailpointGetAccessRequestStatusTool =
     description: 'List requested-item status records for access requests.',
     params: {
       ...sailpointCredentialParams,
-      requestedFor: { type: 'string', required: false, visibility: 'user-or-llm' },
-      requestedBy: { type: 'string', required: false, visibility: 'user-or-llm' },
-      regardingIdentity: { type: 'string', required: false, visibility: 'user-or-llm' },
-      assignedTo: { type: 'string', required: false, visibility: 'user-or-llm' },
+      requestedFor: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Identity ID for whom the access was requested',
+      },
+      requestedBy: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Identity ID that submitted the access request',
+      },
+      regardingIdentity: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Identity ID that is either the requester or the request target',
+      },
+      assignedTo: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Identity ID assigned to the access-request work item',
+      },
       requestState: {
         type: 'string',
         required: false,
@@ -1503,7 +1710,7 @@ export const sailpointLoadAccountsTool = defineSailPointTool<SailPointLoadAccoun
     task: {
       type: 'object',
       description: 'Account aggregation task',
-      properties: SAILPOINT_TASK_OUTPUT_PROPERTIES,
+      properties: SAILPOINT_LOAD_ACCOUNTS_TASK_OUTPUT_PROPERTIES,
     },
   },
 })
@@ -1535,7 +1742,7 @@ export const sailpointLoadEntitlementsTool = defineSailPointTool<SailPointLoadEn
     task: {
       type: 'object',
       description: 'Entitlement aggregation task',
-      properties: SAILPOINT_TASK_OUTPUT_PROPERTIES,
+      properties: SAILPOINT_LOAD_ENTITLEMENTS_TASK_OUTPUT_PROPERTIES,
     },
   },
 })

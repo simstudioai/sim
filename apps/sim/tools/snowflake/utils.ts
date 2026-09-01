@@ -97,6 +97,9 @@ interface SnowflakeResponseOptions {
   partitionCount?: number
   canceled?: boolean
   fallbackStatementHandle?: string
+  signal?: AbortSignal
+  /** Remaining decoded response bytes available to a multi-response consumer. */
+  byteBudget?: { remainingBytes: number }
 }
 
 interface SnowflakeStatementBodyOptions {
@@ -291,7 +294,7 @@ export async function readSnowflakeResult(
   response: Response,
   options: SnowflakeResponseOptions = {}
 ): Promise<SnowflakeStatementOutput> {
-  const data = await readSnowflakeJson(response)
+  const data = await readSnowflakeJson(response, options)
   const pending = response.status === 202
   const cancelRequest = options.canceled === true
   assertSnowflakeSuccess(response, data, cancelRequest)
@@ -367,11 +370,20 @@ export function transformSnowflakeResult<P extends SnowflakeBaseParams>(
   })
 }
 
-async function readSnowflakeJson(response: Response): Promise<SnowflakeApiResponse> {
+async function readSnowflakeJson(
+  response: Response,
+  options: Pick<SnowflakeResponseOptions, 'byteBudget' | 'signal'>
+): Promise<SnowflakeApiResponse> {
+  const remainingBytes = options.byteBudget?.remainingBytes ?? SNOWFLAKE_MAX_RESPONSE_BYTES
+  if (!Number.isSafeInteger(remainingBytes) || remainingBytes < 0) {
+    throw new Error('Snowflake response byte budget is invalid')
+  }
   const body = await readResponseTextWithLimit(response, {
-    maxBytes: SNOWFLAKE_MAX_RESPONSE_BYTES,
+    maxBytes: Math.min(SNOWFLAKE_MAX_RESPONSE_BYTES, remainingBytes),
     label: 'Snowflake response body',
+    signal: options.signal,
   })
+  if (options.byteBudget) options.byteBudget.remainingBytes -= Buffer.byteLength(body)
   let data: unknown
   try {
     data = JSON.parse(body)

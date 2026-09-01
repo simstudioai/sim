@@ -5,33 +5,8 @@ exact = true
 minimumReleaseAge = 604800
 # @typescript/native-preview stays excluded permanently: it only publishes nightly
 # dev builds, so every version is structurally younger than any age gate.
-# next 16.3.1 (published 2026-08-13) carries the Turbopack fix for vercel/next.js#96595,
-# the dead-code elimination bug that deleted the POST /api/credentials create path in
-# production and forced the 16.3.0 revert (#6242). Sitting on 16.2.12 to wait out the
-# window means knowingly staying on a release whose successor we already reverted once,
-# so the bump takes an exception instead. It ages out on 2026-08-20 — drop these entries
-# then, and re-date this note on any further bump rather than deleting them early, because
-# removing an entry while its pinned version is still inside the window blocks the bump
-# outright. The mermaid and js-yaml entries aged out on 2026-08-11 and 2026-08-07 and are
-# dropped here per that rule.
-# All eight @next/swc platform packages are listed even though package.json pins only four:
-# next declares all eight as its own optionalDependencies, so every one of them is resolved
-# into bun.lock regardless of which host runs the install. A gated optional dependency does
-# not fail the install — bun drops it silently — so omitting the musl and win32 entries here
-# would quietly strip them from the lockfile, and the Alpine devcontainer and any Windows
-# machine would then have no SWC binary to resolve.
 minimumReleaseAgeExcludes = [
   "@typescript/native-preview",
-  "next",
-  "@next/env",
-  "@next/swc-darwin-arm64",
-  "@next/swc-darwin-x64",
-  "@next/swc-linux-arm64-gnu",
-  "@next/swc-linux-arm64-musl",
-  "@next/swc-linux-x64-gnu",
-  "@next/swc-linux-x64-musl",
-  "@next/swc-win32-arm64-msvc",
-  "@next/swc-win32-x64-msvc",
 ]
 
 [run]

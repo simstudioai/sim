@@ -28,6 +28,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from '@babel/parser'
+import ts from '@typescript/typescript6'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -528,6 +529,28 @@ function collectSources(dir: string, found: string[] = []): string[] {
   return found
 }
 
+export function mayReferencePendingTable(source: string, tableNames: ReadonlySet<string>): boolean {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.JSX, source)
+  let hasSchemaModule = false
+  let hasTableName = false
+
+  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
+    const value = scanner.getTokenValue()
+    if (
+      (token === ts.SyntaxKind.StringLiteral ||
+        token === ts.SyntaxKind.NoSubstitutionTemplateLiteral) &&
+      (/@sim\/db(\/|$)/.test(value) || /(^|\/)schema(\.ts)?$/.test(value))
+    ) {
+      hasSchemaModule = true
+    }
+    if (token === ts.SyntaxKind.Identifier && tableNames.has(value)) {
+      hasTableName = true
+    }
+    if (hasSchemaModule && hasTableName) return true
+  }
+  return false
+}
+
 function main(): void {
   const pendingTables = readPendingTables()
   if (pendingTables.size === 0) {
@@ -538,12 +561,12 @@ function main(): void {
   // schema.ts is deliberately NOT skipped: its own `<table>Columns` helpers
   // must keep naming every doomed column away, including ones deprecated later.
   const skipFiles = new Set([fileURLToPath(import.meta.url)])
-  const namePattern = new RegExp(`\\b(${[...pendingTables.keys()].join('|')}|alias)\\b`)
+  const pendingTableNames = new Set(pendingTables.keys())
   const violations: Violation[] = []
   for (const file of SCAN_DIRS.flatMap((dir) => collectSources(dir))) {
     if (skipFiles.has(file) || /\.test\.(ts|tsx|mts|cts)$/.test(file)) continue
     const source = readFileSync(file, 'utf8')
-    if (!namePattern.test(source)) continue
+    if (file !== SCHEMA_PATH && !mayReferencePendingTable(source, pendingTableNames)) continue
     violations.push(...auditFile(file, source, pendingTables))
   }
 
@@ -568,4 +591,4 @@ function main(): void {
   process.exit(1)
 }
 
-main()
+if (import.meta.main) main()

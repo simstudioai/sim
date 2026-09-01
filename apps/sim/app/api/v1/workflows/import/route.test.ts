@@ -24,6 +24,7 @@ const {
   mockDbDelete,
   mockDbUpdate,
   mockWorkspaceRows,
+  mockNotifyWorkspaceWorkflowsChanged,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockValidateWorkspaceAccess: vi.fn(),
@@ -37,9 +38,13 @@ const {
   mockDbDelete: vi.fn(),
   mockDbUpdate: vi.fn(),
   mockWorkspaceRows: { value: [{ id: 'ws-1' }] as Array<{ id: string }> },
+  mockNotifyWorkspaceWorkflowsChanged: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
+  /** Mirrors the real helper: only a personal key or session carries a governed subject. */
+  capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
+    rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null,
   checkRateLimit: mockCheckRateLimit,
   createRateLimitResponse: vi.fn(() =>
     NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -51,6 +56,10 @@ vi.mock('@/app/api/v1/middleware', () => ({
 
 vi.mock('@/lib/workflows/orchestration', () => ({
   performCreateWorkflow: mockPerformCreateWorkflow,
+}))
+
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspaceWorkflowsChanged,
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
@@ -214,6 +223,7 @@ describe('POST /api/v1/workflows/import', () => {
       expect.anything(),
       'user-1',
       WORKSPACE_ID,
+      'none',
       'write'
     )
     expect(mockPerformCreateWorkflow).not.toHaveBeenCalled()
@@ -268,8 +278,10 @@ describe('POST /api/v1/workflows/import', () => {
     expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith(
       'wf-new',
       expect.anything(),
+      { workspaceId: WORKSPACE_ID, subjectUserId: null },
       expect.anything()
     )
+    expect(mockNotifyWorkspaceWorkflowsChanged).toHaveBeenCalledWith(WORKSPACE_ID)
   })
 
   it('derives the name from the export envelope and deduplicates it', async () => {
@@ -371,7 +383,12 @@ describe('POST /api/v1/workflows/import', () => {
     await POST(makeRequest(validBody()))
 
     const tx = { update: mockDbUpdate }
-    expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith('wf-new', expect.anything(), tx)
+    expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith(
+      'wf-new',
+      expect.anything(),
+      { workspaceId: WORKSPACE_ID, subjectUserId: null },
+      tx
+    )
     expect(mockDbUpdate).toHaveBeenCalled()
   })
 

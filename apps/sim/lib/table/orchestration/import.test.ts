@@ -91,6 +91,7 @@ function importParams(overrides: Record<string, unknown> = {}) {
     mode: 'append' as const,
     timezone: 'UTC',
     requestId: 'req-1',
+    capabilityGovernedUserId: 'user-1' as string | null,
     ...overrides,
   }
 }
@@ -131,6 +132,43 @@ describe('performTableCsvImport', () => {
     // orchestration's job rather than the writer's.
     expect(mockDispatchAfterBatchInsert).toHaveBeenCalled()
     expect(mockSignalSchemaChanged).toHaveBeenCalledWith('table-1')
+  })
+
+  /**
+   * The rows an import lands start the table's workflow columns, and those
+   * cells gate their tools on the governed subject. Dropping it here would run
+   * the importing member's cells with no per-tool gate at all — the one thing
+   * `null` means on this field.
+   */
+  it('dispatches the auto-fired cells under the importing person', async () => {
+    await performTableCsvImport(importParams({ capabilityGovernedUserId: 'user-9' }))
+
+    expect(mockDispatchAfterBatchInsert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'req-1',
+      'user-1',
+      'user-9'
+    )
+    expect(mockImportAppendRows).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ capabilityGovernedUserId: 'user-9' })
+    )
+  })
+
+  /** An actorless import still says so explicitly rather than by omission. */
+  it('carries a null subject through unchanged', async () => {
+    await performTableCsvImport(importParams({ capabilityGovernedUserId: null }))
+
+    expect(mockDispatchAfterBatchInsert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'req-1',
+      'user-1',
+      null
+    )
   })
 
   it('reports the deleted count on a replace', async () => {
@@ -344,6 +382,7 @@ describe('performCreateTableFromCsv', () => {
       folderId: null,
       timezone: 'UTC',
       requestId: 'req-1',
+      capabilityGovernedUserId: 'user-1',
     }
   }
 

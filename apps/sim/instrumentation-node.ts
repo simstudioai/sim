@@ -294,14 +294,14 @@ async function initializeOpenTelemetry() {
     // /v1/logs). Every @sim/logger line fans out through the global Logs API
     // (see packages/logger), which the NodeSDK wires to this processor — the
     // stdout JSON lines continue to CloudWatch unchanged.
-    const logRecordProcessor = new BatchLogRecordProcessor(
-      new OTLPLogExporter({
+    const logRecordProcessor = new BatchLogRecordProcessor({
+      exporter: new OTLPLogExporter({
         url: normalizeOtlpLogsUrl(telemetryConfig.endpoint),
         headers: otlpHeaders,
         timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
         keepAlive: false,
-      })
-    )
+      }),
+    })
 
     // Must be unique per process: replicas sharing one instance id collapse
     // into a single Prometheus series, so their independent cumulative

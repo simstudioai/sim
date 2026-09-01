@@ -53,8 +53,16 @@ async function executeCloudWatchListing<T>(
   }
 }
 
+/**
+ * The integration this selector reaches. Declared rather than derived: the selector authenticates from raw AWS keys in the request context and
+ * carries no stored connection, so the OAuth credential catalog can identify
+ * nothing to gate it on.
+ */
+const integrationBlockTypes = ['cloudwatch'] as const
+
 export const cloudWatchSelectorAttachments = {
   'cloudwatch.logGroups': {
+    integrationBlockTypes,
     destination: 'fixed',
     async execute(args) {
       const listingCredentials = credentials(args.context)
@@ -73,11 +81,12 @@ export const cloudWatchSelectorAttachments = {
           match?.logGroupName ? { id: match.logGroupName, label: match.logGroupName } : null
         )
       }
-      const search = args.request.search
+      const { search, cursor } = args.request
       const groups = await executeCloudWatchListing(args.signal, () =>
         listCloudWatchLogGroups({
           credentials: listingCredentials,
           prefix: search,
+          nextToken: cursor,
           signal: args.signal,
           suppressTruncationLog: true,
         })
@@ -86,14 +95,12 @@ export const cloudWatchSelectorAttachments = {
         groups.items
           .filter((group) => group.logGroupName)
           .map((group) => ({ id: group.logGroupName, label: group.logGroupName })),
-        undefined,
-        groups.truncated
-          ? { truncated: { reason: 'provider-cap', pages: groups.pages } }
-          : undefined
+        groups.nextToken
       )
     },
   },
   'cloudwatch.logStreams': {
+    integrationBlockTypes,
     destination: 'fixed',
     async execute(args) {
       const listingCredentials = credentials(args.context)
@@ -113,12 +120,13 @@ export const cloudWatchSelectorAttachments = {
           match?.logStreamName ? { id: match.logStreamName, label: match.logStreamName } : null
         )
       }
-      const search = args.request.search
+      const { search, cursor } = args.request
       const streams = await executeCloudWatchListing(args.signal, () =>
         listCloudWatchLogStreams({
           credentials: listingCredentials,
           logGroupName: args.context.logGroupName!,
           prefix: search,
+          nextToken: cursor,
           signal: args.signal,
           suppressTruncationLog: true,
         })
@@ -127,10 +135,7 @@ export const cloudWatchSelectorAttachments = {
         streams.items
           .filter((stream) => stream.logStreamName)
           .map((stream) => ({ id: stream.logStreamName, label: stream.logStreamName })),
-        undefined,
-        streams.truncated
-          ? { truncated: { reason: 'provider-cap', pages: streams.pages } }
-          : undefined
+        streams.nextToken
       )
     },
   },

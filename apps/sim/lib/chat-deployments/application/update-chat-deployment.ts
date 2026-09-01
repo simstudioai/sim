@@ -20,15 +20,12 @@ import {
   updateChatDeploymentRow,
 } from '@/lib/chat-deployments/queries'
 import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
-import { defineAuthorizedWorkspaceUseCase, ForbiddenOperationError } from '@/lib/core/application'
+import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { getWorkflowDeploymentSummary, performFullDeploy } from '@/lib/workflows/orchestration'
-import {
-  ChatDeployAuthNotAllowedError,
-  validateChatDeployAuth,
-} from '@/ee/access-control/utils/permission-check'
+import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('UpdateChatDeployment')
 
@@ -192,14 +189,7 @@ export const updateChatDeployment = defineAuthorizedWorkspaceUseCase({
      * be re-saved by a title-only edit without a refusal.
      */
     if (input.authType && input.authType !== existing.authType) {
-      try {
-        await validateChatDeployAuth(actingUserId, context.workspaceId, input.authType)
-      } catch (error) {
-        if (error instanceof ChatDeployAuthNotAllowedError) {
-          throw new ForbiddenOperationError('CHAT_AUTH_MODE_NOT_PERMITTED', error.message)
-        }
-        throw error
-      }
+      await validateChatDeployAuth(actingUserId, context.workspaceId, input.authType)
     }
 
     if (input.identifier && input.identifier !== existing.identifier) {

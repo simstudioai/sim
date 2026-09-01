@@ -54,6 +54,29 @@ export function CreateApiKeyModal({
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const createApiKeyMutation = useCreateApiKey()
 
+  /**
+   * The form is seeded when the modal OPENS, not when this component mounts.
+   *
+   * It mounts with its host page, and on the settings page `defaultKeyType` is
+   * computed from a permission-group policy that is still loading at that
+   * moment — so it starts as the fail-closed `'workspace'` and only becomes
+   * `'personal'` once the query answers. Seeding once at mount left a non-admin
+   * holding `'workspace'`, which they may not create, with no type selector
+   * rendered to change it and Create permanently disabled.
+   *
+   * Adjusting during render off the previous `open` rather than in an effect:
+   * there is no external system to synchronize with, only a prop transition.
+   */
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setKeyName('')
+      setKeyType(defaultKeyType)
+      setCreateError(null)
+    }
+  }
+
   const handleCreateKey = async () => {
     const trimmedName = keyName.trim()
     if (!trimmedName) return
@@ -81,9 +104,6 @@ export function CreateApiKeyModal({
 
       setNewKey(data.key)
       setShowNewKeyDialog(true)
-      setKeyName('')
-      setKeyType(defaultKeyType)
-      setCreateError(null)
       onOpenChange(false)
       onKeyCreated?.(data.key)
     } catch (error: unknown) {
@@ -99,9 +119,6 @@ export function CreateApiKeyModal({
 
   const handleClose = () => {
     onOpenChange(false)
-    setKeyName('')
-    setKeyType(defaultKeyType)
-    setCreateError(null)
   }
 
   return (

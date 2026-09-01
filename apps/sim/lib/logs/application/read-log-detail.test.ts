@@ -4,7 +4,12 @@
 
 import type { Principal } from '@sim/auth/principal'
 import { workflowExecutionLogs } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
 }))
 
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+
 vi.mock('@/lib/logs/fetch-log-detail', () => ({
   readLogDetail: mocks.readLogDetail,
 }))
@@ -20,6 +27,8 @@ vi.mock('@/lib/logs/fetch-log-detail', () => ({
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
 }))
+
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (held: string | null, required: string) =>
@@ -93,6 +102,7 @@ describe('readLogDetailUseCase', () => {
     })
     mocks.readLogDetail.mockResolvedValue({ id: 'log-1', executionId: EXECUTION_ID })
     mocks.resolvePermission.mockResolvedValue('admin')
+    resolveGroupConfigMock.mockResolvedValue(null)
   })
 
   afterAll(resetDbChainMock)
@@ -121,6 +131,59 @@ describe('readLogDetailUseCase', () => {
 
     expect(mocks.readLogDetail).toHaveBeenCalledWith(
       expect.objectContaining({ viewerUserId: 'user-1' })
+    )
+  })
+
+  /**
+   * A projection, not a refusal: the loader is still asked for the log, just
+   * told to leave the spend out of it.
+   */
+  it('tells the loader to withhold spend when the group does', async () => {
+    queueLogRow()
+    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
+
+    await readLogDetailUseCase.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: WORKSPACE_ID, lookupColumn: 'executionId', lookupValue: EXECUTION_ID },
+    })
+
+    expect(mocks.readLogDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ hideCostInfo: true })
+    )
+  })
+
+  /**
+   * The same person's group, reached through the run they triggered rather than
+   * through their own session. The delegation carries their role and none of
+   * their capabilities — `authorizeWorkspaceOperation` already passed it
+   * ungated — so projecting on it would withhold from a run on a group the
+   * funnel declined to apply. Attribution still names them.
+   */
+  it('leaves spend in place for a run delegated by that same person', async () => {
+    queueLogRow()
+    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
+
+    await readLogDetailUseCase.execute({
+      principal: HUMAN_PRINCIPAL,
+      input: { workspaceId: WORKSPACE_ID, lookupColumn: 'executionId', lookupValue: EXECUTION_ID },
+    })
+
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
+    expect(mocks.readLogDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ viewerUserId: 'user-1', hideCostInfo: false })
+    )
+  })
+
+  it('leaves spend in place when no group withholds it', async () => {
+    queueLogRow()
+
+    await readLogDetailUseCase.execute({
+      principal: HUMAN_PRINCIPAL,
+      input: { workspaceId: WORKSPACE_ID, lookupColumn: 'executionId', lookupValue: EXECUTION_ID },
+    })
+
+    expect(mocks.readLogDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ hideCostInfo: false })
     )
   })
 })

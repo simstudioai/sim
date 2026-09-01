@@ -10,6 +10,12 @@ import {
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
+import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
@@ -209,20 +215,15 @@ export function multipartErrorResponse(error: MultipartError): NextResponse {
   return NextResponse.json({ error: message }, { status: 400 })
 }
 
-interface TableAccessResult {
-  hasAccess: true
-  table: TableDefinition
-}
-
-interface TableAccessDenied {
-  hasAccess: false
-  notFound?: boolean
-  reason?: string
-}
-
-export type TableAccessCheck = TableAccessResult | TableAccessDenied
-
-export type AccessResult = { ok: true; table: TableDefinition } | { ok: false; status: 404 | 403 }
+/**
+ * A denial carries `capability` when the caller's permission group withheld the
+ * Tables module, so {@link accessError} can say so rather than reporting the
+ * role failure it is not. Optional because the other two denials — the table
+ * does not exist, the role is too low — have no capability to name.
+ */
+export type AccessResult =
+  | { ok: true; table: TableDefinition }
+  | { ok: false; status: 404 | 403; capability?: StaticPermissionGroupCapability }
 
 interface ApiErrorResponse {
   error: string
@@ -230,50 +231,105 @@ interface ApiErrorResponse {
 }
 
 /**
- * Check if a user has read access to a table.
- * Read access requires any workspace permission (read, write, or admin).
+ * Who is asking, for the purposes of {@link checkAccess}.
+ *
+ * A discriminated union rather than a user id, because the two kinds are
+ * indistinguishable as strings and the gate must treat them differently:
+ *
+ * - `user` — a session, a personal API key, or an internal JWT carrying the
+ *   run's actor. The id is answerable for the request, so the workspace role
+ *   check runs against it and this surface's `tables.use` gate applies. See
+ *   {@link capabilityGovernedUserId} for why the JWT case belongs here and
+ *   nonetheless must not be reused to attribute dispatched work.
+ * - `workspace_api_key` — a shared credential that authorizes as the workspace
+ *   itself. It has no user, so there is no group to resolve.
+ *   `keyCreatorUserId` is the id `authenticateApiKeyFromHeader` reports: the
+ *   person who *minted* the key, a bystander who may not even be the caller. It
+ *   carries the workspace role check that predates this union and nothing else.
+ *   Same rule, and the same reasoning, as `capabilityGovernedPrincipalUserId` in
+ *   `@/lib/core/application`.
+ *
+ * Required, and with no permissive default, for the same reason `capability` is
+ * required on `defineWorkspaceOperation`: an absent declaration cannot be told
+ * apart from an unreviewed one. A caller holding a workspace key cannot reach
+ * the gated behavior by passing a bare id, because a bare id no longer
+ * type-checks — it has to name a kind, and the only kind that skips the gate is
+ * the one that says so.
  */
-async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
-  const table = await getTableById(tableId)
+export type TableAccessPrincipal =
+  | { kind: 'user'; userId: string }
+  | { kind: 'workspace_api_key'; keyCreatorUserId: string }
 
-  if (!table) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  if (userPermission !== null) {
-    return { hasAccess: true, table }
-  }
-
-  return { hasAccess: false, reason: 'User does not have access to this table' }
+/** The id the workspace ROLE check runs against, for either principal kind. */
+function roleSubjectUserId(principal: TableAccessPrincipal): string {
+  return principal.kind === 'user' ? principal.userId : principal.keyCreatorUserId
 }
 
 /**
- * Check if a user has write access to a table.
- * Write access requires write or admin workspace permission.
+ * The id whose permission group governs THIS REQUEST, or `null` when no group
+ * does. Only a `user` principal has one — see {@link TableAccessPrincipal}.
+ *
+ * ## Two questions, two subjects
+ *
+ * A table route asks the permission group two things, and they take different
+ * answers for the same caller. Conflating them is how a run either stops working
+ * or gains grants it was never given:
+ *
+ *  1. MAY THIS REQUEST PROCEED — the role check and the `tables.use` gate in
+ *     {@link checkAccess}. Answered with the id the credential presents, this
+ *     function. An internal JWT presents the run's actor, and applying that
+ *     person's group here is deliberate: the answer can only withhold the table
+ *     from a run whose actor lost Tables, never open one. Failing closed on a
+ *     bystander's group is a conservative read of an id we already trust for the
+ *     role.
+ *  2. UNDER WHOSE GROUP DOES WORK THIS REQUEST STARTS RUN — the workflow and
+ *     enrichment cells a landed row auto-fires. Answered by
+ *     `capabilityGovernedAuthUserId` in `@/lib/auth/hybrid`, off the auth TYPE,
+ *     which names NOBODY for an internal JWT. Here the actor's group would run
+ *     the other way: it would grant a bystander's tools to an executor call, and
+ *     the executor's own withholding in `tableOperations` is what governs that
+ *     path instead.
+ *
+ * So: gate with this, dispatch with `capabilityGovernedAuthUserId`. Exported
+ * because both the gate and the callers that hand a subject to a batch write
+ * need question 1 answered the same way — a route must not gate one subject and
+ * check another.
  */
-async function checkTableWriteAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
-  const table = await getTableById(tableId)
-
-  if (!table) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  if (permissionSatisfies(userPermission, 'write')) {
-    return { hasAccess: true, table }
-  }
-
-  return { hasAccess: false, reason: 'User does not have write access to this table' }
+export function capabilityGovernedUserId(principal: TableAccessPrincipal): string | null {
+  return principal.kind === 'user' ? principal.userId : null
 }
 
 /**
  * Access check returning `{ ok, table }` or `{ ok: false, status }`.
- * Uses workspace permissions only.
+ *
+ * The workspace role, then the permission group's `tables.use` capability — the
+ * one gate every raw table route under `/api/table/**` shares. These routes
+ * predate the operation boundary and query the table service directly, so the
+ * authorization funnel that applies `tables.use` to `tableOperations` never
+ * sees them; without this a member of a group denied Tables could still drive
+ * all of them.
+ *
+ * Capability comes second for the same reason it does in
+ * `authorizeWorkspaceOperation`: the role failure conceals whether the table
+ * exists, and refusing on capability first would tell a non-member which
+ * modules the organization withholds.
+ *
+ * The gate applies to a `user` principal only; see {@link TableAccessPrincipal}
+ * for why `/api/v1/tables/**`, which shares this helper under an API key, must
+ * reach the table ungated on a workspace key.
+ *
+ * Nothing here exempts the executor, and that is question 1 of the two in
+ * {@link capabilityGovernedUserId}: an internal JWT presents the run's actor, so
+ * this gate runs against the actor's group and can only refuse more. A workflow
+ * run that reaches tables through `tableOperations` instead is governed by that
+ * funnel's delegated-principal branch, which withholds capabilities from an
+ * executor subject outright. Neither answer is the one question 2 takes —
+ * a route dispatching cells off this request derives its subject from the auth
+ * type, not from the principal gated here.
  */
 export async function checkAccess(
   tableId: string,
-  userId: string,
+  principal: TableAccessPrincipal,
   level: 'read' | 'write' | 'admin' = 'read'
 ): Promise<AccessResult> {
   const table = await getTableById(tableId)
@@ -282,17 +338,40 @@ export async function checkAccess(
     return { ok: false, status: 404 }
   }
 
-  const permission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  const hasAccess = permissionSatisfies(permission, level)
+  const permission = await getUserEntityPermissions(
+    roleSubjectUserId(principal),
+    'workspace',
+    table.workspaceId
+  )
+  if (!permissionSatisfies(permission, level)) {
+    return { ok: false, status: 403 }
+  }
 
-  return hasAccess ? { ok: true, table } : { ok: false, status: 403 }
+  // permission-group-enforced: tables.use — raw routes that query directly and predate the operation boundary
+  const governedUserId = capabilityGovernedUserId(principal)
+  if (
+    governedUserId &&
+    table.workspaceId &&
+    (await isWorkspaceCapabilityWithheld(governedUserId, table.workspaceId, 'tables.use'))
+  ) {
+    return { ok: false, status: 403, capability: 'tables.use' }
+  }
+
+  return { ok: true, table }
 }
 
 export function accessError(
-  result: { ok: false; status: 404 | 403 },
+  result: Extract<AccessResult, { ok: false }>,
   requestId: string,
   context?: string
 ): NextResponse {
+  if (result.capability) {
+    logger.warn(
+      `[${requestId}] ${capabilityRefusal(result.capability)}${context ? `: ${context}` : ''}`
+    )
+    return capabilityRefusalResponse(result.capability)
+  }
+
   const message = result.status === 404 ? 'Table not found' : 'Access denied'
   logger.warn(`[${requestId}] ${message}${context ? `: ${context}` : ''}`)
   return NextResponse.json({ error: message }, { status: result.status })

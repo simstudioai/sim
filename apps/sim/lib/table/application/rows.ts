@@ -9,6 +9,7 @@ import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
@@ -788,6 +789,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
           workspaceId: context.workspaceId,
           data,
           userId,
+          capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
           position: input.position,
           afterRowId: input.afterRowId,
           beforeRowId: input.beforeRowId,
@@ -847,6 +849,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         rows,
         userId,
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         orderKeys: input.orderKeys,
         secretProvenance,
       },
@@ -1151,6 +1154,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
         rowId: input.rowId,
         data,
         actorUserId: actorUserId(principal, context.billedAccountUserId),
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         secretProvenance,
       },
       context.table,
@@ -1213,6 +1217,7 @@ export const updateTableRows = defineAuthorizedTableUseCase({
           data,
           limit: input.limit,
           actorUserId: actorUserId(principal, context.billedAccountUserId),
+          capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
           secretProvenance,
         },
         requestId(input),
@@ -1305,6 +1310,7 @@ export const batchUpdateTableRows = defineAuthorizedTableUseCase({
         updates,
         workspaceId: context.workspaceId,
         actorUserId: actorUserId(principal, context.billedAccountUserId),
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         secretProvenanceByRowId: Object.fromEntries(
           updates.flatMap((update, index) => {
             const stamp = secretProvenance[index]
@@ -1472,6 +1478,7 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
         data,
         conflictTarget,
         userId: actorUserId(principal, context.billedAccountUserId),
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         secretProvenance,
       },
       context.table,

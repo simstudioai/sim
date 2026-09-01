@@ -1,9 +1,10 @@
 import type { ToolOutputProperty } from '@/tools/types'
 
-const string = (description: string, optional = true): ToolOutputProperty => ({
+const string = (description: string, optional = true, nullable = false): ToolOutputProperty => ({
   type: 'string',
   description,
   optional,
+  ...(nullable ? { nullable: true } : {}),
 })
 const number = (description: string, optional = true): ToolOutputProperty => ({
   type: 'number',
@@ -15,17 +16,94 @@ const boolean = (description: string, optional = true): ToolOutputProperty => ({
   description,
   optional,
 })
-const json = (description: string, optional = true): ToolOutputProperty => ({
+const json = (description: string, optional = true, nullable = false): ToolOutputProperty => ({
   type: 'json',
   description,
   optional,
+  ...(nullable ? { nullable: true } : {}),
 })
-const array = (description: string, optional = true): ToolOutputProperty => ({
+const array = (
+  description: string,
+  optional = true,
+  nullable = false,
+  items: NonNullable<ToolOutputProperty['items']> = { type: 'json' }
+): ToolOutputProperty => ({
   type: 'array',
   description,
   optional,
-  items: { type: 'json' },
+  ...(nullable ? { nullable: true } : {}),
+  items,
 })
+
+const OWNER_REF_PROPERTIES = {
+  id: string('Identity ID'),
+  type: string('IDENTITY'),
+  name: string('Identity display name'),
+} satisfies Record<string, ToolOutputProperty>
+
+const PERMISSION_PROPERTIES = {
+  rights: array('Rights granted on the target', true, false, { type: 'string' }),
+  target: string('Permission target'),
+} satisfies Record<string, ToolOutputProperty>
+
+const ADDITIONAL_OWNER_REF_PROPERTIES = {
+  type: string('IDENTITY or GOVERNANCE_GROUP'),
+  id: string('Identity or governance-group ID'),
+  name: string('Display name', true, true),
+} satisfies Record<string, ToolOutputProperty>
+
+const ENTITLEMENT_PRIVILEGE_LEVEL_PROPERTIES = {
+  direct: string('Direct privilege level assigned to the entitlement'),
+  setBy: string('User or process that set the privilege level'),
+  setByType: string('Method by which the privilege level was set', true, true),
+  inherited: string('Inherited privilege level on the entitlement', true, true),
+  effective: string('Effective privilege level assigned to the entitlement'),
+} satisfies Record<string, ToolOutputProperty>
+
+const ACCESS_MODEL_METADATA_VALUE_PROPERTIES = {
+  value: string('Metadata value'),
+  name: string('Metadata value display name'),
+  status: string('Metadata value status'),
+} satisfies Record<string, ToolOutputProperty>
+
+const ACCESS_MODEL_METADATA_PROPERTIES = {
+  key: string('Metadata type identifier'),
+  name: string('Metadata type display name'),
+  multiselect: boolean('Whether the metadata accepts multiple values'),
+  status: string('Metadata item status'),
+  type: string('Metadata item type'),
+  objectTypes: array('Applicable object types', true, false, { type: 'string' }),
+  description: string('Metadata item description'),
+  values: array('Metadata values', true, false, {
+    type: 'object',
+    properties: ACCESS_MODEL_METADATA_VALUE_PROPERTIES,
+  }),
+} satisfies Record<string, ToolOutputProperty>
+
+const SOURCE_REFERENCE_PROPERTIES = {
+  id: string('Source ID'),
+  type: string('SOURCE'),
+  name: string('Source name'),
+} satisfies Record<string, ToolOutputProperty>
+
+const ACCESS_MODEL_METADATA_OUTPUT: ToolOutputProperty = {
+  type: 'object',
+  description: 'Access-model metadata',
+  optional: true,
+  properties: {
+    attributes: array('Access-model metadata attributes', true, false, {
+      type: 'object',
+      properties: ACCESS_MODEL_METADATA_PROPERTIES,
+    }),
+  },
+}
+
+const SOURCE_REFERENCE_OUTPUT: ToolOutputProperty = {
+  type: 'object',
+  description: 'Source reference',
+  optional: true,
+  properties: SOURCE_REFERENCE_PROPERTIES,
+}
 
 export const SAILPOINT_IDENTITY_OUTPUT_PROPERTIES = {
   id: string('Identity ID'),
@@ -69,7 +147,7 @@ export const SAILPOINT_ACCOUNT_OUTPUT_PROPERTIES = {
   hasEntitlements: boolean('Whether the account has entitlements'),
   identity: json('Correlated identity reference'),
   sourceOwner: json('Source owner reference'),
-  features: array('Account features'),
+  features: string('Account features', true, true),
   origin: string('Account origin'),
   ownerIdentity: json('Owner identity reference'),
 } satisfies Record<string, ToolOutputProperty>
@@ -125,28 +203,75 @@ export const SAILPOINT_SOURCE_OUTPUT_PROPERTIES = {
   category: string('Source category'),
 } satisfies Record<string, ToolOutputProperty>
 
+export const SAILPOINT_ENTITLEMENT_V2_OUTPUT_PROPERTIES = {
+  id: string('Entitlement ID'),
+  name: string('Entitlement name'),
+  attribute: string('Source entitlement attribute'),
+  value: string('Source entitlement value'),
+  sourceSchemaObjectType: string('Source schema object type'),
+  description: string('Entitlement description', true, true),
+  privilegeLevel: {
+    type: 'object',
+    description: 'Privilege-level details',
+    optional: true,
+    nullable: true,
+    properties: ENTITLEMENT_PRIVILEGE_LEVEL_PROPERTIES,
+  },
+  tags: array('Entitlement tags', true, true, { type: 'string' }),
+  cloudGoverned: boolean('Whether SailPoint governs the entitlement'),
+  requestable: boolean('Whether the entitlement is requestable'),
+  owner: {
+    type: 'object',
+    description: 'Primary owner reference',
+    optional: true,
+    nullable: true,
+    properties: OWNER_REF_PROPERTIES,
+  },
+  manuallyUpdatedFields: json('Fields manually updated in SailPoint', true, true),
+  accessModelMetadata: ACCESS_MODEL_METADATA_OUTPUT,
+  created: string('Creation timestamp'),
+  modified: string('Last modification timestamp'),
+  source: SOURCE_REFERENCE_OUTPUT,
+  attributes: json('Source-defined entitlement attributes'),
+  segments: array('Segment IDs', true, true, { type: 'string' }),
+  directPermissions: array('Direct permissions', true, false, {
+    type: 'object',
+    properties: PERMISSION_PROPERTIES,
+  }),
+} satisfies Record<string, ToolOutputProperty>
+
 export const SAILPOINT_ENTITLEMENT_OUTPUT_PROPERTIES = {
   id: string('Entitlement ID'),
   name: string('Entitlement name'),
   attribute: string('Source entitlement attribute'),
   value: string('Source entitlement value'),
   sourceSchemaObjectType: string('Source schema object type'),
-  description: string('Entitlement description'),
-  privilegeLevel: json('Privilege-level details'),
-  privileged: boolean('Legacy privileged flag'),
-  tags: array('Entitlement tags'),
+  description: string('Entitlement description', true, true),
+  privileged: boolean('Whether the entitlement is privileged'),
   cloudGoverned: boolean('Whether SailPoint governs the entitlement'),
   requestable: boolean('Whether the entitlement is requestable'),
-  owner: json('Primary owner reference'),
-  additionalOwners: array('Additional owner references'),
-  manuallyUpdatedFields: json('Fields manually updated in SailPoint'),
-  accessModelMetadata: json('Access-model metadata'),
+  owner: {
+    type: 'object',
+    description: 'Primary owner reference',
+    optional: true,
+    nullable: true,
+    properties: OWNER_REF_PROPERTIES,
+  },
+  additionalOwners: array('Additional owner references', true, true, {
+    type: 'object',
+    properties: ADDITIONAL_OWNER_REF_PROPERTIES,
+  }),
+  manuallyUpdatedFields: json('Fields manually updated in SailPoint', true, true),
+  accessModelMetadata: ACCESS_MODEL_METADATA_OUTPUT,
   created: string('Creation timestamp'),
   modified: string('Last modification timestamp'),
-  source: json('Source reference'),
+  source: SOURCE_REFERENCE_OUTPUT,
   attributes: json('Source-defined entitlement attributes'),
-  segments: array('Segment IDs'),
-  directPermissions: array('Direct permissions'),
+  segments: array('Segment IDs', true, true, { type: 'string' }),
+  directPermissions: array('Direct permissions', true, false, {
+    type: 'object',
+    properties: PERMISSION_PROPERTIES,
+  }),
 } satisfies Record<string, ToolOutputProperty>
 
 export const SAILPOINT_IDENTITY_ENTITLEMENT_OUTPUT_PROPERTIES = {
@@ -319,31 +444,299 @@ export const SAILPOINT_PENDING_APPROVAL_OUTPUT_PROPERTIES = {
   form: json('Completed request form'),
 } satisfies Record<string, ToolOutputProperty>
 
-export const SAILPOINT_TASK_OUTPUT_PROPERTIES = {
+const TASK_STATUS_MESSAGE_PROPERTIES = {
+  type: string('INFO, WARN, or ERROR'),
+  localizedText: {
+    type: 'object',
+    description: 'Localized task message',
+    optional: true,
+    nullable: true,
+    properties: {
+      locale: string('Message locale'),
+      message: string('Message text'),
+    },
+  },
+  key: string('Message key'),
+  parameters: array('Internationalization parameters', true, true),
+} satisfies Record<string, ToolOutputProperty>
+
+const TASK_RETURN_PROPERTIES = {
+  name: string('Return value display name'),
+  attributeName: string('Task attribute name'),
+} satisfies Record<string, ToolOutputProperty>
+
+const LOAD_TASK_MESSAGE_PROPERTIES = {
+  type: string('INFO, WARN, or ERROR'),
+  error: boolean('Whether the message is an error'),
+  warning: boolean('Whether the message is a warning'),
+  key: string('Message key'),
+  localizedText: string('Localized message text'),
+} satisfies Record<string, ToolOutputProperty>
+
+const LOAD_TASK_RETURN_PROPERTIES = {
+  displayLabel: string('Return value display label'),
+  attributeName: string('Task attribute name'),
+} satisfies Record<string, ToolOutputProperty>
+
+const TASK_TARGET_PROPERTIES = {
+  id: string('Target ID'),
+  type: string('APPLICATION or IDENTITY', true, true),
+  name: string('Target name'),
+} satisfies Record<string, ToolOutputProperty>
+
+const TASK_DEFINITION_SUMMARY_PROPERTIES = {
+  id: string('Task-definition ID', false),
+  uniqueName: string('Task-definition unique name', false),
+  description: string('Task-definition description', false, true),
+  parentName: string('Parent task-definition name', false),
+  executor: string('Task-definition executor', false, true),
+  arguments: json('Task-definition arguments', false),
+} satisfies Record<string, ToolOutputProperty>
+
+export const SAILPOINT_TASK_STATUS_OUTPUT_PROPERTIES = {
   id: string('Task ID'),
   type: string('Task type'),
   uniqueName: string('Task unique name'),
+  description: string('Task description'),
+  parentName: string('Parent task name', true, true),
+  launcher: string('Task launcher'),
+  target: {
+    type: 'object',
+    description: 'Task target',
+    optional: true,
+    nullable: true,
+    properties: TASK_TARGET_PROPERTIES,
+  },
+  created: string('Creation timestamp'),
+  modified: string('Last modification timestamp', true, true),
+  launched: string('Launch timestamp', true, true),
+  completed: string('Completion timestamp', true, true),
+  completionStatus: string('Task completion status', true, true),
+  messages: array('Task messages', true, false, {
+    type: 'object',
+    properties: TASK_STATUS_MESSAGE_PROPERTIES,
+  }),
+  returns: array('Task return descriptors', true, false, {
+    type: 'object',
+    properties: TASK_RETURN_PROPERTIES,
+  }),
+  attributes: json('Task-specific attributes'),
+  progress: string('Human-readable progress', true, true),
+  percentComplete: number('Completion percentage'),
+  taskDefinitionSummary: {
+    type: 'object',
+    description: 'Task definition summary',
+    optional: true,
+    properties: TASK_DEFINITION_SUMMARY_PROPERTIES,
+  },
+} satisfies Record<string, ToolOutputProperty>
+
+export const SAILPOINT_LOAD_ACCOUNTS_TASK_OUTPUT_PROPERTIES = {
+  id: string('Task ID'),
+  type: string('Task type'),
   name: string('Task name'),
   description: string('Task description'),
-  parentName: string('Parent task name'),
   launcher: string('Task launcher'),
-  target: json('Task target'),
   created: string('Creation timestamp'),
-  modified: string('Last modification timestamp'),
-  launched: string('Launch timestamp'),
-  completed: string('Completion timestamp'),
-  completionStatus: string('Task completion status'),
-  messages: array('Task messages'),
-  returns: array('Task return descriptors'),
+  launched: string('Launch timestamp', true, true),
+  completed: string('Completion timestamp', true, true),
+  completionStatus: string('Task completion status', true, true),
+  parentName: string('Parent task name', true, true),
+  messages: array('Task messages', true, false, {
+    type: 'object',
+    properties: LOAD_TASK_MESSAGE_PROPERTIES,
+  }),
+  progress: string('Human-readable progress', true, true),
   attributes: json('Task-specific attributes'),
-  progress: string('Human-readable progress'),
-  percentComplete: number('Completion percentage'),
-  taskDefinitionSummary: json('Task definition summary'),
+  returns: array('Task return descriptors', true, false, {
+    type: 'object',
+    properties: LOAD_TASK_RETURN_PROPERTIES,
+  }),
+} satisfies Record<string, ToolOutputProperty>
+
+export const SAILPOINT_LOAD_ENTITLEMENTS_TASK_OUTPUT_PROPERTIES = {
+  id: string('Task ID'),
+  type: string('Task type'),
+  uniqueName: string('Task unique name'),
+  description: string('Task description'),
+  launcher: string('Task launcher'),
+  created: string('Creation timestamp'),
+  returns: array('Task return descriptors', true, false, {
+    type: 'object',
+    properties: LOAD_TASK_RETURN_PROPERTIES,
+  }),
 } satisfies Record<string, ToolOutputProperty>
 
 export const SAILPOINT_ACCESS_REQUEST_TRACKING_PROPERTIES = {
   requestedFor: string('Requested-for identity ID'),
-  requestedItemsDetails: array('Requested item references'),
+  requestedItemsDetails: {
+    type: 'array',
+    description: 'Requested item references',
+    optional: true,
+    items: {
+      type: 'object',
+      properties: {
+        type: string('ACCESS_PROFILE, ROLE, or ENTITLEMENT'),
+        id: string('Requested item ID'),
+      },
+    },
+  },
   attributesHash: number('Stable request attributes hash'),
-  accessRequestIds: array('Access request tracking IDs'),
+  accessRequestIds: {
+    type: 'array',
+    description: 'Access request tracking IDs',
+    optional: true,
+    items: { type: 'string', description: 'Access request ID' },
+  },
+} satisfies Record<string, ToolOutputProperty>
+
+const SAILPOINT_ACCOUNT_INFO_REF_PROPERTIES = {
+  uuid: string('Account UUID'),
+  nativeIdentity: string('Native account identifier'),
+  type: string('ACCOUNT or provider reference type'),
+  id: string('Account reference ID'),
+  name: string('Account name'),
+} satisfies Record<string, ToolOutputProperty>
+
+const SAILPOINT_SOURCE_ACCOUNT_SELECTION_PROPERTIES = {
+  type: string('SOURCE or provider reference type'),
+  id: string('Source ID'),
+  name: string('Source name'),
+  accounts: {
+    type: 'array',
+    description: 'Eligible accounts on this source',
+    optional: true,
+    items: { type: 'object', properties: SAILPOINT_ACCOUNT_INFO_REF_PROPERTIES },
+  },
+} satisfies Record<string, ToolOutputProperty>
+
+const SAILPOINT_REQUESTED_ITEM_ACCOUNT_SELECTION_PROPERTIES = {
+  description: string('Requested item description'),
+  accountsSelectionBlocked: boolean('Whether account selection is blocked'),
+  accountsSelectionBlockedReason: string(
+    'Provider reason account selection is blocked',
+    true,
+    true
+  ),
+  type: string('ACCESS_PROFILE, ROLE, or ENTITLEMENT'),
+  id: string('Requested item ID'),
+  name: string('Requested item name'),
+  sources: {
+    type: 'array',
+    description: 'Sources and eligible accounts for this item',
+    optional: true,
+    items: { type: 'object', properties: SAILPOINT_SOURCE_ACCOUNT_SELECTION_PROPERTIES },
+  },
+} satisfies Record<string, ToolOutputProperty>
+
+const SAILPOINT_IDENTITY_ACCOUNT_SELECTION_PROPERTIES = {
+  requestedItems: {
+    type: 'array',
+    description: 'Requested items and their eligible accounts',
+    optional: true,
+    items: {
+      type: 'object',
+      properties: SAILPOINT_REQUESTED_ITEM_ACCOUNT_SELECTION_PROPERTIES,
+    },
+  },
+  accountsSelectionRequired: boolean('Whether this identity requires account selection'),
+  type: string('IDENTITY, MACHINE_IDENTITY, or provider reference type'),
+  id: string('Identity ID'),
+  name: string('Identity name'),
+} satisfies Record<string, ToolOutputProperty>
+
+export const SAILPOINT_ACCOUNT_SELECTIONS_OUTPUT_PROPERTIES = {
+  identities: {
+    type: 'array',
+    description: 'Identity-specific eligible account selections',
+    optional: true,
+    items: { type: 'object', properties: SAILPOINT_IDENTITY_ACCOUNT_SELECTION_PROPERTIES },
+  },
+} satisfies Record<string, ToolOutputProperty>
+
+const SAILPOINT_APPROVAL_SCHEME_PROPERTIES = {
+  approverType: string('ENTITLEMENT_OWNER, SOURCE_OWNER, MANAGER, GOVERNANCE_GROUP, or WORKFLOW'),
+  approverId: string('Governance group or workflow approver ID', true, true),
+} satisfies Record<string, ToolOutputProperty>
+
+const SAILPOINT_ACCESS_DURATION_PROPERTIES = {
+  value: number('Duration value'),
+  timeUnit: string('HOURS, DAYS, WEEKS, or MONTHS'),
+} satisfies Record<string, ToolOutputProperty>
+
+const SAILPOINT_ENTITLEMENT_ACCESS_REQUEST_CONFIG_PROPERTIES = {
+  approvalSchemes: {
+    type: 'array',
+    description: 'Ordered approval schemes',
+    optional: true,
+    items: { type: 'object', properties: SAILPOINT_APPROVAL_SCHEME_PROPERTIES },
+  },
+  requestCommentRequired: boolean('Whether a request comment is required'),
+  denialCommentRequired: boolean('Whether a denial comment is required'),
+  reauthorizationRequired: boolean('Whether reauthorization is required'),
+  requireEndDate: boolean('Whether an end date is required'),
+  maxPermittedAccessDuration: {
+    type: 'object',
+    description: 'Maximum permitted access duration',
+    optional: true,
+    nullable: true,
+    properties: SAILPOINT_ACCESS_DURATION_PROPERTIES,
+  },
+  formDefinitionId: string('Request form definition ID', true, true),
+} satisfies Record<string, ToolOutputProperty>
+
+const SAILPOINT_ENTITLEMENT_REVOCATION_REQUEST_CONFIG_PROPERTIES = {
+  approvalSchemes: {
+    type: 'array',
+    description: 'Ordered revocation approval schemes',
+    optional: true,
+    items: { type: 'object', properties: SAILPOINT_APPROVAL_SCHEME_PROPERTIES },
+  },
+} satisfies Record<string, ToolOutputProperty>
+
+export const SAILPOINT_ENTITLEMENT_REQUEST_CONFIG_OUTPUT_PROPERTIES = {
+  accessRequestConfig: {
+    type: 'object',
+    description: 'Entitlement grant request configuration',
+    optional: true,
+    properties: SAILPOINT_ENTITLEMENT_ACCESS_REQUEST_CONFIG_PROPERTIES,
+  },
+  revocationRequestConfig: {
+    type: 'object',
+    description: 'Entitlement revocation request configuration',
+    optional: true,
+    properties: SAILPOINT_ENTITLEMENT_REVOCATION_REQUEST_CONFIG_PROPERTIES,
+  },
+} satisfies Record<string, ToolOutputProperty>
+
+const SAILPOINT_REQUEST_ON_BEHALF_OF_CONFIG_PROPERTIES = {
+  allowRequestOnBehalfOfAnyoneByAnyone: boolean('Whether anyone may request for anyone'),
+  allowRequestOnBehalfOfEmployeeByManager: boolean(
+    'Whether managers may request for their employees'
+  ),
+  allowRequestOnBehalfOfForMachineIdentity: boolean(
+    'Whether anyone may request for a machine identity'
+  ),
+  allowRequestForMachineByOwner: boolean('Whether machine owners may request for their machines'),
+} satisfies Record<string, ToolOutputProperty>
+
+export const SAILPOINT_ACCESS_REQUEST_CONFIG_OUTPUT_PROPERTIES = {
+  approvalsMustBeExternal: boolean('Whether approvals must be handled externally'),
+  reauthorizationEnabled: boolean('Whether reauthorization is enabled'),
+  requestOnBehalfOfConfig: {
+    type: 'object',
+    description: 'Request-on-behalf-of policy',
+    optional: true,
+    properties: SAILPOINT_REQUEST_ON_BEHALF_OF_CONFIG_PROPERTIES,
+  },
+  entitlementRequestConfig: {
+    type: 'object',
+    description: 'Tenant entitlement request configuration',
+    optional: true,
+    properties: SAILPOINT_ENTITLEMENT_REQUEST_CONFIG_OUTPUT_PROPERTIES,
+  },
+  govGroupVisibilityEnabled: boolean('Whether governance group visibility is enabled'),
+  machineIdentityAccessRequestEnabled: boolean(
+    'Whether machine identity access requests are enabled'
+  ),
 } satisfies Record<string, ToolOutputProperty>

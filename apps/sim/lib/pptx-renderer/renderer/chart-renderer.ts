@@ -6,7 +6,8 @@ const logger = createLogger('PptxChartRenderer')
  * Chart renderer — converts OOXML chart XML into ECharts visualizations.
  */
 
-import * as echarts from 'echarts'
+import type * as echarts from 'echarts'
+import { format, graphic, init } from '@/lib/pptx-renderer/renderer/echarts-runtime'
 import type { ChartNodeData } from '../model/nodes/chart-node'
 import type { SafeXmlNode } from '../parser/xml-parser'
 import { cssFontStack } from '../utils/font-stack'
@@ -402,7 +403,7 @@ function buildEChartsGradient(gradFill: SafeXmlNode, ctx: RenderContext): object
   const x1 = 0.5 + 0.5 * Math.cos(rad)
   const y1 = 0.5 + 0.5 * Math.sin(rad)
 
-  return new echarts.graphic.LinearGradient(x0, y0, x1, y1, stops)
+  return new graphic.LinearGradient(x0, y0, x1, y1, stops)
 }
 
 /**
@@ -2065,7 +2066,7 @@ function buildBubbleChartOption(
       // ECharts escapes the markup it builds itself; a hand-built one escapes its own.
       formatter: (params: unknown) => {
         const p = params as { seriesName: string; value: number[] }
-        const name = echarts.format.encodeHTML(p.seriesName)
+        const name = format.encodeHTML(p.seriesName)
         return `${name}<br/>x: ${p.value[0]}, y: ${p.value[1]}, size: ${p.value[2]}`
       },
     },
@@ -3360,7 +3361,7 @@ function initChart(
   chartInstances?: Set<echarts.ECharts>
 ): void {
   try {
-    const chart = echarts.init(container)
+    const chart = init(container)
     chart.setOption(option)
     chartInstances?.add(chart)
 

@@ -53,6 +53,12 @@ export interface IntegrationFaqContent {
   answer: string
 }
 
+export interface IntegrationNarrativeSectionContent {
+  id: string
+  heading: string
+  paragraphs: string[]
+}
+
 /**
  * Hand-authored, per-integration SEO/GEO overrides keyed by slug. Unlike
  * {@link IntegrationLandingContent}, this is consumed at render time directly by
@@ -83,6 +89,8 @@ export interface IntegrationSeoContent {
   templatesIntro?: string
   /** Optional comparison section rendered immediately before real-time triggers. */
   comparison?: IntegrationComparisonContent
+  /** Optional prose comparison rendered after the supported-tools list. */
+  narrativeComparison?: IntegrationNarrativeSectionContent
   /** Full FAQ replacement for integrations with hand-authored answers. */
   faqs?: IntegrationFaqContent[]
   /**

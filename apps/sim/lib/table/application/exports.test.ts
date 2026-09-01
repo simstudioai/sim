@@ -3,16 +3,20 @@
  */
 
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
+  resolveWorkspaceContext: vi.fn(),
   create: vi.fn(),
   getTable: vi.fn(),
   require: vi.fn(),
   resolveContext: vi.fn(),
 }))
+
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@sim/audit', () => ({
   AuditAction: { TABLE_EXPORTED: 'table.exported' },
@@ -23,15 +27,11 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: () => true,
   resolveEffectiveWorkspacePermission: vi.fn(),
 }))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/table', () => ({ getTableById: mocks.getTable }))
 vi.mock('@/lib/table/application/context', () => ({
   resolveActiveTableContext: mocks.resolveContext,
-  resolveTableWorkspaceContext: vi.fn(async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-    billedAccountUserId: 'billing-owner-1',
-  })),
+  resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
 }))
 vi.mock('@/lib/table/orchestration/export-resource', () => ({
   cancelTableExportResource: mocks.cancel,
@@ -43,6 +43,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   generatePresignedDownloadUrl: vi.fn(),
 }))
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   cancelTableExportUseCase,
   createTableExportUseCase,
@@ -110,6 +111,13 @@ describe('table export application use cases', () => {
     mocks.create.mockResolvedValue(record)
     mocks.require.mockResolvedValue(record)
     mocks.cancel.mockResolvedValue({ ...record, status: 'canceled' })
+    resolveGroupConfigMock.mockResolvedValue(null)
+    mocks.resolveWorkspaceContext.mockImplementation(async (workspaceId: string) => ({
+      workspaceId,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    }))
   })
 
   it('returns domain records for create and read operations', async () => {
@@ -163,5 +171,62 @@ describe('table export application use cases', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  describe('permission-group capability', () => {
+    const member = { kind: 'session' as const, userId: 'user-1' }
+    const governedContext = {
+      tableId: table.id,
+      table,
+      workspaceId: table.workspaceId,
+      workspaceOrganizationId: 'org-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    }
+
+    beforeEach(() => {
+      mocks.resolveContext.mockResolvedValue(governedContext)
+      mocks.resolveWorkspaceContext.mockImplementation(async (workspaceId: string) => ({
+        workspaceId,
+        workspaceOrganizationId: 'org-1',
+        allowPersonalApiKeys: true,
+        billedAccountUserId: 'billing-owner-1',
+      }))
+      resolveGroupConfigMock.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableTableExport: true,
+      })
+    })
+
+    it('refuses to generate an export when the group withholds tables.export', async () => {
+      await expect(
+        createTableExportUseCase.execute({
+          principal: member,
+          input: { tableId: 'table-1', workspaceId: 'workspace-1', format: 'csv' },
+        })
+      ).rejects.toMatchObject({ capability: 'tables.export' })
+
+      expect(mocks.create).not.toHaveBeenCalled()
+    })
+
+    it('still allows cancelling an export, which stops extraction rather than performing it', async () => {
+      await expect(
+        cancelTableExportUseCase.execute({
+          principal: member,
+          input: { exportId: 'export-1', workspaceId: 'workspace-1' },
+        })
+      ).resolves.toMatchObject({ export: { status: 'canceled' } })
+    })
+
+    it('generates an export when the group withholds nothing', async () => {
+      resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+
+      await expect(
+        createTableExportUseCase.execute({
+          principal: member,
+          input: { tableId: 'table-1', workspaceId: 'workspace-1', format: 'csv' },
+        })
+      ).resolves.toEqual({ export: record })
+    })
   })
 })

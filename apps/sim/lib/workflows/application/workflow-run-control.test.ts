@@ -11,6 +11,7 @@ const { MockWorkflowExecutionNotFoundError, mocks } = vi.hoisted(() => {
     mocks: {
       audit: vi.fn(),
       cancel: vi.fn(),
+      capture: vi.fn(),
       resolvePermission: vi.fn(),
       resolveRunContext: vi.fn(),
       resume: vi.fn(),
@@ -19,6 +20,7 @@ const { MockWorkflowExecutionNotFoundError, mocks } = vi.hoisted(() => {
 })
 
 vi.mock('@sim/audit', () => ({ recordAudit: mocks.audit }))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (actual: string | null, required: string) => {
@@ -115,20 +117,25 @@ describe('workflow run-control application use cases', () => {
     async ({ principal, actorUserId }) => {
       await cancelWorkflowRun.execute({
         principal,
-        input: { workflowId: 'workflow-1', runId: 'parent-run-1' },
+        input: { runId: 'parent-run-1' },
       })
 
       expect(mocks.resolveRunContext).toHaveBeenCalledWith({
         runId: 'parent-run-1',
-        assertedWorkflowId: 'workflow-1',
       })
       expect(mocks.cancel).toHaveBeenCalledWith({
         executionId: 'parent-run-1',
         workflowId: 'workflow-1',
-        userId: actorUserId,
+        attributedUserId: actorUserId,
         workspaceId: 'workspace-1',
-        captureAnalytics: false,
+        abortSignal: undefined,
       })
+      expect(mocks.capture).toHaveBeenCalledWith(
+        actorUserId,
+        'workflow_execution_cancelled',
+        { workflow_id: 'workflow-1', workspace_id: 'workspace-1' },
+        { groups: { workspace: 'workspace-1' } }
+      )
       expect(mocks.audit).not.toHaveBeenCalled()
     }
   )
@@ -166,14 +173,14 @@ describe('workflow run-control application use cases', () => {
     }
   )
 
-  it('stops cancellation and resume before authorization when workflow/run scope disagrees', async () => {
+  it('stops cancellation and resume before authorization when canonical run resolution fails', async () => {
     mocks.resolveRunContext.mockRejectedValue(new OrchestrationError('not_found', 'Run not found'))
     const principal = principals[0].principal
 
     await expect(
       cancelWorkflowRun.execute({
         principal,
-        input: { workflowId: 'wrong-workflow', runId: 'parent-run-1' },
+        input: { runId: 'parent-run-1' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
     await expect(
@@ -200,7 +207,7 @@ describe('workflow run-control application use cases', () => {
     await expect(
       cancelWorkflowRun.execute({
         principal,
-        input: { workflowId: 'workflow-1', runId: 'parent-run-1' },
+        input: { runId: 'parent-run-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     await expect(
@@ -225,7 +232,7 @@ describe('workflow run-control application use cases', () => {
     await expect(
       cancelWorkflowRun.execute({
         principal: principals[0].principal,
-        input: { workflowId: 'workflow-1', runId: 'parent-run-1' },
+        input: { runId: 'parent-run-1' },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Run not found' })
   })
@@ -238,7 +245,7 @@ describe('workflow run-control application use cases', () => {
     await expect(
       cancelWorkflowRun.execute({
         principal: principals[2].principal,
-        input: { workflowId: 'workflow-1', runId: 'parent-run-1' },
+        input: { runId: 'parent-run-1' },
       })
     ).rejects.toBe(cancelFailure)
 

@@ -127,25 +127,21 @@ export function defineAuthorizedWorkspaceUseCase<
   R,
 >(definition: AuthorizedWorkspaceUseCaseDefinition<O, I, C, R>): OperationUseCase<O, I, R> {
   const resourceAuthorization = (() => {
-    if ('resourcePolicy' in definition.operation && definition.operation.resourcePolicy) {
-      const authorizeResource = definition.authorizeResource
-      if (!authorizeResource) {
-        throw new Error(
-          `Operation ${definition.operation.id} requires resource policy authorization`
-        )
-      }
-      const resourcePolicy = definition.operation.resourcePolicy as ResourcePolicyForOperation<O>
-      return (executionContext: AuthorizedWorkspaceUseCaseContext<O, I, C>) =>
-        authorizeResource({
-          ...executionContext,
-          resourcePolicy,
-        } as AuthorizedWorkspaceResourceUseCaseContext<O, I, C>)
+    const { authorizeResource, operation } = definition
+    const resourcePolicy = ('resourcePolicy' in operation ? operation.resourcePolicy : undefined) as
+      | ResourcePolicyForOperation<O>
+      | undefined
+
+    if (resourcePolicy && !authorizeResource) {
+      throw new Error(`Operation ${operation.id} requires resource policy authorization`)
     }
-    const authorizeResource = definition.authorizeResource
-    return authorizeResource
-      ? (executionContext: AuthorizedWorkspaceUseCaseContext<O, I, C>) =>
-          authorizeResource(executionContext as AuthorizedWorkspaceResourceUseCaseContext<O, I, C>)
-      : undefined
+    if (!authorizeResource) return undefined
+
+    return (executionContext: AuthorizedWorkspaceUseCaseContext<O, I, C>) =>
+      authorizeResource({
+        ...executionContext,
+        resourcePolicy,
+      } as AuthorizedWorkspaceResourceUseCaseContext<O, I, C>)
   })()
 
   /**

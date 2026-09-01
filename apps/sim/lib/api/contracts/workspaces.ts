@@ -52,7 +52,9 @@ export const workspaceCreationPolicySchema = z.object({
    * Machine-readable discriminant for blocked states whose correct user-facing
    * copy the workspace mode alone cannot determine.
    */
-  blockedReasonCode: z.literal('organization-subscription-inactive').optional(),
+  blockedReasonCode: z
+    .enum(['organization-subscription-inactive', 'permission-group-denied'])
+    .optional(),
 })
 
 export type WorkspaceCreationPolicy = z.output<typeof workspaceCreationPolicySchema>
@@ -171,20 +173,6 @@ export const workspaceMemberSchema = z.object({
 })
 
 export type WorkspaceMember = z.output<typeof workspaceMemberSchema>
-
-export const workspaceMetricsExecutionsQuerySchema = z.object({
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
-  segments: z.coerce.number().min(1).max(200).default(72),
-  workflowIds: z.string().optional(),
-  folderIds: z.string().optional(),
-  triggers: z.string().optional(),
-  level: z.string().optional(),
-  allTime: z
-    .enum(['true', 'false'])
-    .optional()
-    .transform((value) => value === 'true'),
-})
 
 export const listWorkspacesContract = defineRouteContract({
   method: 'GET',

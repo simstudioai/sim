@@ -429,10 +429,14 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       },
     },
     {
+      /**
+       * One boolean, so a switch rather than a single-option checkbox list — and a
+       * switch is `null` until the user touches it, which is exactly the
+       * "untouched means omit" semantics the params transform below needs.
+       */
       id: 'completed',
-      title: 'Completion',
-      type: 'checkbox-list',
-      options: [{ label: 'Completed', id: 'completed' }],
+      title: 'Completed',
+      type: 'switch',
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -502,14 +506,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               .filter((p: string) => p.length > 0)
           : undefined
 
-        // Only send a completion value when the user actually checked the box; an
-        // empty/untouched checkbox must omit the field (not send `false`), so
-        // update_task doesn't silently un-complete a task and search_tasks doesn't
-        // implicitly filter to incomplete tasks.
-        const completedValue =
-          Array.isArray(params.completed) && params.completed.length > 0
-            ? params.completed.includes('completed')
-            : undefined
+        // Only send a completion value when the user actually set the toggle; an
+        // untouched field must omit it (not send `false`), so update_task doesn't
+        // silently un-complete a task and search_tasks doesn't implicitly filter to
+        // incomplete tasks.
+        const completedValue = typeof params.completed === 'boolean' ? params.completed : undefined
 
         const baseParams = {
           accessToken: oauthCredential?.accessToken,
@@ -634,7 +635,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     assignee: { type: 'string', description: 'Assignee user GID' },
     due_on: { type: 'string', description: 'Due date (YYYY-MM-DD)' },
     projects: { type: 'string', description: 'Project GIDs' },
-    completed: { type: 'array', description: 'Completion status' },
+    completed: { type: 'boolean', description: 'Completion status' },
     searchText: { type: 'string', description: 'Search text' },
     commentText: { type: 'string', description: 'Comment text' },
     createProject_workspace: {

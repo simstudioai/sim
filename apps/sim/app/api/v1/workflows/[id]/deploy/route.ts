@@ -53,7 +53,7 @@ export const POST = withRouteHandler(
         return v1ValidationErrorResponse(body.error)
       }
 
-      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
+      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id, 'deploy.api')
       if (!target.ok) return target.response
       const { workflow, workspaceId } = target
 
@@ -126,7 +126,7 @@ export const DELETE = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
+      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id, 'deploy.api')
       if (!target.ok) return target.response
       const { workflow, workspaceId } = target
 

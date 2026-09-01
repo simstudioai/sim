@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -257,7 +257,6 @@ export function applyOperationsToWorkflowState(
   removeInvalidScopeEdges(modifiedState, skippedItems)
 
   // Regenerate loops and parallels after modifications
-
   ;(modifiedState as any).loops = generateLoopBlocks((modifiedState as any).blocks)
   ;(modifiedState as any).parallels = generateParallelBlocks((modifiedState as any).blocks)
 

@@ -32,7 +32,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 vi.mock('@/lib/logs/execution/trace-store', () => ({
   materializeExecutionDataForDisplay: mockMaterialize,
-  stripSpanCosts: (spans: unknown) => {
+  stripJoinedChildTraceSpend: (spans: unknown) => {
     if (!Array.isArray(spans)) return
     for (const span of spans) {
       if (span && typeof span === 'object') {

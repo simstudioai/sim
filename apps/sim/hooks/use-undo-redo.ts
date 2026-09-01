@@ -18,7 +18,7 @@ import {
   SUBFLOW_OPERATIONS,
   UNDO_REDO_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'

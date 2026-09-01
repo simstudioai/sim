@@ -2,13 +2,13 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { Position } from '@xyflow/react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Position } from 'reactflow'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkflowEdgeView, type WorkflowEdgeViewProps } from '../index'
 
-vi.mock('reactflow', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('reactflow')>()
+vi.mock('@xyflow/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@xyflow/react')>()
   return {
     ...actual,
     EdgeLabelRenderer: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -56,7 +56,7 @@ function renderEdge(overrides: Partial<WorkflowEdgeViewProps> = {}) {
         targetY={40}
         sourcePosition={Position.Right}
         targetPosition={Position.Left}
-        sourceHandle='source'
+        sourceHandleId='source'
         diffStatus={null}
         runStatus={undefined}
         isPreviewRun={false}
@@ -202,7 +202,7 @@ describe('WorkflowEdgeView', () => {
 
   it('mutes an untaken error branch during execution', () => {
     const { path } = renderEdge({
-      sourceHandle: 'error',
+      sourceHandleId: 'error',
       isWorkflowRunning: true,
     })
 
@@ -212,7 +212,7 @@ describe('WorkflowEdgeView', () => {
 
   it('restores the error branch color after execution', () => {
     const { path } = renderEdge({
-      sourceHandle: 'error',
+      sourceHandleId: 'error',
       isWorkflowRunning: false,
     })
 

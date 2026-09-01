@@ -1,10 +1,12 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -48,6 +50,7 @@ export interface ExportWorkflowResult {
 function importErrorCode(status: number): OrchestrationErrorCode {
   if (status === 400) return 'validation'
   if (status === 404) return 'not_found'
+  if (status === 403) return 'forbidden'
   if (status === 409) return 'conflict'
   if (status === 423) return 'locked'
   return 'internal'
@@ -70,6 +73,7 @@ export const importWorkflow = defineAuthorizedWorkflowUseCase({
       description: input.description,
       workflow: input.workflow,
       userId: attribution.attributedUserId,
+      capabilityUserId: capabilityGovernedPrincipalUserId(principal),
       requestId: generateRequestId(),
     })
     if (!result.success) {
@@ -96,6 +100,7 @@ export const importWorkflow = defineAuthorizedWorkflowUseCase({
       },
     }
   },
+  afterSuccess: ({ result }) => notifyWorkspaceWorkflowsChanged(result.workflow.workspaceId),
 })
 
 export const exportWorkflow = defineAuthorizedWorkflowUseCase({

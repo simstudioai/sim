@@ -1,4 +1,4 @@
-import { render } from '@react-email/render'
+import { render } from 'react-email'
 import { CredentialGroupInvitationEmail } from '@/components/emails/credential-groups/credential-group-invitation-email'
 
 export async function renderCredentialGroupInvitationEmail(params: {

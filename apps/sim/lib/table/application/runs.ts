@@ -1,6 +1,7 @@
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   DEFAULT_TABLE_PLAN_LIMITS,
@@ -96,6 +97,14 @@ export const startTableRun = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: StartTableRunInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<StartTableRunResult> {
     const triggeredByUserId = actorUserId(principal, context.billedAccountUserId)
+    /**
+     * The gate's subject, which is not the meter's. `actorUserId` substitutes
+     * the workspace billed account when the credential names no human, so a
+     * workspace-API-key run would otherwise carry that bystander into the
+     * cells' tool denylist. Null here means no acting person and no per-tool
+     * gate — the same answer an executor delegation gets from the funnel.
+     */
+    const capabilityGovernedUserId = capabilityGovernedPrincipalUserId(principal)
     if (input.kind === 'row_enrichment') {
       requireCanonicalGroups(context.table, [input.groupId])
       const row = await getRowById(context.tableId, input.rowId, context.workspaceId)
@@ -108,6 +117,7 @@ export const startTableRun = defineAuthorizedTableUseCase({
         mode: 'all',
         requestId: requestId(input),
         triggeredByUserId,
+        capabilityGovernedUserId,
       })
       return {
         table: context.table,
@@ -165,6 +175,7 @@ export const startTableRun = defineAuthorizedTableUseCase({
       limit: input.limit,
       requestId: requestId(input),
       triggeredByUserId,
+      capabilityGovernedUserId,
     })
     return {
       table: context.table,

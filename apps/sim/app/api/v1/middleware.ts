@@ -7,14 +7,24 @@ import { getValidationErrorMessage, isZodError, validationErrorResponse } from '
 import { buildRateLimitHeaders, recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
 import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import type { ForbiddenDetailCode } from '@/lib/core/application/forbidden'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  CAPABILITY_RULES,
+  type StaticPermissionGroupCapability,
+} from '@/lib/permission-groups/capabilities'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   getWorkspaceBilledAccountUserId,
   getWorkspaceBillingSettings,
 } from '@/lib/workspaces/utils'
+import type { TableAccessPrincipal } from '@/app/api/table/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 const logger = createLogger('V1Middleware')
@@ -82,6 +92,41 @@ export function requireRateLimitUserId(rateLimit: RateLimitResult): string {
     throw new Error('Allowed public API request is missing a user ID')
   }
   return rateLimit.userId
+}
+
+/**
+ * The user whose permission group governs this request, or `null` when none
+ * does.
+ *
+ * The v1 reading of the rule `capabilityGovernedPrincipalUserId` states in
+ * `@/lib/core/application`: `rateLimit.userId` is present for BOTH key kinds,
+ * and for a workspace key it is the key's creator. `keyType` is the
+ * authoritative signal, and this is the one place v1 reads it for that purpose,
+ * so {@link resolveCapabilityRefusal}, {@link tableAccessPrincipal} and the log
+ * field projection cannot drift.
+ *
+ * `scripts/check-capability-subject.ts` is written in terms of this name and
+ * asserts every v1 capability subject came from it; rename them together.
+ */
+export function capabilityGovernedUserId(rateLimit: RateLimitResult): string | null {
+  return rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null
+}
+
+/**
+ * The {@link TableAccessPrincipal} for a v1 table request.
+ *
+ * `/api/v1/tables/**` shares `checkAccess` with the raw internal table routes,
+ * which gate `tables.use` inside it. Those routes reject `x-api-key` outright,
+ * so every caller there is a person; v1's are API keys, and a workspace key must
+ * reach the table ungated. Built here rather than at each of the fourteen v1
+ * handlers, so the decision stays in the same module as every other `keyType`
+ * policy.
+ */
+export function tableAccessPrincipal(rateLimit: RateLimitResult): TableAccessPrincipal {
+  const userId = requireRateLimitUserId(rateLimit)
+  return capabilityGovernedUserId(rateLimit)
+    ? { kind: 'user', userId }
+    : { kind: 'workspace_api_key', keyCreatorUserId: userId }
 }
 
 export function requireRateLimitPrincipal(
@@ -226,6 +271,71 @@ export interface WorkspaceAccessError {
   status: number
   code: 'FORBIDDEN'
   message: string
+  /**
+   * The detail code a client can branch on, present only when a permission
+   * group withheld a capability. Read from {@link CAPABILITY_RULES} rather than
+   * spelled out, so v1 renders the same code as the funnel and the raw internal
+   * routes for the same refusal.
+   */
+  details?: { code: ForbiddenDetailCode }
+}
+
+/**
+ * The permission-group capability a v1 route requires, or `'none'` when no
+ * group governs it.
+ *
+ * Required rather than optional wherever it is threaded, and `'none'` spelled
+ * out rather than omitted, for the same reason `capability` is required on
+ * `defineWorkspaceOperation`: an absent declaration cannot be told apart from an
+ * unreviewed one, and unreviewed omission is how twelve config keys shipped
+ * enforcing nothing. Each route's value is the one its v2 or internal
+ * counterpart already declares — v1 does not get a mapping of its own.
+ */
+export type V1RouteCapability = StaticPermissionGroupCapability | 'none'
+
+/**
+ * The permission-group gate for a v1 route, as a structured failure.
+ *
+ * Only a personal key carries capabilities. A workspace key authorizes as the
+ * workspace and has no user, so there is no group to resolve — and its
+ * `rateLimit.userId` is the key's *creator*, a bystander whose group must not
+ * govern every caller of a shared credential. That is the same reasoning the
+ * `workspace_api_key` branch of `authorizeWorkspaceOperation` applies; the
+ * escape is closed at the door instead, because minting a workspace key is
+ * itself capability-gated.
+ *
+ * No `permission-group-enforced:` annotation, because this gate names no
+ * capability of its own: it applies whichever one the route declares, and every
+ * one of those is already reachable through the operation its v2 or internal
+ * counterpart declares.
+ *
+ * Never call this before the workspace role check. A capability refusal handed
+ * to a non-member would confirm the workspace exists and disclose which modules
+ * the organization withholds; the role failure conceals both.
+ *
+ * Takes no caller-supplied user id on purpose: the subject is the guard's own
+ * return value from {@link capabilityGovernedUserId}, so there is only one id —
+ * a caller cannot assert the withhold against a different one (the key
+ * creator's) than the one the guard said was personal.
+ */
+export async function resolveCapabilityRefusal(
+  rateLimit: RateLimitResult,
+  workspaceId: string,
+  capability: V1RouteCapability
+): Promise<WorkspaceAccessError | null> {
+  if (capability === 'none') return null
+  const userId = capabilityGovernedUserId(rateLimit)
+  if (!userId) return null
+
+  if (!(await isWorkspaceCapabilityWithheld(userId, workspaceId, capability))) return null
+
+  logger.warn('v1 request blocked by permission group', { workspaceId, userId, capability })
+  return {
+    status: 403,
+    code: 'FORBIDDEN',
+    message: capabilityRefusal(capability),
+    details: { code: CAPABILITY_RULES[capability].detailCode },
+  }
 }
 
 /**
@@ -234,6 +344,15 @@ export interface WorkspaceAccessError {
  * - A personal key is rejected when the workspace has disabled personal API
  *   keys (`allowPersonalApiKeys = false`). Other surfaces enforcing the same
  *   policy share `PERSONAL_KEY_DENIED`.
+ *
+ * Both are properties of the workspace rather than of any group, so both run
+ * ahead of the role check, exactly as `authorizeWorkspaceOperation` runs the
+ * `allowPersonalApiKeys` column ahead of `requireCurrentHumanRole`: they need
+ * no group to resolve, and refusing a key the workspace has switched off is the
+ * answer whatever the caller's role turns out to be.
+ *
+ * The group half of the same policy is NOT here — see
+ * {@link resolvePersonalKeyGroupRefusal}.
  */
 export async function resolveWorkspaceScope(
   rateLimit: RateLimitResult,
@@ -266,13 +385,83 @@ export async function resolveWorkspaceScope(
 }
 
 /**
- * Core workspace-access check (scope + the user's workspace permission level),
- * shared by v1 and v2. Returns a structured failure or null on success.
+ * The group half of the personal-key policy: `personal_api_key.use`, repeated
+ * here because v1 authorizes in this middleware rather than through the
+ * application funnel, and without it the same key that v2 refuses would still
+ * work against v1.
+ *
+ * It answers only AFTER the caller's workspace role has been verified, which is
+ * the ordering `authorizeWorkspaceOperation` uses and the reason
+ * {@link resolveCapabilityRefusal}'s contract says never to run a group key
+ * ahead of the role: the refusal names how an organization configured one
+ * cohort, and handing that to a caller with no reach into the workspace tells a
+ * stranger about the organization's configuration. The column check above may
+ * stay early precisely because it names no group.
+ *
+ * `roleVerifiedFor` is the user id a caller has already checked, not a boolean,
+ * so a caller that verified some OTHER subject's role cannot vouch for this
+ * one. When it does not match, the role is resolved here instead, and a caller
+ * who does not reach `requiredLevel` is handed back `null` so the surface's own
+ * role failure — the concealed one — is what it answers with. That second
+ * lookup is free: `getUserEntityPermissions` for a workspace goes through the
+ * request-scoped memo the role check itself uses.
+ *
+ * `requiredLevel` is the level the SURFACE will demand, not a floor of `read`.
+ * The funnel runs this key after `requireCurrentHumanRole(operation.minimumRole)`,
+ * so a read-only member calling a write route is refused on role there. Checked
+ * at `read` here, the same person on the same route was told instead how their
+ * organization configured personal keys — the disclosure the ordering exists to
+ * prevent, one level in.
+ */
+async function resolvePersonalKeyGroupRefusal(
+  rateLimit: RateLimitResult,
+  workspaceId: string,
+  roleVerifiedFor: string | null,
+  requiredLevel: PermissionType = 'read'
+): Promise<WorkspaceAccessError | null> {
+  const governedUserId = capabilityGovernedUserId(rateLimit)
+  if (!governedUserId) return null
+
+  if (roleVerifiedFor !== governedUserId) {
+    const permission = await getUserEntityPermissions(governedUserId, 'workspace', workspaceId)
+    if (!permissionSatisfies(permission, requiredLevel)) return null
+  }
+
+  // permission-group-enforced: personal_api_key.use — v1 authorizes in this middleware, not through the funnel
+  if (!(await isWorkspaceCapabilityWithheld(governedUserId, workspaceId, 'personal_api_key.use'))) {
+    return null
+  }
+
+  /**
+   * The detail code separates this from the workspace-column refusal above,
+   * which shares the sentence but is a different setting with a different
+   * remedy. Read off the rule rather than spelled out, exactly as
+   * {@link resolveCapabilityRefusal} does.
+   */
+  return {
+    status: 403,
+    code: 'FORBIDDEN',
+    message: PERSONAL_KEY_DENIED,
+    details: { code: CAPABILITY_RULES['personal_api_key.use'].detailCode },
+  }
+}
+
+/**
+ * Core workspace-access check: key scope and the workspace's own columns, then
+ * the user's workspace permission level, then the two permission-group
+ * decisions — the personal-key refusal, then the capability the route declares.
+ * Returns a structured failure or null on success.
+ *
+ * Both group keys come after the role, matching `authorizeWorkspaceOperation` —
+ * see {@link resolveCapabilityRefusal} for why the ordering is load-bearing.
+ * The personal-key refusal sits first of the two for the reason the funnel
+ * gives: the remedies differ, and the narrower one is worth naming first.
  */
 export async function resolveWorkspaceAccess(
   rateLimit: RateLimitResult,
   userId: string,
   workspaceId: string,
+  capability: V1RouteCapability,
   level: PermissionType = 'read'
 ): Promise<WorkspaceAccessError | null> {
   const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
@@ -282,18 +471,75 @@ export async function resolveWorkspaceAccess(
   if (!permissionSatisfies(permission, level)) {
     return { status: 403, code: 'FORBIDDEN', message: 'Access denied' }
   }
-  return null
+
+  const personalKeyRefusal = await resolvePersonalKeyGroupRefusal(rateLimit, workspaceId, userId)
+  if (personalKeyRefusal) return personalKeyRefusal
+
+  return resolveCapabilityRefusal(rateLimit, workspaceId, capability)
 }
 
 /**
- * v1 wrapper: renders {@link resolveWorkspaceScope} as the v1 `{ error }` body.
+ * v1 wrapper: renders {@link resolveWorkspaceScope} as the v1 `{ error }` body,
+ * plus the personal-key group refusal that belongs with it.
+ *
+ * It deliberately gates no MODULE capability: it runs before the route's role
+ * check, and a route using it authorizes its resource through a domain helper
+ * afterwards (the table routes call `checkAccess`, which applies `tables.use`
+ * itself), so the capability is declared there.
+ *
+ * `personal_api_key.use` cannot wait for that helper — `checkAccess` gates the
+ * module, not the key kind — so it is asked here, and
+ * {@link resolvePersonalKeyGroupRefusal} resolves the caller's role itself
+ * before answering rather than relying on a role check this wrapper never runs.
+ *
+ * `requiredLevel` must be the level the caller will hand `checkAccess` a moment
+ * later. Left at `read` on a write route, the group refusal answers a read-only
+ * member before the role failure that actually applies to them does.
  */
 export async function checkWorkspaceScope(
   rateLimit: RateLimitResult,
-  requestedWorkspaceId: string
+  requestedWorkspaceId: string,
+  requiredLevel: PermissionType = 'read'
 ): Promise<NextResponse | null> {
-  const failure = await resolveWorkspaceScope(rateLimit, requestedWorkspaceId)
-  return failure ? NextResponse.json({ error: failure.message }, { status: failure.status }) : null
+  const failure =
+    (await resolveWorkspaceScope(rateLimit, requestedWorkspaceId)) ??
+    (await resolvePersonalKeyGroupRefusal(rateLimit, requestedWorkspaceId, null, requiredLevel))
+  return failure ? workspaceAccessErrorResponse(failure) : null
+}
+
+/**
+ * The response a surface that conceals an inaccessible workspace should answer
+ * a {@link resolveWorkspaceAccess} failure with.
+ *
+ * The log surfaces answer "not found" rather than "forbidden" so a stranger
+ * cannot use them to probe which workspaces and executions exist. A
+ * permission-group refusal is the one failure that has nothing left to conceal:
+ * both group keys run only AFTER the caller's workspace role verified, so the
+ * caller is already known to be a member of the workspace being asked about,
+ * and the refusal names how their own organization configured their cohort.
+ * Flattening it into the concealing 404 costs the client the remedy — the key
+ * looks broken rather than switched off — and buys no secrecy.
+ *
+ * `details` is the discriminator because it is set on exactly the two post-role
+ * group refusals; the pre-role scope failures carry none and keep concealing.
+ */
+export function concealedWorkspaceAccessResponse(
+  failure: WorkspaceAccessError,
+  notFoundMessage: string
+): NextResponse {
+  return failure.details
+    ? workspaceAccessErrorResponse(failure)
+    : NextResponse.json({ error: notFoundMessage }, { status: 404 })
+}
+
+/** Renders a {@link WorkspaceAccessError} as the v1 `{ error, details? }` body. */
+function workspaceAccessErrorResponse(failure: WorkspaceAccessError): NextResponse {
+  return NextResponse.json(
+    failure.details
+      ? { error: failure.message, details: failure.details }
+      : { error: failure.message },
+    { status: failure.status }
+  )
 }
 
 /**
@@ -312,6 +558,27 @@ export async function resolveWorkspaceRequestActor(
 }
 
 /**
+ * {@link resolveWorkspaceRequestActor} as a route-ready result.
+ *
+ * The resolver answers `null` for a real, reachable request: an authenticated
+ * workspace key whose workspace has since been archived or deleted has no
+ * billed account to stand in as its system actor. That is the same condition
+ * the routes already report as a 400 `Invalid workspace ID` for a workspace
+ * mismatch, so it is reported the same way, from one place.
+ */
+export async function requireWorkspaceRequestActor(
+  rateLimit: RateLimitResult,
+  workspaceId: string
+): Promise<{ ok: true; actorUserId: string } | { ok: false; response: NextResponse }> {
+  const actorUserId = await resolveWorkspaceRequestActor(rateLimit, workspaceId)
+  if (actorUserId) return { ok: true, actorUserId }
+  return {
+    ok: false,
+    response: NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 }),
+  }
+}
+
+/**
  * v1 wrapper: renders {@link resolveWorkspaceAccess} as the v1 `{ error }` body.
  * Returns null on success, NextResponse on failure.
  */
@@ -319,10 +586,11 @@ export async function validateWorkspaceAccess(
   rateLimit: RateLimitResult,
   userId: string,
   workspaceId: string,
+  capability: V1RouteCapability,
   level: PermissionType = 'read'
 ): Promise<NextResponse | null> {
-  const failure = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, level)
-  return failure ? NextResponse.json({ error: failure.message }, { status: failure.status }) : null
+  const failure = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, capability, level)
+  return failure ? workspaceAccessErrorResponse(failure) : null
 }
 
 /**

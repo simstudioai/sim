@@ -9,10 +9,6 @@ import {
 import { StorageLimitExceededError } from '@/lib/billing/storage'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { ArchiveError, statusForArchiveError } from '@/lib/uploads/archive'
-import {
-  CompiledCheckTooLargeError,
-  CompiledCheckUnsupportedError,
-} from '@/lib/workspace-files/application/compiled-check-workspace-file'
 import { StyleExtractionUnsupportedError } from '@/lib/workspace-files/application/style-workspace-file'
 
 const logger = createLogger('InternalWorkspaceFileErrors')
@@ -20,16 +16,6 @@ const logger = createLogger('InternalWorkspaceFileErrors')
 const style = extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) => {
   if (!(error instanceof StyleExtractionUnsupportedError)) return null
   return internalErrorResponse(422, { error: error.message })
-})
-
-const compiledCheck = extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) => {
-  if (error instanceof CompiledCheckUnsupportedError) {
-    return internalErrorResponse(422, { error: error.message })
-  }
-  if (error instanceof CompiledCheckTooLargeError) {
-    return internalErrorResponse(413, { error: error.message })
-  }
-  return null
 })
 
 const content = extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) => {
@@ -105,7 +91,6 @@ export const internalFileErrorPolicies = {
     notFoundMessage: FILE_NOT_FOUND_MESSAGE,
   }),
   style,
-  compiledCheck,
   downloadUrl,
   downloadArchive,
   extractArchive,

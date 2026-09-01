@@ -94,8 +94,8 @@ fi
 # Generate schema and run database migrations
 echo "🗃️ Running database schema generation and migrations..."
 echo "Generating schema..."
-cd apps/sim
-bunx drizzle-kit generate
+cd packages/db
+bun run db:generate
 cd ../..
 
 echo "Waiting for database to be ready..."
@@ -105,8 +105,8 @@ echo "Waiting for database to be ready..."
   while [ $timeout -gt 0 ]; do
     if PGPASSWORD=postgres psql -h db -U postgres -c '\q' 2>/dev/null; then
       echo "Database is ready!"
-      cd apps/sim
-      DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio bunx drizzle-kit push
+      cd packages/db
+      DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio bun run db:push
       cd ../..
       break
     fi

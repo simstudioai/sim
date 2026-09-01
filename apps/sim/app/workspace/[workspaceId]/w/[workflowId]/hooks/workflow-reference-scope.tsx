@@ -1,8 +1,8 @@
 'use client'
 
 import { createContext, useCallback, useContext, useMemo } from 'react'
+import type { Edge } from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
-import type { Edge } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { useVariablesStore } from '@/stores/variables/store'

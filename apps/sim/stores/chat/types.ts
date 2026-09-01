@@ -26,6 +26,7 @@ export interface ChatMessage {
  * Output configuration for chat deployments
  */
 export interface OutputConfig {
+  workflowId?: string
   blockId: string
   path: string
 }

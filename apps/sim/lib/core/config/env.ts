@@ -18,11 +18,11 @@ import { z } from 'zod'
  * `<head>` — measured at ~13 KB after the `<script async>` bootstrap tags React
  * emits in the preamble. An `async` script runs the moment its fetch resolves,
  * and Next's `appBootstrap` calls `hydrate()` **synchronously** when
- * `self.__next_s` is empty, which it always is here: `disableNextScript` emits a
- * plain inline tag rather than a `beforeInteractive` one, and that queue was the
- * only thing that used to order the assignment ahead of hydration. So on a warm
- * cache both module bodies and the first commit can run before the parser has
- * reached the assignment.
+ * `self.__next_s` is empty, which it always is here: the local environment
+ * transport emits a plain inline tag rather than a `beforeInteractive` one, and
+ * that queue was the only thing that used to order the assignment ahead of
+ * hydration. So on a warm cache both module bodies and the first commit can run
+ * before the parser has reached the assignment.
  *
  * An attribute has no such ordering problem. `<html>` is the first tag in the
  * document — ~490 bytes ahead of the first bootstrap script — so
@@ -74,8 +74,8 @@ function readDocumentPublicEnv(): Record<string, string> | null {
  * that happen before the parser reaches that script — see the attribute's own
  * docs for why that window exists.
  *
- * We do not use next-runtime-env's `env()` helper because it calls `unstable_noStore()`,
- * which Next 16.2+ rejects outside a request scope.
+ * The local script transport avoids request-scoped APIs in this browser-safe
+ * getter, which can run from module initialization.
  */
 const getEnv = (variable: string): string | undefined => {
   if (typeof window === 'undefined') return process.env[variable]

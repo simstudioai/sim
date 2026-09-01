@@ -377,11 +377,6 @@ export const executionSnapshotDataSchema = z.object({
   }),
 })
 
-export const triggersQuerySchema = z.object({
-  workspaceId: z.string(),
-})
-export type TriggersQuery = z.output<typeof triggersQuerySchema>
-
 export type SegmentStats = z.output<typeof segmentStatsSchema>
 export type WorkflowStats = z.output<typeof workflowStatsSchema>
 export type DashboardStatsResponse = z.output<typeof dashboardStatsResponseSchema>

@@ -298,10 +298,10 @@ export const internalSelectorAttachments = {
   },
   'providers.openrouterEmbeddingModels': {
     destination: 'fixed',
-    async execute() {
+    async execute(args: ExecuteServerSelectorArgs) {
       if (isProviderBlacklisted('openrouter')) return listSelectorResult([])
       const models = filterBlacklistedModels(
-        (await fetchOpenRouterEmbeddingModelCatalog()).map((model) => model.id)
+        (await fetchOpenRouterEmbeddingModelCatalog(args.signal)).map((model) => model.id)
       )
       return listSelectorResult([...new Set(models)].map((model) => ({ id: model, label: model })))
     },

@@ -34,6 +34,7 @@ export interface ToolCatalogEntry {
     | 'browser_type'
     | 'browser_wait_for'
     | 'call_integration_tool'
+    | 'cancel_workflow_run'
     | 'connect_slack_bot'
     | 'cp'
     | 'create_empty_file'
@@ -163,6 +164,7 @@ export interface ToolCatalogEntry {
     | 'browser_type'
     | 'browser_wait_for'
     | 'call_integration_tool'
+    | 'cancel_workflow_run'
     | 'connect_slack_bot'
     | 'cp'
     | 'create_empty_file'
@@ -1611,6 +1613,26 @@ export const CallIntegrationTool: ToolCatalogEntry = {
     required: ['toolId', 'description', 'arguments'],
     type: 'object',
   },
+  requiresApproval: true,
+}
+
+export const CancelWorkflowRun: ToolCatalogEntry = {
+  id: 'cancel_workflow_run',
+  name: 'cancel_workflow_run',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      executionId: {
+        type: 'string',
+        description:
+          'Required workflow execution ID returned by run_workflow with async:true or found with query_logs. This identifies a workflow run, not an agent invocation or chat request.',
+      },
+    },
+    required: ['executionId'],
+  },
+  requiredPermission: 'write',
   requiresApproval: true,
 }
 
@@ -4426,7 +4448,11 @@ export const Run: ToolCatalogEntry = {
         description: 'Pre-gathered context: workflow state, block IDs, input requirements.',
         type: 'string',
       },
-      request: { description: 'What to run or what logs to check.', type: 'string' },
+      request: {
+        description:
+          'What to run or cancel, or what logs to check. Include a known workflow executionId when cancelling.',
+        type: 'string',
+      },
     },
     required: ['request'],
     type: 'object',
@@ -7015,6 +7041,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [BrowserType.id]: BrowserType,
   [BrowserWaitFor.id]: BrowserWaitFor,
   [CallIntegrationTool.id]: CallIntegrationTool,
+  [CancelWorkflowRun.id]: CancelWorkflowRun,
   [ConnectSlackBot.id]: ConnectSlackBot,
   [Cp.id]: Cp,
   [CreateEmptyFile.id]: CreateEmptyFile,

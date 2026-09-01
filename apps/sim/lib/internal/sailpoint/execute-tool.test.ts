@@ -136,6 +136,12 @@ const OPERATION_CASES: OperationCase[] = [
     input: { id: 'id' },
   },
   {
+    operation: 'sailpoint_get_entitlement_request_config',
+    method: 'GET',
+    path: '/entitlements/v1/id/entitlement-request-config',
+    input: { id: 'id' },
+  },
+  {
     operation: 'sailpoint_list_roles',
     method: 'GET',
     path: '/roles/v1',
@@ -247,6 +253,19 @@ const OPERATION_CASES: OperationCase[] = [
     providerBody: { newRequests: [], existingRequests: [] },
   },
   {
+    operation: 'sailpoint_get_account_selections',
+    method: 'POST',
+    path: '/access-requests/v1/accounts-selection',
+    input: { requestedFor: ['identity'], requestedItems: [{ type: 'ROLE', id: 'role' }] },
+    body: { requestedFor: ['identity'], requestedItems: [{ type: 'ROLE', id: 'role' }] },
+  },
+  {
+    operation: 'sailpoint_get_access_request_config',
+    method: 'GET',
+    path: '/access-request-config/v2',
+    input: {},
+  },
+  {
     operation: 'sailpoint_cancel_access_request',
     method: 'POST',
     path: '/access-requests/v1/cancel',
@@ -327,6 +346,61 @@ describe('SailPoint internal tool handler', () => {
     }
   )
 
+  it('sends the experimental header for account-selection discovery', async () => {
+    mockFetch
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(Response.json({ identities: [] }))
+    const response = await request('sailpoint_get_account_selections', {
+      requestedFor: ['identity'],
+      requestedItems: [{ type: 'ROLE', id: 'role' }],
+    })
+
+    expect(response.status).toBe(200)
+    const headers = new Headers(mockFetch.mock.calls[1][1]?.headers)
+    expect(headers.get('x-sailpoint-experimental')).toBe('true')
+  })
+
+  it.each([
+    ['sailpoint_get_account_selections', 'accountSelections', { identities: [] }],
+    ['sailpoint_get_access_request_config', 'accessRequestConfig', { accessRequest: {} }],
+    [
+      'sailpoint_get_entitlement_request_config',
+      'entitlementRequestConfig',
+      { accessRequestConfig: {} },
+    ],
+  ])('maps %s to its resource-named output', async (operation, outputKey, providerBody) => {
+    clearSailPointTokenStateForTests()
+    mockFetch.mockReset()
+    mockFetch
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(Response.json(providerBody))
+    const input =
+      operation === 'sailpoint_get_account_selections'
+        ? { requestedFor: ['identity'], requestedItems: [{ type: 'ROLE', id: 'role' }] }
+        : operation === 'sailpoint_get_entitlement_request_config'
+          ? { id: 'entitlement' }
+          : {}
+
+    const response = await request(operation, input)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      output: { [outputKey]: providerBody },
+    })
+  })
+
+  it('rejects a primitive resource response', async () => {
+    mockFetch
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(Response.json('not-a-resource'))
+    const response = await request('sailpoint_get_access_request_config', {})
+
+    expect(response.status).toBe(502)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: 'SailPoint returned an invalid resource response',
+    })
+  })
+
   it('preserves access-request tracking and accepted status', async () => {
     const tracking = {
       newRequests: [{ requestedFor: 'identity', accessRequestIds: ['new'] }],
@@ -341,6 +415,21 @@ describe('SailPoint internal tool handler', () => {
     })
     const body = await response.json()
     expect(body.output).toEqual({ accepted: true, status: 202, ...tracking })
+  })
+
+  it.each([
+    { newRequests: 'invalid', existingRequests: [] },
+    { newRequests: [], existingRequests: { id: 'invalid' } },
+  ])('rejects malformed access-request tracking arrays', async (tracking) => {
+    mockFetch
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(Response.json(tracking, { status: 202 }))
+    const response = await request('sailpoint_request_access', {
+      requestedFor: ['identity'],
+      requestedItems: [{ type: 'ROLE', id: 'role' }],
+    })
+
+    expect(response.status).toBe(502)
   })
 
   it('forwards every advanced Search body field without inventing default indices', async () => {
@@ -512,6 +601,63 @@ describe('SailPoint internal tool handler', () => {
     })
   })
 
+  it('rejects an account selection without an account UUID or native identity', async () => {
+    const response = await request('sailpoint_get_account_selections', {
+      requestedForWithRequestedItems: [
+        {
+          identityId: 'machine',
+          identityType: 'MACHINE',
+          requestedItems: [
+            {
+              type: 'ENTITLEMENT',
+              id: 'entitlement',
+              accountSelection: [{ sourceId: 'source', accounts: [{}] }],
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(response.status).toBe(400)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it.each(['sailpoint_request_access', 'sailpoint_get_account_selections'])(
+    'enforces the recipient cap for entitlement inputs at the %s handler boundary',
+    async (operation) => {
+      const response = await request(operation, {
+        requestType: 'MODIFY_ACCESS',
+        requestedFor: Array.from({ length: 11 }, (_, index) => `identity-${index}`),
+        requestedItems: [{ type: 'ENTITLEMENT', id: 'entitlement' }],
+      })
+
+      expect(response.status).toBe(400)
+      expect(mockFetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['sailpoint_request_access', 'sailpoint_get_account_selections'])(
+    'enforces the nested entitlement cap at the %s handler boundary',
+    async (operation) => {
+      const response = await request(operation, {
+        requestType: 'MODIFY_ACCESS',
+        requestedForWithRequestedItems: [
+          {
+            identityId: 'identity',
+            identityType: 'HUMAN',
+            requestedItems: Array.from({ length: 26 }, (_, index) => ({
+              type: 'ENTITLEMENT',
+              id: `entitlement-${index}`,
+            })),
+          },
+        ],
+      })
+
+      expect(response.status).toBe(400)
+      expect(mockFetch).not.toHaveBeenCalled()
+    }
+  )
+
   it('accepts multiple role revokes but rejects multiple entitlement revokes', async () => {
     mockFetch
       .mockResolvedValueOnce(tokenResponse())
@@ -609,6 +755,39 @@ describe('SailPoint internal tool handler', () => {
       { maxBytes: MAX_SAILPOINT_CSV_BYTES, signal: undefined }
     )
     expect(new URL(String(mockFetch.mock.calls[1][0])).pathname).toBe(path)
+  })
+
+  it('parses a serialized file descriptor and preserves an empty selected CSV', async () => {
+    fileMocks.processFilesToUserFiles.mockReturnValue([
+      { key: 'workspace/empty.csv', name: 'empty.csv', type: 'text/csv' },
+    ])
+    fileMocks.downloadServableFileFromStorage.mockResolvedValue({
+      buffer: Buffer.alloc(0),
+      contentType: 'text/csv',
+    })
+    mockFetch
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(
+        Response.json({ success: true, task: { id: 'task' } }, { status: 202 })
+      )
+    const serializedFile = JSON.stringify({ key: 'empty', name: 'empty.csv', size: 0 })
+
+    const response = await request(
+      'sailpoint_load_accounts',
+      { sourceId: 'source', file: serializedFile },
+      'user'
+    )
+
+    expect(response.status).toBe(200)
+    expect(fileMocks.processFilesToUserFiles).toHaveBeenCalledWith(
+      [{ key: 'empty', name: 'empty.csv', size: 0 }],
+      'request-id',
+      expect.anything()
+    )
+    const form = mockFetch.mock.calls[1][1]?.body as FormData
+    const uploaded = form.get('file')
+    expect(uploaded).toBeInstanceOf(Blob)
+    expect((uploaded as Blob).size).toBe(0)
   })
 
   it('maps an oversized stored CSV to a bounded validation error', async () => {

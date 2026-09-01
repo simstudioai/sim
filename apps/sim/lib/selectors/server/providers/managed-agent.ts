@@ -97,27 +97,39 @@ const credential = {
   serviceIds: ['claude-platform'],
 } as const
 
+/**
+ * The integration this selector reaches. Declared rather than derived: The managed-agent platform is an
+ * API-key integration with no entry in the deployment OAuth catalog, so its
+ * service id maps to no block type and the allowlist would have nothing to
+ * judge it on.
+ */
+const integrationBlockTypes = ['managed_agent'] as const
+
 export const managedAgentSelectorAttachments = {
   'managedAgent.agents': {
     credential,
+    integrationBlockTypes,
     destination: 'fixed',
     auditCredentialUse: true,
     execute: (args) => executeResource(args, 'agents'),
   },
   'managedAgent.environments': {
     credential,
+    integrationBlockTypes,
     destination: 'fixed',
     auditCredentialUse: true,
     execute: (args) => executeResource(args, 'environments'),
   },
   'managedAgent.vaults': {
     credential,
+    integrationBlockTypes,
     destination: 'fixed',
     auditCredentialUse: true,
     execute: (args) => executeResource(args, 'vaults'),
   },
   'managedAgent.memoryStores': {
     credential,
+    integrationBlockTypes,
     destination: 'fixed',
     auditCredentialUse: true,
     execute: (args) => executeResource(args, 'memory-stores'),

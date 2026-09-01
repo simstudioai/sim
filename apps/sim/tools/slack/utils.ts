@@ -124,7 +124,7 @@ export function assertSlackApiSuccess<T extends SlackApiResponse>(
       throw new Error('Invalid authentication. Please check your Slack credentials.')
     case 'missing_scope':
       throw new Error(
-        'Missing a required Slack permission. Reconnect the custom bot with the permissions required by this operation.'
+        'Missing a required Slack permission. Reconnect the selected credential with the permissions required by this operation.'
       )
     case 'channel_not_found':
       throw new Error('Channel not found. Please check the channel ID.')

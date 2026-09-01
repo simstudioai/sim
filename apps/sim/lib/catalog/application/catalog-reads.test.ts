@@ -378,8 +378,13 @@ describe('catalog block and tool reads', () => {
     ).rejects.toMatchObject({ code: 'not_found', message: 'Block not found' })
   })
 
+  /**
+   * The gate answers in the resolved vocabulary — `slack` is judged as
+   * `slack_v2` on both sides — so the allowlist naming the successor is what
+   * keeps the legacy block visible.
+   */
   it('drops a block the permission-group allowlist excludes, from list and detail alike', async () => {
-    mocks.allowedIntegrationTypes.mockResolvedValue(new Set(['slack']))
+    mocks.allowedIntegrationTypes.mockResolvedValue(new Set(['slack_v2']))
 
     const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
     expect(result.entries.map((entry) => entry.id)).toEqual(['slack'])

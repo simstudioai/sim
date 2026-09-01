@@ -54,10 +54,19 @@
     "format:check": "biome format ."
   },
   "peerDependencies": {
+    "next": ">=15 <17",
+    "stripe": ">=18 <19",
     "vitest": "^3.0.0 || >=4.1.0 <5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "stripe": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
+    "next": "16.3.1",
+    "stripe": "18.5.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.0"
   },

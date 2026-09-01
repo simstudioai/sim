@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   appendCopilotChatMessages,
   persistCopilotChatTurn,
-  replaceCopilotChatMessages,
 } from '@/lib/copilot/chat/messages-store'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 
@@ -157,75 +156,6 @@ describe('messages-store', () => {
 
     it('strips tool-result output before persisting, keeping success/error', async () => {
       await appendCopilotChatMessages('chat-1', [toolMsg])
-
-      const toolCall = lastRowContent(0).contentBlocks?.[0].toolCall
-      expect(toolCall?.result).toEqual({ success: false, error: 'too big' })
-      expect(JSON.stringify(lastValuesRows())).not.toContain('huge')
-    })
-  })
-
-  describe('replaceCopilotChatMessages', () => {
-    it('deletes all chat rows when given an empty snapshot', async () => {
-      await replaceCopilotChatMessages('chat-1', [])
-
-      expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-      expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
-      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    })
-
-    it('deletes only rows whose message_id is not in the new snapshot, then upserts', async () => {
-      await replaceCopilotChatMessages('chat-1', [userMsg, assistantMsg])
-
-      expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
-      expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
-
-      const rows = lastValuesRows()
-      expect(rows).toHaveLength(2)
-      expect(rows.map((r) => r.messageId)).toEqual(['msg-user-1', 'msg-asst-1'])
-
-      expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledTimes(1)
-      const conflictArg = dbChainMockFns.onConflictDoUpdate.mock.calls[0][0]
-      expect(conflictArg.set).toHaveProperty('streamId')
-      expect(conflictArg.set).toHaveProperty('model')
-    })
-
-    it('assigns seq as the snapshot array index (0-based)', async () => {
-      await replaceCopilotChatMessages('chat-1', [userMsg, assistantMsg])
-      const rows = lastValuesRows()
-      expect(rows[0].seq).toBe(0)
-      expect(rows[1].seq).toBe(1)
-    })
-
-    it('OVERWRITES seq on conflict so positions re-densify after a delete', async () => {
-      await replaceCopilotChatMessages('chat-1', [userMsg])
-      const conflictArg = dbChainMockFns.onConflictDoUpdate.mock.calls[0][0]
-      expect(conflictArg.set.seq.strings.join('')).toBe('excluded.seq')
-    })
-
-    it('collapses duplicate message ids to a single row', async () => {
-      await replaceCopilotChatMessages('chat-1', [userMsg, { ...userMsg, content: 'dupe' }])
-      const rows = lastValuesRows()
-      expect(rows).toHaveLength(1)
-      expect(rows[0].seq).toBe(0)
-    })
-
-    it('passes chatModel to every row in the snapshot', async () => {
-      await replaceCopilotChatMessages('chat-1', [userMsg], {
-        chatModel: 'gpt-4o-mini',
-      })
-
-      const rows = lastValuesRows()
-      expect(rows[0].model).toBe('gpt-4o-mini')
-    })
-
-    it('propagates DB errors — the snapshot is authoritative', async () => {
-      dbChainMockFns.transaction.mockRejectedValueOnce(new Error('tx aborted'))
-
-      await expect(replaceCopilotChatMessages('chat-1', [userMsg])).rejects.toThrow('tx aborted')
-    })
-
-    it('strips tool-result output before persisting, keeping success/error', async () => {
-      await replaceCopilotChatMessages('chat-1', [toolMsg])
 
       const toolCall = lastRowContent(0).contentBlocks?.[0].toolCall
       expect(toolCall?.result).toEqual({ success: false, error: 'too big' })

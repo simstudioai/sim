@@ -183,3 +183,31 @@ describe('readLogs', () => {
     expect(result.data[0].workflowId).toBe('wf-1')
   })
 })
+
+describe('readLogs cost projection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  /**
+   * The list carries the same run total the detail does, so a group that
+   * withholds spend on one and not the other has withheld nothing.
+   */
+  it('blanks the run total on workflow and job summaries alike', async () => {
+    queueTableRows(workflowExecutionLogs, [workflowRow()])
+    queueTableRows(jobExecutionLogs, [jobRow()])
+
+    const result = await readLogs(baseParams({ hideCostInfo: true }))
+
+    expect(result.data).toHaveLength(2)
+    for (const summary of result.data) {
+      expect(summary.cost).toBeNull()
+    }
+    // Nothing else about the row is withheld.
+    expect(result.data.find((row) => row.id === 'log-1')).toMatchObject({
+      executionId: 'exec-1',
+      duration: '1000ms',
+    })
+  })
+})

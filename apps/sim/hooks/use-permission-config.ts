@@ -15,13 +15,16 @@ import {
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
-import { createModelAccessGate } from '@/lib/permission-groups/model-access'
-import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
-} from '@/lib/permission-groups/types'
+} from '@/lib/permission-groups/fields'
+import {
+  intersectAccessControlAllowlists,
+  resolveAccessControlBlockType,
+} from '@/lib/permission-groups/integration-allowlist'
+import { createModelAccessGate } from '@/lib/permission-groups/model-access'
+import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { overlayVisibility } from '@/blocks/visibility/context'
@@ -83,10 +86,31 @@ export function usePermissionConfig(): PermissionConfigResult {
 
   const isInPermissionGroup = !!permissionData?.permissionGroupId
 
-  const mergedAllowedIntegrations = useMemo(() => {
-    const envAllowlist = envAllowlistData?.allowedIntegrations ?? null
-    return intersectIntegrationAllowlists(config.allowedIntegrations, envAllowlist)
-  }, [config.allowedIntegrations, envAllowlistData])
+  /**
+   * Both sides of the membership test are judged as the current block, so a
+   * policy naming a retired id — `ALLOWED_INTEGRATIONS=slack` — still permits
+   * the successor the editor offers.
+   *
+   * Each policy is canonicalized *before* the two are intersected, not after: a
+   * group naming `slack` and an env allowlist naming `slack_v2` intersect to
+   * nothing textually, hiding an integration both policies allow. This is the
+   * same helper the server gates use — `mergeEnvAllowlist` for the config the
+   * catalog reads, `allowedIntegrationTypes` for the block and selector gates —
+   * so what this hook shows and what the server permits cannot disagree.
+   */
+  const allowedAccessControlTypes = useMemo(
+    () =>
+      intersectAccessControlAllowlists(
+        config.allowedIntegrations,
+        envAllowlistData?.allowedIntegrations ?? null
+      ),
+    [config.allowedIntegrations, envAllowlistData]
+  )
+
+  const mergedAllowedIntegrations = useMemo(
+    () => (allowedAccessControlTypes === null ? null : [...allowedAccessControlTypes]),
+    [allowedAccessControlTypes]
+  )
 
   const integrationAvailability = useMemo(() => {
     const visibility = overlayVisibility()
@@ -116,10 +140,10 @@ export function usePermissionConfig(): PermissionConfigResult {
         return false
       }
       if (isBlockTypeAccessControlExempt(blockType)) return true
-      if (mergedAllowedIntegrations === null) return true
-      return mergedAllowedIntegrations.includes(normalizedBlockType)
+      if (allowedAccessControlTypes === null) return true
+      return allowedAccessControlTypes.has(resolveAccessControlBlockType(normalizedBlockType))
     }
-  }, [hostContext?.features?.credentialGroups, integrationAvailability, mergedAllowedIntegrations])
+  }, [hostContext?.features?.credentialGroups, integrationAvailability, allowedAccessControlTypes])
 
   const isModelUsable = useMemo(
     () =>

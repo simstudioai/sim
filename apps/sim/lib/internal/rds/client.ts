@@ -74,7 +74,11 @@ function parseFieldValue(field: Field): unknown {
     if (arr.longValues) return arr.longValues
     if (arr.doubleValues) return arr.doubleValues
     if (arr.booleanValues) return arr.booleanValues
-    if (arr.arrayValues) return arr.arrayValues.map((f) => parseFieldValue({ arrayValue: f }))
+    if (arr.arrayValues) {
+      return arr.arrayValues.map((value) =>
+        value === null ? null : parseFieldValue({ arrayValue: value })
+      )
+    }
     return []
   }
   return null

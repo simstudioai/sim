@@ -1,4 +1,4 @@
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { findProviderFromModel } from '@/providers/utils'
 
 /** Decides whether the caller's permission group allows a concrete model id. */

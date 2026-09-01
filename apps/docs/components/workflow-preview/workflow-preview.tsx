@@ -2,28 +2,31 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Expand, X } from '@sim/emcn/icons'
-import { domAnimation, LazyMotion, m } from 'framer-motion'
-import ReactFlow, {
+import { CANVAS_Z_INDEX_MODE } from '@sim/workflow-renderer'
+import {
   applyEdgeChanges,
   applyNodeChanges,
-  type Edge,
   type EdgeProps,
   type EdgeTypes,
   getSmoothStepPath,
-  type Node,
   type NodeTypes,
   type OnEdgesChange,
   type OnNodesChange,
+  ReactFlow,
   ReactFlowProvider,
-} from 'reactflow'
-import 'reactflow/dist/style.css'
+} from '@xyflow/react'
+import { domAnimation, LazyMotion, m } from 'framer-motion'
+import '@xyflow/react/dist/style.css'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { BlockInspector } from '@/components/workflow-preview/block-inspector'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
 import { DocsContainerNode } from '@/components/workflow-preview/docs-container-node'
+import { usePreviewColorMode } from '@/components/workflow-preview/use-preview-color-mode'
 import {
   EASE_OUT,
   type PreviewBlock,
+  type PreviewFlowEdge,
+  type PreviewNode,
   type PreviewWorkflow,
   toReactFlowElements,
 } from '@/components/workflow-preview/workflow-data'
@@ -50,7 +53,7 @@ function PreviewEdge({
   targetPosition,
   style,
   data,
-}: EdgeProps) {
+}: EdgeProps<PreviewFlowEdge>) {
   const [edgePath] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -89,11 +92,11 @@ function PreviewEdge({
   )
 }
 
-const NODE_TYPES: NodeTypes = {
+const NODE_TYPES = {
   previewBlock: DocsBlockNode,
   previewContainer: DocsContainerNode,
-}
-const EDGE_TYPES: EdgeTypes = { previewEdge: PreviewEdge }
+} satisfies NodeTypes
+const EDGE_TYPES = { previewEdge: PreviewEdge } satisfies EdgeTypes
 const PRO_OPTIONS = { hideAttribution: true }
 const FIT_VIEW_OPTIONS = { padding: 0.25, maxZoom: 1 } as const
 const LIGHTBOX_FIT_VIEW_OPTIONS = { padding: 0.3, maxZoom: 1.4 } as const
@@ -176,8 +179,9 @@ function PreviewFlow({
     [workflow, animate, highlightBlock, highlightEdge, selectedBlock]
   )
 
-  const [nodes, setNodes] = useState<Node[]>(initialNodes)
-  const [edges, setEdges] = useState<Edge[]>(initialEdges)
+  const colorMode = usePreviewColorMode()
+  const [nodes, setNodes] = useState<PreviewNode[]>(initialNodes)
+  const [edges, setEdges] = useState<PreviewFlowEdge[]>(initialEdges)
 
   /**
    * Apply data changes (highlight/selection) without discarding positions the
@@ -194,17 +198,19 @@ function PreviewFlow({
     setEdges(initialEdges)
   }, [initialNodes, initialEdges])
 
-  const onNodesChange: OnNodesChange = useCallback(
+  const onNodesChange: OnNodesChange<PreviewNode> = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
     []
   )
-  const onEdgesChange: OnEdgesChange = useCallback(
+  const onEdgesChange: OnEdgesChange<PreviewFlowEdge> = useCallback(
     (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
     []
   )
 
   return (
-    <ReactFlow
+    <ReactFlow<PreviewNode, PreviewFlowEdge>
+      colorMode={colorMode}
+      zIndexMode={CANVAS_Z_INDEX_MODE}
       nodes={nodes}
       edges={edges}
       onNodesChange={onNodesChange}

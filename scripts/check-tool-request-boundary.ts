@@ -10,12 +10,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from '@babel/parser'
+import ts from '@typescript/typescript6'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
 const APP = join(ROOT, 'apps/sim')
 const CANONICAL_TRANSPORT = join(APP, 'tools/request-transport.ts')
 const REQUEST_MEMBERS = new Set(['url', 'method', 'headers', 'body'])
+const REQUEST_CANDIDATE_TOKENS = new Set(['request', ...REQUEST_MEMBERS])
 const SIM_URLS_MODULE = '@/lib/core/utils/urls'
 const SIM_ORIGIN_EXPORTS = new Set(['getBaseUrl', 'getInternalApiBaseUrl'])
 const SIM_URL_BUILDER_EXPORTS = new Set(['ensureAbsoluteUrl'])
@@ -1596,8 +1598,7 @@ function getResolvedObjectProperties(
 }
 
 /** Rejects tool definitions that route execution back through this Sim app. */
-export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfHopAudit {
-  const program = parseProgram(source, file)
+function auditToolSelfHopProgram(program: SyntaxNode, file: string): ToolSelfHopAudit {
   const violations: ToolSelfHopViolation[] = []
   let detectedSelfHops = 0
   let legacyInternalPolicies = 0
@@ -1753,6 +1754,10 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
   return { violations, detectedSelfHops, legacyInternalPolicies }
 }
 
+export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfHopAudit {
+  return auditToolSelfHopProgram(parseProgram(source, file), file)
+}
+
 function getStaticMemberAccess(
   expression: SyntaxNode
 ): { target: SyntaxNode; member: string } | undefined {
@@ -1809,17 +1814,11 @@ function isLikelyToolIdentifier(expression: SyntaxNode): boolean {
   )
 }
 
-function findToolRequestBoundaryViolations(source: string, file = 'source.ts'): Violation[] {
-  const extension = extname(file)
-  const syntaxTree = parse(source, {
-    sourceFilename: file,
-    sourceType: 'unambiguous',
-    errorRecovery: true,
-    plugins: [
-      ...(extension === '.jsx' || extension === '.tsx' ? (['jsx'] as const) : []),
-      ...(!['.js', '.jsx', '.mjs', '.cjs'].includes(extension) ? (['typescript'] as const) : []),
-    ],
-  })
+function findToolRequestBoundaryViolations(
+  program: SyntaxNode,
+  source: string,
+  file: string
+): Violation[] {
   const requestAliases = new Set<string>()
   const violations: Violation[] = []
   const seen = new Set<number>()
@@ -1850,7 +1849,7 @@ function findToolRequestBoundaryViolations(source: string, file = 'source.ts'): 
     }
     for (const child of getChildNodes(node)) collectAliases(child)
   }
-  collectAliases(syntaxTree.program)
+  collectAliases(program)
 
   const visit = (node: SyntaxNode) => {
     if (
@@ -1905,19 +1904,52 @@ function findToolRequestBoundaryViolations(source: string, file = 'source.ts'): 
     }
     for (const child of getChildNodes(node)) visit(child)
   }
-  visit(syntaxTree.program)
+  visit(program)
 
   return violations
 }
 
+export function mayAccessToolRequest(source: string): boolean {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.JSX, source)
+  let hasRequest = false
+  let hasRequestMember = false
+
+  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
+    if (
+      token !== ts.SyntaxKind.Identifier &&
+      token !== ts.SyntaxKind.StringLiteral &&
+      token !== ts.SyntaxKind.NoSubstitutionTemplateLiteral
+    ) {
+      continue
+    }
+    const value = scanner.getTokenValue()
+    if (!REQUEST_CANDIDATE_TOKENS.has(value)) continue
+    if (value === 'request') hasRequest = true
+    else hasRequestMember = true
+    if (hasRequest && hasRequestMember) return true
+  }
+  return false
+}
+
 function main(): void {
   const productionSources = collectProductionSources(APP)
-  const violations = productionSources
-    .filter((file) => file !== CANONICAL_TRANSPORT)
-    .flatMap((file) => findToolRequestBoundaryViolations(readFileSync(file, 'utf8'), file))
-  const selfHopAudits = productionSources
-    .filter((file) => file.startsWith(join(APP, 'tools')))
-    .map((file) => auditToolSelfHops(readFileSync(file, 'utf8'), file))
+  const violations: Violation[] = []
+  const selfHopAudits: ToolSelfHopAudit[] = []
+
+  for (const file of productionSources) {
+    const isToolSource = file.startsWith(join(APP, 'tools'))
+    const source = readFileSync(file, 'utf8')
+    const auditsDirectAccess = file !== CANONICAL_TRANSPORT && mayAccessToolRequest(source)
+    if (!isToolSource && !auditsDirectAccess) continue
+
+    const program = parseProgram(source, file)
+    if (auditsDirectAccess) {
+      violations.push(...findToolRequestBoundaryViolations(program, source, file))
+    }
+    if (isToolSource) {
+      selfHopAudits.push(auditToolSelfHopProgram(program, file))
+    }
+  }
   const selfHopViolations = selfHopAudits.flatMap((audit) => audit.violations)
 
   if (violations.length > 0) {

@@ -156,8 +156,6 @@ const RAW_JSON_BASELINE_ROUTES = new Set([
   'apps/sim/app/api/mcp/workflow-servers/[id]/tools/route.ts',
   'apps/sim/app/api/mcp/workflow-servers/[id]/tools/[toolId]/route.ts',
   'apps/sim/app/api/organizations/route.ts',
-  'apps/sim/app/api/organizations/[id]/invitations/route.ts',
-  'apps/sim/app/api/organizations/[id]/members/route.ts',
   'apps/sim/app/api/organizations/[id]/transfer-ownership/route.ts',
   'apps/sim/app/api/resume/[workflowId]/[executionId]/[contextId]/route.ts',
   'apps/sim/app/api/speech/token/route.ts',
@@ -261,6 +259,16 @@ const SOURCE_SKIP_DIRS = new Set([
 ])
 
 type AnnotationKind = 'raw-fetch' | 'double-cast' | 'raw-json' | 'untyped-response'
+
+const sourceCache = new Map<string, string>()
+
+async function readSource(filePath: string): Promise<string> {
+  const cached = sourceCache.get(filePath)
+  if (cached !== undefined) return cached
+  const content = await readFile(filePath, 'utf8')
+  sourceCache.set(filePath, content)
+  return content
+}
 
 interface AnnotationResult {
   allowed: boolean
@@ -1257,7 +1265,7 @@ async function auditQueryHooks(): Promise<QueryHookAudit[]> {
   const audits: QueryHookAudit[] = []
 
   for (const filePath of queryHookFiles) {
-    const content = await readFile(filePath, 'utf8')
+    const content = await readSource(filePath)
     audits.push(auditQueryHook(filePath, content))
   }
 
@@ -1274,7 +1282,7 @@ async function main() {
   let rawJsonExemptions = 0
 
   for (const filePath of routeFiles) {
-    const content = await readFile(filePath, 'utf8')
+    const content = await readSource(filePath)
     audits.push(auditRoute(filePath, content))
 
     const rawJson = findRawJsonFindings(filePath, content)
@@ -1293,12 +1301,14 @@ async function main() {
   let doubleCastExemptions = 0
 
   const appsSimRoot = path.join(ROOT, 'apps/sim')
+  const contractsRoot = path.join(CONTRACTS_DIR, path.sep)
 
   for (const filePath of sourceFiles) {
-    const content = await readFile(filePath, 'utf8')
+    const content = sourceCache.get(filePath) ?? (await readFile(filePath, 'utf8'))
+    if (filePath.startsWith(contractsRoot)) sourceCache.set(filePath, content)
     const normalized = filePath.replace(/\\/g, '/')
 
-    if (isClientHookFile(filePath)) {
+    if (isClientHookFile(filePath) && content.includes('fetch')) {
       const rawFetch = findRawFetchFindings(filePath, content)
       rawFetchFindings.push(...rawFetch.findings)
       rawFetchExemptions += rawFetch.exemptions
@@ -1308,7 +1318,9 @@ async function main() {
     if (
       normalized.startsWith(`${appsSimRoot}/`) &&
       !isApiRouteHandler(filePath) &&
-      filePath !== path.join(ROOT, 'scripts', 'check-api-validation-contracts.ts')
+      filePath !== path.join(ROOT, 'scripts', 'check-api-validation-contracts.ts') &&
+      content.includes('fetch') &&
+      content.includes('/api/')
     ) {
       const sameOrigin = findSameOriginApiFetchFindings(filePath, content)
       sameOriginApiFetchFindings.push(...sameOrigin.findings)
@@ -1316,10 +1328,12 @@ async function main() {
       annotationsMissingReason.push(...sameOrigin.missingReasons)
     }
 
-    const doubleCast = findDoubleCastFindings(filePath, content)
-    doubleCastFindings.push(...doubleCast.findings)
-    doubleCastExemptions += doubleCast.exemptions
-    annotationsMissingReason.push(...doubleCast.missingReasons)
+    if (content.includes('as unknown as')) {
+      const doubleCast = findDoubleCastFindings(filePath, content)
+      doubleCastFindings.push(...doubleCast.findings)
+      doubleCastExemptions += doubleCast.exemptions
+      annotationsMissingReason.push(...doubleCast.missingReasons)
+    }
   }
 
   const contractFiles = await walk(CONTRACTS_DIR, (fileName) => /\.ts$/.test(fileName))
@@ -1327,7 +1341,7 @@ async function main() {
   let untypedResponseExemptions = 0
 
   for (const filePath of contractFiles) {
-    const content = await readFile(filePath, 'utf8')
+    const content = await readSource(filePath)
     const untyped = findUntypedResponseFindings(filePath, content)
     untypedResponseFindings.push(...untyped.findings)
     untypedResponseExemptions += untyped.exemptions

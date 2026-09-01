@@ -6,6 +6,8 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export const GET = withRouteHandler(
@@ -32,6 +34,11 @@ export const GET = withRouteHandler(
     }
     if (!permission) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
+    // permission-group-enforced: inbox.use — raw handler with inline queries, which the authorization funnel never sees
+    if (await isWorkspaceCapabilityWithheld(session.user.id, workspaceId, 'inbox.use')) {
+      return capabilityRefusalResponse('inbox.use')
     }
 
     const queryResult = inboxTasksQuerySchema.safeParse(

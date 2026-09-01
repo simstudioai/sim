@@ -12,14 +12,19 @@ import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getInvitationById } from '@/lib/invitations/core'
+import { getInvitationById, resolveInvitationAdmissionOrganizationId } from '@/lib/invitations/core'
 import {
   persistInvitationResend,
   prepareInvitationResend,
   sendInvitationEmail,
 } from '@/lib/invitations/send'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getWorkspaceWithOwner, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
+import {
+  InvitationsNotAllowedError,
+  validateInvitationsAllowed,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('InvitationResendAPI')
 
@@ -63,6 +68,55 @@ export const POST = withRouteHandler(
           { error: 'Only an organization or workspace admin can resend this invitation' },
           { status: 403 }
         )
+      }
+
+      /**
+       * permission-group-enforced: invitations.send — a resend is a send.
+       *
+       * It re-delivers a working link and pushes `expiresAt` forward, so an
+       * organization that has withheld invitations would otherwise still admit
+       * new people: every pending invitation stays revivable indefinitely by
+       * anyone who can reach this route, and each resend mints a fresh token.
+       * The invitee has not joined yet — resend is the step that gets them in —
+       * which is why this is not the webhook active-config carve-out, where the
+       * reachability already exists and the edit only adjusts it.
+       *
+       * Each granted workspace resolves the group governing the caller there,
+       * exactly as creation does. The organization scope is checked *as well*,
+       * not instead, whenever the invitation ADMITS TO an organization — which
+       * is not the same question as its `kind`. A workspace-kind invitation
+       * whose granted workspace belongs to an organization joins the invitee to
+       * that organization exactly as an organization-kind one does, so keying
+       * this on the kind left every organization-backed workspace invitation
+       * performing an ungated organization admission. `resolveInvitationAdmission-
+       * OrganizationId` answers it from acceptance's own derivation: the live
+       * organization of the granted workspace for a workspace-kind invitation,
+       * the stamped one otherwise, and nobody at all when the intent is external
+       * or the stamped organization refuses the escalation — the three cases
+       * where acceptance creates no member row. Gating only the grants would let
+       * an explicit workspace group that permits invitations carry a member into
+       * an organization whose default group withholds them.
+       *
+       * Run after the admin check above, for the reason
+       * `resolveWorkspaceInvitationContext` records — the refusal names an
+       * organization setting, so it must not reach someone with no admin reach.
+       */
+      try {
+        const admissionOrganizationId = await resolveInvitationAdmissionOrganizationId(inv)
+        if (admissionOrganizationId) {
+          await validateInvitationsAllowed(session.user.id, {
+            organizationId: admissionOrganizationId,
+          })
+        }
+        for (const grant of inv.grants) {
+          await validateInvitationsAllowed(session.user.id, { workspaceId: grant.workspaceId })
+        }
+      } catch (error) {
+        if (error instanceof InvitationsNotAllowedError) {
+          logger.warn('Invitation resend blocked by permission group', { invitationId: id })
+          return capabilityRefusalResponse('invitations.send')
+        }
+        throw error
       }
 
       for (const grant of inv.grants) {

@@ -54,7 +54,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Docume
       parsed.data.query
     const { id: knowledgeBaseId } = parsed.data.params
 
-    const result = await resolveKnowledgeBase(knowledgeBaseId, workspaceId, userId, rateLimit)
+    const result = await resolveKnowledgeBase(
+      knowledgeBaseId,
+      workspaceId,
+      userId,
+      rateLimit,
+      'knowledge.use'
+    )
     if (result instanceof NextResponse) return result
 
     const documentsResult = await getDocuments(
@@ -159,6 +165,7 @@ export const POST = withRouteHandler(
         workspaceId,
         userId,
         rateLimit,
+        'knowledge.upload',
         'write'
       )
       if (result instanceof NextResponse) return result

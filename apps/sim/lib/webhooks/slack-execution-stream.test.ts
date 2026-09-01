@@ -309,10 +309,67 @@ describe('SlackExecutionStreamController', () => {
     await streaming
   })
 
-  it('sends selected non-streaming outputs after block completion', async () => {
+  it('streams transformed answer text with tool and thinking events from the event sink', async () => {
+    const { controller } = await createController()
+    const events: AgentStreamEvent[] = [
+      { type: 'thinking_delta', text: 'Checking Gmail' },
+      { type: 'tool_call_start', id: 'tool-1', name: 'gmail_send_email' },
+      {
+        type: 'tool_call_end',
+        id: 'tool-1',
+        name: 'gmail_send_email',
+        status: 'success',
+      },
+      { type: 'text_delta', text: 'Unselected structured response', turn: 'pending' },
+      { type: 'turn_end', turn: 'final' },
+    ]
+
+    const subscribe = vi.fn(({ onEvent }) => {
+      for (const event of events) void onEvent(event)
+      return vi.fn()
+    })
+
+    await controller.callbacks.onStream?.({
+      blockId: 'agent',
+      executionOrder: 6,
+      stream: createByteStream('Selected answer'),
+      streamFormat: 'text',
+      clientStreamTransformed: true,
+      subscribe,
+    })
+
+    expect(subscribe).toHaveBeenCalledOnce()
+    const appendedChunks = mockAppendSlackAgentStream.mock.calls.flatMap((call) => call[3])
+    expect(appendedChunks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'task_update',
+          title: 'Thinking',
+          status: 'complete',
+        }),
+        expect.objectContaining({
+          type: 'task_update',
+          title: 'Gmail Send Email',
+          status: 'in_progress',
+        }),
+        expect.objectContaining({
+          type: 'task_update',
+          title: 'Gmail Send Email',
+          status: 'complete',
+        }),
+        { type: 'markdown_text', text: 'Selected answer' },
+      ])
+    )
+    expect(appendedChunks).not.toContainEqual({
+      type: 'markdown_text',
+      text: 'Unselected structured response',
+    })
+  })
+
+  it('sends a selected nested non-streaming output after block completion', async () => {
     const config: SlackStreamResponseConfig = {
       ...BASE_CONFIG,
-      outputConfigs: [{ blockId: 'lookup', path: 'result.name' }],
+      outputConfigs: [{ workflowId: 'child-workflow', blockId: 'lookup', path: 'result.name' }],
     }
     const { controller } = await createController(config, {
       event: { channel: 'D123', timestamp: '1700000000.000001', user: 'U123' },
@@ -324,6 +381,8 @@ describe('SlackExecutionStreamController', () => {
       startedAt: '2026-08-31T00:00:00.000Z',
       executionOrder: 7,
       endedAt: '2026-08-31T00:00:00.010Z',
+      outputBlockId: 'child-workflow.lookup',
+      childWorkflowInstanceId: 'child-instance-1',
     })
 
     expect(mockStartSlackAgentStream).toHaveBeenCalledWith(
@@ -344,6 +403,29 @@ describe('SlackExecutionStreamController', () => {
       [{ type: 'markdown_text', text: 'Ada' }],
       undefined
     )
+  })
+
+  it('keeps repeated invocations of the same child workflow distinct', async () => {
+    const config: SlackStreamResponseConfig = {
+      ...BASE_CONFIG,
+      outputConfigs: [{ workflowId: 'child-workflow', blockId: 'agent', path: 'content' }],
+    }
+    const { controller } = await createController(config, {
+      event: { channel: 'D123', timestamp: '1700000000.000001', user: 'U123' },
+    })
+
+    for (const childWorkflowInstanceId of ['child-instance-1', 'child-instance-2']) {
+      await controller.callbacks.onStream?.({
+        blockId: 'child-workflow.agent',
+        childWorkflowInstanceId,
+        executionOrder: 1,
+        stream: createByteStream(childWorkflowInstanceId),
+        execution: { success: true, output: {} },
+      })
+    }
+
+    expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(2)
+    expect(() => controller.assertSucceeded()).not.toThrow()
   })
 
   it('rejects credentials that do not belong to the workflow workspace', async () => {

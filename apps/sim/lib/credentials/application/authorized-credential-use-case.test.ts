@@ -31,6 +31,7 @@ const memberOperation = defineCredentialOperation(
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
+    capability: 'integrations.manage',
   }),
   'member'
 )
@@ -40,6 +41,7 @@ const adminOperation = defineCredentialOperation(
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
+    capability: 'integrations.manage',
   }),
   'admin'
 )

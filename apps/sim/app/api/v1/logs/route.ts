@@ -6,9 +6,18 @@ import { parseRequest } from '@/lib/api/server'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
-import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
-import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
+  assertLogCostQueryAllowed,
+  projectCostTotal,
+  projectExecutionData,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
+import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
+import { createApiResponse, getUserLimits, projectUserLimits } from '@/app/api/v1/logs/meta'
+import {
+  capabilityGovernedUserId,
   checkRateLimit,
   createRateLimitResponse,
   v1ValidationErrorResponse,
@@ -42,8 +51,45 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const params = parsed.data.query
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      params.workspaceId,
+      'none',
+      'read'
+    )
     if (accessError) return accessError
+
+    /** `logs.trace_spans` and `logs.cost` are projections, not gates — see {@link resolveLogFieldProjection}. */
+    const projection = await resolveLogFieldProjection(
+      capabilityGovernedUserId(rateLimit),
+      params.workspaceId
+    )
+
+    /**
+     * Project the value, then refuse the query that selects on it. `minCost` and
+     * `maxCost` bisect the very total `projectCostTotal` blanks below, so
+     * withholding one while answering the other is incoherent. This surface
+     * orders by `startedAt` alone — it publishes no `sortBy` — so the ordering
+     * half of the oracle is not reachable here.
+     *
+     * It runs after the workspace access check above, so the caller is a member
+     * being told about their own group rather than an outsider handed an
+     * organization-configuration oracle.
+     *
+     * The assertion throws so every surface refuses in the same words, and this
+     * route builds its own responses rather than running inside a JSON route
+     * builder, so the throw is caught here instead of by a shared error
+     * projection. Caught narrowly on purpose — the handler's outer `catch`
+     * renders a 500, and letting a 403 fall into it would report an
+     * organization's policy as a Sim fault.
+     */
+    try {
+      assertLogCostQueryAllowed({ minCost: params.minCost, maxCost: params.maxCost }, projection)
+    } catch (error) {
+      if (!(error instanceof PermissionGroupCapabilityError)) throw error
+      return capabilityRefusalResponse(error.capability)
+    }
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {
       userId,
@@ -80,14 +126,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       order: params.order,
     }
 
+    /**
+     * `withheldExecutionData` strips `traceSpans` AND `finalOutput`, so under
+     * `hideTraceSpans` both opt-in payload fields project to nothing. Reading
+     * the projection here rather than after the fetch keeps the surface from
+     * selecting every row's execution blob out of the trace store and
+     * materializing it only to delete it.
+     */
+    const needsMaterialize =
+      params.details === 'full' &&
+      (params.includeFinalOutput || params.includeTraceSpans) &&
+      !projection.hideTraceSpans
+
     const { data, nextCursor } = await listPublicWorkflowLogs({
       filters,
       limit: params.limit,
-      includeExecutionData: params.details === 'full',
+      includeExecutionData: needsMaterialize,
     })
-
-    const needsMaterialize =
-      params.details === 'full' && (params.includeFinalOutput || params.includeTraceSpans)
 
     const buildBase = (log: (typeof data)[number]) => {
       const result: any = {
@@ -100,7 +155,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         startedAt: log.startedAt.toISOString(),
         endedAt: log.endedAt?.toISOString() || null,
         totalDurationMs: log.totalDurationMs,
-        cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
+        cost: projectCostTotal(log.costTotal, projection),
         files: log.files || null,
       }
 
@@ -120,7 +175,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
           const result = buildBase(log)
           if (log.executionData) {
-            const execData = (await materializeExecutionDataForDisplay(
+            const materialized = (await materializeExecutionDataForDisplay(
               log.executionData as Record<string, unknown> | null,
               {
                 workspaceId: log.workspaceId,
@@ -128,11 +183,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 executionId: log.executionId,
                 userId,
               }
-            )) as any
-            if (params.includeFinalOutput && execData.finalOutput) {
+            )) as Record<string, unknown> | null
+            const execData = projectExecutionData(materialized, projection) as any
+            if (params.includeFinalOutput && execData?.finalOutput) {
               result.finalOutput = execData.finalOutput
             }
-            if (params.includeTraceSpans && execData.traceSpans) {
+            if (params.includeTraceSpans && execData?.traceSpans) {
               result.traceSpans = execData.traceSpans
             }
           }
@@ -140,7 +196,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         })
       : data.map(buildBase)
 
-    const limits = await getUserLimits(userId)
+    const limits = projectUserLimits(await getUserLimits(userId), projection)
 
     const response = createApiResponse(
       {

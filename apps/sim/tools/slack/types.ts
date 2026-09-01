@@ -281,6 +281,68 @@ export const CHANNEL_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
+ * Conversation fields returned by conversations.list when channel, IM, and
+ * MPIM types can share one page.
+ */
+export const CONVERSATION_LIST_OUTPUT_PROPERTIES = {
+  ...CHANNEL_OUTPUT_PROPERTIES,
+  id: { type: 'string', description: 'Conversation ID (for example, C123, D123, or G123)' },
+  name: {
+    type: 'string',
+    description: 'Channel or group-DM name; omitted for one-to-one direct messages',
+    optional: true,
+  },
+  is_group: {
+    type: 'boolean',
+    description: 'Whether this is a legacy private channel or group direct message',
+    optional: true,
+  },
+  is_im: {
+    type: 'boolean',
+    description: 'Whether this is a one-to-one direct message',
+    optional: true,
+  },
+  is_mpim: {
+    type: 'boolean',
+    description: 'Whether this is a group direct message',
+    optional: true,
+  },
+  user: {
+    type: 'string',
+    description: 'Other participant user ID for a one-to-one direct message',
+    optional: true,
+  },
+  is_user_deleted: {
+    type: 'boolean',
+    description: 'Whether the other participant in a direct message is deactivated',
+    optional: true,
+  },
+  is_open: {
+    type: 'boolean',
+    description: 'Whether a direct or group-direct-message conversation is open',
+    optional: true,
+  },
+  is_private: {
+    type: 'boolean',
+    description: 'Whether the conversation is private',
+    optional: true,
+  },
+  is_archived: {
+    type: 'boolean',
+    description: 'Whether the conversation is archived',
+    optional: true,
+  },
+  is_member: {
+    type: 'boolean',
+    description: 'Whether the credential owner is a member',
+    optional: true,
+  },
+  topic: { type: 'string', description: 'Conversation topic', optional: true },
+  purpose: { type: 'string', description: 'Conversation purpose', optional: true },
+  priority: { type: 'number', description: 'Slack sidebar sort priority', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
  * Output definition for scheduled message objects
  * Based on Slack chat.scheduledMessages.list (https://docs.slack.dev/reference/methods/chat.scheduledMessages.list)
  */
@@ -599,6 +661,7 @@ interface SlackBaseParams {
   authMethod: 'oauth' | 'bot_token'
   accessToken: string
   botToken: string
+  credentialType?: 'oauth' | 'managed_oauth' | 'service_account'
 }
 
 export type SlackAgentSessionStatus = 'active' | 'processing' | 'suspended' | 'closed'
@@ -1069,12 +1132,18 @@ export interface SlackRemoveReactionResponse extends ToolResponse {
 
 interface SlackChannel {
   id: string
-  name: string
+  name?: string
   is_channel?: boolean
-  is_private: boolean
-  is_archived: boolean
+  is_group?: boolean
+  is_im?: boolean
+  is_mpim?: boolean
+  user?: string
+  is_user_deleted?: boolean
+  is_open?: boolean
+  is_private?: boolean
+  is_archived?: boolean
   is_general?: boolean
-  is_member: boolean
+  is_member?: boolean
   is_shared?: boolean
   is_ext_shared?: boolean
   is_org_shared?: boolean
@@ -1084,6 +1153,7 @@ interface SlackChannel {
   created?: number
   creator?: string
   updated?: number
+  priority?: number
 }
 
 export interface SlackListChannelsResponse extends ToolResponse {

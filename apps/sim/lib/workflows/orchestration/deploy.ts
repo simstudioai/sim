@@ -966,7 +966,22 @@ export async function performRevertToVersion(
         restoredState.variables = deployedState.variables || {}
       }
 
-      const result = await saveWorkflowToNormalizedTables(workflowId, restoredState, tx)
+      const result = await saveWorkflowToNormalizedTables(
+        workflowId,
+        restoredState,
+        {
+          /**
+           * Actorless, and deliberately so. This is the executor-adjacent path:
+           * it writes back a graph the workspace already deployed. A run
+           * persisting its own state must not be refused because the member who
+           * triggered it is in a group that withholds a block the deployment
+           * uses — the deployment was authorized when it was created.
+           */
+          workspaceId: null,
+          subjectUserId: null,
+        },
+        tx
+      )
       if (!result.success) return result
 
       await tx

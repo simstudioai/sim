@@ -15,6 +15,7 @@ const { FolderLockedError, WorkflowLockedError, mocks } = vi.hoisted(() => {
       assertWorkflowMutable: vi.fn(),
       audit: vi.fn(),
       notify: vi.fn(),
+      notifyWorkspace: vi.fn(),
       permission: vi.fn(),
       resolveContext: vi.fn(),
       updateWorkflow: vi.fn(),
@@ -48,7 +49,10 @@ vi.mock('@/lib/workflows/orchestration', () => ({
   updateWorkflowRecord: mocks.updateWorkflow,
 }))
 
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkflowUpdated: mocks.notify,
+  notifyWorkspaceWorkflowsChanged: mocks.notifyWorkspace,
+}))
 
 import { moveWorkflowsBulk } from '@/lib/workflows/application/move-workflows-bulk'
 
@@ -118,6 +122,7 @@ describe('moveWorkflowsBulk', () => {
     )
     expect(mocks.notify).toHaveBeenCalledWith('workflow-1')
     expect(mocks.notify).not.toHaveBeenCalledWith('workflow-2')
+    expect(mocks.notifyWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
   it('conceals cross-workspace workflow IDs as failed items', async () => {

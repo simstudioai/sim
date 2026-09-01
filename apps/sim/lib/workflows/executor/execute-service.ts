@@ -2,7 +2,8 @@ import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { generateId, isValidUuid } from '@sim/utils/id'
+import { generateId } from '@sim/utils/id'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
@@ -33,13 +34,13 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { shouldEmitAgentStreamEvents } from '@/lib/workflows/streaming/agent-stream-protocol'
+import { resolveOutputSelectors } from '@/lib/workflows/streaming/resolve-output-selectors'
 import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
 import { workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
-import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
@@ -472,7 +473,17 @@ export async function executeWorkflowService(
     }
 
     if (mode === 'stream') {
-      const resolvedSelectedOutputs = resolveOutputIds(selectedOutputs, workflowBlocks)
+      let resolvedSelectedOutputs: string[] | undefined
+      try {
+        resolvedSelectedOutputs = await resolveOutputIds(selectedOutputs, workflowBlocks)
+      } catch (error) {
+        await releaseExecutionSlot(executionId)
+        return failure({
+          kind: 'input',
+          message: `Invalid selectedOutputs: ${getErrorMessage(error)}`,
+          statusCode: 400,
+        })
+      }
       const streamWorkflow = {
         id: workflow.id,
         /**
@@ -833,55 +844,12 @@ export async function executeWorkflowService(
  * `<uuid>.path`) to internal `<blockId>_<path>` ids — same normalization the
  * v1 streaming path applies.
  */
-export function resolveOutputIds(
+export async function resolveOutputIds(
   selectedOutputs: string[] | undefined,
   blocks: Record<string, unknown>
-): string[] | undefined {
-  if (!selectedOutputs || selectedOutputs.length === 0) {
-    return selectedOutputs
-  }
-
-  return selectedOutputs.map((outputId) => {
-    const underscoreIndex = outputId.indexOf('_')
-    const dotIndex = outputId.indexOf('.')
-    if (underscoreIndex > 0) {
-      const maybeUuid = outputId.substring(0, underscoreIndex)
-      if (isValidUuid(maybeUuid)) {
-        return outputId
-      }
-    }
-
-    if (dotIndex > 0) {
-      const maybeUuid = outputId.substring(0, dotIndex)
-      if (isValidUuid(maybeUuid)) {
-        return `${outputId.substring(0, dotIndex)}_${outputId.substring(dotIndex + 1)}`
-      }
-    }
-
-    if (isValidUuid(outputId)) {
-      return outputId
-    }
-
-    if (dotIndex === -1) {
-      logger.warn(`Invalid output ID format (missing dot): ${outputId}`)
-      return outputId
-    }
-
-    const blockName = outputId.substring(0, dotIndex)
-    const path = outputId.substring(dotIndex + 1)
-
-    const normalizedBlockName = normalizeName(blockName)
-    const block = Object.values(blocks).find((candidate) => {
-      const record = candidate as { name?: string }
-      return normalizeName(record.name || '') === normalizedBlockName
-    })
-
-    if (!block) {
-      logger.warn(`Block not found for name: ${blockName} (from output ID: ${outputId})`)
-      return outputId
-    }
-
-    const resolvedId = `${(block as { id: string }).id}_${path}`
-    return resolvedId
+): Promise<string[] | undefined> {
+  return resolveOutputSelectors({
+    selectedOutputs,
+    currentBlocks: blocks as Record<string, BlockState>,
   })
 }

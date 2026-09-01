@@ -1,4 +1,10 @@
-import type { Principal } from '@sim/auth/principal'
+import type {
+  PersonalApiKeyPrincipal,
+  Principal,
+  SessionPrincipal,
+  WorkspaceApiKeyPrincipal,
+} from '@sim/auth/principal'
+import { v2CancelWorkflowRunDataSchema } from '@/lib/api/contracts/v2/workflows'
 import {
   createInternalResourceConcealmentPolicy,
   createInternalSessionOrExecutorAuth,
@@ -8,15 +14,38 @@ import {
   InternalUnauthenticatedError,
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
+  internalSessionAuth,
   type V2ErrorPolicy,
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
-import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
+import {
+  v2CaughtOrchestrationError,
+  v2Data,
+  v2ErrorForOrchestration,
+} from '@/app/api/v2/lib/response'
+
+function v2CancelRunErrorResponse(error: unknown) {
+  if (error instanceof WorkflowRunAlreadyTerminalError) {
+    return v2Data(
+      v2CancelWorkflowRunDataSchema.parse({
+        success: true,
+        runId: error.executionId,
+        redisAvailable: error.redisAvailable,
+        durablyRecorded: false,
+        locallyAborted: error.locallyAborted,
+        pausedCancelled: false,
+        reason: error.executionStatus === 'completed' ? 'already_completed' : 'already_failed',
+      })
+    )
+  }
+  return v2CaughtOrchestrationError(error)
+}
 
 export const v2WorkflowErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
@@ -55,11 +84,42 @@ export const v2WorkflowErrorPolicies = {
   concealRunAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Run not found',
   }),
+  cancelRun: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Run not found',
+    render: v2CancelRunErrorResponse,
+  }),
 } as const
 
 export const internalWorkflowSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
   audience: WORKFLOW_DELEGATION_AUDIENCE,
 })
+
+type WorkflowApiKeyPrincipal = PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
+
+async function authenticateWorkflowApiKey(rawApiKey: string): Promise<WorkflowApiKeyPrincipal> {
+  const result = await authenticateApiKeyFromHeader(rawApiKey)
+  if (!result.success || !result.keyId || !result.keyType) {
+    throw new InternalUnauthenticatedError('Unauthorized')
+  }
+  await updateApiKeyLastUsed(result.keyId)
+
+  if (result.keyType === 'workspace') {
+    if (!result.workspaceId) throw new Error('Workspace API key is missing its workspace scope')
+    return { kind: 'workspace_api_key', workspaceId: result.workspaceId, keyId: result.keyId }
+  }
+  if (!result.userId) throw new Error('Personal API key is missing its credential owner')
+  return { kind: 'personal_api_key', userId: result.userId, keyId: result.keyId }
+}
+
+export const internalWorkflowSessionOrApiKeyAuth: InternalAuthPolicy<
+  SessionPrincipal | WorkflowApiKeyPrincipal
+> = {
+  async authenticate(request) {
+    const rawApiKey = request.headers.get('x-api-key')
+    if (!rawApiKey) return internalSessionAuth.authenticate()
+    return authenticateWorkflowApiKey(rawApiKey)
+  },
+}
 
 export const internalWorkflowReadAuth: InternalAuthPolicy<Principal> = {
   async authenticate(request, params) {
@@ -67,19 +127,7 @@ export const internalWorkflowReadAuth: InternalAuthPolicy<Principal> = {
     if (!rawApiKey) {
       return internalWorkflowSessionOrExecutorAuth.authenticate(request, params)
     }
-
-    const result = await authenticateApiKeyFromHeader(rawApiKey)
-    if (!result.success || !result.keyId || !result.keyType) {
-      throw new InternalUnauthenticatedError('Unauthorized')
-    }
-    await updateApiKeyLastUsed(result.keyId)
-
-    if (result.keyType === 'workspace') {
-      if (!result.workspaceId) throw new Error('Workspace API key is missing its workspace scope')
-      return { kind: 'workspace_api_key', workspaceId: result.workspaceId, keyId: result.keyId }
-    }
-    if (!result.userId) throw new Error('Personal API key is missing its credential owner')
-    return { kind: 'personal_api_key', userId: result.userId, keyId: result.keyId }
+    return authenticateWorkflowApiKey(rawApiKey)
   },
 }
 
@@ -124,5 +172,9 @@ export const internalWorkflowErrorPolicies = {
   concealWorkflowAuthorization: createInternalResourceConcealmentPolicy({
     base: internalOrchestrationErrorPolicy,
     notFoundMessage: WORKFLOW_NOT_FOUND_MESSAGE,
+  }),
+  concealRunAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
+    notFoundMessage: 'Execution not found',
   }),
 } as const

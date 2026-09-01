@@ -108,7 +108,8 @@ describe('projectIntegrationToolsForViewer', () => {
       deniedTools: ['slack_canvas_v1'],
     })
 
-    expect(projection.allowedBlockTypes).toEqual(new Set(['slack']))
+    /** The set is in the resolved vocabulary, which is what the gate compares against. */
+    expect(projection.allowedBlockTypes).toEqual(new Set(['slack_v2']))
     expect(projection.isToolAllowed('slack_canvas_v1')).toBe(false)
     expect(projection.isToolAllowed('slack_message_v1')).toBe(true)
   })

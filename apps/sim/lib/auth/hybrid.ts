@@ -43,6 +43,23 @@ export interface AuthResult {
 }
 
 /**
+ * The id whose permission group governs a request authenticated by
+ * `checkSessionOrInternalAuth`, or `null` when none does.
+ *
+ * An internal JWT's `auth.userId` is the subject the executor embedded, so
+ * keying on its presence would hand the run's actor's capabilities to a caller
+ * the executor exemption deliberately passes ungated. `authType` is the
+ * authoritative signal, and `apiKeyType` covers the personal-key case. The
+ * principal rules live on `capabilityGovernedPrincipalUserId` in
+ * `@/lib/core/application`; this reads the same decision off an `AuthResult`.
+ */
+export function capabilityGovernedAuthUserId(auth: AuthResult | undefined): string | null {
+  if (!auth?.userId) return null
+  if (auth.authType === AuthType.SESSION) return auth.userId
+  return auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal' ? auth.userId : null
+}
+
+/**
  * Resolves userId from a verified internal JWT token.
  * Only trusts the userId embedded in the JWT payload — never from user-controlled sources.
  */

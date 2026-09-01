@@ -14,15 +14,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
-  capture: vi.fn(),
   readRun: vi.fn(),
   authorizeReadRun: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
 vi.mock('@/lib/workflows/application/read-workflow-run', () => ({
   readWorkflowRun: {
@@ -362,7 +359,7 @@ describe('v2 run detail and cancel adapters', () => {
     })
     expect(mocks.cancel).toHaveBeenCalledWith({
       principal,
-      input: { workflowId: 'workflow-1', runId: 'run-1' },
+      input: { runId: 'run-1' },
       request: expect.anything(),
     })
     expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
@@ -370,7 +367,6 @@ describe('v2 run detail and cancel adapters', () => {
       'v2:workflows.runs.cancel:api-key:key-1',
       expect.anything()
     )
-    expect(mocks.capture).not.toHaveBeenCalled()
   })
 
   it('keeps cancellation request-rate admission separate from run control', async () => {
@@ -399,13 +395,17 @@ describe('v2 run detail and cancel adapters', () => {
       code: 'FORBIDDEN',
       message: 'Insufficient workspace permissions',
     })
-    expect(mocks.capture).not.toHaveBeenCalled()
   })
 
-  it('projects cancellation analytics only after a successful personal-key result', async () => {
+  it('passes a personal-key principal to the cancellation use case', async () => {
+    const personalPrincipal = {
+      kind: 'personal_api_key' as const,
+      userId: 'key-user',
+      keyId: 'personal-key',
+    }
     v2RouteMocks.authenticate.mockResolvedValueOnce({
       ...auth,
-      principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
+      principal: personalPrincipal,
       rateLimitSubjectIds: ['api-key:personal-key', 'user:key-user'],
       keyType: 'personal',
     })
@@ -415,12 +415,10 @@ describe('v2 run detail and cancel adapters', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(mocks.capture).toHaveBeenCalledOnce()
-    expect(mocks.capture).toHaveBeenCalledWith(
-      'key-user',
-      'workflow_execution_cancelled',
-      { workflow_id: 'workflow-1', workspace_id: 'workspace-1' },
-      { groups: { workspace: 'workspace-1' } }
-    )
+    expect(mocks.cancel).toHaveBeenCalledWith({
+      principal: personalPrincipal,
+      input: { runId: 'run-1' },
+      request: expect.anything(),
+    })
   })
 })

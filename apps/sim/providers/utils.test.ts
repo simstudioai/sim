@@ -2117,3 +2117,195 @@ describe('findProviderFromModel', () => {
     expect(getProviderFromModel('whisper-1')).toBe('ollama')
   })
 })
+
+describe('transformBlockTool param decoding', () => {
+  /**
+   * `StoredTool.params` stringifies every value, so a tool row hands a block the same
+   * shapes the canvas does only if `paramsTransform` decodes them back. These pin the
+   * two halves of that: which declaration decides a param's shape, and where in the
+   * transform the decode happens.
+   */
+  const buildHarness = (
+    subBlocks: Array<Record<string, unknown>>,
+    toolParams: Record<string, { type: string }>,
+    paramsFn?: (params: Record<string, any>) => Record<string, any>,
+    inputs: Record<string, unknown> = {}
+  ) => {
+    const blockDef = {
+      type: 'fixture',
+      inputs,
+      subBlocks,
+      tools: {
+        access: ['fixture_tool'],
+        ...(paramsFn ? { config: { params: paramsFn } } : {}),
+      },
+    }
+    return {
+      getAllBlocks: () => [blockDef],
+      getTool: (id: string) => ({
+        id,
+        name: 'Fixture',
+        description: 'Fixture tool',
+        params: toolParams,
+      }),
+    }
+  }
+
+  const transformFixture = async (
+    harness: ReturnType<typeof buildHarness>,
+    params: Record<string, unknown>
+  ) => {
+    const result = await transformBlockTool(
+      { type: 'fixture', params },
+      { getAllBlocks: harness.getAllBlocks, getTool: harness.getTool }
+    )
+    return result?.paramsTransform?.(params as Record<string, any>)
+  }
+
+  it('decodes a boolean param the block does not surface as a sub-block', async () => {
+    // The reported Jira bug: `includeAttachments` is declared boolean on the tool and
+    // has no sub-block, so it used to arrive as the truthy string 'false'.
+    const harness = buildHarness([], { includeAttachments: { type: 'boolean' } })
+
+    expect(await transformFixture(harness, { includeAttachments: 'false' })).toEqual({
+      includeAttachments: false,
+    })
+    expect(await transformFixture(harness, { includeAttachments: 'true' })).toEqual({
+      includeAttachments: true,
+    })
+  })
+
+  it('decodes before the block params function reads the value', async () => {
+    // Mirrors microsoft_teams, which consumes the flag inside `params` — a decode
+    // placed after it would see an already-emitted `true` and be a no-op.
+    const harness = buildHarness(
+      [{ id: 'includeAttachments', type: 'switch' }],
+      { includeAttachments: { type: 'boolean' } },
+      (params) => (params.includeAttachments ? { includeAttachments: true } : {})
+    )
+
+    expect(await transformFixture(harness, { includeAttachments: 'false' })).toEqual({
+      includeAttachments: false,
+    })
+    expect(await transformFixture(harness, { includeAttachments: 'true' })).toEqual({
+      includeAttachments: true,
+    })
+  })
+
+  it('leaves a dropdown-backed boolean as the string its params function compares', async () => {
+    // Jira's `deleteSubtasks`. A dropdown stores a string on the canvas too, so
+    // re-keying the decode off the tool's declared type would invert this flag.
+    const harness = buildHarness(
+      [
+        {
+          id: 'deleteSubtasks',
+          type: 'dropdown',
+          options: [
+            { label: 'No', id: 'false' },
+            { label: 'Yes', id: 'true' },
+          ],
+        },
+      ],
+      { deleteSubtasks: { type: 'boolean' } },
+      (params) => ({ deleteSubtasks: params.deleteSubtasks === 'true' })
+    )
+
+    expect(await transformFixture(harness, { deleteSubtasks: 'true' })).toMatchObject({
+      deleteSubtasks: true,
+    })
+    expect(await transformFixture(harness, { deleteSubtasks: 'false' })).toMatchObject({
+      deleteSubtasks: false,
+    })
+  })
+
+  it('decodes a canonical pair once, under its canonical id', async () => {
+    const harness = buildHarness(
+      [
+        { id: 'flagBasic', type: 'switch', canonicalParamId: 'flag', mode: 'basic' },
+        { id: 'flagAdvanced', type: 'switch', canonicalParamId: 'flag', mode: 'advanced' },
+      ],
+      { flag: { type: 'boolean' } }
+    )
+
+    expect(await transformFixture(harness, { flagBasic: 'false' })).toEqual({ flag: false })
+  })
+
+  it('leaves a model-supplied typed value untouched', async () => {
+    const harness = buildHarness([], { includeAttachments: { type: 'boolean' } })
+    expect(await transformFixture(harness, { includeAttachments: true })).toEqual({
+      includeAttachments: true,
+    })
+  })
+
+  it("leaves '' alone so the model's value still wins", async () => {
+    const harness = buildHarness([], { flag: { type: 'boolean' }, count: { type: 'number' } })
+    expect(await transformFixture(harness, { flag: '', count: '' })).toEqual({
+      flag: '',
+      count: '',
+    })
+  })
+
+  it('parses a json param the block inputs never declared', async () => {
+    const harness = buildHarness([], { body: { type: 'json' } })
+    expect(await transformFixture(harness, { body: '{"a":1}' })).toEqual({ body: { a: 1 } })
+  })
+
+  it('keeps parsing a json block input that names no tool param', async () => {
+    // The `inputs` loop stays: it is the same one the canvas runs, and it covers keys
+    // the tool does not declare.
+    const harness = buildHarness([], {}, undefined, { extra: { type: 'json' } })
+    expect(await transformFixture(harness, { extra: '{"a":1}' })).toEqual({ extra: { a: 1 } })
+  })
+
+  it('does not double-parse a value the decode already handled', async () => {
+    const harness = buildHarness(
+      [{ id: 'files', type: 'file-upload' }],
+      { files: { type: 'file[]' } },
+      undefined,
+      {
+        files: { type: 'array' },
+      }
+    )
+    expect(await transformFixture(harness, { files: '[{"name":"a.txt"}]' })).toEqual({
+      files: [{ name: 'a.txt' }],
+    })
+  })
+
+  it('never throws on a malformed value', async () => {
+    const harness = buildHarness([], { body: { type: 'json' }, count: { type: 'number' } })
+    expect(await transformFixture(harness, { body: '{bad', count: '<start.count>' })).toEqual({
+      body: '{bad',
+      count: '<start.count>',
+    })
+  })
+
+  it('expands a checkbox-list onto its option params in a tool row', async () => {
+    const harness = buildHarness(
+      [
+        {
+          id: 'scanOptions',
+          type: 'checkbox-list',
+          options: [
+            { label: 'Gather Links', id: 'gatherLinks' },
+            { label: 'No Cache', id: 'noCache' },
+          ],
+        },
+      ],
+      { gatherLinks: { type: 'boolean' }, noCache: { type: 'boolean' } }
+    )
+
+    const result = await transformFixture(harness, {
+      scanOptions: '{"gatherLinks":true,"noCache":false}',
+    })
+
+    expect(result).toEqual({ gatherLinks: true, noCache: false })
+  })
+
+  it('reports the json-shaped keys so the secret projection keeps the same shape', async () => {
+    const result = await transformBlockTool(
+      { type: 'fixture', params: {} },
+      buildHarness([], { body: { type: 'json' }, name: { type: 'string' } })
+    )
+    expect(result?.jsonShapedParamKeys).toEqual(['body'])
+  })
+})

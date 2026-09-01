@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
-import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type PersistedMessage, stripToolResultOutput } from '@/lib/copilot/chat/persisted-message'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -110,47 +110,4 @@ export async function persistCopilotChatTurn(
     if (!updated) return
     await appendCopilotChatMessages(chatId, messages, { chatModel: updated.model ?? null }, tx)
   })
-}
-
-/**
- * Replace all messages for a chat from a full snapshot (used by update-messages).
- * Throws on failure. Pass `executor` to enlist the delete+insert in an existing
- * transaction; otherwise it runs in its own.
- */
-export async function replaceCopilotChatMessages(
-  chatId: string,
-  messages: PersistedMessage[],
-  options?: { chatModel?: string | null },
-  executor?: DbOrTx
-): Promise<void> {
-  const deduped = dedupeById(messages)
-  const newMessageIds = deduped.map((m) => m.id)
-  const run = async (tx: DbOrTx) => {
-    await tx
-      .delete(copilotMessages)
-      .where(
-        newMessageIds.length > 0
-          ? and(
-              eq(copilotMessages.chatId, chatId),
-              notInArray(copilotMessages.messageId, newMessageIds)
-            )
-          : eq(copilotMessages.chatId, chatId)
-      )
-    if (deduped.length === 0) return
-    await tx
-      .insert(copilotMessages)
-      .values(deduped.map((m, i) => toRow(chatId, m, i, options)))
-      .onConflictDoUpdate({
-        target: [copilotMessages.chatId, copilotMessages.messageId],
-        set: {
-          content: sql`excluded.content`,
-          role: sql`excluded.role`,
-          model: sql`COALESCE(excluded.model, ${copilotMessages.model})`,
-          streamId: sql`COALESCE(excluded.stream_id, ${copilotMessages.streamId})`,
-          seq: sql`excluded.seq`,
-          updatedAt: sql`now()`,
-        },
-      })
-  }
-  await (executor ? run(executor) : db.transaction(run))
 }

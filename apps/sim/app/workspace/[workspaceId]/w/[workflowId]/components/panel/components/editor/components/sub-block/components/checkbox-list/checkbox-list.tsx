@@ -1,9 +1,11 @@
+import { useCallback } from 'react'
 import { Checkbox, Label, Tooltip } from '@sim/emcn'
 import { CircleInfo } from '@sim/emcn/icons'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 interface CheckboxListOption {
   label: string
@@ -21,81 +23,25 @@ interface CheckboxListProps {
   disabled?: boolean
 }
 
-interface CheckboxItemProps {
-  blockId: string
-  subBlockId: string
-  option: CheckboxListOption
-  index: number
-  isPreview: boolean
-  subBlockValues?: Record<string, any>
-  disabled: boolean
+/** The stored selections, tolerating the `null` a never-touched field holds. */
+function readSelections(value: unknown): Record<string, boolean> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return value as Record<string, boolean>
 }
 
 /**
- * Individual checkbox item component that calls useSubBlockValue hook at top level.
+ * A group of boolean options collected under one field.
  *
- * @remarks
- * A `null` store value means the user has never toggled the checkbox, in which
- * case we fall back to `option.defaultChecked` for the displayed state. Any
- * explicit boolean (including `false`) takes precedence over the default.
+ * The whole group is stored as a single `{ optionId: boolean }` record under the
+ * sub-block's OWN id — the same one-sub-block-one-store-key rule every other control
+ * follows. Each option id is a tool param name; `expandSubBlockValueToParams` performs
+ * that projection at the two boundaries where sub-block values become tool params.
+ *
+ * Writing each option id as its own top-level store key (what this did before) meant the
+ * sub-block wrote keys the block never declared: the canvas serializer dropped all of
+ * them, and inside an agent tool row the writes landed on the parent agent block instead
+ * of the tool's own params.
  */
-function CheckboxItem({
-  blockId,
-  subBlockId,
-  option,
-  index,
-  isPreview,
-  subBlockValues,
-  disabled,
-}: CheckboxItemProps) {
-  const activeSearchTarget = useActiveSearchTarget()
-  const [storeValue, setStoreValue] = useSubBlockValue<boolean>(blockId, option.id)
-  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
-    activeSearchTarget,
-    blockId,
-    subBlockId,
-    valuePath: ['options', index],
-    label: option.label,
-  })
-
-  const previewValue = isPreview && subBlockValues ? subBlockValues[option.id]?.value : undefined
-  const rawValue = isPreview ? previewValue : storeValue
-  const effectiveValue = rawValue ?? option.defaultChecked ?? false
-
-  const handleChange = (checked: boolean) => {
-    if (!isPreview && !disabled) {
-      setStoreValue(checked)
-    }
-  }
-
-  return (
-    <div className='flex items-center gap-2'>
-      <Checkbox
-        id={`${blockId}-${option.id}`}
-        checked={Boolean(effectiveValue)}
-        onCheckedChange={handleChange}
-        disabled={isPreview || disabled}
-      />
-      <Label
-        htmlFor={`${blockId}-${option.id}`}
-        className='cursor-pointer font-sans text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
-      >
-        {formatDisplayText(option.label, { workflowSearchHighlight })}
-      </Label>
-      {option.description && (
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <CircleInfo className='size-[14px] cursor-default text-[var(--text-muted)]' />
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top' align='start' className='max-w-xs'>
-            <p>{option.description}</p>
-          </Tooltip.Content>
-        </Tooltip.Root>
-      )}
-    </div>
-  )
-}
-
 export function CheckboxList({
   blockId,
   subBlockId,
@@ -104,20 +50,67 @@ export function CheckboxList({
   subBlockValues,
   disabled = false,
 }: CheckboxListProps) {
+  const activeSearchTarget = useActiveSearchTarget()
+  const [storeValue, setStoreValue] = useSubBlockValue<Record<string, boolean>>(blockId, subBlockId)
+
+  const previewValue = isPreview && subBlockValues ? subBlockValues[subBlockId]?.value : undefined
+  const selections = readSelections(isPreview ? previewValue : storeValue)
+
+  const handleChange = useCallback(
+    (optionId: string, checked: boolean) => {
+      if (isPreview || disabled) return
+      // Merge onto the value the STORE holds right now, not the one captured at render.
+      // Every option in the group shares one key, so two toggles landing before React
+      // rerenders would otherwise both build from the same stale record and the second
+      // write would drop the first. The store updates synchronously, so reading it here
+      // always sees the preceding toggle.
+      const current = useSubBlockStore.getState().getValue(blockId, subBlockId)
+      setStoreValue({ ...readSelections(current), [optionId]: checked })
+    },
+    [blockId, subBlockId, setStoreValue, isPreview, disabled]
+  )
+
   return (
     <div className='flex flex-col gap-y-2.5 pt-1'>
-      {options.map((option, index) => (
-        <CheckboxItem
-          key={option.id}
-          blockId={blockId}
-          subBlockId={subBlockId}
-          option={option}
-          index={index}
-          isPreview={isPreview}
-          subBlockValues={subBlockValues}
-          disabled={disabled}
-        />
-      ))}
+      {options.map((option, index) => {
+        // A `null`/absent entry means the user has never toggled this option, so the
+        // declared default decides. An explicit `false` always wins over the default.
+        const checked = selections[option.id] ?? option.defaultChecked ?? false
+        const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+          activeSearchTarget,
+          blockId,
+          subBlockId,
+          valuePath: ['options', index],
+          label: option.label,
+        })
+
+        return (
+          <div key={option.id} className='flex items-center gap-2'>
+            <Checkbox
+              id={`${blockId}-${subBlockId}-${option.id}`}
+              checked={Boolean(checked)}
+              onCheckedChange={(next) => handleChange(option.id, Boolean(next))}
+              disabled={isPreview || disabled}
+            />
+            <Label
+              htmlFor={`${blockId}-${subBlockId}-${option.id}`}
+              className='cursor-pointer font-sans text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
+            >
+              {formatDisplayText(option.label, { workflowSearchHighlight })}
+            </Label>
+            {option.description && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <CircleInfo className='size-[14px] cursor-default text-[var(--text-muted)]' />
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top' align='start' className='max-w-xs'>
+                  <p>{option.description}</p>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

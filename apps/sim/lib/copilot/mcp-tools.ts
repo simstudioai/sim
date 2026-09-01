@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import type { ToolSchema } from '@/lib/copilot/chat/payload'
 import type { McpTool, McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { validateMcpToolsAllowed } from '@/ee/access-control/utils/permission-check'
+import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import type { ToolInput } from '@/executor/handlers/agent/types'
 
 const logger = createLogger('CopilotMcpTools')
@@ -78,7 +78,7 @@ export async function buildTaggedMcpToolSchemas(
   const uniqueServerIds = [...new Set(serverIds.filter(Boolean))]
   if (uniqueServerIds.length === 0) return []
 
-  await validateMcpToolsAllowed(userId, workspaceId)
+  await assertPermissionsAllowed({ userId, workspaceId, toolKind: 'mcp' })
   const discovered = await Promise.all(
     uniqueServerIds.map((serverId) => discoverServerTools(userId, workspaceId, serverId))
   )
@@ -104,7 +104,7 @@ export async function buildSelectedMcpToolSchemas(
   )
   if (selected.length === 0) return []
 
-  await validateMcpToolsAllowed(userId, workspaceId)
+  await assertPermissionsAllowed({ userId, workspaceId, toolKind: 'mcp' })
   const discoveredByServer = new Map<string, Promise<McpTool[]>>()
   const resolved = await Promise.all(
     selected.map(async (selection) => {

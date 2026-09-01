@@ -7,6 +7,8 @@ import {
   normalizeBlockRetryWaitMs,
 } from '@sim/workflow-types/workflow'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { createModelAccessGate } from '@/lib/permission-groups/model-access'
 import {
   createToolAccessGate,
@@ -14,7 +16,6 @@ import {
   MODEL_SUBBLOCK_ID,
   OPERATION_SUBBLOCK_ID,
 } from '@/lib/permission-groups/operation-access'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
@@ -790,7 +791,7 @@ export function filterDisallowedTools(
   const isToolAllowed = createToolAccessGate(permissionConfig.deniedTools)
   const allowedTools: any[] = []
   for (const tool of deploymentAvailableTools) {
-    if (tool.type === 'custom-tool' && permissionConfig.disableCustomTools) {
+    if (tool.type === 'custom-tool' && capabilityDeniedBy('custom_tools.use', permissionConfig)) {
       logSkippedItem(skippedItems, {
         type: 'tool_not_allowed',
         operationType: 'add',
@@ -800,7 +801,7 @@ export function filterDisallowedTools(
       })
       continue
     }
-    if (tool.type === 'mcp' && permissionConfig.disableMcpTools) {
+    if (tool.type === 'mcp' && capabilityDeniedBy('mcp_tools.use', permissionConfig)) {
       logSkippedItem(skippedItems, {
         type: 'tool_not_allowed',
         operationType: 'add',

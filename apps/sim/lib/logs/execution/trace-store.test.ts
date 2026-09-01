@@ -25,14 +25,18 @@ vi.mock('@/lib/execution/payloads/store', () => ({
 }))
 
 import {
+  copyTraceSpansWithoutCosts,
   externalizeExecutionData,
   materializeExecutionData,
   materializeExecutionDataForDisplayWithBlockOutputs,
   projectExecutionDataForDisplay,
   RESOLVED_SECRET_PROVENANCE_KEY,
   SECRET_PROJECTION_VERSION,
+  stripJoinedChildTraceSpend,
+  stripSpanCosts,
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
+import type { TraceSpan } from '@/lib/logs/types'
 
 const CONTEXT = {
   workspaceId: 'workspace-1',
@@ -770,5 +774,173 @@ describe('stored provenance display reporting', () => {
         parts: ['blockOutput:block-1'],
       })
     )
+  })
+})
+
+/**
+ * The two strips are not the same removal, and the difference is whether the
+ * result is written.
+ *
+ * `stripJoinedChildTraceSpend` is what stands between a joined cross-workspace
+ * child run and the parent's reader: the child's spend is billed to the SOURCE
+ * workspace and was never rolled into this run's total, so anything it leaves
+ * behind is spend the reader was never meant to see — and it never persists.
+ * `stripSpanCosts` runs inside `backfill-trace-spans.ts`, which stores what it
+ * returns, so anything IT clears is gone for every authorized reader of that run
+ * forever. Only the dollars belong in that set.
+ */
+function spanWithSpend() {
+  return [
+    {
+      id: 'span-1',
+      name: 'agent',
+      cost: { total: 0.5 },
+      tokens: { total: 900 },
+      providerTiming: {
+        duration: 5,
+        segments: [
+          { type: 'model', name: 'gpt-4', tokens: { total: 900 }, cost: { total: 0.5 } },
+          { type: 'tool', name: 'search' },
+        ],
+      },
+      children: [
+        {
+          id: 'span-2',
+          name: 'model',
+          cost: { total: 0.2 },
+          tokens: { total: 400 },
+          providerTiming: { segments: [{ type: 'model', tokens: { total: 400 } }] },
+        },
+      ],
+    },
+  ]
+}
+
+describe('stripJoinedChildTraceSpend', () => {
+  it('clears the span roll-up and the provider-timing segments that itemize it', () => {
+    const spans = spanWithSpend()
+
+    stripJoinedChildTraceSpend(spans)
+
+    expect(spans[0].cost).toBeUndefined()
+    expect(spans[0].tokens).toBeUndefined()
+    const [modelSegment, toolSegment] = spans[0].providerTiming.segments as Array<
+      Record<string, unknown>
+    >
+    expect(modelSegment.tokens).toBeUndefined()
+    expect(modelSegment.cost).toBeUndefined()
+    // Structure and identity are what the waterfall renders; only spend goes.
+    expect(modelSegment).toMatchObject({ type: 'model', name: 'gpt-4' })
+    expect(toolSegment).toMatchObject({ type: 'tool', name: 'search' })
+  })
+
+  it('reaches the segments of nested children too', () => {
+    const spans = spanWithSpend()
+
+    stripJoinedChildTraceSpend(spans)
+
+    const child = spans[0].children[0]
+    expect(child.cost).toBeUndefined()
+    expect(child.tokens).toBeUndefined()
+    expect(
+      (child.providerTiming.segments as Array<Record<string, unknown>>)[0].tokens
+    ).toBeUndefined()
+  })
+
+  it('leaves a span with no provider timing alone', () => {
+    const spans = [{ id: 'span-1', name: 'api', cost: { total: 0.1 } }]
+
+    expect(() => stripJoinedChildTraceSpend(spans)).not.toThrow()
+    expect(spans[0]).toMatchObject({ id: 'span-1', name: 'api' })
+  })
+})
+
+describe('stripSpanCosts', () => {
+  it('clears cost at both levels and through children', () => {
+    const spans = spanWithSpend()
+
+    stripSpanCosts(spans)
+
+    expect(spans[0].cost).toBeUndefined()
+    expect(spans[0].children[0].cost).toBeUndefined()
+    expect(
+      (spans[0].providerTiming.segments as Array<Record<string, unknown>>)[0].cost
+    ).toBeUndefined()
+  })
+
+  /**
+   * The migration stores what this returns. A legacy run's token counts are
+   * ordinary trace detail its authorized readers have always had, and the ledger
+   * — not the span — is where dollars live, so erasing them buys nothing and
+   * cannot be undone.
+   */
+  it('keeps the token counts the migration is about to persist', () => {
+    const spans = spanWithSpend()
+
+    stripSpanCosts(spans)
+
+    expect(spans[0].tokens).toEqual({ total: 900 })
+    expect(spans[0].children[0].tokens).toEqual({ total: 400 })
+    const segments = spans[0].providerTiming.segments as Array<Record<string, unknown>>
+    expect(segments[0].tokens).toEqual({ total: 900 })
+    expect(
+      (spans[0].children[0].providerTiming.segments as Array<Record<string, unknown>>)[0].tokens
+    ).toEqual({ total: 400 })
+  })
+})
+
+/**
+ * The COMPLETION write. `stripSpanCosts` only ever ran over legacy rows the
+ * backfill touched; every normal run went through this copy, which used to drop
+ * the span's own `cost` and leave the same dollars itemized underneath it in
+ * `providerTiming.segments`. Both writers now share one removal rule, so the
+ * two cannot answer differently about what a persisted span may carry.
+ */
+describe('copyTraceSpansWithoutCosts', () => {
+  it('clears the segment dollars the completion write used to persist', () => {
+    const spans = spanWithSpend() as unknown as TraceSpan[]
+
+    const persisted = copyTraceSpansWithoutCosts(spans)
+
+    const [span] = persisted as Array<Record<string, any>>
+    expect(span.cost).toBeUndefined()
+    expect(span.providerTiming.segments[0].cost).toBeUndefined()
+    expect(span.children[0].cost).toBeUndefined()
+    expect(span.children[0].providerTiming.segments[0].cost).toBeUndefined()
+  })
+
+  it('keeps the token counts and the segment identity a trace is read for', () => {
+    const spans = spanWithSpend() as unknown as TraceSpan[]
+
+    const [span] = copyTraceSpansWithoutCosts(spans) as unknown as Array<Record<string, any>>
+
+    expect(span.tokens).toEqual({ total: 900 })
+    expect(span.children[0].tokens).toEqual({ total: 400 })
+    expect(span.providerTiming.segments[0]).toMatchObject({
+      type: 'model',
+      name: 'gpt-4',
+      tokens: { total: 900 },
+    })
+    expect(span.providerTiming.duration).toBe(5)
+  })
+
+  /**
+   * The strip runs in place, so the copy has to reach every node it writes to.
+   * Sharing the `providerTiming` with the caller would blank the segments of the
+   * spans the rest of the run still holds in memory.
+   */
+  it('leaves the caller’s in-memory spans untouched', () => {
+    const spans = spanWithSpend() as unknown as TraceSpan[]
+
+    copyTraceSpansWithoutCosts(spans)
+
+    const [span] = spans as unknown as Array<Record<string, any>>
+    expect(span.cost).toEqual({ total: 0.5 })
+    expect(span.providerTiming.segments[0].cost).toEqual({ total: 0.5 })
+    expect(span.children[0].cost).toEqual({ total: 0.2 })
+  })
+
+  it('returns undefined for no spans', () => {
+    expect(copyTraceSpansWithoutCosts(undefined)).toBeUndefined()
   })
 })

@@ -4,6 +4,7 @@ import {
   FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,
   FunctionalOutputsUnavailableError,
 } from '@/lib/logs/execution/functional-outputs'
+import { logProjectionSubjectUserId } from '@/lib/logs/log-projection'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowRunApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -12,7 +13,7 @@ import {
   getWorkflowRunFiles,
   type WorkflowRunFileDescriptor,
 } from '@/lib/workflows/executor/execution-run-files'
-import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+import { getProjectedWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
 
 /**
  * Selectors this resource can never answer, so the caller hears about them.
@@ -59,16 +60,32 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
       runId: input.runId,
       assertedWorkflowId: input.workflowId,
     }),
-  async execute({ context, input }) {
+  async execute({ principal, context, input }) {
     try {
-      const status = await getWorkflowExecutionStatus({
+      /**
+       * The projection subject, not an attribution: a workspace API key
+       * authorizes as the workspace and represents no user, so it resolves to
+       * `undefined` and reads the run whole. Substituting the key's creator would
+       * apply a bystander's group to every caller of a shared credential.
+       */
+      const projected = await getProjectedWorkflowExecutionStatus({
         workflowId: context.workflowId,
         executionId: context.runId,
         includeOutput: input.includeOutput,
         selectedOutputs: input.selectedOutputs,
+        workspaceId: context.workspaceId,
+        workspaceOrganizationId: context.workspaceOrganizationId,
+        viewerUserId: logProjectionSubjectUserId(principal),
       })
-      if (!status) throw new OrchestrationError('not_found', 'Run not found')
+      if (!projected) throw new OrchestrationError('not_found', 'Run not found')
+      const { status, projection } = projected
 
+      /**
+       * A run whose `blockOutputs` the viewer's group withholds joins the same
+       * set as a queued or `includeOutput: false` run: the selector is judged on
+       * its shape alone. A block *name* still hears that this resource matches
+       * ids, and a well-formed id still gets the legitimate empty answer.
+       */
       const unresolvable = unresolvableSelectors(input.selectedOutputs, status.blockOutputs)
       if (unresolvable.length > 0) {
         throw new OrchestrationError(
@@ -83,14 +100,24 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
        * a list it did not request. Derived from the run's own recording, which
        * is also where the download endpoint re-derives each storage key.
        *
+       * They follow the viewer's projection for the same reason. A run's output
+       * files *are* its execution data — the descriptors name them, and
+       * `includeFileBase64` hands back their bytes — so a group that withholds
+       * `finalOutput` and `blockOutputs` under `logs.trace_spans` and then let
+       * the file list through would return the withheld output one field over.
+       * The list is `null`, exactly as for a caller that asked for no output,
+       * and the read is skipped rather than performed and discarded.
+       *
        * This re-reads the run rather than reusing what the status read already
        * loaded, and must: the status read materializes execution data *for
        * display*, a projection that strips `key` and `context` — exactly the
        * fields a file descriptor needs — and it also answers from the job queue
        * for runs that have no log row yet.
+       *
+       * permission-group-enforced: logs.trace_spans
        */
       let files: WorkflowRunFileDescriptor[] | null = null
-      if (input.includeOutput) {
+      if (input.includeOutput && !projection.hideTraceSpans) {
         const runFiles = await getWorkflowRunFiles({
           workflowId: context.workflowId,
           runId: context.runId,

@@ -51,7 +51,10 @@ async function settleWithConcurrency<T, R>(
 }
 
 export const GET = withRouteHandler(
-  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  withMcpAuth(
+    'read',
+    'mcp_tools.use'
+  )(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const { searchParams } = new URL(request.url)
       const queryValidation = mcpToolDiscoveryQuerySchema.safeParse(
@@ -107,7 +110,10 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  withMcpAuth(
+    'read',
+    'mcp_tools.use'
+  )(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const rawBody = await readMcpJsonBodyWithLimit(request)
       const parsedBody = refreshMcpToolsBodySchema.safeParse(rawBody)

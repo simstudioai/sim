@@ -13,7 +13,7 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import { resolveTriggerRunOptions, toPublicRunOption } from '@/lib/workflows/triggers/run-options'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks/registry'
-import { normalizeName } from '@/executor/constants'
+import { isHumanInTheLoopBlock, normalizeName } from '@/executor/constants'
 
 const MAX_COPILOT_BLOCK_IDS = 100
 
@@ -240,7 +240,7 @@ export const readCopilotWorkflowUpstreamReferences = defineAuthorizedWorkflowUse
       for (const accessibleBlockId of accessibleIds) {
         const block = blocks[accessibleBlockId]
         if (!block?.type) continue
-        const canSelfReference = block.type === 'approval' || block.type === 'human_in_the_loop'
+        const canSelfReference = block.type === 'approval' || isHumanInTheLoopBlock(block.type)
         if (accessibleBlockId === blockId && !canSelfReference) continue
 
         const blockName = block.name || block.type

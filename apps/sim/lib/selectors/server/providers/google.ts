@@ -422,7 +422,12 @@ export const googleSelectorAttachments = {
     execute: executeCalendars,
   },
   'google.drive': {
-    credential: storedCredential(['google-drive', 'google-docs', 'google-sheets', 'google-forms']),
+    credential: {
+      kind: 'stored',
+      field: 'oauthCredential',
+      serviceIds: ['google-drive', 'google-docs', 'google-sheets', 'google-forms'],
+      resourceServiceId: 'google-drive',
+    },
     destination: 'fixed',
     execute: executeDrive,
   },

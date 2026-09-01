@@ -93,6 +93,12 @@ export async function writeWorkflowGroupState(
           executionsPatch,
           cancellationGuard,
           secretProvenance: payload.secretProvenance,
+          /**
+           * A cell result carries no acting person down to this layer — the
+           * write has no `actorUserId` either, so any cascade it fires is
+           * already actorless on both the meter and the gate.
+           */
+          capabilityGovernedUserId: null,
         },
         table,
         requestId,

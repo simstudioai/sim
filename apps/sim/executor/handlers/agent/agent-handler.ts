@@ -41,11 +41,9 @@ import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/cus
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import {
+  assertPermissionsAllowed,
   validateBlockType,
-  validateCustomToolsAllowed,
-  validateMcpToolsAllowed,
   validateModelProvider,
-  validateSkillsAllowed,
 } from '@/ee/access-control/utils/permission-check'
 import { AGENT, BlockType, DEFAULTS, stripCustomToolPrefix } from '@/executor/constants'
 import { memoryService } from '@/executor/handlers/agent/memory'
@@ -94,6 +92,7 @@ import {
 import type { ProviderToolConfig } from '@/providers/types'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
+import { buildJsonSchemaParamShapes, decodeToolParams } from '@/tools/param-shape'
 import { filterSchemaForLLM, type ToolSchema, ToolSchemaEnrichmentError } from '@/tools/params'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
@@ -361,7 +360,12 @@ export class AgentBlockHandler implements BlockHandler {
       const skillInputs = filteredInputs.skills ?? []
       let skillMetadata: Array<{ name: string; description: string }> = []
       if (skillInputs.length > 0 && ctx.workspaceId) {
-        await validateSkillsAllowed(ctx.userId, ctx.workspaceId, ctx)
+        await assertPermissionsAllowed({
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          toolKind: 'skill',
+          ctx,
+        })
         skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
         if (skillMetadata.length > 0) {
           const skillNames = skillMetadata.map((s) => s.name)
@@ -595,11 +599,21 @@ export class AgentBlockHandler implements BlockHandler {
     const hasCustomTools = tools.some((t) => t.type === 'custom-tool')
 
     if (hasMcpTools) {
-      await validateMcpToolsAllowed(ctx.userId, ctx.workspaceId, ctx)
+      await assertPermissionsAllowed({
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        toolKind: 'mcp',
+        ctx,
+      })
     }
 
     if (hasCustomTools) {
-      await validateCustomToolsAllowed(ctx.userId, ctx.workspaceId, ctx)
+      await assertPermissionsAllowed({
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        toolKind: 'custom',
+        ctx,
+      })
     }
   }
 
@@ -846,9 +860,14 @@ export class AgentBlockHandler implements BlockHandler {
     const formattedParams = formattedTool.params ?? {}
 
     if (isCustomBlockType(tool.type)) {
+      // Same sub-blocks the raw copy was assembled with, so both sides decode alike and
+      // the projection keeps the shape the provenance registry compares.
       return {
         ...formattedParams,
-        inputMapping: assembleCustomBlockInputMapping(projectedParams),
+        inputMapping: assembleCustomBlockInputMapping(
+          projectedParams,
+          formattedTool.customBlockInputFields
+        ),
       }
     }
 
@@ -858,10 +877,15 @@ export class AgentBlockHandler implements BlockHandler {
         Object.hasOwn(projectedParams, key) ? projectedParams[key] : formattedParams[key],
       ])
     )
-    if (tool.type === 'mcp' || tool.type === 'custom-tool') return alignedParams
-
-    const blockInputs = tool.type ? getBlock(tool.type)?.inputs : undefined
-    return prepareResolvedSecretProjectedInputs(alignedParams, blockInputs, formattedParams)
+    // An MCP tool has no block, so its only structured keys are the ones its own
+    // `paramsTransform` decodes. A custom tool has neither.
+    const blockInputs =
+      tool.type && tool.type !== 'mcp' && tool.type !== 'custom-tool'
+        ? getBlock(tool.type)?.inputs
+        : undefined
+    return prepareResolvedSecretProjectedInputs(alignedParams, blockInputs, formattedParams, {
+      additionalStructuredKeys: formattedTool.jsonShapedParamKeys,
+    })
   }
 
   private async createCustomTool(
@@ -1324,12 +1348,23 @@ export class AgentBlockHandler implements BlockHandler {
     const filteredSchema = filterSchemaForLLM(config.schema, config.userProvidedParams)
     const toolId = createMcpToolId(config.serverId, config.toolName)
 
+    // An MCP tool row renders its arguments through the same sub-block controls a block
+    // tool uses, so its stored values are stringified the same way and need the same
+    // decode. The shapes come from the tool's own JSON Schema, which is what chose the
+    // controls in the first place.
+    const paramShapes = buildJsonSchemaParamShapes(config.schema)
+    const jsonShapedParamKeys = [...paramShapes]
+      .filter(([, shape]) => shape === 'json')
+      .map(([paramId]) => paramId)
+
     return {
       id: toolId,
       description: config.description,
       parameters: filteredSchema,
       params: config.userProvidedParams,
       usageControl: config.usageControl || 'auto',
+      paramsTransform: (params: Record<string, unknown>) => decodeToolParams(params, paramShapes),
+      ...(jsonShapedParamKeys.length > 0 && { jsonShapedParamKeys }),
     }
   }
 

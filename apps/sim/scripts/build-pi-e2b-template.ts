@@ -29,7 +29,7 @@ import {
 
 const DEFAULT_TEMPLATE_NAME = 'sim-pi'
 
-/** Pi 0.80 requires Node >=22.19; E2B's code-interpreter base currently ships Node 20. */
+/** Pi 0.84 requires Node >=22.19; E2B's code-interpreter base currently ships Node 20. */
 const INSTALL_NODE_COMMAND = `curl -fsSL https://deb.nodesource.com/setup_${PI_NODE_MAJOR}.x | bash - && apt-get install -y nodejs && ${PI_NODE_VERSION_ASSERT}`
 
 /** Pi uses the command and filesystem APIs, so the inherited Jupyter service is unnecessary. */

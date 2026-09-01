@@ -1,4 +1,4 @@
-import { Link, Text } from '@react-email/components'
+import { Link, Text } from 'react-email'
 import { baseStyles } from '@/components/emails/_styles'
 
 /** `Link` renders an underline by default; the pill owns its own chrome. */

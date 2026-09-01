@@ -23,6 +23,7 @@ import {
   CHILD_TRACE_DISABLED_OUTPUT_KEY,
   DEFAULTS,
   EDGE,
+  isHumanInTheLoopBlock,
   isSentinelBlockType,
   isWorkflowBlockType,
 } from '@/executor/constants'
@@ -180,7 +181,7 @@ export class BlockExecutor {
     }
     let cleanupSelfReference: (() => void) | undefined
 
-    if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
+    if (isHumanInTheLoopBlock(block.metadata?.id)) {
       cleanupSelfReference = this.preparePauseResumeSelfReference(
         blockCtx,
         node,
@@ -1154,7 +1155,7 @@ export class BlockExecutor {
     selectedOutputs: string[],
     executionOrder?: number
   ): Promise<void> {
-    const blockId = node.id
+    const blockId = node.metadata?.originalBlockId ?? node.id
     const piiEnabled = Boolean(ctx.piiBlockOutputRedaction?.enabled)
     // Live-forward only when a client stream exists and PII redaction is off.
     const forwardToClient = Boolean(ctx.onStream) && !piiEnabled

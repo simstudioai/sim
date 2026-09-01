@@ -57,7 +57,6 @@ const {
   mockRunWorkflowTool,
   mockReadAvailableCustomToolByIdOrTitleAsCopilot,
   mockReadAvailableCustomToolByIdOrTitleAsExecutor,
-  mockGenerateInternalDelegationToken,
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
   mockAssertPermissionsAllowed,
@@ -78,7 +77,6 @@ const {
   mockRunWorkflowTool: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsCopilot: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsExecutor: vi.fn(),
-  mockGenerateInternalDelegationToken: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
   mockAssertPermissionsAllowed: vi.fn(),
@@ -98,8 +96,6 @@ vi.mock('@/lib/api-key/byok', () => ({
 }))
 
 vi.mock('@/lib/auth/internal', () => ({
-  generateInternalDelegationToken: (...args: unknown[]) =>
-    mockGenerateInternalDelegationToken(...args),
   generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
 }))
 
@@ -111,13 +107,9 @@ vi.mock('@/lib/core/security/encryption', () => ({
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
   assertPermissionsAllowed: mockAssertPermissionsAllowed,
   validateBlockType: vi.fn().mockResolvedValue(undefined),
-  validateMcpToolsAllowed: vi.fn().mockResolvedValue(undefined),
-  validateCustomToolsAllowed: vi.fn().mockResolvedValue(undefined),
-  validateSkillsAllowed: vi.fn().mockResolvedValue(undefined),
   validateModelProvider: vi.fn().mockResolvedValue(undefined),
   validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
   validatePublicApiAllowed: vi.fn().mockResolvedValue(undefined),
-  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
   ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
   IntegrationNotAllowedError: class IntegrationNotAllowedError extends Error {},
   McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
@@ -125,6 +117,10 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   SkillsNotAllowedError: class SkillsNotAllowedError extends Error {},
   InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
   PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
@@ -154,6 +150,15 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
   markWorkspaceFileSecretProvenanceUnknown: (...args: unknown[]) =>
     mockMarkWorkspaceFileSecretProvenanceUnknown(...args),
+}))
+
+const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
+  mockResolveExecutorCredentialToken: vi.fn(),
+}))
+
+vi.mock('@/executor/utils/credential-token', () => ({
+  resolveExecutorCredentialToken: (...args: unknown[]) =>
+    mockResolveExecutorCredentialToken(...args),
 }))
 
 vi.mock('@/executor/handlers/workflow/workflow-tool-runner', () => ({
@@ -465,7 +470,6 @@ vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQu
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
   mockAssertPermissionsAllowed.mockResolvedValue(undefined)
-  mockGenerateInternalDelegationToken.mockResolvedValue('executor-token')
   mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
   mockGetInternalToolOperationHandler.mockResolvedValue(mockExecuteInternalToolOperation)
   mockExecuteInternalToolOperation.mockImplementation(async (request: InternalToolOperationCall) =>
@@ -2989,15 +2993,7 @@ describe('Internal Route Trust', () => {
     ;(tools as Record<string, unknown>)[ordinaryToolId] = createAuthorityTool(ordinaryToolId, false)
 
     const setTokenPayload = (payload: Record<string, unknown>) => {
-      global.fetch = Object.assign(
-        vi.fn().mockResolvedValue(
-          new Response(JSON.stringify(payload), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          })
-        ),
-        { preconnect: vi.fn() }
-      ) as typeof fetch
+      mockResolveExecutorCredentialToken.mockResolvedValue(payload)
     }
 
     try {
@@ -3042,6 +3038,70 @@ describe('Internal Route Trust', () => {
     } finally {
       Reflect.deleteProperty(tools, authorityToolId)
       Reflect.deleteProperty(tools, ordinaryToolId)
+    }
+  })
+
+  it('accepts credential-group provenance only from credential resolution', async () => {
+    const toolId = 'test_credential_type_authority'
+    const mockTool = {
+      id: toolId,
+      name: 'Credential Type Authority Test',
+      description: 'Verifies credential-derived request capabilities',
+      version: '1.0.0',
+      oauth: {
+        required: true,
+        provider: 'slack',
+        authoritativeParams: ['credentialType'] as const,
+      },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'hidden' },
+        credentialType: { type: 'string', required: false, visibility: 'hidden' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => {
+          const types =
+            params.credentialType === 'managed_oauth' ? 'public_channel,im,mpim' : 'public_channel'
+          return `https://slack.com/api/conversations.list?types=${types}`
+        },
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.accessToken}`,
+        }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+    ;(tools as Record<string, unknown>)[toolId] = mockTool
+
+    const setTokenPayload = (payload: Record<string, unknown>) => {
+      mockResolveExecutorCredentialToken.mockResolvedValue(payload)
+    }
+
+    try {
+      setTokenPayload({ accessToken: 'legacy-token' })
+      const spoofedResult = await executeTool(toolId, {
+        credential: 'legacy-credential',
+        credentialType: 'managed_oauth',
+      })
+      expect(spoofedResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://slack.com/api/conversations.list?types=public_channel',
+        '93.184.216.34',
+        expect.anything()
+      )
+
+      mockSecureFetchWithPinnedIP.mockClear()
+      setTokenPayload({ accessToken: 'managed-token', credentialType: 'managed_oauth' })
+      const managedResult = await executeTool(toolId, {
+        credential: 'managed-credential',
+      })
+      expect(managedResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://slack.com/api/conversations.list?types=public_channel,im,mpim',
+        '93.184.216.34',
+        expect.anything()
+      )
+    } finally {
+      Reflect.deleteProperty(tools, toolId)
     }
   })
 
@@ -4429,21 +4489,15 @@ describe('Copilot OAuth Credential Enforcement', () => {
 
 describe('Managed OAuth Credential Delegation', () => {
   it('passes an opaque credential ID with trusted tool scope and origin-bound delegation', async () => {
-    mockGenerateInternalToken.mockResolvedValueOnce('legacy-token')
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ accessToken: 'managed-access-token' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ messages: [] }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
+    mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+      accessToken: 'managed-access-token',
+    })
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ messages: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
     global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
 
     const executorDelegationOrigin = {
@@ -4469,23 +4523,23 @@ describe('Managed OAuth Credential Delegation', () => {
       { executionContext: context }
     )
 
-    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith(executorDelegationOrigin)
-    const [tokenUrl, tokenRequest] = fetchMock.mock.calls[0]
-    expect(String(tokenUrl)).toContain('/api/auth/oauth/token')
-    expect(tokenRequest.headers).toMatchObject({
-      Authorization: 'Bearer legacy-token',
-      'x-sim-managed-oauth-delegation': 'Bearer executor-token',
-    })
-    expect(JSON.parse(tokenRequest.body)).toMatchObject({
-      credentialId: 'managed-credential-id',
-      toolId: 'gmail_read',
-      scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
-    })
+    expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'managed-credential-id',
+        toolId: 'gmail_read',
+        scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+        executorDelegationOrigin,
+      })
+    )
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes('/api/auth/oauth/token'))
+    ).toBe(false)
   })
 
   it('fails before transport when managed credential delegation lacks current workflow authority', async () => {
-    mockGenerateInternalDelegationToken.mockClear()
-    mockGenerateInternalToken.mockResolvedValueOnce('legacy-token')
+    mockResolveExecutorCredentialToken.mockRejectedValueOnce(
+      new Error('Managed credential delegation is missing current workflow authority')
+    )
     const fetchMock = vi.fn()
     global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
 
@@ -4520,7 +4574,6 @@ describe('Managed OAuth Credential Delegation', () => {
       success: false,
       error: 'Managed credential delegation is missing current workflow authority',
     })
-    expect(mockGenerateInternalDelegationToken).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

@@ -19,6 +19,7 @@ import {
   updateChatContract,
   verifyChatEmailOtpContract,
 } from '@/lib/api/contracts/chats'
+import { parseInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import type { OutputConfig } from '@/stores/chat/types'
 import { deploymentKeys, invalidateDeploymentQueries } from './deployments'
 
@@ -226,19 +227,11 @@ function throwUserFriendlyIdentifierError(error: unknown): never {
  * Parses output block selections into structured output configs
  */
 function parseOutputConfigs(selectedOutputBlocks: string[]): OutputConfig[] {
-  return selectedOutputBlocks
-    .map((outputId) => {
-      const firstUnderscoreIndex = outputId.indexOf('_')
-      if (firstUnderscoreIndex !== -1) {
-        const blockId = outputId.substring(0, firstUnderscoreIndex)
-        const path = outputId.substring(firstUnderscoreIndex + 1)
-        if (blockId && path) {
-          return { blockId, path }
-        }
-      }
-      return null
-    })
-    .filter((config): config is OutputConfig => config !== null)
+  return selectedOutputBlocks.map((outputId) => {
+    const normalizedOutputId = outputId.endsWith('_') ? outputId.slice(0, -1) : outputId
+    const parsed = parseInternalOutputSelector(normalizedOutputId)
+    return { ...parsed, path: parsed.path || 'content' }
+  })
 }
 
 /**

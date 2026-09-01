@@ -251,6 +251,27 @@ export function isInvitationExpired(inv: Pick<InvitationWithGrants, 'expiresAt'>
 }
 
 /**
+ * The organization acceptance will land the invitee's membership in, before the
+ * gates that can downgrade the join to external.
+ *
+ * Workspace-kind invitations take the granted workspace's LIVE organization —
+ * the workspace is what was shared, and its organization can change after the
+ * invite goes out. Organization-kind invitations take their STAMPED one, which
+ * a granted workspace's move must never redirect. Acceptance, the accept-screen
+ * preview, and the resend gate all read the target here so none of them can
+ * disagree about which organization an invitation admits to.
+ */
+function invitationJoinTargetOrganizationId(
+  inv: Pick<InvitationWithGrants, 'kind' | 'organizationId' | 'grants'>,
+  primaryWorkspace: Pick<WorkspaceWithOwner, 'organizationId'> | null
+): string | null {
+  if (inv.kind === 'workspace' && inv.grants.length > 0 && primaryWorkspace) {
+    return primaryWorkspace.organizationId
+  }
+  return inv.organizationId
+}
+
+/**
  * A workspace invitation only escalates into an EXISTING organization when
  * that organization matches what was stamped at send time — a workspace that
  * entered an organization after the invite went out (a member's owned
@@ -279,6 +300,40 @@ async function stampedOrganizationAllowsEscalation(
     inviterMembership?.organizationId === workspaceOrganizationId &&
     isOrgAdminRole(inviterMembership.role)
   )
+}
+
+/**
+ * The organization ACCEPTANCE of this invitation would admit the invitee to, or
+ * `null` when acceptance creates no membership anywhere.
+ *
+ * Read by the send-capability gates, which have to key on what an invitation
+ * ADMITS TO rather than on its `kind`: a workspace-kind invitation whose granted
+ * workspace belongs to an organization joins the invitee to that organization
+ * exactly as an organization-kind one does ({@link acceptLockedInvitation}
+ * creates the member row from this same target), so gating those on their grants
+ * alone would let a workspace group that permits invitations carry a member into
+ * an organization whose default group withholds them.
+ *
+ * Mirrors acceptance's own decision, one clause at a time: an external
+ * membership intent creates no member row, and an escalation the stamped
+ * organization does not allow is downgraded to external before one is created.
+ * Both are read through the predicates acceptance uses, so a change there
+ * reaches this gate too. The reads are unlocked — a race resolves at accept
+ * time, where the locks are.
+ */
+export async function resolveInvitationAdmissionOrganizationId(
+  inv: InvitationWithGrants,
+  executor?: DbOrTx
+): Promise<string | null> {
+  if (inv.membershipIntent === 'external') return null
+  const primaryGrantWorkspaceId = inv.grants[0]?.workspaceId
+  const primaryWorkspace = primaryGrantWorkspaceId
+    ? await getWorkspaceWithOwner(primaryGrantWorkspaceId, executor ? { executor } : undefined)
+    : null
+  const organizationId = invitationJoinTargetOrganizationId(inv, primaryWorkspace)
+  if (!organizationId) return null
+  if (!(await stampedOrganizationAllowsEscalation(inv, organizationId, executor ?? db))) return null
+  return organizationId
 }
 
 /**
@@ -362,18 +417,12 @@ export async function getInvitationJoinPreview(
     workspaceIdsToMove: [],
   })
 
-  let workspaceOrganizationId = inv.organizationId
-  let billedAccountUserId: string | null = null
   const primaryGrantWorkspaceId = inv.grants[0]?.workspaceId
-  if (primaryGrantWorkspaceId) {
-    const primaryWorkspace = await getWorkspaceWithOwner(primaryGrantWorkspaceId)
-    if (primaryWorkspace) {
-      billedAccountUserId = primaryWorkspace.billedAccountUserId
-      if (inv.kind === 'workspace') {
-        workspaceOrganizationId = primaryWorkspace.organizationId
-      }
-    }
-  }
+  const primaryWorkspace = primaryGrantWorkspaceId
+    ? await getWorkspaceWithOwner(primaryGrantWorkspaceId)
+    : null
+  const billedAccountUserId = primaryWorkspace?.billedAccountUserId ?? null
+  const workspaceOrganizationId = invitationJoinTargetOrganizationId(inv, primaryWorkspace)
 
   /**
    * Personal-workspace invites only produce an organization through billing's
@@ -858,11 +907,10 @@ async function acceptLockedInvitation(
    */
   const primaryGrant = inv.grants[0]
   let billingOwnerUserId = inv.inviterId
-  let workspaceOrganizationId = inv.organizationId
   if (primaryGrant && lockPlan.primaryWorkspace && inv.kind === 'workspace') {
     billingOwnerUserId = lockPlan.primaryWorkspace.billedAccountUserId
-    workspaceOrganizationId = lockPlan.primaryWorkspace.organizationId
   }
+  const workspaceOrganizationId = invitationJoinTargetOrganizationId(inv, lockPlan.primaryWorkspace)
 
   if (
     shouldJoinOrganization &&
