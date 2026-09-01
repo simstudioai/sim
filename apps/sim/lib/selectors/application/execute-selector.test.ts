@@ -190,36 +190,68 @@ describe('executeSelector', () => {
   })
 
   /**
-   * A selector accepting two services would pass a check that asks whether ANY
-   * declared service is allowed. The resolved credential's provider id is the
-   * server-trusted narrowing, so the pair is judged as the half the caller is
-   * really reaching.
+   * `serviceIds` names which credentials a selector accepts, not which resource
+   * it reads. `google.drive` accepts a Drive, Docs, Sheets or Forms connection
+   * because all four carry Drive scope, but it only ever calls the Drive API.
+   * Judging the accepted set let a group that permits `google_sheets_v2` and
+   * excludes `google_drive` read Drive through it.
    */
-  it('narrows a two-service selector to the resolved credential provider', async () => {
+  it('refuses a multi-service selector whose own resource is excluded', async () => {
     mocks.authorizeCredential.mockImplementation(async () => {
       mocks.events.push('credential-authorization')
-      return { suppliedId: 'credential-1', providerId: 'sharepoint' }
+      return { suppliedId: 'credential-1', providerId: 'google-sheets' }
     })
     mocks.getAttachment.mockReturnValue({
       destination: 'fixed',
       credential: {
         kind: 'stored',
         field: 'oauthCredential',
-        serviceIds: ['sharepoint', 'microsoft-excel'],
+        serviceIds: ['google-drive', 'google-docs', 'google-sheets', 'google-forms'],
+        resourceServiceId: 'google-drive',
       },
       execute: mocks.executeAttachment,
     })
     mockResolvePermissionGroupConfig.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      allowedIntegrations: ['microsoft_excel_v2'],
+      allowedIntegrations: ['google_sheets_v2'],
     })
 
     await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
     expect(mocks.executeAttachment).not.toHaveBeenCalled()
   })
 
-  /** The same pair, reached through the credential the allowlist does name. */
-  it('allows a two-service selector reached through the permitted provider', async () => {
+  /**
+   * The same selector, with its own resource permitted. The credential is a
+   * Sheets one and `google_sheets_v2` is *not* allowed, which is deliberate:
+   * the credential narrows nothing, because the API the selector reaches is the
+   * only thing the allowlist has an opinion about.
+   */
+  it('allows a multi-service selector whose own resource is permitted', async () => {
+    mocks.authorizeCredential.mockImplementation(async () => {
+      mocks.events.push('credential-authorization')
+      return { suppliedId: 'credential-1', providerId: 'google-sheets' }
+    })
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      credential: {
+        kind: 'stored',
+        field: 'oauthCredential',
+        serviceIds: ['google-drive', 'google-docs', 'google-sheets', 'google-forms'],
+        resourceServiceId: 'google-drive',
+      },
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['google_drive'],
+    })
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
+  })
+
+  /** The SharePoint/Excel pair reads SharePoint, whatever credential opened it. */
+  it('refuses a sharepoint selector when only the excel half is allowed', async () => {
     mocks.authorizeCredential.mockImplementation(async () => {
       mocks.events.push('credential-authorization')
       return { suppliedId: 'credential-1', providerId: 'microsoft-excel' }
@@ -230,6 +262,7 @@ describe('executeSelector', () => {
         kind: 'stored',
         field: 'oauthCredential',
         serviceIds: ['sharepoint', 'microsoft-excel'],
+        resourceServiceId: 'sharepoint',
       },
       execute: mocks.executeAttachment,
     })
@@ -238,8 +271,8 @@ describe('executeSelector', () => {
       allowedIntegrations: ['microsoft_excel_v2'],
     })
 
-    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
-    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
+    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
   })
 
   /**

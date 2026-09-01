@@ -59,6 +59,35 @@ describe('selector manifest', () => {
     ])
   })
 
+  /**
+   * `serviceIds` names which credentials a selector accepts; the integration
+   * allowlist has to judge which resource it *reaches*, and for a shared
+   * provider API those differ. A multi-service declaration that named no
+   * resource fell back to "any accepted service is allowed", which let a group
+   * permitting `google_sheets_v2` read Drive through `google.drive`.
+   */
+  it('makes every multi-service selector name the resource it reaches', () => {
+    for (const [key, attachment] of Object.entries(serverSelectorRegistry)) {
+      const credential = attachment.credential
+      if (!credential || credential.serviceIds.length < 2) continue
+
+      expect(credential.resourceServiceId, `${key} declares no resourceServiceId`).toBeDefined()
+      expect(credential.serviceIds).toContain(credential.resourceServiceId)
+    }
+  })
+
+  it('pins the resource each shared-provider selector reaches', () => {
+    expect(serverSelectorRegistry['google.drive'].credential?.resourceServiceId).toBe(
+      'google-drive'
+    )
+    expect(serverSelectorRegistry['onedrive.folders'].credential?.resourceServiceId).toBe(
+      'onedrive'
+    )
+    expect(serverSelectorRegistry['sharepoint.sites'].credential?.resourceServiceId).toBe(
+      'sharepoint'
+    )
+  })
+
   it('requires executable preparation for every non-fixed destination', () => {
     const preparedDestinations = Object.values(serverSelectorRegistry).filter(
       (attachment) => attachment.destination !== 'fixed'

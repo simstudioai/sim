@@ -18,7 +18,10 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { assertSelectorIntegrationAllowed } from '@/lib/selectors/server/integration-access'
+import {
+  assertSelectorIntegrationAllowed,
+  selectorResourceServiceIds,
+} from '@/lib/selectors/server/integration-access'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { resolveSelectorReferences } from '@/lib/selectors/server/references'
 import { getServerSelectorAttachment } from '@/lib/selectors/server/registry'
@@ -166,15 +169,14 @@ async function executeAuthorizedSelector(args: {
      * a capability, and this key's enforcement mechanism is `executor`, not
      * `capability`.
      *
-     * Placed after credential binding so it can be made against the resolved
-     * credential's provider rather than the declaration alone, and before the
-     * provider call so a denied integration is never reached.
+     * Judged against the selector's own resource — the API it calls — not the
+     * set of credentials it accepts, and not the bound credential's provider.
+     * Placed before the provider call so a denied integration is never reached.
      */
     await assertSelectorIntegrationAllowed({
       principal: args.principal,
       workspaceId: args.context.workspaceId,
-      serviceIds: attachment.credential?.serviceIds ?? [],
-      ...(credential?.providerId ? { providerId: credential.providerId } : {}),
+      serviceIds: attachment.credential ? selectorResourceServiceIds(attachment.credential) : [],
     })
 
     const credentialAccess = credential?.access

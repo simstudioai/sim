@@ -14,17 +14,33 @@ export type SelectorDestinationPolicy = 'fixed' | 'credential-bound' | 'user-con
 
 export type SelectorProtectedValueKind = 'secret' | 'reference'
 
+/**
+ * The service whose API a selector actually reaches.
+ *
+ * `serviceIds` names which *credentials* a selector accepts, which is not the
+ * same question as which *resource* it reads. `google.drive` accepts a Drive,
+ * Docs, Sheets or Forms connection because all four carry Drive scope, but it
+ * only ever calls the Drive API. Judging the integration allowlist against the
+ * accepted set let a group that permits `google_sheets_v2` and excludes
+ * `google_drive` read Drive through it.
+ *
+ * Required whenever `serviceIds` names more than one service, and must be one
+ * of them; `lib/selectors/manifest.test.ts` pins both. A single-service
+ * declaration is its own resource and omits it.
+ */
 export type SelectorCredentialPolicy =
   | {
       kind: 'stored'
       field: 'oauthCredential'
       serviceIds: readonly string[]
+      resourceServiceId?: string
     }
   | {
       kind: 'stored-or-fixed-token'
       field: 'oauthCredential'
       serviceIds: readonly string[]
       tokenPrefixes: readonly string[]
+      resourceServiceId?: string
     }
 
 export interface AuthorizedSelectorCredential {
