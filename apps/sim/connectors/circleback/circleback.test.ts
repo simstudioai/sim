@@ -217,6 +217,23 @@ describe('circleback connector request shaping and documents', () => {
     await expect(circlebackConnector.getDocument('tok', {}, 'm1')).rejects.toThrow('500')
   })
 
+  it('rejects caps that the parser would silently treat as unlimited', async () => {
+    for (const bad of ['0.5', 'Infinity', '-1', 'abc']) {
+      const result = await circlebackConnector.validateConfig('tok', { maxMeetings: bad })
+      expect(result.valid).toBe(false)
+    }
+
+    mockFetchWithRetry.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [],
+      text: async () => '',
+    } as unknown as Response)
+    const ok = await circlebackConnector.validateConfig('tok', { maxMeetings: '25' })
+    expect(ok.valid).toBe(true)
+  })
+
   it('maps metadata to declared tag keys', () => {
     const tags = circlebackConnector.mapTags?.({
       title: 'Weekly Sync',

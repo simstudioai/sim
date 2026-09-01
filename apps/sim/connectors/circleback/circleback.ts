@@ -426,8 +426,8 @@ export const circlebackConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const maxMeetings = sourceConfig.maxMeetings as string | undefined
-    if (maxMeetings && (Number.isNaN(Number(maxMeetings)) || Number(maxMeetings) < 0)) {
-      return { valid: false, error: 'Max meetings must be a non-negative number' }
+    if (maxMeetings && (!Number.isInteger(Number(maxMeetings)) || Number(maxMeetings) < 0)) {
+      return { valid: false, error: 'Max meetings must be a non-negative whole number' }
     }
 
     const ownership = sourceConfig.ownership

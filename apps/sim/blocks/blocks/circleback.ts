@@ -476,9 +476,9 @@ export const CirclebackBlock: BlockConfig = {
 
   outputs: {
     id: {
-      type: 'string',
+      type: 'any',
       description:
-        'The ID of the returned meeting, action item, person, or tag, or the meeting ID from a trigger payload',
+        'The ID of the returned resource: a string for meetings, a number for action items, people, and tags, or the numeric meeting ID from a trigger payload',
     },
     name: { type: 'string', description: 'Meeting or tag name' },
     url: { type: 'string', description: 'Virtual meeting URL (Zoom, Meet, Teams)' },
