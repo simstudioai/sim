@@ -12,6 +12,8 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import {
+  decodeToolParamValue,
+  getJsonSchemaValueShape,
   type JsonSchemaProperty,
   jsonSchemaType,
   subBlockTypeForJsonSchema,
@@ -235,7 +237,11 @@ export function McpDynamicArgs({
 
   const renderParameterInput = (paramName: string, paramSchema: any) => {
     const current = currentArgs()
-    const value = current[paramName]
+    // An argument entered before this control was derived from the NORMALIZED schema type
+    // was collected by a text field, so it is stored as a string — `'false'` would tick the
+    // switch it now renders as. Decoding on read normalizes it to the shape the control
+    // expects; already-typed values pass through untouched, so this is a no-op thereafter.
+    const value = decodeToolParamValue(current[paramName], getJsonSchemaValueShape(paramSchema))
     const inputType = getInputType(paramSchema)
 
     switch (inputType) {
@@ -262,6 +268,9 @@ export function McpDynamicArgs({
           label: String(option),
           value: String(option),
         }))
+        // Options are stringified members, so a decoded numeric/boolean enum value has to
+        // be stringified back to match one.
+        const dropdownValue = value === undefined || value === null ? '' : String(value)
         const selectedLabel = value ? String(value) : ''
         const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
           activeSearchTarget,
@@ -275,8 +284,8 @@ export function McpDynamicArgs({
           <div key={`${paramName}-dropdown`}>
             <Combobox
               options={dropdownOptions}
-              value={value || ''}
-              selectedValue={value || ''}
+              value={dropdownValue}
+              selectedValue={dropdownValue}
               onChange={(selectedValue) => {
                 const matchedOption = dropdownOptions.find(
                   (opt: { label: string; value: string }) => opt.value === selectedValue

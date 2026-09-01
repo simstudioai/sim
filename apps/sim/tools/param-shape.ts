@@ -409,17 +409,26 @@ export function subBlockTypeForJsonSchema(property: JsonSchemaProperty): SubBloc
  * the control would answer `'string'` and the argument would reach the MCP server
  * undecoded. The same holds for a non-primitive enum, which renders as free text.
  */
-function getJsonSchemaValueShape(property: JsonSchemaProperty): ToolParamValueShape {
-  if (Array.isArray(property.enum)) {
-    return property.enum.every((option) => option === null || typeof option !== 'object')
-      ? 'string'
-      : 'json'
-  }
-
+export function getJsonSchemaValueShape(property: JsonSchemaProperty): ToolParamValueShape {
   const type = jsonSchemaType(property)
   if (type === 'boolean') return 'boolean'
   if (type === 'number' || type === 'integer') return 'number'
   if (type === 'object' || type === 'array') return 'json'
+  if (type === 'string') return 'string'
+
+  // No declared type leaves the enum members as the only signal. This runs AFTER the
+  // declared type, not before: a dropdown stores `String(option)`, so a numeric enum
+  // read as text would send `'1'` where the server expects `1`.
+  if (Array.isArray(property.enum)) return enumMemberShape(property.enum)
+
+  return 'string'
+}
+
+/** The shape an enum's members share, for a property that declares no type. */
+function enumMemberShape(members: readonly unknown[]): ToolParamValueShape {
+  if (members.some((member) => member !== null && typeof member === 'object')) return 'json'
+  if (members.every((member) => typeof member === 'number')) return 'number'
+  if (members.every((member) => typeof member === 'boolean')) return 'boolean'
   return 'string'
 }
 
