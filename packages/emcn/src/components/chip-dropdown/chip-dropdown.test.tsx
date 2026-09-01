@@ -10,8 +10,10 @@ let root: Root | null = null
 let container: HTMLDivElement | null = null
 
 function mount(
-  fullWidth: boolean,
-  aria: Pick<ChipDropdownProps, 'aria-required' | 'aria-invalid' | 'aria-describedby'> = {}
+  props: Pick<
+    ChipDropdownProps,
+    'fullWidth' | 'variant' | 'aria-required' | 'aria-invalid' | 'aria-describedby'
+  > = {}
 ): HTMLButtonElement {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
@@ -22,9 +24,8 @@ function mount(
       <ChipDropdown
         value='workflow'
         options={[{ value: 'workflow', label: 'Workflow' }]}
-        fullWidth={fullWidth}
         aria-label='Principal type'
-        {...aria}
+        {...props}
       />
     )
   )
@@ -43,15 +44,15 @@ afterEach(() => {
 
 describe('ChipDropdown', () => {
   it('fills its container when fullWidth is enabled', () => {
-    expect(mount(true).className).toContain('w-full')
+    expect(mount({ fullWidth: true }).className).toContain('w-full')
   })
 
   it('keeps its intrinsic width by default', () => {
-    expect(mount(false).className).not.toContain('w-full')
+    expect(mount({ fullWidth: false }).className).not.toContain('w-full')
   })
 
   it('renders its text trigger through the fade-only overflow primitive', () => {
-    const label = mount(true).querySelector<HTMLElement>('[data-overflow-text]')
+    const label = mount({ fullWidth: true }).querySelector<HTMLElement>('[data-overflow-text]')
 
     expect(label?.textContent).toBe('Workflow')
     expect(label?.className).toContain('text-clip')
@@ -61,7 +62,8 @@ describe('ChipDropdown', () => {
   it.each([true, 'true'] as const)(
     'announces %s field states alongside the supplied error description',
     (state) => {
-      const trigger = mount(true, {
+      const trigger = mount({
+        fullWidth: true,
         'aria-required': state,
         'aria-invalid': state,
         'aria-describedby': 'field-error',
@@ -88,7 +90,8 @@ describe('ChipDropdown', () => {
   it.each([false, 'false'] as const)(
     'keeps the original description when field states are %s',
     (state) => {
-      const trigger = mount(true, {
+      const trigger = mount({
+        fullWidth: true,
         'aria-required': state,
         'aria-invalid': state,
         'aria-describedby': 'field-hint',
@@ -98,4 +101,21 @@ describe('ChipDropdown', () => {
       expect(container?.textContent).toBe('Workflow')
     }
   )
+
+  it('renders the filled trigger with the border by default', () => {
+    const trigger = mount()
+    expect(trigger.className).toContain('border')
+    expect(trigger.className).toContain('bg-[var(--surface-5)]')
+  })
+
+  it('renders the ghost trigger as the bare pill — no border, no fill, icon-tinted label', () => {
+    const trigger = mount({ variant: 'ghost' })
+    expect(trigger.className).not.toContain('border')
+    expect(trigger.className).not.toContain('bg-[var(--surface-5)]')
+    expect(trigger.className).toContain('hover-hover:bg-[var(--surface-hover)]')
+
+    const label = trigger.querySelector<HTMLElement>('[data-overflow-text]')
+    expect(label?.className).toContain('text-[var(--text-icon)]')
+    expect(label?.className).not.toContain('text-[var(--text-body)]')
+  })
 })

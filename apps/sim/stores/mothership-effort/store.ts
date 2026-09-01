@@ -5,11 +5,11 @@ import { devtools, persist } from 'zustand/middleware'
 export type MothershipEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export const MOTHERSHIP_EFFORT_OPTIONS: Array<{ value: MothershipEffort; label: string }> = [
-  { value: 'low', label: 'Low effort' },
-  { value: 'medium', label: 'Medium effort' },
-  { value: 'high', label: 'High effort' },
-  { value: 'xhigh', label: 'X-high effort' },
-  { value: 'max', label: 'Max effort' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'xhigh', label: 'X-high' },
+  { value: 'max', label: 'Max' },
 ]
 
 interface MothershipEffortState {
