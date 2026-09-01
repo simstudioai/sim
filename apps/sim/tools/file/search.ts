@@ -21,9 +21,9 @@ interface FileSearchResponse extends ToolResponse {
  */
 const TOOL_DESCRIPTIONS: Record<FileSearchMode, string> = {
   regex:
-    'Search every active workspace file for lines matching a regular expression, and return each matching line once with its file ID and line number.',
+    'Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds, so check "complete" and "indexStatus" before concluding that something is absent.',
   exact:
-    'Search every active workspace file for lines containing an exact piece of text, and return each matching line once with its file ID and line number.',
+    'Search the indexed text of active workspace files for lines containing an exact piece of text, and return each matching line once with its file ID and line number. Coverage is what the index currently holds, so check "complete" and "indexStatus" before concluding that something is absent.',
 }
 
 const QUERY_DESCRIPTIONS: Record<FileSearchMode, string> = {
@@ -32,6 +32,14 @@ const QUERY_DESCRIPTIONS: Record<FileSearchMode, string> = {
   exact:
     'The exact text to find, 3-512 characters. It is matched verbatim: ".", "*", "(" and every other regular-expression metacharacter is searched for as itself, so nothing needs escaping. Matching is case-insensitive until the text contains an uppercase letter, which makes it case-sensitive.',
 }
+
+/**
+ * What a consumer sees before the mode is known — the catalog, the generated
+ * docs, and a block saved before Match existed. Unlike the runtime schema it is
+ * never enriched with the mode in force, so it has to name both readings rather
+ * than describe only the default.
+ */
+const DECLARED_QUERY_DESCRIPTION = `${QUERY_DESCRIPTIONS.regex} When the workflow builder sets Match to exact instead, the query is matched verbatim and no metacharacter needs escaping.`
 
 export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResponse> = {
   id: 'file_search',
@@ -43,7 +51,7 @@ export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResp
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: QUERY_DESCRIPTIONS.regex,
+      description: DECLARED_QUERY_DESCRIPTION,
     },
     mode: {
       type: 'string',

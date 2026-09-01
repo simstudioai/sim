@@ -216,6 +216,12 @@ function repeat(atom: LiteralGuarantee, min: number, max: number): LiteralGuaran
 interface Quantifier {
   min: number
   max: number
+  /**
+   * Whether an upper bound was written at all. `{n,}` has none to cap, but a
+   * bound too large for `Number` also arrives as `Infinity` — without this the
+   * two are indistinguishable and an overflowed bound is read as open-ended.
+   */
+  boundedAbove: boolean
 }
 
 /**
@@ -478,15 +484,15 @@ class FileSearchRegexParser {
     const character = this.peek()
     if (character === '*') {
       this.index += 1
-      return { min: 0, max: Number.POSITIVE_INFINITY }
+      return { min: 0, max: Number.POSITIVE_INFINITY, boundedAbove: false }
     }
     if (character === '+') {
       this.index += 1
-      return { min: 1, max: Number.POSITIVE_INFINITY }
+      return { min: 1, max: Number.POSITIVE_INFINITY, boundedAbove: false }
     }
     if (character === '?') {
       this.index += 1
-      return { min: 0, max: 1 }
+      return { min: 0, max: 1, boundedAbove: true }
     }
     if (character !== '{') return null
     const bounded = this.readQuantifierAt(this.index)
@@ -497,13 +503,15 @@ class FileSearchRegexParser {
     }
     /**
      * `{n,}` has no upper bound to cap — it is `+` with a floor, and both engines
-     * expand it the same way — so only a stated maximum is measured against the
+     * expand it the same way — so only a written maximum is measured against the
      * cap. The minimum is always measured, since that is what an expansion
-     * actually unrolls.
+     * actually unrolls. A written maximum that is not at or under the cap fails,
+     * which covers one too large for `Number` to hold as well as one merely too
+     * big.
      */
     if (
       bounded.min > FILE_SEARCH_PATTERN_MAX_REPEAT ||
-      (Number.isFinite(bounded.max) && bounded.max > FILE_SEARCH_PATTERN_MAX_REPEAT)
+      (bounded.boundedAbove && !(bounded.max <= FILE_SEARCH_PATTERN_MAX_REPEAT))
     ) {
       throw new FileSearchPatternError(
         `Repeat count at position ${this.index + 1} exceeds ${FILE_SEARCH_PATTERN_MAX_REPEAT}`
@@ -522,9 +530,10 @@ class FileSearchRegexParser {
     const match = /^\{(\d+)(,(\d*)?)?\}/.exec(this.source.slice(start))
     if (!match) return null
     const min = Number(match[1])
-    const max =
-      match[2] === undefined ? min : match[3] ? Number(match[3]) : Number.POSITIVE_INFINITY
-    return { min, max, end: start + match[0].length }
+    const exact = match[2] === undefined
+    const boundedAbove = exact || Boolean(match[3])
+    const max = exact ? min : match[3] ? Number(match[3]) : Number.POSITIVE_INFINITY
+    return { min, max, boundedAbove, end: start + match[0].length }
   }
 }
 

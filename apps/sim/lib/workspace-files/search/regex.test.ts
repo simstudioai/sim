@@ -107,6 +107,7 @@ describe('analyzeFileSearchRegex', () => {
       ['foo{2,1}', /counts down/],
       ['a{1,5000}bcd', /exceeds 1000/],
       ['a{5000,}bcd', /exceeds 1000/],
+      [`needle{1,1${'0'.repeat(400)}}`, /exceeds 1000/],
       ['foo{bar}', /Unescaped "\{"/],
     ])('rejects %s', (source, message) => {
       expect(() => analyzeFileSearchRegex(source)).toThrow(FileSearchPatternError)
