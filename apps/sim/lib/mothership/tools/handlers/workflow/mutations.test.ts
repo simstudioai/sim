@@ -2,9 +2,9 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 import type { CancelWorkflowRunParams } from '@/lib/mothership/tools/handlers/param-types'
-import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
