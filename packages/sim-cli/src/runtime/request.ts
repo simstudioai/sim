@@ -203,13 +203,16 @@ export function readArgumentSource(raw: string, flagName: string): { text: strin
   if (raw.startsWith('@@')) return { text: raw.slice(1), from: '' }
   if (!raw.startsWith('@')) return { text: raw, from: '' }
 
-  // An embedded run executes in-process on the hosting server, so a file path
-  // here would read the SERVER's filesystem with argv the model controls.
-  // There is no local file a caller could legitimately mean; the value must
-  // arrive inline (or as @@-escaped literal text).
-  if (embedStore.getStore()) {
+  // An embedded run executes in-process on the hosting server, so a raw file
+  // path here would read the SERVER's filesystem with argv the model controls.
+  // The host may pre-resolve @paths from the caller's own file surface into the
+  // embed context; anything else is refused — never read from local disk.
+  const embedded = embedStore.getStore()
+  if (embedded) {
+    const preloaded = embedded.fileArguments?.[raw.slice(1)]
+    if (preloaded !== undefined) return { text: preloaded, from: ' (read from your machine)' }
     throw new SimApiError(
-      `--${flagName} file arguments (@path) are not available in embedded runs — pass the JSON inline as a single argument`,
+      `--${flagName}: no file "${raw.slice(1)}" on this machine — write it first (run_code), or pass the value inline`,
       0
     )
   }
