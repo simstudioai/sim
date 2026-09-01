@@ -15,6 +15,7 @@ import {
   removeCredentialMember,
   upsertCredentialMember,
 } from '@/lib/credentials/members'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 interface CredentialMemberResourceInput {
@@ -124,10 +125,46 @@ export const removeCredentialMemberUseCase = defineAuthorizedCredentialUseCase({
   },
 })
 
+/**
+ * Every credential names a workspace (`credential.workspace_id` is NOT NULL), so
+ * the rows this user-global listing returns are workspace resources reached
+ * without naming a workspace. The endpoint's own gate resolves the caller's
+ * organization default group, which is right for the *act* — it belongs to the
+ * person, not to any one workspace — but it cannot answer per row.
+ *
+ * So each row is projected against the group governing **this same user** in the
+ * workspace holding that credential. That is the person's own group, not a
+ * bystander's: `credentials.list` withholds exactly these rows from them in that
+ * workspace under `integrations.manage`, and a listing that names no workspace
+ * must not be the way back to what the workspace-scoped listing hides.
+ *
+ * Only the projection. Leaving a membership stays ungoverned by the workspace
+ * group on purpose: it revokes the caller's own access and grants nothing, so
+ * gating it would strand a member inside a credential share they can no longer
+ * see — the same reasoning that keeps pausing a knowledge connector available
+ * after its type leaves the allowlist.
+ *
+ * The capability is read off the operation rather than spelled out here, so the
+ * projection follows the declaration if it is ever renamed.
+ */
 export const listCredentialMembershipsUseCase = defineAuthorizedCredentialUserUseCase({
   operation: credentialUserOperations.listMemberships,
   async execute({ principal }) {
-    return { memberships: await listCredentialMembershipsForUser(principal.userId) }
+    const memberships = await listCredentialMembershipsForUser(principal.userId)
+    const capability = credentialUserOperations.listMemberships.capability
+    if (capability === 'none') return { memberships }
+    const workspaceIds = [...new Set(memberships.map((membership) => membership.workspaceId))]
+    const withheld = new Set<string>()
+    await Promise.all(
+      workspaceIds.map(async (workspaceId) => {
+        if (await isWorkspaceCapabilityWithheld(principal.userId, workspaceId, capability)) {
+          withheld.add(workspaceId)
+        }
+      })
+    )
+    return {
+      memberships: memberships.filter((membership) => !withheld.has(membership.workspaceId)),
+    }
   },
 })
 
