@@ -13,11 +13,13 @@ import {
 } from '@/lib/catalog/application/tool-scope'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { principalUserId } from '@/lib/integrations/principal-scope.server'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
 import { executeTool as executeRegistryTool } from '@/tools'
-import { getToolMetadata } from '@/tools/metadata'
+import type { ExecutableToolConfig } from '@/tools/types'
+import { getTool } from '@/tools/utils'
 
 const logger = createLogger('ExecuteToolUseCase')
 
@@ -80,6 +82,50 @@ function assertNoInlineCredential(args: Record<string, unknown>): void {
 }
 
 /**
+ * Refuses a call missing a required parameter only its caller can supply.
+ *
+ * `validateRequiredParametersAfterMerge` deliberately checks `user-or-llm`
+ * alone, because on the workflow path a `user-only` parameter was already
+ * validated during serialization against the block field that holds it. This
+ * path has no serialization step, so nothing had checked them — a caller
+ * omitting `zendesk_get_ticket`'s `subdomain` reached Zendesk as `undefined`
+ * and came back a provider authentication failure, which is the same
+ * undiagnosable shape this PR set out to remove.
+ *
+ * A parameter Sim itself supplies is not missing: `hosting` fills its
+ * `apiKeyParam` on a key-hosting deployment, so `firecrawl_scrape` must stay
+ * callable with no `apiKey`. The condition mirrors `injectHostedKeyIfNeeded`
+ * exactly — same three tests, same order — so the two cannot disagree about
+ * whether a value is coming.
+ */
+function assertRequiredCallerInputsPresent(
+  tool: ExecutableToolConfig,
+  toolId: string,
+  params: Record<string, unknown>
+): void {
+  const hostedKeyParam =
+    isHosted && tool.hosting && (!tool.hosting.enabled || tool.hosting.enabled(params))
+      ? tool.hosting.apiKeyParam
+      : undefined
+
+  const missing = Object.entries(tool.params ?? {})
+    .filter(([name, declaration]) => {
+      if (!declaration?.required || declaration.visibility !== 'user-only') return false
+      if (name === hostedKeyParam) return false
+      const value = params[name]
+      return value === undefined || value === null || value === ''
+    })
+    .map(([name]) => name)
+
+  if (missing.length > 0) {
+    throw new OrchestrationError(
+      'validation',
+      `${toolId} requires ${missing.map((name) => `input.${name}`).join(', ')}`
+    )
+  }
+}
+
+/**
  * Runs one code-defined tool for an authenticated caller.
  *
  * The public counterpart of what Copilot does through `call_integration_tool`,
@@ -136,13 +182,15 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       )
     }
 
-    const metadata = getToolMetadata(toolId)
-    if (metadata?.oauth?.required && !input.credentialId) {
+    const tool = getTool(toolId)
+    if (!tool) throw new OrchestrationError('not_found', 'Tool not found')
+    if (tool.oauth?.required && !input.credentialId) {
       throw new OrchestrationError(
         'validation',
-        `credentialId is required: ${toolId} authenticates with a ${metadata.oauth.provider} credential`
+        `credentialId is required: ${toolId} authenticates with a ${tool.oauth.provider} credential`
       )
     }
+    assertRequiredCallerInputsPresent(tool, toolId, input.input)
 
     const userId = principalUserId(principal)
     if (!userId) {
