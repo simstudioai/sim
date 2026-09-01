@@ -95,10 +95,15 @@ vi.mock('@/lib/logs/public-queries', () => ({
 vi.mock('@/lib/logs/execution/trace-store', () => ({
   materializeExecutionDataForDisplay: vi.fn(),
 }))
-vi.mock('@/app/api/v1/logs/meta', () => ({
-  getUserLimits: vi.fn(async () => ({})),
-  createApiResponse: (body: unknown) => ({ body, headers: {} }),
-}))
+vi.mock('@/app/api/v1/logs/meta', async () => {
+  const { projectUserLimits } =
+    await vi.importActual<typeof import('@/app/api/v1/logs/meta')>('@/app/api/v1/logs/meta')
+  return {
+    getUserLimits: vi.fn(async () => ({ usage: {} })),
+    projectUserLimits,
+    createApiResponse: (body: unknown) => ({ body, headers: {} }),
+  }
+})
 vi.mock('@/lib/workflows/deployments/queries', () => ({
   getDeploymentWorkflowTarget: mockGetDeploymentWorkflowTarget,
 }))

@@ -1,9 +1,6 @@
-import type { ApplicationOperation } from '@/lib/core/application'
+import type { ApplicationOperation, OperationDeclarableCapability } from '@/lib/core/application'
 import { defineWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
-import {
-  CAPABILITY_RULES,
-  type StaticPermissionGroupCapability,
-} from '@/lib/permission-groups/capabilities'
+import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
 
 export type CredentialRole = 'member' | 'admin'
@@ -204,12 +201,12 @@ export const credentialOperations = {
 export interface CredentialUserOperation<Id extends string = string>
   extends ApplicationOperation<Id> {
   readonly principalKinds: readonly ['session']
-  readonly capability: StaticPermissionGroupCapability | 'none'
+  readonly capability: OperationDeclarableCapability | 'none'
 }
 
 function defineCredentialUserOperation<const Id extends string>(
   id: Id,
-  capability: StaticPermissionGroupCapability | 'none'
+  capability: OperationDeclarableCapability | 'none'
 ): CredentialUserOperation<Id> {
   if (!id.trim()) throw new Error('Credential user operation ID must not be empty')
   if (capability === undefined) {

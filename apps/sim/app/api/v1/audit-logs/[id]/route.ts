@@ -35,7 +35,9 @@ export const revalidate = 0
  * GET /api/v1/audit-logs/[id] — Read one audit log entry.
  *
  * permission-group-exempt: none — same as the list. `audit_logs.read_detail` is
- * an organization-admin operation and declares no capability.
+ * an organization-admin operation that carries an explicit `capability: 'none'`
+ * declaration, which is the reviewed answer; an operation that names none at all
+ * is what the operation validator rejects.
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {

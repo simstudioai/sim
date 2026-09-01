@@ -8,10 +8,8 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InboxSendersAPI')
@@ -37,7 +35,7 @@ export const GET = withRouteHandler(
 
     // permission-group-enforced: inbox.use — raw handler with inline queries, which the authorization funnel never sees
     if (await isWorkspaceCapabilityWithheld(session.user.id, workspaceId, 'inbox.use')) {
-      return NextResponse.json({ error: capabilityRefusal('inbox.use') }, { status: 403 })
+      return capabilityRefusalResponse('inbox.use')
     }
 
     const [senders, members] = await Promise.all([
@@ -98,7 +96,7 @@ export const POST = withRouteHandler(
 
     // permission-group-enforced: inbox.use — raw handler with inline queries, which the authorization funnel never sees
     if (await isWorkspaceCapabilityWithheld(session.user.id, workspaceId, 'inbox.use')) {
-      return NextResponse.json({ error: capabilityRefusal('inbox.use') }, { status: 403 })
+      return capabilityRefusalResponse('inbox.use')
     }
 
     try {
@@ -162,7 +160,7 @@ export const DELETE = withRouteHandler(
 
     // permission-group-enforced: inbox.use — raw handler with inline queries, which the authorization funnel never sees
     if (await isWorkspaceCapabilityWithheld(session.user.id, workspaceId, 'inbox.use')) {
-      return NextResponse.json({ error: capabilityRefusal('inbox.use') }, { status: 403 })
+      return capabilityRefusalResponse('inbox.use')
     }
 
     try {

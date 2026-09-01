@@ -5,6 +5,36 @@ import {
   type StaticPermissionGroupCapability,
 } from '@/lib/permission-groups/capabilities'
 
+/**
+ * A capability that governs the PRINCIPAL rather than any one operation.
+ *
+ * `personal_api_key.use` asks whether this caller may hold a personal API key
+ * at all. It is answered once per request in the authorization funnel's
+ * personal-key branch — and in `resolvePersonalKeyGroupRefusal` for v1, which
+ * authorizes in its own middleware — for every operation alike, ahead of and
+ * independently of whatever module capability the operation names.
+ *
+ * Excluded from {@link OperationDeclarableCapability} because an operation that
+ * named it would be wrong either way: withheld, it would double-apply a refusal
+ * the funnel has already made in the caller's own words; and a session caller
+ * holding no API key at all would be refused an ordinary operation over a
+ * setting about credentials they are not using.
+ */
+export type PrincipalWideCapability = 'personal_api_key.use'
+
+/**
+ * The capabilities an operation may name — every static rule except the
+ * principal-wide ones, which no operation declares because the funnel asks them
+ * for all operations at once.
+ */
+export type OperationDeclarableCapability = Exclude<
+  StaticPermissionGroupCapability,
+  PrincipalWideCapability
+>
+
+/** The runtime half of {@link PrincipalWideCapability}, for the builders' guard. */
+const PRINCIPAL_WIDE_CAPABILITIES: readonly PrincipalWideCapability[] = ['personal_api_key.use']
+
 export interface ApplicationOperation<Id extends string = string> {
   readonly id: Id
   /**
@@ -28,7 +58,7 @@ export interface ApplicationOperation<Id extends string = string> {
    * `defineWorkspaceOperation` and {@link defineOperation} keep runtime guards
    * and `check:permission-group-enforcement` keeps reading the source.
    */
-  readonly capability: StaticPermissionGroupCapability | 'none'
+  readonly capability: OperationDeclarableCapability | 'none'
 }
 
 /**
@@ -77,6 +107,11 @@ export function assertOperationCapability(operation: ApplicationOperation): void
     )
   }
   if (operation.capability === 'none') return
+  if (PRINCIPAL_WIDE_CAPABILITIES.includes(operation.capability as PrincipalWideCapability)) {
+    throw new Error(
+      `Operation ${operation.id} declares principal-wide capability ${operation.capability}; the authorization funnel's personal-key branch already applies it to every operation`
+    )
+  }
   const rule = CAPABILITY_RULES[operation.capability]
   if (!rule) {
     throw new Error(`Operation ${operation.id} names unknown capability ${operation.capability}`)

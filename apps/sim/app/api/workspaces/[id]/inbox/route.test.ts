@@ -151,7 +151,10 @@ describe('Inbox inbox.use capability gate', () => {
       const response = await GET(getRequest(), context)
 
       expect(response.status).toBe(403)
-      await expect(response.json()).resolves.toEqual({ error: REFUSAL })
+      await expect(response.json()).resolves.toEqual({
+        error: REFUSAL,
+        details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+      })
     })
 
     it('refuses to update the inbox config, leaving the row untouched', async () => {
@@ -160,7 +163,10 @@ describe('Inbox inbox.use capability gate', () => {
       const response = await PATCH(patchRequest(), context)
 
       expect(response.status).toBe(403)
-      await expect(response.json()).resolves.toEqual({ error: REFUSAL })
+      await expect(response.json()).resolves.toEqual({
+        error: REFUSAL,
+        details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+      })
       expect(dbChainMockFns.set).not.toHaveBeenCalled()
     })
   })

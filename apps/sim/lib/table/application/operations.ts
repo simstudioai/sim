@@ -1,5 +1,5 @@
 import { defineWorkspaceOperation } from '@/lib/core/application'
-import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
+import type { OperationDeclarableCapability } from '@/lib/core/application/operation'
 
 const ALL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
@@ -51,7 +51,7 @@ function writeOperation<const Id extends string>(id: Id) {
  */
 function toolWriteOperation<const Id extends string>(
   id: Id,
-  capability: StaticPermissionGroupCapability
+  capability: OperationDeclarableCapability
 ) {
   return defineWorkspaceOperation({
     id,
@@ -74,7 +74,7 @@ function toolReadOperation<const Id extends string>(id: Id) {
 
 function internalExecutorReadOperation<const Id extends string>(
   id: Id,
-  capability: StaticPermissionGroupCapability
+  capability: OperationDeclarableCapability
 ) {
   return defineWorkspaceOperation({
     id,
@@ -97,7 +97,7 @@ function internalExecutorWriteOperation<const Id extends string>(id: Id) {
 
 function delegatedWriteOperation<const Id extends string>(
   id: Id,
-  capability: StaticPermissionGroupCapability
+  capability: OperationDeclarableCapability
 ) {
   return defineWorkspaceOperation({
     id,

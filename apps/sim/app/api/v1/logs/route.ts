@@ -15,7 +15,7 @@ import {
 import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
-import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
+import { createApiResponse, getUserLimits, projectUserLimits } from '@/app/api/v1/logs/meta'
 import {
   capabilityGovernedUserId,
   checkRateLimit,
@@ -126,14 +126,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       order: params.order,
     }
 
+    /**
+     * `withheldExecutionData` strips `traceSpans` AND `finalOutput`, so under
+     * `hideTraceSpans` both opt-in payload fields project to nothing. Reading
+     * the projection here rather than after the fetch keeps the surface from
+     * selecting every row's execution blob out of the trace store and
+     * materializing it only to delete it.
+     */
+    const needsMaterialize =
+      params.details === 'full' &&
+      (params.includeFinalOutput || params.includeTraceSpans) &&
+      !projection.hideTraceSpans
+
     const { data, nextCursor } = await listPublicWorkflowLogs({
       filters,
       limit: params.limit,
-      includeExecutionData: params.details === 'full',
+      includeExecutionData: needsMaterialize,
     })
-
-    const needsMaterialize =
-      params.details === 'full' && (params.includeFinalOutput || params.includeTraceSpans)
 
     const buildBase = (log: (typeof data)[number]) => {
       const result: any = {
@@ -187,7 +196,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         })
       : data.map(buildBase)
 
-    const limits = await getUserLimits(userId)
+    const limits = projectUserLimits(await getUserLimits(userId), projection)
 
     const response = createApiResponse(
       {

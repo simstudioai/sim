@@ -124,6 +124,17 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
    * `useUserPermissionConfig` retries and refetches on remount, which is what
    * makes the gate self-healing rather than sticky.
    *
+   * `isSuccess` and not `isSuccess && !isFetching`, on purpose. A background
+   * refetch of an already-answered policy keeps the cached answer, and the
+   * fail-closed window that matters — the first load, where there is nothing
+   * cached — is already covered because `isSuccess` is false until the first
+   * response. Re-closing on every refetch would instead blank the personal-key
+   * affordance and flip the create default to `workspace` on each window focus,
+   * for a policy that changes on the order of never. This gate is the
+   * affordance; `/api/workspaces/[id]/api-keys` is the enforcement, and it
+   * re-reads the group on the request itself, so the seconds of staleness cost
+   * a user a refused create at worst.
+   *
    * The `!workspaceId` arm covers the account plane, which renders this
    * component as `scope='personal'` outside `/workspace/[workspaceId]`: the
    * hook is disabled there and nothing reads the result — a personal key is

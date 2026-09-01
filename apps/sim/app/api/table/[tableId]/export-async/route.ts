@@ -9,10 +9,8 @@ import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { runTableExport, type TableExportPayload } from '@/lib/table/export-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
@@ -57,7 +55,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
   // permission-group-enforced: tables.export — raw route that queries directly and predates the operation boundary
   if (await isWorkspaceCapabilityWithheld(authResult.userId, workspaceId, 'tables.export')) {
-    return NextResponse.json({ error: capabilityRefusal('tables.export') }, { status: 403 })
+    return capabilityRefusalResponse('tables.export')
   }
 
   const jobId = generateId()

@@ -136,6 +136,7 @@ describe('POST /api/table/[tableId]/export-async', () => {
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({
       error: "Exporting a table is not available under your organization's permission group",
+      details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
     })
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
     expect(mockRunTableExport).not.toHaveBeenCalled()
