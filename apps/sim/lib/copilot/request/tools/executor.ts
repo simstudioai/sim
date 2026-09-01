@@ -505,6 +505,8 @@ async function executeToolAndReportInner(
     })
   }
 
+  // Loads the handler map on first use; the abort check below covers that wait.
+  await ensureHandlersRegistered()
   if (abortRequested(context, execContext, options)) {
     markToolCallCancelled('Request aborted before tool execution')
     markToolResultSeen(toolCall.id)
@@ -608,7 +610,6 @@ async function executeToolAndReportInner(
   }
 
   try {
-    await ensureHandlersRegistered()
     let result = await executeToolWithWatchdog(toolCall, toolExecutionContext)
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
       endToolSpanFromTerminalState()

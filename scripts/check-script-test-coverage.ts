@@ -42,7 +42,7 @@ if (!reachableScripts('test').has('test:scripts')) {
 }
 
 const listed = Bun.spawnSync(
-  ['bunx', 'vitest', 'list', '--json', '--config', 'vitest.scripts.config.ts'],
+  ['bunx', 'vitest', 'list', '--json', '--filesOnly', '--config', 'vitest.scripts.config.ts'],
   {
     cwd: ROOT,
   }
@@ -53,7 +53,7 @@ if (listed.exitCode !== 0) {
 }
 const collected = new Set(
   (JSON.parse(listed.stdout.toString()) as Array<{ file: string }>).map((entry) =>
-    path.relative(ROOT, entry.file)
+    path.relative(ROOT, entry.file).split(path.sep).join('/')
   )
 )
 
