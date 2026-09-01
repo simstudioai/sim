@@ -272,6 +272,7 @@ describe('POST /api/v1/workflows/import', () => {
     expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith(
       'wf-new',
       expect.anything(),
+      { workspaceId: WORKSPACE_ID, subjectUserId: null },
       expect.anything()
     )
   })
@@ -375,7 +376,12 @@ describe('POST /api/v1/workflows/import', () => {
     await POST(makeRequest(validBody()))
 
     const tx = { update: mockDbUpdate }
-    expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith('wf-new', expect.anything(), tx)
+    expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledWith(
+      'wf-new',
+      expect.anything(),
+      { workspaceId: WORKSPACE_ID, subjectUserId: null },
+      tx
+    )
     expect(mockDbUpdate).toHaveBeenCalled()
   })
 
