@@ -156,8 +156,6 @@ const RAW_JSON_BASELINE_ROUTES = new Set([
   'apps/sim/app/api/mcp/workflow-servers/[id]/tools/route.ts',
   'apps/sim/app/api/mcp/workflow-servers/[id]/tools/[toolId]/route.ts',
   'apps/sim/app/api/organizations/route.ts',
-  'apps/sim/app/api/organizations/[id]/invitations/route.ts',
-  'apps/sim/app/api/organizations/[id]/members/route.ts',
   'apps/sim/app/api/organizations/[id]/transfer-ownership/route.ts',
   'apps/sim/app/api/resume/[workflowId]/[executionId]/[contextId]/route.ts',
   'apps/sim/app/api/speech/token/route.ts',

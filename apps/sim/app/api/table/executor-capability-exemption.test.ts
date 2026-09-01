@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   findActiveFolder: vi.fn(),
   getUserSettings: vi.fn(),
   runDetached: vi.fn(),
-  runTableImport: vi.fn(),
+  performCreateTableFromCsv: vi.fn(),
 }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
@@ -45,10 +45,13 @@ vi.mock('@/lib/table', () => ({
   getWorkspaceTableLimits: mocks.getWorkspaceTableLimits,
   listTables: mocks.listTables,
   releaseJobClaim: vi.fn(),
+  CSV_SYNC_MAX_FILE_SIZE_BYTES: 5 * 1024 * 1024,
   sanitizeName: (name: string) => name,
   TABLE_LIMITS: { MAX_TABLE_NAME_LENGTH: 64 },
 }))
-vi.mock('@/lib/table/import-runner', () => ({ runTableImport: mocks.runTableImport }))
+vi.mock('@/lib/table/orchestration', () => ({
+  performCreateTableFromCsv: mocks.performCreateTableFromCsv,
+}))
 vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mocks.findActiveFolder }))
 vi.mock('@/lib/users/queries', () => ({ getUserSettings: mocks.getUserSettings }))
 vi.mock('@/lib/core/utils/background', () => ({ runDetached: mocks.runDetached }))
@@ -56,7 +59,7 @@ vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
-import { POST as importAsync } from '@/app/api/table/import-async/route'
+import { POST as importCsv } from '@/app/api/table/import-csv/route'
 import { GET as listJobs } from '@/app/api/table/jobs/route'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
@@ -88,15 +91,13 @@ function getExportJobs() {
 }
 
 function startImport() {
-  return importAsync(
-    new NextRequest('http://localhost/api/table/import-async', {
+  const form = new FormData()
+  form.append('workspaceId', WORKSPACE_ID)
+  form.append('file', new Blob(['a,b\n1,2'], { type: 'text/csv' }), 'upload.csv')
+  return importCsv(
+    new NextRequest('http://localhost/api/table/import-csv', {
       method: 'POST',
-      body: JSON.stringify({
-        workspaceId: WORKSPACE_ID,
-        fileKey: `workspace/${WORKSPACE_ID}/upload.csv`,
-        fileName: 'upload.csv',
-      }),
-      headers: { 'content-type': 'application/json' },
+      body: form,
     })
   )
 }
@@ -112,6 +113,10 @@ describe('the subject the raw table routes gate on', () => {
     mocks.getWorkspaceTableLimits.mockResolvedValue({ maxTables: 100 })
     mocks.getUserSettings.mockResolvedValue({ timezone: 'UTC' })
     mocks.createTable.mockResolvedValue({ id: TABLE_ID })
+    mocks.performCreateTableFromCsv.mockResolvedValue({
+      success: true,
+      data: { tableId: TABLE_ID },
+    })
     permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       hideTablesTab: true,
@@ -133,7 +138,7 @@ describe('the subject the raw table routes gate on', () => {
       const response = await startImport()
 
       expect(response.status).toBe(200)
-      expect(mocks.createTable).toHaveBeenCalled()
+      expect(mocks.performCreateTableFromCsv).toHaveBeenCalled()
       expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
     })
   })
@@ -152,7 +157,7 @@ describe('the subject the raw table routes gate on', () => {
       const response = await startImport()
 
       expect(response.status).toBe(403)
-      expect(mocks.createTable).not.toHaveBeenCalled()
+      expect(mocks.performCreateTableFromCsv).not.toHaveBeenCalled()
     })
   })
 })

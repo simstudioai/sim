@@ -174,20 +174,6 @@ export const workspaceMemberSchema = z.object({
 
 export type WorkspaceMember = z.output<typeof workspaceMemberSchema>
 
-export const workspaceMetricsExecutionsQuerySchema = z.object({
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
-  segments: z.coerce.number().min(1).max(200).default(72),
-  workflowIds: z.string().optional(),
-  folderIds: z.string().optional(),
-  triggers: z.string().optional(),
-  level: z.string().optional(),
-  allTime: z
-    .enum(['true', 'false'])
-    .optional()
-    .transform((value) => value === 'true'),
-})
-
 export const listWorkspacesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces',

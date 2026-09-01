@@ -943,21 +943,6 @@ export const importTableAsyncBodySchema = z.object({
 
 export type ImportTableAsyncBody = z.input<typeof importTableAsyncBodySchema>
 
-export const importTableAsyncContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/import-async',
-  body: importTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(
-      z.object({
-        tableId: z.string(),
-        importId: z.string(),
-      })
-    ),
-  },
-})
-
 export const getTableContract = defineRouteContract({
   method: 'GET',
   path: '/api/table/[tableId]',
@@ -1308,22 +1293,6 @@ export const importIntoTableAsyncBodySchema = z.object({
 
 export type ImportIntoTableAsyncBody = z.input<typeof importIntoTableAsyncBodySchema>
 
-export const importIntoTableAsyncContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/import-async',
-  params: tableIdParamsSchema,
-  body: importIntoTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(
-      z.object({
-        tableId: z.string(),
-        importId: z.string(),
-      })
-    ),
-  },
-})
-
 /**
  * `createColumns` form field — a JSON-encoded array of CSV header names that
  * the import should auto-create as new columns on the target table.
@@ -1367,22 +1336,6 @@ export const exportTableAsyncBodySchema = z.object({
 
 export type ExportTableAsyncBody = z.input<typeof exportTableAsyncBodySchema>
 
-/**
- * Kickoff for a background export (large tables — small ones use the synchronous streaming
- * `/export` route). The worker generates the file, uploads it to workspace storage, and the
- * client fetches a presigned URL from the download contract once the job is `ready`.
- */
-export const exportTableAsyncContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/export-async',
-  params: tableIdParamsSchema,
-  body: exportTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ tableId: z.string(), jobId: z.string() })),
-  },
-})
-
 export const tableJobSummarySchema = z.object({
   jobId: z.string(),
   tableId: z.string(),
@@ -1419,18 +1372,6 @@ export const listTableJobsContract = defineRouteContract({
 export const exportDownloadQuerySchema = z.object({
   workspaceId: workspaceIdSchema,
   jobId: requiredFieldSchema('Job ID is required'),
-})
-
-/** Resolves a completed export job to a short-lived presigned download URL. */
-export const exportDownloadContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/table/[tableId]/export/download',
-  params: tableIdParamsSchema,
-  query: exportDownloadQuerySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ url: z.string().min(1), fileName: z.string() })),
-  },
 })
 
 /**
@@ -1910,22 +1851,6 @@ export const cancelTableJobBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   jobId: requiredFieldSchema('Job ID is required'),
 })
-
-/**
- * Cancel an in-flight async table job (import or delete). The worker stops at its next ownership
- * check; committed work (inserted/deleted rows) is left in place.
- */
-export const cancelTableJobContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/job/cancel',
-  params: tableIdParamsSchema,
-  body: cancelTableJobBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ canceled: z.boolean() })),
-  },
-})
-export type CancelTableJobBody = z.input<typeof cancelTableJobBodySchema>
 
 /**
  * Run modes for `POST /api/table/[tableId]/columns/run`:
