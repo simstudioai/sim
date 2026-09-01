@@ -11,7 +11,10 @@ import {
 import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
-import { CONTEXT_COMPACTION_DISPLAY_TITLE } from '@/lib/mothership/tools/tool-display'
+import {
+  CONTEXT_COMPACTION_DISPLAY_TITLE,
+  refineStreamingCliToolName,
+} from '@/lib/mothership/tools/tool-display'
 
 /**
  * The single deterministic model of one assistant turn, derived purely from the
@@ -363,12 +366,14 @@ function upsertToolNode(
 ): ToolNode {
   const existing = model.nodes.get(id)
   if (existing && existing.kind === 'tool') {
-    // Fill blanks, and replace exactly the CLI placeholder: the worker's partial frame
-    // names CLI rows `sim_cli` (args unknowable mid-stream) and the finalized frame
-    // carries the real verb (`cli_workflows_list`) — without this every live CLI row
-    // read "Running CLI command" until reload. Scoped to the placeholder so the gateway
-    // rebind's model-authored branding is never clobbered by a later frame.
-    if (name && (!existing.name || (existing.name === 'sim_cli' && name !== 'sim_cli'))) {
+    // Fill blanks, and refine CLI names: the worker's partial frame names CLI rows
+    // `sim_cli` (args unknowable mid-stream), streaming deltas may refine that to a
+    // provisional `cli_*`, and the finalized frame carries the authoritative verb —
+    // so any cli-family name accepts a different cli-family (or authoritative)
+    // successor. Scoped to the cli family so the gateway rebind's model-authored
+    // branding is never clobbered by a later frame.
+    const cliFamily = existing.name === 'sim_cli' || existing.name.startsWith('cli_')
+    if (name && (!existing.name || (cliFamily && name !== existing.name && name !== 'sim_cli'))) {
       existing.name = name
     }
     return existing
@@ -553,6 +558,13 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         )
         const delta = asString(payload.argumentsDelta)
         if (delta) node.streamingArgs = (node.streamingArgs ?? '') + delta
+        // Progressive CLI title: upgrade the placeholder to the specific verb as
+        // soon as enough argv tokens have streamed to name the command — the
+        // browser mirror of the server handler's refinement.
+        if (delta && (node.name === 'sim_cli' || node.name.startsWith('cli_'))) {
+          const refined = refineStreamingCliToolName(node.streamingArgs ?? '')
+          if (refined && refined !== node.name) node.name = refined
+        }
       } else if (phase === MothershipStreamV1ToolPhase.result) {
         applyToolResult(
           model,
