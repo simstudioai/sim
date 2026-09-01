@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   FILE_SEARCH_MAX_QUERY_LENGTH,
   FILE_SEARCH_MIN_QUERY_LENGTH,
@@ -47,7 +48,15 @@ export interface CompiledFileSearchPattern {
    * to unsplit lines trades those matches for never reporting a false one.
    */
   wholeLineOnly: boolean
-  /** Locates the match inside a segment PostgreSQL already matched. */
+  /**
+   * Locates the match inside a segment PostgreSQL already matched — but only
+   * where locating it is bounded work. Exact mode scans for a known string.
+   * Regex mode returns `null`: JavaScript matches by backtracking, and an
+   * admitted pattern like `(a+)+bcd` costs seconds on one long segment and
+   * grows exponentially, so a caller that needs a regex match located asks
+   * PostgreSQL, whose engine does not backtrack and whose work is already
+   * bounded by the read's statement timeout.
+   */
   findMatchRange(segment: string): FileSearchMatchRange | null
 }
 
@@ -100,7 +109,7 @@ function findLiteralMatchRange(line: string, query: string, caseSensitive: boole
 }
 
 /** Pulls a range off a surrogate pair, so slicing it never yields a lone half. */
-function alignToCodePoints(line: string, range: FileSearchMatchRange): FileSearchMatchRange {
+export function alignToCodePoints(line: string, range: FileSearchMatchRange): FileSearchMatchRange {
   let { start, end } = range
   const startUnit = line.charCodeAt(start)
   if (start > 0 && startUnit >= 0xdc00 && startUnit <= 0xdfff) start -= 1
@@ -131,16 +140,17 @@ function compileRegexPattern(query: string): CompiledFileSearchPattern {
   const caseSensitive = isFileSearchCaseSensitive(analysis.literals)
 
   /**
-   * The subset is chosen so the same source compiles in both engines, and this
-   * is where that holds: PostgreSQL selects the rows, and this expression finds
-   * the match inside one to centre the preview on.
+   * Compiled, never executed. The subset is the intersection of the two engines,
+   * so this rejects a malformed pattern with a precise message before it costs a
+   * database round trip — but running it is what the interface's `findMatchRange`
+   * contract refuses, because compiling a regex is linear and matching with one
+   * is not.
    */
-  let matcher: RegExp
   try {
-    matcher = new RegExp(query, caseSensitive ? '' : 'i')
+    new RegExp(query, caseSensitive ? '' : 'i')
   } catch (error) {
     throw new FileSearchPatternError(
-      `Invalid search pattern: ${error instanceof Error ? error.message : 'could not be compiled'}`
+      `Invalid search pattern: ${getErrorMessage(error, 'could not be compiled')}`
     )
   }
 
@@ -150,14 +160,7 @@ function compileRegexPattern(query: string): CompiledFileSearchPattern {
     sqlPattern: analysis.postgresSource,
     literalText: null,
     wholeLineOnly: analysis.anchored,
-    findMatchRange: (segment) => {
-      const match = matcher.exec(segment)
-      if (!match) return null
-      return alignToCodePoints(segment, {
-        start: match.index,
-        end: match.index + match[0].length,
-      })
-    },
+    findMatchRange: () => null,
   }
 }
 

@@ -79,28 +79,28 @@ describe('compileFileSearchPattern', () => {
       expect(() => compileFileSearchPattern('error \\d+', 'regex')).not.toThrow()
     })
 
-    it('locates the match so a long line previews around it', () => {
+    it('never runs the pattern against a segment in JavaScript', () => {
       const pattern = compileFileSearchPattern('needle\\d+', 'regex')
 
-      expect(pattern.findMatchRange('xxx needle42 yyy')).toEqual({ start: 4, end: 12 })
-      expect(pattern.findMatchRange('no match here')).toBeNull()
+      expect(pattern.findMatchRange('xxx needle42 yyy')).toBeNull()
     })
 
-    it('never returns a range that splits a surrogate pair', () => {
-      const pattern = compileFileSearchPattern('.needle', 'regex')
-      const line = `a🙂needle`
-      const range = pattern.findMatchRange(line)
+    /**
+     * `RegExp` matches by backtracking, so admitting this pattern and running it
+     * here would cost seconds on one long segment — growing exponentially with
+     * the run of `a`s, on the event loop, once per returned row.
+     */
+    it('cannot be driven into backtracking by an admitted pattern', () => {
+      const pattern = compileFileSearchPattern('(a+)+bcd', 'regex')
+      const hostile = `${'a'.repeat(60)}X${'z'.repeat(3000)}bcd`
 
-      expect(range).not.toBeNull()
-      expect([...line.slice(range?.start, range?.end)].join('')).not.toContain('�')
-      expect(line.slice(range?.start, range?.end)).toBe('🙂needle')
+      const started = performance.now()
+      expect(pattern.findMatchRange(hostile)).toBeNull()
+      expect(performance.now() - started).toBeLessThan(50)
     })
 
-    it('does not carry match state between calls', () => {
-      const pattern = compileFileSearchPattern('needle', 'regex')
-
-      expect(pattern.findMatchRange('a needle')).toEqual({ start: 2, end: 8 })
-      expect(pattern.findMatchRange('a needle')).toEqual({ start: 2, end: 8 })
+    it('still rejects a pattern that does not compile', () => {
+      expect(() => compileFileSearchPattern('needle(', 'regex')).toThrow(FileSearchPatternError)
     })
   })
 })

@@ -4,7 +4,10 @@ import {
   FILE_SEARCH_SEGMENT_CHARS,
   FILE_SEARCH_SEGMENT_OVERLAP_CHARS,
 } from '@/lib/workspace-files/search/constants'
-import type { CompiledFileSearchPattern } from '@/lib/workspace-files/search/pattern'
+import type {
+  CompiledFileSearchPattern,
+  FileSearchMatchRange,
+} from '@/lib/workspace-files/search/pattern'
 
 export interface LogicalLine {
   lineNumber: number
@@ -106,17 +109,21 @@ export function truncateUtf8ToBytes(text: string, maxBytes: number): string {
 /**
  * Renders one matching segment as a bounded, match-centred excerpt.
  *
- * The pattern locates the match so the excerpt is cut around it rather than at
- * the head of the line. A pattern that PostgreSQL matched but that finds no
- * range here — the narrow cases where PostgreSQL's and JavaScript's character
- * classes disagree, such as a non-ASCII digit under `\d` — still renders, just
+ * The excerpt is cut around the match rather than at the head of the line.
+ * `matchRange` carries a match the caller already located — which is how a
+ * regex match arrives, since only PostgreSQL may run one — and otherwise the
+ * pattern locates its own. A match that neither can place still renders,
  * anchored at the start of the segment.
  */
 export function createFileSearchPreview(
   line: string,
   pattern: CompiledFileSearchPattern,
   maxBytes = FILE_SEARCH_MAX_PREVIEW_BYTES,
-  boundaries: { prefixOmitted?: boolean; suffixOmitted?: boolean } = {}
+  boundaries: {
+    prefixOmitted?: boolean
+    suffixOmitted?: boolean
+    matchRange?: FileSearchMatchRange | null
+  } = {}
 ): string {
   const boundaryBytes =
     (boundaries.prefixOmitted ? Buffer.byteLength('…', 'utf8') : 0) +
@@ -125,7 +132,8 @@ export function createFileSearchPreview(
     return `${boundaries.prefixOmitted ? '…' : ''}${line}${boundaries.suffixOmitted ? '…' : ''}`
   }
 
-  const { start: matchStart, end: matchEnd } = pattern.findMatchRange(line) ?? { start: 0, end: 0 }
+  const { start: matchStart, end: matchEnd } = boundaries.matchRange ??
+    pattern.findMatchRange(line) ?? { start: 0, end: 0 }
   const leadingEllipsis = boundaries.prefixOmitted || matchStart > 0 ? '…' : ''
   const trailingEllipsis = boundaries.suffixOmitted || matchEnd < line.length ? '…' : ''
   const ellipsisBytes = Buffer.byteLength(leadingEllipsis + trailingEllipsis, 'utf8')

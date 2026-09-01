@@ -12,7 +12,9 @@ import {
   FILE_SEARCH_STATEMENT_TIMEOUT_MS,
 } from '@/lib/workspace-files/search/constants'
 import {
+  alignToCodePoints,
   type CompiledFileSearchPattern,
+  type FileSearchMatchRange,
   FileSearchPatternError,
 } from '@/lib/workspace-files/search/pattern'
 import { createFileSearchPreview } from '@/lib/workspace-files/search/text'
@@ -105,6 +107,55 @@ function buildMatchExpression(content: SegmentContent, pattern: CompiledFileSear
     : sql`${content} ILIKE ${pattern.sqlPattern} ESCAPE '\\'`
 }
 
+/**
+ * Where the match sits inside the segment, located by PostgreSQL.
+ *
+ * A regex is never run against a segment in JavaScript: `RegExp` matches by
+ * backtracking, so an admitted pattern like `(a+)+bcd` takes seconds on one long
+ * segment and grows exponentially with it, on the event loop, once per returned
+ * row. PostgreSQL's engine does not backtrack — the same pattern resolves in
+ * under a millisecond — and this runs inside the read's statement timeout, so
+ * the cost of locating a match can never exceed the cost of having found it.
+ *
+ * Exact mode locates its own match in JavaScript, where scanning for a known
+ * string is linear, so it selects a constant here rather than paying for a
+ * second pass.
+ */
+function buildMatchOffsets(content: SegmentContent, pattern: CompiledFileSearchPattern) {
+  if (pattern.mode !== 'regex') {
+    return { matchStart: sql<number>`0`, matchEnd: sql<number>`0` }
+  }
+  const flags = pattern.caseSensitive ? '' : 'i'
+  return {
+    matchStart: sql<number>`regexp_instr(${content}, ${pattern.sqlPattern}, 1, 1, 0, ${flags})`,
+    matchEnd: sql<number>`regexp_instr(${content}, ${pattern.sqlPattern}, 1, 1, 1, ${flags})`,
+  }
+}
+
+/**
+ * PostgreSQL counts characters and JavaScript slices by UTF-16 unit, so an
+ * astral character shifts every offset after it by one. Walking the segment
+ * converts between them without assuming either width.
+ */
+function toSegmentRange(
+  content: string,
+  matchStart: number,
+  matchEnd: number
+): FileSearchMatchRange | null {
+  if (matchStart < 1 || matchEnd <= matchStart) return null
+  let units = 0
+  let characters = 0
+  let start = -1
+  while (units < content.length) {
+    if (characters === matchStart - 1) start = units
+    if (characters === matchEnd - 1) break
+    units += (content.codePointAt(units) ?? 0) > 0xffff ? 2 : 1
+    characters += 1
+  }
+  if (start < 0) return null
+  return alignToCodePoints(content, { start, end: units })
+}
+
 /** How much of the logical line surrounds a literal match, in the narrower direction. */
 function buildSurroundingContext(
   content: SegmentContent,
@@ -130,6 +181,7 @@ export async function searchWorkspaceFileIndex({
 
   const content = workspaceFileSearchSegment.content
   const matchExpression = buildMatchExpression(content, pattern)
+  const { matchStart, matchEnd } = buildMatchOffsets(content, pattern)
 
   /**
    * A logical line longer than {@link FILE_SEARCH_SEGMENT_CHARS} is stored as
@@ -185,6 +237,8 @@ export async function searchWorkspaceFileIndex({
             segmentStart: workspaceFileSearchSegment.segmentStart,
             lineLength: workspaceFileSearchSegment.lineLength,
             content: workspaceFileSearchSegment.content,
+            matchStart,
+            matchEnd,
           }
         )
         .from(workspaceFileSearchSegment)
@@ -274,6 +328,10 @@ export async function searchWorkspaceFileIndex({
       text: createFileSearchPreview(row.content, pattern, undefined, {
         prefixOmitted: row.segmentStart > 0,
         suffixOmitted: row.segmentStart + row.content.length < row.lineLength,
+        matchRange:
+          pattern.mode === 'regex'
+            ? toSegmentRange(row.content, row.matchStart, row.matchEnd)
+            : undefined,
       }),
     }))
     signal?.throwIfAborted()

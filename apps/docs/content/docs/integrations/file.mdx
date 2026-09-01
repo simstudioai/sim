@@ -70,13 +70,14 @@ Extract the text content of one or more workspace files from selected file objec
 
 ### File Search
 
-Search indexed text across active workspace files using literal smart-case substring matching.
+Search every active workspace file for lines matching a regular expression, and return each match with its file ID and line number.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Literal text to find \(3-512 characters\). Uppercase Unicode letters make matching case-sensitive. |
+| `query` | string | Yes | A regular expression matched against each line, 3-512 characters. Supports "." "*" "+" "?" "\{n,m\}" and their lazy forms, character classes such as "\[a-z\]" and "\[^0-9\]", the classes \d \w \s and \D \W \S, alternation "\|", groups "\(...\)" and "\(?:...\)", the anchors "^" and "$", and the word boundary \b. Lookahead, lookbehind, backreferences, named groups, inline flags such as "\(?i\)", \p\{...\} and POSIX "\[\[:alpha:\]\]" classes are not supported, and a pattern cannot span a line break. The pattern must contain at least 3 consecutive literal characters that every match will include — write "error \d+" rather than "\w+ \d+". Escape any metacharacter you mean literally. Matching is case-insensitive until the pattern contains an uppercase letter, which makes it case-sensitive. |
+| `mode` | string | No | How the query is read, chosen by the workflow builder: "regex" \(default\) as a regular expression, or "exact" as verbatim text. |
 | `maxResults` | number | No | Hard result cap configured by the workflow builder \(1-200, default 50\). |
 
 #### Output
