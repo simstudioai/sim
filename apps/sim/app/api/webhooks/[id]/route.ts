@@ -15,7 +15,7 @@ import {
   updateWebhookContract,
 } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -150,10 +150,15 @@ export const PATCH = withRouteHandler(
          * dormant webhook back on. Only this direction: deactivating must stay
          * open, or a policy change would strand a member with a live webhook
          * they cannot turn off.
+         *
+         * Keyed to the governed subject rather than `auth.userId`: an internal
+         * executor JWT embeds the run's actor, and gating on it would apply that
+         * person's capabilities to a delegation that carries only their role.
          */
-        if (isActive) {
+        const governedUserId = capabilityGovernedAuthUserId(auth)
+        if (isActive && governedUserId) {
           const withheld = await isWorkspaceCapabilityWithheld(
-            userId,
+            governedUserId,
             webhooks[0].workflow.workspaceId ?? '',
             'triggers.webhook'
           )
