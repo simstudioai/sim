@@ -591,10 +591,18 @@ async function executeWorkflowCoreImpl(
     const restoredState =
       runFromBlock?.sourceSnapshot ?? (resumeFromSnapshot ? snapshot.state : undefined)
     const restoreTrusted = resumeFromSnapshot || Boolean(runFromBlock?.sourceExecutionId)
+    // An EMPTY snapshot (the server-synthesized base for a pure-mock isolated
+    // block run) restores no values at all, so there is nothing whose provenance
+    // could be untrusted — latching incomplete here withheld every isolated
+    // unit-test result from the model. Any snapshot WITH content keeps the guard.
+    const restoredStateEmpty =
+      restoredState !== undefined &&
+      Object.keys(restoredState.blockStates ?? {}).length === 0 &&
+      (restoredState.executedBlocks ?? []).length === 0
     const trustedLargeValueAccess = restoreTrusted
       ? restoredState?.trustedLargeValueAccess
       : undefined
-    const requireRestoredProvenance = restoredState !== undefined
+    const requireRestoredProvenance = restoredState !== undefined && !restoredStateEmpty
     resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
       personalEncrypted,
       workspaceEncrypted,
@@ -609,7 +617,7 @@ async function executeWorkflowCoreImpl(
       requireRestoredProvenance,
       scope: { userId: personalEnvUserId ?? workspaceEnvUserId, workspaceId: providedWorkspaceId },
     })
-    if (restoredState && !restoreTrusted) {
+    if (restoredState && !restoreTrusted && !restoredStateEmpty) {
       resolvedSecretTraceRegistry.markIncomplete('restored-provenance-untrusted')
     }
     if (options.trustedInitialResolvedSecretTraceProvenance !== undefined) {
