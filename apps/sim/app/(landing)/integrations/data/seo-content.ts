@@ -146,7 +146,7 @@ export const INTEGRATION_SEO: Record<string, IntegrationSeoContent> = {
       {
         question: 'What can I do with the Twilio SMS integration?',
         answer:
-          "Sim's Twilio SMS integration lets an AI agent send and receive SMS or MMS messages inside a workflow. You can combine Twilio SMS with Agent blocks and integrations such as AgentPhone and Discord. Combining these blocks lets you generate messages and coordinate responses across supported tools in one workflow.",
+          "Sim's Twilio SMS integration lets an AI agent send SMS messages and receive SMS or MMS messages inside a workflow. You can combine Twilio SMS with Agent blocks and integrations such as AgentPhone and Discord. Combining these blocks lets you generate messages and coordinate responses across supported tools in one workflow.",
       },
       {
         question: 'How do I connect Twilio SMS to Sim?',
