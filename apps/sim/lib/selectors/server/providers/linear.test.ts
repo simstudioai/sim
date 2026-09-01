@@ -4,26 +4,46 @@
 import { LinearError } from '@linear/sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveSelectorOAuthAccessToken, mockTeams, mockTeam, mockProject } = vi.hoisted(
-  () => ({
+const {
+  MockLinearError,
+  mockLinearClientOptions,
+  mockResolveSelectorOAuthAccessToken,
+  mockTeams,
+  mockTeam,
+  mockProject,
+} = vi.hoisted(() => {
+  class MockLinearError extends Error {
+    status?: number
+
+    constructor(error?: { response?: { status?: number } }) {
+      super('Linear request failed')
+      this.name = 'LinearError'
+      this.status = error?.response?.status
+    }
+  }
+
+  return {
+    MockLinearError,
+    mockLinearClientOptions: vi.fn(),
     mockResolveSelectorOAuthAccessToken: vi.fn(),
     mockTeams: vi.fn(),
     mockTeam: vi.fn(),
     mockProject: vi.fn(),
-  })
-)
-
-vi.mock('@linear/sdk', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@linear/sdk')>()
-  return {
-    ...actual,
-    LinearClient: class LinearClient {
-      teams = mockTeams
-      team = mockTeam
-      project = mockProject
-    },
   }
 })
+
+vi.mock('@linear/sdk', () => ({
+  LinearError: MockLinearError,
+  LinearClient: class LinearClient {
+    constructor(options: unknown) {
+      mockLinearClientOptions(options)
+    }
+
+    teams = mockTeams
+    team = mockTeam
+    project = mockProject
+  },
+}))
 
 vi.mock('@/lib/selectors/server/credentials', () => ({
   resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
@@ -66,6 +86,38 @@ describe('Linear server selector adapter errors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
+  })
+
+  it('constructs the v91 client with OAuth credentials and request cancellation', async () => {
+    const controller = new AbortController()
+    mockTeams.mockResolvedValueOnce({
+      nodes: [],
+      pageInfo: { hasNextPage: false, endCursor: undefined },
+    })
+
+    await linearSelectorAttachments['linear.teams'].execute(teamArgs(controller.signal))
+
+    expect(mockLinearClientOptions).toHaveBeenCalledWith({
+      accessToken: 'server-only-token',
+      redirect: 'error',
+      signal: controller.signal,
+    })
+  })
+
+  it('uses Linear personal API keys without exposing them as OAuth tokens', async () => {
+    mockResolveSelectorOAuthAccessToken.mockResolvedValueOnce('lin_api_personal-token')
+    mockTeams.mockResolvedValueOnce({
+      nodes: [],
+      pageInfo: { hasNextPage: false, endCursor: undefined },
+    })
+
+    await linearSelectorAttachments['linear.teams'].execute(teamArgs())
+
+    expect(mockLinearClientOptions).toHaveBeenCalledWith({
+      apiKey: 'lin_api_personal-token',
+      redirect: 'error',
+      signal: undefined,
+    })
   })
 
   it.each([

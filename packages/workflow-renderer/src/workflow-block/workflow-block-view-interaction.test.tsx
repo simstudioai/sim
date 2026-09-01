@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { ReactFlowProvider } from '@xyflow/react'
 import { createRoot, type Root } from 'react-dom/client'
-import { ReactFlowProvider } from 'reactflow'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getWorkflowTypeAccent,

@@ -29,6 +29,7 @@ import {
 } from '@/lib/execution/model-input-provenance'
 import { parseBuffer } from '@/lib/file-parsers'
 import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
+import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 import type { FileParseMetadata, FileParseResult } from '@/lib/file-parsers/types'
 import { MistralOperationError } from '@/lib/internal/mistral/errors'
 import { mistralParseInputSchema } from '@/lib/internal/mistral/input'
@@ -99,11 +100,10 @@ const LEGACY_FORMAT_REPLACEMENTS: Record<string, string> = {
 }
 
 async function getPdfPageCount(buffer: Buffer): Promise<number> {
-  let pdf: Awaited<ReturnType<typeof import('unpdf')['getDocumentProxy']>> | undefined
+  let pdf: Awaited<ReturnType<typeof openPdfDocument>> | undefined
   try {
-    const { getDocumentProxy } = await import('unpdf')
     const uint8Array = new Uint8Array(buffer)
-    pdf = await getDocumentProxy(uint8Array)
+    pdf = await openPdfDocument(uint8Array)
     return pdf.numPages
   } catch (error) {
     logger.warn('Primary PDF page-count parser failed', {

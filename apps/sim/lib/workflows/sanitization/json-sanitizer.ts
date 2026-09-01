@@ -1,6 +1,6 @@
 import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
 import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import { getBlock } from '@/blocks/registry'

@@ -1,0 +1,28 @@
+{
+  "expectedDependencyDeclarations": 546,
+  "expectedUniqueDependenciesPerManifest": 514,
+  "allowedCopyleftPackages": ["libheif-js", "@img/sharp-libvips-*"],
+  "allowedMissingLicensePackages": [
+    "@browserbasehq/sdk",
+    "async",
+    "buildcheck",
+    "busboy",
+    "cpu-features",
+    "khroma",
+    "seq-queue",
+    "ssh2",
+    "streamsearch",
+    "xmlhttprequest-ssl"
+  ],
+  "allowedSecurityAdvisories": [
+    "GHSA-5v7r-6r5c-r473",
+    "GHSA-5p2g-fcmc-qvqq",
+    "GHSA-67mh-4wv8-2f99",
+    "GHSA-866g-f22w-33x8",
+    "GHSA-8988-4f7v-96qf",
+    "GHSA-w5hq-g745-h8pq",
+    "GHSA-w3rx-r6r6-pgpr"
+  ],
+  "runtimeProvidedPackages": ["electron"],
+  "ignoredImports": ["bun", "bun:test", "client-only", "server-only"]
+}

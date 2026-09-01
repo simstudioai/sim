@@ -1,5 +1,5 @@
-import { Text } from '@react-email/components'
 import { createLogger } from '@sim/logger'
+import { Text } from 'react-email'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { getBaseUrl } from '@/lib/core/utils/urls'

@@ -1,19 +1,20 @@
 'use client'
 
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import ReactFlow, {
+import {
   applyNodeChanges,
   ConnectionLineType,
   type Edge,
   type Node,
   type NodeChange,
   type OnConnectStart,
+  ReactFlow,
   ReactFlowProvider,
   SelectionMode,
   useReactFlow,
-} from 'reactflow'
-import 'reactflow/dist/style.css'
+} from '@xyflow/react'
+import { useParams, useRouter } from 'next/navigation'
+import '@xyflow/react/dist/style.css'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -90,6 +91,7 @@ import {
   getClampedPositionForNode,
   getDescendantBlockIds,
   getEdgeSelectionContextId,
+  getNodeDataDimension,
   getNodeSelectionContextId,
   getRunFromBlockDependencyState,
   getWorkflowLockToggleIds,
@@ -3023,10 +3025,10 @@ const WorkflowContent = React.memo(
         pendingNodes.length === pendingBlockIds.size &&
         pendingNodes.every(
           (node) =>
-            typeof node.width === 'number' &&
-            typeof node.height === 'number' &&
-            node.width > 0 &&
-            node.height > 0
+            typeof node.measured?.width === 'number' &&
+            typeof node.measured.height === 'number' &&
+            node.measured.width > 0 &&
+            node.measured.height > 0
         )
 
       if (allNodesReady) {
@@ -3184,8 +3186,11 @@ const WorkflowContent = React.memo(
             const childPositions = childNodes.map((node) => {
               const nodePosition = node.id === movedNodeId ? movedNodePosition : node.position
               const dims = computedDimensions.get(node.id)
-              const width = dims?.width ?? node.data?.width ?? getBlockDimensions(node.id).width
-              const height = dims?.height ?? node.data?.height ?? getBlockDimensions(node.id).height
+              const blockDimensions = getBlockDimensions(node.id)
+              const width =
+                dims?.width ?? getNodeDataDimension(node, 'width', blockDimensions.width)
+              const height =
+                dims?.height ?? getNodeDataDimension(node, 'height', blockDimensions.height)
               return { x: nodePosition.x, y: nodePosition.y, width, height }
             })
 
@@ -3195,8 +3200,16 @@ const WorkflowContent = React.memo(
           return currentNodes.map((node) => {
             const newDims = computedDimensions.get(node.id)
             if (!newDims) return node
-            const currentWidth = node.data?.width ?? CONTAINER_DIMENSIONS.DEFAULT_WIDTH
-            const currentHeight = node.data?.height ?? CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+            const currentWidth = getNodeDataDimension(
+              node,
+              'width',
+              CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+            )
+            const currentHeight = getNodeDataDimension(
+              node,
+              'height',
+              CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+            )
             if (newDims.width === currentWidth && newDims.height === currentHeight) {
               return node
             }
@@ -3657,7 +3670,7 @@ const WorkflowContent = React.memo(
 
     /** Handles node drag to detect container intersections and update highlighting. */
     const onNodeDrag = useCallback(
-      (_event: React.MouseEvent, node: any) => {
+      (_event: MouseEvent | TouchEvent, node: Node) => {
         if (node.id === CONNECTION_BLOCK_SELECTOR_NODE_ID) return
 
         // Note: We don't emit position updates during drag to avoid flooding socket events.
@@ -3708,16 +3721,16 @@ const WorkflowContent = React.memo(
             // Get dimensions based on node type (must match actual rendered dimensions)
             const nodeWidth =
               node.type === 'subflowNode'
-                ? node.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+                ? getNodeDataDimension(node, 'width', CONTAINER_DIMENSIONS.DEFAULT_WIDTH)
                 : getRegularBlockWidth(node.type ?? '')
 
             const nodeHeight =
               node.type === 'subflowNode'
-                ? node.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+                ? getNodeDataDimension(node, 'height', CONTAINER_DIMENSIONS.DEFAULT_HEIGHT)
                 : node.type === 'noteBlock'
-                  ? node.height || getNoteBlockHeight(true)
+                  ? node.measured?.height || node.height || getNoteBlockHeight(true)
                   : Math.max(
-                      node.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
+                      node.measured?.height || node.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
                       BLOCK_DIMENSIONS.MIN_HEIGHT
                     )
 
@@ -3731,10 +3744,13 @@ const WorkflowContent = React.memo(
 
             const containerRect = {
               left: containerAbsolutePos.x,
-              right: containerAbsolutePos.x + (n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
+              right:
+                containerAbsolutePos.x +
+                getNodeDataDimension(n, 'width', CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
               top: containerAbsolutePos.y,
               bottom:
-                containerAbsolutePos.y + (n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
+                containerAbsolutePos.y +
+                getNodeDataDimension(n, 'height', CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
             }
 
             // Check intersection with absolute coordinates for accurate detection
@@ -3751,8 +3767,8 @@ const WorkflowContent = React.memo(
             depth: getNodeDepth(n.id),
             // Calculate size for secondary sorting
             size:
-              (n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH) *
-              (n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
+              getNodeDataDimension(n, 'width', CONTAINER_DIMENSIONS.DEFAULT_WIDTH) *
+              getNodeDataDimension(n, 'height', CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
           }))
 
         // Update potential parent if there's at least one intersecting container node
@@ -3815,7 +3831,7 @@ const WorkflowContent = React.memo(
 
     /** Captures initial parent ID and position when drag starts. */
     const onNodeDragStart = useCallback(
-      (_event: React.MouseEvent, node: any) => {
+      (_event: MouseEvent | TouchEvent, node: Node) => {
         if (node.id === CONNECTION_BLOCK_SELECTOR_NODE_ID) return
 
         // Note: Protected blocks are already non-draggable via the `draggable` node property
@@ -3883,7 +3899,7 @@ const WorkflowContent = React.memo(
 
     /** Handles node drag stop to establish parent-child relationships. */
     const onNodeDragStop = useCallback(
-      (_event: React.MouseEvent, node: any) => {
+      (_event: MouseEvent | TouchEvent, node: Node) => {
         if (node.id === CONNECTION_BLOCK_SELECTOR_NODE_ID) return
 
         clearDragHighlights()
@@ -4188,8 +4204,11 @@ const WorkflowContent = React.memo(
           const width = getRegularBlockWidth(node.type ?? '')
           const height =
             node.type === 'noteBlock'
-              ? node.height || getNoteBlockHeight(true)
-              : Math.max(node.height || BLOCK_DIMENSIONS.MIN_HEIGHT, BLOCK_DIMENSIONS.MIN_HEIGHT)
+              ? node.measured?.height || node.height || getNoteBlockHeight(true)
+              : Math.max(
+                  node.measured?.height || node.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
+                  BLOCK_DIMENSIONS.MIN_HEIGHT
+                )
 
           minX = Math.min(minX, absolutePos.x)
           minY = Math.min(minY, absolutePos.y)
@@ -4213,11 +4232,11 @@ const WorkflowContent = React.memo(
               left: containerAbsolutePos.x,
               right:
                 containerAbsolutePos.x +
-                (containerNode.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
+                getNodeDataDimension(containerNode, 'width', CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
               top: containerAbsolutePos.y,
               bottom:
                 containerAbsolutePos.y +
-                (containerNode.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
+                getNodeDataDimension(containerNode, 'height', CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
             }
 
             // Check intersection
@@ -4232,8 +4251,8 @@ const WorkflowContent = React.memo(
             container: n,
             depth: getNodeDepth(n.id),
             size:
-              (n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH) *
-              (n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
+              getNodeDataDimension(n, 'width', CONTAINER_DIMENSIONS.DEFAULT_WIDTH) *
+              getNodeDataDimension(n, 'height', CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
           }))
 
         if (intersectingContainers.length > 0) {
@@ -4332,9 +4351,7 @@ const WorkflowContent = React.memo(
           const currentNodes = getNodes()
           const mountedNode = currentNodes.find((candidate) => candidate.id === node.id) ?? node
           const getAbsolutePosition = (candidate: Node) =>
-            candidate.parentId
-              ? (candidate.positionAbsolute ?? getNodeAbsolutePosition(candidate.id))
-              : candidate.position
+            candidate.parentId ? getNodeAbsolutePosition(candidate.id) : candidate.position
           const getFocusDimensions = (candidate: Node) => {
             const subflowData =
               candidate.type === 'subflowNode' ? (candidate.data as SubflowNodeData) : undefined
@@ -4343,19 +4360,23 @@ const WorkflowContent = React.memo(
             const width =
               typeof declaredWidth === 'number' && declaredWidth > 0
                 ? declaredWidth
-                : typeof candidate.width === 'number' && candidate.width > 0
-                  ? candidate.width
-                  : candidate.type === 'subflowNode'
-                    ? CONTAINER_DIMENSIONS.DEFAULT_WIDTH
-                    : 250
+                : typeof candidate.measured?.width === 'number' && candidate.measured.width > 0
+                  ? candidate.measured.width
+                  : typeof candidate.width === 'number' && candidate.width > 0
+                    ? candidate.width
+                    : candidate.type === 'subflowNode'
+                      ? CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+                      : 250
             const height =
               typeof declaredHeight === 'number' && declaredHeight > 0
                 ? declaredHeight
-                : typeof candidate.height === 'number' && candidate.height > 0
-                  ? candidate.height
-                  : candidate.type === 'subflowNode'
-                    ? CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
-                    : 100
+                : typeof candidate.measured?.height === 'number' && candidate.measured.height > 0
+                  ? candidate.measured.height
+                  : typeof candidate.height === 'number' && candidate.height > 0
+                    ? candidate.height
+                    : candidate.type === 'subflowNode'
+                      ? CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+                      : 100
             return { width, height }
           }
 
@@ -4465,10 +4486,10 @@ const WorkflowContent = React.memo(
       const node = displayNodes.find((candidate) => candidate.id === pendingId)
       if (!node) return
       if (
-        typeof node.width !== 'number' ||
-        typeof node.height !== 'number' ||
-        node.width <= 0 ||
-        node.height <= 0
+        typeof node.measured?.width !== 'number' ||
+        typeof node.measured.height !== 'number' ||
+        node.measured.width <= 0 ||
+        node.measured.height <= 0
       ) {
         return
       }
@@ -4582,8 +4603,8 @@ const WorkflowContent = React.memo(
         if (selected.length !== 1 || workflowNodes.length < 2) return
 
         const ordered = [...workflowNodes].sort((a, b) => {
-          const pa = a.positionAbsolute ?? a.position
-          const pb = b.positionAbsolute ?? b.position
+          const pa = getNodeAbsolutePosition(a.id)
+          const pb = getNodeAbsolutePosition(b.id)
           return pa.x - pb.x || pa.y - pb.y
         })
         const currentIndex = ordered.findIndex((n) => n.id === selected[0].id)
@@ -4609,7 +4630,7 @@ const WorkflowContent = React.memo(
 
       window.addEventListener('keydown', handleArrowNavigation, true)
       return () => window.removeEventListener('keydown', handleArrowNavigation, true)
-    }, [embedded, getNodes, blocks, focusBlockInView])
+    }, [embedded, getNodeAbsolutePosition, getNodes, blocks, focusBlockInView])
 
     /**
      * Brings a Note holding the current search match onto the canvas.
@@ -5176,7 +5197,7 @@ const WorkflowContent = React.memo(
                   draggable={false}
                   noWheelClassName='allow-scroll'
                   edgesFocusable={!embedded}
-                  edgesUpdatable={!embedded && effectivePermissions.canEdit}
+                  edgesReconnectable={!embedded && effectivePermissions.canEdit}
                   className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${canvasOpacityClass} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
                   onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
                   onNodeDragStop={

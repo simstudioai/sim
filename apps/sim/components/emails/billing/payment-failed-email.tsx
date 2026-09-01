@@ -1,4 +1,4 @@
-import { Link, Section, Text } from '@react-email/components'
+import { Link, Section, Text } from 'react-email'
 import { baseStyles, colors, fontWeight } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { getEmailSubject } from '@/components/emails/subjects'

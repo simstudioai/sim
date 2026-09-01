@@ -1,4 +1,4 @@
-import { Body, Head, Html, Preview, Text } from '@react-email/components'
+import { Body, Head, Html, Preview, Text } from 'react-email'
 import { plainEmailStyles as styles } from '@/components/emails/_styles'
 import { getBrandConfig } from '@/ee/whitelabeling'
 

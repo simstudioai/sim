@@ -1,4 +1,4 @@
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 

@@ -1,4 +1,4 @@
-import { Body, Container, Font, Head, Html, Img, Preview, Section } from '@react-email/components'
+import { Body, Container, Font, Head, Html, Img, Preview, Section } from 'react-email'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailFooter } from '@/components/emails/components/email-footer'
 import { EMAIL_WORDMARK_SIZE } from '@/lib/branding/wordmark'

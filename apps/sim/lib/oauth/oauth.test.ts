@@ -1,5 +1,5 @@
-import { getOAuth2Tokens } from '@better-auth/core/oauth2'
 import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
+import { getOAuth2Tokens } from 'better-auth/oauth2'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
