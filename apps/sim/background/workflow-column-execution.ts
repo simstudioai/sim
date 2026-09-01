@@ -469,6 +469,40 @@ async function runWorkflowAndWriteTerminal(
           secretProvenance,
         })
 
+      /**
+       * Dispatch-level cancellation guard.
+       *
+       * The dispatcher blocks on a whole window at a time, so cancelling its
+       * `table_run_dispatches` row stops the NEXT window and nothing that is
+       * already queued: those cells still invoke tools and write their results.
+       * That gap is what account deletion falls into — it cancels the departing
+       * account's dispatches and then deletes the user row, while the cells the
+       * last window queued keep running under a subject that no longer exists.
+       *
+       * The row cannot be reached the other way: `table_row_executions` carries
+       * no dispatch column, so there is nothing to cancel per cell. Reading the
+       * owning dispatch here is the dispatch-linked stop, and it costs one
+       * indexed primary-key read against a whole workflow run.
+       *
+       * `cancelled`, or a row that is gone — nothing deletes a dispatch but the
+       * table cascade, so a missing one means the table it belonged to is gone.
+       * `complete` deliberately does not stop the cell: it is the ordinary
+       * terminal state a dispatch reaches while its last window is finishing.
+       */
+      if (dispatchId) {
+        const { readDispatch } = await import('@/lib/table/dispatcher')
+        const owningDispatch = await readDispatch(dispatchId)
+        if (!owningDispatch || owningDispatch.status === 'cancelled') {
+          logger.info(
+            `Skipping cell — owning dispatch is cancelled (table=${tableId} row=${rowId} group=${groupId} dispatch=${dispatchId})`
+          )
+          await writeState(
+            buildCancelledExecution({ executionId, workflowId, blockErrors: undefined })
+          )
+          return 'cancelled'
+        }
+      }
+
       /** Pre-execution cancellation guard: a cell cancelled while it sat in the
        *  queue (e.g. trigger.dev concurrency backlog) must not run once it
        *  dequeues. Reads the already-loaded row's exec — no extra query. */
