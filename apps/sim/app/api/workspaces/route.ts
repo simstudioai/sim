@@ -10,6 +10,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { createWorkspace } from '@/lib/workspaces/create'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
@@ -183,7 +184,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {
     if (error instanceof WorkspaceCreationCapabilityWithheldError) {
-      return NextResponse.json({ error: error.message }, { status: 403 })
+      return capabilityRefusalResponse('workspace.create')
     }
     if (error instanceof WorkspaceCreationContextChangedError) {
       return NextResponse.json(
