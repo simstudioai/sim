@@ -92,6 +92,13 @@ describe('extFromMime', () => {
     expect(extFromMime(' Video/MP4; codecs=avc1 ')).toBe('mp4')
   })
 
+  it.each(['constructor', '__proto__', 'toString'])(
+    'does not resolve inherited object properties as MIME types: %s',
+    (mimeType) => {
+      expect(extFromMime(mimeType)).toBe('bin')
+    }
+  )
+
   it.each(['video/../../../../escaped', 'video/..\\..\\..\\..\\escaped', 'video/mp4\\..\\escaped'])(
     'rejects path syntax in an unknown MIME subtype: %s',
     (mimeType) => {

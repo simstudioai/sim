@@ -3,18 +3,26 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateConnection, mockNetConnect, mockValidateDatabaseHost } = vi.hoisted(() => ({
-  mockCreateConnection: vi.fn(),
-  mockNetConnect: vi.fn(),
-  mockValidateDatabaseHost: vi.fn(),
-}))
+const { mockCreateConnection, mockNetConnect, mockTypedParameterNull, mockValidateDatabaseHost } =
+  vi.hoisted(() => {
+    class MockTypedParameter {}
+    return {
+      mockCreateConnection: vi.fn(),
+      mockNetConnect: vi.fn(),
+      mockTypedParameterNull: vi.fn(() => new MockTypedParameter()),
+      mockValidateDatabaseHost: vi.fn(),
+    }
+  })
 
 vi.mock('node:net', () => ({
   default: { connect: mockNetConnect },
 }))
 
 vi.mock('mysql2/promise', () => ({
-  default: { createConnection: mockCreateConnection },
+  default: {
+    createConnection: mockCreateConnection,
+    TypedParameter: { NULL: mockTypedParameterNull },
+  },
 }))
 
 vi.mock('@/lib/core/security/input-validation.server', () => ({
@@ -122,5 +130,45 @@ describe('MySQL client', () => {
       'MySQL bind values must contain only supported scalar or structured values'
     )
     expect(connection.execute).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    new Map([['key', 'value']]),
+    new Set(['value']),
+    /value/,
+    Object.assign(Object.create(null) as Record<string, unknown>, { key: 'value' }),
+  ])('rejects non-plain structured bind values: %s', async (value) => {
+    const connection = { execute: vi.fn(), destroy: vi.fn() }
+
+    await expect(executeMysqlCommand(connection as never, 'SELECT ?', [value])).rejects.toThrow(
+      'MySQL bind values must contain only supported scalar or structured values'
+    )
+    expect(connection.execute).not.toHaveBeenCalled()
+  })
+
+  it('accepts nested plain structured bind values', async () => {
+    const result = { affectedRows: 1 }
+    const values = [{ nested: ['value', 1, true, null] }]
+    const connection = {
+      execute: vi.fn().mockResolvedValue([result]),
+      destroy: vi.fn(),
+    }
+
+    await expect(executeMysqlCommand(connection as never, 'SELECT ?', values)).resolves.toBe(result)
+    expect(connection.execute).toHaveBeenCalledWith('SELECT ?', values)
+  })
+
+  it('accepts mysql2 typed parameters', async () => {
+    const result = { affectedRows: 1 }
+    const typedParameter = mockTypedParameterNull()
+    const connection = {
+      execute: vi.fn().mockResolvedValue([result]),
+      destroy: vi.fn(),
+    }
+
+    await expect(
+      executeMysqlCommand(connection as never, 'SELECT ?', [typedParameter])
+    ).resolves.toBe(result)
+    expect(connection.execute).toHaveBeenCalledWith('SELECT ?', [typedParameter])
   })
 })

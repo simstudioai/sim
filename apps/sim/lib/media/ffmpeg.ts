@@ -182,8 +182,9 @@ const EXT_TO_MIME: Record<string, string> = {
 
 function extFromMime(mime: string): string {
   const normalizedMime = mime.split(';', 1)[0].trim().toLowerCase()
-  const knownExtension = MIME_TO_EXT[normalizedMime]
-  if (knownExtension) return knownExtension
+  if (Object.hasOwn(MIME_TO_EXT, normalizedMime)) {
+    return MIME_TO_EXT[normalizedMime]
+  }
 
   const subtype = normalizedMime.split('/')[1]
   return subtype && /^[a-z0-9][a-z0-9.+_-]{0,63}$/.test(subtype) ? subtype : 'bin'

@@ -3,6 +3,8 @@
  *
  * @vitest-environment node
  */
+
+import { Readable } from 'node:stream'
 import {
   authMockFns,
   createMockRequest,
@@ -24,15 +26,15 @@ const {
   mockGetStorageProvider,
   mockIsUsingCloudStorage,
   mockIsSupportedFileType,
-  mockParseFile,
   mockParseBuffer,
   mockPdfParseBuffer,
+  mockCreateReadStream,
   mockFsAccess,
   mockFsStat,
-  mockFsReadFile,
   mockFsWriteFile,
   mockJoin,
   actualPath,
+  mockUploadExecutionFile,
   mockUploadWorkspaceFile,
   mockReadWorkspaceFileNameByKey,
 } = vi.hoisted(() => {
@@ -44,10 +46,6 @@ const {
     mockGetStorageProvider: vi.fn().mockReturnValue('s3'),
     mockIsUsingCloudStorage: vi.fn().mockReturnValue(true),
     mockIsSupportedFileType: vi.fn().mockReturnValue(true),
-    mockParseFile: vi.fn().mockResolvedValue({
-      content: 'parsed content',
-      metadata: { pageCount: 1 },
-    }),
     mockParseBuffer: vi.fn().mockResolvedValue({
       content: 'parsed buffer content',
       metadata: { pageCount: 1 },
@@ -56,9 +54,9 @@ const {
       content: 'parsed PDF content',
       metadata: { pageCount: 1 },
     }),
+    mockCreateReadStream: vi.fn(),
     mockFsAccess: vi.fn().mockResolvedValue(undefined),
     mockFsStat: vi.fn().mockImplementation(() => ({ isFile: () => true, size: 17 })),
-    mockFsReadFile: vi.fn().mockResolvedValue(Buffer.from('test file content')),
     mockFsWriteFile: vi.fn().mockResolvedValue(undefined),
     mockJoin: vi.fn((...args: string[]): string => {
       if (args[0] === '/test/uploads') {
@@ -67,6 +65,7 @@ const {
       return actualPath.join(...args)
     }),
     actualPath,
+    mockUploadExecutionFile: vi.fn(),
     mockUploadWorkspaceFile: vi
       .fn()
       .mockImplementation(
@@ -98,8 +97,11 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/file-parsers', () => ({
   isSupportedFileType: mockIsSupportedFileType,
-  parseFile: mockParseFile,
   parseBuffer: mockParseBuffer,
+}))
+
+vi.mock('node:fs', () => ({
+  createReadStream: mockCreateReadStream,
 }))
 
 vi.mock('@/lib/file-parsers/pdf-parser', () => ({
@@ -131,7 +133,7 @@ vi.mock('@/lib/core/utils/logging', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: vi.fn(),
+  uploadExecutionFile: mockUploadExecutionFile,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
@@ -152,12 +154,10 @@ vi.mock('fs/promises', () => ({
   default: {
     access: mockFsAccess,
     stat: mockFsStat,
-    readFile: mockFsReadFile,
     writeFile: mockFsWriteFile,
   },
   access: mockFsAccess,
   stat: mockFsStat,
-  readFile: mockFsReadFile,
   writeFile: mockFsWriteFile,
 }))
 
@@ -241,14 +241,19 @@ describe('file parser operation', () => {
     storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
     storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('test file content'))
     mockFsStat.mockResolvedValue({ isFile: () => true, size: 17 })
-    mockFsReadFile.mockResolvedValue(Buffer.from('test file content'))
+    mockCreateReadStream.mockImplementation(() => Readable.from([Buffer.from('test file content')]))
     mockIsSupportedFileType.mockReturnValue(true)
+    mockUploadExecutionFile.mockResolvedValue({
+      id: 'file_test',
+      name: 'report.pdf',
+      url: '/api/files/serve/execution/report.pdf',
+      size: 17,
+      type: 'application/pdf',
+      key: 'execution/report.pdf',
+      context: 'execution',
+    })
     mockUploadWorkspaceFile.mockClear()
     mockReadWorkspaceFileNameByKey.mockResolvedValue({ name: null })
-    mockParseFile.mockResolvedValue({
-      content: 'parsed content',
-      metadata: { pageCount: 1 },
-    })
     mockParseBuffer.mockResolvedValue({
       content: 'parsed buffer content',
       metadata: { pageCount: 1 },
@@ -422,21 +427,39 @@ describe('file parser operation', () => {
     })
   })
 
-  it('forwards request cancellation to local file parsing and reads', async () => {
+  it('parses and uploads one bounded local-file snapshot', async () => {
     setupFileApiMocks({
       cloudEnabled: false,
       storageProvider: 'local',
       authenticated: true,
     })
+    mockFsStat.mockResolvedValue({ isFile: () => true, size: 3 })
     const req = createMockRequest('POST', {
       filePath: 'workspace/report.pdf',
     })
 
     const response = await POST(req)
 
+    const data = await response.json()
+    const parsedBuffer = mockParseBuffer.mock.calls[0][0]
+
     expect(response.status).toBe(200)
-    expect(mockParseFile).toHaveBeenCalledWith(expect.any(String), { signal: req.signal })
-    expect(mockFsReadFile).toHaveBeenCalledWith(expect.any(String), { signal: req.signal })
+    expect(data.output).toMatchObject({
+      content: 'parsed buffer content',
+      fileType: 'application/pdf',
+      size: 17,
+    })
+    expect(mockCreateReadStream).toHaveBeenCalledWith('/test/uploads/workspace/report.pdf')
+    expect(mockCreateReadStream).toHaveBeenCalledOnce()
+    expect(mockParseBuffer).toHaveBeenCalledWith(parsedBuffer, 'pdf', { signal: req.signal })
+    expect(mockParseBuffer).toHaveBeenCalledOnce()
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
+      expect.any(Object),
+      parsedBuffer,
+      'report.pdf',
+      'application/pdf',
+      'test-user-id'
+    )
   })
 
   it('should reject parser complexity limits instead of returning raw text', async () => {
@@ -740,7 +763,9 @@ describe('file parser operation', () => {
     expect(response.status).toBe(200)
     expect(data.success).toBe(false)
     expect(data.error).toContain('too large')
-    expect(mockFsReadFile).not.toHaveBeenCalled()
+    expect(mockCreateReadStream).not.toHaveBeenCalled()
+    expect(mockParseBuffer).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
   })
 
   it('should process execution file URLs with context query param', async () => {

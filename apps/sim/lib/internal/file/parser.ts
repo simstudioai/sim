@@ -1,3 +1,4 @@
+import { createReadStream } from 'node:fs'
 import { Buffer, isUtf8 } from 'buffer'
 import { createHash } from 'crypto'
 import fsPromises from 'fs/promises'
@@ -10,12 +11,16 @@ import binaryExtensionsList from 'binary-extensions'
 import type { ContractBody } from '@/lib/api/contracts'
 import type { fileParseContract } from '@/lib/api/contracts/storage-transfer'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
-import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import {
+  assertKnownSizeWithinLimit,
+  isPayloadSizeLimitError,
+  readNodeStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import {
   assertUserFileContentAccess,
   type ExecutionMaterializationContext,
 } from '@/lib/execution/payloads/materialization.server'
-import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
+import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import { isFileParserError } from '@/lib/file-parsers/errors'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
@@ -881,13 +886,17 @@ async function handleLocalFile(
     const stats = await fsPromises.stat(fullPath)
     assertKnownSizeWithinLimit(stats.size, maxDownloadBytes, 'local file')
 
-    const result = await parseFile(fullPath, { signal })
+    const fileBuffer = await readNodeStreamToBufferWithLimit(createReadStream(fullPath), {
+      maxBytes: maxDownloadBytes,
+      label: 'local file',
+      signal,
+    })
+    const extension = path.extname(filename).toLowerCase().substring(1)
+    const result = await parseBuffer(fileBuffer, extension, { signal })
     const content = assertParsedContentWithinLimit(result.content, maxParsedOutputBytes)
-    const fileBuffer = await fsPromises.readFile(fullPath, { signal })
     signal?.throwIfAborted()
     const hash = createHash('md5').update(fileBuffer).digest('hex')
 
-    const extension = path.extname(filename).toLowerCase().substring(1)
     const mimeType = fileType || getMimeTypeFromExtension(extension)
 
     // Store file in execution storage if executionContext is provided
@@ -916,7 +925,7 @@ async function handleLocalFile(
       userFile,
       metadata: {
         fileType: mimeType,
-        size: stats.size,
+        size: fileBuffer.length,
         hash,
         processingTime: 0,
       },

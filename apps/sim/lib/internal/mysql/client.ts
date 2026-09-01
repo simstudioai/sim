@@ -11,6 +11,8 @@ export interface MysqlConnectionConfig {
   ssl: 'disabled' | 'required' | 'preferred'
 }
 
+const MYSQL_TYPED_PARAMETER_PROTOTYPE = Object.getPrototypeOf(mysql.TypedParameter.NULL())
+
 function isMysqlExecuteValue(value: unknown): value is mysql.ExecuteValues {
   if (
     value === null ||
@@ -24,6 +26,9 @@ function isMysqlExecuteValue(value: unknown): value is mysql.ExecuteValues {
 
   if (Array.isArray(value)) return value.every(isMysqlExecuteValue)
   if (typeof value !== 'object') return false
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype === MYSQL_TYPED_PARAMETER_PROTOTYPE) return true
+  if (prototype !== Object.prototype) return false
   return Object.values(value).every(isMysqlExecuteValue)
 }
 
