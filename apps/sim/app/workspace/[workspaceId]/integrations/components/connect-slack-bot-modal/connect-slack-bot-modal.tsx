@@ -3,6 +3,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
+  Chip,
   ChipDropdown,
   type ChipDropdownOption,
   ChipInput,
@@ -12,7 +13,7 @@ import {
   SecretInput,
   Wizard,
 } from '@sim/emcn'
-import { Loader } from '@sim/emcn/icons'
+import { Loader, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -28,6 +29,7 @@ import {
   getSlackManagedUserAuthorizationManifestConfig,
   SLACK_CAPABILITIES,
   SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY,
+  type SlackSlashCommand,
 } from '@/triggers/slack/capabilities'
 import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
@@ -48,6 +50,38 @@ const CAPABILITY_OPTIONS: ChipDropdownOption[] = CUSTOM_BOT_CAPABILITIES.map((ca
   value: capability.id,
   label: capability.label,
 }))
+
+interface SlackSlashCommandDraft extends SlackSlashCommand {
+  id: string
+}
+
+function getSlashCommandsError(commands: readonly SlackSlashCommandDraft[]): string | null {
+  if (commands.some((entry) => !entry.command.trim() || !entry.description.trim())) {
+    return 'Every slash command needs a command and description.'
+  }
+  if (
+    commands.some((entry) => {
+      const command = entry.command.trim()
+      return !command.startsWith('/') || command.length === 1 || /\s/.test(command)
+    })
+  ) {
+    return 'Slash commands must be one word beginning with /.'
+  }
+  if (commands.some((entry) => entry.command.trim().length > 32)) {
+    return 'Slash commands must be 32 characters or fewer.'
+  }
+  const normalizedCommands = commands.map((entry) => entry.command.trim())
+  if (new Set(normalizedCommands).size !== normalizedCommands.length) {
+    return 'Each slash command must be unique.'
+  }
+  return null
+}
+
+function getAgentDescriptionError(description: string): string | null {
+  return description.trim().length > 300
+    ? 'Slack Agent View descriptions must be 300 characters or fewer.'
+    : null
+}
 
 interface ConnectSlackBotModalProps {
   open: boolean
@@ -91,6 +125,7 @@ export function ConnectSlackBotModal({
   const [appName, setAppName] = useState(initialDisplayName ?? '')
   const [appDescription, setAppDescription] = useState(initialDescription ?? '')
   const [selected, setSelected] = useState<Set<string>>(() => new Set(ALL_CAPABILITIES))
+  const [slashCommands, setSlashCommands] = useState<SlackSlashCommandDraft[]>([])
   const [signingSecret, setSigningSecret] = useState('')
   const [botToken, setBotToken] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
@@ -105,6 +140,7 @@ export function ConnectSlackBotModal({
     setAppName(initialDisplayName ?? '')
     setAppDescription(initialDescription ?? '')
     setSelected(new Set(ALL_CAPABILITIES))
+    setSlashCommands([])
     setSigningSecret('')
     setBotToken('')
     setCreateError(null)
@@ -124,7 +160,12 @@ export function ConnectSlackBotModal({
   // window.location.origin) so Slack's servers can reach it.
   const requestUrl = useMemo(() => buildSlackCustomBotRequestUrl(credentialId), [credentialId])
 
+  const descriptionError = getAgentDescriptionError(appDescription)
+  const slashCommandsError = getSlashCommandsError(slashCommands)
+  const manifestConfigurationError = descriptionError ?? slashCommandsError
+
   const manifestJson = useMemo(() => {
+    if (manifestConfigurationError) return ''
     const managedUserAuthorization = selected.has(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id)
       ? getSlackManagedUserAuthorizationManifestConfig(getBaseUrl())
       : undefined
@@ -132,10 +173,15 @@ export function ConnectSlackBotModal({
       appName: appName.trim() || DEFAULT_APP_NAME,
       webhookUrl: requestUrl,
       description: appDescription,
+      slashCommands: slashCommands.map(({ command, description, usageHint }) => ({
+        command,
+        description,
+        usageHint,
+      })),
       ...(managedUserAuthorization ? { managedUserAuthorization } : {}),
     })
     return JSON.stringify(manifest, null, 2)
-  }, [selected, appName, appDescription, requestUrl])
+  }, [manifestConfigurationError, selected, appName, appDescription, slashCommands, requestUrl])
 
   const capabilityIds = useMemo(() => [...selected], [selected])
   const setCapabilityIds = useCallback((next: string[]) => setSelected(new Set(next)), [])
@@ -214,12 +260,19 @@ export function ConnectSlackBotModal({
       {/* Bot name is required so the credential name, the manifest app name, and
           uniqueness all use the user's choice — never the shared Slack team name
           fallback, which collides for a second bot in the same workspace. */}
-      <Wizard.Step title='Configure your bot' canAdvance={appName.trim().length > 0}>
+      <Wizard.Step
+        title='Configure your bot'
+        canAdvance={appName.trim().length > 0 && !descriptionError && !slashCommandsError}
+      >
         <StepConfigure
           appName={appName}
           onAppNameChange={setAppName}
           appDescription={appDescription}
           onAppDescriptionChange={setAppDescription}
+          descriptionError={descriptionError}
+          slashCommands={slashCommands}
+          onSlashCommandsChange={setSlashCommands}
+          slashCommandsError={slashCommandsError}
           capabilityIds={capabilityIds}
           onCapabilityIdsChange={setCapabilityIds}
         />
@@ -269,6 +322,10 @@ interface StepConfigureProps {
   onAppNameChange: (next: string) => void
   appDescription: string
   onAppDescriptionChange: (next: string) => void
+  descriptionError: string | null
+  slashCommands: readonly SlackSlashCommandDraft[]
+  onSlashCommandsChange: (commands: SlackSlashCommandDraft[]) => void
+  slashCommandsError: string | null
   capabilityIds: string[]
   onCapabilityIdsChange: (next: string[]) => void
 }
@@ -277,6 +334,10 @@ function StepConfigure({
   onAppNameChange,
   appDescription,
   onAppDescriptionChange,
+  descriptionError,
+  slashCommands,
+  onSlashCommandsChange,
+  slashCommandsError,
   capabilityIds,
   onCapabilityIdsChange,
 }: StepConfigureProps) {
@@ -305,26 +366,117 @@ function StepConfigure({
           onChange={(e) => onAppDescriptionChange(e.target.value)}
           placeholder="Optional — shown on the bot's Slack profile"
           maxLength={140}
+          error={Boolean(descriptionError)}
         />
+        {descriptionError && (
+          <p className='text-[var(--text-error)] text-caption'>{descriptionError}</p>
+        )}
       </div>
       <div className='flex flex-col gap-[9px]'>
-        <Label className='text-[var(--text-muted)] text-small'>Permissions</Label>
+        <Label className='text-[var(--text-muted)] text-small'>Additional permissions</Label>
         <ChipDropdown
           multiple
           fullWidth
           value={capabilityIds}
           onChange={onCapabilityIdsChange}
           options={CAPABILITY_OPTIONS}
-          allLabel='No permissions'
+          allLabel='No additional permissions'
           showAllOption={false}
         />
         {allSelected && (
           <p className='text-[var(--text-muted)] text-caption'>
-            Full access — the bot can read and send messages, react, upload files, and chat as an AI
-            assistant, and people can authorize it through Credential Groups.
+            All additional permissions enabled — the bot can read messages, react, access files and
+            users, and people can authorize it through Credential Groups.
           </p>
         )}
       </div>
+      <SlashCommandsEditor
+        commands={slashCommands}
+        onChange={onSlashCommandsChange}
+        error={slashCommandsError}
+      />
+    </div>
+  )
+}
+
+interface SlashCommandsEditorProps {
+  commands: readonly SlackSlashCommandDraft[]
+  onChange: (commands: SlackSlashCommandDraft[]) => void
+  error: string | null
+}
+
+function SlashCommandsEditor({ commands, onChange, error }: SlashCommandsEditorProps) {
+  const addCommand = () => {
+    onChange([...commands, { id: generateId(), command: '', description: '', usageHint: '' }])
+  }
+  const updateCommand = (
+    id: string,
+    field: keyof Pick<SlackSlashCommandDraft, 'command' | 'description' | 'usageHint'>,
+    value: string
+  ) => {
+    onChange(commands.map((entry) => (entry.id === id ? { ...entry, [field]: value } : entry)))
+  }
+  const removeCommand = (id: string) => {
+    onChange(commands.filter((entry) => entry.id !== id))
+  }
+
+  return (
+    <div className='flex flex-col gap-[9px]'>
+      <div className='flex items-center justify-between gap-2'>
+        <Label className='text-[var(--text-muted)] text-small'>Slash commands (optional)</Label>
+        <Chip
+          className='w-fit'
+          leftIcon={Plus}
+          onClick={addCommand}
+          disabled={commands.length >= 50}
+        >
+          Add
+        </Chip>
+      </div>
+      {commands.length > 0 && (
+        <div className='space-y-2'>
+          {commands.map((entry, index) => (
+            <div
+              key={entry.id}
+              className='flex items-start gap-2 rounded-lg border border-[var(--border)] p-2'
+            >
+              <div className='min-w-0 flex-1 space-y-2'>
+                <ChipInput
+                  value={entry.command}
+                  onChange={(event) => updateCommand(entry.id, 'command', event.target.value)}
+                  placeholder='/ask-sim'
+                  maxLength={32}
+                  inputClassName='font-mono'
+                  aria-label={`Slash command ${index + 1}`}
+                />
+                <ChipInput
+                  value={entry.description}
+                  onChange={(event) => updateCommand(entry.id, 'description', event.target.value)}
+                  placeholder='Short description shown in Slack'
+                  maxLength={2000}
+                  aria-label={`Slash command ${index + 1} description`}
+                />
+                <ChipInput
+                  value={entry.usageHint ?? ''}
+                  onChange={(event) => updateCommand(entry.id, 'usageHint', event.target.value)}
+                  placeholder='Usage hint (optional), e.g. question or task'
+                  maxLength={1000}
+                  aria-label={`Slash command ${index + 1} usage hint`}
+                />
+              </div>
+              <Button
+                variant='quiet'
+                size='icon'
+                aria-label={`Remove slash command ${index + 1}`}
+                onClick={() => removeCommand(entry.id)}
+              >
+                <Trash className='size-[14px]' />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+      {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
     </div>
   )
 }

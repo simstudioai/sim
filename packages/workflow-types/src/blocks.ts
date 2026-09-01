@@ -49,6 +49,7 @@ export type SubBlockType =
   | 'variables-input'
   | 'messages-input'
   | 'workflow-selector'
+  | 'workflow-output-selector'
   | 'workflow-input-mapper'
   | 'text'
   | 'router-input'

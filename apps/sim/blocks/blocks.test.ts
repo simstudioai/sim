@@ -582,6 +582,7 @@ describe.concurrent('Blocks Module', () => {
         'variables-input',
         'messages-input',
         'workflow-selector',
+        'workflow-output-selector',
         'workflow-input-mapper',
         'text',
         'router-input',
