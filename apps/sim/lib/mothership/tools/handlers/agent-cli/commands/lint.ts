@@ -8,6 +8,7 @@ import {
 } from '@/lib/mothership/tools/handlers/agent-cli/types'
 import { formatWorkflowLintMessage, hasWorkflowLintIssues } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 /**
  * The Go copilot served this as the virtual `workflows/{path}/lint.json` VFS
@@ -42,15 +43,17 @@ export const workflowLintCommand: AgentCliCommand = {
   },
 }
 
-const ENV_TOKEN = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g
+// The executor's own env-token grammar (keys trimmed to match its resolution).
+const ENV_TOKEN = createEnvVarPattern()
 
 function envTokenNames(value: unknown, out: Map<string, Set<string>>, blockName: string): void {
   if (typeof value === 'string') {
     for (const match of value.matchAll(ENV_TOKEN)) {
-      if (!match[1]) continue
-      const blocks = out.get(match[1]) ?? new Set<string>()
+      const key = match[1]?.trim()
+      if (!key) continue
+      const blocks = out.get(key) ?? new Set<string>()
       blocks.add(blockName)
-      out.set(match[1], blocks)
+      out.set(key, blocks)
     }
   } else if (Array.isArray(value)) {
     for (const item of value) envTokenNames(item, out, blockName)
