@@ -170,6 +170,7 @@ export async function resolveSelectorOAuthAccessToken(input: {
     ),
     input.credential.signal
   )
+  input.credential.signal?.throwIfAborted()
   const token = result?.accessToken
 
   if (!token) throw new SelectorConnectionUnavailableError()

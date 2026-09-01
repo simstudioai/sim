@@ -226,4 +226,34 @@ describe('resolveSelectorOAuthAccessToken', () => {
 
     expect(mocks.resolveCredentialTokenBundle).not.toHaveBeenCalled()
   })
+
+  it('rechecks cancellation before consuming a fulfilled credential result', async () => {
+    mocks.resolveCredentialTokenBundle.mockResolvedValue({
+      accessToken: 'fulfilled-access-token',
+    })
+    const controller = new AbortController()
+    const protectedValues = createSelectorProtectedValues()
+    const recordCredentialUse = vi.fn()
+    const abortReason = new DOMException('Selector request canceled', 'AbortError')
+
+    const pending = resolveSelectorOAuthAccessToken({
+      credential: {
+        suppliedId: 'credential-1',
+        access: {
+          ok: true,
+          credentialOwnerUserId: 'owner-1',
+          resolvedCredentialId: 'credential-1',
+        },
+        signal: controller.signal,
+      },
+      serviceId: 'gmail',
+      protectedValues,
+      recordCredentialUse,
+    })
+    queueMicrotask(() => controller.abort(abortReason))
+
+    await expect(pending).rejects.toBe(abortReason)
+    expect(protectedValues.contains('fulfilled-access-token')).toBe(false)
+    expect(recordCredentialUse).not.toHaveBeenCalled()
+  })
 })

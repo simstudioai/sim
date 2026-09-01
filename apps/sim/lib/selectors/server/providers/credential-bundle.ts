@@ -48,6 +48,7 @@ export async function resolveSelectorCredentialBundle(input: {
       ),
       credential.signal
     )
+    credential.signal?.throwIfAborted()
   } catch (error) {
     if (credential.signal?.aborted) throw error
     throw new SelectorConnectionUnavailableError()

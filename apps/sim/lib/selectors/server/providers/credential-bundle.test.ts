@@ -70,4 +70,32 @@ describe('selector credential bundles', () => {
       { privacyMode: 'selector' }
     )
   })
+
+  it('rechecks cancellation before consuming a fulfilled credential bundle', async () => {
+    mockResolveCredentialAccessToken.mockResolvedValue({
+      accessToken: 'fulfilled-access-token',
+      cloudId: 'cloud-1',
+    })
+    const controller = new AbortController()
+    const protectedValues = createSelectorProtectedValues()
+    const recordCredentialUse = vi.fn()
+    const abortReason = new DOMException('Selector request canceled', 'AbortError')
+
+    const pending = resolveSelectorCredentialBundle({
+      credential: {
+        suppliedId: 'credential-1',
+        access: { ok: true, credentialOwnerUserId: 'owner-1' },
+        signal: controller.signal,
+      },
+      protectedValues,
+      providerId: 'atlassian',
+      recordCredentialUse,
+    })
+    queueMicrotask(() => controller.abort(abortReason))
+
+    await expect(pending).rejects.toBe(abortReason)
+    expect(protectedValues.contains('fulfilled-access-token')).toBe(false)
+    expect(protectedValues.contains('cloud-1')).toBe(false)
+    expect(recordCredentialUse).not.toHaveBeenCalled()
+  })
 })
