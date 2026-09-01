@@ -273,6 +273,32 @@ export function pendingToolWaitBudgetMs(
   return toolWatchdogTimeoutMs(toolCall?.name)
 }
 
+/**
+ * Bare timeout/abort messages (AbortSignal.timeout's "The operation timed out.",
+ * a DOMException's "This operation was aborted") strip everything the model
+ * needs to reason about the failure. Name the tool, the elapsed time, and the
+ * honest uncertainty; leave every informative message untouched.
+ */
+export function enrichOpaqueToolError(
+  message: string,
+  toolName: string,
+  startTimeMs: number | undefined
+): string {
+  if (
+    !/^(the operation timed out\.?|this operation was aborted\.?|timeout|aborted)$/i.test(
+      message.trim()
+    )
+  ) {
+    return message
+  }
+  const elapsed = startTimeMs ? ` after ~${Math.round((Date.now() - startTimeMs) / 1000)}s` : ''
+  return (
+    `${toolName} timed out${elapsed} inside its handler ("${message}"). ` +
+    'The operation may or may not have landed — read the affected resource back before ' +
+    'retrying, and prefer a narrower invocation if this was a heavy call.'
+  )
+}
+
 class ToolExecutionTimeoutError extends Error {
   constructor(toolName: string, timeoutMs: number) {
     super(
@@ -885,7 +911,11 @@ async function executeToolAndReportInner(
       ...(terminalData !== undefined ? { data: terminalData } : {}),
     })
   } catch (error) {
-    const thrownMessage = toError(error).message
+    const thrownMessage = enrichOpaqueToolError(
+      toError(error).message,
+      toolCall.name,
+      toolCall.startTime
+    )
     const projection = inspectToolResultForCopilot(
       { success: false, error: thrownMessage },
       toolExecutionContext.resolvedSecretTraceRegistry,
