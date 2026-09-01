@@ -46,6 +46,30 @@ describe('enrichTableToolDescription for table_query_rows_v2', () => {
     expect(enriched).toContain('Example order: [{"field":"wins","direction":"desc"}]')
   })
 
+  /**
+   * A metrics table is all-numeric and a lookup table is all-text; both are
+   * common, and each picks a different arm of the example builder.
+   */
+  it('builds a numeric example when the table has no string column', () => {
+    const numeric = enrichTableToolDescription(
+      'Query rows.',
+      { name: 'Scores', columns: [{ name: 'wins', type: 'number' }] },
+      'table_query_rows_v2'
+    )
+    expect(numeric).toContain('{"field":"wins","op":"gte","value":10}')
+    expect(numeric).not.toContain('AND group')
+  })
+
+  it('builds a string example when the table has no numeric column', () => {
+    const textual = enrichTableToolDescription(
+      'Query rows.',
+      { name: 'Statuses', columns: [{ name: 'status', type: 'string' }] },
+      'table_query_rows_v2'
+    )
+    expect(textual).toContain('{"field":"status","op":"eq","value":"active"}')
+    expect(textual).not.toContain('"op":"gte"')
+  })
+
   it('omits the example rather than naming a placeholder column', () => {
     const bare = enrichTableToolDescription(
       'Query rows.',
@@ -54,6 +78,7 @@ describe('enrichTableToolDescription for table_query_rows_v2', () => {
     )
     expect(bare).toContain('payload (json)')
     expect(bare).not.toContain('Example filter')
+    expect(bare).not.toContain('Example order')
   })
 })
 

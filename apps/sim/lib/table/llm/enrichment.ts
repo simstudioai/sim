@@ -99,7 +99,7 @@ INSTRUCTIONS:
 1. Build the filter yourself from the user's question - do NOT ask for confirmation
 2. A single condition is a plain object: {"field":"<column>","op":"<operator>","value":<value>}
 3. For multiple conditions wrap them in {"all":[...]} for AND or {"any":[...]} for OR; groups nest
-4. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty
+4. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty
 5. like/ilike use * as the wildcard, e.g. {"field":"name","op":"ilike","value":"*jo*"}
 6. There are no array columns - for substring matching use ilike with *x*
 7. For ranking queries (highest, lowest, Nth, top N) set order and a small limit, e.g. limit 1 for the highest, 2 for the second highest
@@ -215,7 +215,7 @@ export function enrichTableToolParameters(
     if (enrichedProperties.filter) {
       enrichedProperties.filter = {
         ...enrichedProperties.filter,
-        description: `Predicate built from the user's question using columns: ${columnNames}. One condition is {"field":"<column>","op":"<operator>","value":<value>}; combine with {"all":[...]} for AND or {"any":[...]} for OR. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Omit only to match every row.`,
+        description: `Predicate built from the user's question using columns: ${columnNames}. One condition is {"field":"<column>","op":"<operator>","value":<value>}; combine with {"all":[...]} for AND or {"any":[...]} for OR. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Omit only to match every row.`,
       }
     }
 
