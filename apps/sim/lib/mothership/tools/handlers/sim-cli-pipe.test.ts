@@ -100,3 +100,24 @@ describe('applyPipeline', () => {
     expect(applyPipeline('', [['head', '-n', '5']]).ok).toBe(false)
   })
 })
+
+describe('grep context flags', () => {
+  const input = 'a\nb\nHIT\nc\nd\ne\nHIT\nf'
+  it('-A appends trailing context lines', () => {
+    const r = applyPipeline(input, [['grep', '-A', '1', 'HIT']])
+    expect(r).toEqual({ ok: true, stdout: 'HIT\nc\nHIT\nf' })
+  })
+  it('-B and -C select windows without duplicating overlaps', () => {
+    const r = applyPipeline('x\nHIT\nHIT\ny', [['grep', '-C', '1', 'HIT']])
+    expect(r).toEqual({ ok: true, stdout: 'x\nHIT\nHIT\ny' })
+  })
+  it('-c counts hits, not context lines', () => {
+    const r = applyPipeline(input, [['grep', '-c', '-A', '2', 'HIT']])
+    expect(r).toEqual({ ok: true, stdout: '2' })
+  })
+  it('rejects a negative context count with usage guidance', () => {
+    const r = applyPipeline(input, [['grep', '-A', '-2', 'HIT']])
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toContain('-A needs a non-negative number')
+  })
+})
