@@ -19,7 +19,6 @@ export const POST = defineInternalJsonRoute({
   }),
   errorPolicy: internalWorkflowErrorPolicies.concealRunAuthorization,
   mapInput: ({ params }, { request }) => ({
-    workflowId: params.id,
     runId: params.executionId,
     abortSignal: request.signal,
   }),

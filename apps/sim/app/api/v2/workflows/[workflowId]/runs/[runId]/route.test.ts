@@ -359,7 +359,7 @@ describe('v2 run detail and cancel adapters', () => {
     })
     expect(mocks.cancel).toHaveBeenCalledWith({
       principal,
-      input: { workflowId: 'workflow-1', runId: 'run-1' },
+      input: { runId: 'run-1' },
       request: expect.anything(),
     })
     expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
@@ -417,7 +417,7 @@ describe('v2 run detail and cancel adapters', () => {
     expect(response.status).toBe(200)
     expect(mocks.cancel).toHaveBeenCalledWith({
       principal: personalPrincipal,
-      input: { workflowId: 'workflow-1', runId: 'run-1' },
+      input: { runId: 'run-1' },
       request: expect.anything(),
     })
   })

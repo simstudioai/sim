@@ -169,6 +169,8 @@ describe('workflow mutation Copilot adapters', () => {
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: true,
       executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
       redisAvailable: true,
       durablyRecorded: true,
       locallyAborted: false,
@@ -176,10 +178,7 @@ describe('workflow mutation Copilot adapters', () => {
       reason: 'recorded',
     })
 
-    const result = await executeCancelWorkflowRun(
-      { workflowId: 'workflow-1', executionId: 'execution-1' },
-      context
-    )
+    const result = await executeCancelWorkflowRun({ executionId: 'execution-1' }, context)
 
     expect(result).toEqual({
       success: true,
@@ -198,9 +197,7 @@ describe('workflow mutation Copilot adapters', () => {
         operation: expect.objectContaining({ id: 'workflows.runs.cancel' }),
       }),
       {
-        workflowId: 'workflow-1',
         runId: 'execution-1',
-        assertedWorkspaceId: 'workspace-1',
       }
     )
   })
@@ -215,10 +212,7 @@ describe('workflow mutation Copilot adapters', () => {
       })
     )
 
-    const result = await executeCancelWorkflowRun(
-      { workflowId: 'workflow-1', executionId: 'execution-1' },
-      context
-    )
+    const result = await executeCancelWorkflowRun({ executionId: 'execution-1' }, context)
 
     expect(result).toEqual({
       success: false,
@@ -227,22 +221,9 @@ describe('workflow mutation Copilot adapters', () => {
   })
 
   it('requires an execution ID before attempting workflow-run cancellation', async () => {
-    const result = await executeCancelWorkflowRun(
-      { workflowId: 'workflow-1' } as CancelWorkflowRunParams,
-      context
-    )
+    const result = await executeCancelWorkflowRun({} as CancelWorkflowRunParams, context)
 
     expect(result).toEqual({ success: false, error: 'executionId is required' })
-    expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
-  })
-
-  it('requires a workflow ID even when the execution context contains one', async () => {
-    const result = await executeCancelWorkflowRun(
-      { executionId: 'execution-1' } as CancelWorkflowRunParams,
-      context
-    )
-
-    expect(result).toEqual({ success: false, error: 'workflowId is required' })
     expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
   })
 

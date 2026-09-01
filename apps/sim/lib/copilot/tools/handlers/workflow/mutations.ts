@@ -289,10 +289,6 @@ export async function executeCancelWorkflowRun(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workflowId = params.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
-    }
     const executionId = resolveInputFromExecutionId(params.executionId)
     if (!executionId) {
       return { success: false, error: 'executionId is required' }
@@ -303,16 +299,14 @@ export async function executeCancelWorkflowRun(
       'Request aborted before workflow run cancellation could be applied.'
     )
     const result = await executeCopilotWorkflowUseCase(context, cancelWorkflowRun, {
-      workflowId,
       runId: executionId,
-      assertedWorkspaceId: context.workspaceId,
       ...(context.abortSignal ? { abortSignal: context.abortSignal } : {}),
     })
 
     return {
       success: result.success,
       output: {
-        workflowId,
+        workflowId: result.workflowId,
         executionId: result.executionId,
         durablyRecorded: result.durablyRecorded,
         locallyAborted: result.locallyAborted,

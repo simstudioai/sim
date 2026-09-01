@@ -117,13 +117,11 @@ describe('workflow run-control application use cases', () => {
     async ({ principal, actorUserId }) => {
       await cancelWorkflowRun.execute({
         principal,
-        input: { workflowId: 'workflow-1', runId: 'parent-run-1' },
+        input: { runId: 'parent-run-1' },
       })
 
       expect(mocks.resolveRunContext).toHaveBeenCalledWith({
         runId: 'parent-run-1',
-        assertedWorkflowId: 'workflow-1',
-        assertedWorkspaceId: undefined,
       })
       expect(mocks.cancel).toHaveBeenCalledWith({
         executionId: 'parent-run-1',
@@ -175,14 +173,14 @@ describe('workflow run-control application use cases', () => {
     }
   )
 
-  it('stops cancellation and resume before authorization when workflow/run scope disagrees', async () => {
+  it('stops cancellation and resume before authorization when canonical run resolution fails', async () => {
     mocks.resolveRunContext.mockRejectedValue(new OrchestrationError('not_found', 'Run not found'))
     const principal = principals[0].principal
 
     await expect(
       cancelWorkflowRun.execute({
         principal,
-        input: { workflowId: 'wrong-workflow', runId: 'parent-run-1' },
+        input: { runId: 'parent-run-1' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
     await expect(
@@ -209,7 +207,7 @@ describe('workflow run-control application use cases', () => {
     await expect(
       cancelWorkflowRun.execute({
         principal,
-        input: { workflowId: 'workflow-1', runId: 'parent-run-1' },
+        input: { runId: 'parent-run-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     await expect(
@@ -234,7 +232,7 @@ describe('workflow run-control application use cases', () => {
     await expect(
       cancelWorkflowRun.execute({
         principal: principals[0].principal,
-        input: { workflowId: 'workflow-1', runId: 'parent-run-1' },
+        input: { runId: 'parent-run-1' },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Run not found' })
   })
@@ -247,7 +245,7 @@ describe('workflow run-control application use cases', () => {
     await expect(
       cancelWorkflowRun.execute({
         principal: principals[2].principal,
-        input: { workflowId: 'workflow-1', runId: 'parent-run-1' },
+        input: { runId: 'parent-run-1' },
       })
     ).rejects.toBe(cancelFailure)
 

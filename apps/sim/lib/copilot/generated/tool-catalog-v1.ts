@@ -1629,9 +1629,8 @@ export const CancelWorkflowRun: ToolCatalogEntry = {
         description:
           'Required workflow execution ID returned by run_workflow with async:true or found with query_logs. This identifies a workflow run, not an agent invocation or chat request.',
       },
-      workflowId: { type: 'string', description: 'Required workflow ID that owns the execution.' },
     },
-    required: ['workflowId', 'executionId'],
+    required: ['executionId'],
   },
   requiredPermission: 'write',
   requiresApproval: true,
