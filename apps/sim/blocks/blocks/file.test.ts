@@ -72,15 +72,29 @@ describe('FileV5Block', () => {
         query: '',
         maxResults: '25',
       })
-    ).toEqual({ query: '', maxResults: 25 })
+    ).toEqual({ query: '', mode: 'regex', maxResults: 25 })
 
     const query = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'query')
+    const mode = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'mode')
     const maxResults = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'maxResults')
     expect(query?.paramVisibility).toBe('user-or-llm')
+    expect(mode?.paramVisibility).toBe('user-only')
     expect(maxResults?.paramVisibility).toBe('user-only')
     expect(query?.canonicalParamId).toBeUndefined()
     expect(maxResults?.canonicalParamId).toBeUndefined()
     expect(maxResults?.value?.()).toBe('50')
+    expect(mode?.value?.()).toBe('regex')
+  })
+
+  it.each([
+    [undefined, 'regex'],
+    ['exact', 'exact'],
+    ['regex', 'regex'],
+    ['glob', 'regex'],
+  ])('resolves the builder-configured match mode %s to %s', (mode, expected) => {
+    expect(buildParams({ operation: 'file_search', query: 'needle', mode })).toMatchObject({
+      mode: expected,
+    })
   })
 
   it('uses the default search cap when the builder field is cleared', () => {
@@ -90,7 +104,7 @@ describe('FileV5Block', () => {
         query: 'needle',
         maxResults: '',
       })
-    ).toEqual({ query: 'needle', maxResults: 50 })
+    ).toEqual({ query: 'needle', mode: 'regex', maxResults: 50 })
   })
 
   it.each(['10.5', '10results', '0', '201'])(
