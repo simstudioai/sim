@@ -3,8 +3,8 @@ import {
   CONTAINER_DIMENSIONS,
   clampNoteBlockTotalHeight,
   getNoteBlockHeight,
-  isNoteContentEmpty,
-} from '@sim/workflow-renderer'
+} from '@sim/workflow-renderer/dimensions'
+import { isNoteContentEmpty } from '@sim/workflow-renderer/note-content'
 import {
   AUTO_LAYOUT_EXCLUDED_TYPES,
   CONTAINER_BLOCK_TYPES,

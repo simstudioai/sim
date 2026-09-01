@@ -6,7 +6,7 @@ import {
   removeWorkspaceEnvironmentContract,
   savePersonalEnvironmentContract,
   upsertWorkspaceEnvironmentContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/environment'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'

@@ -43,6 +43,11 @@ vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
   listCustomBlocksWithInputsForWorkspace,
 }))
 
+/** None of these suites list catalog entries, and each real registry loads every definition it holds. */
+vi.mock('@/blocks/registry-maps', () => ({ BLOCK_REGISTRY: {}, BLOCK_META_REGISTRY: {} }))
+vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
+vi.mock('@/triggers/registry', () => ({ TRIGGER_REGISTRY: {} }))
+
 import { WorkspaceVFS } from '@/lib/copilot/vfs/workspace-vfs'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
