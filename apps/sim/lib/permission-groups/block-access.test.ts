@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  intersectAccessControlAllowlists,
   isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
   toAccessControlAllowlist,
@@ -124,6 +125,51 @@ describe('isBlockTypeAccessControlExempt', () => {
 
     expect(isBlockTypeAccessControlExempt('starter')).toBe(true)
     expect(isBlockTypeAccessControlExempt('manual_trigger')).toBe(true)
+  })
+})
+
+describe('intersectAccessControlAllowlists', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  /**
+   * The two policies are written independently — `ALLOWED_INTEGRATIONS` by hand
+   * against whatever ids its author knew, the group through an editor that only
+   * offers current ones — so they routinely name the same integration by
+   * different vintages. Intersecting before resolving leaves those disjoint.
+   */
+  it('intersects a retired id against its successor', () => {
+    registry({
+      slack: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'slack_v2' } },
+      slack_v2: {},
+    })
+
+    expect([...(intersectAccessControlAllowlists(['slack'], ['slack_v2']) ?? [])]).toEqual([
+      'slack_v2',
+    ])
+  })
+
+  it('keeps either side null as unrestricted', () => {
+    registry({})
+
+    expect([...(intersectAccessControlAllowlists(null, ['notion']) ?? [])]).toEqual(['notion'])
+    expect([...(intersectAccessControlAllowlists(['notion'], null) ?? [])]).toEqual(['notion'])
+    expect(intersectAccessControlAllowlists(null, null)).toBeNull()
+  })
+
+  it('keeps an empty policy denying everything', () => {
+    registry({})
+
+    expect(intersectAccessControlAllowlists([], ['notion'])?.size).toBe(0)
+  })
+
+  it('drops an integration only one policy names', () => {
+    registry({})
+
+    expect([...(intersectAccessControlAllowlists(['notion', 'gmail'], ['gmail']) ?? [])]).toEqual([
+      'gmail',
+    ])
   })
 })
 

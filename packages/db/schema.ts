@@ -5071,6 +5071,16 @@ export const tableRunDispatches = pgTable(
     triggeredByUserId: text('triggered_by_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
+    /** The person whose permission group governs what this run's cells may do.
+     *  Distinct from `triggered_by_user_id`, which is an *attribution* and
+     *  substitutes the workspace billed account when the credential names no
+     *  human — right for a meter, wrong for a gate, since it would run a
+     *  bystander's tool denylist against an actorless request. Null when the
+     *  run has no acting person (workspace API key, schedule, auto-fire), which
+     *  means no per-tool gate applies. */
+    capabilityGovernedUserId: text('capability_governed_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
     /** Last time the dispatcher loop made progress on this dispatch. Stamped by
      *  the same per-window writes that advance `cursor` and `processed_count`,

@@ -98,6 +98,10 @@ export interface DispatchRow {
   isManualRun: boolean
   /** User who triggered the run (for usage attribution); null for auto-fire. */
   triggeredByUserId: string | null
+  /** Person whose permission group gates this run's cells; null when the run
+   *  has no acting person. Deliberately not `triggeredByUserId` — see the
+   *  column comment on `table_run_dispatches`. */
+  capabilityGovernedUserId: string | null
   requestedAt: Date
   /** Set when the dispatch reached `complete`; null while it is still active. */
   completedAt: Date | null
@@ -248,6 +252,7 @@ export async function insertDispatch(input: {
   limit?: DispatchLimit | null
   isManualRun: boolean
   triggeredByUserId?: string | null
+  capabilityGovernedUserId?: string | null
 }): Promise<string> {
   const id = `tdsp_${generateId().replace(/-/g, '')}`
   await db.insert(tableRunDispatches).values({
@@ -265,6 +270,16 @@ export async function insertDispatch(input: {
     cursor: -1,
     isManualRun: input.isManualRun,
     triggeredByUserId: input.triggeredByUserId ?? null,
+    /**
+     * Defaults to the trigger actor so every producer that has not been taught
+     * the distinction keeps the gating it has today. Only a producer holding
+     * the principal can tell an acting person from an attribution fallback, and
+     * those pass the governed subject explicitly — `null` included.
+     */
+    capabilityGovernedUserId:
+      input.capabilityGovernedUserId !== undefined
+        ? input.capabilityGovernedUserId
+        : (input.triggeredByUserId ?? null),
   })
   return id
 }
@@ -349,6 +364,7 @@ export async function listActiveDispatches(tableId: string): Promise<DispatchRow
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
+    capabilityGovernedUserId: row.capabilityGovernedUserId,
     requestedAt: row.requestedAt,
     completedAt: row.completedAt,
     cancelledAt: row.cancelledAt,
@@ -375,6 +391,7 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
+    capabilityGovernedUserId: row.capabilityGovernedUserId,
     requestedAt: row.requestedAt,
     completedAt: row.completedAt,
     cancelledAt: row.cancelledAt,
@@ -590,7 +607,12 @@ export async function dispatcherStep(
     isManualRun: dispatch.isManualRun,
     groupIds: dispatch.scope.groupIds,
     mode: dispatch.mode,
-  }).map((p) => ({ ...p, dispatchId, triggeredByUserId: dispatch.triggeredByUserId ?? undefined }))
+  }).map((p) => ({
+    ...p,
+    dispatchId,
+    triggeredByUserId: dispatch.triggeredByUserId ?? undefined,
+    capabilityGovernedUserId: dispatch.capabilityGovernedUserId,
+  }))
 
   // Cursor advances to the last position in this chunk regardless of
   // eligibility — otherwise a window full of skipped cells loops forever.
@@ -1026,6 +1048,7 @@ export async function cancelStaleDispatches(
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
+    capabilityGovernedUserId: row.capabilityGovernedUserId,
     requestedAt: row.requestedAt,
     completedAt: row.completedAt,
     cancelledAt: row.cancelledAt,
@@ -1109,6 +1132,7 @@ export async function markActiveDispatchesCancelled(
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
+    capabilityGovernedUserId: row.capabilityGovernedUserId,
     requestedAt: row.requestedAt,
     completedAt: row.completedAt,
     cancelledAt: row.cancelledAt,

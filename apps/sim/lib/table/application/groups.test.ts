@@ -333,6 +333,7 @@ describe('workflow and enrichment Table application commands', () => {
       isManualRun: false,
       requestId: 'request-1',
       triggeredByUserId: 'user-1',
+      capabilityGovernedUserId: 'user-1',
     })
   })
 

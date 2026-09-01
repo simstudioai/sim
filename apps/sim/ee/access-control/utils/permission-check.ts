@@ -270,8 +270,16 @@ function assertBlockTypeAllowed(
    * current block covers every retired version of the same integration. The
    * editor only offers current ids, so without this an admin could not deny a
    * legacy block even knowing it existed.
+   *
+   * Lowercased *before* resolving, not after: registry keys are lowercase, so
+   * `getBlock('Slack')` misses and the successor lookup answers `Slack` — which
+   * then compares as `slack` against an allowlist holding `slack_v2` and
+   * refuses a block both policies allow. `blockType` reaches here from
+   * persisted workflow state and from an agent block's `tool.type`, neither of
+   * which is case-normalized upstream. `toAccessControlAllowlist` normalizes
+   * the policy side the same way.
    */
-  const allowlistType = resolveAccessControlBlockType(blockType).toLowerCase()
+  const allowlistType = resolveAccessControlBlockType(blockType.toLowerCase())
 
   if (!toAccessControlAllowlist(config.allowedIntegrations)?.has(allowlistType)) {
     const envAllowlist = toAccessControlAllowlist(getAllowedIntegrationsFromEnv())

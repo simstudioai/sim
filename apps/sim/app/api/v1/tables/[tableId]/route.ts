@@ -17,6 +17,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  resolveWorkspaceRequestActor,
   tableAccessPrincipal,
 } from '@/app/api/v1/middleware'
 
@@ -111,7 +112,6 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1DeleteTableContract, request, context, {
       validationErrorResponse: (error) => {
         const hasInvalidTableId = error.issues.some((issue) => issue.path.includes('tableId'))
@@ -133,6 +133,17 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
     const scopeError = await checkWorkspaceScope(rateLimit, workspaceId, 'write')
     if (scopeError) return scopeError
 
+    /**
+     * A workspace key names no human, so its creator must not be attributed the
+     * deletion in audit and analytics. The shared resolver substitutes the
+     * explicit system actor for a workspace key and keeps the owner for a
+     * personal one, exactly as the row routes on this table already do.
+     */
+    const actorUserId = await resolveWorkspaceRequestActor(rateLimit, workspaceId)
+    if (!actorUserId) {
+      throw new Error(`Unable to resolve system actor for workspace ${workspaceId}`)
+    }
+
     const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
@@ -140,7 +151,12 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const outcome = await performDeleteTable({ table: result.table, userId, requestId, request })
+    const outcome = await performDeleteTable({
+      table: result.table,
+      userId: actorUserId,
+      requestId,
+      request,
+    })
     if (!outcome.success) {
       return orchestrationOutcomeErrorResponse(outcome, 'Failed to delete table')
     }

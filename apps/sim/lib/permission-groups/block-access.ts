@@ -77,6 +77,26 @@ export function resolveAccessControlBlockType(blockType: string): string {
  * so without normalizing the policy the deployment that permitted `slack` would
  * refuse every `slack_v2` block in it.
  */
+/**
+ * Intersects two independent integration policies in the *resolved* vocabulary.
+ *
+ * Each side is canonicalized before the intersection, not after. A policy list
+ * can name a retired id while the other names its successor —
+ * `ALLOWED_INTEGRATIONS=slack` against a group naming `slack_v2` — and folding
+ * only case leaves those two ids disjoint, intersecting to nothing and hiding
+ * an integration both policies allow. `null` stays unrestricted on either side.
+ */
+export function intersectAccessControlAllowlists(
+  first: readonly string[] | null,
+  second: readonly string[] | null
+): ReadonlySet<string> | null {
+  const resolvedFirst = toAccessControlAllowlist(first)
+  const resolvedSecond = toAccessControlAllowlist(second)
+  if (resolvedFirst === null) return resolvedSecond
+  if (resolvedSecond === null) return resolvedFirst
+  return new Set([...resolvedFirst].filter((type) => resolvedSecond.has(type)))
+}
+
 export function toAccessControlAllowlist(
   allowedIntegrations: readonly string[] | null
 ): ReadonlySet<string> | null {

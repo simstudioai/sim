@@ -106,8 +106,7 @@ For an allowlist the three states must be tested separately — `null` permits e
 bun run check:permission-group-enforcement
 bun run check:application-graph
 bun run check:capability-subject
-cd apps/sim && bun run type-check
-cd apps/sim && bunx vitest run lib/permission-groups
+cd apps/sim && bun run type-check && bunx vitest run lib/permission-groups
 ```
 
 All three are inside `check:audits`, which derives its list from the `check:*` scripts in `package.json` — a new audit is opted *out* deliberately. Read the output, not the exit codes. Reference success lines (counts grow):

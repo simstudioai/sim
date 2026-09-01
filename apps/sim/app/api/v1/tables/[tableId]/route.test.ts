@@ -19,12 +19,14 @@ const {
   mockGetTableById,
   mockGetUserEntityPermissions,
   mockPerformDeleteTable,
+  mockResolveWorkspaceRequestActor,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockCheckWorkspaceScope: vi.fn(),
   mockGetTableById: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockPerformDeleteTable: vi.fn(),
+  mockResolveWorkspaceRequestActor: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -41,6 +43,12 @@ vi.mock('@/app/api/v1/middleware', () => ({
     rateLimit.keyType === 'personal'
       ? { kind: 'user', userId: rateLimit.userId }
       : { kind: 'workspace_api_key', keyCreatorUserId: rateLimit.userId },
+  /**
+   * Mirrors the real resolver: a workspace key names no human, so the billed
+   * account stands in as the explicit system actor; anything else keeps its
+   * owner.
+   */
+  resolveWorkspaceRequestActor: mockResolveWorkspaceRequestActor,
 }))
 
 vi.mock('@/lib/table', () => ({
@@ -92,6 +100,7 @@ describe('DELETE /api/v1/tables/[tableId] — orchestration failure projection',
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1', keyType: 'personal' })
     mockCheckWorkspaceScope.mockResolvedValue(null)
+    mockResolveWorkspaceRequestActor.mockResolvedValue('user-1')
     mockGetTableById.mockResolvedValue({
       id: TABLE_ID,
       name: 'Table',

@@ -159,9 +159,37 @@ describe('table run application use cases', () => {
       mode: 'all',
       requestId: 'request-1',
       triggeredByUserId: PRINCIPAL.userId,
+      capabilityGovernedUserId: PRINCIPAL.userId,
     })
     expect(result.dispatchId).toBe('dispatch-1')
     expect(mockSignalRowsChanged).toHaveBeenCalledWith(TABLE.id)
+  })
+
+  /**
+   * A workspace key names no human, so its run is ungoverned. The meter still
+   * needs someone, and attribution answers with the workspace billed account —
+   * a bystander whose tool denylist must not reach the run's cells. The two
+   * subjects are carried separately precisely so this case can differ.
+   */
+  it('carries the billed account as the meter but nobody as the gate for a workspace key', async () => {
+    await startTableRun.execute({
+      principal: { kind: 'workspace_api_key', workspaceId: TABLE.workspaceId, keyId: 'key-1' },
+      input: {
+        kind: 'row_enrichment',
+        tableId: TABLE.id,
+        assertedWorkspaceId: TABLE.workspaceId,
+        rowId: 'row-1',
+        groupId: 'group-1',
+        requestId: 'request-1',
+      },
+    })
+
+    expect(mockRunWorkflowColumn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggeredByUserId: 'billing-owner-1',
+        capabilityGovernedUserId: null,
+      })
+    )
   })
 
   it('rejects missing canonical groups and rows without dispatching', async () => {

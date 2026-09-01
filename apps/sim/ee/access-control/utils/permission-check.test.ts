@@ -445,6 +445,26 @@ describe('validateBlockType', () => {
       await validateBlockType('user-123', 'workspace-1', 'slack')
     })
 
+    /**
+     * Registry keys are lowercase, so a mixed-case block type must be folded
+     * *before* the successor lookup. Resolving first makes `getBlock('Slack')`
+     * miss, the successor answer `Slack`, and the comparison fall back to
+     * `slack` — refusing a block the allowlist permits as `slack_v2`.
+     */
+    it('resolves a superseded block supplied with different casing', async () => {
+      setEnterpriseOrgWorkspace()
+      mockGetBlock.mockImplementation((type: string) =>
+        type === 'slack'
+          ? { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'slack_v2' } }
+          : type === 'slack_v2'
+            ? {}
+            : undefined
+      )
+      queueGroupResolution([{ config: { allowedIntegrations: ['slack_v2'] } }])
+
+      await validateBlockType('user-123', 'workspace-1', 'Slack')
+    })
+
     it('still rejects a block absent from a mixed-case stored allowlist', async () => {
       setEnterpriseOrgWorkspace()
       queueGroupResolution([{ config: { allowedIntegrations: ['Slack'] } }])

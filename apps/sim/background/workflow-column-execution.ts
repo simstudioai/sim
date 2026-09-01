@@ -627,16 +627,18 @@ async function runWorkflowAndWriteTerminal(
             rowId,
             workspaceId,
             /**
-             * The person who asked, not who pays. For a system-triggered cell
-             * the billing attribution names the workspace's billing owner, and
-             * running a member's tool denylist against a bystander is wrong in
-             * both directions: it fails cells nobody meant to govern, and it
-             * skips the denylist for the person who actually triggered one.
-             * `null` means no per-tool gate applies, which is the documented
-             * behavior for an actorless run — stated, because the field is
-             * required precisely so it cannot be skipped by omission.
+             * The person who asked, not who pays. `triggeredByUserId` is an
+             * attribution: for a workspace-API-key run it names the workspace's
+             * billing owner, and running that bystander's tool denylist against
+             * an actorless request is wrong in both directions — it fails cells
+             * nobody meant to govern, and it skips the denylist for the person
+             * who actually triggered one. The governed subject is carried
+             * separately from the dispatch. `null` means no per-tool gate
+             * applies, which is the documented behavior for an actorless run —
+             * stated, because the field is required precisely so it cannot be
+             * skipped by omission.
              */
-            userId: payload.triggeredByUserId ?? null,
+            userId: payload.capabilityGovernedUserId ?? null,
             signal: attemptSignal,
             resolvedSecretTraceRegistry: enrichmentRegistry,
           })
