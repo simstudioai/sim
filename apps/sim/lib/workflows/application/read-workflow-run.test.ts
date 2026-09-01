@@ -116,9 +116,12 @@ describe('readWorkflowRun selector resolution', () => {
       status: 'completed',
       blockOutputs: { [BLOCK_ID]: { content: 'hi' } },
     })
-    await expect(readWorkflowRun.execute({ principal, input: input(['Agent 1']) })).rejects.toThrow(
-      /did not resolve to any block on this run: Agent 1/
-    )
+    await expect(
+      readWorkflowRun.execute({ principal, input: input(['Agent 1']) })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('did not resolve to any block on this run: Agent 1'),
+    })
   })
 
   /**
