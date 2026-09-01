@@ -65,12 +65,18 @@ const OPAQUE: LiteralGuarantee = {
 /** Escapes whose meaning and spelling are identical in PostgreSQL ARE and JavaScript. */
 const SHARED_ESCAPE_LETTERS = new Set(['d', 'D', 'w', 'W', 's', 'S', 't', 'n', 'r', 'f', 'v'])
 
-/** PostgreSQL-only escapes, rejected so one spelling means one thing in both engines. */
-const POSTGRES_ONLY_ESCAPES: Record<string, string> = {
+/**
+ * PostgreSQL-only escapes, rejected so one spelling means one thing in both
+ * engines. Only the three with a genuine equivalent name one: `\Y` is a
+ * *non*-boundary, and `\m` / `\M` bind to a word edge rather than the line's,
+ * so pointing them at `\b` / `^` / `$` would hand back different semantics
+ * under the guise of a fix.
+ */
+const POSTGRES_ONLY_ESCAPES: Record<string, string | null> = {
   y: '\\b',
-  Y: '\\b',
-  m: '^',
-  M: '$',
+  Y: null,
+  m: null,
+  M: null,
   A: '^',
   Z: '$',
 }
@@ -154,9 +160,14 @@ function alternate(left: LiteralGuarantee, right: LiteralGuarantee): LiteralGuar
 }
 
 /**
- * `atom` repeated between `min` and `max` times. An optional atom guarantees
- * nothing, and a variable count guarantees one occurrence but nothing joined
- * across the repetition — `fo` + `o+` still guarantees `foo`, never `foo…o`.
+ * `atom` repeated between `min` and `max` times.
+ *
+ * An optional atom guarantees nothing. A variable count is not exact, but it
+ * still guarantees `min` copies back to back — every match of `(?:ab){2,5}`
+ * contains `abab` — so a fixed atom contributes that expansion rather than the
+ * single occurrence it would otherwise be scored at. An atom with no fixed
+ * string contributes only what one occurrence guarantees, since nothing joins
+ * across the repetition: `fo` + `o+` guarantees `foo`, never `foo…o`.
  */
 function repeat(atom: LiteralGuarantee, min: number, max: number): LiteralGuarantee {
   if (min === 0) return { ...OPAQUE, zeroWidth: true }
@@ -165,6 +176,17 @@ function repeat(atom: LiteralGuarantee, min: number, max: number): LiteralGuaran
     if (total <= FILE_SEARCH_PATTERN_LITERAL_CAP) {
       const expanded = atom.exact.repeat(min)
       return { ...literal(expanded), zeroWidth: expanded.length === 0 }
+    }
+  }
+  if (atom.exact) {
+    const copies = Math.min(min, Math.ceil(FILE_SEARCH_PATTERN_LITERAL_CAP / atom.exact.length))
+    const expanded = atom.exact.repeat(Math.max(1, copies))
+    return {
+      exact: null,
+      prefix: head(expanded),
+      suffix: tail(expanded),
+      best: Math.min(FILE_SEARCH_PATTERN_LITERAL_CAP, runLength(atom.exact) * min),
+      zeroWidth: false,
     }
   }
   return {
@@ -415,10 +437,12 @@ class FileSearchRegexParser {
         `Backreference "\\${next}" is not supported — repeat the group's pattern instead`
       )
     }
-    const postgresOnly = POSTGRES_ONLY_ESCAPES[next]
-    if (postgresOnly) {
+    if (next in POSTGRES_ONLY_ESCAPES) {
+      const equivalent = POSTGRES_ONLY_ESCAPES[next]
       throw new FileSearchPatternError(
-        `"\\${next}" is not supported — write "${postgresOnly}" instead`
+        equivalent
+          ? `"\\${next}" is not supported — write "${equivalent}" instead`
+          : `"\\${next}" is not supported, and no supported escape means the same thing`
       )
     }
     if (SHARED_ESCAPE_LETTERS.has(next)) return

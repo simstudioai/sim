@@ -30,7 +30,15 @@ describe('analyzeFileSearchRegex', () => {
       expect(run('(?:xyz)?ab')).toBe(2)
       expect(run('foo+bar')).toBe(4)
       expect(run('ab{3}cd')).toBe(6)
-      expect(run('ab{2,4}cd')).toBe(3)
+    })
+
+    /** `(?:ab){2,5}` cannot match without `abab` in it, so the run is 4, not 2. */
+    it('credits a variable repeat with the copies its minimum forces', () => {
+      expect(run('(?:ab){2,5}')).toBe(4)
+      expect(run('(?:abc){2,}')).toBe(6)
+      expect(run('ab{2,4}cd')).toBe(4)
+      expect(run('abc*d')).toBe(2)
+      expect(run('foo+bar')).toBe(4)
     })
 
     it('measures a run in characters, not UTF-16 units', () => {
@@ -75,6 +83,10 @@ describe('analyzeFileSearchRegex', () => {
       ['[[:alpha:]]foo', /POSIX class/],
       ['\\p{Lu}foo', /Unicode property/],
       ['\\yfoo\\y', /"\\y" is not supported — write "\\b" instead/],
+      ['\\Afoo\\Z', /"\\A" is not supported — write "\^" instead/],
+      ['a\\Yb needle', /"\\Y" is not supported, and no supported escape means the same thing/],
+      ['a\\mb needle', /"\\m" is not supported, and no supported escape means the same thing/],
+      ['a\\Mb needle', /"\\M" is not supported, and no supported escape means the same thing/],
       ['foo\\qbar', /not a supported escape/],
       ['foo[\\b]bar', /inside "\[\.\.\.\]"/],
       ['foo(bar', /Unclosed "\("/],

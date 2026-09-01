@@ -135,9 +135,20 @@ export function createFileSearchPreview(
   const { start: matchStart, end: matchEnd } = boundaries.matchRange ??
     pattern.findMatchRange(line) ?? { start: 0, end: 0 }
   const leadingEllipsis = boundaries.prefixOmitted || matchStart > 0 ? '…' : ''
-  const trailingEllipsis = boundaries.suffixOmitted || matchEnd < line.length ? '…' : ''
+  /**
+   * A regex match has no length limit — `abc.*` matches to the end of the line —
+   * so the match alone can exceed the budget. Clipping it here, against a budget
+   * that already reserves the closing marker, is what keeps the excerpt honest:
+   * letting the final cap do it would drop that marker along with the text and
+   * leave a truncated line looking complete.
+   */
+  const budgetBeforeMatch = Math.max(0, maxBytes - Buffer.byteLength(`${leadingEllipsis}…`, 'utf8'))
+  const fullMatch = line.slice(matchStart, matchEnd)
+  const match = utf8PrefixWithinBudget(fullMatch, budgetBeforeMatch)
+  const matchClipped = match.length < fullMatch.length
+  const trailingEllipsis =
+    matchClipped || boundaries.suffixOmitted || matchEnd < line.length ? '…' : ''
   const ellipsisBytes = Buffer.byteLength(leadingEllipsis + trailingEllipsis, 'utf8')
-  const match = line.slice(matchStart, matchEnd)
   const matchBytes = Buffer.byteLength(match, 'utf8')
   const surroundingBudget = Math.max(0, maxBytes - ellipsisBytes - matchBytes)
   const beforeBudget = Math.floor(surroundingBudget / 2)
@@ -146,6 +157,8 @@ export function createFileSearchPreview(
   const after = utf8PrefixWithinBudget(line.slice(matchEnd), afterBudget)
   const preview = `${boundaries.prefixOmitted || before.length < matchStart ? '…' : ''}${
     before
-  }${match}${after}${boundaries.suffixOmitted || matchEnd + after.length < line.length ? '…' : ''}`
+  }${match}${after}${
+    matchClipped || boundaries.suffixOmitted || matchEnd + after.length < line.length ? '…' : ''
+  }`
   return utf8PrefixWithinBudget(preview, maxBytes)
 }

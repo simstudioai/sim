@@ -79,6 +79,28 @@ describe('workspace file search text utilities', () => {
     ).toBe('…needle and nearby text…')
   })
 
+  /**
+   * A regex match runs to wherever the pattern takes it, so `abc.*` on a long
+   * line produces a match larger than the whole preview budget.
+   */
+  it('marks a preview whose match alone overruns the budget as truncated', () => {
+    const line = `head ${'x'.repeat(500)}abc${'y'.repeat(4000)} tail`
+    const start = line.indexOf('abc')
+    const preview = createFileSearchPreview(
+      line,
+      compileFileSearchPattern('abc.*', 'regex'),
+      2048,
+      {
+        matchRange: { start, end: line.length },
+      }
+    )
+
+    expect(Buffer.byteLength(preview, 'utf8')).toBeLessThanOrEqual(2048)
+    expect(preview.endsWith('…')).toBe(true)
+    expect(preview).toContain('abc')
+    expect(preview).not.toContain('\uFFFD')
+  })
+
   it('truncates extracted text on a UTF-8 boundary', () => {
     const truncated = truncateUtf8ToBytes('abc🙂def', 6)
     expect(truncated).toBe('abc')
