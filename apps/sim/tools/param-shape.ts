@@ -448,8 +448,15 @@ function enumMemberShape(members: readonly unknown[]): ToolParamValueShape {
  * the shape codec.
  */
 export function jsonSchemaEnumMember(value: unknown, property: JsonSchemaProperty): unknown {
-  if (typeof value !== 'string' || !Array.isArray(property.enum)) return undefined
-  return property.enum.find((member) => String(member) === value)
+  if (typeof value !== 'string') return undefined
+  return jsonSchemaEnumMembers(property)?.find((member) => String(member) === value)
+}
+
+/** The members an untrusted property declares, or `undefined` when it declares none. */
+export function jsonSchemaEnumMembers(
+  property: JsonSchemaProperty
+): readonly unknown[] | undefined {
+  return Array.isArray(property.enum) ? property.enum : undefined
 }
 
 /**
@@ -497,7 +504,7 @@ export interface JsonSchemaObject {
 }
 
 /** The declared properties of an untrusted schema, as `paramId -> property` pairs. */
-function jsonSchemaProperties(
+export function jsonSchemaProperties(
   schema: JsonSchemaObject | undefined
 ): Array<[string, JsonSchemaProperty]> {
   const { properties } = schema ?? {}

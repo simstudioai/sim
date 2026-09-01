@@ -571,6 +571,16 @@ describe('buildJsonSchemaParamShapes', () => {
     expect(decodeJsonSchemaValue('a', mixed)).toBe('a')
   })
 
+  it('normalizes a property the server sent as something other than an object', () => {
+    // `properties: { foo: null }` is malformed but arrives over the wire, and the MCP
+    // executor reads its properties through here before any type guard runs.
+    const shapes = buildJsonSchemaParamShapes({
+      properties: { a: null, b: true, c: 'text', d: 42 },
+    } as unknown as Parameters<typeof buildJsonSchemaParamShapes>[0])
+
+    expect([...shapes.values()]).toEqual(['string', 'string', 'string', 'string'])
+  })
+
   it('leaves a value that is not an enum member to the shape codec', () => {
     // A variable reference must survive, and an untouched field stays the '' sentinel.
     expect(decodeJsonSchemaValue('<start.choice>', { enum: ['a', null] })).toBe('<start.choice>')
