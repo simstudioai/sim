@@ -17,7 +17,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
-  resolveWorkspaceRequestActor,
+  requireWorkspaceRequestActor,
   tableAccessPrincipal,
 } from '@/app/api/v1/middleware'
 
@@ -137,12 +137,14 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
      * A workspace key names no human, so its creator must not be attributed the
      * deletion in audit and analytics. The shared resolver substitutes the
      * explicit system actor for a workspace key and keeps the owner for a
-     * personal one, exactly as the row routes on this table already do.
+     * personal one, exactly as the row routes on this table already do. An
+     * archived or deleted workspace has no billed account to stand in, which is
+     * a controlled 400 rather than an uncaught throw the catch-all would report
+     * as a 500.
      */
-    const actorUserId = await resolveWorkspaceRequestActor(rateLimit, workspaceId)
-    if (!actorUserId) {
-      throw new Error(`Unable to resolve system actor for workspace ${workspaceId}`)
-    }
+    const actor = await requireWorkspaceRequestActor(rateLimit, workspaceId)
+    if (!actor.ok) return actor.response
+    const actorUserId = actor.actorUserId
 
     const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)

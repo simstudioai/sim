@@ -130,6 +130,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
 
     if (!creationPolicy.canCreate) {
+      /**
+       * The preflight refusal and the revocation-race refusal are the same
+       * decision reached at two moments, so they must be the same body. Without
+       * this branch the common path — the group already denied `workspace.create`
+       * when the policy was read — answered a bare `{ error }`, while only the
+       * race the `catch` below handles carried
+       * `details.code: PERMISSION_GROUP_CAPABILITY_BLOCKED`. A client that keys
+       * off the code then saw the capability refusal in the rarer case only.
+       */
+      if (creationPolicy.blockedReasonCode === 'permission-group-denied') {
+        return capabilityRefusalResponse('workspace.create')
+      }
       return NextResponse.json(
         { error: creationPolicy.reason || 'Workspace creation is not available.' },
         { status: creationPolicy.status }

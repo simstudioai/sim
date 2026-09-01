@@ -46,9 +46,20 @@ vi.mock('@/app/api/v1/middleware', () => ({
   /**
    * Mirrors the real resolver: a workspace key names no human, so the billed
    * account stands in as the explicit system actor; anything else keeps its
-   * owner.
+   * owner. The route reads it through `requireWorkspaceRequestActor`, which
+   * projects an unresolvable actor onto a 400 instead of throwing, so the mock
+   * reproduces that projection rather than only the raw resolver.
    */
   resolveWorkspaceRequestActor: mockResolveWorkspaceRequestActor,
+  requireWorkspaceRequestActor: async (rateLimit: unknown, workspaceId: string) => {
+    const actorUserId = await mockResolveWorkspaceRequestActor(rateLimit, workspaceId)
+    return actorUserId
+      ? { ok: true, actorUserId }
+      : {
+          ok: false,
+          response: NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 }),
+        }
+  },
 }))
 
 vi.mock('@/lib/table', () => ({
@@ -107,6 +118,23 @@ describe('DELETE /api/v1/tables/[tableId] — orchestration failure projection',
       workspaceId: WORKSPACE_ID,
     })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
+  })
+
+  /**
+   * A workspace key whose workspace has since been archived resolves no billed
+   * account, so there is no system actor to attribute the deletion to. That is
+   * a reachable request about an unreachable workspace, not a server fault: it
+   * used to `throw`, and the catch-all reported it as a 500.
+   */
+  it('reports an unresolvable workspace actor as a 400, not a 500', async () => {
+    mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1', keyType: 'workspace' })
+    mockResolveWorkspaceRequestActor.mockResolvedValue(null)
+
+    const response = await DELETE(makeRequest(), makeContext())
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid workspace ID' })
+    expect(mockPerformDeleteTable).not.toHaveBeenCalled()
   })
 
   it('renders an unclassified internal failure as a fixed generic message', async () => {

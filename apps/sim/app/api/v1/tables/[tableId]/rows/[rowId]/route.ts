@@ -29,7 +29,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
-  resolveWorkspaceRequestActor,
+  requireWorkspaceRequestActor,
   tableAccessPrincipal,
   v1ValidationErrorResponse,
   v1ValidationErrorResponseFromError,
@@ -134,10 +134,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
 
     const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
     if (scopeError) return scopeError
-    const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
-    if (!actorUserId) {
-      throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
-    }
+    const actor = await requireWorkspaceRequestActor(rateLimit, validated.workspaceId)
+    if (!actor.ok) return actor.response
+    const actorUserId = actor.actorUserId
 
     const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
