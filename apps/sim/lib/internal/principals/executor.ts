@@ -29,7 +29,13 @@ export function resolveExecutorOriginSubject(origin: ExecutorDelegationOrigin): 
   return subjectUserId
 }
 
-async function bindExecutorPrincipal(
+/**
+ * Binds an executor delegation origin to a delegated principal in-process,
+ * without minting and re-verifying a delegation JWT. The underlying binding
+ * still re-validates the workflow and deployment context, so trust matches the
+ * wire path minus the signature check, which proves nothing in-process.
+ */
+export async function createExecutorPrincipalFromDelegationOrigin(
   origin: ExecutorDelegationOrigin,
   audience: string,
   resourceScope?: DelegatedPrincipal['resourceScope'],
@@ -74,5 +80,11 @@ export async function createExecutorPrincipalFromExecutionContext({
 }: CreateExecutorPrincipalFromExecutionContextInput) {
   const origin = context.executorDelegationOrigin
   if (!origin) throw new ExecutorDelegationOriginRequiredError()
-  return bindExecutorPrincipal(origin, audience, resourceScope, expiresAt, context.userId)
+  return createExecutorPrincipalFromDelegationOrigin(
+    origin,
+    audience,
+    resourceScope,
+    expiresAt,
+    context.userId
+  )
 }

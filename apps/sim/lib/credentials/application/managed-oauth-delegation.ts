@@ -8,6 +8,8 @@ import {
   InvalidInternalDelegationBindingError,
 } from '@/lib/auth/internal-delegation'
 import { MANAGED_OAUTH_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
+import { createExecutorPrincipalFromDelegationOrigin } from '@/lib/internal/principals/executor'
+import type { ExecutorDelegationOrigin } from '@/executor/types'
 
 export class InvalidManagedOAuthDelegationError extends Error {
   constructor() {
@@ -34,6 +36,35 @@ export async function authenticateManagedOAuthDelegation(
       error instanceof InvalidInternalDelegationTokenError ||
       error instanceof InvalidInternalDelegationBindingError
     ) {
+      throw new InvalidManagedOAuthDelegationError()
+    }
+    throw error
+  }
+}
+
+/**
+ * In-process sibling of {@link authenticateManagedOAuthDelegation}: binds the
+ * executor's own delegation origin to one managed credential without minting and
+ * re-verifying a delegation JWT. The binding still re-validates the workflow and
+ * deployment context, so trust matches the wire path minus the signature check,
+ * which proves nothing when the executor is the caller.
+ */
+export async function bindExecutorManagedOAuthDelegation(
+  origin: ExecutorDelegationOrigin,
+  credentialId: string
+): Promise<WorkflowExecutionDelegatedPrincipal> {
+  if (!origin.currentWorkflow) {
+    throw new Error('Managed credential delegation is missing current workflow authority')
+  }
+
+  try {
+    return await createExecutorPrincipalFromDelegationOrigin(
+      origin,
+      MANAGED_OAUTH_DELEGATION_AUDIENCE,
+      { credentialId }
+    )
+  } catch (error) {
+    if (error instanceof InvalidInternalDelegationBindingError) {
       throw new InvalidManagedOAuthDelegationError()
     }
     throw error
