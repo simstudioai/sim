@@ -27,6 +27,8 @@ export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
 const TOOL_ICONS: Record<string, IconComponent> = {
   mothership: Blimp,
+  // Delegated subagent lanes: visually distinct from the main Sim lane.
+  task: AgentIcon,
   glob: FolderCode,
   grep: Search,
   read: File,

@@ -49,7 +49,10 @@ import { getToolEntry, isSimExecuted } from '@/lib/mothership/tool-executor'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
-import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
+import {
+  getToolDisplayTitle,
+  refineStreamingCliToolName,
+} from '@/lib/mothership/tools/tool-display'
 import {
   isWorkflowToolName,
   resolveWorkflowToolTargetId,
@@ -115,6 +118,18 @@ function handleToolArgsDelta(
   const toolCall = context.toolCalls.get(data.toolCallId)
   if (!toolCall) return
   toolCall.streamingArgs = `${toolCall.streamingArgs ?? ''}${data.argumentsDelta}`
+
+  // Progressive CLI title: the row upgrades from "Running CLI command" to the
+  // specific verb as soon as enough argv tokens have streamed to name it —
+  // no wait for the full (possibly huge) argument payload.
+  if (toolCall.name === 'sim_cli' || toolCall.name.startsWith('cli_')) {
+    const refined = refineStreamingCliToolName(toolCall.streamingArgs)
+    if (refined && refined !== toolCall.name) {
+      toolCall.name = refined
+      applyToolDisplay(toolCall)
+    }
+    return
+  }
   if (toolCall.name !== INTEGRATION_GATEWAY_TOOL) return
 
   const toolId = extractStreamingStringArgument(toolCall.streamingArgs, 'toolId')

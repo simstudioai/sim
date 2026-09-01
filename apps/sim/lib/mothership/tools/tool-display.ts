@@ -931,8 +931,16 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return `Deleting ${target || 'MCP server'}`
     }
     case 'web_search': {
-      const target = firstStringArg(args, 'toolTitle', 'title')
-      return target ? `Searching online for ${target}` : 'Searching online'
+      const target = firstStringArg(args, 'toolTitle', 'title', 'query')
+      return target
+        ? `Searching online for "${truncate(target, MAX_QUOTED_TITLE_VALUE_LENGTH)}"`
+        : 'Searching online'
+    }
+    case 'task': {
+      const target = firstStringArg(args, 'title')
+      return target
+        ? `Delegating: ${truncate(target, MAX_QUOTED_TITLE_VALUE_LENGTH)}`
+        : 'Delegating task'
     }
     case 'search_docs': {
       const target = firstStringArg(args, 'toolTitle', 'title', 'query')
@@ -1032,7 +1040,8 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         name === 'generate_image' ? 'image' : name === 'generate_video' ? 'video' : 'audio'
       const target =
         firstStringArg(args, 'toolTitle', 'title') ||
-        (stringArg(args, 'path') ? pathLeaf(stringArg(args, 'path')) : '')
+        (stringArg(args, 'path') ? pathLeaf(stringArg(args, 'path')) : '') ||
+        firstOutputFilePath(args)
       return target ? `Generating ${target}` : `Generating ${kind}`
     }
     case 'download_file': {
@@ -1459,4 +1468,42 @@ export function getToolStatusDisplayTitle(
   if (status === 'error' || status === 'rejected') return getToolFailedTitle(title)
   if (status === 'cancelled' || status === 'aborted') return getToolStoppedTitle(title)
   return title
+}
+
+/**
+ * Refines a streaming `sim_cli` call's derived name from its PARTIAL argument
+ * JSON, so the row's title upgrades from "Running CLI command" to the specific
+ * verb ("Listing workflows") while the arguments are still generating — the
+ * same progressive pattern the integration gateway rows use. Only complete
+ * quoted tokens count (a half-streamed token never matches), flags end the
+ * command path exactly as the worker's own matcher does, and a candidate is
+ * accepted only when the title registry knows it — an unknown prefix stays on
+ * the generic name rather than inventing one.
+ */
+const STREAMING_ARGS_ARRAY = /"args"\s*:\s*\[([^\]]*)/
+const COMPLETE_STRING_TOKEN = /"((?:[^"\\]|\\.)*)"/g
+
+export function refineStreamingCliToolName(streamingArgs: string): string | null {
+  const argsMatch = STREAMING_ARGS_ARRAY.exec(streamingArgs)
+  if (!argsMatch?.[1]) return null
+  const tokens: string[] = []
+  for (const match of argsMatch[1].matchAll(COMPLETE_STRING_TOKEN)) {
+    tokens.push(match[1] ?? '')
+  }
+  if (tokens.includes('--help') || tokens.includes('-h')) return 'cli_help'
+  const path: string[] = []
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i] ?? ''
+    if (token === '--output') {
+      i++
+      continue
+    }
+    if (token.startsWith('-')) break
+    path.push(token)
+  }
+  for (let length = Math.min(path.length, 4); length >= 1; length--) {
+    const candidate = `cli_${path.slice(0, length).join('_').replace(/-/g, '_')}`
+    if (CLI_TOOL_TITLES[candidate]) return candidate
+  }
+  return null
 }

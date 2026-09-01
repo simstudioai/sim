@@ -5,6 +5,7 @@ import { ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@s
 import { ShimmerText } from '@/components/ui'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { type ToolCallData, ToolCallStatus } from '../../../../types'
 import { getAgentIcon, isToolDone } from '../../utils'
@@ -44,7 +45,9 @@ interface AgentGroupProps {
 }
 
 function toolStatusTitle(tool: ToolCallData): string {
-  return tool.displayTitle || String(tool.toolName ?? '')
+  // Raw tool names must never surface — derive a human title when no display
+  // title was resolved upstream.
+  return tool.displayTitle || getToolDisplayTitle(String(tool.toolName ?? ''), undefined)
 }
 
 /**
