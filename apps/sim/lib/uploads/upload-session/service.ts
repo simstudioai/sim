@@ -497,10 +497,13 @@ export function assertUploadSessionAuthBinding(
   if (candidate.version === 2) {
     if (!isExecutorWorkflowExecutionPrincipal(principal)) throw uploadNotFound()
     const serialized = serializePrincipal(principal, 2)
-    if (
-      serialized.version !== 2 ||
-      JSON.stringify(serialized) !== JSON.stringify(candidate.principal)
-    ) {
+    let persisted: SerializedPrincipalV2
+    try {
+      persisted = serializePrincipal(parsePrincipal(candidate.principal), 2)
+    } catch {
+      throw uploadNotFound()
+    }
+    if (serialized.version !== 2 || JSON.stringify(serialized) !== JSON.stringify(persisted)) {
       throw uploadNotFound()
     }
     return

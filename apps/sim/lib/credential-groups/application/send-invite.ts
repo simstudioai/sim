@@ -17,13 +17,14 @@ import {
 
 export interface SendCredentialGroupInviteInput {
   credentialGroupId: string
+  assertedWorkspaceId?: string
   email: string
 }
 
 export const sendCredentialGroupInvite = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.sendInvite,
   resolveContext: ({ input }: { input: SendCredentialGroupInviteInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
+    resolveCredentialGroupContext(input.credentialGroupId, input.assertedWorkspaceId),
   authorizationOptions: {},
   authorizeResource({ principal }) {
     requireCredentialGroupWorkflowActor(principal)

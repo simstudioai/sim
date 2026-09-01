@@ -1,5 +1,5 @@
 import type { BoundWorkflowExecutionPrincipal } from '@sim/auth/principal'
-import { bindRuntimeWorkflowExecutionPrincipal } from '@/lib/auth/internal-delegation'
+import { bindRuntimeWorkflowExecution } from '@/lib/auth/internal-delegation'
 import {
   type ReadWorkflowDefinitionInput,
   readWorkflowDefinition,
@@ -16,9 +16,9 @@ export async function readWorkflowDefinitionAsExecutor({
   workflowId,
   state,
 }: ReadWorkflowDefinitionAsExecutorInput) {
-  const runtimePrincipal = await bindRuntimeWorkflowExecutionPrincipal(principal)
+  const runtime = await bindRuntimeWorkflowExecution(principal)
   return readWorkflowDefinition.execute({
-    principal: runtimePrincipal,
-    input: { workflowId, state },
+    principal: runtime.principal,
+    input: { workflowId, state, assertedWorkspaceId: runtime.workspaceId },
   })
 }

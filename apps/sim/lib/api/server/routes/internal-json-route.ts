@@ -241,6 +241,11 @@ export function resolveInternalAuthWorkspaceId(
   authTransport: InternalAuthTransport | undefined,
   executionWorkspaceId: string | undefined,
   sessionWorkspaceId: string | undefined
+): string | undefined
+export function resolveInternalAuthWorkspaceId(
+  authTransport: InternalAuthTransport | undefined,
+  executionWorkspaceId: string | undefined,
+  sessionWorkspaceId: string | undefined
 ): string | undefined {
   switch (authTransport) {
     case 'session':

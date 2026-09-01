@@ -6,18 +6,22 @@ import { resetEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBindDelegationAdmission, mockGetSession } = vi.hoisted(() => ({
-  mockBindDelegationAdmission: vi.fn(),
-  mockGetSession: vi.fn(),
-}))
+const { InvalidDelegationBindingError, mockBindDelegationAdmission, mockGetSession } = vi.hoisted(
+  () => ({
+    InvalidDelegationBindingError: class InvalidDelegationBindingError extends Error {},
+    mockBindDelegationAdmission: vi.fn(),
+    mockGetSession: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 vi.mock('@/lib/auth/internal-delegation', () => ({
   bindInternalExecutorDelegationAdmission: mockBindDelegationAdmission,
-  InvalidInternalDelegationBindingError: class InvalidInternalDelegationBindingError extends Error {},
+  InvalidInternalDelegationBindingError: InvalidDelegationBindingError,
 }))
 vi.unmock('@/lib/auth/internal')
 
+import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
 import { generateInternalDelegationToken } from '@/lib/auth/internal'
 import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { internalLogsSessionOrExecutorAuth } from '@/lib/logs/api/route-policies'
@@ -68,10 +72,7 @@ describe('internal logs route authentication', () => {
   })
 
   it('rejects an executor delegation without canonical workflow execution context', async () => {
-    mockBindDelegationAdmission.mockResolvedValueOnce({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      workspaceId: 'canonical-workspace',
-    })
+    mockBindDelegationAdmission.mockRejectedValueOnce(new InvalidDelegationBindingError())
     const token = await generateInternalDelegationToken({
       principal: createTestRuntimePrincipal(),
     })
@@ -83,7 +84,7 @@ describe('internal logs route authentication', () => {
         }),
         { id: 'log-1' }
       )
-    ).resolves.toEqual({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    ).rejects.toBeInstanceOf(InternalUnauthenticatedError)
   })
 
   it('preserves browser session principals', async () => {

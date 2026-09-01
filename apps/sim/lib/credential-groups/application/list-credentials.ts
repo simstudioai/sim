@@ -19,6 +19,7 @@ import {
 
 export interface ListCredentialGroupCredentialsInput {
   credentialGroupId: string
+  assertedWorkspaceId?: string
   limit: number
   cursor?: string
   email?: string
@@ -35,7 +36,7 @@ export interface ListCredentialGroupCredentialsResult {
 export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.listCredentials,
   resolveContext: ({ input }: { input: ListCredentialGroupCredentialsInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
+    resolveCredentialGroupContext(input.credentialGroupId, input.assertedWorkspaceId),
   authorizationOptions: {},
   execute: async ({ input, context }): Promise<ListCredentialGroupCredentialsResult> => {
     if (

@@ -1,4 +1,4 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -328,7 +328,8 @@ async function handleWorkspaceFile(
     input: { key, assertedWorkspaceId: workspaceId },
     request,
   })
-  const ownerKey = `user:${requirePrincipalSubjectUserId(principal)}`
+  const subjectUserId = resolvePrincipalSubjectUserId(principal)
+  const ownerKey = subjectUserId ? `user:${subjectUserId}` : `workspace:${workspaceId}`
   const resolved = await resolveServableBytes({
     buffer: content,
     filename: file.name,

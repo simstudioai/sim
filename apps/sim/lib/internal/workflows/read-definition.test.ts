@@ -4,13 +4,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
-const { mockBindRuntimePrincipal, mockReadWorkflowDefinition } = vi.hoisted(() => ({
-  mockBindRuntimePrincipal: vi.fn(),
+const { mockBindRuntimeExecution, mockReadWorkflowDefinition } = vi.hoisted(() => ({
+  mockBindRuntimeExecution: vi.fn(),
   mockReadWorkflowDefinition: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindRuntimeWorkflowExecutionPrincipal: mockBindRuntimePrincipal,
+  bindRuntimeWorkflowExecution: mockBindRuntimeExecution,
 }))
 
 vi.mock('@/lib/workflows/application/read-workflow-definition', () => ({
@@ -30,7 +30,7 @@ describe('readWorkflowDefinitionAsExecutor', () => {
       rootWorkflowId: 'parent-workflow',
     })
     const definition = { workflow: { id: 'child-workflow' }, state: { blocks: {} } }
-    mockBindRuntimePrincipal.mockResolvedValue(principal)
+    mockBindRuntimeExecution.mockResolvedValue({ principal, workspaceId: 'workspace-1' })
     mockReadWorkflowDefinition.mockResolvedValue(definition)
 
     const result = await readWorkflowDefinitionAsExecutor({
@@ -40,10 +40,14 @@ describe('readWorkflowDefinitionAsExecutor', () => {
     })
 
     expect(result).toBe(definition)
-    expect(mockBindRuntimePrincipal).toHaveBeenCalledWith(principal)
+    expect(mockBindRuntimeExecution).toHaveBeenCalledWith(principal)
     expect(mockReadWorkflowDefinition).toHaveBeenCalledWith({
       principal,
-      input: { workflowId: 'child-workflow', state: 'deployed' },
+      input: {
+        workflowId: 'child-workflow',
+        state: 'deployed',
+        assertedWorkspaceId: 'workspace-1',
+      },
     })
   })
 
@@ -58,7 +62,7 @@ describe('readWorkflowDefinitionAsExecutor', () => {
       executionId: 'execution-1',
       rootWorkflowId: 'parent-workflow',
     })
-    mockBindRuntimePrincipal.mockResolvedValue(principal)
+    mockBindRuntimeExecution.mockResolvedValue({ principal, workspaceId: 'workspace-1' })
     mockReadWorkflowDefinition.mockResolvedValue({ workflow: {}, state: null })
 
     await readWorkflowDefinitionAsExecutor({
@@ -67,16 +71,20 @@ describe('readWorkflowDefinitionAsExecutor', () => {
       state: 'draft',
     })
 
-    expect(mockBindRuntimePrincipal).toHaveBeenCalledWith(principal)
+    expect(mockBindRuntimeExecution).toHaveBeenCalledWith(principal)
     expect(mockReadWorkflowDefinition).toHaveBeenCalledWith({
       principal,
-      input: { workflowId: 'child-workflow', state: 'draft' },
+      input: {
+        workflowId: 'child-workflow',
+        state: 'draft',
+        assertedWorkspaceId: 'workspace-1',
+      },
     })
   })
 
   it('propagates canonical principal binding failures', async () => {
     const principal = createTestRuntimePrincipal({ rootWorkflowId: 'parent-workflow' })
-    mockBindRuntimePrincipal.mockRejectedValue(new Error('Execution principal is noncanonical'))
+    mockBindRuntimeExecution.mockRejectedValue(new Error('Execution principal is noncanonical'))
 
     await expect(
       readWorkflowDefinitionAsExecutor({
@@ -86,7 +94,7 @@ describe('readWorkflowDefinitionAsExecutor', () => {
       })
     ).rejects.toThrow('Execution principal is noncanonical')
 
-    expect(mockBindRuntimePrincipal).toHaveBeenCalledWith(principal)
+    expect(mockBindRuntimeExecution).toHaveBeenCalledWith(principal)
     expect(mockReadWorkflowDefinition).not.toHaveBeenCalled()
   })
 })

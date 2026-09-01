@@ -56,7 +56,7 @@ export async function bindRuntimeWorkflowExecution(
   }
   const executionMetadata = requirePrincipalExecutionMetadata(principal)
   const subject = resolvePrincipalSubject(principal)
-  if (subject && options.compatibilityActorUserId) {
+  if (subject && options.compatibilityActorUserId !== undefined) {
     throw new Error('Internal delegation cannot bind a compatibility actor to a subject')
   }
 
@@ -103,9 +103,10 @@ export async function bindRuntimeWorkflowExecution(
   }
 
   return {
-    principal: options.compatibilityActorUserId
-      ? withPrincipalExecutionActor(principal, options.compatibilityActorUserId)
-      : principal,
+    principal:
+      options.compatibilityActorUserId !== undefined
+        ? withPrincipalExecutionActor(principal, options.compatibilityActorUserId)
+        : principal,
     workspaceId,
   }
 }

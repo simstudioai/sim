@@ -23,6 +23,7 @@ export const CREDENTIAL_GROUP_PEOPLE_STATUSES = [
 
 export interface ListCredentialGroupPeopleInput {
   credentialGroupId: string
+  assertedWorkspaceId?: string
   limit: number
   cursor?: string
   email?: string
@@ -32,7 +33,7 @@ export interface ListCredentialGroupPeopleInput {
 export const listCredentialGroupPeople = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.listPeople,
   resolveContext: ({ input }: { input: ListCredentialGroupPeopleInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
+    resolveCredentialGroupContext(input.credentialGroupId, input.assertedWorkspaceId),
   authorizationOptions: {},
   authorizeResource({ principal }) {
     requireCredentialGroupWorkflowActor(principal)
