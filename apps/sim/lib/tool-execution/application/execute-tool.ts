@@ -82,27 +82,41 @@ function assertNoInlineCredential(args: Record<string, unknown>): void {
 }
 
 /**
- * Refuses a call missing a required parameter only its caller can supply.
+ * Refuses a call missing a required parameter the caller was supposed to send.
  *
- * `validateRequiredParametersAfterMerge` deliberately checks `user-or-llm`
- * alone, because on the workflow path a `user-only` parameter was already
- * validated during serialization against the block field that holds it. This
- * path has no serialization step, so nothing had checked them — a caller
- * omitting `zendesk_get_ticket`'s `subdomain` reached Zendesk as `undefined`
- * and came back a provider authentication failure, which is the same
- * undiagnosable shape this PR set out to remove.
+ * `visibility` is an editor-role concept: it says whether a value comes from a
+ * human filling a block field (`user-only`), the agent block's model choosing an
+ * argument (`llm-only`), either (`user-or-llm`), or neither (`hidden`). A direct
+ * call has no editor and no agent block, so those roles collapse — the caller is
+ * the only source there is. `createUserToolSchema`, which is what both this
+ * endpoint and Copilot's `call_integration_tool` publish, already says as much
+ * by omitting `hidden` and nothing else.
  *
- * A parameter Sim itself supplies is not missing: `hosting` fills its
- * `apiKeyParam` on a key-hosting deployment, so `firecrawl_scrape` must stay
- * callable with no `apiKey`. The condition mirrors `injectHostedKeyIfNeeded`
- * exactly — same three tests, same order — so the two cannot disagree about
- * whether a value is coming.
+ * So the rule here is not about roles: **Sim supplies it, or the caller must.**
+ * `hidden` is skipped because Sim fills it from a resolved credential or a
+ * hosted key — and `check-tool-param-reachability` is what makes that safe to
+ * assume, since it fails any required `hidden` parameter without a declared
+ * filler.
+ *
+ * Nothing else had checked these. `validateRequiredParametersAfterMerge` covers
+ * `user-or-llm` alone, because on the workflow path the rest were validated
+ * during serialization against the block fields holding them, and this path has
+ * no serialization step. Omitting `zendesk_get_ticket`'s `subdomain` reached
+ * Zendesk as `undefined` and came back a provider authentication failure — the
+ * same undiagnosable shape this branch set out to remove.
  */
 function assertRequiredCallerInputsPresent(
   tool: ExecutableToolConfig,
   toolId: string,
   params: Record<string, unknown>
 ): void {
+  /**
+   * Mirrors `injectHostedKeyIfNeeded`'s three tests, in its order, so the two
+   * cannot disagree about whether a value is coming. Rejecting the omission
+   * would make every hosted-key tool uncallable without a key the caller does
+   * not need to hold; accepting it on a deployment that hosts none would
+   * promise a key nothing supplies.
+   */
   const hostedKeyParam =
     isHosted && tool.hosting && (!tool.hosting.enabled || tool.hosting.enabled(params))
       ? tool.hosting.apiKeyParam
@@ -110,7 +124,8 @@ function assertRequiredCallerInputsPresent(
 
   const missing = Object.entries(tool.params ?? {})
     .filter(([name, declaration]) => {
-      if (!declaration?.required || declaration.visibility !== 'user-only') return false
+      if (!declaration?.required) return false
+      if (declaration.visibility === 'hidden') return false
       if (name === hostedKeyParam) return false
       const value = params[name]
       return value === undefined || value === null || value === ''

@@ -111,6 +111,11 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
     },
     hosting: { apiKeyParam: 'apiKey' },
   },
+  thinking_tool: {
+    id: 'thinking_tool',
+    name: 'Thinking',
+    params: { thought: { type: 'string', required: true, visibility: 'llm-only' } },
+  },
   zendesk_get_ticket: {
     id: 'zendesk_get_ticket',
     name: 'Zendesk Get Ticket',
@@ -167,6 +172,7 @@ const previewBlock = block({
   tools: { access: ['preview_call'] },
 })
 const zendeskBlock = block({ type: 'zendesk', tools: { access: ['zendesk_get_ticket'] } })
+const thinkingBlock = block({ type: 'thinking', tools: { access: ['thinking_tool'] } })
 const confluenceBlock = block({
   type: 'confluence_v2',
   tools: { access: ['confluence_read_v2'] },
@@ -203,6 +209,7 @@ describe('executeToolForCaller', () => {
       previewBlock,
       confluenceBlock,
       zendeskBlock,
+      thinkingBlock,
     ])
     mocks.executeRegistryTool.mockResolvedValue({ success: true, output: { markdown: '# Hi' } })
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
@@ -339,6 +346,27 @@ describe('executeToolForCaller', () => {
     await expect(run({ input: { url: 'https://example.com' } })).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('input.apiKey'),
+    })
+  })
+
+  /**
+   * `visibility` describes editor roles, and a direct call has no editor: the
+   * caller is the only source, so an `llm-only` parameter is as much theirs to
+   * send as a `user-only` one. Gating the check on `user-only` alone left
+   * `thinking_tool.thought` dispatching as `undefined`.
+   */
+  it('refuses a missing llm-only input too — the caller is the only source here', async () => {
+    await expect(run({ toolId: 'thinking_tool', input: {} })).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('input.thought'),
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
+
+  it('refuses a missing user-or-llm input before dispatch rather than mid-execution', async () => {
+    await expect(run({ input: {} })).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('input.url'),
     })
   })
 
