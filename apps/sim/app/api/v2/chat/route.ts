@@ -153,7 +153,7 @@ export const POST = withRouteHandler(
 
     const parsed = await parseRequest(v2ChatContract, req, {}, { ...V2_PARSE_DEFAULTS })
     if (!parsed.success) return parsed.response
-    const { workspaceId, message, conversationId } = parsed.data.body
+    const { workspaceId, message, conversationId, effort } = parsed.data.body
 
     const messageId = generateId()
     const requestId = generateId()
@@ -253,6 +253,7 @@ export const POST = withRouteHandler(
         chatId,
         messageId,
         ...(integrationTools.length > 0 ? { integrationTools } : {}),
+        ...(effort ? { effort } : {}),
       }
 
       let allowExplicitAbort = true

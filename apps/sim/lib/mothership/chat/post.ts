@@ -283,6 +283,8 @@ const ChatMessageSchema = z.object({
   contexts: z.array(ChatContextSchema).optional(),
   commands: z.array(z.string()).optional(),
   userTimezone: z.string().optional(),
+  /** Per-turn model effort dial; forwarded verbatim to the worker. */
+  effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   /**
    * Contract ChatRequest.clientCapabilities: what this caller can execute client-side.
    * PRESENT = explicit declaration (empty array → no client pickup, dispatch runs
@@ -350,6 +352,7 @@ type UnifiedChatBranch =
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
+        effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
         workflowId: string
         workflowName?: string
         workspaceId?: string
@@ -390,6 +393,7 @@ type UnifiedChatBranch =
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
+        effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
@@ -874,6 +878,7 @@ async function resolveBranch(params: {
             implicitFeedback: payloadParams.implicitFeedback,
             userPermission: payloadParams.userPermission,
             userTimezone: payloadParams.userTimezone,
+            effort: payloadParams.effort,
             desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
             browser: payloadParams.browser,
             terminalCapable: payloadParams.terminalCapable,
@@ -932,6 +937,7 @@ async function resolveBranch(params: {
           chatId: payloadParams.chatId,
           userPermission: payloadParams.userPermission,
           userTimezone: payloadParams.userTimezone,
+          effort: payloadParams.effort,
           desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
           browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
@@ -1324,6 +1330,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 fileAttachments: body.fileAttachments,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
+                effort: body.effort,
                 workflowId: branch.workflowId,
                 workflowName: branch.workflowName,
                 workspaceId: branch.workspaceId,
@@ -1348,6 +1355,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 fileAttachments: body.fileAttachments,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
+                effort: body.effort,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,

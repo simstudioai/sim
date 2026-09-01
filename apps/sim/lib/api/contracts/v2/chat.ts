@@ -27,6 +27,10 @@ export const v2ChatBodySchema = z.object({
     .uuid('conversationId must be a valid conversation id')
     .optional()
     .describe('Conversation to continue; a new one starts when omitted.'),
+  effort: z
+    .enum(['low', 'medium', 'high', 'xhigh', 'max'])
+    .optional()
+    .describe('Model effort for this turn; defaults to the deployment default (high).'),
 })
 
 const v2ChatTokensSchema = z.object({

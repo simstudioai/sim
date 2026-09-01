@@ -55,6 +55,8 @@ interface BuildPayloadParams {
   userPermission?: string
   /** Plan/flag-gated org capabilities (e.g. "custom-blocks") the mothership gates tools/prompts on. */
   userTimezone?: string
+  /** Per-turn model effort dial (user-selected in the composer). */
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   desktopLocalFilesystem?: boolean
   browser?: boolean
   terminalCapable?: boolean
@@ -424,6 +426,7 @@ export async function buildCopilotRequestPayload(
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
     ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
+    ...(params.effort ? { effort: params.effort } : {}),
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
     // UI declares that capability explicitly; headless callers omit or send [] and the
     // server runs those tools immediately instead of waiting out the pickup grace.
