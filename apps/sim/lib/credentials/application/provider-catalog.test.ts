@@ -24,16 +24,34 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 
-vi.mock('@/lib/permission-groups/integration-allowlist', () => ({
-  intersectIntegrationAllowlists: (
+/**
+ * The real helpers canonicalize each side through the generated successor map;
+ * this stub keeps the intersection semantics without the map, because the ids
+ * used here are fixtures rather than real block types.
+ */
+vi.mock('@/lib/permission-groups/integration-allowlist', () => {
+  const intersect = (
     permissionGroup: readonly string[] | null,
     deployment: readonly string[] | null
   ) => {
     if (!permissionGroup) return deployment
     if (!deployment) return permissionGroup
     return permissionGroup.filter((type) => deployment.includes(type))
-  },
-}))
+  }
+  return {
+    intersectIntegrationAllowlists: intersect,
+    intersectAccessControlAllowlists: (
+      permissionGroup: readonly string[] | null,
+      deployment: readonly string[] | null
+    ) => {
+      const result = intersect(permissionGroup, deployment)
+      return result === null ? null : new Set(result)
+    },
+    resolveAccessControlBlockType: (blockType: string) => blockType,
+    toAccessControlAllowlist: (allowlist: readonly string[] | null) =>
+      allowlist ? new Set(allowlist) : null,
+  }
+})
 
 vi.mock('@/lib/integrations/credential-visibility.server', () => ({
   createIntegrationCredentialVisibility: mocks.createVisibility,

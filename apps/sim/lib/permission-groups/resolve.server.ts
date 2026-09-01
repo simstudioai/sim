@@ -35,9 +35,15 @@ import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
  *
  * Returns null only when neither layer restricts anything. Otherwise the group's
  * own allowlist is intersected with the env one by
- * {@link intersectIntegrationAllowlists}, which case-folds both sides — callers
- * compare against a lowercased block type, and a stored config reaches here
- * straight off the wire, where the contract permits any casing.
+ * {@link intersectIntegrationAllowlists}, which canonicalizes both sides — case
+ * *and* successor — before intersecting. Both matter here: a stored config
+ * reaches this function straight off the wire, where the contract permits any
+ * casing, and the two layers are written independently, so one can name a
+ * retired id (`ALLOWED_INTEGRATIONS=slack`) while the other names its successor
+ * (`slack_v2`). Intersecting those textually yields the empty allowlist, which
+ * refuses an integration both layers allow. The result is therefore in the
+ * resolved vocabulary, and callers must judge a block type through
+ * `resolveAccessControlBlockType` before testing membership.
  */
 export function mergeEnvAllowlist(
   config: PermissionGroupConfig | null

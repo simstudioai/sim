@@ -1,8 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { toAccessControlAllowlist } from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { intersectAccessControlAllowlists } from '@/lib/permission-groups/integration-allowlist'
 
 /**
  * The workspace integration gate, shared by every catalog that projects
@@ -42,6 +41,10 @@ export function principalUserId(principal: Principal): string | undefined {
  * The intersection of the caller's permission-group allowlist with the
  * deployment's `ALLOWED_INTEGRATIONS`. A principal with no user contributes no
  * permission-group half, leaving the deployment allowlist alone.
+ *
+ * Each half is successor-resolved *before* the intersection, so a group naming
+ * `slack_v2` and a deployment naming `slack` still meet. Callers resolve the
+ * type they test the same way.
  */
 export async function allowedIntegrationTypes(
   principal: Principal,
@@ -51,9 +54,8 @@ export async function allowedIntegrationTypes(
   const permissionConfig = userId
     ? await resolvePermissionGroupConfig(userId, workspaceId, undefined)
     : null
-  const integrations = intersectIntegrationAllowlists(
+  return intersectAccessControlAllowlists(
     permissionConfig?.allowedIntegrations ?? null,
     getAllowedIntegrationsFromEnv()
   )
-  return toAccessControlAllowlist(integrations)
 }

@@ -141,6 +141,7 @@ vi.mock('@/lib/copilot/chat-status', () => ({
   },
 }))
 
+import { chatOperations } from '@/lib/copilot/application/operations'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { handleUnifiedChatPost } from './post'
 
@@ -978,6 +979,15 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
    * taken first and released by the handler's `finally`, so a retry is free to
    * start a turn.
    */
+  /**
+   * The capability this raw handler asserts is the one `chatOperations.send`
+   * declares, not a literal restated beside it — a declarative surface would
+   * enforce the declaration, and this one must agree with it.
+   */
+  it('enforces the capability the chat operation declares', () => {
+    expect(chatOperations.send.capability).toBe('copilot.use')
+  })
+
   it('refuses the send when the group withholds copilot.use', async () => {
     resolvePermissionGroupConfig.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,

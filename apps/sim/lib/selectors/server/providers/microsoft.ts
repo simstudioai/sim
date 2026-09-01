@@ -604,6 +604,7 @@ const oneDriveFolderCredential: SelectorCredentialPolicy = {
   kind: 'stored',
   field: 'oauthCredential',
   serviceIds: ['onedrive', 'microsoft-word'],
+  resourceServiceId: 'onedrive',
 }
 const excelCredential = microsoftCredential('microsoft-excel')
 const wordCredential = microsoftCredential('microsoft-word')

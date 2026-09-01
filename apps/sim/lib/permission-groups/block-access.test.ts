@@ -2,12 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  intersectAccessControlAllowlists,
-  isBlockTypeAccessControlExempt,
-  resolveAccessControlBlockType,
-  toAccessControlAllowlist,
-} from '@/lib/permission-groups/block-access'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { getBlock } from '@/blocks/registry'
 
 const mockGetBlock = getBlock as unknown as ReturnType<typeof vi.fn>
@@ -17,55 +12,14 @@ interface FakeBlock {
   sunset?: { status: 'legacy' | 'deprecated'; replacedBy?: string }
 }
 
+/**
+ * Only `hideFromToolbar` is read from here: the successor half of the decision
+ * comes from the generated map, so every id used below is a real one whose real
+ * successor the assertion depends on.
+ */
 function registry(blocks: Record<string, FakeBlock>) {
   mockGetBlock.mockImplementation((type: string) => blocks[type])
 }
-
-describe('resolveAccessControlBlockType', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('judges a superseded block as its successor', () => {
-    registry({
-      slack: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'slack_v2' } },
-      slack_v2: {},
-    })
-
-    expect(resolveAccessControlBlockType('slack')).toBe('slack_v2')
-  })
-
-  it('follows a chain of successors to the current version', () => {
-    registry({
-      a: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'b' } },
-      b: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'c' } },
-      c: {},
-    })
-
-    expect(resolveAccessControlBlockType('a')).toBe('c')
-  })
-
-  it('stops rather than looping when successors point at each other', () => {
-    registry({
-      a: { sunset: { status: 'legacy', replacedBy: 'b' } },
-      b: { sunset: { status: 'legacy', replacedBy: 'a' } },
-    })
-
-    expect(resolveAccessControlBlockType('a')).toBe('b')
-  })
-
-  it('keeps its own identity when the named successor is not registered', () => {
-    registry({ a: { sunset: { status: 'legacy', replacedBy: 'gone' } } })
-
-    expect(resolveAccessControlBlockType('a')).toBe('a')
-  })
-
-  it('leaves a current block alone', () => {
-    registry({ slack_v2: {} })
-
-    expect(resolveAccessControlBlockType('slack_v2')).toBe('slack_v2')
-  })
-})
 
 describe('isBlockTypeAccessControlExempt', () => {
   beforeEach(() => {
@@ -125,84 +79,5 @@ describe('isBlockTypeAccessControlExempt', () => {
 
     expect(isBlockTypeAccessControlExempt('starter')).toBe(true)
     expect(isBlockTypeAccessControlExempt('manual_trigger')).toBe(true)
-  })
-})
-
-describe('intersectAccessControlAllowlists', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  /**
-   * The two policies are written independently — `ALLOWED_INTEGRATIONS` by hand
-   * against whatever ids its author knew, the group through an editor that only
-   * offers current ones — so they routinely name the same integration by
-   * different vintages. Intersecting before resolving leaves those disjoint.
-   */
-  it('intersects a retired id against its successor', () => {
-    registry({
-      slack: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'slack_v2' } },
-      slack_v2: {},
-    })
-
-    expect([...(intersectAccessControlAllowlists(['slack'], ['slack_v2']) ?? [])]).toEqual([
-      'slack_v2',
-    ])
-  })
-
-  it('keeps either side null as unrestricted', () => {
-    registry({})
-
-    expect([...(intersectAccessControlAllowlists(null, ['notion']) ?? [])]).toEqual(['notion'])
-    expect([...(intersectAccessControlAllowlists(['notion'], null) ?? [])]).toEqual(['notion'])
-    expect(intersectAccessControlAllowlists(null, null)).toBeNull()
-  })
-
-  it('keeps an empty policy denying everything', () => {
-    registry({})
-
-    expect(intersectAccessControlAllowlists([], ['notion'])?.size).toBe(0)
-  })
-
-  it('drops an integration only one policy names', () => {
-    registry({})
-
-    expect([...(intersectAccessControlAllowlists(['notion', 'gmail'], ['gmail']) ?? [])]).toEqual([
-      'gmail',
-    ])
-  })
-})
-
-describe('toAccessControlAllowlist', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('keeps an unrestricted allowlist unrestricted', () => {
-    registry({})
-
-    expect(toAccessControlAllowlist(null)).toBeNull()
-  })
-
-  /**
-   * `ALLOWED_INTEGRATIONS` is written by hand against whatever ids its author
-   * knows, so a deployment that permitted `slack` must not refuse `slack_v2`.
-   */
-  it('judges a policy entry naming a retired id as its successor', () => {
-    registry({
-      slack: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'slack_v2' } },
-      slack_v2: {},
-    })
-
-    const allowlist = toAccessControlAllowlist(['Slack'])
-
-    expect(allowlist?.has('slack_v2')).toBe(true)
-    expect(allowlist?.has('slack')).toBe(false)
-  })
-
-  it('denies everything for an empty allowlist', () => {
-    registry({ slack_v2: {} })
-
-    expect(toAccessControlAllowlist([])?.size).toBe(0)
   })
 })

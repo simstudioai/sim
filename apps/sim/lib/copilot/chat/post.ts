@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { chatOperations } from '@/lib/copilot/application/operations'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
@@ -1125,6 +1126,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       /**
        * permission-group-enforced: copilot.use — Chat is a raw handler rather
        * than a workspace operation, so the authorization funnel never sees it.
+       * The capability is read off `chatOperations.send` rather than restated,
+       * so the assertion and the refusal cannot drift from the declaration a
+       * declarative surface would enforce — including the `'none'` case, where
+       * a declarative surface asserts nothing and so does this.
        *
        * Gated on the workspace the turn actually lands in, which is the one
        * `resolveBranch` just resolved rather than the one the request asked
@@ -1140,17 +1145,19 @@ export async function handleUnifiedChatPost(req: NextRequest) {
        * taken above is released by the `finally`, so a refused send leaves a
        * later retry free to start a turn.
        */
+      const chatCapability = chatOperations.send.capability
       if (
         branch.workspaceId &&
+        chatCapability !== 'none' &&
         (await isWorkspaceCapabilityWithheld(
           authenticatedUserId,
           branch.workspaceId,
-          'copilot.use'
+          chatCapability
         ))
       ) {
         activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 403)
         activeOtelRoot.finish('error')
-        return capabilityRefusalResponse('copilot.use')
+        return capabilityRefusalResponse(chatCapability)
       }
 
       let currentChat: ChatLoadResult['chat'] = null

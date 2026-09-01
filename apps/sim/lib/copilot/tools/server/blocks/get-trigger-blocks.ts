@@ -5,7 +5,10 @@ import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import {
+  intersectIntegrationAllowlists,
+  resolveAccessControlBlockType,
+} from '@/lib/permission-groups/integration-allowlist'
 import { getAllBlocks } from '@/blocks/registry'
 import { overlayVisibility } from '@/blocks/visibility/context'
 
@@ -44,7 +47,7 @@ export const getTriggerBlocksServerTool: BaseServerTool<
       if (
         allowedIntegrations != null &&
         !isBlockTypeAccessControlExempt(blockType) &&
-        !allowedIntegrations.includes(blockType.toLowerCase())
+        !allowedIntegrations.includes(resolveAccessControlBlockType(blockType.toLowerCase()))
       )
         continue
 

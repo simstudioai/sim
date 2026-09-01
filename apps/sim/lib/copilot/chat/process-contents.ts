@@ -43,7 +43,10 @@ import { mcpService } from '@/lib/mcp/service'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import {
+  intersectIntegrationAllowlists,
+  resolveAccessControlBlockType,
+} from '@/lib/permission-groups/integration-allowlist'
 import { getColumnId } from '@/lib/table/column-keys'
 import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
@@ -619,7 +622,7 @@ async function processBlockMetadata(
     if (
       allowedIntegrations != null &&
       !isBlockTypeAccessControlExempt(blockId) &&
-      !allowedIntegrations.includes(blockId.toLowerCase())
+      !allowedIntegrations.includes(resolveAccessControlBlockType(blockId.toLowerCase()))
     ) {
       logger.debug('Block not allowed by integration allowlist', { blockId, userId })
       return null

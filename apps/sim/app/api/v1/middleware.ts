@@ -533,6 +533,30 @@ export async function resolveWorkspaceRequestActor(
 }
 
 /**
+ * {@link resolveWorkspaceRequestActor} as a route-ready result.
+ *
+ * The resolver answers `null` for a real, reachable request: an authenticated
+ * workspace key whose workspace has since been archived or deleted has no
+ * billed account to stand in as its system actor. Every call site used to
+ * `throw` on that, which the route's catch-all turned into a generic 500 — an
+ * unreachable workspace reported as a server fault. It is the same condition
+ * the routes already report as a 400 `Invalid workspace ID` when the addressed
+ * table belongs to another workspace, so it is reported the same way, from one
+ * place, rather than five copies of a throw.
+ */
+export async function requireWorkspaceRequestActor(
+  rateLimit: RateLimitResult,
+  workspaceId: string
+): Promise<{ ok: true; actorUserId: string } | { ok: false; response: NextResponse }> {
+  const actorUserId = await resolveWorkspaceRequestActor(rateLimit, workspaceId)
+  if (actorUserId) return { ok: true, actorUserId }
+  return {
+    ok: false,
+    response: NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 }),
+  }
+}
+
+/**
  * v1 wrapper: renders {@link resolveWorkspaceAccess} as the v1 `{ error }` body.
  * Returns null on success, NextResponse on failure.
  */

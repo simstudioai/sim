@@ -29,6 +29,7 @@ const {
   mockGetRateLimit,
   mockGetUserEntityPermissions,
   mockGetWorkspaceBillingSettings,
+  mockGetWorkspaceBilledAccountUserId,
 } = vi.hoisted(() => ({
   mockAuthenticateV1Request: vi.fn(),
   mockGetSubscription: vi.fn(),
@@ -36,6 +37,7 @@ const {
   mockGetRateLimit: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceBillingSettings: vi.fn(),
+  mockGetWorkspaceBilledAccountUserId: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/auth', () => ({
@@ -61,7 +63,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
-  getWorkspaceBilledAccountUserId: vi.fn(async () => 'billed-user'),
+  getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
 }))
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
@@ -70,6 +72,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  requireWorkspaceRequestActor,
   v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
 
@@ -419,5 +422,49 @@ describe('checkWorkspaceScope', () => {
     const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID, 'read')
 
     expect(response?.status).toBe(403)
+  })
+})
+
+describe('requireWorkspaceRequestActor', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetWorkspaceBilledAccountUserId.mockResolvedValue('billed-user')
+  })
+
+  it('substitutes the billed account as the system actor for a workspace key', async () => {
+    const actor = await requireWorkspaceRequestActor(
+      { allowed: true, keyType: 'workspace', userId: 'key-creator' } as never,
+      'workspace-1'
+    )
+
+    expect(actor).toEqual({ ok: true, actorUserId: 'billed-user' })
+  })
+
+  it('keeps the owner for a personal key', async () => {
+    const actor = await requireWorkspaceRequestActor(
+      { allowed: true, keyType: 'personal', userId: 'user-1' } as never,
+      'workspace-1'
+    )
+
+    expect(actor).toEqual({ ok: true, actorUserId: 'user-1' })
+  })
+
+  /**
+   * An archived or deleted workspace has no billed account to stand in. That is
+   * a reachable request about an unreachable workspace, not a server fault: the
+   * call sites used to throw, and the routes' catch-all reported it as a 500.
+   */
+  it('projects an unresolvable actor onto a 400 rather than throwing', async () => {
+    mockGetWorkspaceBilledAccountUserId.mockResolvedValue(null)
+
+    const actor = await requireWorkspaceRequestActor(
+      { allowed: true, keyType: 'workspace', userId: 'key-creator' } as never,
+      'workspace-gone'
+    )
+
+    expect(actor.ok).toBe(false)
+    if (actor.ok) throw new Error('expected a refusal')
+    expect(actor.response.status).toBe(400)
+    await expect(actor.response.json()).resolves.toEqual({ error: 'Invalid workspace ID' })
   })
 })
