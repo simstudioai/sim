@@ -10,12 +10,17 @@
 
 import { isRecordLike } from '@sim/utils/object'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { HUMAN_IN_THE_LOOP_BLOCK_TYPES } from '@/executor/constants'
 
 /**
  * Block types whose "outputs" are really workflow inputs (Start/starter) or flow
  * control and should never appear in an output picker.
  */
-export const EXCLUDED_OUTPUT_TYPES = new Set(['starter', 'start_trigger', 'human_in_the_loop'])
+export const EXCLUDED_OUTPUT_TYPES = new Set([
+  'starter',
+  'start_trigger',
+  ...HUMAN_IN_THE_LOOP_BLOCK_TYPES,
+])
 
 export interface FlattenedBlockOutput {
   blockId: string

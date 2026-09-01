@@ -1317,7 +1317,9 @@ export class PauseResumeManager {
         )
         if (blockLogIndex !== -1) {
           // Filter output for logging using shared utility
-          // 'resume' is redundant with url/resumeEndpoint so we filter it out
+          // 'resume' is redundant with url/resumeEndpoint so we filter it out.
+          // The type is only used to read the block's `outputs` for `hiddenFromDisplay`,
+          // and v2 inherits that map from v1 verbatim — so both versions filter alike.
           const filteredOutput = filterOutputForLog('human_in_the_loop', mergedOutput, {
             additionalHiddenKeys: ['resume'],
           })

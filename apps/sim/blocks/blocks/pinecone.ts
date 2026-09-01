@@ -305,8 +305,8 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       title: 'Options',
       type: 'checkbox-list',
       options: [
-        { id: 'includeValues', label: 'Include Values' },
-        { id: 'includeMetadata', label: 'Include Metadata' },
+        { id: 'includeValues', label: 'Include Values', defaultChecked: true },
+        { id: 'includeMetadata', label: 'Include Metadata', defaultChecked: true },
       ],
       condition: { field: 'operation', value: 'search_vector' },
     },

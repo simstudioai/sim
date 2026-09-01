@@ -24,7 +24,6 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
 // remap module never pulls the full registry (this file only exercises top-level selectors).
 vi.mock('@/tools/params', () => ({
   getToolIdForOperation: () => undefined,
-  getToolParametersConfig: () => null,
   getSubBlocksForToolInput: (
     _toolId: string,
     _type: string,

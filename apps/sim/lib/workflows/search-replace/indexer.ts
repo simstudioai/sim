@@ -54,8 +54,6 @@ import {
   formatParameterLabel,
   getSubBlocksForToolInput,
   getToolIdForOperation,
-  getToolParametersConfig,
-  type ToolParameterConfig,
 } from '@/tools/params'
 
 /**
@@ -177,8 +175,11 @@ function looksLikeStructuredString(value: string): boolean {
   )
 }
 
-function getFallbackToolParamType(value: unknown, paramType?: string): SubBlockType {
-  if (paramType === 'object') return 'workflow-input-mapper'
+/**
+ * The searchable shape of a value belonging to a tool with no registry definition — a
+ * custom or MCP tool, where nothing declares a type. Inferred from the value itself.
+ */
+function getFallbackToolParamType(value: unknown): SubBlockType {
   if (isRecordLike(value)) return 'workflow-input-mapper'
   if (typeof value !== 'string') return DEFAULT_SUBBLOCK_TYPE as SubBlockType
 
@@ -657,34 +658,6 @@ function addTextMatches({
   })
 }
 
-function buildToolInputSearchConfig(param: ToolParameterConfig): WorkflowSearchSubBlockConfig {
-  const uiComponent = param.uiComponent
-  return {
-    id: param.id,
-    title: uiComponent?.title ?? param.id,
-    type: (uiComponent?.type ?? getFallbackToolParamType(undefined, param.type)) as SubBlockType,
-    placeholder: uiComponent?.placeholder,
-    condition: uiComponent?.condition as SubBlockConfig['condition'],
-    serviceId: uiComponent?.serviceId,
-    selectorKey: uiComponent?.selectorKey,
-    requiredScopes: uiComponent?.requiredScopes,
-    mimeType: uiComponent?.mimeType,
-    canonicalParamId: uiComponent?.canonicalParamId,
-    mode: uiComponent?.mode,
-    password: uiComponent?.password,
-    dependsOn: uiComponent?.dependsOn,
-  }
-}
-
-function isVisibleToolParameter(param: ToolParameterConfig, values: Record<string, unknown>) {
-  if (param.visibility === 'hidden' || param.visibility === 'llm-only') return false
-  const condition = param.uiComponent?.condition
-  return (
-    !condition ||
-    evaluateSubBlockCondition(condition as Parameters<typeof evaluateSubBlockCondition>[0], values)
-  )
-}
-
 export interface ResolvedToolInputParamConfig {
   paramId: string
   config: WorkflowSearchSubBlockConfig
@@ -762,41 +735,22 @@ export function getToolInputParamConfigs({
     scopedCanonicalModes,
     blockConfig?.subBlocks ? { subBlocks: blockConfig.subBlocks } : undefined
   )
-  const toolParams = getToolParametersConfig(toolId, tool.type, values)
-  const displayParams = toolParams?.userInputParameters ?? []
+  if (!subBlocksResult) return genericFallback()
 
-  if (!toolParams && !subBlocksResult) return genericFallback()
-
-  if (!subBlocksResult?.subBlocks.length) {
-    const fallbackConfigs = displayParams
-      .filter((param) => isVisibleToolParameter(param, values))
-      .map((param) => ({ param, config: buildToolInputSearchConfig(param) }))
-    const contextConfigs = fallbackConfigs.map(({ config }) => config)
-    const fallbackCanonicalIndex = buildCanonicalIndex(contextConfigs)
-    return fallbackConfigs.map(({ param, config }) => {
-      return {
-        paramId: param.id,
-        authoritative: true,
-        config,
-        value: parseToolParamValue(toolParamValues[param.id], config.type),
-        selectorContext:
-          config.selectorKey || config.dependsOn
-            ? buildSelectorContext({
-                subBlockConfig: config,
-                subBlockValues: values,
-                contextConfigs,
-                canonicalIndex: fallbackCanonicalIndex,
-                canonicalModes: scopedCanonicalModes,
-              })
-            : undefined,
-      }
-    })
-  }
+  /**
+   * The block's own sub-blocks plus the ones synthesized for params it does not declare.
+   * Selector and `dependsOn` resolution needs every sibling a value could be keyed by,
+   * including the ones filtered out of the rendered list by a failing condition.
+   */
+  const blockSubBlocks = blockConfig?.subBlocks ?? []
+  const blockSubBlockIds = new Set(blockSubBlocks.map((subBlock) => subBlock.id))
+  const allToolSubBlocks = [
+    ...blockSubBlocks,
+    ...subBlocksResult.subBlocks.filter((subBlock) => !blockSubBlockIds.has(subBlock.id)),
+  ]
 
   // canonical-index-unscoped: a nested tool's params are always the action surface
-  const toolCanonicalIndex = buildCanonicalIndex(
-    blockConfig?.subBlocks ?? subBlocksResult.subBlocks
-  )
+  const toolCanonicalIndex = buildCanonicalIndex(allToolSubBlocks)
   const visibleSubBlocks = subBlocksResult.subBlocks.filter((subBlock) =>
     isToolParamVisibleForReactiveCondition({
       subBlockConfig: subBlock,
@@ -806,40 +760,13 @@ export function getToolInputParamConfigs({
       credentialTypeById,
     })
   )
-  const allToolSubBlocks = blockConfig?.subBlocks ?? subBlocksResult.subBlocks
-  const displayParamConfigs = displayParams.map((param) => buildToolInputSearchConfig(param))
-  const displayConfigById = new Map(displayParamConfigs.map((config) => [config.id, config]))
   const getDependentValuePaths = (changedSubBlockId: string): WorkflowSearchValuePath[] =>
     getTransitiveSubBlockDependents(allToolSubBlocks, [changedSubBlockId]).map((clear) => [
       'params',
       clear.subBlockId,
     ])
 
-  const coveredParamIds = new Set(
-    visibleSubBlocks.flatMap((subBlock) => {
-      const ids = [subBlock.id]
-      if (subBlock.canonicalParamId) ids.push(subBlock.canonicalParamId)
-      const canonicalId = toolCanonicalIndex.canonicalIdBySubBlockId[subBlock.id]
-      if (canonicalId) {
-        const group = toolCanonicalIndex.groupsById[canonicalId]
-        if (group) {
-          if (group.basicId) ids.push(group.basicId)
-          ids.push(...group.advancedIds)
-        }
-      }
-      return ids
-    })
-  )
-  const toolSubBlockIds = new Set(allToolSubBlocks.map((config) => config.id))
-  const combinedContextConfigs = [
-    ...allToolSubBlocks,
-    ...displayParamConfigs.filter(
-      (config) => !coveredParamIds.has(config.id) && !toolSubBlockIds.has(config.id)
-    ),
-  ]
-  const combinedCanonicalIndex = buildCanonicalIndex(combinedContextConfigs)
-
-  const subBlockParams = visibleSubBlocks.map((config) => ({
+  return visibleSubBlocks.map((config) => ({
     paramId: config.id,
     authoritative: true,
     config,
@@ -856,29 +783,6 @@ export function getToolInputParamConfigs({
           })
         : undefined,
   }))
-  const uncoveredParams = displayParams
-    .filter((param) => !coveredParamIds.has(param.id) && isVisibleToolParameter(param, values))
-    .map((param) => {
-      const config = displayConfigById.get(param.id) ?? buildToolInputSearchConfig(param)
-      return {
-        paramId: param.id,
-        authoritative: true,
-        config,
-        value: parseToolParamValue(toolParamValues[param.id], config.type),
-        selectorContext:
-          config.selectorKey || config.dependsOn
-            ? buildSelectorContext({
-                subBlockConfig: config,
-                subBlockValues: values,
-                contextConfigs: combinedContextConfigs,
-                canonicalIndex: combinedCanonicalIndex,
-                canonicalModes: scopedCanonicalModes,
-              })
-            : undefined,
-      }
-    })
-
-  return [...subBlockParams, ...uncoveredParams]
 }
 
 function buildSelectorContext({

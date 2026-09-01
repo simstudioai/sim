@@ -5,6 +5,8 @@ import type { ResponseBlockOutput } from '@/tools/response/types'
 export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
   type: 'human_in_the_loop',
   name: 'Human',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'human_in_the_loop_v2' },
   description: 'Pause workflow execution and wait for human input',
   longDescription:
     'Combines response and start functionality. Sends structured responses and allows workflow to resume from this point.',
@@ -186,4 +188,25 @@ export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
     },
     submittedAt: { type: 'string', description: 'ISO timestamp when the workflow was resumed' },
   },
+}
+
+/**
+ * The Human block, with its notification tools executed the way every other surface
+ * executes a block tool.
+ *
+ * v1 handed a notification tool its stored sub-block values verbatim: no canonical
+ * basic/advanced resolution, so a channel chosen in advanced mode arrived under
+ * `manualChannel` and the tool's declared `channel` was never set; and no
+ * `tools.config.params` transform, so the block's own mapping never ran. v2 applies
+ * both, which changes what a configured tool receives — hence a new version rather
+ * than a fix in place.
+ *
+ * Everything else — sub-blocks, outputs, pause/resume, the resume page — is identical,
+ * so it is inherited rather than restated.
+ */
+export const HumanInTheLoopV2Block: BlockConfig<ResponseBlockOutput> = {
+  ...HumanInTheLoopBlock,
+  type: 'human_in_the_loop_v2',
+  hideFromToolbar: false,
+  sunset: undefined,
 }

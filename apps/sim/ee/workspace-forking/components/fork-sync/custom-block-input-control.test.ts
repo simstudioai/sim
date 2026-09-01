@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { subBlockTypeForField } from '@/blocks/custom/build-config'
 import {
   CUSTOM_BLOCK_BOOLEAN_FALSE,
   CUSTOM_BLOCK_BOOLEAN_TRUE,
@@ -11,10 +10,11 @@ import {
   customBlockInputControl,
   isForkSyncConfigurableField,
 } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
+import { subBlockTypeForValueType } from '@/tools/param-shape'
 
 describe('customBlockInputControl', () => {
   it('matches how the canvas renders each field type', () => {
-    // Mirrors `subBlockTypeForField`: a field configured here must behave the way it will
+    // Mirrors `subBlockTypeForValueType`: a field configured here must behave the way it will
     // once the block is open in the editor.
     expect(customBlockInputControl('boolean')).toBe('switch')
     expect(customBlockInputControl('object')).toBe('textarea')
@@ -30,7 +30,7 @@ describe('customBlockInputControl', () => {
   })
 
   it('stays in step with the canvas mapping for every declared field type', () => {
-    // The union a Start field can declare. Deriving from `subBlockTypeForField` means a type
+    // The union a Start field can declare. Deriving from `subBlockTypeForValueType` means a type
     // added there surfaces here instead of silently falling through to a text box — which is
     // exactly how `file[]` came to be mis-rendered.
     const byCanvasKind = {
@@ -40,7 +40,7 @@ describe('customBlockInputControl', () => {
     } as const
 
     for (const fieldType of ['string', 'number', 'boolean', 'object', 'array', 'file[]']) {
-      const canvasKind = subBlockTypeForField(fieldType) as keyof typeof byCanvasKind
+      const canvasKind = subBlockTypeForValueType(fieldType) as keyof typeof byCanvasKind
       expect(customBlockInputControl(fieldType)).toBe(byCanvasKind[canvasKind] ?? 'input')
     }
   })

@@ -30,7 +30,7 @@ import { useWorkflowReferenceScope } from '@/app/workspace/[workspaceId]/w/[work
 import { getBlock } from '@/blocks'
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockConfig } from '@/blocks/types'
-import { normalizeName } from '@/executor/constants'
+import { isHumanInTheLoopBlock, normalizeName } from '@/executor/constants'
 import type { Variable } from '@/stores/variables/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -1208,8 +1208,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (!accessibleBlock) continue
 
       // Skip the current block - blocks cannot reference their own outputs
-      // Exception: human_in_the_loop blocks can reference their own outputs (url, resumeEndpoint)
-      if (accessibleBlockId === blockId && accessibleBlock.type !== 'human_in_the_loop') continue
+      // Exception: Human blocks can reference their own outputs (url, resumeEndpoint)
+      if (accessibleBlockId === blockId && !isHumanInTheLoopBlock(accessibleBlock.type)) continue
 
       const blockConfig = getBlock(accessibleBlock.type)
 

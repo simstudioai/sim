@@ -23,7 +23,6 @@ const { mockGetToolIdForOperation, mockGetSubBlocksForToolInput } = vi.hoisted((
 
 vi.mock('@/tools/params', () => ({
   getToolIdForOperation: mockGetToolIdForOperation,
-  getToolParametersConfig: () => null,
   getSubBlocksForToolInput: mockGetSubBlocksForToolInput,
   formatParameterLabel: (label: string) => label,
 }))

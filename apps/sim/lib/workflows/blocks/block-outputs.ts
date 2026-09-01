@@ -22,6 +22,7 @@ import {
   type OutputCondition,
   type OutputFieldDefinition,
 } from '@/blocks/types'
+import { isHumanInTheLoopBlock } from '@/executor/constants'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
@@ -322,7 +323,7 @@ export function getBlockOutputs(
     return getUnifiedStartOutputs(subBlocks)
   }
 
-  if (blockType === 'human_in_the_loop') {
+  if (isHumanInTheLoopBlock(blockType)) {
     // Start with block config outputs (respects hiddenFromDisplay via filterOutputsByCondition)
     const baseOutputs = filterOutputsByCondition(
       { ...(blockConfig.outputs || {}) } as OutputDefinition,

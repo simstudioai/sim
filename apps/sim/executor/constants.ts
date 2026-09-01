@@ -38,6 +38,7 @@ export enum BlockType {
 
   RESPONSE = 'response',
   HUMAN_IN_THE_LOOP = 'human_in_the_loop',
+  HUMAN_IN_THE_LOOP_V2 = 'human_in_the_loop_v2',
   WORKFLOW = 'workflow',
   WORKFLOW_INPUT = 'workflow_input',
 
@@ -50,6 +51,25 @@ export enum BlockType {
 
   SENTINEL_START = 'sentinel_start',
   SENTINEL_END = 'sentinel_end',
+}
+
+/**
+ * Every Human block version.
+ *
+ * v2 exists because its notification tools run through the same param transform an
+ * agent block applies — canonical basic/advanced resolution and the block's own
+ * `tools.config.params` function — which changes what a configured tool receives. A
+ * single predicate keeps the two versions from drifting apart at the ten sites that
+ * ask "is this the Human block?".
+ */
+export const HUMAN_IN_THE_LOOP_BLOCK_TYPES: readonly string[] = [
+  BlockType.HUMAN_IN_THE_LOOP,
+  BlockType.HUMAN_IN_THE_LOOP_V2,
+]
+
+/** Whether a block type is any version of the Human block. */
+export function isHumanInTheLoopBlock(blockType: string | undefined | null): boolean {
+  return typeof blockType === 'string' && HUMAN_IN_THE_LOOP_BLOCK_TYPES.includes(blockType)
 }
 
 export const TRIGGER_BLOCK_TYPES = [
