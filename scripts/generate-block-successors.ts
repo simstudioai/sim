@@ -12,11 +12,8 @@
  * `slack` against a group naming `slack_v2` intersected to nothing — refusing an
  * integration both policies allow.
  *
- * Entries are flattened to the terminal successor, reproducing the transitive
- * walk `resolveAccessControlBlockType` used to perform against the registry,
- * including its two stopping rules: a cycle stops at the last id visited, and a
- * `replacedBy` naming an unregistered block leaves the id as its own answer.
- * Only ids whose answer differs from themselves are emitted.
+ * Entries are flattened to the terminal successor; see {@link flattenSuccessors}
+ * for the walk and its stopping rules.
  *
  * Usage:
  *   bun run scripts/generate-block-successors.ts
