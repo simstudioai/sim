@@ -20,9 +20,11 @@ export {
   assertOperationCapability,
   assertOperationPrincipal,
   defineOperation,
+  type OperationDeclarableCapability,
   type OperationUseCase,
   type PrincipalKind,
   type PrincipalScopedOperation,
+  type PrincipalWideCapability,
   type UndelegatedPrincipalKind,
 } from '@/lib/core/application/operation'
 export type {
