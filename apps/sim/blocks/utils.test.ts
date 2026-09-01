@@ -82,6 +82,11 @@ describe('BUILT_IN_TOOL_TYPES', () => {
     expect(BUILT_IN_TOOL_TYPES.has('file_v5')).toBe(true)
     expect(BUILT_IN_TOOL_TYPES.has('file')).toBe(false)
   })
+
+  it('classifies the current Table block instead of the legacy Table block', () => {
+    expect(BUILT_IN_TOOL_TYPES.has('table_v2')).toBe(true)
+    expect(BUILT_IN_TOOL_TYPES.has('table')).toBe(false)
+  })
 })
 
 const BASE_CLOUD_MODELS: Record<string, string> = {

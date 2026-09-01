@@ -17,12 +17,25 @@ vi.mock('@/lib/internal/table/read-schema', () => ({
 }))
 
 import { enrichKBTagsSchema, enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { tableQueryRowsV2Tool } from '@/tools/table/query_rows_v2'
 
 const ORIGINAL_SCHEMA = {
   type: 'object' as const,
   properties: {
     filter: { type: 'object' },
     sort: { type: 'object' },
+  },
+  required: [],
+}
+
+const V2_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    filter: { type: 'object' },
+    order: { type: 'array' },
+    columns: { type: 'array' },
+    limit: { type: 'number' },
+    cursor: { type: 'string' },
   },
   required: [],
 }
@@ -94,6 +107,45 @@ describe('enrichTableToolSchema', () => {
     await expect(
       enrichTableToolSchema('table-1', 'table_query_rows', ORIGINAL_SCHEMA, 'Query rows', {})
     ).rejects.toThrow('Workflow ID is required to enrich table tool schema for table-1')
+  })
+
+  /**
+   * The v2 query tool shipped with no enrichment at all, so an agent using it
+   * never saw the table's columns. These pin both halves of the fix: the tool
+   * declares the wiring, and the enricher answers it in v2's grammar rather
+   * than v1's.
+   */
+  it('wires the v2 query tool to the enricher under its own tool id', () => {
+    expect(tableQueryRowsV2Tool.toolEnrichment?.dependsOn).toBe('tableId')
+    expect(tableQueryRowsV2Tool.toolEnrichment?.enrichTool).toBeTypeOf('function')
+  })
+
+  it('enriches the v2 query tool with predicate grammar, not the v1 filter grammar', async () => {
+    const result = await enrichTableToolSchema(
+      'table-1',
+      'table_query_rows_v2',
+      V2_SCHEMA,
+      'Query rows',
+      {
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        executorDelegationOrigin: EXECUTOR_ORIGIN,
+      }
+    )
+
+    expect(result.description).toContain('Table "Customers" columns:')
+    expect(result.description).toContain('"op":"gte"')
+    expect(result.description).not.toContain('$eq')
+    expect(result.parameters.properties.filter).toMatchObject({
+      description: expect.stringContaining('email, score'),
+    })
+    expect(result.parameters.properties.cursor).toMatchObject({
+      description: expect.stringContaining('nextCursor'),
+    })
+    // v2 returns every row when the filter is omitted, so it must stay optional.
+    expect(result.parameters.required).not.toContain('filter')
   })
 })
 

@@ -349,14 +349,14 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
     ],
     edges: [],
   },
-  table: {
-    id: 'table',
+  table_v2: {
+    id: 'table_v2',
     name: 'Table',
     blocks: [
       {
-        id: 'table',
+        id: 'table_v2',
         name: 'Table',
-        type: 'table',
+        type: 'table_v2',
         bgColor: '#10B981',
         position: { x: 0, y: 0 },
         hideTargetHandle: true,

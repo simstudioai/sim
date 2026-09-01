@@ -15,7 +15,9 @@ import {
   columnTypeOf,
   filterOperatorsFor,
   MULTI_SELECT_OPERATORS,
+  MULTI_SELECT_OPS,
   SINGLE_SELECT_OPERATORS,
+  SINGLE_SELECT_OPS,
 } from '@/lib/table/column-types'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { normalizeDateCellValue } from '@/lib/table/dates'
@@ -36,38 +38,12 @@ import type {
  * Re-exported: the `$`-prefixed wire whitelists now live with the `select` type
  * definition, but this module is where callers and tests already look for them.
  */
-export { MULTI_SELECT_OPERATORS, SINGLE_SELECT_OPERATORS }
+export { MULTI_SELECT_OPERATORS, MULTI_SELECT_OPS, SINGLE_SELECT_OPERATORS, SINGLE_SELECT_OPS }
 
 type ColumnType = ColumnDefinition['type']
 type ColumnMap = ReadonlyMap<string, ColumnDefinition>
 
 /**
-/**
- * The same allowlists in the v2 bare-operator grammar, applied inside
- * `fieldPredicate` so both wire formats gate identically. Not derived from the
- * `$` sets above by string surgery because the mapping is not 1:1 — `$empty`
- * splits into `isEmpty`/`isNotEmpty`. `isNull`/`isNotNull` have no `$`
- * equivalent and are allowed on both: a strict null check is meaningful on any
- * column, select included.
- */
-const SINGLE_SELECT_OPS = new Set<FilterOp>([
-  'eq',
-  'ne',
-  'in',
-  'nin',
-  'isEmpty',
-  'isNotEmpty',
-  'isNull',
-  'isNotNull',
-])
-const MULTI_SELECT_OPS = new Set<FilterOp>([
-  'contains',
-  'ncontains',
-  'isEmpty',
-  'isNotEmpty',
-  'isNull',
-  'isNotNull',
-])
 
 /**
  * Returns the Postgres cast needed to compare a JSONB text value of the given

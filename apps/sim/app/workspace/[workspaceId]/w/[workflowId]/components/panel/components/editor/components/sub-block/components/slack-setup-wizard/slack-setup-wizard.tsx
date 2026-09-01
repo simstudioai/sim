@@ -213,10 +213,6 @@ function StepConfigure({
 }: StepConfigureProps) {
   return (
     <div className='space-y-4'>
-      <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
-        Pick a name and choose what events should trigger your workflow and what actions your bot
-        can take.
-      </p>
       <div className='space-y-1.5'>
         <Label
           htmlFor={`${blockId}-wizard-bot-name`}

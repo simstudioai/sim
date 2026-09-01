@@ -1,4 +1,6 @@
+import { z } from 'zod'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
 import {
@@ -8,6 +10,7 @@ import {
 } from '@/lib/selectors/server/errors'
 import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
 import {
+  detailSelectorResult,
   type ExecuteServerSelectorArgs,
   listSelectorResult,
   requireListRequest,
@@ -29,6 +32,24 @@ const BUILT_IN_PATH: Record<string, string> = {
   deal: 'deals',
   ticket: 'tickets',
 }
+
+const HUBSPOT_LISTS_PAGE_SIZE = 500
+
+const hubspotListSchema = z.object({
+  listId: z.string().min(1).max(100),
+  name: z.string().min(1).max(1_000),
+  deletedAt: z.string().nullable().optional(),
+})
+
+const hubspotListsPageSchema = z.object({
+  hasMore: z.boolean(),
+  lists: z.array(hubspotListSchema).max(HUBSPOT_LISTS_PAGE_SIZE),
+  offset: z.number().int().nonnegative(),
+})
+
+const hubspotListDetailSchema = z.object({
+  list: hubspotListSchema,
+})
 
 function resolveObjectType(args: ExecuteServerSelectorArgs): string | null {
   const selected = args.context.objectType ?? 'contact'
@@ -78,27 +99,55 @@ async function executeProperties(args: ExecuteServerSelectorArgs) {
 }
 
 async function executeLists(args: ExecuteServerSelectorArgs) {
-  requireListRequest(args.selectorKey, args.request)
   const accessToken = await hubspotToken(args)
-  const data = await fetchProviderJson<{
-    lists?: Array<{ listId: string; name: string; deletedAt?: string | null }>
-  }>('https://api.hubapi.com/crm/v3/lists/search?count=500', {
+  if (args.request.kind === 'detail') {
+    const listId = args.request.id.trim()
+    if (!listId || listId.length > 100) throw new SelectorContextUnavailableError()
+    const body = await fetchProviderJson<unknown>(
+      `https://api.hubapi.com/crm/v3/lists/${encodeURIComponent(listId)}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: args.signal,
+      }
+    )
+    const parsed = hubspotListDetailSchema.safeParse(body)
+    if (!parsed.success) throw new SelectorOptionsUnavailableError()
+    const list = parsed.data.list
+    return detailSelectorResult(list.deletedAt ? null : { id: args.request.id, label: list.name })
+  }
+
+  requireListRequest(args.selectorKey, args.request)
+  const cursor = args.request.cursor
+  if (cursor && !/^\d{1,10}$/.test(cursor)) throw new SelectorContextUnavailableError()
+  const offset = cursor ? Number(cursor) : 0
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > MAX_SELECTOR_OPTIONS) {
+    throw new SelectorContextUnavailableError()
+  }
+  const search = args.request.search?.trim()
+  const body = await fetchProviderJson<unknown>('https://api.hubapi.com/crm/v3/lists/search', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      query: '',
+      count: HUBSPOT_LISTS_PAGE_SIZE,
+      offset,
+      ...(search ? { query: search } : {}),
       processingTypes: ['MANUAL', 'DYNAMIC', 'SNAPSHOT'],
     }),
     signal: args.signal,
   })
+  const parsed = hubspotListsPageSchema.safeParse(body)
+  if (!parsed.success) throw new SelectorOptionsUnavailableError()
+  const data = parsed.data
+  if (data.hasMore && data.offset <= offset) throw new SelectorOptionsUnavailableError()
   return listSelectorResult(
-    (data.lists ?? [])
+    data.lists
       .filter((list) => !list.deletedAt && list.listId && list.name)
       .map((list) => ({ id: list.listId, label: list.name }))
-      .sort((left, right) => left.label.localeCompare(right.label))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+    data.hasMore ? String(data.offset) : undefined
   )
 }
 

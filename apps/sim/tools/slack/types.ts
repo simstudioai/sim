@@ -601,6 +601,32 @@ interface SlackBaseParams {
   botToken: string
 }
 
+export type SlackAgentSessionStatus = 'active' | 'processing' | 'suspended' | 'closed'
+
+export interface SlackSetAgentSessionStatusV2Params extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  status: SlackAgentSessionStatus
+  title?: string
+  initiatorUserId?: string
+  iconEmoji?: string
+  iconUrl?: string
+  username?: string
+}
+
+export interface SlackRenameAgentSessionV2Params extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  title: string
+}
+
+export interface SlackSetSuggestedPromptsV2Params extends SlackBaseParams {
+  channel: string
+  threadTs?: string
+  prompts: SlackSuggestedPrompt[] | string
+  promptsTitle?: string
+}
+
 export interface SlackMessageParams extends SlackBaseParams {
   destinationType?: 'channel' | 'dm'
   channel?: string
@@ -1328,6 +1354,28 @@ export interface SlackSetSuggestedPromptsResponse extends ToolResponse {
   }
 }
 
+export interface SlackSetAgentSessionStatusV2Response extends ToolResponse {
+  output: {
+    ok: boolean
+    status: SlackAgentSessionStatus
+    agentStatus: SlackAgentSessionStatus
+    title: string | null
+  }
+}
+
+export interface SlackRenameAgentSessionV2Response extends ToolResponse {
+  output: {
+    ok: boolean
+    title: string
+  }
+}
+
+export interface SlackSetSuggestedPromptsV2Response extends ToolResponse {
+  output: {
+    ok: boolean
+  }
+}
+
 export interface SlackGetPermalinkResponse extends ToolResponse {
   output: {
     ok: boolean
@@ -1431,6 +1479,9 @@ export type SlackResponse =
   | SlackSetStatusResponse
   | SlackSetTitleResponse
   | SlackSetSuggestedPromptsResponse
+  | SlackSetAgentSessionStatusV2Response
+  | SlackRenameAgentSessionV2Response
+  | SlackSetSuggestedPromptsV2Response
   | SlackGetPermalinkResponse
   | SlackGetChannelHistoryResponse
   | SlackGetThreadRepliesResponse

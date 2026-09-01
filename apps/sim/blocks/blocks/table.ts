@@ -212,6 +212,16 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
     'Create and manage custom data tables. Store, query, and manipulate structured data within workflows. Query Rows returns every matching row when Limit is omitted and fails if the result exceeds 5MB.',
   docsLink: 'https://docs.sim.ai/integrations/table',
   category: 'blocks',
+  /**
+   * Superseded by {@link TableV2Block} (GA): hidden from discovery like other
+   * legacy `_vN` blocks, while placed instances keep resolving and executing.
+   *
+   * `triggers.enabled` below deliberately stays `true`. Webhook execution gates
+   * on it at runtime rather than on discovery, so flipping it would break every
+   * deployed v1 table-trigger workflow.
+   */
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'table_v2' },
   bgColor: '#10B981',
   icon: Table,
   canvasPresentation: {

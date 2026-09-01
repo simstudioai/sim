@@ -525,6 +525,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   stt_v2: STTIcon,
   supabase: SupabaseIcon,
   table: Table,
+  table_v2: Table,
   tailscale: TailscaleIcon,
   tavily: TavilyIcon,
   telegram: TelegramIcon,

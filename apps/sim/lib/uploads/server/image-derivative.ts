@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import { isHevcHeifContainer, transcodeHeicToJpeg } from '@/lib/uploads/server/heic'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('ImageDerivative')
 
@@ -16,9 +17,23 @@ function derivativeKey(storageKey: string): string {
   return `image-derivative/${hash}.jpg`
 }
 
+/**
+ * A cache miss here is recoverable, so unlike the compiled-doc store this swallows a
+ * size breach too: falling through re-transcodes the original, and the transcode is
+ * bounded by the source read that produced its input.
+ *
+ * The ceiling matches what the serving routes will return for the same bytes. A
+ * tighter one would not reject anything — it would turn every read of a derivative
+ * in that band into a miss, re-transcoding the original on each preview, which costs
+ * more than serving the cached copy would have.
+ */
 async function loadDerivative(storageKey: string): Promise<Buffer | null> {
   try {
-    return await downloadFile({ key: derivativeKey(storageKey), context: 'copilot' })
+    return await downloadFile({
+      key: derivativeKey(storageKey),
+      context: 'copilot',
+      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+    })
   } catch {
     return null
   }

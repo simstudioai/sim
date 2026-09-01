@@ -582,6 +582,7 @@ describe.concurrent('Blocks Module', () => {
         'variables-input',
         'messages-input',
         'workflow-selector',
+        'workflow-output-selector',
         'workflow-input-mapper',
         'text',
         'router-input',
@@ -851,6 +852,37 @@ describe.concurrent('Blocks Module', () => {
       // The badge only renders when replacedBy resolves to a registered block.
       expect(replacement).toBeDefined()
       expect(replacement?.hideFromToolbar).not.toBe(true)
+    })
+
+    it('should keep the legacy table block registered but out of discovery', () => {
+      const legacy = getBlock('table')
+      const replacement = getBlock('table_v2')
+
+      // Placed instances must keep resolving and executing.
+      expect(legacy).toBeDefined()
+      expect(legacy?.tools.access).toContain('table_query_rows')
+      // ...while the block itself is gone from the toolbar, search, and mentions.
+      expect(legacy?.hideFromToolbar).toBe(true)
+      expect(legacy?.sunset).toEqual({ status: 'legacy', replacedBy: 'table_v2' })
+      expect(replacement).toBeDefined()
+      expect(replacement?.hideFromToolbar).not.toBe(true)
+      // GA: the reveal gate is gone, so it no longer depends on block-visibility.
+      expect(replacement?.preview).toBeUndefined()
+      expect(replacement?.tools.access).toContain('table_query_rows_v2')
+    })
+
+    /**
+     * Webhook execution gates on `triggers.enabled` at runtime, not on
+     * discovery, so hiding v1 must not disable the trigger it hosts — every
+     * deployed v1 table-trigger workflow depends on it staying live. Both
+     * versions host the same trigger id.
+     */
+    it("should keep the legacy table block's trigger enabled", () => {
+      expect(getBlock('table')?.triggers).toEqual({
+        enabled: true,
+        available: ['table_new_row'],
+      })
+      expect(getBlock('table_v2')?.triggers?.available).toContain('table_new_row')
     })
 
     /**
