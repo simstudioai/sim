@@ -451,7 +451,10 @@ describe('OAuth Token API Routes', () => {
         )
 
         expect(response.status).toBe(200)
-        await expect(response.json()).resolves.toEqual({ accessToken: 'managed-access-token' })
+        await expect(response.json()).resolves.toEqual({
+          accessToken: 'managed-access-token',
+          credentialType: 'managed_oauth',
+        })
         expect(mockResolveManagedOAuthCredentialToken).toHaveBeenCalledWith({
           principal,
           input: {

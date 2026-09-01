@@ -1,18 +1,95 @@
+import { filterUndefined } from '@sim/utils/object'
+import { z } from 'zod'
 import type { SlackListChannelsParams, SlackListChannelsResponse } from '@/tools/slack/types'
-import { CHANNEL_OUTPUT_PROPERTIES } from '@/tools/slack/types'
+import { CONVERSATION_LIST_OUTPUT_PROPERTIES } from '@/tools/slack/types'
+import {
+  assertSlackApiSuccess,
+  requireSlackString,
+  resolveSlackAccessToken,
+} from '@/tools/slack/utils'
 import type { ToolConfig } from '@/tools/types'
+
+type SlackConversation = SlackListChannelsResponse['output']['channels'][number]
+
+const optionalString = z.string().optional()
+const optionalBoolean = z.boolean().optional()
+const optionalNumber = z.number().finite().optional()
+const conversationText = z.object({ value: optionalString }).optional()
+
+const slackConversationSchema = z.object({
+  id: z.string().trim().min(1, 'Slack conversation ID is required'),
+  name: optionalString,
+  is_channel: optionalBoolean,
+  is_group: optionalBoolean,
+  is_im: optionalBoolean,
+  is_mpim: optionalBoolean,
+  user: optionalString,
+  is_user_deleted: optionalBoolean,
+  is_open: optionalBoolean,
+  is_private: optionalBoolean,
+  is_archived: optionalBoolean,
+  is_general: optionalBoolean,
+  is_member: optionalBoolean,
+  is_shared: optionalBoolean,
+  is_ext_shared: optionalBoolean,
+  is_org_shared: optionalBoolean,
+  num_members: optionalNumber,
+  topic: conversationText,
+  purpose: conversationText,
+  created: optionalNumber,
+  creator: optionalString,
+  updated: optionalNumber,
+  priority: optionalNumber,
+})
+
+const slackListConversationsResponseSchema = z.object({
+  ok: z.boolean(),
+  error: optionalString,
+  channels: z.array(slackConversationSchema).optional(),
+  response_metadata: z.object({ next_cursor: optionalString }).optional(),
+})
+
+function mapSlackConversation(
+  conversation: z.output<typeof slackConversationSchema>
+): SlackConversation {
+  const { id, topic, purpose, ...fields } = conversation
+  return {
+    id,
+    ...filterUndefined({
+      ...fields,
+      topic: topic?.value,
+      purpose: purpose?.value,
+    }),
+  }
+}
+
+function resolveBooleanParam(value: unknown, label: string, defaultValue: boolean): boolean {
+  if (value === undefined) return defaultValue
+  if (typeof value !== 'boolean') throw new Error(`${label} must be true or false`)
+  return value
+}
+
+function resolveConversationLimit(value: unknown): number {
+  if (value === undefined) return 100
+  const limit = Number(value)
+  if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+    throw new Error('Channel limit must be an integer between 1 and 200')
+  }
+  return limit
+}
 
 export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackListChannelsResponse> =
   {
     id: 'slack_list_channels',
     name: 'Slack List Channels',
     description:
-      'List all channels in a Slack workspace. Returns public and private channels the bot has access to.',
-    version: '1.0.0',
+      'List accessible Slack conversations. Credential-group user tokens also return one-to-one and group direct messages.',
+    version: '1.1.0',
 
     oauth: {
       required: true,
       provider: 'slack',
+      authoritativeParams: ['credentialType'],
     },
 
     params: {
@@ -33,6 +110,12 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
         required: false,
         visibility: 'hidden',
         description: 'OAuth access token or bot token for Slack API',
+      },
+      credentialType: {
+        type: 'string',
+        required: false,
+        visibility: 'hidden',
+        description: 'Credential type supplied by authorized token resolution',
       },
       includePrivate: {
         type: 'boolean',
@@ -61,69 +144,46 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
     },
 
     request: {
-      url: (params: SlackListChannelsParams) => {
+      url: (params) => {
         const url = new URL('https://slack.com/api/conversations.list')
-
-        // Determine channel types to include
-        const includePrivate = params.includePrivate !== false
-        if (includePrivate) {
-          url.searchParams.append('types', 'public_channel,private_channel')
-        } else {
-          url.searchParams.append('types', 'public_channel')
+        const conversationTypes = ['public_channel']
+        if (resolveBooleanParam(params.includePrivate, 'Include private channels', true)) {
+          conversationTypes.push('private_channel')
         }
-
-        // Exclude archived by default
-        const excludeArchived = params.excludeArchived !== false
-        url.searchParams.append('exclude_archived', String(excludeArchived))
-
-        // Set limit (default 100, max 200)
-        const limit = params.limit ? Math.min(Number(params.limit), 200) : 100
-        url.searchParams.append('limit', String(limit))
-
-        const cursor = params.cursor?.trim()
-        if (cursor) {
-          url.searchParams.append('cursor', cursor)
+        if (params.credentialType === 'managed_oauth') {
+          conversationTypes.push('im', 'mpim')
         }
-
+        url.searchParams.set('types', conversationTypes.join(','))
+        url.searchParams.set(
+          'exclude_archived',
+          String(resolveBooleanParam(params.excludeArchived, 'Exclude archived channels', true))
+        )
+        url.searchParams.set('limit', String(resolveConversationLimit(params.limit)))
+        if (params.cursor !== undefined) {
+          url.searchParams.set('cursor', requireSlackString(params.cursor, 'Pagination cursor'))
+        }
         return url.toString()
       },
       method: 'GET',
-      headers: (params: SlackListChannelsParams) => ({
+      headers: (params) => ({
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken || params.botToken}`,
+        Authorization: `Bearer ${resolveSlackAccessToken(params)}`,
       }),
     },
 
-    transformResponse: async (response: Response) => {
-      const data = await response.json()
-
-      if (!data.ok) {
-        if (data.error === 'missing_scope') {
-          throw new Error(
-            'Missing required permissions. Please reconnect your Slack account with the necessary scopes (channels:read, groups:read).'
-          )
-        }
-        if (data.error === 'invalid_auth') {
-          throw new Error('Invalid authentication. Please check your Slack credentials.')
-        }
-        throw new Error(data.error || 'Failed to list channels from Slack')
+    transformResponse: async (response) => {
+      const data = slackListConversationsResponseSchema.parse(await response.json())
+      assertSlackApiSuccess(data, 'Failed to list conversations from Slack')
+      if (!data.channels) {
+        throw new Error('Slack returned a malformed conversations list')
       }
 
-      const channels = (data.channels || []).map((channel: any) => ({
-        id: channel.id,
-        name: channel.name,
-        is_private: channel.is_private || false,
-        is_archived: channel.is_archived || false,
-        is_member: channel.is_member || false,
-        num_members: channel.num_members,
-        topic: channel.topic?.value || '',
-        purpose: channel.purpose?.value || '',
-        created: channel.created,
-        creator: channel.creator,
-      }))
-
-      const ids = channels.map((channel: { id: string }) => channel.id)
-      const names = channels.map((channel: { name: string }) => channel.name)
+      const channels = data.channels.map(mapSlackConversation)
+      const ids = channels.map((conversation) => conversation.id)
+      const names = channels.flatMap((conversation) =>
+        conversation.name === undefined ? [] : [conversation.name]
+      )
+      const nextCursor = data.response_metadata?.next_cursor?.trim() || null
 
       return {
         success: true,
@@ -132,7 +192,7 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
           ids,
           names,
           count: channels.length,
-          nextCursor: data.response_metadata?.next_cursor || null,
+          nextCursor,
         },
       }
     },
@@ -140,25 +200,26 @@ export const slackListChannelsTool: ToolConfig<SlackListChannelsParams, SlackLis
     outputs: {
       channels: {
         type: 'array',
-        description: 'Array of channel objects from the workspace',
+        description:
+          'Accessible public and private channels, plus direct and group DMs for credential-group user tokens',
         items: {
           type: 'object',
-          properties: CHANNEL_OUTPUT_PROPERTIES,
+          properties: CONVERSATION_LIST_OUTPUT_PROPERTIES,
         },
       },
       ids: {
         type: 'array',
-        description: 'Array of channel IDs for easy access',
-        items: { type: 'string', description: 'Channel ID' },
+        description: 'Conversation IDs for every returned channel or DM',
+        items: { type: 'string', description: 'Slack conversation ID' },
       },
       names: {
         type: 'array',
-        description: 'Array of channel names for easy access',
-        items: { type: 'string', description: 'Channel name' },
+        description: 'Names of returned channels and group DMs; one-to-one DMs have no name',
+        items: { type: 'string', description: 'Slack conversation name' },
       },
       count: {
         type: 'number',
-        description: 'Total number of channels returned',
+        description: 'Total number of conversations returned',
       },
       nextCursor: {
         type: 'string',

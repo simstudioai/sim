@@ -113,7 +113,7 @@ export const oauthTokenPostHeadersSchema = z.object({
 
 const oauthTokenResponseSchema = z.object({
   accessToken: z.string(),
-  credentialType: z.enum(['oauth', 'service_account']).optional(),
+  credentialType: z.enum(['oauth', 'managed_oauth', 'service_account']).optional(),
   idToken: z.string().optional(),
   instanceUrl: z.string().optional(),
   /** Zoho Desk — the data-center-scoped Desk REST base for this credential. */

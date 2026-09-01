@@ -2619,7 +2619,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     channels: {
       type: 'json',
       description:
-        'Array of channel objects with properties: id, name, is_private, is_archived, is_member, num_members, topic, purpose, created, creator',
+        'Array of accessible conversation objects. Credential-group user tokens also include direct and group DMs, with type fields (is_channel, is_im, is_mpim) and DM participant field user.',
     },
     count: {
       type: 'number',

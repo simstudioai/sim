@@ -226,6 +226,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             accessToken: result.accessToken,
+            credentialType: 'managed_oauth',
             ...(result.idToken ? { idToken: result.idToken } : {}),
           },
           { status: 200 }

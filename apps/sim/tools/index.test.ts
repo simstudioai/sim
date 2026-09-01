@@ -3045,6 +3045,72 @@ describe('Internal Route Trust', () => {
     }
   })
 
+  it('accepts credential-group provenance only from credential resolution', async () => {
+    const toolId = 'test_credential_type_authority'
+    const mockTool = {
+      id: toolId,
+      name: 'Credential Type Authority Test',
+      description: 'Verifies credential-derived request capabilities',
+      version: '1.0.0',
+      oauth: {
+        required: true,
+        provider: 'slack',
+        authoritativeParams: ['credentialType'] as const,
+      },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'hidden' },
+        credentialType: { type: 'string', required: false, visibility: 'hidden' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => {
+          const types =
+            params.credentialType === 'managed_oauth' ? 'public_channel,im,mpim' : 'public_channel'
+          return `https://slack.com/api/conversations.list?types=${types}`
+        },
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.accessToken}`,
+        }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+    ;(tools as Record<string, unknown>)[toolId] = mockTool
+
+    const setTokenPayload = (payload: Record<string, unknown>) => {
+      global.fetch = Object.assign(vi.fn().mockResolvedValue(Response.json(payload)), {
+        preconnect: vi.fn(),
+      }) as typeof fetch
+    }
+
+    try {
+      setTokenPayload({ accessToken: 'legacy-token' })
+      const spoofedResult = await executeTool(toolId, {
+        credential: 'legacy-credential',
+        credentialType: 'managed_oauth',
+      })
+      expect(spoofedResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://slack.com/api/conversations.list?types=public_channel',
+        '93.184.216.34',
+        expect.anything()
+      )
+
+      mockSecureFetchWithPinnedIP.mockClear()
+      setTokenPayload({ accessToken: 'managed-token', credentialType: 'managed_oauth' })
+      const managedResult = await executeTool(toolId, {
+        credential: 'managed-credential',
+      })
+      expect(managedResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://slack.com/api/conversations.list?types=public_channel,im,mpim',
+        '93.184.216.34',
+        expect.anything()
+      )
+    } finally {
+      Reflect.deleteProperty(tools, toolId)
+    }
+  })
+
   it('transports only active provenance selected for an internal model input', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {
