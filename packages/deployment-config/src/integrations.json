@@ -21273,6 +21273,14 @@
           "description": "Get a stable permalink URL to a specific Slack message."
         },
         {
+          "name": "Set Assistant Status",
+          "description": "Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it."
+        },
+        {
+          "name": "Set Assistant Title",
+          "description": "Set the title of a Slack assistant thread (shown in the AI app thread header)."
+        },
+        {
           "name": "Set Suggested Prompts",
           "description": "Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app)."
         },
@@ -21405,7 +21413,7 @@
           "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
         }
       ],
-      "operationCount": 42,
+      "operationCount": 44,
       "triggers": [
         {
           "id": "slack_oauth",

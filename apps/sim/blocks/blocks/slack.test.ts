@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import {
   getSlackV2ActionSubBlocks,
   getSlackV2OperationSentences,
@@ -20,6 +21,8 @@ const AGENT_TOOL_IDS = [
   'slack_set_agent_session_status_v2',
   'slack_rename_agent_session_v2',
 ]
+const LEGACY_OPERATION_IDS = ['set_status', 'set_title']
+const LEGACY_TOOL_IDS = ['slack_set_status', 'slack_set_title']
 
 function operationIds(): string[] {
   const operation = SlackV2Block.subBlocks.find((subBlock) => subBlock.id === 'operation')
@@ -32,6 +35,12 @@ function mapSlackV2Params(params: Record<string, unknown>): Record<string, unkno
   return mapParams(params)
 }
 
+function isSlackV2SubBlockVisible(subBlockId: string, values: Record<string, unknown>): boolean {
+  const subBlock = SlackV2Block.subBlocks.find((candidate) => candidate.id === subBlockId)
+  if (!subBlock) throw new Error(`Slack v2 subblock not found: ${subBlockId}`)
+  return evaluateSubBlockCondition(subBlock.condition, values)
+}
+
 describe('Slack block release', () => {
   it('releases slack_v2 and keeps the legacy block executable but hidden', () => {
     expect(SlackBlock.hideFromToolbar).toBe(true)
@@ -41,19 +50,25 @@ describe('Slack block release', () => {
     expect(SlackV2Block.sunset).toBeUndefined()
   })
 
-  it('replaces legacy assistant operations with custom-bot Agent Sessions operations', () => {
-    expect(operationIds()).toEqual(expect.arrayContaining(AGENT_OPERATION_IDS))
-    for (const id of ['set_status', 'set_title']) {
-      expect(operationIds()).not.toContain(id)
-    }
-    expect(getSlackV2ToolAccess()).toEqual(expect.arrayContaining(AGENT_TOOL_IDS))
-    expect(getSlackV2ToolAccess()).toContain('slack_set_suggested_prompts')
-    for (const id of ['slack_set_status', 'slack_set_title']) {
-      expect(getSlackV2ToolAccess()).not.toContain(id)
-    }
-    expect(Object.keys(getSlackV2OperationSentences())).toEqual(
-      expect.arrayContaining(AGENT_OPERATION_IDS)
+  it('adds custom-bot Agent Sessions operations without removing legacy assistant operations', () => {
+    expect(operationIds()).toEqual(
+      expect.arrayContaining([...LEGACY_OPERATION_IDS, ...AGENT_OPERATION_IDS])
     )
+    expect(getSlackV2ToolAccess()).toEqual(
+      expect.arrayContaining([...LEGACY_TOOL_IDS, ...AGENT_TOOL_IDS])
+    )
+    expect(getSlackV2ToolAccess()).toContain('slack_set_suggested_prompts')
+    expect(Object.keys(getSlackV2OperationSentences())).toEqual(
+      expect.arrayContaining([...LEGACY_OPERATION_IDS, ...AGENT_OPERATION_IDS])
+    )
+  })
+
+  it('keeps legacy assistant operations routed to their original tools', () => {
+    const selectTool = SlackV2Block.tools.config?.tool
+    if (!selectTool) throw new Error('Slack v2 tool selector is required')
+
+    expect(selectTool({ operation: 'set_status' })).toBe('slack_set_status')
+    expect(selectTool({ operation: 'set_title' })).toBe('slack_set_title')
   })
 
   it('uses a service-account-only picker for Agent Sessions operations', () => {
@@ -90,6 +105,19 @@ describe('Slack block release', () => {
       prompts: '[{"title":"Summarize","message":"Summarize this thread"}]',
       promptsTitle: 'Try asking',
     })
+
+    const legacyValues = {
+      operation: 'set_suggested_prompts',
+      credential: 'oauth-credential',
+      channel: 'C123',
+      getThreadTimestamp: '1700000000.000001',
+    }
+    expect(isSlackV2SubBlockVisible('credential', legacyValues)).toBe(true)
+    expect(isSlackV2SubBlockVisible('channel', legacyValues)).toBe(true)
+    expect(isSlackV2SubBlockVisible('getThreadTimestamp', legacyValues)).toBe(true)
+    expect(isSlackV2SubBlockVisible('agentBotCredential', legacyValues)).toBe(false)
+    expect(isSlackV2SubBlockVisible('agentChannel', legacyValues)).toBe(false)
+    expect(isSlackV2SubBlockVisible('agentThreadTs', legacyValues)).toBe(false)
   })
 
   it('uses service-account tools for new agent operations', () => {
@@ -116,5 +144,18 @@ describe('Slack block release', () => {
       threadTs: '1700000000.000001',
       status: 'processing',
     })
+
+    const agentPromptValues = {
+      operation: 'set_suggested_prompts',
+      agentBotCredential: 'custom-bot',
+      agentChannel: 'D123',
+      agentThreadTs: '1700000000.000001',
+    }
+    expect(isSlackV2SubBlockVisible('credential', agentPromptValues)).toBe(false)
+    expect(isSlackV2SubBlockVisible('channel', agentPromptValues)).toBe(false)
+    expect(isSlackV2SubBlockVisible('getThreadTimestamp', agentPromptValues)).toBe(false)
+    expect(isSlackV2SubBlockVisible('agentBotCredential', agentPromptValues)).toBe(true)
+    expect(isSlackV2SubBlockVisible('agentChannel', agentPromptValues)).toBe(true)
+    expect(isSlackV2SubBlockVisible('agentThreadTs', agentPromptValues)).toBe(true)
   })
 })
