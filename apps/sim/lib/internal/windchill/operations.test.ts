@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WindchillOperationBody } from '@/lib/api/contracts/tools/windchill'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const mocks = vi.hoisted(() => ({
@@ -58,21 +59,21 @@ const BASE = {
 }
 const DOCUMENT_OID = 'OR:wt.doc.WTDocument:1'
 const SECOND_DOCUMENT_OID = 'OR:wt.doc.WTDocument:2'
-const PRINCIPAL = {
-  kind: 'delegated' as const,
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:windchill',
-  issuedAt: new Date('2026-01-01T00:00:00.000Z'),
-  expiresAt: new Date('2026-01-01T01:00:00.000Z'),
-  delegationContext: {
-    kind: 'workflow_execution' as const,
+const PRINCIPAL = createTestRuntimePrincipal()
+const ACTORLESS_PRINCIPAL = createTestRuntimePrincipal({
+  principal: {
+    kind: 'system',
+    serviceId: 'schedule',
+    workspaceId: 'workspace-1',
     workflowId: 'workflow-1',
-    executionId: 'execution-1',
   },
-}
+  currentWorkflow: {
+    workflowId: 'workflow-1',
+    mode: 'deployment',
+    deploymentVersionId: 'deployment-1',
+  },
+  compatibilityActorUserId: 'execution-actor',
+})
 
 const MUTATION_CASES = [
   {
@@ -302,7 +303,12 @@ describe('Windchill operations', () => {
         documentOid: DOCUMENT_OID,
         primaryFile: rawFile,
       },
-      { principal: PRINCIPAL, requestId: 'request-1', signal: controller.signal }
+      {
+        principal: PRINCIPAL,
+        workspaceId: 'workspace-1',
+        requestId: 'request-1',
+        signal: controller.signal,
+      }
     )
 
     expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
@@ -352,22 +358,7 @@ describe('Windchill operations', () => {
         primaryFile: rawFile,
       },
       {
-        principal: {
-          ...PRINCIPAL,
-          subjectUserId: undefined,
-          delegationContext: {
-            ...PRINCIPAL.delegationContext,
-            currentWorkflow: {
-              workflowId: 'workflow-1',
-              mode: 'deployment',
-              deploymentVersionId: 'deployment-1',
-            },
-            compatibilityActor: {
-              kind: 'legacy_execution_user',
-              userId: 'execution-actor',
-            },
-          },
-        },
+        principal: ACTORLESS_PRINCIPAL,
         requestId: 'request-1',
       }
     )
@@ -430,7 +421,12 @@ describe('Windchill operations', () => {
         operation: 'windchill_download_primary_content',
         documentOid: DOCUMENT_OID,
       },
-      { principal: PRINCIPAL, requestId: 'request-1', signal: controller.signal }
+      {
+        principal: PRINCIPAL,
+        workspaceId: 'workspace-1',
+        requestId: 'request-1',
+        signal: controller.signal,
+      }
     )
 
     expect(mocks.resolveWindchillContentUrl).toHaveBeenCalledWith(
@@ -471,22 +467,7 @@ describe('Windchill operations', () => {
         documentOid: DOCUMENT_OID,
       },
       {
-        principal: {
-          ...PRINCIPAL,
-          subjectUserId: undefined,
-          delegationContext: {
-            ...PRINCIPAL.delegationContext,
-            currentWorkflow: {
-              workflowId: 'workflow-1',
-              mode: 'deployment',
-              deploymentVersionId: 'deployment-1',
-            },
-            compatibilityActor: {
-              kind: 'legacy_execution_user',
-              userId: 'execution-actor',
-            },
-          },
-        },
+        principal: ACTORLESS_PRINCIPAL,
         requestId: 'request-1',
       }
     )

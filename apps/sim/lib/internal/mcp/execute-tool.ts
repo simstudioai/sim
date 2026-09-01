@@ -16,7 +16,6 @@ import {
   internalToolIdentityFaultStatus,
 } from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
-import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
 import { executeMcpToolUseCase, McpToolsNotAllowedError } from '@/lib/mcp/application/execute-tool'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
@@ -126,7 +125,6 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
   try {
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: request.context,
-      audience: MCP_SERVER_DELEGATION_AUDIENCE,
     })
     request.signal?.throwIfAborted()
     const subject = resolvePrincipalSubject(principal)

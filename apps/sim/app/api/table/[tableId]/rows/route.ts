@@ -10,6 +10,7 @@ import {
   defineInternalJsonRoute,
   internalErrorResponse,
   internalRateLimits,
+  resolveInternalAuthWorkspaceId,
 } from '@/lib/api/server/routes'
 import type { Filter, RowData, Sort, SortSpec, TablePredicate } from '@/lib/table'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
@@ -29,7 +30,7 @@ import {
   negotiateTableRowsProvenance,
   readTableRowProvenanceEnvelope,
 } from '@/app/api/table/row-secret-provenance'
-import { presentQueryRowForPrincipal, rowKeyingForPrincipal } from '@/app/api/table/row-wire'
+import { presentQueryRowForKeying, rowKeyingForAuthTransport } from '@/app/api/table/row-wire'
 
 const rateLimit = internalRateLimits.none({
   reason: 'Preserve existing internal table rows behavior',
@@ -48,17 +49,21 @@ export const POST = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: rowErrorPolicy('Failed to insert row'),
-  mapInput: ({ params, body }, { principal, request }) => {
+  mapInput: ({ params, body }, { request, authTransport, executionWorkspaceId }) => {
+    const rowKeying = rowKeyingForAuthTransport(authTransport)
     const shared = {
       tableId: params.tableId,
-      assertedWorkspaceId:
-        principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+      assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+        authTransport,
+        executionWorkspaceId,
+        body.workspaceId
+      ),
       strictWrite: false,
-      dataKeying: rowKeyingForPrincipal(principal),
+      dataKeying: rowKeying,
       secretProvenanceEnvelope: readTableRowProvenanceEnvelope(request, body),
       includePersistedSecretProvenance: negotiateTableRowsProvenance(
         request,
-        principal.kind === 'delegated'
+        authTransport === 'executor_jwt'
       ),
     }
     return 'rows' in body
@@ -79,12 +84,13 @@ export const POST = defineInternalJsonRoute({
         }
   },
   useCase: createTableRows,
-  present: (result, { principal }) =>
-    result.kind === 'single'
+  present: (result, { authTransport }) => {
+    const rowKeying = rowKeyingForAuthTransport(authTransport)
+    return result.kind === 'single'
       ? {
           success: true as const,
           data: {
-            row: presentQueryRowForPrincipal(result.row, result.table.schema, principal),
+            row: presentQueryRowForKeying(result.row, result.table.schema, rowKeying),
             message: 'Row inserted successfully',
           },
         }
@@ -92,12 +98,13 @@ export const POST = defineInternalJsonRoute({
           success: true as const,
           data: {
             rows: result.rows.map((row) =>
-              presentQueryRowForPrincipal(row, result.table.schema, principal)
+              presentQueryRowForKeying(row, result.table.schema, rowKeying)
             ),
             insertedCount: result.rows.length,
             message: `Successfully inserted ${result.rows.length} rows`,
           },
-        },
+        }
+  },
   finalizeResponse: ({ result }) => finalizeTableRowsProvenance(result.secretProvenance),
 })
 
@@ -107,20 +114,23 @@ export const GET = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: rowErrorPolicy('Failed to query rows'),
-  mapInput: ({ params, query }, { principal, request }) => {
+  mapInput: ({ params, query }, { request, authTransport, executionWorkspaceId }) => {
     const filter = query.filter as Filter | TablePredicate | undefined
     const sort = query.sort as Sort | SortSpec | undefined
     return {
       tableId: params.tableId,
-      assertedWorkspaceId:
-        principal.kind === 'delegated' ? principal.workspaceId : query.workspaceId,
+      assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+        authTransport,
+        executionWorkspaceId,
+        query.workspaceId
+      ),
       ...(filter && isTablePredicate(filter)
         ? { predicate: filter }
         : { legacyFilter: filter as Filter | undefined }),
       ...(Array.isArray(sort)
         ? { sort: sort as SortSpec }
         : { legacySort: sort as Sort | undefined }),
-      legacyKeying: rowKeyingForPrincipal(principal),
+      legacyKeying: rowKeyingForAuthTransport(authTransport),
       limit: query.limit,
       offset: query.offset,
       after: query.after,
@@ -129,16 +139,16 @@ export const GET = defineInternalJsonRoute({
       allowExpandedLimit: true,
       includePersistedSecretProvenance: negotiateTableRowsProvenance(
         request,
-        principal.kind === 'delegated'
+        authTransport === 'executor_jwt'
       ),
     }
   },
   useCase: queryTableRows,
-  present: (result, { principal }) => ({
+  present: (result, { authTransport }) => ({
     success: true as const,
     data: {
       rows: result.rows.map((row) =>
-        presentQueryRowForPrincipal(row, result.table.schema, principal)
+        presentQueryRowForKeying(row, result.table.schema, rowKeyingForAuthTransport(authTransport))
       ),
       rowCount: result.rowCount,
       totalCount: result.totalCount,
@@ -156,13 +166,17 @@ export const PUT = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: rowErrorPolicy('Failed to update rows'),
-  mapInput: ({ params, body }, { principal, request }) => ({
+  mapInput: ({ params, body }, { request, authTransport, executionWorkspaceId }) => ({
     tableId: params.tableId,
-    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+    assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      body.workspaceId
+    ),
     filter: body.filter,
-    filterKeying: rowKeyingForPrincipal(principal),
+    filterKeying: rowKeyingForAuthTransport(authTransport),
     data: body.data as RowData,
-    dataKeying: rowKeyingForPrincipal(principal),
+    dataKeying: rowKeyingForAuthTransport(authTransport),
     strictWrite: false,
     limit: body.limit,
     secretProvenanceEnvelope: readTableRowProvenanceEnvelope(request, body),
@@ -185,22 +199,28 @@ export const DELETE = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: rowErrorPolicy('Failed to delete rows'),
-  mapInput: ({ params, body }, { principal }) =>
+  mapInput: ({ params, body }, { authTransport, executionWorkspaceId }) =>
     body.rowIds
       ? {
           kind: 'ids' as const,
           tableId: params.tableId,
-          assertedWorkspaceId:
-            principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+          assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+            authTransport,
+            executionWorkspaceId,
+            body.workspaceId
+          ),
           rowIds: body.rowIds,
         }
       : {
           kind: 'filter' as const,
           tableId: params.tableId,
-          assertedWorkspaceId:
-            principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+          assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+            authTransport,
+            executionWorkspaceId,
+            body.workspaceId
+          ),
           filter: body.filter!,
-          filterKeying: rowKeyingForPrincipal(principal),
+          filterKeying: rowKeyingForAuthTransport(authTransport),
           limit: body.limit,
         },
   useCase: deleteTableRows,
@@ -238,11 +258,15 @@ export const PATCH = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: rowErrorPolicy('Failed to update rows'),
-  mapInput: ({ params, body }, { principal, request }) => ({
+  mapInput: ({ params, body }, { request, authTransport, executionWorkspaceId }) => ({
     tableId: params.tableId,
-    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+    assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      body.workspaceId
+    ),
     strictWrite: false,
-    dataKeying: rowKeyingForPrincipal(principal),
+    dataKeying: rowKeyingForAuthTransport(authTransport),
     updates: body.updates.map((update) => ({
       rowId: update.rowId,
       data: update.data as RowData,

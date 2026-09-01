@@ -37,7 +37,13 @@ vi.mock('@/lib/table/application/rows', async (importOriginal) => {
 
 vi.mock('@/lib/table/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/table/api')>()
-  return { ...actual, internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate } }
+  return {
+    ...actual,
+    internalTableSessionOrExecutorAuth: {
+      authenticate: vi.fn(),
+      authenticateWithTransport: mocks.authenticate,
+    },
+  }
 })
 
 import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
@@ -74,22 +80,25 @@ const ROW = {
 
 function sessionPrincipal() {
   mocks.authenticate.mockResolvedValue({
-    kind: 'session',
-    userId: 'user-1',
-    sessionId: 'session-1',
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    transport: 'session',
   })
 }
 
 function executorPrincipal() {
   mocks.authenticate.mockResolvedValue({
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'user-1',
-    workspaceId: WORKSPACE_ID,
-    delegationId: 'delegation-1',
-    audience: 'table',
-    issuedAt: new Date('2026-01-01'),
-    expiresAt: new Date('2026-01-02'),
+    principal: {
+      kind: 'delegated',
+      serviceId: 'executor',
+      subjectUserId: 'user-1',
+      workspaceId: WORKSPACE_ID,
+      delegationId: 'delegation-1',
+      audience: 'table',
+      issuedAt: new Date('2026-01-01'),
+      expiresAt: new Date('2026-01-02'),
+    },
+    transport: 'executor_jwt',
+    executionWorkspaceId: WORKSPACE_ID,
   })
 }
 

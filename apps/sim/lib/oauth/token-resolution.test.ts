@@ -527,7 +527,11 @@ describe('resolveCredentialAccessToken', () => {
 
   it('resolves a managed credential through the use case and records analytics', async () => {
     mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
-    mockExecuteManagedToken.mockResolvedValue({ accessToken: 'managed-token', idToken: 'id-1' })
+    mockExecuteManagedToken.mockResolvedValue({
+      accessToken: 'managed-token',
+      idToken: 'id-1',
+      workspaceId: 'ws-1',
+    })
     const auditRequest = { headers: { get: () => null } }
 
     const result = await resolveCredentialAccessToken({

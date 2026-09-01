@@ -1,8 +1,9 @@
 /**
  * @vitest-environment node
  */
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
@@ -85,27 +86,33 @@ describe('custom tool application use cases', () => {
   })
 
   describe('delegated custom-tool resolution', () => {
-    function executorPrincipal(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
-      return {
-        kind: 'delegated' as const,
-        serviceId: 'executor' as const,
-        subjectUserId: 'user-1',
-        workspaceId: workspace.workspaceId,
-        delegationId: 'execution-1',
-        audience: CUSTOM_TOOL_DELEGATION_AUDIENCE,
-        issuedAt: new Date(Date.now() - 1_000),
-        expiresAt: new Date(Date.now() + 60_000),
-        ...overrides,
-      }
+    function executorPrincipal(
+      principal: WorkflowExecutionPrincipal = {
+        kind: 'session',
+        userId: 'user-1',
+        sessionId: 'session-1',
+      },
+      compatibilityActorUserId?: string
+    ) {
+      return createTestRuntimePrincipal({
+        principal,
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment',
+          deploymentVersionId: 'version-1',
+        },
+        compatibilityActorUserId,
+      })
     }
 
-    it('declares the executor and Copilot read policy explicitly', () => {
+    it('declares workflow execution and Copilot read policy explicitly', () => {
       expect(customToolOperations.readAvailableByIdOrTitle).toMatchObject({
         id: 'custom_tools.read_available_by_id_or_title',
         minimumRole: 'read',
         workspaceApiKey: 'deny',
         principalKinds: ['delegated'],
-        delegatedServices: ['copilot', 'executor'],
+        delegatedServices: ['copilot'],
+        workflowExecution: 'allow',
       })
     })
 
@@ -133,29 +140,15 @@ describe('custom tool application use cases', () => {
 
     it('preserves the legacy execution actor for an actorless deployment', async () => {
       const result = await readAvailableCustomToolByIdOrTitleUseCase.execute({
-        principal: executorPrincipal({
-          subjectUserId: undefined,
-          delegationContext: {
-            kind: 'workflow_execution',
+        principal: executorPrincipal(
+          {
+            kind: 'system',
+            serviceId: 'schedule',
+            workspaceId: workspace.workspaceId,
             workflowId: 'workflow-1',
-            executionId: 'execution-1',
-            principal: {
-              kind: 'system',
-              serviceId: 'schedule',
-              workspaceId: workspace.workspaceId,
-              workflowId: 'workflow-1',
-            },
-            currentWorkflow: {
-              workflowId: 'workflow-1',
-              mode: 'deployment',
-              deploymentVersionId: 'version-1',
-            },
-            compatibilityActor: {
-              kind: 'legacy_execution_user',
-              userId: 'execution-actor',
-            },
           },
-        }),
+          'execution-actor'
+        ),
         input: {
           workspaceId: workspace.workspaceId,
           identifier: tool.id,
@@ -177,16 +170,10 @@ describe('custom tool application use cases', () => {
       await expect(
         readAvailableCustomToolByIdOrTitleUseCase.execute({
           principal: executorPrincipal({
-            subjectUserId: undefined,
-            delegationContext: {
-              kind: 'workflow_execution',
-              workflowId: 'workflow-1',
-              currentWorkflow: {
-                workflowId: 'workflow-1',
-                mode: 'deployment',
-                deploymentVersionId: 'version-1',
-              },
-            },
+            kind: 'system',
+            serviceId: 'schedule',
+            workspaceId: workspace.workspaceId,
+            workflowId: 'workflow-1',
           }),
           input: {
             workspaceId: workspace.workspaceId,
@@ -207,25 +194,14 @@ describe('custom tool application use cases', () => {
 
       await expect(
         readAvailableCustomToolByIdOrTitleUseCase.execute({
-          principal: executorPrincipal(),
+          principal: executorPrincipal({
+            kind: 'system',
+            serviceId: 'schedule',
+            workspaceId: workspace.workspaceId,
+            workflowId: 'workflow-1',
+          }),
           input: {
             workspaceId: 'workspace-2',
-            identifier: tool.id,
-            lookup: 'id',
-          },
-        })
-      ).rejects.toMatchObject({ code: 'forbidden' })
-
-      expect(mocks.resolvePermission).not.toHaveBeenCalled()
-      expect(mocks.getAvailableTool).not.toHaveBeenCalled()
-    })
-
-    it('rejects the wrong delegation audience before lookup', async () => {
-      await expect(
-        readAvailableCustomToolByIdOrTitleUseCase.execute({
-          principal: executorPrincipal({ audience: 'sim:other' }),
-          input: {
-            workspaceId: workspace.workspaceId,
             identifier: tool.id,
             lookup: 'id',
           },

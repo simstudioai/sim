@@ -1,4 +1,4 @@
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { BoundWorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { ContractBody, ContractQuery } from '@/lib/api/contracts'
 import type {
   createMemoryContract,
@@ -21,7 +21,8 @@ import {
 } from '@/lib/memory/application/use-cases'
 
 export interface MemoryToolOperationContext {
-  principal: WorkflowExecutionDelegatedPrincipal
+  principal: BoundWorkflowExecutionPrincipal
+  workspaceId: string
   headers: Headers
   signal?: AbortSignal
 }
@@ -49,7 +50,7 @@ export async function executeMemoryAdd(
   const result = await appendMemoryUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: context.workspaceId,
       key: body.key ?? '',
       data: body.data,
       ...(resolveWriteProvenance ? { resolveWriteProvenance } : {}),
@@ -76,7 +77,7 @@ export async function executeMemoryList(
   const result = await listMemoriesUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: context.workspaceId,
       query: query.query,
       limit: query.limit,
       includePersistedSecretProvenance: memoryToolRequestsProvenance(context.headers),
@@ -107,7 +108,7 @@ export async function executeMemoryGet(
   const result = await readMemoryUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: context.workspaceId,
       key,
       includePersistedSecretProvenance: memoryToolRequestsProvenance(context.headers),
       resolveBillingAttribution: async (workspaceId) =>
@@ -132,7 +133,7 @@ export async function executeMemoryDelete(
   const result = await deleteMemoryUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: context.workspaceId,
       key: query.conversationId ?? '',
       signal: context.signal,
     },

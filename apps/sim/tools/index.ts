@@ -218,7 +218,7 @@ function createInternalToolOperationContext(
     workspaceId: context.workspaceId,
     executionId: context.executionId,
     userId: context.userId,
-    executorDelegationOrigin: context.executorDelegationOrigin,
+    principal: context.principal,
     copilotToolExecution: context.copilotToolExecution,
     billingAttribution: context.metadata.billingAttribution,
     callChain: context.callChain,
@@ -1860,7 +1860,7 @@ async function executeToolImplementation(
             scopes: providerScopes,
             impersonateEmail,
             enforceCredentialAccess,
-            executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+            principal: executionContext?.principal,
           })
         } else {
           data = await fetchCredentialTokenFromRoute({
@@ -1964,7 +1964,6 @@ async function executeToolImplementation(
         {
           abortSignal: effectiveSignal,
           resolvedSecretTraceRegistry,
-          executorDelegationOrigin: executionContext?.executorDelegationOrigin,
           principal: executionContext?.principal,
           // Trusted `executionContext`, never `_context` — that bag spreads
           // model-reachable `contextParams._context` first, so a model could otherwise
@@ -2505,7 +2504,7 @@ async function executeDeclaredInternalOperation({
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   if (
     !context?.workspaceId ||
-    (!context.executorDelegationOrigin && !context.userId && !context.copilotToolExecution)
+    (!context.principal && !context.userId && !context.copilotToolExecution)
   ) {
     throw new Error('Internal tool execution requires trusted execution scope')
   }

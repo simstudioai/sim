@@ -2,14 +2,15 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
-const { mockBindInternalExecutorDelegation, mockReadWorkflowDefinition } = vi.hoisted(() => ({
-  mockBindInternalExecutorDelegation: vi.fn(),
+const { mockBindRuntimeExecution, mockReadWorkflowDefinition } = vi.hoisted(() => ({
+  mockBindRuntimeExecution: vi.fn(),
   mockReadWorkflowDefinition: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindInternalExecutorDelegation,
+  bindRuntimeWorkflowExecution: mockBindRuntimeExecution,
 }))
 
 vi.mock('@/lib/workflows/application/read-workflow-definition', () => ({
@@ -17,133 +18,83 @@ vi.mock('@/lib/workflows/application/read-workflow-definition', () => ({
 }))
 
 import { readWorkflowDefinitionAsExecutor } from '@/lib/internal/workflows/read-definition'
-import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 
 describe('readWorkflowDefinitionAsExecutor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('binds the trusted workflow execution origin before reading the child', async () => {
-    const principal = {
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: WORKFLOW_DELEGATION_AUDIENCE,
-      issuedAt: new Date(),
-      expiresAt: new Date(Date.now() + 60_000),
-      delegationContext: {
-        kind: 'workflow_execution',
-        workflowId: 'parent-workflow',
-        executionId: 'execution-1',
-      },
-    }
+  it('revalidates the trusted runtime principal before reading the child', async () => {
+    const principal = createTestRuntimePrincipal({
+      executionId: 'execution-1',
+      rootWorkflowId: 'parent-workflow',
+    })
     const definition = { workflow: { id: 'child-workflow' }, state: { blocks: {} } }
-    mockBindInternalExecutorDelegation.mockResolvedValue(principal)
+    mockBindRuntimeExecution.mockResolvedValue({ principal, workspaceId: 'workspace-1' })
     mockReadWorkflowDefinition.mockResolvedValue(definition)
 
     const result = await readWorkflowDefinitionAsExecutor({
-      origin: {
-        subjectUserId: 'user-1',
-        workflowId: 'parent-workflow',
-        executionId: 'execution-1',
-      },
+      principal,
       workflowId: 'child-workflow',
       state: 'deployed',
     })
 
     expect(result).toBe(definition)
-    expect(mockBindInternalExecutorDelegation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        serviceId: 'executor',
-        subjectUserId: 'user-1',
-        workflowId: 'parent-workflow',
-        executionId: 'execution-1',
-        delegationId: expect.any(String),
-        issuedAt: expect.any(Date),
-        expiresAt: expect.any(Date),
-      }),
-      { audience: WORKFLOW_DELEGATION_AUDIENCE }
-    )
+    expect(mockBindRuntimeExecution).toHaveBeenCalledWith(principal)
     expect(mockReadWorkflowDefinition).toHaveBeenCalledWith({
       principal,
-      input: { workflowId: 'child-workflow', state: 'deployed' },
+      input: {
+        workflowId: 'child-workflow',
+        state: 'deployed',
+        assertedWorkspaceId: 'workspace-1',
+      },
     })
   })
 
   it('preserves an actorless principal and current workflow authority', async () => {
-    const sourcePrincipal = {
-      kind: 'system' as const,
-      serviceId: 'internal' as const,
-      workspaceId: 'workspace-1',
-      workflowId: 'parent-workflow',
-    }
-    const delegatedPrincipal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: WORKFLOW_DELEGATION_AUDIENCE,
-      issuedAt: new Date(),
-      expiresAt: new Date(Date.now() + 60_000),
-      delegationContext: {
-        kind: 'workflow_execution' as const,
+    const principal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'internal',
+        workspaceId: 'workspace-1',
         workflowId: 'parent-workflow',
-        executionId: 'execution-1',
-        principal: sourcePrincipal,
-        currentWorkflow: {
-          workflowId: 'parent-workflow',
-          mode: 'draft' as const,
-        },
       },
-    }
-    mockBindInternalExecutorDelegation.mockResolvedValue(delegatedPrincipal)
+      executionId: 'execution-1',
+      rootWorkflowId: 'parent-workflow',
+    })
+    mockBindRuntimeExecution.mockResolvedValue({ principal, workspaceId: 'workspace-1' })
     mockReadWorkflowDefinition.mockResolvedValue({ workflow: {}, state: null })
 
     await readWorkflowDefinitionAsExecutor({
-      origin: {
-        workflowId: 'parent-workflow',
-        executionId: 'execution-1',
-        principal: sourcePrincipal,
-        currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
-      },
+      principal,
       workflowId: 'child-workflow',
       state: 'draft',
     })
 
-    expect(mockBindInternalExecutorDelegation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        serviceId: 'executor',
-        workflowId: 'parent-workflow',
-        executionId: 'execution-1',
-        principal: sourcePrincipal,
-        currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
-      }),
-      { audience: WORKFLOW_DELEGATION_AUDIENCE }
-    )
-    expect(mockBindInternalExecutorDelegation.mock.calls[0][0]).not.toHaveProperty('subjectUserId')
+    expect(mockBindRuntimeExecution).toHaveBeenCalledWith(principal)
     expect(mockReadWorkflowDefinition).toHaveBeenCalledWith({
-      principal: delegatedPrincipal,
-      input: { workflowId: 'child-workflow', state: 'draft' },
+      principal,
+      input: {
+        workflowId: 'child-workflow',
+        state: 'draft',
+        assertedWorkspaceId: 'workspace-1',
+      },
     })
   })
 
-  it('rejects a subject that conflicts with the preserved workflow principal', async () => {
+  it('propagates canonical principal binding failures', async () => {
+    const principal = createTestRuntimePrincipal({ rootWorkflowId: 'parent-workflow' })
+    mockBindRuntimeExecution.mockRejectedValue(new Error('Execution principal is noncanonical'))
+
     await expect(
       readWorkflowDefinitionAsExecutor({
-        origin: {
-          subjectUserId: 'user-2',
-          workflowId: 'parent-workflow',
-          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        },
+        principal,
         workflowId: 'child-workflow',
         state: 'draft',
       })
-    ).rejects.toThrow('Executor subject does not match its workflow principal')
+    ).rejects.toThrow('Execution principal is noncanonical')
 
-    expect(mockBindInternalExecutorDelegation).not.toHaveBeenCalled()
+    expect(mockBindRuntimeExecution).toHaveBeenCalledWith(principal)
     expect(mockReadWorkflowDefinition).not.toHaveBeenCalled()
   })
 })

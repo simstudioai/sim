@@ -10,11 +10,12 @@ const HUMAN_PRINCIPAL_POLICY = {
 } as const
 const DISCOVERY_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'delegated'],
-  delegatedServices: ['copilot', 'executor'],
+  delegatedServices: ['copilot'],
+  workflowExecution: 'allow',
 } as const
 const EXECUTION_PRINCIPAL_POLICY = {
-  principalKinds: ['delegated'],
-  delegatedServices: ['executor'],
+  principalKinds: [],
+  workflowExecution: 'allow',
 } as const
 
 export const mcpServerOperations = {

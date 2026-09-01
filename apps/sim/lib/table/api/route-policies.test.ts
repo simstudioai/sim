@@ -6,18 +6,18 @@ import { resetEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockInvalidBindingError, mockBindDelegation, mockGetSession } = vi.hoisted(() => {
+const { MockInvalidBindingError, mockBindDelegationAdmission, mockGetSession } = vi.hoisted(() => {
   class MockInvalidBindingError extends Error {}
   return {
     MockInvalidBindingError,
-    mockBindDelegation: vi.fn(),
+    mockBindDelegationAdmission: vi.fn(),
     mockGetSession: vi.fn(),
   }
 })
 
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindDelegation,
+  bindInternalExecutorDelegationAdmission: mockBindDelegationAdmission,
   InvalidInternalDelegationBindingError: MockInvalidBindingError,
 }))
 vi.unmock('@/lib/auth/internal')
@@ -27,6 +27,7 @@ import {
   internalOrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { generateInternalDelegationToken, generateInternalToken } from '@/lib/auth/internal'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { v2TableErrorPolicies } from '@/lib/table/api/route-policies'
@@ -37,64 +38,46 @@ describe('internal Table route authentication', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue(null)
-    mockBindDelegation.mockImplementation(async (delegation, options) => ({
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: delegation.subjectUserId,
+    mockBindDelegationAdmission.mockImplementation(async (delegation) => ({
+      principal: delegation.principal,
       workspaceId: 'canonical-workspace',
-      delegationId: delegation.delegationId,
-      audience: options.audience,
-      issuedAt: delegation.issuedAt,
-      expiresAt: delegation.expiresAt,
-      resourceScope: options.resourceScope,
-      delegationContext: {
-        kind: 'workflow_execution',
-        workflowId: delegation.workflowId,
-        executionId: delegation.executionId,
-      },
     }))
   })
 
-  it('binds table scope to the current workflow without trusting route workspace input', async () => {
+  it('restores the runtime principal and canonical workspace without deriving identity from route parameters', async () => {
     const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
+      principal: createTestRuntimePrincipal(),
     })
 
-    const principal = await internalTableSessionOrExecutorAuth.authenticate(
+    const authentication = await internalTableSessionOrExecutorAuth.authenticateWithTransport?.(
       new NextRequest('http://localhost/api/table/table-1/groups?workspaceId=forged-workspace', {
         headers: { authorization: `Bearer ${token}` },
       }),
       { tableId: 'table-1', workspaceId: 'forged-workspace' }
     )
 
-    expect(principal).toMatchObject({
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: 'user-1',
-      workspaceId: 'canonical-workspace',
-      audience: 'sim:tables',
-      resourceScope: { tableId: 'table-1' },
-      delegationContext: {
-        kind: 'workflow_execution',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
+    expect(authentication).toMatchObject({
+      transport: 'executor_jwt',
+      executionWorkspaceId: 'canonical-workspace',
+      principal: {
+        kind: 'session',
+        userId: 'user-1',
+        sessionId: 'session-1',
+        executionMetadata: {
+          executionId: 'execution-1',
+          rootWorkflowId: 'workflow-1',
+          currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
+        },
       },
     })
-    expect(mockBindDelegation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      }),
-      { audience: 'sim:tables', resourceScope: { tableId: 'table-1' } }
+    expect(mockBindDelegationAdmission).toHaveBeenCalledWith(
+      expect.objectContaining({ principal: expect.objectContaining({ kind: 'session' }) })
     )
   })
 
   it('binds transfer resource routes as unscoped Table-domain principals', async () => {
     const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
+      principal: createTestRuntimePrincipal(),
     })
 
     await internalTableSessionOrExecutorAuth.authenticate(
@@ -104,10 +87,7 @@ describe('internal Table route authentication', () => {
       { importId: 'import-1' }
     )
 
-    expect(mockBindDelegation).toHaveBeenCalledWith(expect.any(Object), {
-      audience: 'sim:tables',
-      resourceScope: undefined,
-    })
+    expect(mockBindDelegationAdmission).toHaveBeenCalledOnce()
   })
 
   it('rejects legacy actorless internal tokens before canonical binding', async () => {
@@ -121,15 +101,14 @@ describe('internal Table route authentication', () => {
         { tableId: 'table-1' }
       )
     ).rejects.toBeInstanceOf(InternalUnauthenticatedError)
-    expect(mockBindDelegation).not.toHaveBeenCalled()
+    expect(mockBindDelegationAdmission).not.toHaveBeenCalled()
   })
 
   it('rejects a token whose current workflow binding no longer exists', async () => {
     const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
+      principal: createTestRuntimePrincipal(),
     })
-    mockBindDelegation.mockRejectedValue(new MockInvalidBindingError())
+    mockBindDelegationAdmission.mockRejectedValue(new MockInvalidBindingError())
 
     await expect(
       internalTableSessionOrExecutorAuth.authenticate(
@@ -143,11 +122,10 @@ describe('internal Table route authentication', () => {
 
   it('propagates canonical-binding infrastructure failures', async () => {
     const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
+      principal: createTestRuntimePrincipal(),
     })
     const infrastructureError = new Error('database unavailable')
-    mockBindDelegation.mockRejectedValue(infrastructureError)
+    mockBindDelegationAdmission.mockRejectedValue(infrastructureError)
 
     await expect(
       internalTableSessionOrExecutorAuth.authenticate(

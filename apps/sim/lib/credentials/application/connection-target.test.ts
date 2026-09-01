@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { bindPrincipalExecutionMetadata, withPrincipalExecutionActor } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -138,28 +139,26 @@ describe('resolveCredentialConnectionTarget', () => {
   })
 
   it('uses the legacy execution actor for an actorless reconnect', async () => {
-    const actorlessPrincipal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: 'sim:credentials',
-      issuedAt: new Date('2026-08-28T00:00:00.000Z'),
-      expiresAt: new Date('2099-08-28T00:00:00.000Z'),
-      delegationContext: {
-        kind: 'workflow_execution' as const,
-        workflowId: 'workflow-1',
-        currentWorkflow: {
+    const actorlessPrincipal = withPrincipalExecutionActor(
+      bindPrincipalExecutionMetadata(
+        {
+          kind: 'system',
+          serviceId: 'public_api',
+          workspaceId: 'workspace-1',
           workflowId: 'workflow-1',
-          mode: 'deployment' as const,
-          deploymentVersionId: 'deployment-1',
         },
-        compatibilityActor: {
-          kind: 'legacy_execution_user' as const,
-          userId: 'execution-actor',
-        },
-      },
-    }
+        {
+          executionId: 'execution-1',
+          rootWorkflowId: 'workflow-1',
+          currentWorkflow: {
+            workflowId: 'workflow-1',
+            mode: 'deployment',
+            deploymentVersionId: 'deployment-1',
+          },
+        }
+      ),
+      'execution-actor'
+    )
 
     await resolveCredentialConnectionTarget({
       principal: actorlessPrincipal,

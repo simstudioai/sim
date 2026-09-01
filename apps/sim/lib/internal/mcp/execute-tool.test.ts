@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 
@@ -21,31 +21,10 @@ vi.mock('@/lib/mcp/application/execute-tool', () => ({
 
 import { executeMcpTool } from '@/lib/internal/mcp/execute-tool'
 
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:mcp-servers',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-27T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
-const NESTED_HUMAN_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-nested-human',
-  audience: 'sim:mcp-servers',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-27T00:05:00.000Z'),
-  delegationContext: {
-    kind: 'workflow_execution',
-    workflowId: 'workflow-1',
-    principal: { kind: 'session', userId: 'user-origin', sessionId: 'session-origin' },
-  },
-}
+const PRINCIPAL = createTestRuntimePrincipal()
+const NESTED_HUMAN_PRINCIPAL = createTestRuntimePrincipal({
+  principal: { kind: 'session', userId: 'user-origin', sessionId: 'session-origin' },
+})
 const BILLING = {
   actorUserId: 'user-1',
   workspaceId: 'workspace-1',
@@ -59,6 +38,7 @@ const CONTEXT: InternalToolOperationContext = {
   userId: 'user-1',
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
+  principal: PRINCIPAL,
   billingAttribution: BILLING,
   callChain: ['workflow-parent'],
 }
@@ -92,7 +72,6 @@ describe('executeMcpTool', () => {
     })
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context: CONTEXT,
-      audience: 'sim:mcp-servers',
     })
     expect(mocks.executeUseCase).toHaveBeenCalledWith({
       principal: PRINCIPAL,

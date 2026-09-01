@@ -4,6 +4,7 @@ import {
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
+  resolveInternalAuthWorkspaceId,
 } from '@/lib/api/server/routes'
 import { internalLogsSessionOrExecutorAuth } from '@/lib/logs/api/route-policies'
 import { listLogsUseCase } from '@/lib/logs/application/list-logs'
@@ -20,9 +21,13 @@ export const GET = defineInternalJsonRoute({
   operation: logOperations.list,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal logs list behavior' }),
   errorPolicy,
-  mapInput: ({ query }, { principal, request }) => ({
+  mapInput: ({ query }, { request, authTransport, executionWorkspaceId }) => ({
     ...query,
-    workspaceId: principal.kind === 'delegated' ? principal.workspaceId : query.workspaceId,
+    workspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      query.workspaceId
+    ),
     signal: request.signal,
   }),
   useCase: listLogsUseCase,

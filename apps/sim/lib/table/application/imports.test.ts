@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   abortUpload: vi.fn(),
@@ -107,21 +107,13 @@ const workspaceKey = {
   workspaceId: 'workspace-1',
   keyId: 'workspace-key-1',
 }
-const executor: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'executor-user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
-  delegationContext: {
-    kind: 'workflow_execution',
-    workflowId: 'workflow-1',
-    executionId: 'execution-1',
+const executor = createTestRuntimePrincipal({
+  principal: {
+    kind: 'session',
+    userId: 'executor-user-1',
+    sessionId: 'session-1',
   },
-}
+})
 const upload = {
   id: 'import-1',
   workspaceId: 'workspace-1',

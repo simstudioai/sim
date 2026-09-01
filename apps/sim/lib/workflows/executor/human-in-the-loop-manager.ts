@@ -1,3 +1,4 @@
+import { requirePrincipalExecutionMetadata } from '@sim/auth/principal'
 import { dbFor } from '@sim/db'
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -160,6 +161,37 @@ export function requireResumeDeploymentVersion(
     )
   }
   return deploymentVersionId
+}
+
+/** Verifies that a durable pause retained the run root and current workflow authority. */
+export function assertResumeExecutionPrincipalBinding(
+  snapshot: ExecutionSnapshot,
+  rootWorkflowId: string,
+  deploymentVersionId: string | undefined
+): void {
+  const { executionId, workflowId, principal } = snapshot.metadata
+  const currentWorkflow = deploymentVersionId
+    ? ({ workflowId, mode: 'deployment', deploymentVersionId } as const)
+    : ({ workflowId, mode: 'draft' } as const)
+  const executionMetadata = requirePrincipalExecutionMetadata(principal)
+  const matchesCurrentWorkflow =
+    executionMetadata.currentWorkflow.workflowId === workflowId &&
+    executionMetadata.currentWorkflow.mode === currentWorkflow.mode &&
+    (currentWorkflow.mode === 'draft' ||
+      (executionMetadata.currentWorkflow.mode === 'deployment' &&
+        executionMetadata.currentWorkflow.deploymentVersionId ===
+          currentWorkflow.deploymentVersionId))
+  if (
+    executionMetadata.executionId !== executionId ||
+    executionMetadata.rootWorkflowId !== rootWorkflowId ||
+    !matchesCurrentWorkflow
+  ) {
+    throw new ResumeAdmissionError(
+      'Paused execution principal does not match its durable workflow authority',
+      409,
+      false
+    )
+  }
 }
 
 function isPausedOutputForContext(output: unknown, contextId: string): boolean {
@@ -1107,6 +1139,11 @@ export class PauseResumeManager {
     const resumeDeploymentVersionId = requireResumeDeploymentVersion(
       baseSnapshot.metadata.useDraftState,
       claimedExecution.deploymentVersionId
+    )
+    assertResumeExecutionPrincipalBinding(
+      baseSnapshot,
+      pausedExecution.workflowId,
+      resumeDeploymentVersionId
     )
     const billingAttribution = assertBillingAttributionSnapshot(
       baseSnapshot.metadata.billingAttribution

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const { mockListKnowledgeTagsAsExecutor, mockReadTableSchemaAsExecutor } = vi.hoisted(() => ({
   mockListKnowledgeTagsAsExecutor: vi.fn(),
@@ -40,11 +41,10 @@ const V2_SCHEMA = {
   required: [],
 }
 
-const EXECUTOR_ORIGIN = {
-  subjectUserId: 'user-1',
-  workflowId: 'workflow-1',
+const EXECUTION_PRINCIPAL = createTestRuntimePrincipal({
   executionId: 'execution-1',
-}
+  rootWorkflowId: 'workflow-1',
+})
 
 describe('enrichTableToolSchema', () => {
   beforeEach(() => {
@@ -69,7 +69,7 @@ describe('enrichTableToolSchema', () => {
         userId: 'user-1',
         workflowId: 'workflow-1',
         executionId: 'execution-1',
-        executorDelegationOrigin: EXECUTOR_ORIGIN,
+        principal: EXECUTION_PRINCIPAL,
       }
     )
 
@@ -80,7 +80,7 @@ describe('enrichTableToolSchema', () => {
         userId: 'user-1',
         workflowId: 'workflow-1',
         executionId: 'execution-1',
-        executorDelegationOrigin: EXECUTOR_ORIGIN,
+        principal: EXECUTION_PRINCIPAL,
       },
     })
     expect(result.description).toContain('Table "Customers" columns:')
@@ -98,7 +98,7 @@ describe('enrichTableToolSchema', () => {
         workspaceId: 'workspace-1',
         userId: 'user-1',
         workflowId: 'workflow-1',
-        executorDelegationOrigin: EXECUTOR_ORIGIN,
+        principal: EXECUTION_PRINCIPAL,
       })
     ).rejects.toThrow('Table not found')
   })
@@ -131,7 +131,7 @@ describe('enrichTableToolSchema', () => {
         userId: 'user-1',
         workflowId: 'workflow-1',
         executionId: 'execution-1',
-        executorDelegationOrigin: EXECUTOR_ORIGIN,
+        principal: EXECUTION_PRINCIPAL,
       }
     )
 
@@ -163,7 +163,7 @@ describe('enrichKBTagsSchema', () => {
       workspaceId: 'workspace-1',
       workflowId: 'workflow-1',
       executionId: 'execution-1',
-      executorDelegationOrigin: EXECUTOR_ORIGIN,
+      principal: EXECUTION_PRINCIPAL,
     })
 
     expect(mockListKnowledgeTagsAsExecutor).toHaveBeenCalledWith({
@@ -174,7 +174,7 @@ describe('enrichKBTagsSchema', () => {
         userId: 'user-1',
         workflowId: 'workflow-1',
         executionId: 'execution-1',
-        executorDelegationOrigin: EXECUTOR_ORIGIN,
+        principal: EXECUTION_PRINCIPAL,
       },
     })
     expect(result?.properties).toEqual({ Client: { type: 'string', description: 'text tag' } })
@@ -187,7 +187,7 @@ describe('enrichKBTagsSchema', () => {
       userId: 'user-1',
       workspaceId: 'workspace-1',
       workflowId: 'workflow-1',
-      executorDelegationOrigin: EXECUTOR_ORIGIN,
+      principal: EXECUTION_PRINCIPAL,
     })
 
     expect(mockListKnowledgeTagsAsExecutor).toHaveBeenCalledWith({
@@ -197,7 +197,7 @@ describe('enrichKBTagsSchema', () => {
         workspaceId: 'workspace-1',
         userId: 'user-1',
         workflowId: 'workflow-1',
-        executorDelegationOrigin: EXECUTOR_ORIGIN,
+        principal: EXECUTION_PRINCIPAL,
       },
     })
   })
@@ -206,14 +206,14 @@ describe('enrichKBTagsSchema', () => {
     ['no execution authority', { workspaceId: 'workspace-1', workflowId: 'workflow-1' }],
     [
       'no acting workflow to bind the delegation on',
-      { workspaceId: 'workspace-1', userId: 'user-1', executorDelegationOrigin: EXECUTOR_ORIGIN },
+      { workspaceId: 'workspace-1', userId: 'user-1', principal: EXECUTION_PRINCIPAL },
     ],
     [
       'no acting workspace',
       {
         userId: 'user-1',
         workflowId: 'workflow-1',
-        executorDelegationOrigin: EXECUTOR_ORIGIN,
+        principal: EXECUTION_PRINCIPAL,
       },
     ],
   ])('skips enrichment with %s rather than issuing an unauthorized read', async (_, context) => {

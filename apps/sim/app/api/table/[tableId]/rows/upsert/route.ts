@@ -1,5 +1,9 @@
 import { upsertTableRowContract } from '@/lib/api/contracts/tables'
-import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  resolveInternalAuthWorkspaceId,
+} from '@/lib/api/server/routes'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { internalTableRowsErrorPolicy } from '@/lib/table/api/row-route-policies'
 import { tableOperations } from '@/lib/table/application/operations'
@@ -10,7 +14,7 @@ import {
   negotiateTableRowsProvenance,
   readTableRowProvenanceEnvelope,
 } from '@/app/api/table/row-secret-provenance'
-import { presentRowForPrincipal, rowKeyingForPrincipal } from '@/app/api/table/row-wire'
+import { presentRowForKeying, rowKeyingForAuthTransport } from '@/app/api/table/row-wire'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,11 +27,15 @@ export const POST = defineInternalJsonRoute({
     reason: 'Preserve existing internal table upsert behavior',
   }),
   errorPolicy: internalTableRowsErrorPolicy,
-  mapInput: ({ params, body }, { principal, request }) => ({
+  mapInput: ({ params, body }, { request, authTransport, executionWorkspaceId }) => ({
     tableId: params.tableId,
-    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+    assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      body.workspaceId
+    ),
     data: body.data as RowData,
-    dataKeying: rowKeyingForPrincipal(principal),
+    dataKeying: rowKeyingForAuthTransport(authTransport),
     strictWrite: false,
     // The conflict target follows the same keying as the data; the use case
     // resolves it id-or-name against the canonical schema.
@@ -37,14 +45,14 @@ export const POST = defineInternalJsonRoute({
     secretProvenanceEnvelope: readTableRowProvenanceEnvelope(request, body),
     includePersistedSecretProvenance: negotiateTableRowsProvenance(
       request,
-      principal.kind !== 'session'
+      authTransport === 'executor_jwt'
     ),
   }),
   useCase: upsertTableRow,
-  present: ({ table, row, operation }, { principal }) => ({
+  present: ({ table, row, operation }, { authTransport }) => ({
     success: true as const,
     data: {
-      row: presentRowForPrincipal(row, table.schema, principal),
+      row: presentRowForKeying(row, table.schema, rowKeyingForAuthTransport(authTransport)),
       operation,
       message: `Row ${operation === 'update' ? 'updated' : 'inserted'} successfully`,
     },

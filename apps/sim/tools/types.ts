@@ -3,7 +3,6 @@ import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
 import type { OAuthService } from '@/lib/oauth'
-import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type BYOKProviderId =
@@ -56,7 +55,7 @@ export type WorkflowToolExecutionContext = {
   workflowId?: string
   executionId?: string
   userId?: string
-  executorDelegationOrigin?: ExecutorDelegationOrigin
+  principal?: WorkflowExecutionPrincipal
 }
 
 export type OutputType =
@@ -481,3 +480,5 @@ export type ExecutableToolConfig<P = any, R = any> = ToolConfig<P, R> | Internal
 export function isInternalToolConfig(tool: ExecutableToolConfig): tool is InternalToolConfig {
   return tool.operation !== undefined
 }
+
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'

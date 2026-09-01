@@ -1,10 +1,13 @@
 /**
  * @vitest-environment node
  */
-import type {
-  DelegatedPrincipal,
-  SessionPrincipal,
-  WorkspaceApiKeyPrincipal,
+import {
+  bindPrincipalExecutionMetadata,
+  enterPrincipalWorkflowExecution,
+  type SessionPrincipal,
+  type WorkflowExecutionAuthority,
+  type WorkflowExecutionPrincipal,
+  type WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,37 +63,22 @@ const executorOperation = defineWorkspaceOperation({
   id: 'test.executor-write',
   minimumRole: 'write',
   workspaceApiKey: 'deny',
-  principalKinds: ['delegated'],
-  delegatedServices: ['executor'],
+  principalKinds: [],
+  workflowExecution: 'allow',
 })
 
 function executorPrincipal(
-  originalPrincipal: NonNullable<DelegatedPrincipal['delegationContext']>['principal'],
-  currentWorkflow?: NonNullable<DelegatedPrincipal['delegationContext']>['currentWorkflow']
-): DelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    workspaceId: 'workspace-1',
-    delegationId: 'delegation-1',
-    audience: 'sim:test',
-    issuedAt: new Date('2026-01-01T00:00:00.000Z'),
-    expiresAt: new Date('2099-01-01T00:00:00.000Z'),
-    resourceScope: { executionId: 'execution-1' },
-    delegationContext: {
-      kind: 'workflow_execution',
-      workflowId: 'root-workflow-1',
-      principal: originalPrincipal,
-      ...(currentWorkflow ? { currentWorkflow } : {}),
-    },
-  }
-}
-
-const executorAuthorization = {
-  delegation: {
-    audience: 'sim:test',
-    isWithinScope: () => true,
-  },
+  originalPrincipal: WorkflowExecutionPrincipal,
+  currentWorkflow: WorkflowExecutionAuthority
+) {
+  const root = bindPrincipalExecutionMetadata(originalPrincipal, {
+    executionId: 'execution-1',
+    rootWorkflowId: 'root-workflow-1',
+    currentWorkflow: { workflowId: 'root-workflow-1', mode: 'draft' },
+  })
+  return currentWorkflow.workflowId === 'root-workflow-1'
+    ? root
+    : enterPrincipalWorkflowExecution(root, currentWorkflow)
 }
 
 const context = {
@@ -204,20 +192,30 @@ describe('authorizeWorkspaceOperation', () => {
           deploymentVersionId: 'deployment-1',
         }),
         executorOperation,
-        context,
-        executorAuthorization
+        context
       )
     ).resolves.toBeUndefined()
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
   })
 
-  it.each([
-    { name: 'missing', currentWorkflow: undefined },
-    {
-      name: 'draft',
-      currentWorkflow: { workflowId: 'current-workflow-1', mode: 'draft' as const },
-    },
-  ])('rejects actorless execution with a $name workflow authority', async ({ currentWorkflow }) => {
+  it('rejects an actorless caller without execution metadata', async () => {
+    await expect(
+      authorizeWorkspaceOperation(
+        {
+          kind: 'system',
+          serviceId: 'webhook',
+          workspaceId: 'workspace-1',
+          workflowId: 'root-workflow-1',
+          webhookId: 'webhook-1',
+          provider: 'generic',
+        },
+        executorOperation,
+        context
+      )
+    ).rejects.toBeInstanceOf(PrincipalKindAuthorizationError)
+  })
+
+  it('rejects actorless execution with draft workflow authority', async () => {
     await expect(
       authorizeWorkspaceOperation(
         executorPrincipal(
@@ -229,11 +227,10 @@ describe('authorizeWorkspaceOperation', () => {
             webhookId: 'webhook-1',
             provider: 'generic',
           },
-          currentWorkflow
+          { workflowId: 'current-workflow-1', mode: 'draft' }
         ),
         executorOperation,
-        context,
-        executorAuthorization
+        context
       )
     ).rejects.toMatchObject({ name: 'DelegatedWorkspaceAuthorizationError' })
   })
@@ -243,16 +240,12 @@ describe('authorizeWorkspaceOperation', () => {
 
     await expect(
       authorizeWorkspaceOperation(
-        {
-          ...executorPrincipal(
-            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            { workflowId: 'current-workflow-1', mode: 'draft' }
-          ),
-          subjectUserId: 'user-1',
-        },
+        executorPrincipal(
+          { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          { workflowId: 'current-workflow-1', mode: 'draft' }
+        ),
         executorOperation,
-        context,
-        executorAuthorization
+        context
       )
     ).resolves.toBeUndefined()
     expect(mocks.resolvePermission).toHaveBeenCalledWith(

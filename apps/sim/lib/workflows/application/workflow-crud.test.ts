@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
@@ -145,21 +146,11 @@ const workspacePrincipal = {
   workspaceId: WORKSPACE_ID,
   keyId: 'workspace-key-1',
 }
-const executorPrincipal = {
-  kind: 'delegated' as const,
-  serviceId: 'executor' as const,
-  subjectUserId: 'user-1',
-  workspaceId: WORKSPACE_ID,
-  delegationId: 'executor-1',
-  audience: 'sim:workflows',
-  issuedAt: new Date('2026-08-01T00:00:00Z'),
-  expiresAt: new Date('2999-08-01T00:00:00Z'),
-  delegationContext: {
-    kind: 'workflow_execution' as const,
-    workflowId: WORKFLOW_ID,
-    executionId: 'origin-run',
-  },
-}
+const executorPrincipal = createTestRuntimePrincipal({
+  principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+  executionId: 'origin-run',
+  rootWorkflowId: WORKFLOW_ID,
+})
 
 describe('authorized workflow CRUD and version reads', () => {
   beforeEach(() => {
@@ -294,21 +285,10 @@ describe('authorized workflow CRUD and version reads', () => {
   })
 
   it('rejects executor workflow mutations before canonical resource loading', async () => {
-    const executor = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      subjectUserId: 'user-1',
-      workspaceId: WORKSPACE_ID,
-      delegationId: 'delegation-1',
-      audience: 'sim:workflows',
-      issuedAt: new Date('2026-08-01T00:00:00Z'),
-      expiresAt: new Date('2999-01-01T00:00:00Z'),
-      delegationContext: {
-        kind: 'workflow_execution' as const,
-        workflowId: WORKFLOW_ID,
-        executionId: 'execution-1',
-      },
-    }
+    const executor = createTestRuntimePrincipal({
+      executionId: 'execution-1',
+      rootWorkflowId: WORKFLOW_ID,
+    })
 
     await expect(
       updateWorkflow.execute({
@@ -336,7 +316,7 @@ describe('authorized workflow CRUD and version reads', () => {
     expect(mocks.loadSnapshot).toHaveBeenCalledWith(WORKFLOW_ID, WORKSPACE_ID)
   })
 
-  it('rejects executor reads whose canonical target is outside the signed origin workspace', async () => {
+  it('conceals runtime reads whose canonical target resolves outside the asserted workflow', async () => {
     mocks.resolveWorkflowContext.mockResolvedValueOnce({
       ...workflowContext,
       workspaceId: 'workspace-other',
@@ -348,8 +328,8 @@ describe('authorized workflow CRUD and version reads', () => {
         principal: executorPrincipal,
         input: { workflowId: WORKFLOW_ID },
       })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.loadSnapshot).not.toHaveBeenCalled()
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.loadSnapshot).toHaveBeenCalledWith(WORKFLOW_ID, 'workspace-other')
   })
 
   it('rechecks current permission for every workflow mutation', async () => {

@@ -7,7 +7,8 @@ const ALL_WORKFLOW_PRINCIPAL_POLICY = {
 
 const WORKFLOW_READ_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-  delegatedServices: ['copilot', 'executor'],
+  delegatedServices: ['copilot'],
+  workflowExecution: 'allow',
 } as const
 
 const HUMAN_WORKFLOW_PRINCIPAL_POLICY = {
@@ -17,7 +18,8 @@ const HUMAN_WORKFLOW_PRINCIPAL_POLICY = {
 
 const WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'delegated'],
-  delegatedServices: ['copilot', 'executor'],
+  delegatedServices: ['copilot'],
+  workflowExecution: 'allow',
 } as const
 
 const COPILOT_WORKFLOW_PRINCIPAL_POLICY = {

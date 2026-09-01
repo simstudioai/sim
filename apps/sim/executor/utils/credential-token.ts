@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { AuthType } from '@/lib/auth/hybrid'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
@@ -5,7 +6,6 @@ import {
   type CredentialTokenPayload,
   resolveCredentialAccessToken,
 } from '@/lib/oauth/token-resolution'
-import type { ExecutorDelegationOrigin } from '@/executor/types'
 
 const logger = createLogger('ExecutorCredentialToken')
 
@@ -22,8 +22,8 @@ export interface ResolveExecutorCredentialTokenParams {
   impersonateEmail?: string
   /** Asserts the acting user alongside the credential lookup, mirroring the HTTP surface. */
   enforceCredentialAccess?: boolean
-  /** Proves managed-credential delegations in-process when the run carries one. */
-  executorDelegationOrigin?: ExecutorDelegationOrigin
+  /** Canonical runtime identity used to authorize managed credentials in-process. */
+  principal?: WorkflowExecutionPrincipal
 }
 
 /**
@@ -36,11 +36,7 @@ export interface ResolveExecutorCredentialTokenParams {
 export async function resolveExecutorCredentialToken(
   params: ResolveExecutorCredentialTokenParams
 ): Promise<CredentialTokenPayload> {
-  const { requestId, credentialId, userId, workflowId, toolId, executorDelegationOrigin } = params
-
-  if (executorDelegationOrigin && !executorDelegationOrigin.currentWorkflow) {
-    throw new Error('Managed credential delegation is missing current workflow authority')
-  }
+  const { requestId, credentialId, userId, workflowId, toolId, principal } = params
 
   const result = await resolveCredentialAccessToken({
     requestId,
@@ -55,9 +51,9 @@ export async function resolveExecutorCredentialToken(
       userId,
       authType: AuthType.INTERNAL_JWT,
     }),
-    resolveManagedPrincipal: executorDelegationOrigin
+    resolveManagedPrincipal: principal
       ? (managedCredentialId: string) =>
-          bindExecutorManagedOAuthDelegation(executorDelegationOrigin, managedCredentialId)
+          bindExecutorManagedOAuthDelegation(principal, managedCredentialId)
       : undefined,
   })
 

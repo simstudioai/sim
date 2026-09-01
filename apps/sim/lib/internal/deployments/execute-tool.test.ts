@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
+  requireWorkspaceId: vi.fn(() => 'workspace-1'),
   deploy: vi.fn(),
   getVersion: vi.fn(),
   listVersions: vi.fn(),
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
+  requireExecutorWorkspaceId: mocks.requireWorkspaceId,
 }))
 
 vi.mock('@/lib/internal/deployments/operations', () => ({
@@ -29,7 +31,6 @@ import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { executeDeploymentsTool } from '@/lib/internal/deployments/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
-import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 
 const INPUTS = {
   deployments_deploy: { workflowId: 'workflow-1', name: 'Release 4' },
@@ -91,7 +92,6 @@ describe('executeDeploymentsTool', () => {
       expect(response.status).toBe(200)
       expect(mocks.createPrincipal).toHaveBeenCalledWith({
         context: executionRequest.context,
-        audience: WORKFLOW_DELEGATION_AUDIENCE,
       })
       expect(DISPATCH[toolId]).toHaveBeenCalledWith(
         { ...INPUTS[toolId], workspaceId: 'workspace-1' },

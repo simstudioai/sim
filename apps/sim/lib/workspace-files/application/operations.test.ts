@@ -36,9 +36,9 @@ describe('file operation registry', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('allows executor delegation only for operations used by the internal file tool', () => {
+  it('allows workflow execution only for operations used by the internal file tool', () => {
     const executorOperationIds = Object.values(fileOperations)
-      .filter((operation) => operation.delegatedServices?.includes('executor'))
+      .filter((operation) => operation.workflowExecution === 'allow')
       .map((operation) => operation.id)
 
     expect(executorOperationIds).toEqual([
@@ -62,7 +62,8 @@ describe('file operation registry', () => {
       'personal_api_key',
       'delegated',
     ])
-    expect(fileOperations.updateShare.delegatedServices).toEqual(['copilot', 'executor'])
+    expect(fileOperations.updateShare.delegatedServices).toEqual(['copilot'])
+    expect(fileOperations.updateShare.workflowExecution).toBe('allow')
   })
 
   it('keeps resumable workspace-file uploads on credential-bound principals', () => {

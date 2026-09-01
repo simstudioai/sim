@@ -13,7 +13,7 @@ async function fetchTableSchema(
   if (!context.workflowId) {
     throw new Error(`Workflow ID is required to enrich table tool schema for ${tableId}`)
   }
-  if (!context.executorDelegationOrigin) {
+  if (!context.principal?.executionMetadata) {
     throw new Error(`Execution authority is required to enrich table tool schema for ${tableId}`)
   }
 
@@ -25,7 +25,7 @@ async function fetchTableSchema(
       workspaceId: context.workspaceId,
       executionId: context.executionId,
       userId: context.userId,
-      executorDelegationOrigin: context.executorDelegationOrigin,
+      principal: context.principal,
     },
   })
 }
@@ -94,7 +94,7 @@ async function fetchTagDefinitions(
   knowledgeBaseId: string,
   context: WorkflowToolExecutionContext
 ): Promise<TagDefinition[]> {
-  if (!context.executorDelegationOrigin) {
+  if (!context.principal?.executionMetadata) {
     logger.warn(
       `Skipping tag definition enrichment for KB ${knowledgeBaseId}: no execution authority`
     )
@@ -119,7 +119,7 @@ async function fetchTagDefinitions(
         workspaceId: context.workspaceId,
         executionId: context.executionId,
         userId: context.userId,
-        executorDelegationOrigin: context.executorDelegationOrigin,
+        principal: context.principal,
       },
     })
     logger.info(`Found ${tagDefinitions.length} tag definitions for KB ${knowledgeBaseId}`)

@@ -6,24 +6,25 @@ import { resetEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockInvalidBindingError, mockBindDelegation, mockGetSession } = vi.hoisted(() => {
+const { MockInvalidBindingError, mockBindDelegationAdmission, mockGetSession } = vi.hoisted(() => {
   class MockInvalidBindingError extends Error {}
   return {
     MockInvalidBindingError,
-    mockBindDelegation: vi.fn(),
+    mockBindDelegationAdmission: vi.fn(),
     mockGetSession: vi.fn(),
   }
 })
 
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindDelegation,
+  bindInternalExecutorDelegationAdmission: mockBindDelegationAdmission,
   InvalidInternalDelegationBindingError: MockInvalidBindingError,
 }))
 vi.unmock('@/lib/auth/internal')
 
 import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
 import { generateInternalDelegationToken, generateInternalToken } from '@/lib/auth/internal'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { internalSessionOrExecutorAuth } from '@/lib/workspace-files/api'
 
 afterAll(resetEnvMock)
@@ -32,29 +33,15 @@ describe('internal file route authentication', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue(null)
-    mockBindDelegation.mockImplementation(async (delegation, options) => ({
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: delegation.subjectUserId,
+    mockBindDelegationAdmission.mockImplementation(async (delegation) => ({
+      principal: delegation.principal,
       workspaceId: 'canonical-workspace',
-      delegationId: delegation.delegationId,
-      audience: options.audience,
-      issuedAt: delegation.issuedAt,
-      expiresAt: delegation.expiresAt,
-      resourceScope: options.resourceScope,
-      delegationContext: {
-        kind: 'workflow_execution',
-        workflowId: delegation.workflowId,
-        executionId: delegation.executionId,
-      },
     }))
   })
 
   it('binds a scoped executor token without trusting the workspace route parameter', async () => {
     const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
+      principal: createTestRuntimePrincipal(),
     })
 
     const principal = await internalSessionOrExecutorAuth.authenticate(
@@ -65,22 +52,11 @@ describe('internal file route authentication', () => {
     )
 
     expect(principal).toMatchObject({
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: 'user-1',
-      workspaceId: 'canonical-workspace',
-      audience: 'sim:workspace-files',
-      resourceScope: { fileId: 'file-1' },
+      kind: 'session',
+      executionMetadata: { executionId: 'execution-1' },
     })
-    expect(mockBindDelegation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      }),
-      {
-        audience: 'sim:workspace-files',
-        resourceScope: { fileId: 'file-1' },
-      }
+    expect(mockBindDelegationAdmission).toHaveBeenCalledWith(
+      expect.objectContaining({ principal: expect.objectContaining({ kind: 'session' }) })
     )
     expect(mockGetSession).not.toHaveBeenCalled()
   })
@@ -96,15 +72,14 @@ describe('internal file route authentication', () => {
         { id: 'ws-1', fileId: 'file-1' }
       )
     ).rejects.toBeInstanceOf(InternalUnauthenticatedError)
-    expect(mockBindDelegation).not.toHaveBeenCalled()
+    expect(mockBindDelegationAdmission).not.toHaveBeenCalled()
   })
 
   it('rejects a scoped token whose canonical workflow binding no longer exists', async () => {
     const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
+      principal: createTestRuntimePrincipal(),
     })
-    mockBindDelegation.mockRejectedValue(new MockInvalidBindingError())
+    mockBindDelegationAdmission.mockRejectedValue(new MockInvalidBindingError())
 
     await expect(
       internalSessionOrExecutorAuth.authenticate(
@@ -118,11 +93,10 @@ describe('internal file route authentication', () => {
 
   it('does not render canonical-binding infrastructure failures as bad credentials', async () => {
     const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
+      principal: createTestRuntimePrincipal(),
     })
     const infrastructureError = new Error('database unavailable')
-    mockBindDelegation.mockRejectedValue(infrastructureError)
+    mockBindDelegationAdmission.mockRejectedValue(infrastructureError)
 
     await expect(
       internalSessionOrExecutorAuth.authenticate(

@@ -4,9 +4,11 @@
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   createExecutorPrincipalFromExecutionContext: vi.fn(),
+  requireExecutorWorkspaceId: vi.fn(),
   createChunkOperation: vi.fn(),
   createDocumentsOperation: vi.fn(),
   deleteChunkOperation: vi.fn(),
@@ -25,6 +27,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.createExecutorPrincipalFromExecutionContext,
+  requireExecutorWorkspaceId: mocks.requireExecutorWorkspaceId,
 }))
 
 vi.mock('@/lib/internal/knowledge/operations', () => ({
@@ -47,17 +50,9 @@ vi.mock('@/lib/internal/knowledge/operations', () => ({
 import { executeKnowledgeTool, KNOWLEDGE_TOOL_IDS } from '@/lib/internal/knowledge/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'executor' as const,
-  subjectUserId: 'trusted-user',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:knowledge',
-  issuedAt: new Date('2026-01-01T00:00:00.000Z'),
-  expiresAt: new Date('2026-01-01T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution' as const, workflowId: 'workflow-1' },
-}
+const principal = createTestRuntimePrincipal({
+  principal: { kind: 'session', userId: 'trusted-user', sessionId: 'session-1' },
+})
 
 function createRequest(
   overrides: Partial<InternalToolOperationCall> = {}
@@ -80,6 +75,7 @@ describe('executeKnowledgeTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.createExecutorPrincipalFromExecutionContext.mockResolvedValue(principal)
+    mocks.requireExecutorWorkspaceId.mockReturnValue('workspace-1')
     mocks.listTagsOperation.mockResolvedValue({
       body: {
         success: true,
@@ -107,7 +103,6 @@ describe('executeKnowledgeTool', () => {
     await expect(response.json()).resolves.toMatchObject({ success: true })
     expect(mocks.createExecutorPrincipalFromExecutionContext).toHaveBeenCalledWith({
       context: request.context,
-      audience: 'sim:knowledge',
     })
     expect(mocks.listTagsOperation).toHaveBeenCalledWith(
       'kb-1',

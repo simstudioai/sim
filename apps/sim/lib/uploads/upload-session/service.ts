@@ -1,7 +1,12 @@
 import {
-  type BoundWorkflowExecutionDelegatedPrincipal,
+  type BoundWorkflowExecutionPrincipal,
   type Principal,
+  parsePrincipal,
+  requirePrincipalExecutionMetadata,
   requirePrincipalSubjectUserId,
+  resolvePrincipalSubject,
+  type SerializedPrincipalV2,
+  serializePrincipal,
 } from '@sim/auth/principal'
 import { db, dbFor } from '@sim/db'
 import { uploadSession } from '@sim/db/schema'
@@ -111,22 +116,28 @@ export interface UploadSessionRecord {
  * token only proves possession of the byte-plane capability and never grants
  * workspace access by itself.
  */
-export interface UploadSessionAuthBinding {
-  version: 1
-  workspaceId: string
-  principal:
-    | { kind: 'session'; userId: string; sessionId: string }
-    | { kind: 'personal_api_key'; userId: string; keyId: string }
-    | { kind: 'workspace_api_key'; workspaceId: string; keyId: string }
-    | {
-        kind: 'delegated'
-        serviceId: 'executor'
-        subjectUserId: string
-        audience: string
-        workflowId: string
-        executionId?: string
-      }
-}
+export type UploadSessionAuthBinding =
+  | {
+      version: 1
+      workspaceId: string
+      principal:
+        | { kind: 'session'; userId: string; sessionId: string }
+        | { kind: 'personal_api_key'; userId: string; keyId: string }
+        | { kind: 'workspace_api_key'; workspaceId: string; keyId: string }
+        | {
+            kind: 'delegated'
+            serviceId: 'executor'
+            subjectUserId: string
+            audience: string
+            workflowId: string
+            executionId?: string
+          }
+    }
+  | {
+      version: 2
+      workspaceId: string
+      principal: SerializedPrincipalV2
+    }
 
 export interface CreatedUploadSession extends UploadSessionRecord {
   transfer: UploadSessionTransfer
@@ -144,26 +155,19 @@ export class UploadSessionError extends OrchestrationError {
 
 function isExecutorWorkflowExecutionPrincipal(
   principal: Principal
-): principal is BoundWorkflowExecutionDelegatedPrincipal {
+): principal is BoundWorkflowExecutionPrincipal {
   if (
-    principal.kind !== 'delegated' ||
-    principal.serviceId !== 'executor' ||
-    !principal.delegationContext
+    principal.kind === 'credential_group_enrollment' ||
+    principal.executionMetadata === undefined
   ) {
     return false
   }
-  const context = principal.delegationContext
-  return (
-    typeof context === 'object' &&
-    context !== null &&
-    'kind' in context &&
-    context.kind === 'workflow_execution' &&
-    'workflowId' in context &&
-    typeof context.workflowId === 'string' &&
-    (!('executionId' in context) ||
-      context.executionId === undefined ||
-      typeof context.executionId === 'string')
-  )
+  try {
+    requirePrincipalExecutionMetadata(principal)
+  } catch {
+    return false
+  }
+  return resolvePrincipalSubject(principal)?.kind === 'sim_user'
 }
 
 interface CreateUploadSessionBaseParams {
@@ -215,7 +219,7 @@ export async function createUploadSession(
   } else if (params.purpose === 'table_import' && params.principal) {
     if (!workspaceId) throw new Error('table_import upload is missing workspaceId')
     metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId, {
-      executorDelegationAudience: 'sim:tables',
+      workflowExecution: 'allow',
     })
   }
   const { storageContext, finalKey } = resolveUploadStorage(params, id)
@@ -417,8 +421,26 @@ export async function getPrincipalKnowledgeDocumentUploadSession(params: {
 export function createUploadSessionAuthBinding(
   principal: Principal,
   workspaceId: string,
-  options: { executorDelegationAudience?: string } = {}
+  options: { workflowExecution?: 'allow' } = {}
 ): UploadSessionAuthBinding {
+  if (principal.executionMetadata !== undefined) {
+    if (
+      options.workflowExecution !== 'allow' ||
+      !isExecutorWorkflowExecutionPrincipal(principal) ||
+      ((principal.kind === 'workspace_api_key' ||
+        principal.kind === 'system' ||
+        principal.kind === 'delegated') &&
+        principal.workspaceId !== workspaceId)
+    ) {
+      throw new UploadSessionError('forbidden', 'Workflow execution cannot create this upload')
+    }
+    const serialized = serializePrincipal(principal, 2)
+    if (serialized.version !== 2) {
+      throw new Error('Workflow execution upload binding requires execution metadata')
+    }
+    return { version: 2, workspaceId, principal: serialized }
+  }
+
   switch (principal.kind) {
     case 'session':
       return {
@@ -446,28 +468,7 @@ export function createUploadSessionAuthBinding(
         principal: { kind: principal.kind, workspaceId, keyId: principal.keyId },
       }
     case 'delegated': {
-      if (
-        options.executorDelegationAudience === undefined ||
-        !isExecutorWorkflowExecutionPrincipal(principal) ||
-        principal.audience !== options.executorDelegationAudience ||
-        principal.workspaceId !== workspaceId
-      ) {
-        throw new UploadSessionError('forbidden', 'Delegated principal cannot create this upload')
-      }
-      return {
-        version: 1,
-        workspaceId,
-        principal: {
-          kind: principal.kind,
-          serviceId: principal.serviceId,
-          subjectUserId: requirePrincipalSubjectUserId(principal),
-          audience: principal.audience,
-          workflowId: principal.delegationContext.workflowId,
-          ...(principal.delegationContext.executionId
-            ? { executionId: principal.delegationContext.executionId }
-            : {}),
-        },
-      }
+      throw new UploadSessionError('forbidden', 'Delegated principal cannot create this upload')
     }
     case 'credential_group_enrollment':
       throw new UploadSessionError(
@@ -493,6 +494,20 @@ export function assertUploadSessionAuthBinding(
   if (!isUploadSessionAuthBinding(candidate) || candidate.workspaceId !== session.workspaceId) {
     throw uploadNotFound()
   }
+  if (candidate.version === 2) {
+    if (!isExecutorWorkflowExecutionPrincipal(principal)) throw uploadNotFound()
+    const serialized = serializePrincipal(principal, 2)
+    let persisted: SerializedPrincipalV2
+    try {
+      persisted = serializePrincipal(parsePrincipal(candidate.principal), 2)
+    } catch {
+      throw uploadNotFound()
+    }
+    if (serialized.version !== 2 || JSON.stringify(serialized) !== JSON.stringify(persisted)) {
+      throw uploadNotFound()
+    }
+    return
+  }
   const bound = candidate.principal
   const matches =
     bound.kind === principal.kind &&
@@ -509,11 +524,10 @@ export function assertUploadSessionAuthBinding(
             bound.workspaceId === principal.workspaceId &&
             bound.keyId === principal.keyId
           : isExecutorWorkflowExecutionPrincipal(principal) &&
-            principal.workspaceId === session.workspaceId &&
-            principal.subjectUserId === bound.subjectUserId &&
-            principal.audience === bound.audience &&
-            principal.delegationContext.workflowId === bound.workflowId &&
-            principal.delegationContext.executionId === bound.executionId)
+            resolvePrincipalSubject(principal)?.kind === 'sim_user' &&
+            requirePrincipalSubjectUserId(principal) === bound.subjectUserId &&
+            principal.executionMetadata.rootWorkflowId === bound.workflowId &&
+            principal.executionMetadata.executionId === bound.executionId)
   if (!matches) throw uploadNotFound()
 }
 
@@ -1279,8 +1293,18 @@ function isStorageContext(value: string): value is StorageContext {
 function isUploadSessionAuthBinding(value: unknown): value is UploadSessionAuthBinding {
   if (!value || typeof value !== 'object') return false
   const binding = value as Record<string, unknown>
-  if (binding.version !== 1 || typeof binding.workspaceId !== 'string') return false
+  if (typeof binding.workspaceId !== 'string') return false
   if (!binding.principal || typeof binding.principal !== 'object') return false
+  if (binding.version === 2) {
+    try {
+      const principal = parsePrincipal(binding.principal)
+      requirePrincipalExecutionMetadata(principal)
+      return true
+    } catch {
+      return false
+    }
+  }
+  if (binding.version !== 1) return false
   const principal = binding.principal as Record<string, unknown>
   if (principal.kind === 'session') {
     return typeof principal.userId === 'string' && typeof principal.sessionId === 'string'

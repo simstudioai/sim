@@ -230,7 +230,7 @@ async function executeCopilotRun(params: {
 }): Promise<ExecutionResult> {
   if (
     params.principal.kind === 'credential_group_enrollment' ||
-    (params.principal.kind === 'delegated' && params.principal.serviceId === 'executor')
+    params.principal.executionMetadata !== undefined
   ) {
     throw new Error('The principal cannot start a Copilot workflow execution')
   }

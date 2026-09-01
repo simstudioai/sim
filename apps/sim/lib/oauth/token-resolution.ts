@@ -1,8 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import {
-  resolvePrincipalSubject,
-  type WorkflowExecutionDelegatedPrincipal,
-} from '@sim/auth/principal'
+import { type BoundWorkflowExecutionPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import {
   impersonateEmailSchema,
@@ -332,7 +329,7 @@ export interface ResolveCredentialAccessTokenInput
    * `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`. Must throw
    * {@link InvalidManagedOAuthDelegationError} on an invalid delegation.
    */
-  resolveManagedPrincipal?: (credentialId: string) => Promise<WorkflowExecutionDelegatedPrincipal>
+  resolveManagedPrincipal?: (credentialId: string) => Promise<BoundWorkflowExecutionPrincipal>
 }
 
 /**
@@ -376,7 +373,7 @@ export async function resolveCredentialAccessToken(
     }
   }
 
-  let principal: WorkflowExecutionDelegatedPrincipal
+  let principal: BoundWorkflowExecutionPrincipal
   try {
     principal = await input.resolveManagedPrincipal(resolved.credentialId)
   } catch (error) {
@@ -443,9 +440,9 @@ export async function resolveCredentialAccessToken(
         {
           credential_type: 'managed_oauth',
           provider_id: toolMetadata.oauth.provider,
-          workspace_id: principal.workspaceId,
+          workspace_id: result.workspaceId,
         },
-        { groups: { workspace: principal.workspaceId } }
+        { groups: { workspace: result.workspaceId } }
       )
     }
 

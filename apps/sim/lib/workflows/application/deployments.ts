@@ -113,7 +113,9 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
       userId: attribution.attributedUserId,
       actorId: attribution.attributedUserId,
       actor: toPrincipalActor(principal),
-      ...(principal.kind === 'delegated' ? { captureAnalytics: false as const } : {}),
+      ...(principal.kind === 'delegated' || principal.executionMetadata
+        ? { captureAnalytics: false as const }
+        : {}),
       versionName: input.name,
       versionDescription: input.description,
       requestId: input.requestId,
@@ -198,7 +200,9 @@ export const activateWorkflowVersion = defineAuthorizedWorkflowUseCase({
       userId: attribution.attributedUserId,
       actorId: attribution.attributedUserId,
       actor: toPrincipalActor(principal),
-      ...(principal.kind === 'delegated' ? { captureAnalytics: false as const } : {}),
+      ...(principal.kind === 'delegated' || principal.executionMetadata
+        ? { captureAnalytics: false as const }
+        : {}),
       requestId: input.requestId,
       idempotencyKey: input.idempotencyKey,
       name: input.name,

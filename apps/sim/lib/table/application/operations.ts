@@ -11,12 +11,13 @@ const COPILOT_PRINCIPAL_POLICY = {
 
 const ALL_TABLE_TOOL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-  delegatedServices: ['copilot', 'executor'],
+  delegatedServices: ['copilot'],
+  workflowExecution: 'allow',
 } as const
 
 const INTERNAL_EXECUTOR_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-  delegatedServices: ['executor'],
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+  workflowExecution: 'allow',
 } as const
 
 function readOperation<const Id extends string>(id: Id) {

@@ -26,6 +26,7 @@ import {
 } from '@sim/testing'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
@@ -493,30 +494,12 @@ beforeEach(() => {
       }
     )
   )
-  mockCreateExecutorPrincipalFromExecutionContext.mockImplementation(
-    async ({ context, audience, resourceScope }) => {
-      const origin = context.executorDelegationOrigin
-      if (!origin) throw new Error('Executor delegation origin is required')
-      return {
-        kind: 'delegated' as const,
-        serviceId: 'executor',
-        ...(origin.subjectUserId ? { subjectUserId: origin.subjectUserId } : {}),
-        workspaceId: context.workspaceId,
-        delegationId: 'test-executor-delegation',
-        audience,
-        issuedAt: new Date('2026-01-01T00:00:00.000Z'),
-        expiresAt: new Date('2026-01-01T00:05:00.000Z'),
-        ...(resourceScope ? { resourceScope } : {}),
-        delegationContext: {
-          kind: 'workflow_execution' as const,
-          workflowId: origin.workflowId,
-          ...(origin.executionId ? { executionId: origin.executionId } : {}),
-          ...(origin.principal ? { principal: origin.principal } : {}),
-          ...(origin.currentWorkflow ? { currentWorkflow: origin.currentWorkflow } : {}),
-        },
-      }
+  mockCreateExecutorPrincipalFromExecutionContext.mockImplementation(async ({ context }) => {
+    if (!context.principal?.executionMetadata) {
+      throw new Error('Workflow execution principal is required')
     }
-  )
+    return context.principal
+  })
   // Suites below call vi.resetAllMocks(), which wipes the shared env/urls mock
   // implementations — restore their defaults and re-pin the base URL each test.
   resetEnvMock()
@@ -583,27 +566,25 @@ function createToolExecutionContext(overrides?: Partial<ExecutionContext>): Exec
     metadata: overrides?.metadata,
     environmentVariables: overrides?.environmentVariables,
   })
-  const principal =
+  const basePrincipal =
     overrides?.principal ??
     (overrides?.userId
       ? { kind: 'session' as const, userId: overrides.userId, sessionId: 'test-session' }
       : undefined)
-  const executorDelegationOrigin =
-    overrides?.executorDelegationOrigin ??
-    (principal
-      ? {
-          subjectUserId: overrides?.userId,
-          workflowId: overrides?.workflowId ?? ctx.workflowId,
-          executionId: overrides?.executionId ?? ctx.executionId,
-          principal,
-        }
-      : undefined)
+  const principal = basePrincipal
+    ? basePrincipal.executionMetadata
+      ? basePrincipal
+      : createTestRuntimePrincipal({
+          principal: basePrincipal,
+          executionId: overrides?.executionId ?? ctx.executionId ?? 'execution-1',
+          rootWorkflowId: overrides?.workflowId ?? ctx.workflowId,
+        })
+    : undefined
   return {
     ...ctx,
     workspaceId: 'workspace-456',
-    principal,
-    executorDelegationOrigin,
     ...overrides,
+    principal,
     metadata: {
       ...ctx.metadata,
       ...overrides?.metadata,
@@ -1169,22 +1150,20 @@ describe('executeTool Function', () => {
     mockExecuteInternalToolOperation.mockResolvedValueOnce(
       Response.json({ success: true, output: { ok: true } })
     )
-    const principal = {
-      kind: 'system' as const,
-      serviceId: 'schedule' as const,
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-    }
-    const executorDelegationOrigin = {
-      workflowId: 'workflow-1',
+    const principal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'schedule' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
       executionId: 'execution-1',
       currentWorkflow: {
         workflowId: 'workflow-1',
         mode: 'deployment' as const,
         deploymentVersionId: 'deployment-version-1',
       },
-      principal,
-    }
+    })
 
     try {
       const result = await executeTool(
@@ -1197,7 +1176,6 @@ describe('executeTool Function', () => {
             workspaceId: 'workspace-1',
             executionId: 'execution-1',
             principal,
-            executorDelegationOrigin,
           }),
         }
       )
@@ -1206,7 +1184,7 @@ describe('executeTool Function', () => {
       expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
         expect.objectContaining({
           context: expect.objectContaining({
-            executorDelegationOrigin,
+            principal,
           }),
         })
       )
@@ -4500,21 +4478,21 @@ describe('Managed OAuth Credential Delegation', () => {
     )
     global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
 
-    const executorDelegationOrigin = {
-      subjectUserId: 'origin-user',
-      workflowId: 'origin-workflow',
+    const principal = createTestRuntimePrincipal({
+      principal: { kind: 'session', userId: 'origin-user', sessionId: 'origin-session' },
       executionId: 'origin-execution',
+      rootWorkflowId: 'origin-workflow',
       currentWorkflow: {
         workflowId: 'current-workflow',
         mode: 'deployment' as const,
         deploymentVersionId: 'deployment-version-1',
       },
-    }
+    })
     const context = createToolExecutionContext({
       userId: 'current-user',
       workflowId: 'current-workflow',
       executionId: 'current-execution',
-      executorDelegationOrigin,
+      principal,
     })
 
     await executeTool(
@@ -4528,7 +4506,7 @@ describe('Managed OAuth Credential Delegation', () => {
         credentialId: 'managed-credential-id',
         toolId: 'gmail_read',
         scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
-        executorDelegationOrigin,
+        principal,
       })
     )
     expect(
@@ -4547,21 +4525,11 @@ describe('Managed OAuth Credential Delegation', () => {
       userId: 'current-user',
       workflowId: 'current-workflow',
       executionId: 'current-execution',
-      principal: {
-        kind: 'session',
-        userId: 'current-user',
-        sessionId: 'session-1',
-      },
-      executorDelegationOrigin: {
-        subjectUserId: 'current-user',
-        workflowId: 'current-workflow',
+      principal: createTestRuntimePrincipal({
+        principal: { kind: 'session', userId: 'current-user', sessionId: 'session-1' },
         executionId: 'current-execution',
-        principal: {
-          kind: 'session',
-          userId: 'current-user',
-          sessionId: 'session-1',
-        },
-      },
+        rootWorkflowId: 'current-workflow',
+      }),
     })
 
     const result = await executeTool(

@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -37,6 +36,7 @@ vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: { mcpToolExecuted: mocks.telemetry },
 }))
 
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { executeMcpToolUseCase } from '@/lib/mcp/application/execute-tool'
 
 const WORKSPACE = {
@@ -50,51 +50,34 @@ const SERVER = {
   workspaceId: WORKSPACE.workspaceId,
   enabled: true,
 }
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: WORKSPACE.workspaceId,
-  delegationId: 'delegation-1',
-  audience: 'sim:mcp-servers',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-27T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
-const ACTORLESS_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  workspaceId: WORKSPACE.workspaceId,
-  delegationId: 'delegation-system',
-  audience: 'sim:mcp-servers',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-27T00:05:00.000Z'),
-  delegationContext: {
-    kind: 'workflow_execution',
+const PRINCIPAL = createTestRuntimePrincipal()
+const ACTORLESS_PRINCIPAL = createTestRuntimePrincipal({
+  principal: {
+    kind: 'system',
+    serviceId: 'schedule',
+    workspaceId: WORKSPACE.workspaceId,
     workflowId: 'workflow-1',
-    currentWorkflow: {
-      workflowId: 'workflow-1',
-      mode: 'deployment',
-      deploymentVersionId: 'deployment-1',
-    },
-    principal: {
-      kind: 'system',
-      serviceId: 'schedule',
-      workspaceId: WORKSPACE.workspaceId,
-      workflowId: 'workflow-1',
-    },
   },
-}
-const COMPATIBILITY_ACTOR_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  ...ACTORLESS_PRINCIPAL,
-  delegationContext: {
-    ...ACTORLESS_PRINCIPAL.delegationContext,
-    compatibilityActor: {
-      kind: 'legacy_execution_user',
-      userId: 'execution-actor',
-    },
+  currentWorkflow: {
+    workflowId: 'workflow-1',
+    mode: 'deployment',
+    deploymentVersionId: 'deployment-1',
   },
-}
+})
+const COMPATIBILITY_ACTOR_PRINCIPAL = createTestRuntimePrincipal({
+  principal: {
+    kind: 'system',
+    serviceId: 'schedule',
+    workspaceId: WORKSPACE.workspaceId,
+    workflowId: 'workflow-1',
+  },
+  currentWorkflow: {
+    workflowId: 'workflow-1',
+    mode: 'deployment',
+    deploymentVersionId: 'deployment-1',
+  },
+  compatibilityActorUserId: 'execution-actor',
+})
 
 describe('executeMcpToolUseCase', () => {
   beforeEach(() => {
@@ -202,12 +185,9 @@ describe('executeMcpToolUseCase', () => {
     await executeMcpToolUseCase.execute({
       principal: {
         ...PRINCIPAL,
-        delegationContext: {
-          ...PRINCIPAL.delegationContext,
-          compatibilityActor: {
-            kind: 'legacy_execution_user',
-            userId: 'someone-else',
-          },
+        executionActor: {
+          kind: 'legacy_execution_user',
+          userId: 'someone-else',
         },
       },
       input: {
@@ -228,26 +208,28 @@ describe('executeMcpToolUseCase', () => {
     // it has no Sim credentials of its own and these runs have always connected as
     // the actor. Refusing here would break workflows that worked before the tools
     // moved in-process, so the fallback deliberately covers this case.
-    const externalSubjectPrincipal = {
-      ...COMPATIBILITY_ACTOR_PRINCIPAL,
-      delegationContext: {
-        ...COMPATIBILITY_ACTOR_PRINCIPAL.delegationContext,
-        principal: {
-          kind: 'system' as const,
-          serviceId: 'webhook' as const,
-          workspaceId: WORKSPACE.workspaceId,
-          workflowId: 'workflow-1',
-          webhookId: 'webhook-1',
+    const externalSubjectPrincipal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'webhook',
+        workspaceId: WORKSPACE.workspaceId,
+        workflowId: 'workflow-1',
+        webhookId: 'webhook-1',
+        provider: 'slack',
+        subject: {
+          kind: 'external_user',
           provider: 'slack',
-          subject: {
-            kind: 'external_user' as const,
-            provider: 'slack',
-            tenantId: 'T1',
-            subjectId: 'U1',
-          },
+          tenantId: 'T1',
+          subjectId: 'U1',
         },
       },
-    }
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-1',
+      },
+      compatibilityActorUserId: 'execution-actor',
+    })
 
     await executeMcpToolUseCase.execute({
       principal: externalSubjectPrincipal,

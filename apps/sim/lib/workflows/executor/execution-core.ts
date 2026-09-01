@@ -3,7 +3,11 @@
  * This is the SINGLE source of truth for workflow execution
  */
 
-import { resolvePrincipalSubject } from '@sim/auth/principal'
+import {
+  type BoundWorkflowExecutionPrincipal,
+  bindPrincipalExecutionMetadata,
+  requirePrincipalExecutionMetadata,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -567,6 +571,34 @@ async function executeWorkflowCoreImpl(
     const { blocks, loops, parallels } = workflowState
     const edges: Edge[] = workflowState.edges
     deploymentVersionId = workflowState.deploymentVersionId
+    const currentWorkflow = deploymentVersionId
+      ? ({ workflowId, mode: 'deployment', deploymentVersionId } as const)
+      : ({ workflowId, mode: 'draft' } as const)
+    let runtimePrincipal: BoundWorkflowExecutionPrincipal
+    if (metadata.principal.executionMetadata === undefined) {
+      runtimePrincipal = bindPrincipalExecutionMetadata(metadata.principal, {
+        executionId,
+        rootWorkflowId: workflowId,
+        currentWorkflow,
+      })
+    } else {
+      const executionMetadata = requirePrincipalExecutionMetadata(metadata.principal)
+      const matchesCurrentWorkflow =
+        executionMetadata.currentWorkflow.workflowId === currentWorkflow.workflowId &&
+        executionMetadata.currentWorkflow.mode === currentWorkflow.mode &&
+        (currentWorkflow.mode === 'draft' ||
+          (executionMetadata.currentWorkflow.mode === 'deployment' &&
+            executionMetadata.currentWorkflow.deploymentVersionId ===
+              currentWorkflow.deploymentVersionId))
+      if (executionMetadata.rootWorkflowId !== workflowId || !matchesCurrentWorkflow) {
+        throw new Error('Workflow execution principal does not match the canonical root authority')
+      }
+      if (!resumeFromSnapshot && executionMetadata.executionId !== executionId) {
+        throw new Error('Workflow execution principal does not match the canonical execution')
+      }
+      runtimePrincipal = metadata.principal as BoundWorkflowExecutionPrincipal
+    }
+    metadata.principal = runtimePrincipal
 
     const mergedStates = mergeSubblockStateWithValues(blocks)
 
@@ -958,7 +990,6 @@ async function executeWorkflowCoreImpl(
       ? restoredWorkflowInputProvenance
       : resolvedSecretTraceRegistry.exportCommittedProvenanceForValue(processedInput)
 
-    const principalSubject = resolvePrincipalSubject(metadata.principal)
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,
@@ -969,18 +1000,7 @@ async function executeWorkflowCoreImpl(
       allowLargeValueWorkflowScope,
       workspaceId: providedWorkspaceId,
       userId,
-      principal: metadata.principal,
-      executorDelegationOrigin: {
-        ...(principalSubject?.kind === 'sim_user'
-          ? { subjectUserId: principalSubject.userId }
-          : {}),
-        workflowId,
-        ...(executionId ? { executionId } : {}),
-        principal: metadata.principal,
-        currentWorkflow: deploymentVersionId
-          ? { workflowId, mode: 'deployment', deploymentVersionId }
-          : { workflowId, mode: 'draft' },
-      },
+      principal: runtimePrincipal,
       isDeployedContext: metadata.useDraftState !== true,
       enforceCredentialAccess: metadata.enforceCredentialAccess ?? false,
       piiBlockOutputRedaction: piiRedaction.blockOutputs,

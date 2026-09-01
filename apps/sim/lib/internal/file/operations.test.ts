@@ -163,9 +163,9 @@ vi.mock('@/app/api/files/authorization', () => ({
 }))
 
 import { fileManageBodySchema } from '@/lib/api/contracts/tools/file'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { executeFileManageOperation } from '@/lib/internal/file/operations'
 import { FileConflictError } from '@/lib/uploads/contexts/workspace'
-import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 
 async function POST(request: Request): Promise<Response> {
   const parsed = fileManageBodySchema.safeParse(await request.json())
@@ -177,12 +177,7 @@ async function POST(request: Request): Promise<Response> {
   }
   const workspaceId = parsed.data.workspaceId || 'workspace-1'
   return executeFileManageOperation(parsed.data, {
-    principal: createWorkspaceFileDelegatedPrincipal({
-      serviceId: 'executor',
-      subjectUserId: 'user-1',
-      workspaceId,
-      delegationId: 'test-file-operation',
-    }),
+    principal: createTestRuntimePrincipal(),
     workspaceId,
     attributedUserId: 'user-1',
     fileAccessUserId: 'user-1',
@@ -218,31 +213,20 @@ function workspaceFile(id: string, ownerUserId = 'user-1') {
 }
 
 function actorlessDeploymentPrincipal(workspaceId = 'workspace-1') {
-  return {
-    kind: 'delegated' as const,
-    serviceId: 'executor' as const,
-    workspaceId,
-    delegationId: 'delegation-1',
-    audience: 'sim:workspace-files',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
-    delegationContext: {
-      kind: 'workflow_execution' as const,
+  return createTestRuntimePrincipal({
+    principal: {
+      kind: 'system',
+      serviceId: 'schedule',
+      workspaceId,
       workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      principal: {
-        kind: 'system' as const,
-        serviceId: 'schedule' as const,
-        workspaceId,
-        workflowId: 'workflow-1',
-      },
-      currentWorkflow: {
-        workflowId: 'workflow-1',
-        mode: 'deployment' as const,
-        deploymentVersionId: 'deployment-1',
-      },
     },
-  }
+    currentWorkflow: {
+      workflowId: 'workflow-1',
+      mode: 'deployment',
+      deploymentVersionId: 'deployment-1',
+    },
+    compatibilityActorUserId: 'workspace-owner',
+  })
 }
 
 describe('file manage operations', () => {
@@ -497,7 +481,7 @@ describe('file manage operations', () => {
     expect(response.status).toBe(200)
     expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith(
       expect.objectContaining({
-        principal: expect.objectContaining({ kind: 'delegated', subjectUserId: 'user-1' }),
+        principal: expect.objectContaining({ kind: 'session', userId: 'user-1' }),
         input: { workspaceId: 'workspace-1', pathSegments: ['Reports & Plans', '2026'] },
       })
     )
@@ -1009,7 +993,7 @@ describe('file manage operations', () => {
       archiveBuffer,
       expect.objectContaining({
         workspaceId: 'workspace-1',
-        principal: expect.objectContaining({ kind: 'delegated', subjectUserId: 'user-1' }),
+        principal: expect.objectContaining({ kind: 'session', userId: 'user-1' }),
         secretProvenance: {
           status: 'exact',
           entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],

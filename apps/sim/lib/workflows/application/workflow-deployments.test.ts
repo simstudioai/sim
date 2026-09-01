@@ -3,6 +3,7 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const { MockWorkflowLockedError, mocks } = vi.hoisted(() => {
   class MockWorkflowLockedError extends Error {}
@@ -189,23 +190,13 @@ describe('workflow deployment application use cases', () => {
     expect(mocks.deploy).not.toHaveBeenCalled()
   })
 
-  it('admits executor deployment transitions through canonical workflow authorization', async () => {
+  it('admits runtime-principal deployment transitions through canonical authorization', async () => {
     await deployWorkflow.execute({
-      principal: {
-        kind: 'delegated',
-        serviceId: 'executor',
-        subjectUserId: 'user-1',
-        workspaceId: 'workspace-1',
-        delegationId: 'executor-1',
-        audience: 'sim:workflows',
-        issuedAt: new Date('2026-08-08T00:00:00Z'),
-        expiresAt: new Date('2999-08-08T00:00:00Z'),
-        delegationContext: {
-          kind: 'workflow_execution',
-          workflowId: 'origin-workflow',
-          executionId: 'execution-1',
-        },
-      },
+      principal: createTestRuntimePrincipal({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        rootWorkflowId: 'origin-workflow',
+        executionId: 'execution-1',
+      }),
       input: { workflowId: 'workflow-1', requestId: 'request-1' },
     })
 
@@ -223,10 +214,8 @@ describe('workflow deployment application use cases', () => {
         userId: 'user-1',
         actorId: 'user-1',
         actor: {
-          kind: 'delegated',
-          serviceId: 'executor',
-          subjectUserId: 'user-1',
-          delegationId: 'executor-1',
+          kind: 'session',
+          userId: 'user-1',
         },
         captureAnalytics: false,
         requestId: 'request-1',

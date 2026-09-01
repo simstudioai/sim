@@ -15,6 +15,7 @@ import {
 } from '@/lib/api/contracts/knowledge/connectors'
 import { type DocumentData, documentDataSchema } from '@/lib/api/contracts/knowledge/documents'
 import { type TagDefinitionData, tagDefinitionDataSchema } from '@/lib/api/contracts/knowledge/tags'
+import type { InternalAuthTransport } from '@/lib/api/server/routes'
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
 import {
   requireWorkspaceBillingAttributionHeader,
@@ -43,32 +44,59 @@ export function internalKnowledgeActorUserId(principal: Principal): string {
 export function internalKnowledgeProvenanceUserId(
   headers: Headers,
   principal: Principal,
-  workspaceId: string | undefined
+  workspaceId: string | undefined,
+  authTransport: InternalAuthTransport | undefined
 ): string {
-  if (principal.kind !== 'delegated') return internalKnowledgeActorUserId(principal)
-  const subject = resolvePrincipalSubject(principal)
-  if (subject?.kind === 'sim_user') return subject.userId
-  return requireWorkspaceBillingAttributionHeader(headers, {
-    workspaceId: workspaceId ?? principal.workspaceId,
-  }).actorUserId
+  switch (authTransport) {
+    case 'session':
+      return internalKnowledgeActorUserId(principal)
+    case 'executor_jwt': {
+      const subject = resolvePrincipalSubject(principal)
+      if (subject?.kind === 'sim_user') return subject.userId
+      const canonicalWorkspaceId =
+        workspaceId ?? ('workspaceId' in principal ? principal.workspaceId : undefined)
+      if (!canonicalWorkspaceId) {
+        throw new Error('Executor knowledge operation is missing its canonical workspace')
+      }
+      return requireWorkspaceBillingAttributionHeader(headers, {
+        workspaceId: canonicalWorkspaceId,
+      }).actorUserId
+    }
+    case undefined:
+      throw new Error('Knowledge operation requires an authenticated transport')
+  }
 }
 
-export function internalKnowledgeAuthType(principal: Principal): AuthTypeValue {
-  return principal.kind === 'delegated' ? AuthType.INTERNAL_JWT : AuthType.SESSION
+export function internalKnowledgeAuthType(
+  authTransport: InternalAuthTransport | undefined
+): AuthTypeValue {
+  switch (authTransport) {
+    case 'session':
+      return AuthType.SESSION
+    case 'executor_jwt':
+      return AuthType.INTERNAL_JWT
+    case undefined:
+      throw new Error('Knowledge operation requires an authenticated transport')
+  }
 }
 
 export async function resolveInternalKnowledgeBillingAttribution(
   request: NextRequest,
   principal: Principal,
-  workspaceId: string
+  workspaceId: string,
+  authTransport: InternalAuthTransport | undefined
 ) {
-  if (principal.kind === 'delegated') {
-    return requireWorkspaceBillingAttributionHeader(request.headers, { workspaceId })
+  switch (authTransport) {
+    case 'executor_jwt':
+      return requireWorkspaceBillingAttributionHeader(request.headers, { workspaceId })
+    case 'session':
+      return await resolveBillingAttribution({
+        actorUserId: internalKnowledgeActorUserId(principal),
+        workspaceId,
+      })
+    case undefined:
+      throw new Error('Knowledge operation requires an authenticated transport')
   }
-  return await resolveBillingAttribution({
-    actorUserId: internalKnowledgeActorUserId(principal),
-    workspaceId,
-  })
 }
 
 function internalKnowledgeAnalyticsUserId(principal: Principal): string | null {

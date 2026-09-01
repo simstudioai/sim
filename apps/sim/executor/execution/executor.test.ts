@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { BlockType } from '@/executor/constants'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { DAGExecutor } from '@/executor/execution/executor'
@@ -430,16 +431,15 @@ describe('DAGExecutor createExecutionContext useDraftState', () => {
   })
 })
 
-describe('DAGExecutor executor delegation origin', () => {
-  it('copies the canonical origin into the runtime execution context', () => {
-    const executorDelegationOrigin = {
-      subjectUserId: 'user-1',
-      workflowId: 'parent-workflow',
+describe('DAGExecutor runtime principal', () => {
+  it('copies the canonical principal into the runtime execution context', () => {
+    const principal = createTestRuntimePrincipal({
       executionId: 'parent-execution',
-    }
+      rootWorkflowId: 'parent-workflow',
+    })
     const executor = new DAGExecutor({
       workflow: { version: '1', blocks: [], connections: [] },
-      contextExtensions: { executorDelegationOrigin },
+      contextExtensions: { principal },
     })
 
     const { context } = (
@@ -449,6 +449,6 @@ describe('DAGExecutor executor delegation origin', () => {
     ).createExecutionContext('child-workflow')
 
     expect(context.workflowId).toBe('child-workflow')
-    expect(context.executorDelegationOrigin).toBe(executorDelegationOrigin)
+    expect(context.principal).toBe(principal)
   })
 })

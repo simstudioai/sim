@@ -9,17 +9,18 @@ describe('MCP server operation registry', () => {
     expect(mcpServerOperations.discoverTools).toMatchObject({
       workspaceApiKey: 'deny',
       principalKinds: ['session', 'personal_api_key', 'delegated'],
-      delegatedServices: ['copilot', 'executor'],
+      delegatedServices: ['copilot'],
+      workflowExecution: 'allow',
     })
   })
 
-  it('admits only the executor delegation for tool execution', () => {
+  it('admits only workflow execution for tool execution', () => {
     expect(mcpServerOperations.executeTool).toMatchObject({
       id: 'mcp_servers.tools.execute',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
-      principalKinds: ['delegated'],
-      delegatedServices: ['executor'],
+      principalKinds: [],
+      workflowExecution: 'allow',
     })
   })
 

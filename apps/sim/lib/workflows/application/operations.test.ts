@@ -56,7 +56,7 @@ describe('workflow operation registry', () => {
     expect(Object.isFrozen(workflowOperations.moveBulk)).toBe(true)
   })
 
-  it('admits executor delegation only to workflow deployment operations', () => {
+  it('admits workflow execution only to workflow deployment operations', () => {
     for (const operation of [
       workflowOperations.deploy,
       workflowOperations.undeploy,
@@ -66,7 +66,8 @@ describe('workflow operation registry', () => {
         minimumRole: 'admin',
         workspaceApiKey: 'deny',
         principalKinds: ['session', 'personal_api_key', 'delegated'],
-        delegatedServices: ['copilot', 'executor'],
+        delegatedServices: ['copilot'],
+        workflowExecution: 'allow',
       })
     }
 
@@ -75,7 +76,8 @@ describe('workflow operation registry', () => {
         minimumRole: 'read',
         workspaceApiKey: 'allow',
         principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-        delegatedServices: ['copilot', 'executor'],
+        delegatedServices: ['copilot'],
+        workflowExecution: 'allow',
       })
     }
 

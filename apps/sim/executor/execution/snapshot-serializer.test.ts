@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
 import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
@@ -9,12 +10,13 @@ import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
+  const principal = createTestRuntimePrincipal()
   return {
     workflowId: 'workflow-1',
     workspaceId: 'workspace-1',
     executionId: 'execution-1',
     userId: 'user-1',
-    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    principal,
     blockStates: new Map(),
     executedBlocks: new Set(),
     blockLogs: [],
@@ -24,7 +26,7 @@ function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionCont
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       userId: 'user-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal,
       triggerType: 'manual',
       useDraftState: true,
       startTime: '2026-01-01T00:00:00.000Z',

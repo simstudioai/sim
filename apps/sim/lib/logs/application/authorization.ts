@@ -15,13 +15,10 @@ export interface LogAuthorizationContext extends WorkspaceAuthorizationContext {
 export const logDelegationPolicy: WorkspaceDelegationPolicy<LogAuthorizationContext> = {
   audience: LOGS_DELEGATION_AUDIENCE,
   isWithinScope(
-    principal: Extract<Principal, { kind: 'delegated' }>,
-    context: LogAuthorizationContext
+    _principal: Extract<Principal, { kind: 'delegated' }>,
+    _context: LogAuthorizationContext
   ) {
-    if (principal.serviceId !== 'executor') return true
-    return principal.resourceScope?.executionId === undefined
-      ? true
-      : principal.resourceScope.executionId === context.executionId
+    return true
   },
 }
 

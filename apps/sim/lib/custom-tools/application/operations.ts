@@ -33,7 +33,8 @@ export const customToolOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     principalKinds: ['delegated'],
-    delegatedServices: ['copilot', 'executor'],
+    delegatedServices: ['copilot'],
+    workflowExecution: 'allow',
   }),
   create: defineWorkspaceOperation({
     id: 'custom_tools.create',

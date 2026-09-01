@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 const { mockDecryptSecret, mockExecuteProviderRequest, mockSearchKnowledgeAsExecutor } = vi.hoisted(
@@ -50,11 +51,7 @@ function createInput(registry: ResolvedSecretTraceRegistry) {
     workspaceId: 'workspace-1',
     executionId: 'execution-1',
     userId: 'user-1',
-    executorDelegationOrigin: {
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-    },
+    principal: createTestRuntimePrincipal(),
   }
   return {
     userInput: 'secret-value __var_FOREIGN',
@@ -132,7 +129,9 @@ describe('validateHallucination', () => {
       workspaceId: 'workspace-1',
       context: expect.objectContaining({
         workflowId: 'workflow-1',
-        executorDelegationOrigin: expect.objectContaining({ workflowId: 'workflow-1' }),
+        principal: expect.objectContaining({
+          executionMetadata: expect.objectContaining({ rootWorkflowId: 'workflow-1' }),
+        }),
       }),
       billingAttribution: BILLING_ATTRIBUTION,
       resolvedSecretTraceRegistry: registry,

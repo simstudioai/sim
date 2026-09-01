@@ -21,6 +21,7 @@ import {
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
+  resolveInternalAuthWorkspaceId,
 } from '@/lib/api/server/routes/internal-json-route'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
@@ -106,6 +107,64 @@ describe('defineInternalJsonRoute', () => {
     })
     expect(mockEnforceUserRateLimit).toHaveBeenCalledWith('test.read', 'user-1', undefined)
     expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('passes verified authentication transport to route mapping and presentation', async () => {
+    const authenticate = vi.fn(async () => ({
+      kind: 'session' as const,
+      userId: 'unreachable',
+      sessionId: 'unreachable',
+    }))
+    const authenticateWithTransport = vi.fn(async () => ({
+      principal: {
+        kind: 'session' as const,
+        userId: 'user-1',
+        sessionId: 'session-1',
+      },
+      transport: 'executor_jwt' as const,
+      executionWorkspaceId: 'workspace-canonical',
+    }))
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth: { authenticate, authenticateWithTransport },
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: (_input, { authTransport, executionWorkspaceId }) =>
+        `${authTransport}:${executionWorkspaceId}`,
+      useCase: {
+        operation,
+        async execute({ input }) {
+          return { value: input ?? 'missing' }
+        },
+      },
+      present: (result, { authTransport, executionWorkspaceId }) => ({
+        value: `${result.value}:${authTransport ?? 'missing'}:${executionWorkspaceId ?? 'missing'}`,
+      }),
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(authenticate).not.toHaveBeenCalled()
+    expect(authenticateWithTransport).toHaveBeenCalledOnce()
+    await expect(response.json()).resolves.toEqual({
+      value: 'executor_jwt:workspace-canonical:executor_jwt:workspace-canonical',
+    })
+  })
+
+  it('selects session request scope and executor canonical scope explicitly', () => {
+    expect(resolveInternalAuthWorkspaceId('session', undefined, 'workspace-session')).toBe(
+      'workspace-session'
+    )
+    expect(
+      resolveInternalAuthWorkspaceId('executor_jwt', 'workspace-canonical', 'workspace-forged')
+    ).toBe('workspace-canonical')
+    expect(() =>
+      resolveInternalAuthWorkspaceId('executor_jwt', undefined, 'workspace-forged')
+    ).toThrow('Executor JWT transport is missing its canonical workspace')
+    expect(() => resolveInternalAuthWorkspaceId(undefined, undefined, 'workspace-session')).toThrow(
+      'Internal route requires an authenticated transport'
+    )
   })
 
   it('renders typed error descriptors through the shared builder', async () => {

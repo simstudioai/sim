@@ -48,12 +48,12 @@ export const PATCH = defineInternalJsonRoute({
     reason: 'Preserve existing internal connector-update behavior',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
-  mapInput: ({ params, body }, { principal, request }) => ({
+  mapInput: ({ params, body }, { principal, request, authTransport }) => ({
     connectorId: params.connectorId,
     knowledgeBaseId: params.id,
     updates: body,
     resolveBillingAttribution: (workspaceId: string) =>
-      resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId),
+      resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId, authTransport),
     source: 'ui' as const,
   }),
   useCase: updateKnowledgeConnector,
