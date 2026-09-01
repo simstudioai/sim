@@ -87,11 +87,13 @@ describe('auditSource', () => {
     )
   })
 
-  it('exempts the token-aware modules', () => {
+  it('exempts only the two modules that genuinely touch the table', () => {
     const source = 'await db.select().from(account)\nconst t = account.accessToken'
-    expect(auditSource('apps/sim/lib/oauth/account-tokens.ts', source)).toEqual([])
     expect(auditSource('apps/sim/lib/oauth/credential-service.ts', source)).toEqual([])
     expect(auditSource('apps/sim/lib/oauth/slack.ts', source)).toEqual([])
+    /** The accessor and crypto modules hold no queries, so they are audited like any file. */
+    expect(auditSource('apps/sim/lib/oauth/account-tokens.ts', source)).toHaveLength(2)
+    expect(auditSource('apps/sim/lib/oauth/account-token-crypto.ts', source)).toHaveLength(2)
   })
 
   describe('annotation', () => {
