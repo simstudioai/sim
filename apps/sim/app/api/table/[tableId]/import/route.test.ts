@@ -38,6 +38,9 @@ vi.mock('@/app/api/table/utils', async () => {
   const { TableLockedError } = await import('@/lib/table/mutation-locks')
   return {
     checkAccess: mockCheckAccess,
+    /** Mirrors the real helper: only a `user` principal names a governed subject. */
+    capabilityGovernedUserId: (principal: { kind: string; userId?: string }) =>
+      principal.kind === 'user' ? (principal.userId ?? null) : null,
     accessError: (result: { status: number }) => {
       const message = result.status === 404 ? 'Table not found' : 'Access denied'
       return NextResponse.json({ error: message }, { status: result.status })
@@ -279,6 +282,23 @@ describe('POST /api/table/[tableId]/import', () => {
       { name: 'Bob', age: 40 },
     ])
     expect(mockImportReplaceRows).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The appended rows auto-fire the table's workflow columns, and those cells
+   * gate their tools on the governed subject. Leaving it null ran the importing
+   * member's cells with no per-tool gate at all.
+   */
+  it('dispatches the auto-fired cells under the person it just gated', async () => {
+    await callPost(createFormData(createCsvFile('name,age\nAlice,30'), { mode: 'append' }))
+
+    expect(mockDispatchAfterBatchInsert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      'user-1',
+      'user-1'
+    )
   })
 
   it('accepts chunked multipart imports without a content-length header', async () => {

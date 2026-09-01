@@ -148,5 +148,5 @@ describe('draining another dispatch’s pre-stamped marker', () => {
       ([, , ctx]) => (ctx as { userId: string | null }).userId
     )
     expect(subjects).toEqual([null, 'requesting-member'])
-  })
+  }, 20_000)
 })

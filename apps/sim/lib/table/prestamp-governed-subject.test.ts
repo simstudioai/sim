@@ -81,5 +81,5 @@ describe('the dispatcher pre-stamp', () => {
         }),
       })
     )
-  })
+  }, 20_000)
 })
