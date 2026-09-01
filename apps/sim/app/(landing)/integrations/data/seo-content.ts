@@ -70,6 +70,101 @@ export const INTEGRATION_SEO: Record<string, IntegrationSeoContent> = {
     toolsSubtitleSuffix:
       ' across messaging, channels, threads, users, reactions and files, and canvases and views. Combine multiple Slack actions in one workflow to summarise a message, route it, update a ticket, and post the ticket update back in Slack',
   },
+  'twilio-sms': {
+    tagline:
+      'Sim connects to Twilio to let an AI agent send SMS updates when an order status changes. Connect Twilio SMS to Sim to send outbound messages and start AI workflows when Twilio reports an inbound SMS, inbound MMS, or message status change.',
+    overview:
+      'The Twilio SMS block sends outbound messages. Twilio SMS Received and Twilio Message Status triggers start Sim workflows from supported webhook events.',
+    comparison: {
+      id: 'twilio-sms-comparison',
+      heading: 'Sim vs. Zapier, Make, and n8n for Twilio SMS',
+      intro:
+        "Zapier, Make, and n8n provide Twilio integrations for general-purpose automation. Sim focuses on AI workflows that use Agent blocks to draft or transform messages with order or customer data before a Twilio SMS block sends them. Supported Twilio webhooks can start Sim workflows without scheduled polling. Zapier, Make, or n8n may suit a Twilio workflow that does not require Sim's Agent blocks.",
+      columns: ['Sim', 'Zapier', 'Make', 'n8n'],
+      rows: [
+        {
+          label: 'Trigger model',
+          values: [
+            { text: 'Real-time webhook' },
+            {
+              text: 'Polling for new SMS',
+              href: 'https://zapier.com/apps/twilio/integrations',
+            },
+            {
+              text: 'Instant webhook',
+              href: 'https://apps.make.com/twilio',
+            },
+            {
+              text: 'Webhook',
+              href: 'https://docs.n8n.io/integrations/builtin/trigger-nodes/n8n-nodes-base.twiliotrigger/',
+            },
+          ],
+        },
+        {
+          label: 'AI drafting before send',
+          values: [
+            { text: 'Agent block, built in' },
+            {
+              text: 'Requires a separate AI step or app',
+              href: 'https://zapier.com/apps/twilio/integrations/chatgpt',
+            },
+            {
+              text: 'Requires a separate AI step or app',
+              href: 'https://www.make.com/en/integrations/twilio/openai-gpt-3',
+            },
+            {
+              text: 'Requires a separate AI node',
+              href: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/',
+            },
+          ],
+        },
+        {
+          label: 'Free to start',
+          values: [
+            { text: 'Yes' },
+            {
+              text: 'Yes, with a limited free tier',
+              href: 'https://zapier.com/pricing',
+            },
+            {
+              text: 'Yes, with a limited free tier',
+              href: 'https://www.make.com/en/pricing',
+            },
+            {
+              text: 'Yes, when self-hosted',
+              href: 'https://docs.n8n.io/privacy-and-security/sustainable-use-license/',
+            },
+          ],
+        },
+      ],
+      conclusion:
+        'Choose Sim when the workflow needs an AI agent to read order or customer context and write the message, rather than relay a fixed template.',
+    },
+    triggersIntro:
+      'A supported Twilio SMS webhook starts a Sim workflow when Sim receives the corresponding event. Webhook delivery removes the need for scheduled polling, but Twilio processing and network conditions can affect when Sim receives an event.',
+    faqs: [
+      {
+        question: 'What can I do with the Twilio SMS integration?',
+        answer:
+          "Sim's Twilio SMS integration lets an AI agent send and receive SMS or MMS messages inside a workflow. You can combine Twilio SMS with Agent blocks and integrations such as AgentPhone and Discord. Combining these blocks lets you generate messages and coordinate responses across supported tools in one workflow.",
+      },
+      {
+        question: 'How do I connect Twilio SMS to Sim?',
+        answer:
+          'A Twilio SMS connection authorizes Sim to use the Twilio actions and triggers you configure. Create an account at sim.ai, add a Twilio SMS block to a workflow, and enter the Twilio credentials requested in the connection settings. After you choose an action or trigger and test the workflow, you can deploy it to process supported Twilio events.',
+      },
+      {
+        question: 'How do Twilio SMS triggers work?',
+        answer:
+          'A Twilio SMS trigger starts a Sim workflow when its webhook receives a supported Twilio event. Add a trigger block to the workflow, then configure the generated webhook URL in the relevant Twilio settings for Twilio SMS Received or Twilio Message Status events. The configured webhooks start matching workflows without scheduled polling.',
+      },
+      {
+        question: 'What data does a Twilio SMS trigger provide?',
+        answer:
+          'A Twilio SMS trigger provides the fields in the webhook payload that Twilio sends to Sim. Twilio SMS Received events include data about an inbound SMS or MMS, which the workflow can pass to Agent blocks or later steps. Available fields vary by event and payload, so inspect a test event before mapping them.',
+      },
+    ],
+  },
   airtable: {
     title: 'Airtable Automation with Sim',
     description:
