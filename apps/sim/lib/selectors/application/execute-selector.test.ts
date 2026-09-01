@@ -276,6 +276,64 @@ describe('executeSelector', () => {
   })
 
   /**
+   * The hole this closes: a selector authenticated from raw context fields
+   * (CloudWatch's AWS keys, IMAP's host and password) carries no credential
+   * policy, so the gate used to resolve it to an empty service list and return
+   * without checking — reaching the third party with the caller's keys under an
+   * allowlist that never named it.
+   */
+  it('refuses a raw-context selector whose declared integration is excluded', async () => {
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      integrationBlockTypes: ['cloudwatch'],
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['slack_v2'],
+    })
+
+    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
+  })
+
+  it('executes a raw-context selector whose declared integration is permitted', async () => {
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      integrationBlockTypes: ['cloudwatch'],
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['cloudwatch'],
+    })
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * An API-key integration owns no OAuth catalog entry, so its service id maps
+   * to no block type. The declaration is what gives the allowlist something to
+   * judge, and it must win over the catalog.
+   */
+  it('refuses an api-key selector whose declared integration is excluded', async () => {
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['snowflake'] },
+      integrationBlockTypes: ['snowflake'],
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['slack_v2'],
+    })
+
+    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
+  })
+
+  /**
    * A selector with no integration identity is not an integration: an internal
    * selector declares no credential policy at all, so an allowlist that names
    * nothing still leaves workspace files and knowledge bases pickable.

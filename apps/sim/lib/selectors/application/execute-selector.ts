@@ -20,7 +20,7 @@ import {
 } from '@/lib/selectors/server/errors'
 import {
   assertSelectorIntegrationAllowed,
-  selectorResourceServiceIds,
+  selectorIntegrationBlockTypes,
 } from '@/lib/selectors/server/integration-access'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { resolveSelectorReferences } from '@/lib/selectors/server/references'
@@ -171,12 +171,15 @@ async function executeAuthorizedSelector(args: {
      *
      * Judged against the selector's own resource — the API it calls — not the
      * set of credentials it accepts, and not the bound credential's provider.
-     * Placed before the provider call so a denied integration is never reached.
+     * A selector the OAuth catalog cannot identify (raw-context credentials, an
+     * API-key integration) declares its block types instead of resolving to
+     * none and passing untested. Placed before the provider call so a denied
+     * integration is never reached.
      */
     await assertSelectorIntegrationAllowed({
       principal: args.principal,
       workspaceId: args.context.workspaceId,
-      serviceIds: attachment.credential ? selectorResourceServiceIds(attachment.credential) : [],
+      blockTypes: selectorIntegrationBlockTypes(attachment),
     })
 
     const credentialAccess = credential?.access
