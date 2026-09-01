@@ -1,5 +1,6 @@
 import {
   parsePrincipal,
+  requirePrincipalExecutionMetadata,
   serializePrincipal,
   type WorkflowExecutionPrincipal,
 } from '@sim/auth/principal'
@@ -7,43 +8,7 @@ import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 
-const EXECUTION_SNAPSHOT_VERSION = 1
-const LEGACY_PAUSE_SESSION_ID = 'legacy-paused-execution'
-
-function requireLegacyMetadataString(
-  metadata: Record<string, unknown>,
-  field: 'userId' | 'workflowId' | 'workspaceId'
-): string {
-  const value = metadata[field]
-  if (typeof value !== 'string' || !value.trim()) {
-    throw new Error(`Legacy execution snapshot metadata ${field} must be a non-empty string`)
-  }
-  return value
-}
-
-/** Restores only identity that the pre-principal snapshot format recorded unambiguously. */
-function parseLegacyPrincipal(metadata: Record<string, unknown>): WorkflowExecutionPrincipal {
-  const workflowId = requireLegacyMetadataString(metadata, 'workflowId')
-  const workspaceId = requireLegacyMetadataString(metadata, 'workspaceId')
-  if (metadata.sessionUserId !== undefined) {
-    if (typeof metadata.sessionUserId !== 'string' || !metadata.sessionUserId.trim()) {
-      throw new Error('Legacy execution snapshot metadata sessionUserId must be a non-empty string')
-    }
-    return {
-      kind: 'session',
-      userId: metadata.sessionUserId,
-      sessionId: LEGACY_PAUSE_SESSION_ID,
-    }
-  }
-  if (metadata.enforceCredentialAccess === true) {
-    return {
-      kind: 'session',
-      userId: requireLegacyMetadataString(metadata, 'userId'),
-      sessionId: LEGACY_PAUSE_SESSION_ID,
-    }
-  }
-  return { kind: 'system', serviceId: 'internal', workspaceId, workflowId }
-}
+const EXECUTION_SNAPSHOT_VERSION = 2
 
 export class ExecutionSnapshot {
   public readonly metadata: ExecutionMetadata
@@ -70,10 +35,15 @@ export class ExecutionSnapshot {
   }
 
   toJSON(): string {
+    requirePrincipalExecutionMetadata(this.metadata.principal)
+    const principal = serializePrincipal(this.metadata.principal, 2)
+    if (principal.version !== 2) {
+      throw new Error('Execution snapshot principal must carry execution metadata')
+    }
     return JSON.stringify({
       metadata: {
         ...this.metadata,
-        principal: serializePrincipal(this.metadata.principal),
+        principal,
       },
       version: EXECUTION_SNAPSHOT_VERSION,
       workflow: this.workflow,
@@ -94,20 +64,14 @@ export class ExecutionSnapshot {
       throw new Error('Execution snapshot metadata must be an object')
     }
     const serializedMetadata = parsed.metadata as Record<string, unknown>
-    let principal: WorkflowExecutionPrincipal
-    if (parsed.version === EXECUTION_SNAPSHOT_VERSION) {
-      if (serializedMetadata.principal === undefined) {
-        throw new Error('Execution snapshot metadata is missing its principal')
-      }
-      principal = parsePrincipal(serializedMetadata.principal)
-    } else if (parsed.version === undefined) {
-      if (serializedMetadata.principal !== undefined) {
-        throw new Error('Unversioned execution snapshots cannot contain a principal')
-      }
-      principal = parseLegacyPrincipal(serializedMetadata)
-    } else {
+    if (parsed.version !== EXECUTION_SNAPSHOT_VERSION) {
       throw new Error(`Unsupported execution snapshot version ${String(parsed.version)}`)
     }
+    if (serializedMetadata.principal === undefined) {
+      throw new Error('Execution snapshot metadata is missing its principal')
+    }
+    const principal: WorkflowExecutionPrincipal = parsePrincipal(serializedMetadata.principal)
+    requirePrincipalExecutionMetadata(principal)
     const metadata = {
       ...serializedMetadata,
       principal,

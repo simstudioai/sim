@@ -4,7 +4,11 @@ import {
   getTableRowContract,
   updateTableRowContract,
 } from '@/lib/api/contracts/tables'
-import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  resolveInternalAuthWorkspaceId,
+} from '@/lib/api/server/routes'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { internalTableRowsErrorPolicy } from '@/lib/table/api/row-route-policies'
 import { tableOperations } from '@/lib/table/application/operations'
@@ -15,7 +19,7 @@ import {
   negotiateTableRowsProvenance,
   readTableRowProvenanceEnvelope,
 } from '@/app/api/table/row-secret-provenance'
-import { presentRowForPrincipal, rowKeyingForPrincipal } from '@/app/api/table/row-wire'
+import { presentRowForKeying, rowKeyingForAuthTransport } from '@/app/api/table/row-wire'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,19 +33,25 @@ export const GET = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: internalTableRowsErrorPolicy,
-  mapInput: ({ params, query }, { principal, request }) => ({
+  mapInput: ({ params, query }, { request, authTransport, executionWorkspaceId }) => ({
     tableId: params.tableId,
     rowId: params.rowId,
-    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : query.workspaceId,
+    assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      query.workspaceId
+    ),
     includePersistedSecretProvenance: negotiateTableRowsProvenance(
       request,
-      principal.kind !== 'session'
+      authTransport === 'executor_jwt'
     ),
   }),
   useCase: readTableRow,
-  present: ({ table, row }, { principal }) => ({
+  present: ({ table, row }, { authTransport }) => ({
     success: true as const,
-    data: { row: presentRowForPrincipal(row, table.schema, principal) },
+    data: {
+      row: presentRowForKeying(row, table.schema, rowKeyingForAuthTransport(authTransport)),
+    },
   }),
   finalizeResponse: ({ result }) => finalizeTableRowsProvenance(result.secretProvenance),
 })
@@ -52,30 +62,33 @@ export const PATCH = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: internalTableRowsErrorPolicy,
-  mapInput: ({ params, body }, { principal, request }) => {
+  mapInput: ({ params, body }, { request, authTransport, executionWorkspaceId }) => {
     return {
       tableId: params.tableId,
       rowId: params.rowId,
-      assertedWorkspaceId:
-        principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+      assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+        authTransport,
+        executionWorkspaceId,
+        body.workspaceId
+      ),
       data: body.data as RowData,
-      dataKeying: rowKeyingForPrincipal(principal),
+      dataKeying: rowKeyingForAuthTransport(authTransport),
       strictWrite: false,
       // Handed over unresolved: interpreting the selections needs the canonical
       // schema, which this adapter must not load.
       secretProvenanceEnvelope: readTableRowProvenanceEnvelope(request, body),
       includePersistedSecretProvenance: negotiateTableRowsProvenance(
         request,
-        principal.kind !== 'session'
+        authTransport === 'executor_jwt'
       ),
       actorClientId: readClientId(request),
     }
   },
   useCase: updateTableRow,
-  present: ({ table, row }, { principal }) => ({
+  present: ({ table, row }, { authTransport }) => ({
     success: true as const,
     data: {
-      row: presentRowForPrincipal(row, table.schema, principal),
+      row: presentRowForKeying(row, table.schema, rowKeyingForAuthTransport(authTransport)),
       message: 'Row updated successfully',
     },
   }),
@@ -88,10 +101,14 @@ export const DELETE = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: internalTableRowsErrorPolicy,
-  mapInput: ({ params, body }, { principal, request }) => ({
+  mapInput: ({ params, body }, { request, authTransport, executionWorkspaceId }) => ({
     tableId: params.tableId,
     rowId: params.rowId,
-    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+    assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      body.workspaceId
+    ),
     actorClientId: readClientId(request),
   }),
   useCase: deleteTableRow,

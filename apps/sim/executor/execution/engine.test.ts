@@ -4,6 +4,7 @@
 import { loggerMock } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
 const { mockCancellationSubscribers, mockIsExecutionCancelled } = vi.hoisted(() => ({
@@ -66,12 +67,16 @@ function createMockNode(id: string, blockType = 'test'): DAGNode {
 }
 
 function createMockContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
+  const principal = createTestRuntimePrincipal({
+    executionId: 'test-execution',
+    rootWorkflowId: 'test-workflow',
+  })
   return {
     workflowId: 'test-workflow',
     workspaceId: 'test-workspace',
     executionId: 'test-execution',
     userId: 'test-user',
-    principal: { kind: 'session', userId: 'test-user', sessionId: 'test-session' },
+    principal,
     blockStates: new Map(),
     executedBlocks: new Set(),
     blockLogs: [],
@@ -83,6 +88,7 @@ function createMockContext(overrides: Partial<ExecutionContext> = {}): Execution
       executionId: 'test-execution',
       startTime: new Date().toISOString(),
       pendingBlocks: [],
+      principal,
     },
     envVars: {},
     ...overrides,

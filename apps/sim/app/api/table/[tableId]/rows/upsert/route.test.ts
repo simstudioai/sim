@@ -22,7 +22,13 @@ vi.mock('@/lib/table/application/rows', async (importOriginal) => {
 
 vi.mock('@/lib/table/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/table/api')>()
-  return { ...actual, internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate } }
+  return {
+    ...actual,
+    internalTableSessionOrExecutorAuth: {
+      authenticate: vi.fn(),
+      authenticateWithTransport: mocks.authenticate,
+    },
+  }
 })
 
 import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
@@ -64,9 +70,8 @@ const BODY = { workspaceId: WORKSPACE_ID, data: { col_aaa: 'Ada' }, conflictTarg
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.authenticate.mockResolvedValue({
-    kind: 'session',
-    userId: 'user-1',
-    sessionId: 'session-1',
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    transport: 'session',
   })
   mocks.upsertRow.mockResolvedValue({ table: TABLE, row: ROW, operation: 'insert' })
 })
@@ -123,30 +128,25 @@ describe('POST /api/table/[tableId]/rows/upsert', () => {
 
   it('tells the use case a workflow execution speaks column names', async () => {
     mocks.authenticate.mockResolvedValue({
-      kind: 'delegated',
-      serviceId: 'executor',
-      workspaceId: WORKSPACE_ID,
-      delegationId: 'delegation-1',
-      audience: 'table',
-      issuedAt: new Date('2026-01-01'),
-      expiresAt: new Date('2099-01-02'),
-      delegationContext: {
-        kind: 'workflow_execution',
+      principal: {
+        kind: 'system',
+        serviceId: 'webhook',
+        workspaceId: WORKSPACE_ID,
         workflowId: 'workflow-1',
-        currentWorkflow: {
-          workflowId: 'workflow-1',
-          mode: 'deployment',
-          deploymentVersionId: 'deployment-1',
-        },
-        principal: {
-          kind: 'system',
-          serviceId: 'webhook',
-          workspaceId: WORKSPACE_ID,
-          workflowId: 'workflow-1',
-          webhookId: 'webhook-1',
-          provider: 'generic',
+        webhookId: 'webhook-1',
+        provider: 'generic',
+        executionMetadata: {
+          executionId: 'execution-1',
+          rootWorkflowId: 'workflow-1',
+          currentWorkflow: {
+            workflowId: 'workflow-1',
+            mode: 'deployment',
+            deploymentVersionId: 'deployment-1',
+          },
         },
       },
+      transport: 'executor_jwt',
+      executionWorkspaceId: 'workspace-1',
     })
 
     await POST(request({ ...BODY, data: { Name: 'Ada' }, conflictTarget: 'Name' }), routeContext())

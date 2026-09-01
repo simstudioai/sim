@@ -1,5 +1,5 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ToolResponse } from '@/tools/types'
 
@@ -16,7 +16,7 @@ export interface InternalToolOperationContext {
   workspaceId?: string
   executionId?: string
   userId?: string
-  executorDelegationOrigin?: ExecutorDelegationOrigin
+  principal?: WorkflowExecutionPrincipal
   copilotToolExecution?: boolean
   copilotInteractionMode?: 'interactive' | 'headless'
   chatId?: string

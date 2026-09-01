@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -24,35 +23,22 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { executeFunction } from '@/lib/function-execution/application/execute-function'
 
-const principal: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE,
-  issuedAt: new Date(Date.now() - 1_000),
-  expiresAt: new Date(Date.now() + 60_000),
-  resourceScope: { executionId: 'execution-1' },
-  delegationContext: {
-    kind: 'workflow_execution',
+const principal = createTestRuntimePrincipal({
+  principal: {
+    kind: 'system',
+    serviceId: 'schedule',
+    workspaceId: 'workspace-1',
     workflowId: 'workflow-1',
-    executionId: 'execution-1',
-    principal: {
-      kind: 'system',
-      serviceId: 'schedule',
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-    },
-    currentWorkflow: {
-      workflowId: 'workflow-1',
-      mode: 'deployment',
-      deploymentVersionId: 'deployment-1',
-    },
   },
-}
+  currentWorkflow: {
+    workflowId: 'workflow-1',
+    mode: 'deployment',
+    deploymentVersionId: 'deployment-1',
+  },
+})
 
 describe('executeFunction', () => {
   beforeEach(() => {
@@ -68,18 +54,18 @@ describe('executeFunction', () => {
   })
 
   it('uses only the real workflow subject for legacy file contexts', async () => {
-    const humanPrincipal: WorkflowExecutionDelegatedPrincipal = {
-      ...principal,
-      subjectUserId: 'invoking-user',
-      delegationContext: {
-        ...principal.delegationContext!,
-        principal: {
-          kind: 'session',
-          userId: 'invoking-user',
-          sessionId: 'session-1',
-        },
+    const humanPrincipal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'session',
+        userId: 'invoking-user',
+        sessionId: 'session-1',
       },
-    }
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-1',
+      },
+    })
 
     await executeFunction.execute({
       principal: humanPrincipal,

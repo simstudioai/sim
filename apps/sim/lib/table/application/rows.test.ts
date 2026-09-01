@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { TableDefinition } from '@/lib/table/types'
 
 const {
@@ -211,33 +212,21 @@ const TABLE: TableDefinition = {
 }
 
 const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
-const GENERIC_WEBHOOK_EXECUTOR = {
-  kind: 'delegated' as const,
-  serviceId: 'executor' as const,
-  workspaceId: TABLE.workspaceId,
-  delegationId: 'executor-1',
-  audience: 'sim:tables',
-  issuedAt: new Date('2026-01-01'),
-  expiresAt: new Date('2099-01-01'),
-  resourceScope: { tableId: TABLE.id },
-  delegationContext: {
-    kind: 'workflow_execution' as const,
+const GENERIC_WEBHOOK_EXECUTOR = createTestRuntimePrincipal({
+  principal: {
+    kind: 'system',
+    serviceId: 'webhook',
+    workspaceId: TABLE.workspaceId,
     workflowId: 'workflow-1',
-    currentWorkflow: {
-      workflowId: 'workflow-1',
-      mode: 'deployment' as const,
-      deploymentVersionId: 'deployment-1',
-    },
-    principal: {
-      kind: 'system' as const,
-      serviceId: 'webhook' as const,
-      workspaceId: TABLE.workspaceId,
-      workflowId: 'workflow-1',
-      webhookId: 'webhook-1',
-      provider: 'generic',
-    },
+    webhookId: 'webhook-1',
+    provider: 'generic',
   },
-}
+  currentWorkflow: {
+    workflowId: 'workflow-1',
+    mode: 'deployment',
+    deploymentVersionId: 'deployment-1',
+  },
+})
 
 /**
  * The active-table context every row command resolves before it does any work.

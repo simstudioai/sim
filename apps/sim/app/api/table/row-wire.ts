@@ -1,4 +1,4 @@
-import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { InternalAuthTransport } from '@/lib/api/server/routes'
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
 import type {
   Filter,
@@ -74,27 +74,21 @@ export function rowWireTranslators(
 }
 
 /**
- * The principal kinds the internal table row routes admit — the auth policy
- * yields exactly these two. Typed as the union rather than `Principal` so a
- * third kind becomes an exhaustiveness error here instead of silently taking
- * the name-keyed branch, which would drop every id-keyed cell of a write and
- * report success.
+ * Selects the table-row wire dialect from the route's verified authentication
+ * transport. The runtime principal remains identity only: a session actor may
+ * also be executing a workflow, so its principal kind cannot identify which
+ * HTTP dialect reached this adapter.
  */
-type TableRowRoutePrincipal = SessionPrincipal | WorkflowExecutionDelegatedPrincipal
-
-/**
- * The internal table routes serve two caller kinds on the same paths, and they
- * speak different column keyings: the first-party grid holds the schema it
- * rendered and addresses cells by stable id, while a workflow tool execution
- * speaks column names, because names are what tool enrichment surfaces to the
- * model. Keying is therefore a property of the caller, not of the endpoint.
- */
-export function rowKeyingForPrincipal(principal: TableRowRoutePrincipal): TableRowDataKeying {
-  switch (principal.kind) {
+export function rowKeyingForAuthTransport(
+  authTransport: InternalAuthTransport | undefined
+): TableRowDataKeying {
+  switch (authTransport) {
     case 'session':
       return 'ids'
-    case 'delegated':
+    case 'executor_jwt':
       return 'names'
+    case undefined:
+      throw new Error('Table row route requires an authenticated transport')
   }
 }
 
@@ -103,15 +97,14 @@ export function rowKeyingForPrincipal(principal: TableRowRoutePrincipal): TableR
  * the stored cells in the caller's keying, plus position, with timestamps
  * already serialized. See `tableRowWireSchema`, which is its contract.
  */
-export function presentRowForPrincipal(
+export function presentRowForKeying(
   row: Pick<TableRow, 'id' | 'data' | 'position' | 'createdAt' | 'updatedAt'>,
   schema: TableSchema,
-  principal: TableRowRoutePrincipal
+  keying: TableRowDataKeying
 ) {
   // Only the outbound mapper is needed here; building the full translator set
   // would also index the schema name→id for inbound paths a presenter cannot reach.
-  const dataOut =
-    rowKeyingForPrincipal(principal) === 'names' ? namedRowMapper(schema.columns) : identity
+  const dataOut = keying === 'names' ? namedRowMapper(schema.columns) : identity
   return {
     id: row.id,
     data: dataOut(row.data),
@@ -121,13 +114,12 @@ export function presentRowForPrincipal(
   }
 }
 
-export function presentQueryRowForPrincipal(
+export function presentQueryRowForKeying(
   row: TableRow,
   schema: TableSchema,
-  principal: TableRowRoutePrincipal
+  keying: TableRowDataKeying
 ) {
-  const dataOut =
-    rowKeyingForPrincipal(principal) === 'names' ? namedRowMapper(schema.columns) : identity
+  const dataOut = keying === 'names' ? namedRowMapper(schema.columns) : identity
   return {
     id: row.id,
     data: dataOut(row.data),

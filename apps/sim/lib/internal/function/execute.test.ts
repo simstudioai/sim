@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
@@ -16,7 +17,6 @@ vi.mock('@/lib/function-execution/application/execute-function', () => ({
   executeFunction: { execute: mocks.execute },
 }))
 
-import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import { executeFunctionTool } from '@/lib/internal/function/execute'
 
 describe('executeFunctionTool', () => {
@@ -26,39 +26,28 @@ describe('executeFunctionTool', () => {
   })
 
   it('binds executor calls from the canonical origin instead of the compatibility user ID', async () => {
-    const startedAt = Date.now()
-    const origin = {
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
+    const principal = createTestRuntimePrincipal({
       principal: {
         kind: 'system' as const,
         serviceId: 'schedule' as const,
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
       },
+      executionId: 'execution-1',
       currentWorkflow: {
         workflowId: 'workflow-1',
         mode: 'deployment' as const,
         deploymentVersionId: 'deployment-1',
       },
-    }
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE,
-      issuedAt: new Date(),
-      expiresAt: new Date(Date.now() + 60_000),
-      delegationContext: { kind: 'workflow_execution' as const, ...origin },
-    }
+      compatibilityActorUserId: 'workspace-owner',
+    })
     mocks.createPrincipal.mockResolvedValue(principal)
     const context = {
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       executionId: 'execution-1',
       userId: 'workspace-owner',
-      executorDelegationOrigin: origin,
+      principal,
     }
     const headers = new Headers()
 
@@ -76,13 +65,7 @@ describe('executeFunctionTool', () => {
 
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context,
-      audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE,
-      expiresAt: expect.any(Date),
-      resourceScope: { executionId: 'execution-1' },
     })
-    const delegatedExpiry = mocks.createPrincipal.mock.calls[0]?.[0].expiresAt as Date
-    expect(delegatedExpiry.getTime()).toBeGreaterThanOrEqual(startedAt + 60_000)
-    expect(delegatedExpiry.getTime()).toBeLessThanOrEqual(Date.now() + 60_000)
     expect(mocks.execute).toHaveBeenCalledWith({
       principal,
       input: expect.objectContaining({

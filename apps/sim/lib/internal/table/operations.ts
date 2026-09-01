@@ -1,4 +1,4 @@
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { BoundWorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { ContractBody, ContractQuery } from '@/lib/api/contracts'
 import type {
   createTableContract,
@@ -45,7 +45,8 @@ import { isTablePredicate } from '@/lib/table/query-builder/converters'
 import { normalizeColumn } from '@/lib/table/wire'
 
 export interface TableToolOperationContext {
-  principal: WorkflowExecutionDelegatedPrincipal
+  principal: BoundWorkflowExecutionPrincipal
+  workspaceId: string
   headers: Headers
   requestId: string
   signal?: AbortSignal
@@ -68,7 +69,7 @@ export async function executeTableCreate(
   const result = await createTableUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: context.workspaceId,
       name: body.name,
       description: body.description,
       schema: {
@@ -95,7 +96,7 @@ export async function executeTableList(
   const result = await listTableDefinitionsUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: context.workspaceId,
     },
   })
   const tables = result.tables.map(presentTableListItem)
@@ -110,7 +111,7 @@ export async function executeTableGetSchema(
 ): Promise<TableToolOperationResult> {
   const result = await readTableDetailsUseCase.execute({
     principal: context.principal,
-    input: { tableId, workspaceId: context.principal.workspaceId },
+    input: { tableId, workspaceId: context.workspaceId },
   })
   return complete(context, {
     body: {
@@ -132,7 +133,7 @@ export async function executeTableGetRow(
     input: {
       tableId,
       rowId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       includePersistedSecretProvenance,
       requestId: context.requestId,
     },
@@ -160,7 +161,7 @@ export async function executeTableInsertRows(
         ? {
             kind: 'batch',
             tableId,
-            assertedWorkspaceId: context.principal.workspaceId,
+            assertedWorkspaceId: context.workspaceId,
             rows: body.rows as RowData[],
             orderKeys: body.orderKeys,
             strictWrite: false,
@@ -172,7 +173,7 @@ export async function executeTableInsertRows(
         : {
             kind: 'single',
             tableId,
-            assertedWorkspaceId: context.principal.workspaceId,
+            assertedWorkspaceId: context.workspaceId,
             data: body.data as RowData,
             position: body.position,
             afterRowId: body.afterRowId,
@@ -223,7 +224,7 @@ export async function executeTableQueryRows(
     principal: context.principal,
     input: {
       tableId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       ...(filter && isTablePredicate(filter)
         ? { predicate: filter }
         : { legacyFilter: filter as Filter | undefined }),
@@ -266,7 +267,7 @@ export async function executeTableQueryRowsV2(
     principal: context.principal,
     input: {
       tableId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       predicate: body.predicate,
       sort: body.sort,
       columns: body.columns,
@@ -307,7 +308,7 @@ export async function executeTableUpdateRow(
     input: {
       tableId,
       rowId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       data: body.data as RowData,
       dataKeying: 'names',
       strictWrite: false,
@@ -337,7 +338,7 @@ export async function executeTableUpdateRowsByFilter(
     principal: context.principal,
     input: {
       tableId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       filter: body.filter,
       filterKeying: 'names',
       data: body.data as RowData,
@@ -372,7 +373,7 @@ export async function executeTableDeleteRow(
     input: {
       tableId,
       rowId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       requestId: context.requestId,
     },
   })
@@ -395,14 +396,14 @@ export async function executeTableDeleteRows(
       ? {
           kind: 'ids',
           tableId,
-          assertedWorkspaceId: context.principal.workspaceId,
+          assertedWorkspaceId: context.workspaceId,
           rowIds: body.rowIds,
           requestId: context.requestId,
         }
       : {
           kind: 'filter',
           tableId,
-          assertedWorkspaceId: context.principal.workspaceId,
+          assertedWorkspaceId: context.workspaceId,
           filter: body.filter!,
           filterKeying: 'names',
           limit: body.limit,
@@ -453,7 +454,7 @@ export async function executeTableUpsertRow(
     principal: context.principal,
     input: {
       tableId,
-      assertedWorkspaceId: context.principal.workspaceId,
+      assertedWorkspaceId: context.workspaceId,
       data: body.data as RowData,
       dataKeying: 'names',
       strictWrite: false,

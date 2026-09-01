@@ -2,12 +2,12 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CUSTOM_TOOL_DELEGATION_AUDIENCE } from '@/lib/custom-tools/application/authorization'
 import type { ExecutionContext } from '@/executor/types'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     createPrincipal: vi.fn(),
+    requireWorkspaceId: vi.fn(() => 'canonical-workspace'),
     executeCopilot: vi.fn(),
     readUseCase: { execute: vi.fn() },
   },
@@ -15,6 +15,7 @@ const { mocks } = vi.hoisted(() => ({
 
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
+  requireExecutorWorkspaceId: mocks.requireWorkspaceId,
 }))
 
 vi.mock('@/lib/custom-tools/application/use-cases', () => ({
@@ -36,7 +37,7 @@ const principal = {
   subjectUserId: 'user-1',
   workspaceId: 'canonical-workspace',
   delegationId: 'delegation-1',
-  audience: CUSTOM_TOOL_DELEGATION_AUDIENCE,
+  audience: 'sim:custom-tools',
   issuedAt: new Date('2026-01-01T00:00:00Z'),
   expiresAt: new Date('2027-01-01T00:00:00Z'),
 }
@@ -90,7 +91,6 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
 
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context,
-      audience: CUSTOM_TOOL_DELEGATION_AUDIENCE,
     })
     expect(mocks.readUseCase.execute).toHaveBeenCalledWith({
       principal,

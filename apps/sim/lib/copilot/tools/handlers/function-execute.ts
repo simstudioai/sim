@@ -669,11 +669,6 @@ export async function executeFunctionExecute(
           workflowId: context.workflowId,
           workspaceId: context.workspaceId,
           executionId: context.executionId,
-          executorDelegationOrigin: {
-            subjectUserId: context.userId,
-            workflowId: context.workflowId,
-            ...(context.executionId ? { executionId: context.executionId } : {}),
-          },
           copilotToolExecution: context.copilotToolExecution,
           billingAttribution: context.billingAttribution,
           resolvedSecretTraceRegistry: mountedRegistry,

@@ -6,11 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createExecutorPrincipalFromExecutionContext: vi.fn(),
+  requireExecutorWorkspaceId: vi.fn(() => 'workspace-1'),
   executeWindchillOperation: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/principals/executor', () => ({
   createExecutorPrincipalFromExecutionContext: mocks.createExecutorPrincipalFromExecutionContext,
+  requireExecutorWorkspaceId: mocks.requireExecutorWorkspaceId,
 }))
 
 vi.mock('@/lib/internal/windchill/operations', () => ({
@@ -127,12 +129,12 @@ describe('executeWindchillTool', () => {
         executionId: 'execution-1',
         userId: 'user-1',
       }),
-      audience: 'sim:windchill',
     })
     expect(mocks.executeWindchillOperation).toHaveBeenCalledWith(operationInput, {
       principal: PRINCIPAL,
       requestId: 'request-1',
       signal: controller.signal,
+      workspaceId: 'workspace-1',
     })
   })
 

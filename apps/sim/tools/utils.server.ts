@@ -74,7 +74,7 @@ async function fetchCustomToolFromDB(
 
   if (
     (!executionContext ||
-      (!executionContext.userId && !executionContext.executorDelegationOrigin?.subjectUserId)) &&
+      (!executionContext.userId && !executionContext.principal?.executionMetadata)) &&
     !operationContext?.copilotToolExecution
   ) {
     throw new Error(`Cannot fetch custom tool without userId: ${identifier}`)

@@ -7,7 +7,6 @@ import type { NodeMetadata } from '@/executor/dag/types'
 import type {
   BlockLog,
   BlockState,
-  ExecutorDelegationOrigin,
   NormalizedBlockOutput,
   StartBlockRunMetadata,
   StreamingExecution,
@@ -258,8 +257,6 @@ export interface ContextExtensions {
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   principal?: WorkflowExecutionPrincipal
-  /** Canonical signed execution identity inherited by regular nested workflows. */
-  executorDelegationOrigin?: ExecutorDelegationOrigin
   /**
    * Immutable actor/payer decision for this execution. Child workflow
    * executions receive it here (they carry no full metadata), so internal

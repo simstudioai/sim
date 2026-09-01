@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { CREDENTIAL_GROUP_DELEGATION_AUDIENCE } from '@/lib/credential-groups/application/authorization'
 import { createCredentialGroupInviteLink } from '@/lib/credential-groups/application/create-invite-link'
 import { listCredentialGroupCredentials } from '@/lib/credential-groups/application/list-credentials'
 import { listCredentialGroupsForWorkflow } from '@/lib/credential-groups/application/list-groups'
@@ -12,7 +11,10 @@ import { sendCredentialGroupInvite } from '@/lib/credential-groups/application/s
 import { MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE } from '@/lib/credential-groups/credentials'
 import type { CredentialGroupEnrollmentStatus } from '@/lib/credential-groups/enrollments'
 import { enforceCredentialGroupInvitationExecutionRateLimit } from '@/lib/credential-groups/rate-limit'
-import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  createExecutorPrincipalFromExecutionContext,
+  requireExecutorWorkspaceId,
+} from '@/lib/internal/principals/executor'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -98,7 +100,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
   ): Promise<BlockOutput> {
     if (!ctx.workspaceId) throw new Error('workspaceId is required for Credential Group operations')
     const operation = parseOperation(inputs.operation)
-    if (!ctx.executorDelegationOrigin) {
+    if (!ctx.principal?.executionMetadata) {
       throw new Error('Credential Group operations require an authenticated workflow execution')
     }
     const credentialGroupId =
@@ -107,8 +109,6 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         : requireString(inputs.credentialGroupId, 'Credential Group')
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: ctx,
-      audience: CREDENTIAL_GROUP_DELEGATION_AUDIENCE,
-      ...(credentialGroupId ? { resourceScope: { credentialGroupId } } : {}),
     })
 
     switch (operation) {
@@ -153,7 +153,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         return result
       }
       case 'send_invite': {
-        await enforceCredentialGroupInvitationExecutionRateLimit(principal.workspaceId)
+        await enforceCredentialGroupInvitationExecutionRateLimit(requireExecutorWorkspaceId(ctx))
         const result = await sendCredentialGroupInvite.execute({
           principal,
           input: {
@@ -174,7 +174,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         }
       }
       case 'get_invite_link': {
-        await enforceCredentialGroupInvitationExecutionRateLimit(principal.workspaceId)
+        await enforceCredentialGroupInvitationExecutionRateLimit(requireExecutorWorkspaceId(ctx))
         const result = await createCredentialGroupInviteLink.execute({
           principal,
           input: {

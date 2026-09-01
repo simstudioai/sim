@@ -125,7 +125,7 @@ describe('table operation authorization', () => {
   it('requires delegated scope to match the context in both directions', async () => {
     const unscopedPrincipal = {
       kind: 'delegated' as const,
-      serviceId: 'executor' as const,
+      serviceId: 'copilot' as const,
       subjectUserId: 'user-1',
       workspaceId: 'workspace-1',
       delegationId: 'execution-1',
@@ -135,17 +135,17 @@ describe('table operation authorization', () => {
     }
     const workspaceContext = { ...authorizationContext, tableId: undefined }
 
-    await authorizeTableOperation(unscopedPrincipal, tableOperations.readImport, workspaceContext)
+    await authorizeTableOperation(unscopedPrincipal, tableOperations.updateRow, workspaceContext)
 
     await expect(
       authorizeTableOperation(
         { ...unscopedPrincipal, resourceScope: { tableId: 'table-1' } },
-        tableOperations.readImport,
+        tableOperations.updateRow,
         workspaceContext
       )
     ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
     await expect(
-      authorizeTableOperation(unscopedPrincipal, tableOperations.read, authorizationContext)
+      authorizeTableOperation(unscopedPrincipal, tableOperations.updateRow, authorizationContext)
     ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
   })
 

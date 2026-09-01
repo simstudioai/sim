@@ -125,8 +125,8 @@ export const credentialGroupOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    principalKinds: [],
+    workflowExecution: 'allow',
   }),
   // permission-group-exempt: read by the executor to resolve an enrolled person's MCP connection; use is enforced by the Credential Group policy
   listMcpConnections: defineWorkspaceOperation({
@@ -134,8 +134,8 @@ export const credentialGroupOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    principalKinds: [],
+    workflowExecution: 'allow',
   }),
   // permission-group-exempt: read by the executor to resolve an enrolled person's credential; the group's enrollment rows are the gate, and no group key names them
   listGroups: defineWorkspaceOperation({
@@ -143,8 +143,8 @@ export const credentialGroupOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    principalKinds: [],
+    workflowExecution: 'allow',
   }),
   // permission-group-exempt: read by the executor to resolve an enrolled person's credential; the group's enrollment rows are the gate, and no group key names them
   listPeople: defineWorkspaceOperation({
@@ -152,8 +152,8 @@ export const credentialGroupOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    principalKinds: [],
+    workflowExecution: 'allow',
   }),
   // permission-group-exempt: enrolls an outside person in a credential group, not a member in a workspace, so invitations.send does not name it
   sendInvite: defineWorkspaceOperation({
@@ -161,8 +161,8 @@ export const credentialGroupOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    principalKinds: [],
+    workflowExecution: 'allow',
   }),
   // permission-group-exempt: mints an enrollment link for an outside person, not a workspace invitation, so invitations.send does not name it
   createInviteLink: defineWorkspaceOperation({
@@ -170,8 +170,8 @@ export const credentialGroupOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    principalKinds: [],
+    workflowExecution: 'allow',
   }),
   // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   startSlackConfiguration: defineWorkspaceOperation({

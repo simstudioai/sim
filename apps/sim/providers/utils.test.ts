@@ -1,5 +1,6 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const workflowMetadataMocks = vi.hoisted(() => ({
   readWorkflowInputFieldsForTool: vi.fn(),
@@ -1933,6 +1934,14 @@ describe('prepareToolExecution invoker identity hand-off', () => {
 })
 
 describe('workflow executor metadata delegation', () => {
+  const parentPrincipal = createTestRuntimePrincipal({
+    executionId: 'execution-1',
+    rootWorkflowId: 'parent-workflow',
+  })
+  const currentPrincipal = createTestRuntimePrincipal({
+    executionId: 'execution-1',
+    rootWorkflowId: 'current-workflow',
+  })
   const workflowBlock = {
     type: 'workflow',
     name: 'Workflow',
@@ -1977,13 +1986,7 @@ describe('workflow executor metadata delegation', () => {
           workspaceId: 'workspace-1',
           executionId: 'execution-1',
           userId: 'user-1',
-          executorDelegationOrigin: {
-            subjectUserId: 'user-1',
-            workflowId: 'parent-workflow',
-            executionId: 'execution-1',
-            principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
-          },
+          principal: parentPrincipal,
         },
         readWorkflowMetadata: workflowMetadataMocks.readWorkflowMetadataForTool,
       }
@@ -1996,13 +1999,7 @@ describe('workflow executor metadata delegation', () => {
         workflowId: 'parent-workflow',
         workspaceId: 'workspace-1',
         executionId: 'execution-1',
-        executorDelegationOrigin: {
-          subjectUserId: 'user-1',
-          workflowId: 'parent-workflow',
-          executionId: 'execution-1',
-          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-          currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
-        },
+        principal: parentPrincipal,
       }
     )
     expect(result).toMatchObject({
@@ -2027,13 +2024,7 @@ describe('workflow executor metadata delegation', () => {
           workspaceId: 'workspace-1',
           executionId: 'execution-1',
           userId: 'user-1',
-          executorDelegationOrigin: {
-            subjectUserId: 'user-1',
-            workflowId: 'current-workflow',
-            executionId: 'execution-1',
-            principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            currentWorkflow: { workflowId: 'current-workflow', mode: 'draft' },
-          },
+          principal: currentPrincipal,
         },
         readWorkflowMetadata: workflowMetadataMocks.readWorkflowMetadataForTool,
       }
@@ -2046,13 +2037,7 @@ describe('workflow executor metadata delegation', () => {
         workflowId: 'current-workflow',
         workspaceId: 'workspace-1',
         executionId: 'execution-1',
-        executorDelegationOrigin: {
-          subjectUserId: 'user-1',
-          workflowId: 'current-workflow',
-          executionId: 'execution-1',
-          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-          currentWorkflow: { workflowId: 'current-workflow', mode: 'draft' },
-        },
+        principal: currentPrincipal,
       }
     )
   })

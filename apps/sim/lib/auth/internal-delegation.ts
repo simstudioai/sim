@@ -1,21 +1,24 @@
-import type {
-  BoundWorkflowExecutionDelegatedPrincipal,
-  DelegatedPrincipal,
+import {
+  type BoundWorkflowExecutionPrincipal,
+  requirePrincipalExecutionMetadata,
+  resolvePrincipalSubject,
+  withPrincipalExecutionActor,
 } from '@sim/auth/principal'
 import type { VerifiedInternalDelegation } from '@/lib/auth/internal'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  type ActiveWorkflowApplicationContext,
   resolveActiveWorkflowApplicationContext,
   resolveActiveWorkflowDeploymentVersionApplicationContext,
   resolveActiveWorkflowExecutionApplicationContext,
-  resolveActiveWorkflowRunApplicationContext,
 } from '@/lib/workflows/application/context'
 
 export interface BindInternalExecutorDelegationOptions {
-  audience: string
-  resourceScope?: DelegatedPrincipal['resourceScope']
   compatibilityActorUserId?: string
+}
+
+export interface BoundRuntimeWorkflowExecution {
+  principal: BoundWorkflowExecutionPrincipal
+  workspaceId: string
 }
 
 export class InvalidInternalDelegationBindingError extends Error {
@@ -25,103 +28,107 @@ export class InvalidInternalDelegationBindingError extends Error {
   }
 }
 
-/** Binds signed executor claims to the workflow's canonical active workspace. */
-export async function bindInternalExecutorDelegation(
-  claims: VerifiedInternalDelegation,
-  options: BindInternalExecutorDelegationOptions
-): Promise<BoundWorkflowExecutionDelegatedPrincipal> {
-  if (!options.audience.trim()) throw new Error('Internal delegation audience must not be empty')
+function requireCanonicalPrincipalScope(
+  principal: BoundWorkflowExecutionPrincipal,
+  workspaceId: string,
+  rootWorkflowId: string
+): void {
+  if (
+    (principal.kind === 'workspace_api_key' ||
+      principal.kind === 'system' ||
+      principal.kind === 'delegated') &&
+    principal.workspaceId !== workspaceId
+  ) {
+    throw new InvalidInternalDelegationBindingError()
+  }
+  if (principal.kind === 'system' && principal.workflowId !== rootWorkflowId) {
+    throw new InvalidInternalDelegationBindingError()
+  }
+}
+
+/** Revalidates execution authority and returns its principal and canonical workspace. */
+export async function bindRuntimeWorkflowExecution(
+  principal: BoundWorkflowExecutionPrincipal,
+  options: BindInternalExecutorDelegationOptions = {}
+): Promise<BoundRuntimeWorkflowExecution> {
   if (options.compatibilityActorUserId !== undefined && !options.compatibilityActorUserId.trim()) {
     throw new Error('Internal delegation execution actor must not be empty')
   }
-  if (claims.subjectUserId && options.compatibilityActorUserId) {
-    throw new Error('Internal delegation cannot bind a compatibility actor to a user subject')
+  const executionMetadata = requirePrincipalExecutionMetadata(principal)
+  const subject = resolvePrincipalSubject(principal)
+  if (subject && options.compatibilityActorUserId) {
+    throw new Error('Internal delegation cannot bind a compatibility actor to a subject')
   }
 
-  let context: ActiveWorkflowApplicationContext
-  let rootDeploymentVersionId: string | null | undefined
+  let workspaceId: string
   try {
-    if (claims.currentWorkflow) {
-      if (!claims.executionId) throw new InvalidInternalDelegationBindingError()
-      const executionContext = await resolveActiveWorkflowExecutionApplicationContext({
-        runId: claims.executionId,
-        assertedWorkflowId: claims.workflowId,
-      })
-      context = executionContext
-      rootDeploymentVersionId = executionContext.deploymentVersionId
-    } else if (claims.executionId) {
-      context = await resolveActiveWorkflowRunApplicationContext({
-        runId: claims.executionId,
-        assertedWorkflowId: claims.workflowId,
+    const rootContext = await resolveActiveWorkflowExecutionApplicationContext({
+      runId: executionMetadata.executionId,
+      assertedWorkflowId: executionMetadata.rootWorkflowId,
+    })
+    requireCanonicalPrincipalScope(
+      principal,
+      rootContext.workspaceId,
+      executionMetadata.rootWorkflowId
+    )
+    workspaceId = rootContext.workspaceId
+
+    const currentWorkflow = executionMetadata.currentWorkflow
+    if (currentWorkflow.workflowId === executionMetadata.rootWorkflowId) {
+      const matchesRootAuthority =
+        currentWorkflow.mode === 'draft'
+          ? rootContext.deploymentVersionId === null
+          : rootContext.deploymentVersionId === currentWorkflow.deploymentVersionId
+      if (!matchesRootAuthority) throw new InvalidInternalDelegationBindingError()
+    } else if (currentWorkflow.mode === 'deployment') {
+      await resolveActiveWorkflowDeploymentVersionApplicationContext({
+        workflowId: currentWorkflow.workflowId,
+        deploymentVersionId: currentWorkflow.deploymentVersionId,
+        assertedWorkspaceId: rootContext.workspaceId,
       })
     } else {
-      context = await resolveActiveWorkflowApplicationContext({ workflowId: claims.workflowId })
+      await resolveActiveWorkflowApplicationContext({
+        workflowId: currentWorkflow.workflowId,
+        assertedWorkspaceId: rootContext.workspaceId,
+      })
     }
   } catch (error) {
-    if (asOrchestrationError(error)?.code === 'not_found') {
+    if (
+      error instanceof InvalidInternalDelegationBindingError ||
+      asOrchestrationError(error)?.code === 'not_found'
+    ) {
       throw new InvalidInternalDelegationBindingError()
     }
     throw error
   }
 
-  if (claims.currentWorkflow) {
-    if (claims.currentWorkflow.workflowId === context.workflowId) {
-      const matchesRootExecution =
-        claims.currentWorkflow.mode === 'draft'
-          ? rootDeploymentVersionId === null
-          : rootDeploymentVersionId === claims.currentWorkflow.deploymentVersionId
-      if (!matchesRootExecution) {
-        throw new InvalidInternalDelegationBindingError()
-      }
-    } else {
-      try {
-        const currentContext =
-          claims.currentWorkflow.mode === 'deployment'
-            ? await resolveActiveWorkflowDeploymentVersionApplicationContext({
-                workflowId: claims.currentWorkflow.workflowId,
-                deploymentVersionId: claims.currentWorkflow.deploymentVersionId,
-                assertedWorkspaceId: context.workspaceId,
-              })
-            : await resolveActiveWorkflowApplicationContext({
-                workflowId: claims.currentWorkflow.workflowId,
-                assertedWorkspaceId: context.workspaceId,
-              })
-        if (currentContext.workspaceId !== context.workspaceId) {
-          throw new InvalidInternalDelegationBindingError()
-        }
-      } catch (error) {
-        if (asOrchestrationError(error)?.code === 'not_found') {
-          throw new InvalidInternalDelegationBindingError()
-        }
-        throw error
-      }
-    }
-  }
-
   return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    ...(claims.subjectUserId ? { subjectUserId: claims.subjectUserId } : {}),
-    workspaceId: context.workspaceId,
-    delegationId: claims.delegationId,
-    audience: options.audience,
-    issuedAt: claims.issuedAt,
-    expiresAt: claims.expiresAt,
-    ...(options.resourceScope ? { resourceScope: options.resourceScope } : {}),
-    delegationContext: {
-      kind: 'workflow_execution',
-      workflowId: context.workflowId,
-      ...(claims.executionId ? { executionId: claims.executionId } : {}),
-      ...(claims.principal ? { principal: claims.principal } : {}),
-      ...(claims.currentWorkflow ? { currentWorkflow: claims.currentWorkflow } : {}),
-      ...(options.compatibilityActorUserId
-        ? {
-            compatibilityActor: {
-              kind: 'legacy_execution_user',
-              userId: options.compatibilityActorUserId,
-            } as const,
-          }
-        : {}),
-    },
+    principal: options.compatibilityActorUserId
+      ? withPrincipalExecutionActor(principal, options.compatibilityActorUserId)
+      : principal,
+    workspaceId,
   }
+}
+
+/** Revalidates execution authority and returns the same semantic runtime principal. */
+export async function bindRuntimeWorkflowExecutionPrincipal(
+  principal: BoundWorkflowExecutionPrincipal,
+  options: BindInternalExecutorDelegationOptions = {}
+): Promise<BoundWorkflowExecutionPrincipal> {
+  return (await bindRuntimeWorkflowExecution(principal, options)).principal
+}
+
+/** Revalidates the runtime principal admitted by an internal executor token. */
+export function bindInternalExecutorDelegation(
+  claims: VerifiedInternalDelegation,
+  options: BindInternalExecutorDelegationOptions = {}
+): Promise<BoundWorkflowExecutionPrincipal> {
+  return bindRuntimeWorkflowExecutionPrincipal(claims.principal, options)
+}
+
+/** Revalidates JWT admission while retaining canonical transport workspace scope. */
+export function bindInternalExecutorDelegationAdmission(
+  claims: VerifiedInternalDelegation
+): Promise<BoundRuntimeWorkflowExecution> {
+  return bindRuntimeWorkflowExecution(claims.principal)
 }

@@ -157,7 +157,8 @@ describe('knowledge operation registry', () => {
     expect(knowledgeOperations.listFolders.principalKinds).not.toContain('delegated')
     expect(knowledgeOperations.uploadComplete.principalKinds).not.toContain('delegated')
     expect(knowledgeOperations.list.delegatedServices).toEqual(['copilot'])
-    expect(knowledgeOperations.search.delegatedServices).toEqual(['copilot', 'executor'])
+    expect(knowledgeOperations.search.delegatedServices).toEqual(['copilot'])
+    expect(knowledgeOperations.search.workflowExecution).toBe('allow')
     expect(knowledgeOperations.uploadComplete.delegatedServices).toBeUndefined()
   })
 

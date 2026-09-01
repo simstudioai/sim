@@ -753,7 +753,8 @@ async function queueWebhookExecutionWithResult(
           workspaceId,
           provider: foundWebhook.provider,
           ...(options.subject ? { subject: options.subject } : {}),
-        })
+        }),
+        1
       ),
       userId: actorUserId,
       billingAttribution,
@@ -1056,7 +1057,8 @@ export async function processPolledWebhookEvent(
           workflowId: foundWorkflow.id,
           workspaceId,
           provider,
-        })
+        }),
+        1
       ),
       userId: actorUserId,
       billingAttribution,

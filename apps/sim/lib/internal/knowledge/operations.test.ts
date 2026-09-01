@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   requireWorkspaceBillingAttributionHeader: vi.fn(),
@@ -81,20 +82,16 @@ import {
   syncConnectorOperation,
 } from '@/lib/internal/knowledge/operations'
 
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'executor' as const,
-  subjectUserId: 'trusted-user',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:knowledge',
-  issuedAt: new Date('2026-01-01T00:00:00.000Z'),
-  expiresAt: new Date('2026-01-01T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution' as const, workflowId: 'workflow-1' },
-}
+const principal = createTestRuntimePrincipal({
+  principal: { kind: 'session', userId: 'trusted-user', sessionId: 'session-1' },
+})
 
 function createContext(): KnowledgeOperationContext {
-  return { principal, headers: new Headers({ 'x-billing': 'snapshot' }) }
+  return {
+    principal,
+    workspaceId: 'workspace-1',
+    headers: new Headers({ 'x-billing': 'snapshot' }),
+  }
 }
 
 describe('Knowledge direct operations', () => {

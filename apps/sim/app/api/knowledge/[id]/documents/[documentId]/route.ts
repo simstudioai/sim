@@ -41,11 +41,16 @@ export const GET = defineInternalJsonRoute({
     success: true as const,
     data: toInternalKnowledgeDocument(document),
   }),
-  finalizeResponse: ({ request, principal, result, body }) =>
+  finalizeResponse: ({ request, principal, result, body, authTransport }) =>
     finalizeKnowledgePersistedResponse({
       headers: request.headers,
-      authType: internalKnowledgeAuthType(principal),
-      userId: internalKnowledgeProvenanceUserId(request.headers, principal, result.workspaceId),
+      authType: internalKnowledgeAuthType(authTransport),
+      userId: internalKnowledgeProvenanceUserId(
+        request.headers,
+        principal,
+        result.workspaceId,
+        authTransport
+      ),
       workspaceId: result.workspaceId,
       body,
       documents: [
@@ -66,7 +71,7 @@ export const PUT = defineInternalJsonRoute({
     reason: 'Preserve existing internal document-update behavior',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.documents,
-  mapInput: ({ params, body }, { principal, request }) => {
+  mapInput: ({ params, body }, { principal, request, authTransport }) => {
     const { markFailedDueToTimeout, retryProcessing, ...updates } = body
     return {
       knowledgeBaseId: params.id,
@@ -75,7 +80,7 @@ export const PUT = defineInternalJsonRoute({
       markFailedDueToTimeout,
       retryProcessing,
       resolveBillingAttribution: (workspaceId: string) =>
-        resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId),
+        resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId, authTransport),
       source: 'ui',
     }
   },

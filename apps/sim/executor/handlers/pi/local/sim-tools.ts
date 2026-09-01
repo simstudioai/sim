@@ -279,7 +279,7 @@ export async function buildSimToolSpecs(
           workspaceId: ctx.workspaceId,
           executionId: ctx.executionId,
           userId: ctx.userId,
-          executorDelegationOrigin: ctx.executorDelegationOrigin,
+          principal: ctx.principal,
         },
         resolveCustomBlockBinding: (blockType: string) =>
           resolveCustomBlockToolBinding(blockType, ctx.workspaceId),

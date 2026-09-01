@@ -6,11 +6,13 @@ const ALL_COPILOT_PRINCIPAL_POLICY = {
 } as const
 const ALL_FILE_TOOL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-  delegatedServices: ['copilot', 'executor'],
+  delegatedServices: ['copilot'],
+  workflowExecution: 'allow',
 } as const
 const HUMAN_FILE_TOOL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'delegated'],
-  delegatedServices: ['copilot', 'executor'],
+  delegatedServices: ['copilot'],
+  workflowExecution: 'allow',
 } as const
 const UPLOAD_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],

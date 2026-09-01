@@ -1,15 +1,15 @@
 /**
  * @vitest-environment node
  */
+import { bindPrincipalExecutionMetadata } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ExecutorDelegationOrigin } from '@/executor/types'
 
-const { mockBindInternalExecutorDelegation } = vi.hoisted(() => ({
-  mockBindInternalExecutorDelegation: vi.fn(),
+const { mockBindRuntimeWorkflowExecutionPrincipal } = vi.hoisted(() => ({
+  mockBindRuntimeWorkflowExecutionPrincipal: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindInternalExecutorDelegation,
+  bindRuntimeWorkflowExecutionPrincipal: mockBindRuntimeWorkflowExecutionPrincipal,
   InvalidInternalDelegationBindingError: class InvalidInternalDelegationBindingError extends Error {},
 }))
 
@@ -24,75 +24,67 @@ import {
   InvalidManagedOAuthDelegationError,
 } from '@/lib/credentials/application/managed-oauth-delegation'
 
-function delegationOrigin(
-  overrides: Partial<ExecutorDelegationOrigin> = {}
-): ExecutorDelegationOrigin {
-  return {
-    subjectUserId: 'user-origin',
-    workflowId: 'workflow-origin',
-    executionId: 'execution-origin',
-    currentWorkflow: { workflowId: 'workflow-origin' },
-    ...overrides,
-  } as ExecutorDelegationOrigin
+function runtimePrincipal() {
+  return bindPrincipalExecutionMetadata(
+    { kind: 'session', userId: 'user-origin', sessionId: 'session-origin' },
+    {
+      executionId: 'execution-origin',
+      rootWorkflowId: 'workflow-origin',
+      currentWorkflow: {
+        workflowId: 'workflow-origin',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-version-1',
+      },
+    }
+  )
 }
 
 describe('bindExecutorManagedOAuthDelegation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockBindInternalExecutorDelegation.mockImplementation(async (claims, options) => ({
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: claims.subjectUserId,
-      workspaceId: 'workspace-canonical',
-      delegationId: claims.delegationId,
-      audience: options.audience,
-      resourceScope: options.resourceScope,
-    }))
+    mockBindRuntimeWorkflowExecutionPrincipal.mockImplementation(async (principal) => principal)
   })
 
-  it('requires current workflow authority before binding', async () => {
+  it('requires canonical execution metadata before binding', async () => {
     await expect(
-      bindExecutorManagedOAuthDelegation(delegationOrigin({ currentWorkflow: undefined }), 'cred-1')
-    ).rejects.toThrow('Managed credential delegation is missing current workflow authority')
-    expect(mockBindInternalExecutorDelegation).not.toHaveBeenCalled()
+      bindExecutorManagedOAuthDelegation(
+        { kind: 'session', userId: 'user-origin', sessionId: 'session-origin' },
+        'cred-1'
+      )
+    ).rejects.toThrow('Workflow execution principal is missing execution metadata')
+    expect(mockBindRuntimeWorkflowExecutionPrincipal).not.toHaveBeenCalled()
   })
 
-  it('binds the origin to the managed-OAuth audience scoped to one credential', async () => {
-    const principal = await bindExecutorManagedOAuthDelegation(delegationOrigin(), 'cred-1')
+  it('revalidates and returns the same semantic runtime principal', async () => {
+    const principal = runtimePrincipal()
 
-    expect(mockBindInternalExecutorDelegation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        serviceId: 'executor',
-        subjectUserId: 'user-origin',
-        workflowId: 'workflow-origin',
-        executionId: 'execution-origin',
-        currentWorkflow: { workflowId: 'workflow-origin' },
-      }),
-      expect.objectContaining({
-        audience: 'sim:managed-oauth-credentials',
-        resourceScope: { credentialId: 'cred-1' },
-      })
+    await expect(bindExecutorManagedOAuthDelegation(principal, 'cred-1')).resolves.toEqual(
+      principal
     )
-    expect(principal).toMatchObject({
-      audience: 'sim:managed-oauth-credentials',
-      resourceScope: { credentialId: 'cred-1' },
-    })
+    expect(mockBindRuntimeWorkflowExecutionPrincipal).toHaveBeenCalledWith(principal)
   })
 
-  it('wraps binding rejections into the managed-OAuth delegation error', async () => {
-    mockBindInternalExecutorDelegation.mockRejectedValue(
+  it('rejects an empty credential assertion before binding', async () => {
+    await expect(
+      bindExecutorManagedOAuthDelegation(runtimePrincipal(), ' ')
+    ).rejects.toBeInstanceOf(InvalidManagedOAuthDelegationError)
+    expect(mockBindRuntimeWorkflowExecutionPrincipal).not.toHaveBeenCalled()
+  })
+
+  it('wraps canonical binding rejections into the managed-OAuth delegation error', async () => {
+    mockBindRuntimeWorkflowExecutionPrincipal.mockRejectedValue(
       new InvalidInternalDelegationBindingError('stale workflow context')
     )
 
     await expect(
-      bindExecutorManagedOAuthDelegation(delegationOrigin(), 'cred-1')
+      bindExecutorManagedOAuthDelegation(runtimePrincipal(), 'cred-1')
     ).rejects.toBeInstanceOf(InvalidManagedOAuthDelegationError)
   })
 
   it('rethrows unexpected binding failures unchanged', async () => {
-    mockBindInternalExecutorDelegation.mockRejectedValue(new Error('db unavailable'))
+    mockBindRuntimeWorkflowExecutionPrincipal.mockRejectedValue(new Error('db unavailable'))
 
-    await expect(bindExecutorManagedOAuthDelegation(delegationOrigin(), 'cred-1')).rejects.toThrow(
+    await expect(bindExecutorManagedOAuthDelegation(runtimePrincipal(), 'cred-1')).rejects.toThrow(
       'db unavailable'
     )
   })
