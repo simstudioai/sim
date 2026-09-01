@@ -131,7 +131,20 @@ export const ACTION_ITEM_OUTPUT_PROPERTIES = {
   status: { type: 'string', description: 'The completion status, PENDING or DONE' },
   meetings: {
     type: 'array',
-    description: 'The meetings the action item is associated with (id, name, createdAt)',
+    description: 'The meetings the action item is associated with',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The Circleback meeting ID' },
+        name: { type: 'string', nullable: true, description: 'The meeting name' },
+        createdAt: { type: 'string', description: 'When the meeting was created (ISO 8601)' },
+      },
+    },
+  },
+  canEditActionItem: {
+    type: 'boolean',
+    optional: true,
+    description: 'Whether the caller may edit the action item. Returned only by the list operation',
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -185,8 +198,23 @@ export const CALENDAR_EVENT_OUTPUT_PROPERTIES = {
   icalUid: { type: 'string', description: 'The iCalendar UID of the calendar event' },
   attendees: {
     type: 'array',
-    description:
-      'The invited attendees, each with name, email, isOrganizer, and status (accepted, declined, tentative, or not_available)',
+    description: 'The attendees invited to the calendar meeting',
+    items: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', nullable: true, description: 'The name of the attendee' },
+        email: { type: 'string', description: 'The email address of the attendee' },
+        isOrganizer: {
+          type: 'boolean',
+          description: 'Whether the attendee organized the calendar meeting',
+        },
+        status: {
+          type: 'string',
+          description:
+            'The attendee response to the invitation: accepted, declined, tentative, or not_available',
+        },
+      },
+    },
   },
   calendarDescription: {
     type: 'string',
@@ -229,6 +257,12 @@ export const CALENDAR_EVENT_OUTPUT_PROPERTIES = {
     type: 'string',
     nullable: true,
     description: 'The email address of the meeting organizer',
+  },
+  platform: {
+    type: 'string',
+    nullable: true,
+    description:
+      'The conferencing platform hosting the meeting, when detected. Alias of meetingPlatform',
   },
   overrideShouldRecord: {
     type: 'boolean',

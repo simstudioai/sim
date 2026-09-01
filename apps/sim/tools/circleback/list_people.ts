@@ -93,8 +93,8 @@ export const listPeopleTool: ToolConfig<CirclebackListPeopleParams, CirclebackPe
       },
       nextCursor: {
         type: 'string',
-        description: 'Pagination cursor for the next page',
-        optional: true,
+        nullable: true,
+        description: 'Pagination cursor for the next page, or null on the last page',
       },
       hasMore: {
         type: 'boolean',

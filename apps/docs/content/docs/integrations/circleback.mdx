@@ -109,7 +109,7 @@ Lists meetings from Circleback with optional ownership, status, tag, and attende
 |   ↳ `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
 |   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
 |   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
-| `nextCursor` | string | Pagination cursor for the next page |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of meetings is available |
 
 ### Circleback Get Meeting
@@ -210,7 +210,7 @@ Searches Circleback meetings by name and content, with optional filters for spec
 |   ↳ `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
 |   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
 |   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
-| `nextCursor` | string | Pagination cursor for the next page |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of results is available |
 
 ### Circleback Get Transcript
@@ -333,8 +333,12 @@ Lists action items across the authenticated user meetings, filtered by assignee,
 |   ↳ `completedAt` | string | When the action item was marked done, or null if not completed |
 |   ↳ `meetingId` | string | The ID of the meeting the action item belongs to, or null |
 |   ↳ `status` | string | The completion status, PENDING or DONE |
-|   ↳ `meetings` | array | The meetings the action item is associated with \(id, name, createdAt\) |
-| `nextCursor` | string | Pagination cursor for the next page |
+|   ↳ `meetings` | array | The meetings the action item is associated with |
+|     ↳ `id` | string | The Circleback meeting ID |
+|     ↳ `name` | string | The meeting name |
+|     ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
+|   ↳ `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of action items is available |
 
 ### Circleback Update Action Item
@@ -363,7 +367,11 @@ Updates the title, description, status, or assignee of a Circleback action item.
 | `completedAt` | string | When the action item was marked done, or null if not completed |
 | `meetingId` | string | The ID of the meeting the action item belongs to, or null |
 | `status` | string | The completion status, PENDING or DONE |
-| `meetings` | array | The meetings the action item is associated with \(id, name, createdAt\) |
+| `meetings` | array | The meetings the action item is associated with |
+|   ↳ `id` | string | The Circleback meeting ID |
+|   ↳ `name` | string | The meeting name |
+|   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
+| `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
 
 ### Circleback Delete Action Item
 
@@ -387,7 +395,11 @@ Deletes a Circleback action item. Returns the deleted action item.
 | `completedAt` | string | When the action item was marked done, or null if not completed |
 | `meetingId` | string | The ID of the meeting the action item belongs to, or null |
 | `status` | string | The completion status, PENDING or DONE |
-| `meetings` | array | The meetings the action item is associated with \(id, name, createdAt\) |
+| `meetings` | array | The meetings the action item is associated with |
+|   ↳ `id` | string | The Circleback meeting ID |
+|   ↳ `name` | string | The meeting name |
+|   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
+| `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
 
 ### Circleback List Calendar Events
 
@@ -412,7 +424,11 @@ Lists upcoming calendar events from the authenticated user connected calendars, 
 |   ↳ `id` | string | The unique identifier of the calendar meeting |
 |   ↳ `title` | string | The title of the calendar meeting |
 |   ↳ `icalUid` | string | The iCalendar UID of the calendar event |
-|   ↳ `attendees` | array | The invited attendees, each with name, email, isOrganizer, and status \(accepted, declined, tentative, or not_available\) |
+|   ↳ `attendees` | array | The attendees invited to the calendar meeting |
+|     ↳ `name` | string | The name of the attendee |
+|     ↳ `email` | string | The email address of the attendee |
+|     ↳ `isOrganizer` | boolean | Whether the attendee organized the calendar meeting |
+|     ↳ `status` | string | The attendee response to the invitation: accepted, declined, tentative, or not_available |
 |   ↳ `calendarDescription` | string | The description of the calendar event |
 |   ↳ `calendarPlatform` | string | The calendar platform the meeting was synced from |
 |   ↳ `startTime` | string | When the calendar meeting starts \(ISO 8601\) |
@@ -423,11 +439,12 @@ Lists upcoming calendar events from the authenticated user connected calendars, 
 |   ↳ `meetingId` | string | The Circleback meeting associated with the calendar meeting, when one exists |
 |   ↳ `meetingPlatform` | string | The conferencing platform hosting the meeting, when detected |
 |   ↳ `organizerEmail` | string | The email address of the meeting organizer |
+|   ↳ `platform` | string | The conferencing platform hosting the meeting, when detected. Alias of meetingPlatform |
 |   ↳ `overrideShouldRecord` | boolean | Whether the user manually overrode the automatic recording decision, or null when no override is set |
 |   ↳ `recurringEventId` | string | The identifier of the recurring event series the meeting belongs to |
 |   ↳ `willRecord` | boolean | Whether the notetaker will join and record the meeting |
 |   ↳ `willRecordReason` | string | A human-readable explanation of why the meeting will or will not be recorded |
-| `nextCursor` | string | Pagination cursor for the next page |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of calendar events is available |
 
 ### Circleback List Companies
@@ -451,7 +468,7 @@ Lists the companies whose people attend the authenticated user meetings, with op
 |   ↳ `name` | string | The company name |
 |   ↳ `avatarUrl` | string | The URL of the company logo image |
 |   ↳ `domain` | string | The company website domain |
-| `nextCursor` | string | Pagination cursor for the next page |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of companies is available |
 
 ### Circleback Get Company
@@ -511,7 +528,7 @@ Lists the people who attend the authenticated user meetings, ordered by most rec
 |   ↳ `email` | string | The person email address |
 |   ↳ `firstName` | string | The person first name |
 |   ↳ `lastName` | string | The person last name |
-| `nextCursor` | string | Pagination cursor for the next page |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of people is available |
 
 ### Circleback Get Person

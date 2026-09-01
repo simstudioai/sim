@@ -75,7 +75,18 @@ export const updateActionItemTool: ToolConfig<
       }
       if (params.assigneeProfileId !== undefined && params.assigneeProfileId !== '') {
         const raw = String(params.assigneeProfileId).trim().toLowerCase()
-        body.assigneeProfileId = raw === 'null' || raw === 'none' ? null : Number(raw)
+        if (raw === 'null' || raw === 'none') {
+          body.assigneeProfileId = null
+        } else {
+          const profileId = Number(raw)
+          /* A NaN here would serialize as null and silently unassign the item. */
+          if (!Number.isInteger(profileId) || profileId <= 0) {
+            throw new Error(
+              'assigneeProfileId must be a positive profile ID number, or null to remove the assignee'
+            )
+          }
+          body.assigneeProfileId = profileId
+        }
       }
       if (params.status) body.status = params.status
       return body

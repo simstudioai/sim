@@ -102,10 +102,11 @@ function parseNextCursor(response: Response): string | undefined {
  * Circleback exposes `updatedAt`, which advances whenever the meeting changes,
  * so a metadata-only hash is sufficient and stays identical between the list
  * stub and the fetched document — letting the sync engine skip re-fetching
- * unchanged meetings.
+ * unchanged meetings. The transcript mode is part of the hash so toggling
+ * `includeTranscript` rehydrates existing documents with the new content shape.
  */
-function buildContentHash(id: string, updatedAt: string): string {
-  return `circleback:${id}:${updatedAt}`
+function buildContentHash(id: string, updatedAt: string, includeTranscript: boolean): string {
+  return `circleback:${id}:${updatedAt}:${includeTranscript ? 'transcript' : 'notes'}`
 }
 
 /**
@@ -184,7 +185,7 @@ function buildMetadata(meeting: CirclebackMeeting): Record<string, unknown> {
  * Builds the deferred stub for a meeting from list metadata. Content is empty
  * and assembled later via `getDocument` only for new/changed meetings.
  */
-function meetingToStub(meeting: CirclebackMeeting): ExternalDocument {
+function meetingToStub(meeting: CirclebackMeeting, includeTranscript: boolean): ExternalDocument {
   const id = meeting.id ?? ''
   return {
     externalId: id,
@@ -193,7 +194,7 @@ function meetingToStub(meeting: CirclebackMeeting): ExternalDocument {
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: `https://circleback.ai/meetings/${encodeURIComponent(id)}`,
-    contentHash: buildContentHash(id, meeting.updatedAt ?? ''),
+    contentHash: buildContentHash(id, meeting.updatedAt ?? '', includeTranscript),
     metadata: buildMetadata(meeting),
   }
 }
@@ -224,7 +225,9 @@ function buildContent(
       if (!itemTitle) return ''
       const assignee = item.assignee?.name?.trim() || item.assignee?.email?.trim()
       const status = item.status === 'DONE' ? 'x' : ' '
-      return `- [${status}] ${itemTitle}${assignee ? ` (${assignee})` : ''}`
+      const line = `- [${status}] ${itemTitle}${assignee ? ` (${assignee})` : ''}`
+      const detail = item.description?.trim()
+      return detail ? `${line}\n  ${detail}` : line
     })
     .filter(Boolean)
   if (actionItems.length > 0) {
@@ -276,6 +279,7 @@ export const circlebackConnector: ConnectorConfig = {
     const maxMeetings = parseMaxMeetings(sourceConfig)
     const ownership = parseOwnership(sourceConfig)
     const tagIds = parseTagIds(sourceConfig)
+    const includeTranscript = shouldIncludeTranscript(sourceConfig)
 
     const url = new URL(`${CIRCLEBACK_API_BASE}/meetings`)
     url.searchParams.set('ownership', ownership)
@@ -308,7 +312,9 @@ export const circlebackConnector: ConnectorConfig = {
     const meetings = Array.isArray(data) ? data : []
     const nextCursor = parseNextCursor(response)
 
-    const allStubs = meetings.filter((meeting) => Boolean(meeting.id)).map(meetingToStub)
+    const allStubs = meetings
+      .filter((meeting) => Boolean(meeting.id))
+      .map((meeting) => meetingToStub(meeting, includeTranscript))
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     let documents = allStubs
@@ -371,8 +377,9 @@ export const circlebackConnector: ConnectorConfig = {
       const meeting = (await response.json()) as CirclebackMeeting
       if (!meeting?.id) return null
 
+      const includeTranscript = shouldIncludeTranscript(sourceConfig)
       let transcript: CirclebackTranscriptSegment[] | null = null
-      if (shouldIncludeTranscript(sourceConfig)) {
+      if (includeTranscript) {
         const transcriptResponse = await fetchWithRetry(
           `${CIRCLEBACK_API_BASE}/meeting/${encodeURIComponent(externalId)}/transcript`,
           {
@@ -396,7 +403,7 @@ export const circlebackConnector: ConnectorConfig = {
         return null
       }
 
-      const stub = meetingToStub(meeting)
+      const stub = meetingToStub(meeting, includeTranscript)
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
       /**

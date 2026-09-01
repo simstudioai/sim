@@ -164,8 +164,16 @@ describe('circleback connector request shaping and documents', () => {
 
     expect(stub.mimeType).toBe('text/plain')
     expect(stub.contentDeferred).toBe(true)
-    expect(stub.contentHash).toBe('circleback:m1:2026-01-27T16:45:00Z')
+    expect(stub.contentHash).toBe('circleback:m1:2026-01-27T16:45:00Z:notes')
     expect(stub.sourceUrl).toBe('https://circleback.ai/meetings/m1')
+  })
+
+  it('varies the content hash with the transcript mode so toggling it rehydrates', async () => {
+    mockListResponse([meeting('m1')])
+    const withTranscript = await list({ includeTranscript: 'true' }, {})
+    expect(withTranscript.documents[0].contentHash).toBe(
+      'circleback:m1:2026-01-27T16:45:00Z:transcript'
+    )
   })
 
   it('assembles notes and action items into content with an identical hash on getDocument', async () => {
@@ -181,7 +189,7 @@ describe('circleback connector request shaping and documents', () => {
 
     expect(doc).not.toBeNull()
     expect(doc?.contentDeferred).toBe(false)
-    expect(doc?.contentHash).toBe('circleback:m1:2026-01-27T16:45:00Z')
+    expect(doc?.contentHash).toBe('circleback:m1:2026-01-27T16:45:00Z:notes')
     expect(doc?.content).toContain('# Meeting m1')
     expect(doc?.content).toContain('We discussed the rollout.')
     expect(doc?.content).toContain('- [ ] Send follow-up (Oat Benson)')
