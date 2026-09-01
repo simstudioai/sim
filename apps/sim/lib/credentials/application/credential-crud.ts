@@ -29,6 +29,7 @@ import {
 } from '@/lib/credentials/queries'
 import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -166,6 +167,16 @@ export interface CreateWorkspaceCredentialResult {
   auditMetadata: Record<string, unknown>
 }
 
+/**
+ * The credential types that belong to one person rather than to the workspace:
+ * a personal environment secret, and an OAuth grant bound to the connecting
+ * user's own linked account. `env_workspace`, `service_account` and
+ * `managed_oauth` are workspace-shared and stay available.
+ */
+const PERSONAL_SCOPE_CREDENTIAL_TYPES: ReadonlySet<PerformCreateCredentialParams['type']> = new Set(
+  ['env_personal', 'oauth']
+)
+
 export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.create,
   resolveContext: async ({ input }: { input: CreateWorkspaceCredentialInput }) => {
@@ -174,8 +185,23 @@ export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
     return context
   },
   authorizationOptions: {},
-  async execute({ principal, input }): Promise<CreateWorkspaceCredentialResult> {
+  async execute({ principal, input, context }): Promise<CreateWorkspaceCredentialResult> {
     const userId = requirePrincipalSubjectUserId(principal)
+    /**
+     * permission-group-enforced: credentials.personal — scope is the request's
+     * `type`, not a property of the operation: the same `credentials.create`
+     * makes a personal secret and a workspace-shared one. Declaring the
+     * capability on the operation would refuse both, so it is asserted here
+     * against the type actually being created.
+     */
+    if (PERSONAL_SCOPE_CREDENTIAL_TYPES.has(input.type)) {
+      await assertWorkspaceCapability(
+        userId,
+        context.workspaceId,
+        'credentials.personal',
+        context.workspaceOrganizationId
+      )
+    }
     const result = await createCredentialRecord({ ...input, userId }, { authorizeWorkspace: false })
     if (!result.success) throwCredentialMutationFailure(result)
     if (!result.credential) throw new Error('Credential creation succeeded without a credential')

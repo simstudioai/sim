@@ -5,10 +5,20 @@ import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckAccess, mockMarkTableJobRunning, mockRunTableExport } = vi.hoisted(() => ({
+const {
+  mockCheckAccess,
+  mockMarkTableJobRunning,
+  mockRunTableExport,
+  mockGetUserPermissionConfig,
+} = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockMarkTableJobRunning: vi.fn(),
   mockRunTableExport: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -31,6 +41,7 @@ vi.mock('@/app/api/table/utils', async () => {
   }
 })
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/table/[tableId]/export-async/route'
 
 function makeRequest(body: unknown, tableId = 'tbl_1') {
@@ -59,6 +70,7 @@ describe('POST /api/table/[tableId]/export-async', () => {
         rowCount: 50000,
       }),
     })
+    mockGetUserPermissionConfig.mockResolvedValue(null)
     mockMarkTableJobRunning.mockResolvedValue(true)
     mockRunTableExport.mockResolvedValue(undefined)
   })
@@ -111,5 +123,22 @@ describe('POST /api/table/[tableId]/export-async', () => {
     const response = await makeRequest({ ...validBody, workspaceId: 'other-ws' })
     expect(response.status).toBe(400)
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
+  })
+
+  it('refuses before claiming a job when the group withholds tables.export', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableTableExport: true,
+    })
+
+    const response = await makeRequest(validBody)
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: "Exporting a table is not available under your organization's permission group",
+      details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+    })
+    expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
+    expect(mockRunTableExport).not.toHaveBeenCalled()
   })
 })

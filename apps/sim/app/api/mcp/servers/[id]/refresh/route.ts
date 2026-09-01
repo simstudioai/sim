@@ -158,137 +158,138 @@ async function syncToolSchemasToWorkflows(
 }
 
 export const POST = withRouteHandler(
-  withMcpAuth<{ id: string }>('write')(
-    async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  withMcpAuth<{ id: string }>(
+    'write',
+    'mcp_tools.use'
+  )(async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+    try {
+      const paramsValidation = mcpServerIdParamsSchema.safeParse(await params)
+      if (!paramsValidation.success) return validationErrorResponse(paramsValidation.error)
+      const { id: serverId } = paramsValidation.data
+      logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)
+
+      const [server] = await db
+        .select()
+        .from(mcpServers)
+        .where(
+          and(
+            eq(mcpServers.id, serverId),
+            eq(mcpServers.workspaceId, workspaceId),
+            isNull(mcpServers.deletedAt)
+          )
+        )
+        .limit(1)
+
+      if (!server) {
+        return createMcpErrorResponse(
+          new Error('Server not found or access denied'),
+          'Server not found',
+          404
+        )
+      }
+
+      let syncResult: SyncResult = { updatedCount: 0, updatedWorkflowIds: [] }
+      let discoveredTools: McpTool[] = []
+      let discoveryError: string | null = null
+      const discoveryStartedAt = new Date()
+
       try {
-        const paramsValidation = mcpServerIdParamsSchema.safeParse(await params)
-        if (!paramsValidation.success) return validationErrorResponse(paramsValidation.error)
-        const { id: serverId } = paramsValidation.data
-        logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)
+        discoveredTools = await mcpService.discoverServerTools(
+          userId,
+          serverId,
+          workspaceId,
+          'force'
+        )
+        logger.info(
+          `[${requestId}] Discovered ${discoveredTools.length} tools from server ${serverId}`
+        )
+      } catch (error) {
+        discoveryError = truncate(categorizeError(error).message, 200, '')
+        logger.warn(`[${requestId}] Failed to connect to server ${serverId}`, {
+          error: discoveryError,
+        })
+      }
 
-        const [server] = await db
-          .select()
-          .from(mcpServers)
-          .where(
-            and(
-              eq(mcpServers.id, serverId),
-              eq(mcpServers.workspaceId, workspaceId),
-              isNull(mcpServers.deletedAt)
-            )
-          )
-          .limit(1)
-
-        if (!server) {
-          return createMcpErrorResponse(
-            new Error('Server not found or access denied'),
-            'Server not found',
-            404
-          )
-        }
-
-        let syncResult: SyncResult = { updatedCount: 0, updatedWorkflowIds: [] }
-        let discoveredTools: McpTool[] = []
-        let discoveryError: string | null = null
-        const discoveryStartedAt = new Date()
-
+      if (discoveryError === null) {
         try {
-          discoveredTools = await mcpService.discoverServerTools(
-            userId,
-            serverId,
+          syncResult = await syncToolSchemasToWorkflows(
             workspaceId,
-            'force'
-          )
-          logger.info(
-            `[${requestId}] Discovered ${discoveredTools.length} tools from server ${serverId}`
+            serverId,
+            discoveredTools,
+            requestId,
+            { url: server.url ?? undefined, name: server.name ?? undefined }
           )
         } catch (error) {
-          discoveryError = truncate(categorizeError(error).message, 200, '')
-          logger.warn(`[${requestId}] Failed to connect to server ${serverId}`, {
-            error: discoveryError,
+          // Discovery already persisted status and cached tools; a workflow-sync
+          // failure is a secondary propagation and must not fail the refresh with
+          // a 500. Surface it as zero workflows updated instead.
+          logger.warn(`[${requestId}] Tool schema sync failed after successful discovery`, {
+            error: getErrorMessage(error),
           })
         }
-
-        if (discoveryError === null) {
-          try {
-            syncResult = await syncToolSchemasToWorkflows(
-              workspaceId,
-              serverId,
-              discoveredTools,
-              requestId,
-              { url: server.url ?? undefined, name: server.name ?? undefined }
-            )
-          } catch (error) {
-            // Discovery already persisted status and cached tools; a workflow-sync
-            // failure is a secondary propagation and must not fail the refresh with
-            // a 500. Surface it as zero workflows updated instead.
-            logger.warn(`[${requestId}] Tool schema sync failed after successful discovery`, {
-              error: getErrorMessage(error),
-            })
-          }
-        }
-
-        const now = new Date()
-
-        /**
-         * Deliberately leaves `updatedAt` alone, matching the invariant
-         * `McpService.updateServerStatus` holds: `updatedAt` means "when the
-         * server's configuration last changed", and it is one of the public
-         * list's keyset sorts. A refresh stamping it moves the row to the head
-         * of `sortBy=updatedAt` under an in-flight page, so a caller walking the
-         * list while anyone presses this button sees servers duplicated across
-         * pages and others skipped. Refresh liveness is already published
-         * through `lastToolsRefresh`, `lastConnected`, and `lastError`.
-         */
-        const [refreshedServer] = await db
-          .update(mcpServers)
-          .set({
-            lastToolsRefresh: now,
-          })
-          .where(
-            and(
-              eq(mcpServers.id, serverId),
-              eq(mcpServers.workspaceId, workspaceId),
-              isNull(mcpServers.deletedAt)
-            )
-          )
-          .returning({
-            connectionStatus: mcpServers.connectionStatus,
-            lastConnected: mcpServers.lastConnected,
-            lastError: mcpServers.lastError,
-            toolCount: mcpServers.toolCount,
-          })
-
-        let connectionStatus = refreshedServer?.connectionStatus ?? 'error'
-        let lastError = refreshedServer ? refreshedServer.lastError : discoveryError
-        const toolCount = refreshedServer?.toolCount ?? discoveredTools.length
-
-        if (discoveryError !== null && connectionStatus === 'connected') {
-          const newerSuccessWonRace =
-            refreshedServer?.lastConnected != null &&
-            refreshedServer.lastConnected > discoveryStartedAt
-
-          if (!newerSuccessWonRace) {
-            connectionStatus = 'disconnected'
-            lastError = discoveryError
-          }
-        }
-
-        if (connectionStatus === 'connected') {
-          await mcpService.clearCache(workspaceId)
-        }
-
-        return createMcpSuccessResponse({
-          status: connectionStatus,
-          toolCount,
-          lastConnected: refreshedServer?.lastConnected?.toISOString() || null,
-          error: lastError,
-          workflowsUpdated: syncResult.updatedCount,
-          updatedWorkflowIds: syncResult.updatedWorkflowIds,
-        })
-      } catch (error) {
-        logger.error(`[${requestId}] Error refreshing MCP server:`, error)
-        return createMcpErrorResponse(toError(error), 'Failed to refresh MCP server', 500)
       }
+
+      const now = new Date()
+
+      /**
+       * Deliberately leaves `updatedAt` alone, matching the invariant
+       * `McpService.updateServerStatus` holds: `updatedAt` means "when the
+       * server's configuration last changed", and it is one of the public
+       * list's keyset sorts. A refresh stamping it moves the row to the head
+       * of `sortBy=updatedAt` under an in-flight page, so a caller walking the
+       * list while anyone presses this button sees servers duplicated across
+       * pages and others skipped. Refresh liveness is already published
+       * through `lastToolsRefresh`, `lastConnected`, and `lastError`.
+       */
+      const [refreshedServer] = await db
+        .update(mcpServers)
+        .set({
+          lastToolsRefresh: now,
+        })
+        .where(
+          and(
+            eq(mcpServers.id, serverId),
+            eq(mcpServers.workspaceId, workspaceId),
+            isNull(mcpServers.deletedAt)
+          )
+        )
+        .returning({
+          connectionStatus: mcpServers.connectionStatus,
+          lastConnected: mcpServers.lastConnected,
+          lastError: mcpServers.lastError,
+          toolCount: mcpServers.toolCount,
+        })
+
+      let connectionStatus = refreshedServer?.connectionStatus ?? 'error'
+      let lastError = refreshedServer ? refreshedServer.lastError : discoveryError
+      const toolCount = refreshedServer?.toolCount ?? discoveredTools.length
+
+      if (discoveryError !== null && connectionStatus === 'connected') {
+        const newerSuccessWonRace =
+          refreshedServer?.lastConnected != null &&
+          refreshedServer.lastConnected > discoveryStartedAt
+
+        if (!newerSuccessWonRace) {
+          connectionStatus = 'disconnected'
+          lastError = discoveryError
+        }
+      }
+
+      if (connectionStatus === 'connected') {
+        await mcpService.clearCache(workspaceId)
+      }
+
+      return createMcpSuccessResponse({
+        status: connectionStatus,
+        toolCount,
+        lastConnected: refreshedServer?.lastConnected?.toISOString() || null,
+        error: lastError,
+        workflowsUpdated: syncResult.updatedCount,
+        updatedWorkflowIds: syncResult.updatedWorkflowIds,
+      })
+    } catch (error) {
+      logger.error(`[${requestId}] Error refreshing MCP server:`, error)
+      return createMcpErrorResponse(toError(error), 'Failed to refresh MCP server', 500)
     }
-  )
+  })
 )

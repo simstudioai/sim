@@ -12,6 +12,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
 const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
@@ -63,20 +64,13 @@ vi.mock('@/lib/workflows/orchestration', () => ({
   getWorkflowDeploymentSummary: vi.fn(),
   performFullDeploy: vi.fn(),
 }))
-vi.mock('@/ee/access-control/utils/permission-check', () => {
-  class ChatDeployAuthNotAllowedError extends Error {
-    constructor() {
-      super('This chat authentication mode is not allowed')
-      this.name = 'ChatDeployAuthNotAllowedError'
-    }
-  }
-  return { validateChatDeployAuth: mocks.validateChatDeployAuth, ChatDeployAuthNotAllowedError }
-})
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  validateChatDeployAuth: mocks.validateChatDeployAuth,
+}))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { DELETE, GET, PUT } from '@/app/api/v2/workflows/[workflowId]/deployments/chat/route'
-import { ChatDeployAuthNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'
@@ -447,7 +441,13 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
     })
 
     it('names a blocked auth mode with an actionable forbidden code', async () => {
-      mocks.validateChatDeployAuth.mockRejectedValue(new ChatDeployAuthNotAllowedError())
+      mocks.validateChatDeployAuth.mockRejectedValue(
+        new PermissionGroupCapabilityError(
+          'deploy.chat.auth_mode',
+          'CHAT_AUTH_MODE_NOT_PERMITTED',
+          "This chat authentication mode is not available under your organization's permission group"
+        )
+      )
 
       const response = await put({
         ...validBody,

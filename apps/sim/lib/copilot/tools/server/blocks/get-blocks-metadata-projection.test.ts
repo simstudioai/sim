@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   isDeploymentAvailable: vi.fn(() => true),
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 

@@ -230,6 +230,7 @@ describe('setWorkflowBlockEnabled', () => {
     ).resolves.toMatchObject({ changed: true, affectedBlockIds: ['block-1'] })
 
     expect(mocks.replace).toHaveBeenCalledWith({
+      subjectUserId: null,
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       attributedUserId: 'user-1',

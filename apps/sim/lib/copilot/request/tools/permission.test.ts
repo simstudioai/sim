@@ -36,6 +36,7 @@ function makeContext() {
   context.toolPermissions = {
     enabled: true,
     autoAllowed: new Set(),
+    autoAllowPermitted: true,
   }
   context.trace = new TraceCollector()
   return context
@@ -213,6 +214,7 @@ describe('gated tools are askable', () => {
         .sort()
     ).toEqual([
       'call_integration_tool',
+      'cancel_workflow_run',
       'delete_workspace_mcp_server',
       'deploy_as_api',
       'deploy_as_chat',
@@ -410,5 +412,46 @@ describe('runGatedToolExecution', () => {
 
     const call = events.find((event) => event.payload?.phase === 'call')
     expect(call?.payload).toMatchObject({ status: 'executing', toolCallId: 'call-1' })
+  })
+})
+
+describe('when the permission group withholds tool auto-approval', () => {
+  /**
+   * The stored list is what `toolCallNeedsApproval` reads, so an entry saved
+   * before an admin set the key would otherwise keep silencing the prompt for
+   * as long as it sat in the table. Turning the key on has to take effect on
+   * the next call, not on the next entry.
+   */
+  it('prompts for a tool the user already always-allowed', () => {
+    const context = makeContext()
+    context.toolPermissions.autoAllowed.add('terminal')
+    context.toolPermissions.autoAllowPermitted = false
+
+    expect(toolCallNeedsApproval('terminal', context, {}, false, { operation: 'run' })).toBe(true)
+  })
+
+  it('leaves an ungated tool ungated', () => {
+    toolRequiresApproval.mockReturnValue(false)
+    const context = makeContext()
+    context.toolPermissions.autoAllowPermitted = false
+
+    expect(toolCallNeedsApproval('gmail_read_v2', context, {}, false)).toBe(false)
+    toolRequiresApproval.mockReturnValue(true)
+  })
+
+  it('does not let an always-allow answer suppress the rest of the turn', async () => {
+    const context = makeContext()
+    context.toolPermissions.autoAllowPermitted = false
+    const toolCall = makeToolCall()
+    waitForToolPermissionDecision.mockResolvedValue({
+      toolCallId: 'call-1',
+      decision: 'always_allow',
+    })
+
+    await gate(context, toolCall, () => Promise.resolve({ status: 'success' }), [])
+
+    // The answer still ran the tool; only its memory is refused.
+    expect(context.toolPermissions.autoAllowed.has('terminal')).toBe(false)
+    expect(toolCallNeedsApproval('terminal', context, {}, false, { operation: 'run' })).toBe(true)
   })
 })

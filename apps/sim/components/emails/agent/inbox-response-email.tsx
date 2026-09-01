@@ -1,5 +1,5 @@
 import { type ComponentType, type CSSProperties, createElement, type ReactNode } from 'react'
-import { Body, Head, Html, Link, Markdown, Section, Text } from '@react-email/components'
+import { Body, Head, Html, Link, Markdown, Section, Text } from 'react-email'
 import { colors, fontWeight, typography } from '@/components/emails/_styles'
 import { getBrandConfig } from '@/ee/whitelabeling'
 

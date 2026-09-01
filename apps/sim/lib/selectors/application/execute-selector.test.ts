@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -61,7 +62,13 @@ vi.mock('@/lib/selectors/server/sanitize', () => ({
   sanitizeSelectorResult: mocks.sanitize,
 }))
 
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
+const mockResolvePermissionGroupConfig =
+  permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+
 import { selectorScopeSchema } from '@/lib/api/contracts/selectors/execute'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { executeSelector } from '@/lib/selectors/application/execute-selector'
 import { getSelectorManifestEntry } from '@/lib/selectors/manifest'
 import {
@@ -69,6 +76,7 @@ import {
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
 const scope = { kind: 'workspace' as const, workspaceId: 'workspace-1' }
@@ -130,6 +138,7 @@ describe('executeSelector', () => {
       mocks.events.push('sanitization')
       return result
     })
+    mockResolvePermissionGroupConfig.mockResolvedValue(null)
   })
 
   it('authorizes canonical scope before references, credentials, and provider execution', async () => {
@@ -146,6 +155,209 @@ describe('executeSelector', () => {
       'provider-execution',
       'sanitization',
     ])
+  })
+
+  /**
+   * The picker is a use of the integration, not a neutral list: it reaches the
+   * provider's API with the caller's credential. The authorization funnel never
+   * sees which integration a selector key stands for, so the allowlist decision
+   * is asserted from the use case instead.
+   */
+  it('refuses a selector whose integration the permission group excludes', async () => {
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['slack_v2'],
+    })
+
+    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+
+    expect(mocks.events).toEqual([
+      'canonical-scope',
+      'workspace-authorization',
+      'reference-resolution',
+      'credential-authorization',
+    ])
+  })
+
+  it('executes a selector whose integration the permission group names', async () => {
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['gmail_v2'],
+    })
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * `serviceIds` names which credentials a selector accepts, not which resource
+   * it reads. `google.drive` accepts a Drive, Docs, Sheets or Forms connection
+   * because all four carry Drive scope, but it only ever calls the Drive API.
+   * Judging the accepted set let a group that permits `google_sheets_v2` and
+   * excludes `google_drive` read Drive through it.
+   */
+  it('refuses a multi-service selector whose own resource is excluded', async () => {
+    mocks.authorizeCredential.mockImplementation(async () => {
+      mocks.events.push('credential-authorization')
+      return { suppliedId: 'credential-1', providerId: 'google-sheets' }
+    })
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      credential: {
+        kind: 'stored',
+        field: 'oauthCredential',
+        serviceIds: ['google-drive', 'google-docs', 'google-sheets', 'google-forms'],
+        resourceServiceId: 'google-drive',
+      },
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['google_sheets_v2'],
+    })
+
+    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The same selector, with its own resource permitted. The credential is a
+   * Sheets one and `google_sheets_v2` is *not* allowed, which is deliberate:
+   * the credential narrows nothing, because the API the selector reaches is the
+   * only thing the allowlist has an opinion about.
+   */
+  it('allows a multi-service selector whose own resource is permitted', async () => {
+    mocks.authorizeCredential.mockImplementation(async () => {
+      mocks.events.push('credential-authorization')
+      return { suppliedId: 'credential-1', providerId: 'google-sheets' }
+    })
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      credential: {
+        kind: 'stored',
+        field: 'oauthCredential',
+        serviceIds: ['google-drive', 'google-docs', 'google-sheets', 'google-forms'],
+        resourceServiceId: 'google-drive',
+      },
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['google_drive'],
+    })
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
+  })
+
+  /** The SharePoint/Excel pair reads SharePoint, whatever credential opened it. */
+  it('refuses a sharepoint selector when only the excel half is allowed', async () => {
+    mocks.authorizeCredential.mockImplementation(async () => {
+      mocks.events.push('credential-authorization')
+      return { suppliedId: 'credential-1', providerId: 'microsoft-excel' }
+    })
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      credential: {
+        kind: 'stored',
+        field: 'oauthCredential',
+        serviceIds: ['sharepoint', 'microsoft-excel'],
+        resourceServiceId: 'sharepoint',
+      },
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['microsoft_excel_v2'],
+    })
+
+    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The hole this closes: a selector authenticated from raw context fields
+   * (CloudWatch's AWS keys, IMAP's host and password) carries no credential
+   * policy, so the gate used to resolve it to an empty service list and return
+   * without checking — reaching the third party with the caller's keys under an
+   * allowlist that never named it.
+   */
+  it('refuses a raw-context selector whose declared integration is excluded', async () => {
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      integrationBlockTypes: ['cloudwatch'],
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['slack_v2'],
+    })
+
+    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
+  })
+
+  it('executes a raw-context selector whose declared integration is permitted', async () => {
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      integrationBlockTypes: ['cloudwatch'],
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['cloudwatch'],
+    })
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * An API-key integration owns no OAuth catalog entry, so its service id maps
+   * to no block type. The declaration is what gives the allowlist something to
+   * judge, and it must win over the catalog.
+   */
+  it('refuses an api-key selector whose declared integration is excluded', async () => {
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['snowflake'] },
+      integrationBlockTypes: ['snowflake'],
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['slack_v2'],
+    })
+
+    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A selector with no integration identity is not an integration: an internal
+   * selector declares no credential policy at all, so an allowlist that names
+   * nothing still leaves workspace files and knowledge bases pickable.
+   */
+  it('passes through a selector that carries no credential policy', async () => {
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: [],
+    })
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
+  })
+
+  /** No group governs the caller, so nothing narrows the allowlist. */
+  it('executes when no permission group governs the caller', async () => {
+    mockResolvePermissionGroupConfig.mockResolvedValue(null)
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
   })
 
   it('prepares non-fixed destinations after credential authorization and before provider execution', async () => {

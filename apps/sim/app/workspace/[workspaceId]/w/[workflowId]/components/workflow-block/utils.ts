@@ -1,4 +1,4 @@
-import type { NodeProps } from 'reactflow'
+import type { Node, NodeProps } from '@xyflow/react'
 import { WEBHOOK_PROVIDERS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/constants'
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -17,17 +17,17 @@ export function getProviderName(providerId: string): string {
  * Compares two WorkflowBlock props to determine if a re-render should be skipped.
  * Used as the comparison function for React.memo.
  *
- * Note: xPos and yPos are intentionally excluded since WorkflowBlock doesn't use
- * position props - ReactFlow handles positioning via CSS transforms. Including them
- * would cause unnecessary re-renders during drag (100+ times per drag operation).
+ * Note: positionAbsoluteX and positionAbsoluteY are intentionally excluded since
+ * WorkflowBlock does not use position props. React Flow handles positioning via CSS
+ * transforms, and comparing them would cause unnecessary re-renders during dragging.
  *
  * @param prevProps - Previous node props
  * @param nextProps - Next node props
  * @returns True if render should be skipped (props are equal), false otherwise
  */
 export function shouldSkipBlockRender(
-  prevProps: NodeProps<WorkflowBlockProps>,
-  nextProps: NodeProps<WorkflowBlockProps>
+  prevProps: NodeProps<Node<WorkflowBlockProps, 'workflowBlock'>>,
+  nextProps: NodeProps<Node<WorkflowBlockProps, 'workflowBlock'>>
 ): boolean {
   return (
     prevProps.id === nextProps.id &&

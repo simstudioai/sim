@@ -7,6 +7,11 @@ import {
 } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { type ListLogsParams, readLogs } from '@/lib/logs/list-logs'
+import {
+  assertLogCostQueryAllowed,
+  logProjectionSubjectUserId,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const authorizedListLogsUseCase = defineAuthorizedWorkspaceUseCase({
@@ -14,8 +19,31 @@ const authorizedListLogsUseCase = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: ListLogsParams }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: logDelegationAuthorization(),
-  async execute({ input, context }) {
-    return readLogs({ ...input, workspaceId: context.workspaceId })
+  async execute({ principal, input, context }) {
+    /**
+     * permission-group-enforced: logs.cost — the list carries the same run
+     * total the detail does, so withholding it only on the detail would hide
+     * nothing. A projection rather than a refusal, for the reason given in
+     * `read-log-detail.ts`, resolved through the shared helper every other log
+     * surface reads so the subject and the rule cannot drift apart here.
+     */
+    const { hideCostInfo } = await resolveLogFieldProjection(
+      logProjectionSubjectUserId(principal),
+      context.workspaceId,
+      context.workspaceOrganizationId
+    )
+    /**
+     * The list's own `sortBy=cost` and `costOperator`/`costValue` select on the
+     * very figure the row above blanks, so they have to be refused rather than
+     * answered — see {@link assertLogCostQueryAllowed}.
+     */
+    assertLogCostQueryAllowed(input, { hideCostInfo })
+
+    return readLogs({
+      ...input,
+      workspaceId: context.workspaceId,
+      hideCostInfo,
+    })
   },
 })
 

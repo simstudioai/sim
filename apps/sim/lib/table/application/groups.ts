@@ -3,6 +3,7 @@ import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type { V2AddWorkflowGroupBody } from '@/lib/api/contracts/v2/tables'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -182,6 +183,11 @@ function dispatchGroupAutoRun(params: {
   workspaceId: string
   groupId: string
   actorUserId: string
+  /**
+   * The gate's subject, which is not the meter's `actorUserId`; `null` means no
+   * acting person. See {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
+   */
+  capabilityGovernedUserId: string | null
   label: string
 }): void {
   runDetached(params.label, async () => {
@@ -193,6 +199,7 @@ function dispatchGroupAutoRun(params: {
       isManualRun: false,
       requestId: generateRequestId(),
       triggeredByUserId: params.actorUserId,
+      capabilityGovernedUserId: params.capabilityGovernedUserId,
     })
     logger.info('Started table group auto-run', {
       tableId: params.tableId,
@@ -274,6 +281,7 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
     }
 
     const actorUserId = attributedUserId(principal, context.billedAccountUserId)
+    const capabilityGovernedUserId = capabilityGovernedPrincipalUserId(principal)
     const groupId = input.group.id ?? generateId()
     /**
      * The public surface lets an `enrichment` group omit `workflowId`, so the
@@ -302,10 +310,16 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
         autoRun: input.autoRun ?? false,
         suppressAutoRunDispatch: true,
         actorUserId,
+        capabilityGovernedUserId,
       },
       generateRequestId()
     )
-    return { table, group: groupFromTable(table, groupId), actorUserId }
+    return {
+      table,
+      group: groupFromTable(table, groupId),
+      actorUserId,
+      capabilityGovernedUserId,
+    }
   },
   projectAudit({ result }) {
     return {
@@ -325,6 +339,7 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         groupId: result.group.id,
         actorUserId: result.actorUserId,
+        capabilityGovernedUserId: result.capabilityGovernedUserId,
         label: 'table-group-create-auto-run',
       })
     }
@@ -411,6 +426,7 @@ export const createWorkflowTableGroup = defineAuthorizedTableUseCase({
       outputs,
     }
     const actorUserId = attributedUserId(principal, context.billedAccountUserId)
+    const capabilityGovernedUserId = capabilityGovernedPrincipalUserId(principal)
     const table = await addWorkflowGroup(
       {
         tableId: context.tableId,
@@ -420,10 +436,16 @@ export const createWorkflowTableGroup = defineAuthorizedTableUseCase({
         autoRun: input.autoRun ?? false,
         suppressAutoRunDispatch: true,
         actorUserId,
+        capabilityGovernedUserId,
       },
       generateRequestId()
     )
-    return { table, group: groupFromTable(table, groupId), actorUserId }
+    return {
+      table,
+      group: groupFromTable(table, groupId),
+      actorUserId,
+      capabilityGovernedUserId,
+    }
   },
   projectAudit({ result }) {
     return {
@@ -443,6 +465,7 @@ export const createWorkflowTableGroup = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         groupId: result.group.id,
         actorUserId: result.actorUserId,
+        capabilityGovernedUserId: result.capabilityGovernedUserId,
         label: 'table-workflow-group-create-auto-run',
       })
     }
@@ -550,6 +573,7 @@ export const createTableEnrichmentGroup = defineAuthorizedTableUseCase({
       autoRun: input.autoRun ?? false,
     }
     const actorUserId = attributedUserId(principal, context.billedAccountUserId)
+    const capabilityGovernedUserId = capabilityGovernedPrincipalUserId(principal)
     const table = await addWorkflowGroup(
       {
         tableId: context.tableId,
@@ -559,10 +583,16 @@ export const createTableEnrichmentGroup = defineAuthorizedTableUseCase({
         autoRun: input.autoRun ?? false,
         suppressAutoRunDispatch: true,
         actorUserId,
+        capabilityGovernedUserId,
       },
       generateRequestId()
     )
-    return { table, group: groupFromTable(table, groupId), actorUserId }
+    return {
+      table,
+      group: groupFromTable(table, groupId),
+      actorUserId,
+      capabilityGovernedUserId,
+    }
   },
   projectAudit({ result }) {
     return {
@@ -586,6 +616,7 @@ export const createTableEnrichmentGroup = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         groupId: result.group.id,
         actorUserId: result.actorUserId,
+        capabilityGovernedUserId: result.capabilityGovernedUserId,
         label: 'table-enrichment-group-create-auto-run',
       })
     }
@@ -596,7 +627,11 @@ export interface UpdateTableGroupInput
   extends TableGroupInput,
     Omit<
       UpdateWorkflowGroupData,
-      'tableId' | 'workspaceId' | 'actorUserId' | 'suppressAutoRunDispatch'
+      | 'tableId'
+      | 'workspaceId'
+      | 'actorUserId'
+      | 'capabilityGovernedUserId'
+      | 'suppressAutoRunDispatch'
     > {}
 
 export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
@@ -735,6 +770,7 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
       }
     }
     const actorUserId = attributedUserId(principal, context.billedAccountUserId)
+    const capabilityGovernedUserId = capabilityGovernedPrincipalUserId(principal)
     const hasMappingUpdates = Boolean(input.mappingUpdates && input.mappingUpdates.length > 0)
     if (hasMappingUpdates && !resolvedWorkflow) {
       throw new Error('Workflow metadata is required for workflow group mapping updates')
@@ -764,6 +800,7 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         groupId: input.groupId,
         actorUserId,
+        capabilityGovernedUserId,
         suppressAutoRunDispatch: true,
         ...(input.workflowId !== undefined ? { workflowId: input.workflowId } : {}),
         ...(input.name !== undefined ? { name: input.name } : {}),
@@ -795,6 +832,7 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
         JSON.stringify(context.table.metadata) !== JSON.stringify(table.metadata),
       startAutoRun: previousGroup?.autoRun === false && input.autoRun === true,
       actorUserId,
+      capabilityGovernedUserId,
     }
   },
   projectAudit({ result }) {
@@ -816,6 +854,7 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         groupId: result.group.id,
         actorUserId: result.actorUserId,
+        capabilityGovernedUserId: result.capabilityGovernedUserId,
         label: 'table-group-update-auto-run',
       })
     }
@@ -956,12 +995,14 @@ export const updateWorkflowTableGroup = defineAuthorizedTableUseCase({
     }
 
     const actorUserId = attributedUserId(principal, context.billedAccountUserId)
+    const capabilityGovernedUserId = capabilityGovernedPrincipalUserId(principal)
     const table = await updateWorkflowGroup(
       {
         tableId: context.tableId,
         workspaceId: context.workspaceId,
         groupId: input.groupId,
         actorUserId,
+        capabilityGovernedUserId,
         suppressAutoRunDispatch: true,
         ...(input.workflowId !== undefined ? { workflowId: input.workflowId } : {}),
         ...(input.name !== undefined ? { name: input.name } : {}),
@@ -984,6 +1025,7 @@ export const updateWorkflowTableGroup = defineAuthorizedTableUseCase({
         JSON.stringify(context.table.metadata) !== JSON.stringify(table.metadata),
       startAutoRun: previousGroup.autoRun === false && input.autoRun === true,
       actorUserId,
+      capabilityGovernedUserId,
     }
   },
   projectAudit({ result }) {
@@ -1005,6 +1047,7 @@ export const updateWorkflowTableGroup = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         groupId: result.group.id,
         actorUserId: result.actorUserId,
+        capabilityGovernedUserId: result.capabilityGovernedUserId,
         label: 'table-workflow-group-update-auto-run',
       })
     }
@@ -1104,6 +1147,7 @@ export const addWorkflowTableGroupOutput = defineAuthorizedTableUseCase({
         actorUserId: resolvePrincipalAttribution(principal, {
           workspaceBillingOwnerUserId: context.billedAccountUserId,
         }).attributedUserId,
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         resolvedOutput: {
           workflowId: resolvedWorkflow.workflowId,
           columnType: columnTypeForLeaf(output.leafType),

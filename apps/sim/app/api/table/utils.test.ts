@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { capabilityGovernedAuthUserId } from '@/lib/auth/hybrid'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableRowLimitError } from '@/lib/table/billing'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
@@ -178,5 +179,55 @@ describe('orchestrationOutcomeErrorResponse', () => {
       error: 'Table is locked against deletion',
       lock: 'delete',
     })
+  })
+})
+
+describe('capabilityGovernedAuthUserId', () => {
+  it('governs a session by its user', () => {
+    expect(
+      capabilityGovernedAuthUserId({ success: true, userId: 'user-1', authType: 'session' })
+    ).toBe('user-1')
+  })
+
+  it('governs a personal API key by its owner', () => {
+    expect(
+      capabilityGovernedAuthUserId({
+        success: true,
+        userId: 'user-1',
+        authType: 'api_key',
+        apiKeyType: 'personal',
+      })
+    ).toBe('user-1')
+  })
+
+  /**
+   * The executor embeds the run's actor in the internal JWT — the workspace
+   * billing owner, or the member who merely triggered the run. Reading a
+   * governed subject off it applies that bystander's permission group to an
+   * executor call, which is the substitution the subject exists to remove.
+   */
+  it('names nobody for an internal JWT even though it carries a user id', () => {
+    expect(
+      capabilityGovernedAuthUserId({
+        success: true,
+        userId: 'billing-owner',
+        authType: 'internal_jwt',
+      })
+    ).toBeNull()
+  })
+
+  it('names nobody for a workspace API key, whose user id is the key creator', () => {
+    expect(
+      capabilityGovernedAuthUserId({
+        success: true,
+        userId: 'key-creator',
+        authType: 'api_key',
+        apiKeyType: 'workspace',
+      })
+    ).toBeNull()
+  })
+
+  it('names nobody when the credential carries no user at all', () => {
+    expect(capabilityGovernedAuthUserId({ success: true, authType: 'internal_jwt' })).toBeNull()
   })
 })

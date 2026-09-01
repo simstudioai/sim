@@ -436,7 +436,16 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         variables: {},
       })
       const { workflowState } = buildDefaultWorkflowArtifacts()
-      await saveWorkflowToNormalizedTables(defaultWorkflowId, workflowState, tx)
+      await saveWorkflowToNormalizedTables(
+        defaultWorkflowId,
+        workflowState,
+        {
+          /** Actorless: a fork's starter graph is seeded by the platform, not authored. */
+          workspaceId: null,
+          subjectUserId: null,
+        },
+        tx
+      )
     }
 
     const seedEntries: ForkMappingUpsert[] = []

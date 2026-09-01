@@ -107,13 +107,9 @@ vi.mock('@/lib/core/security/encryption', () => ({
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
   assertPermissionsAllowed: mockAssertPermissionsAllowed,
   validateBlockType: vi.fn().mockResolvedValue(undefined),
-  validateMcpToolsAllowed: vi.fn().mockResolvedValue(undefined),
-  validateCustomToolsAllowed: vi.fn().mockResolvedValue(undefined),
-  validateSkillsAllowed: vi.fn().mockResolvedValue(undefined),
   validateModelProvider: vi.fn().mockResolvedValue(undefined),
   validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
   validatePublicApiAllowed: vi.fn().mockResolvedValue(undefined),
-  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
   ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
   IntegrationNotAllowedError: class IntegrationNotAllowedError extends Error {},
   McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
@@ -121,6 +117,10 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   SkillsNotAllowedError: class SkillsNotAllowedError extends Error {},
   InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
   PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
@@ -3038,6 +3038,70 @@ describe('Internal Route Trust', () => {
     } finally {
       Reflect.deleteProperty(tools, authorityToolId)
       Reflect.deleteProperty(tools, ordinaryToolId)
+    }
+  })
+
+  it('accepts credential-group provenance only from credential resolution', async () => {
+    const toolId = 'test_credential_type_authority'
+    const mockTool = {
+      id: toolId,
+      name: 'Credential Type Authority Test',
+      description: 'Verifies credential-derived request capabilities',
+      version: '1.0.0',
+      oauth: {
+        required: true,
+        provider: 'slack',
+        authoritativeParams: ['credentialType'] as const,
+      },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'hidden' },
+        credentialType: { type: 'string', required: false, visibility: 'hidden' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => {
+          const types =
+            params.credentialType === 'managed_oauth' ? 'public_channel,im,mpim' : 'public_channel'
+          return `https://slack.com/api/conversations.list?types=${types}`
+        },
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.accessToken}`,
+        }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+    ;(tools as Record<string, unknown>)[toolId] = mockTool
+
+    const setTokenPayload = (payload: Record<string, unknown>) => {
+      mockResolveExecutorCredentialToken.mockResolvedValue(payload)
+    }
+
+    try {
+      setTokenPayload({ accessToken: 'legacy-token' })
+      const spoofedResult = await executeTool(toolId, {
+        credential: 'legacy-credential',
+        credentialType: 'managed_oauth',
+      })
+      expect(spoofedResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://slack.com/api/conversations.list?types=public_channel',
+        '93.184.216.34',
+        expect.anything()
+      )
+
+      mockSecureFetchWithPinnedIP.mockClear()
+      setTokenPayload({ accessToken: 'managed-token', credentialType: 'managed_oauth' })
+      const managedResult = await executeTool(toolId, {
+        credential: 'managed-credential',
+      })
+      expect(managedResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://slack.com/api/conversations.list?types=public_channel,im,mpim',
+        '93.184.216.34',
+        expect.anything()
+      )
+    } finally {
+      Reflect.deleteProperty(tools, toolId)
     }
   })
 

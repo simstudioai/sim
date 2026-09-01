@@ -201,13 +201,13 @@ export interface SailPointRequestedItem {
   formInstanceId?: string | null
 }
 
-export interface SailPointNestedRequestedItem extends SailPointRequestedItem {
+export type SailPointNestedRequestedItem = Omit<SailPointRequestedItem, 'assignmentId'> & {
   accountSelection?: SailPointSourceItemRef[] | null
 }
 
 export interface SailPointAccountItemRef {
   accountUuid?: string | null
-  nativeIdentity?: string | null
+  nativeIdentity?: string
 }
 
 export interface SailPointSourceItemRef {

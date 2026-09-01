@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
@@ -37,9 +37,22 @@ const MAX_FETCH_RETRIES = 4
 const MAX_TOKEN_CACHE_ENTRIES = 100
 const MAX_TOKEN_EXCHANGES = 100
 const MAX_TOKEN_RESPONSE_BYTES = 1024 * 1024
+const TOKEN_EXCHANGE_TIMEOUT_MS = 30_000
 const TOKEN_EXPIRY_BUFFER_MS = 60_000
 const tokenCache = new Map<string, CachedToken>()
 const tokenExchanges = new Map<string, Promise<string>>()
+
+async function waitForPromiseWithSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise
+  signal.throwIfAborted()
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () =>
+      reject(signal.reason ?? new DOMException('The operation was aborted', 'AbortError'))
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
+  })
+}
 
 export function resolveSailPointHosts(tenant: string): SailPointHosts {
   let host = tenant.trim().replace(/^https?:\/\//i, '')
@@ -155,6 +168,7 @@ async function exchangeAccessToken(
         client_secret: credentials.clientSecret,
       }).toString(),
       cache: 'no-store',
+      redirect: 'error',
       signal,
     })
 
@@ -162,7 +176,8 @@ async function exchangeAccessToken(
       const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
       await consumeOrCancelBody(response, DEFAULT_MAX_ERROR_BODY_BYTES)
       attempt += 1
-      await sleep(backoffWithJitter(attempt, retryAfterMs))
+      await interruptibleSleep(backoffWithJitter(attempt, retryAfterMs), signal)
+      signal?.throwIfAborted()
       continue
     }
 
@@ -210,16 +225,19 @@ export async function getSailPointAccessToken(
   if (cached) tokenCache.delete(key)
 
   const existing = tokenExchanges.get(key)
-  if (existing) return existing
+  if (existing) return waitForPromiseWithSignal(existing, signal)
   if (tokenExchanges.size >= MAX_TOKEN_EXCHANGES) {
     throw new Error('Too many concurrent SailPoint token exchanges')
   }
 
-  const exchange = exchangeAccessToken(credentials, signal).finally(() => {
+  const exchange = exchangeAccessToken(
+    credentials,
+    AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS)
+  ).finally(() => {
     tokenExchanges.delete(key)
   })
   tokenExchanges.set(key, exchange)
-  return exchange
+  return waitForPromiseWithSignal(exchange, signal)
 }
 
 export async function sailpointFetch(
@@ -244,6 +262,7 @@ export async function sailpointFetch(
       ...init,
       cache: 'no-store',
       headers,
+      redirect: 'error',
       signal: options.signal,
     })
 
@@ -257,7 +276,8 @@ export async function sailpointFetch(
       const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
       await consumeOrCancelBody(response, DEFAULT_MAX_ERROR_BODY_BYTES)
       attempt += 1
-      await sleep(backoffWithJitter(attempt, retryAfterMs))
+      await interruptibleSleep(backoffWithJitter(attempt, retryAfterMs), options.signal)
+      options.signal?.throwIfAborted()
       continue
     }
 
@@ -279,7 +299,7 @@ export function readTotalCount(headers: Headers): number | null {
   const raw = headers.get('x-total-count')
   if (!raw) return null
   const parsed = Number(raw)
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null
 }
 
 /** Clears process-local authentication state for deterministic tests. */

@@ -32,12 +32,21 @@ import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilit
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
+import {
+  projectCostTotal,
+  projectExecutionData,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import {
+  intersectIntegrationAllowlists,
+  resolveAccessControlBlockType,
+} from '@/lib/permission-groups/integration-allowlist'
 import { getColumnId } from '@/lib/table/column-keys'
 import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
@@ -47,7 +56,6 @@ import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -600,7 +608,7 @@ async function processBlockMetadata(
 ): Promise<AgentContext | null> {
   try {
     const [permissionConfig, visibility] = await Promise.all([
-      userId && workspaceId ? getUserPermissionConfig(userId, workspaceId) : null,
+      userId && workspaceId ? resolvePermissionGroupConfig(userId, workspaceId, undefined) : null,
       userId ? getBlockVisibilityForCopilot(userId, workspaceId) : null,
     ])
     const allowedIntegrations = intersectIntegrationAllowlists(
@@ -614,7 +622,7 @@ async function processBlockMetadata(
     if (
       allowedIntegrations != null &&
       !isBlockTypeAccessControlExempt(blockId) &&
-      !allowedIntegrations.includes(blockId.toLowerCase())
+      !allowedIntegrations.includes(resolveAccessControlBlockType(blockId.toLowerCase()))
     ) {
       logger.debug('Block not allowed by integration allowlist', { blockId, userId })
       return null
@@ -753,11 +761,35 @@ async function processExecutionLogFromDb(
       }
     }
 
+    /**
+     * Copilot is deliberately not exempt: it acts as the person, so the run it
+     * inlines is withheld exactly as the person's own log surfaces withhold it.
+     * `userId` here is the chatting user — both callers of
+     * `processContextsServer` pass the request's authenticated subject, and this
+     * is session context rather than an executor delegation — so it is the right
+     * subject for the projection, and an absent one reads whole.
+     *
+     * `logs.trace_spans` withholds the overview entirely rather than merely
+     * thinning it: the tree is derived from `traceSpans`, which is on the
+     * withheld list that the log-detail route strips outright.
+     * `logs.cost` blanks the run total AND every span's own `cost`, through the
+     * shared projector — a viewer who can sum the spans has been withheld
+     * nothing.
+     *
+     * permission-group-enforced: logs.trace_spans
+     * permission-group-enforced: logs.cost
+     */
+    const projection = await resolveLogFieldProjection(userId, log.workspaceId)
+
     const { materializeExecutionData } = await import('@/lib/logs/execution/trace-store')
-    const executionData = (await materializeExecutionData(
+    const materialized = (await materializeExecutionData(
       log.executionData as Record<string, unknown> | null,
       { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
-    )) as { traceSpans?: TraceSpan[] } | undefined
+    )) as Record<string, unknown> | null | undefined
+    const executionData = projectExecutionData(materialized ?? null, projection) as
+      | { traceSpans?: TraceSpan[] }
+      | null
+      | undefined
     const overview = executionData?.traceSpans?.length
       ? toOverview(executionData.traceSpans)
       : undefined
@@ -772,7 +804,7 @@ async function processExecutionLogFromDb(
       endedAt: log.endedAt?.toISOString?.() || (log.endedAt ? String(log.endedAt) : null),
       totalDurationMs: log.totalDurationMs ?? null,
       workflowName: log.workflowName || '',
-      cost: log.costTotal != null ? { total: Number(log.costTotal) } : undefined,
+      cost: projectCostTotal(log.costTotal, projection) ?? undefined,
       overview,
       note: `For a block's input/output/error, or to grep the trace, call ${QueryLogs.id} with executionId: '${log.executionId}' — view: 'full' (scope with blockId or blockName), or pattern to grep.`,
     }

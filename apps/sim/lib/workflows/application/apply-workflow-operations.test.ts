@@ -85,8 +85,18 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceSandboxAccess: mocks.sandboxAccess,
 }))
 vi.mock('@/lib/core/config/block-visibility', () => ({ getBlockVisibility: mocks.blockVisibility }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mocks.permissionConfig,
+  /**
+   * The use case passes the organization it already loaded, so the resolver
+   * takes its verified-context branch rather than looking the workspace up
+   * again.
+   */
+  resolveVerifiedUserAccessControlContext: async (
+    userId: string,
+    workspaceId: string,
+    _organizationId: string | null
+  ) => ({ config: await mocks.permissionConfig(userId, workspaceId) }),
 }))
 vi.mock('@/blocks/visibility/server-context', () => ({
   withBlockVisibility: (_state: unknown, run: () => unknown) => run(),

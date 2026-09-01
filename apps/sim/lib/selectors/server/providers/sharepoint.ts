@@ -32,6 +32,7 @@ const siteCredential = {
   kind: 'stored',
   field: 'oauthCredential',
   serviceIds: ['sharepoint', 'microsoft-excel'],
+  resourceServiceId: 'sharepoint',
 } as const
 
 async function graphToken(args: ExecuteServerSelectorArgs): Promise<string> {

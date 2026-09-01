@@ -17,23 +17,40 @@ const EXECUTION_PRINCIPAL_POLICY = {
   delegatedServices: ['executor'],
 } as const
 
+/**
+ * Two capabilities, because the family covers two different things.
+ *
+ * `mcp_servers.*` is the workspace's registry of external MCP servers — the
+ * connections an agent calls tools through — so every one of them declares
+ * `mcp_tools.use`. Gating only `tools.execute` would leave a group that blocks
+ * MCP tools able to keep registering servers and storing their credentials
+ * against the workspace, which is the accumulation the key exists to stop.
+ *
+ * `mcp_servers.workflow_deployments.*` is the opposite direction: publishing a
+ * workflow *as* an MCP server, which is what `hideDeployMcp` names. Reads carry
+ * `deploy.mcp` alongside the writes, so a group that withholds the deployment
+ * surface does not still answer with what is published on it.
+ */
 export const mcpServerOperations = {
   list: defineWorkspaceOperation({
     id: 'mcp_servers.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'mcp_tools.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
   discoverTools: defineWorkspaceOperation({
     id: 'mcp_servers.tools.discover',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'mcp_tools.use',
     ...DISCOVERY_PRINCIPAL_POLICY,
   }),
   executeTool: defineWorkspaceOperation({
     id: 'mcp_servers.tools.execute',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'mcp_tools.use',
     ...EXECUTION_PRINCIPAL_POLICY,
   }),
   /**
@@ -56,6 +73,7 @@ export const mcpServerOperations = {
     id: 'mcp_servers.workflow_deployments.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'deploy.mcp',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   /**
@@ -70,18 +88,21 @@ export const mcpServerOperations = {
     id: 'mcp_servers.workflow_deployments.read_server',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'deploy.mcp',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   listWorkflowDeploymentTools: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.list_tools',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'deploy.mcp',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   createWorkflowDeploymentServer: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.create_server',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.mcp',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   /**
@@ -101,60 +122,70 @@ export const mcpServerOperations = {
     id: 'mcp_servers.workflow_deployments.update_server',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.mcp',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   deleteWorkflowDeploymentServer: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.delete_server',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.mcp',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   deployWorkflowTool: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.deploy_tool',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.mcp',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   undeployWorkflowTool: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.undeploy_tool',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.mcp',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
     id: 'mcp_servers.read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'mcp_tools.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
   create: defineWorkspaceOperation({
     id: 'mcp_servers.create',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
+    capability: 'mcp_tools.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
   register: defineWorkspaceOperation({
     id: 'mcp_servers.register',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
+    capability: 'mcp_tools.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
     id: 'mcp_servers.update',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
+    capability: 'mcp_tools.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
   reconfigure: defineWorkspaceOperation({
     id: 'mcp_servers.reconfigure',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
+    capability: 'mcp_tools.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
     id: 'mcp_servers.delete',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
+    capability: 'mcp_tools.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
 } as const

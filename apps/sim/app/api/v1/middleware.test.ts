@@ -7,7 +7,12 @@
  * `used = limit - remaining` gets a negative number.
  */
 
-import { createMockRequest } from '@sim/testing'
+import {
+  createMockRequest,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  resetPermissionGroupScopeMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
@@ -17,13 +22,23 @@ import {
   recordRateLimitSnapshot,
 } from '@/lib/api/server/rate-limit-context'
 
-const { mockAuthenticateV1Request, mockGetSubscription, mockCheckRateLimit, mockGetRateLimit } =
-  vi.hoisted(() => ({
-    mockAuthenticateV1Request: vi.fn(),
-    mockGetSubscription: vi.fn(),
-    mockCheckRateLimit: vi.fn(),
-    mockGetRateLimit: vi.fn(),
-  }))
+const {
+  mockAuthenticateV1Request,
+  mockGetSubscription,
+  mockCheckRateLimit,
+  mockGetRateLimit,
+  mockGetUserEntityPermissions,
+  mockGetWorkspaceBillingSettings,
+  mockGetWorkspaceBilledAccountUserId,
+} = vi.hoisted(() => ({
+  mockAuthenticateV1Request: vi.fn(),
+  mockGetSubscription: vi.fn(),
+  mockCheckRateLimit: vi.fn(),
+  mockGetRateLimit: vi.fn(),
+  mockGetUserEntityPermissions: vi.fn(),
+  mockGetWorkspaceBillingSettings: vi.fn(),
+  mockGetWorkspaceBilledAccountUserId: vi.fn(),
+}))
 
 vi.mock('@/app/api/v1/auth', () => ({
   authenticateV1Request: mockAuthenticateV1Request,
@@ -40,10 +55,24 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getUserEntityPermissions: mockGetUserEntityPermissions,
+}))
+
+vi.mock('@/lib/workspaces/utils', () => ({
+  getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
+  getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
+}))
+
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   authenticateRequest,
   checkRateLimit,
+  checkWorkspaceScope,
   createRateLimitResponse,
+  requireWorkspaceRequestActor,
   v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
 
@@ -272,5 +301,170 @@ describe('rate-limit snapshot context', () => {
     await checkRateLimit(req, 'workflows')
 
     expect(getRateLimitHeaders(req)).toBeNull()
+  })
+})
+
+/**
+ * The table routes authorize with `checkWorkspaceScope` and then a domain
+ * helper (`checkAccess`) that runs the workspace ROLE check. `checkAccess`
+ * gates the module (`tables.use`), never the key kind, so `personal_api_key.use`
+ * has to be asked in the wrapper — which means the wrapper has to order itself
+ * behind the role, because nothing downstream will.
+ *
+ * The workspace column keeps answering first: it names no group, so refusing on
+ * it tells a stranger only what the workspace itself is set to.
+ */
+describe('checkWorkspaceScope', () => {
+  const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
+  const USER_ID = 'user-1'
+
+  function personalKeyRateLimit() {
+    return {
+      allowed: true,
+      remaining: 1,
+      limit: 1,
+      resetAt: new Date(),
+      userId: USER_ID,
+      keyType: 'personal' as const,
+      principal: { kind: 'personal_api_key' as const, userId: USER_ID, keyId: 'key-1' },
+    }
+  }
+
+  function withholdsPersonalKeys() {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disablePersonalApiKeys: true,
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetPermissionGroupScopeMock()
+    mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: true })
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+  })
+
+  it('refuses a member whose group withholds personal API keys', async () => {
+    withholdsPersonalKeys()
+
+    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
+
+    expect(response).not.toBeNull()
+    expect(response?.status).toBe(403)
+    await expect(response?.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/personal API key/i),
+    })
+  })
+
+  it('leaves a non-member to the downstream role check rather than naming the group', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+    withholdsPersonalKeys()
+
+    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
+
+    expect(response).toBeNull()
+    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  it("still refuses a non-member on the workspace's own column, which names no group", async () => {
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+    mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: false })
+
+    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
+
+    expect(response).not.toBeNull()
+    expect(response?.status).toBe(403)
+    await expect(response?.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/personal API key/i),
+    })
+  })
+
+  /**
+   * The two refusals share their sentence, so without the code a client cannot
+   * tell "the workspace switched personal keys off" from "your group did" —
+   * different settings, different people to ask.
+   */
+  it('carries the detail code on the group refusal and not on the column one', async () => {
+    withholdsPersonalKeys()
+    const grouped = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
+
+    await expect(grouped?.json()).resolves.toMatchObject({
+      details: { code: 'PERSONAL_API_KEYS_DISABLED' },
+    })
+
+    resetPermissionGroupScopeMock()
+    mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: false })
+    const column = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
+
+    await expect(column?.json()).resolves.not.toHaveProperty('details')
+  })
+
+  /**
+   * The concealment ordering, one level in. The funnel asks this key only after
+   * `requireCurrentHumanRole(operation.minimumRole)`, so a read-only member on a
+   * write route is refused on role. Asked at `read` here, the same person was
+   * told instead how their organization configured personal keys.
+   */
+  it('leaves a read-only member on a write route to the downstream role check', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    withholdsPersonalKeys()
+
+    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID, 'write')
+
+    expect(response).toBeNull()
+    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  it('still refuses that member on a read route, where the role does reach', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    withholdsPersonalKeys()
+
+    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID, 'read')
+
+    expect(response?.status).toBe(403)
+  })
+})
+
+describe('requireWorkspaceRequestActor', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetWorkspaceBilledAccountUserId.mockResolvedValue('billed-user')
+  })
+
+  it('substitutes the billed account as the system actor for a workspace key', async () => {
+    const actor = await requireWorkspaceRequestActor(
+      { allowed: true, keyType: 'workspace', userId: 'key-creator' } as never,
+      'workspace-1'
+    )
+
+    expect(actor).toEqual({ ok: true, actorUserId: 'billed-user' })
+  })
+
+  it('keeps the owner for a personal key', async () => {
+    const actor = await requireWorkspaceRequestActor(
+      { allowed: true, keyType: 'personal', userId: 'user-1' } as never,
+      'workspace-1'
+    )
+
+    expect(actor).toEqual({ ok: true, actorUserId: 'user-1' })
+  })
+
+  /**
+   * An archived or deleted workspace has no billed account to stand in. That is
+   * a reachable request about an unreachable workspace, not a server fault: the
+   * call sites used to throw, and the routes' catch-all reported it as a 500.
+   */
+  it('projects an unresolvable actor onto a 400 rather than throwing', async () => {
+    mockGetWorkspaceBilledAccountUserId.mockResolvedValue(null)
+
+    const actor = await requireWorkspaceRequestActor(
+      { allowed: true, keyType: 'workspace', userId: 'key-creator' } as never,
+      'workspace-gone'
+    )
+
+    expect(actor.ok).toBe(false)
+    if (actor.ok) throw new Error('expected a refusal')
+    expect(actor.response.status).toBe(400)
+    await expect(actor.response.json()).resolves.toEqual({ error: 'Invalid workspace ID' })
   })
 })

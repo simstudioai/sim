@@ -22,6 +22,10 @@ import {
 } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
+import {
+  scopeOutputBlockId,
+  selectChildOutputSelectors,
+} from '@/lib/workflows/streaming/output-selector'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import { type CustomBlockOutput, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
@@ -484,6 +488,25 @@ export class WorkflowBlockHandler implements BlockHandler {
       const shouldPropagateCallbacks =
         withinSseChildDepth &&
         (!isCustomBlock || (traceChildRuns && Boolean(ctx.liveTraceViewerUserId)))
+      const effectiveBlockId = nodeMetadata
+        ? (nodeMetadata.originalBlockId ?? nodeMetadata.nodeId)
+        : block.id
+      const childOutputSelection = selectChildOutputSelectors(
+        workflowId,
+        childWorkflow.rawBlocks || {},
+        ctx.selectedOutputs
+      )
+      if (isCustomBlock && childOutputSelection.targetsChildWorkflow) {
+        throw new Error('Custom block child outputs cannot be selected for streaming')
+      }
+      if (!withinSseChildDepth && childOutputSelection.targetsChildWorkflow) {
+        throw new Error(
+          `Selected stream output exceeds the maximum child workflow depth of ${DEFAULTS.MAX_SSE_CHILD_DEPTH}`
+        )
+      }
+      const childSelectedOutputs = isCustomBlock ? [] : childOutputSelection.selectedOutputs
+      const shouldStreamChild =
+        shouldPropagateCallbacks && Boolean(ctx.stream) && childSelectedOutputs.length > 0
 
       if (!withinSseChildDepth && !isCustomBlock) {
         logger.info('Dropping SSE callbacks beyond max child depth', {
@@ -494,9 +517,6 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       if (shouldPropagateCallbacks) {
-        const effectiveBlockId = nodeMetadata
-          ? (nodeMetadata.originalBlockId ?? nodeMetadata.nodeId)
-          : block.id
         const iterationContext = nodeMetadata ? getIterationContext(ctx, nodeMetadata) : undefined
         await ctx.onChildWorkflowInstanceReady?.(
           effectiveBlockId,
@@ -777,11 +797,18 @@ export class WorkflowBlockHandler implements BlockHandler {
             }
           }
           if (shouldPropagateCallbacks) {
+            const childOutputBlockId = output.outputBlockId ?? blockId
+            const selectedBlockRef =
+              childOutputSelection.selectedBlockRefs.get(childOutputBlockId) ?? childOutputBlockId
             await parentStreamSink.onBlockComplete?.(
               blockId,
               blockName,
               blockType,
-              output,
+              {
+                ...output,
+                outputBlockId: scopeOutputBlockId(workflowId, selectedBlockRef),
+                childWorkflowInstanceId: output.childWorkflowInstanceId ?? instanceId,
+              },
               iterationContext,
               childWorkflowContext
             )
@@ -789,7 +816,24 @@ export class WorkflowBlockHandler implements BlockHandler {
         }
       }
       if (shouldPropagateCallbacks) {
-        childCallbacks.onStream = ctx.onStream
+        if (shouldStreamChild) {
+          childCallbacks.onStream = async (streamingExecution) => {
+            if (!streamingExecution.blockId) {
+              throw new Error('Child workflow stream is missing its block ID')
+            }
+            if (!ctx.onStream) {
+              throw new Error('Child workflow stream has no parent stream callback')
+            }
+            const selectedBlockRef =
+              childOutputSelection.selectedBlockRefs.get(streamingExecution.blockId) ??
+              streamingExecution.blockId
+            await ctx.onStream({
+              ...streamingExecution,
+              blockId: scopeOutputBlockId(workflowId, selectedBlockRef),
+              childWorkflowInstanceId: streamingExecution.childWorkflowInstanceId ?? instanceId,
+            })
+          }
+        }
         childCallbacks.onChildWorkflowInstanceReady = ctx.onChildWorkflowInstanceReady
         childCallbacks.childWorkflowContext = {
           parentBlockId: instanceId,
@@ -830,6 +874,8 @@ export class WorkflowBlockHandler implements BlockHandler {
           // child still carries the trusted identity chain to deeper children.
           startRunMetadata: childStartRunMetadata ?? inherited,
           abortSignal: childCancellation?.signal ?? ctx.abortSignal,
+          stream: shouldStreamChild,
+          selectedOutputs: childSelectedOutputs,
           // Propagate in-flight block-output redaction into child workflows so
           // nested blocks mask outputs too (recurses: each child forwards it).
           piiBlockOutputRedaction: ctx.piiBlockOutputRedaction,

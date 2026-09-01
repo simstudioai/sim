@@ -190,7 +190,7 @@ export const slackOAuthTrigger: TriggerConfig = {
       type: 'workflow-output-selector',
       placeholder: 'Select workflow outputs',
       description:
-        'Each selected block invocation creates its own Slack response. Agent outputs stream live; other outputs are sent when the block completes.',
+        'Use `<blockName>.<outputPath>` for this workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow. Selecting a child workflow applies to every invocation of it. Agent outputs stream live; other outputs are sent when the block completes.',
       required: {
         field: 'streamResponse',
         value: true,

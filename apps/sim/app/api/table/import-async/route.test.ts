@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
+import {
+  hybridAuthMockFns,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  resetPermissionGroupScopeMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,7 +55,9 @@ vi.mock('@/lib/core/utils/background', () => ({
   ),
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/table/import-async/route'
 
 function makeRequest(body: unknown): NextRequest {
@@ -68,6 +77,7 @@ const validBody = {
 describe('POST /api/table/import-async', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetPermissionGroupScopeMock()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -152,5 +162,49 @@ describe('POST /api/table/import-async', () => {
   it('returns 400 when the body is missing required fields', async () => {
     const response = await POST(makeRequest({ workspaceId: 'workspace-1' }))
     expect(response.status).toBe(400)
+  })
+
+  /**
+   * An import is a table creation, so it is `tables.create` that governs it —
+   * not `tables.use`. `disableTableCreation` leaves Tables visible and usable,
+   * which is exactly the configuration a `tables.use` gate would let through.
+   */
+  it('refuses the import when the group disables table creation', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableTableCreation: true,
+    })
+
+    const response = await POST(makeRequest(validBody))
+
+    expect(response.status).toBe(403)
+    expect((await response.json()).details).toEqual({
+      code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    })
+    expect(mockCreateTable).not.toHaveBeenCalled()
+  })
+
+  it('refuses the import when the group hides Tables entirely', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideTablesTab: true,
+    })
+
+    const response = await POST(makeRequest(validBody))
+
+    expect(response.status).toBe(403)
+    expect(mockCreateTable).not.toHaveBeenCalled()
+  })
+
+  it('lets the import through when the group withholds something else', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideKnowledgeBaseTab: true,
+    })
+
+    const response = await POST(makeRequest(validBody))
+
+    expect(response.status).toBe(200)
+    expect(mockCreateTable).toHaveBeenCalledTimes(1)
   })
 })

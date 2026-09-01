@@ -41,7 +41,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Knowle
     if (!parsed.success) return parsed.response
 
     const { id } = parsed.data.params
-    const result = await resolveKnowledgeBase(id, parsed.data.query.workspaceId, userId, rateLimit)
+    const result = await resolveKnowledgeBase(
+      id,
+      parsed.data.query.workspaceId,
+      userId,
+      rateLimit,
+      'knowledge.use'
+    )
     if (result instanceof NextResponse) return result
 
     return NextResponse.json({
@@ -70,7 +76,14 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
     const { id } = parsed.data.params
     const { workspaceId, name, description, chunkingConfig } = parsed.data.body
 
-    const result = await resolveKnowledgeBase(id, workspaceId, userId, rateLimit, 'write')
+    const result = await resolveKnowledgeBase(
+      id,
+      workspaceId,
+      userId,
+      rateLimit,
+      'knowledge.use',
+      'write'
+    )
     if (result instanceof NextResponse) return result
 
     const outcome = await performUpdateKnowledgeBase({
@@ -120,6 +133,7 @@ export const DELETE = withRouteHandler(
         parsed.data.query.workspaceId,
         userId,
         rateLimit,
+        'knowledge.use',
         'write'
       )
       if (result instanceof NextResponse) return result

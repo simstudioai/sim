@@ -129,6 +129,7 @@ export interface OAuthConfig {
     | 'apiDomain'
     | 'authStyle'
     | 'cloudId'
+    | 'credentialType'
     | 'domain'
     | 'instanceUrl'
   )[]
@@ -149,12 +150,16 @@ export interface ToolParameterItemSchema {
   readonly const?: string | number | boolean
   readonly minimum?: number
   readonly maximum?: number
+  readonly minItems?: number
+  readonly maxItems?: number
   readonly minLength?: number
   readonly maxLength?: number
+  readonly format?: string
   readonly pattern?: string
   readonly additionalProperties?: boolean
   readonly required?: readonly string[]
   readonly properties?: Readonly<Record<string, ToolParameterItemSchema>>
+  readonly items?: ToolParameterItemSchema
   readonly anyOf?: readonly ToolParameterItemSchema[]
 }
 
@@ -175,6 +180,8 @@ export interface ToolConfig<P = any, R = any> {
       default?: any
       description?: string
       items?: ToolParameterItemSchema
+      minItems?: number
+      maxItems?: number
     }
   >
   // Output schema - what this tool produces

@@ -18,6 +18,7 @@ const operation = defineWorkspaceOperation({
   workspaceApiKey: 'deny',
   principalKinds: ['delegated'],
   delegatedServices: ['copilot'],
+  capability: 'files.use',
 })
 
 const delegation = {
@@ -87,6 +88,7 @@ describe('Copilot application adapter', () => {
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
       delegatedServices: ['copilot'],
+      capability: 'files.use',
     })
     const sameIdDifferentPolicy = defineWorkspaceOperation({
       id: operation.id,
@@ -94,6 +96,7 @@ describe('Copilot application adapter', () => {
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
       delegatedServices: ['copilot'],
+      capability: 'files.use',
     })
 
     expect(() =>
@@ -121,6 +124,7 @@ describe('Copilot application adapter', () => {
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
       delegatedServices: ['executor'],
+      capability: 'files.use',
     })
     const execute = vi.fn()
     const executeCopilotUseCase = createCopilotApplicationAdapter<

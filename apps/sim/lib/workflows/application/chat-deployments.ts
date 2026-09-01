@@ -14,20 +14,17 @@ import {
   getChatDeploymentIdOwningIdentifier,
   getLiveChatDeploymentForWorkflow,
 } from '@/lib/chat-deployments/queries'
-import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
 import { performChatDeploy, performChatUndeploy } from '@/lib/workflows/orchestration'
-import {
-  ChatDeployAuthNotAllowedError,
-  validateChatDeployAuth,
-} from '@/ee/access-control/utils/permission-check'
+import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
+import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-check'
 
 type ChatAuthType = 'public' | 'password' | 'email' | 'sso'
-type ChatOutputConfig = { blockId: string; path: string }
+type ChatOutputConfig = { workflowId?: string; blockId: string; path: string }
 type ChatCustomizations = {
   primaryColor?: string
   welcomeMessage?: string
@@ -73,10 +70,20 @@ function parseChatOutputConfigs(value: unknown[] | undefined): ChatOutputConfig[
         'blockId' in entry &&
         typeof entry.blockId === 'string' &&
         entry.blockId.length > 0 &&
+        (!('workflowId' in entry) ||
+          entry.workflowId === undefined ||
+          (typeof entry.workflowId === 'string' && entry.workflowId.length > 0)) &&
         'path' in entry &&
         typeof entry.path === 'string'
     )
   ) {
+    throw new OrchestrationError('validation', 'Invalid chat output configuration')
+  }
+  try {
+    for (const config of value) {
+      formatInternalOutputSelector(config.blockId, config.path, config.workflowId)
+    }
+  } catch {
     throw new OrchestrationError('validation', 'Invalid chat output configuration')
   }
   return value
@@ -161,14 +168,7 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
 
     const subjectUserId = requirePrincipalSubjectUserId(principal)
     if (authType !== existingDeployment?.authType) {
-      try {
-        await validateChatDeployAuth(subjectUserId, context.workspaceId, authType)
-      } catch (error) {
-        if (error instanceof ChatDeployAuthNotAllowedError) {
-          throw new ForbiddenOperationError('CHAT_AUTH_MODE_NOT_PERMITTED', error.message)
-        }
-        throw error
-      }
+      await validateChatDeployAuth(subjectUserId, context.workspaceId, authType)
     }
 
     const attribution = resolvePrincipalAttribution(principal, {

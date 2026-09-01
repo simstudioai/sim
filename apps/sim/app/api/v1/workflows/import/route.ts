@@ -14,6 +14,7 @@ import {
 } from '@/lib/workflows/operations/import-workflow'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
+  capabilityGovernedUserId,
   checkRateLimit,
   createRateLimitResponse,
   v1ValidationErrorResponse,
@@ -62,7 +63,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       folderId,
     })
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      workspaceId,
+      'none',
+      'write'
+    )
     if (accessError) return accessError
 
     const result = await importWorkflowIntoWorkspace({
@@ -72,6 +79,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       description,
       workflow: parsed.data.body.workflow,
       userId,
+      capabilityUserId: capabilityGovernedUserId(rateLimit),
       requestId,
     })
 

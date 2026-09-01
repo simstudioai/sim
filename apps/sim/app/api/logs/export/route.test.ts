@@ -16,11 +16,17 @@ const {
   mockExpandFolderIdsWithDescendants,
   mockMapWithConcurrency,
   mockMaterializeExecutionDataForDisplay,
+  mockGetUserPermissionConfig,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
   mockExpandFolderIdsWithDescendants: vi.fn(),
   mockMapWithConcurrency: vi.fn(),
   mockMaterializeExecutionDataForDisplay: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -40,6 +46,7 @@ vi.mock('@/lib/core/utils/concurrency', () => ({
   mapWithConcurrency: mockMapWithConcurrency,
 }))
 
+import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { GET } from '@/app/api/logs/export/route'
 
 const mockGetSession = authMockFns.mockGetSession
@@ -88,6 +95,7 @@ describe('GET /api/logs/export', () => {
     resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+    mockGetUserPermissionConfig.mockResolvedValue(null)
     mockExpandFolderIdsWithDescendants.mockImplementation(
       async (_workspaceId: string, folderIds: string | undefined) => folderIds
     )
@@ -235,5 +243,107 @@ describe('GET /api/logs/export', () => {
     resolveMaterialization?.([{ message: 'message-0' }])
 
     await expect(Promise.all([pendingRead, cancellation])).resolves.toBeDefined()
+  })
+
+  it('blanks the cost column and span spend when the group withholds cost', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({ hideCostInfo: true })
+    queueTableRows(workflowExecutionLogs, [
+      logRow(0, {
+        executionData: {
+          message: 'message-0',
+          traceSpans: [{ id: 'span-1', name: 'Agent', type: 'agent', cost: { total: 0.01 } }],
+        },
+      }),
+    ])
+
+    const response = await GET(makeRequest())
+    const lines = (await response.text()).trimEnd().split('\n')
+
+    expect(lines[0]).toContain('costTotal')
+    expect(lines[1].split(',')[5]).toBe('')
+    expect(lines[1]).toContain('span-1')
+    expect(lines[1]).not.toContain('0.01')
+  })
+
+  it('refuses the download when the group withholds log export', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({ disableLogExport: true })
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: capabilityRefusal('logs.export'),
+    })
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The decision, pinned: `logs.export` has no admin exemption. The refusal is
+   * reached without reading a role at all — no organization membership, no
+   * workspace permission row — so an exemption cannot be added without this
+   * failing.
+   */
+  it("refuses the download without consulting the caller's role", async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({ disableLogExport: true })
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(403)
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+
+  it('exports normally when no group withholds log export', async () => {
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('execution-0')
+  })
+
+  it('refuses a cost-filtered export when the group withholds spend', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({ hideCostInfo: true })
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/logs/export?workspaceId=workspace-1&costOperator=%3E&costValue=0.5'
+      )
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: capabilityRefusal('logs.cost') })
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+
+  it('answers the same cost-filtered export when no group withholds spend', async () => {
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/logs/export?workspaceId=workspace-1&costOperator=%3E&costValue=0.5'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('execution-0')
+  })
+
+  it('keeps the cost column when no group withholds it', async () => {
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(makeRequest())
+    const lines = (await response.text()).trimEnd().split('\n')
+
+    expect(lines[1].split(',')[5]).toBe('0.01')
   })
 })

@@ -1,4 +1,4 @@
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 interface ClipboardData {

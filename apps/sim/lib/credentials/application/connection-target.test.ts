@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
   listCatalog: vi.fn(),
   getWorkspaceCredential: vi.fn(),
   getCredentialActorContext: vi.fn(),
+  assertWorkspaceCapability: vi.fn(),
+}))
+
+vi.mock('@/lib/permission-groups/capability-assertions', () => ({
+  assertWorkspaceCapability: mocks.assertWorkspaceCapability,
 }))
 
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
@@ -85,6 +90,28 @@ describe('resolveCredentialConnectionTarget', () => {
     mocks.listCatalog.mockResolvedValue([salesforceProvider])
     mocks.getWorkspaceCredential.mockResolvedValue(credential)
     mocks.getCredentialActorContext.mockResolvedValue({ credential, isAdmin: true })
+    mocks.assertWorkspaceCapability.mockResolvedValue(undefined)
+  })
+
+  /**
+   * `disablePersonalCredentials` leaves members "only workspace-shared ones", so
+   * it withholds connecting an account and not re-authorizing a credential the
+   * workspace already holds. Declaring it on the operation refused both.
+   */
+  it('asserts the personal-credential capability only when connecting an account', async () => {
+    await resolveCredentialConnectionTarget({ principal, context, providerId: 'salesforce' })
+
+    expect(mocks.assertWorkspaceCapability).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      'credentials.personal',
+      null
+    )
+
+    mocks.assertWorkspaceCapability.mockClear()
+    await resolveCredentialConnectionTarget({ principal, context, credentialId: 'credential-1' })
+
+    expect(mocks.assertWorkspaceCapability).not.toHaveBeenCalled()
   })
 
   it('accepts an exact authorization option for a new connection', async () => {

@@ -50,6 +50,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, open/update/push modal views, publish Home tab views, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
+  bestPractices:
+    'For Slack trigger response streaming, select current-workflow outputs as `<blockName>.<outputPath>` and child-workflow outputs as `<childWorkflowId>.<blockName>.<outputPath>`. Use the normalized block reference name shown by the workflow catalog. Selecting a child workflow applies to every invocation of that workflow in the run.',
   docsLink: 'https://docs.sim.ai/integrations/slack',
   category: 'tools',
   integrationType: IntegrationType.Communication,
@@ -2621,7 +2623,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     channels: {
       type: 'json',
       description:
-        'Array of channel objects with properties: id, name, is_private, is_archived, is_member, num_members, topic, purpose, created, creator',
+        'Array of accessible conversation objects. Credential-group user tokens also include direct and group DMs, with type fields (is_channel, is_im, is_mpim) and DM participant field user.',
     },
     count: {
       type: 'number',

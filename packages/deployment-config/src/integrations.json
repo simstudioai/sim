@@ -19446,8 +19446,8 @@
       "slug": "sailpoint",
       "name": "SailPoint",
       "description": "Govern identities and access in SailPoint Identity Security Cloud",
-      "longDescription": "Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://TENANT.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses the current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes are sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally require idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation, idn:campaign:manage for certification decisions and sign-off, idn:access-request:manage or idn:access-request-self:manage for access requests as permitted, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.",
-      "bgColor": "#0033A1",
+      "longDescription": "Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://TENANT.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes include sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:access-request-config:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally use idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation and entitlement request configuration, idn:campaign:manage for certification decisions and sign-off, the access-request scopes listed by SailPoint for request submission, idn:access-request:create for account-selection discovery, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.",
+      "bgColor": "#FFFFFF",
       "iconName": "SailPointIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sailpoint",
       "operations": [
@@ -19484,12 +19484,20 @@
           "description": "List entitlements granted to one account."
         },
         {
+          "name": "Get Account Selections",
+          "description": "Resolve eligible source accounts before submitting a machine or multi-account access request."
+        },
+        {
           "name": "List Entitlements",
           "description": "List entitlements with current segmentation, cursor, filter, and page controls."
         },
         {
           "name": "Get Entitlement",
           "description": "Get an entitlement by ID."
+        },
+        {
+          "name": "Get Entitlement Request Config",
+          "description": "Get grant, revocation, duration, approval, and form settings for an entitlement."
         },
         {
           "name": "List Identity Entitlements",
@@ -19518,6 +19526,10 @@
         {
           "name": "Get Access Profile Entitlements",
           "description": "List entitlements in one access profile."
+        },
+        {
+          "name": "Get Access Request Config",
+          "description": "Get tenant access-request, request-on-behalf-of, and machine-identity configuration."
         },
         {
           "name": "List Sources",
@@ -19600,7 +19612,7 @@
           "description": "Get the current status of a SailPoint background task by ID."
         }
       ],
-      "operationCount": 37,
+      "operationCount": 40,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -21298,7 +21310,7 @@
         },
         {
           "name": "List Channels",
-          "description": "List all channels in a Slack workspace. Returns public and private channels the bot has access to."
+          "description": "List accessible Slack conversations. Credential-group user tokens also return one-to-one and group direct messages."
         },
         {
           "name": "List Channel Members",

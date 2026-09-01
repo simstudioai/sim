@@ -117,6 +117,82 @@ afterAll(() => {
 
 describe('Tool Parameters Utils', () => {
   describe('createLLMToolSchema', () => {
+    it('preserves structured object properties and nested array item constraints', async () => {
+      const structuredTool = {
+        ...mockToolConfig,
+        id: 'structured_tool',
+        params: {
+          payload: {
+            type: 'object',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Structured payload',
+            items: {
+              type: 'object',
+              required: ['recipients'],
+              properties: {
+                recipients: {
+                  type: 'array',
+                  minItems: 1,
+                  maxItems: 10,
+                  items: {
+                    type: 'object',
+                    required: ['id'],
+                    properties: { id: { type: 'string', minLength: 1 } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }
+
+      const { schema } = await createLLMToolSchema(structuredTool, {})
+
+      expect(schema.properties.payload).toMatchObject({
+        type: 'object',
+        required: ['recipients'],
+        properties: {
+          recipients: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 10,
+            items: {
+              type: 'object',
+              required: ['id'],
+              properties: { id: { type: 'string', minLength: 1 } },
+            },
+          },
+        },
+      })
+    })
+
+    it('does not reinterpret legacy JSON item metadata as a root object schema', async () => {
+      const legacyJsonTool = {
+        ...mockToolConfig,
+        id: 'legacy_json_tool',
+        params: {
+          payload: {
+            type: 'json',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Legacy JSON array payload',
+            items: {
+              type: 'object',
+              properties: { id: { type: 'string' } },
+            },
+          },
+        },
+      }
+
+      const { schema } = await createLLMToolSchema(legacyJsonTool, {})
+
+      expect(schema.properties.payload).toEqual({
+        type: 'object',
+        description: 'Legacy JSON array payload',
+      })
+    })
+
     it.concurrent('should create schema excluding user-provided parameters', async () => {
       const userProvidedParams = {
         apiKey: 'user-provided-key',

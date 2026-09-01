@@ -60,6 +60,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'CHAT_AUTH_MODE_NOT_PERMITTED',
   /** The resource is owned by a knowledge base connector and cannot be edited directly. */
   'CONNECTOR_MANAGED_RESOURCE_READ_ONLY',
+  /** The caller's permission group withholds a capability this operation needs. */
+  'PERMISSION_GROUP_CAPABILITY_BLOCKED',
 ] as const
 
 export type ForbiddenDetailCode = (typeof FORBIDDEN_DETAIL_CODES)[number]
@@ -105,6 +107,8 @@ export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, str
     "The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.",
   CONNECTOR_MANAGED_RESOURCE_READ_ONLY:
     'This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector.',
+  PERMISSION_GROUP_CAPABILITY_BLOCKED:
+    "The caller's permission group does not allow this capability. The message names it; an organization admin controls the group.",
 }
 
 /**

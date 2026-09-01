@@ -15,6 +15,10 @@ import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  capabilityRefusal,
+  isOrganizationCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
+import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   UPGRADE_TO_INVITE_REASON,
 } from '@/lib/workspaces/policy-constants'
@@ -92,13 +96,28 @@ export interface WorkspaceCreationPolicy {
    */
   observedOrganizationId: string | null
   /** Discriminant for blocked states the workspace mode cannot distinguish. */
-  blockedReasonCode?: 'organization-subscription-inactive'
+  blockedReasonCode?: 'organization-subscription-inactive' | 'permission-group-denied'
 }
 
 export class WorkspaceCreationContextChangedError extends Error {
-  constructor() {
-    super('Workspace creation context changed before the workspace was inserted')
+  constructor(message = 'Workspace creation context changed before the workspace was inserted') {
+    super(message)
     this.name = 'WorkspaceCreationContextChangedError'
+  }
+}
+
+/**
+ * The permission-group case of {@link WorkspaceCreationContextChangedError}.
+ *
+ * A subclass rather than a sibling so every caller that already treats a changed
+ * context as retryable keeps working unchanged, while a surface that wants to
+ * say *why* — the create route answers 403 with the capability refusal instead
+ * of 409 "membership changed" — can narrow to it.
+ */
+export class WorkspaceCreationCapabilityWithheldError extends WorkspaceCreationContextChangedError {
+  constructor() {
+    super(capabilityRefusal('workspace.create'))
+    this.name = 'WorkspaceCreationCapabilityWithheldError'
   }
 }
 
@@ -130,6 +149,24 @@ export async function lockWorkspaceCreationContext(
     (organizationId !== null && currentMembership?.organizationId !== organizationId)
   ) {
     throw new WorkspaceCreationContextChangedError()
+  }
+
+  /**
+   * permission-group-enforced: workspace.create — re-read under the lock because
+   * the preflight in `getWorkspaceCreationPolicy` and the insert are separate
+   * requests: a group that withheld creation in between would otherwise still
+   * let the in-flight create land, and a new workspace carries no
+   * `permissionGroupWorkspace` row to bring it back under the regime afterwards.
+   * Governed by the same organization the preflight used — the explicit one, or
+   * the caller's membership when the workspace would be personal — so a personal
+   * workspace stays as governed here as it is there.
+   */
+  const governingOrganizationId = organizationId ?? currentMembership?.organizationId ?? null
+  if (
+    governingOrganizationId &&
+    (await isOrganizationCapabilityWithheld(governingOrganizationId, 'workspace.create'))
+  ) {
+    throw new WorkspaceCreationCapabilityWithheldError()
   }
 
   if (!organizationId) return { billedAccountUserId: userId }
@@ -349,6 +386,41 @@ export async function getWorkspaceCreationPolicy({
               .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
               .limit(1)
           )[0]?.role
+
+  const governingOrganizationId = organizationId ?? membership?.organizationId ?? null
+  if (governingOrganizationId) {
+    /**
+     * A new workspace carries no `permissionGroupWorkspace` row, so a member of
+     * a scoped group would land in a workspace that group does not target — the
+     * one place the whole regime can be stepped out of. Gating the policy rather
+     * than the create route also covers forking and the "can I create?" signal
+     * the sidebar renders from the same decision.
+     *
+     * Governed by the organization the caller belongs to even when the resulting
+     * workspace would be personal: a personal workspace is precisely the escape,
+     * so exempting it would leave the gate answering only the case it is not for.
+     */
+    // permission-group-enforced: workspace.create — no workspace exists yet, so the workspace-scoped funnel has nothing to resolve a group against
+    if (await isOrganizationCapabilityWithheld(governingOrganizationId, 'workspace.create')) {
+      return {
+        canCreate: false,
+        workspaceMode:
+          organizationId === null ? WORKSPACE_MODE.PERSONAL : WORKSPACE_MODE.ORGANIZATION,
+        organizationId,
+        billedAccountUserId:
+          organizationId === null
+            ? userId
+            : ((await getOrganizationOwnerId(organizationId)) ?? userId),
+        maxWorkspaces: null,
+        currentWorkspaceCount: 0,
+        reason:
+          'Your permission group does not allow creating workspaces. Ask an organization admin to change it.',
+        status: 403,
+        observedOrganizationId: membership?.organizationId ?? null,
+        blockedReasonCode: 'permission-group-denied',
+      }
+    }
+  }
 
   if (activeOrganizationId && !orgRole) {
     const billedAccountUserId = await requireOrganizationOwnerId(activeOrganizationId)

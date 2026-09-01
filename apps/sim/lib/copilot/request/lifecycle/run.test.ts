@@ -19,6 +19,7 @@ const {
   mockRunStreamLoop,
   mockPendingToolWaitBudgetMs,
   mockGetAutoAllowedTools,
+  mockGetUserPermissionConfig,
   mockFilterModelSafeWorkspaceFileAttachments,
   mockUpdateRunStatus,
   mockEnv,
@@ -32,6 +33,7 @@ const {
   mockRunStreamLoop: vi.fn(),
   mockPendingToolWaitBudgetMs: vi.fn((_toolCall?: { name?: string; status?: string }) => 60_000),
   mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
+  mockGetUserPermissionConfig: vi.fn(async () => null),
   mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
   mockUpdateRunStatus: vi.fn(),
   mockEnv: {
@@ -112,6 +114,10 @@ vi.mock('@/lib/copilot/persistence/tool-permission/auto-allow', () => ({
   addChatAutoAllowedTool: vi.fn(),
 }))
 
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
+}))
+
 vi.mock('@/lib/copilot/environment-context', () => ({
   prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
 }))
@@ -161,6 +167,7 @@ describe('runCopilotLifecycle', () => {
       isCopilotToolPermissionsEnabled: false,
     })
     mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
+    mockGetUserPermissionConfig.mockResolvedValue(null)
     mockPendingToolWaitBudgetMs.mockImplementation(() => 60_000)
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
@@ -1062,6 +1069,51 @@ describe('runCopilotLifecycle', () => {
       expect(captured?.toolPermissions.enabled).toBe(true)
       expect(captured?.toolPermissions.autoAllowed.has('terminal_run')).toBe(true)
       expect(mockGetAutoAllowedTools).toHaveBeenCalledWith('user-1', 'chat-1')
+    })
+
+    /**
+     * The gate itself stays armed — every call still prompts. Only the memory
+     * that would silence it is withheld, and the stored list is not read at
+     * all, so an entry saved before the key was set cannot outlive it.
+     */
+    it('arms the gate but ignores stored auto-allows when the group withholds them', async () => {
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      mockGetUserPermissionConfig.mockResolvedValue({ disableToolAutoApproval: true })
+      mockGetAutoAllowedTools.mockResolvedValue(new Set(['terminal_run']))
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(captured?.toolPermissions.enabled).toBe(true)
+      expect(captured?.toolPermissions.autoAllowPermitted).toBe(false)
+      expect(captured?.toolPermissions.autoAllowed.size).toBe(0)
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
+    })
+
+    /**
+     * A failed lookup is the endpoint's reading — withheld — not a rejection.
+     * Letting it throw would abort the turn before any card is drawn, over a
+     * database hiccup, on the one surface that has a human to ask.
+     */
+    it('reads a failed capability lookup as withheld instead of aborting the turn', async () => {
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      mockGetUserPermissionConfig.mockRejectedValue(new Error('permission group lookup failed'))
+      mockGetAutoAllowedTools.mockResolvedValue(new Set(['terminal_run']))
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+      expect(captured?.toolPermissions.enabled).toBe(true)
+      expect(captured?.toolPermissions.autoAllowPermitted).toBe(false)
+      expect(captured?.toolPermissions.autoAllowed.size).toBe(0)
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
     })
 
     it('stays off for the workflow-scoped copilot even with the flag on', async () => {

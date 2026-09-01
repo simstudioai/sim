@@ -49,6 +49,7 @@ function input(overrides: Record<string, unknown> = {}) {
     workflowId: 'workflow-1',
     workspaceId: 'workspace-1',
     attributedUserId: 'user-1',
+    subjectUserId: 'user-1',
     state: { blocks: { 'block-1': BLOCK }, edges: [] },
     ...overrides,
   } as Parameters<typeof replaceWorkflowNormalizedState>[0]
@@ -107,6 +108,7 @@ describe('replaceWorkflowNormalizedState', () => {
     expect(mocks.save).toHaveBeenCalledWith(
       'workflow-1',
       expect.objectContaining({ blocks: PREPARED.blocks, edges: PREPARED.edges }),
+      { workspaceId: 'workspace-1', subjectUserId: 'user-1' },
       expect.anything()
     )
     expect(mocks.prepare).toHaveBeenCalledBefore(mocks.save)

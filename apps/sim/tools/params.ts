@@ -40,6 +40,8 @@ interface SchemaProperty {
   items?: ToolParameterItemSchema
   properties?: Record<string, SchemaProperty>
   required?: string[]
+  minItems?: number
+  maxItems?: number
 }
 
 export interface ToolSchema {
@@ -173,6 +175,8 @@ function buildParameterSchema(
   const propertySchema: SchemaProperty = {
     type: schemaType,
     description: param.description || '',
+    ...(param.minItems !== undefined ? { minItems: param.minItems } : {}),
+    ...(param.maxItems !== undefined ? { maxItems: param.maxItems } : {}),
   }
 
   if (param.type === 'array' && param.items) {
@@ -182,6 +186,8 @@ function buildParameterSchema(
         properties: { ...param.items.properties },
       }),
     }
+  } else if (param.type === 'object' && param.items?.type === 'object') {
+    Object.assign(propertySchema, param.items, { type: 'object' })
   } else if (param.items) {
     logger.warn(`items property ignored for non-array param "${paramId}" in tool "${toolId}"`)
   }

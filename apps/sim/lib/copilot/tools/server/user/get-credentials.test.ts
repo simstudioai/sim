@@ -6,6 +6,7 @@
  */
 
 import { account, user } from '@sim/db/schema'
+import { getIntegrationTypesForOAuthServiceId } from '@sim/deployment-config/integration-availability'
 import {
   dbChainMockFns,
   environmentUtilsMockFns,
@@ -79,7 +80,7 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   getAllowedIntegrationsFromEnv: vi.fn(() => null),
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: getUserPermissionConfigMock,
 }))
 
@@ -186,8 +187,21 @@ describe('getCredentialsServerTool', () => {
     checkWorkspaceAccessMock.mockResolvedValue({ canAdmin: false })
     createIntegrationCredentialVisibilityMock.mockImplementation(
       ({ allowedIntegrationTypes, oauthServices }) => {
-        const isAllowed = (service: { serviceId: string }) =>
-          allowedIntegrationTypes === null || allowedIntegrationTypes.has(service.serviceId)
+        /**
+         * Mirrors `isOAuthServiceAllowedByIntegrationTypes`: the gate holds
+         * *block types*, so the service is mapped through the deployment
+         * catalog rather than compared to its own id. A service the catalog
+         * does not name maps to no block type and stays visible, as it does in
+         * production.
+         */
+        const isAllowed = (service: { serviceId: string }) => {
+          if (allowedIntegrationTypes === null) return true
+          const blockTypes = getIntegrationTypesForOAuthServiceId(service.serviceId)
+          return (
+            blockTypes.length === 0 ||
+            blockTypes.some((blockType) => allowedIntegrationTypes.has(blockType))
+          )
+        }
         const isOAuthServiceVisible = (service: { serviceId: string; providerId: string }) =>
           isAllowed(service) && isOAuthServiceDeploymentAvailableMock(service.providerId)
         return {

@@ -3,6 +3,7 @@ import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { runDetached } from '@/lib/core/utils/background'
@@ -226,6 +227,9 @@ async function batchInsertAll(params: {
   rows: RowData[]
   workspaceId: string
   userId: string
+  /** The gate's subject for enrichment the landed rows auto-fire; see
+   *  {@link BatchInsertData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
   assertNotAborted?: () => void
 }): Promise<number> {
   let inserted = 0
@@ -238,6 +242,7 @@ async function batchInsertAll(params: {
         rows: batch,
         workspaceId: params.workspaceId,
         userId: params.userId,
+        capabilityGovernedUserId: params.capabilityGovernedUserId,
         secretProvenance: batch.map(createExactEmptyTableRowSecretProvenance),
       },
       { ...params.table, rowCount: params.table.rowCount + inserted },
@@ -401,6 +406,7 @@ export const createTableFromWorkspaceFile = defineAuthorizedTableUseCase({
         }),
         workspaceId: context.workspaceId,
         userId,
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         assertNotAborted: input.assertNotAborted,
       })
       const summary = summarizeRejections(rejections, cellsRejected, sourceFile)
@@ -563,6 +569,7 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
         rows,
         workspaceId: context.workspaceId,
         userId,
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         assertNotAborted: input.assertNotAborted,
       })
       return {

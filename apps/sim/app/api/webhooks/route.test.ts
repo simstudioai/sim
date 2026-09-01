@@ -8,6 +8,8 @@ import {
   createMockRequest,
   dbChainMockFns,
   flattenMockConditions,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
   posthogServerMock,
   queueTableRows,
   resetDbChainMock,
@@ -26,6 +28,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/webhooks/env-resolver', () => ({
@@ -43,6 +46,7 @@ vi.mock('@/lib/webhooks/utils.server', () => ({
   findConflictingWebhookPathOwner: mocks.findConflictingWebhookPathOwner,
 }))
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/webhooks/route'
 
 describe('POST /api/webhooks polling configuration', () => {
@@ -346,5 +350,141 @@ describe('POST /api/webhooks polling configuration', () => {
       2,
       expect.objectContaining({ deploymentVersionId: 'deployment-1' })
     )
+  })
+})
+
+describe('POST /api/webhooks triggers.webhook gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'actor-1', name: 'Actor', email: 'actor@example.com' },
+      session: { id: 'session-1' },
+    })
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workflow: { id: 'workflow-1' },
+      workspacePermission: 'write',
+    })
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(null)
+    mocks.findConflictingWebhookPathOwner.mockResolvedValue(null)
+    mocks.resolveEnvVarsInObject.mockImplementation(async (config) => config)
+    mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(false)
+    mocks.getProviderHandler.mockReturnValue({})
+    mocks.createExternalWebhookSubscription.mockResolvedValue({
+      updatedProviderConfig: {},
+      externalSubscriptionCreated: false,
+    })
+  })
+
+  function upsertRequest() {
+    return createMockRequest('POST', {
+      workflowId: 'workflow-1',
+      path: 'inbound-orders',
+      provider: 'generic',
+      providerConfig: {},
+    })
+  }
+
+  /** The reads the create path makes, in the order the handler issues them. */
+  function queueCreatePathRows(): void {
+    queueTableRows(workflow, [{ id: 'workflow-1', userId: 'actor-1', workspaceId: 'workspace-1' }])
+    queueTableRows(webhook, [])
+  }
+
+  /**
+   * Making a workflow reachable from an inbound webhook is the only external
+   * exposure with no deploy-tab equivalent, so the group key has to stop it at
+   * creation or it is not withheld at all.
+   */
+  it('refuses to create a webhook when the group withholds webhook triggers', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableWebhookTriggers: true,
+    })
+    queueCreatePathRows()
+
+    const response = await POST(upsertRequest())
+
+    expect(response.status).toBe(403)
+    expect(mocks.createExternalWebhookSubscription).not.toHaveBeenCalled()
+  })
+
+  it('creates the webhook when no group withholds the capability', async () => {
+    queueCreatePathRows()
+
+    const response = await POST(upsertRequest())
+
+    expect(response.status).not.toBe(403)
+    expect(mocks.createExternalWebhookSubscription).toHaveBeenCalledTimes(1)
+  })
+
+  /** The reads the update path makes: the path claim, then the existing row. */
+  function queueUpdatePathRows(isActive: boolean): void {
+    queueTableRows(workflow, [{ id: 'workflow-1', userId: 'actor-1', workspaceId: 'workspace-1' }])
+    queueTableRows(webhook, [{ id: 'webhook-1' }])
+    queueTableRows(webhook, [
+      {
+        id: 'webhook-1',
+        workflowId: 'workflow-1',
+        blockId: 'block-1',
+        path: 'inbound-orders',
+        provider: 'generic',
+        providerConfig: {},
+        isActive,
+      },
+    ])
+    dbChainMockFns.returning.mockImplementationOnce(async () => [
+      { id: 'webhook-1', workflowId: 'workflow-1', path: 'inbound-orders', isActive: true },
+    ])
+  }
+
+  /**
+   * The upsert always writes `isActive: true`, so re-saving a dormant webhook is
+   * the same transition `PATCH /api/webhooks/[id]` gates — a workflow becoming
+   * reachable again — and has to be refused on the same terms.
+   */
+  it('refuses to reactivate a dormant webhook when the group withholds webhook triggers', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableWebhookTriggers: true,
+    })
+    queueUpdatePathRows(false)
+
+    const response = await POST(upsertRequest())
+
+    expect(response.status).toBe(403)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  /**
+   * An already-active webhook is already reachable, so re-saving its config adds
+   * no exposure. Refusing it would strand a member unable to repair a live
+   * integration — the same reason inbound delivery is never gated.
+   */
+  it('still lets an already-active webhook be reconfigured under the same group', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableWebhookTriggers: true,
+    })
+    queueUpdatePathRows(true)
+
+    const response = await POST(upsertRequest())
+
+    expect(response.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ isActive: true, provider: 'generic' })
+    )
+  })
+
+  it('reactivates a dormant webhook when no group withholds the capability', async () => {
+    queueUpdatePathRows(false)
+
+    const response = await POST(upsertRequest())
+
+    expect(response.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ isActive: true }))
   })
 })

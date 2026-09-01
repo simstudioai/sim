@@ -1,4 +1,4 @@
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   type ExportWorkflowState,

@@ -234,6 +234,14 @@ export interface PerformTableCsvImportParams {
   /** IANA zone used to read naive datetimes (Excel/Sheets exports carry no offset). */
   timezone: string
   requestId?: string
+  /**
+   * The person whose permission group gates any cell this import auto-fires,
+   * or `null` when no person is behind it. An import lands rows, and landing
+   * rows starts the table's workflow and enrichment cells. Threaded from the
+   * surface that holds the principal — the route has already gated the same
+   * subject. Required; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
+   */
+  capabilityGovernedUserId: string | null
 }
 
 export interface TableCsvImportData extends ImportRejectionFields {
@@ -271,8 +279,17 @@ export interface PerformTableCsvImportResult {
 export async function performTableCsvImport(
   params: PerformTableCsvImportParams
 ): Promise<PerformTableCsvImportResult> {
-  const { table, workspaceId, userId, fileStream, fileName, fallbackDelimiter, mode, timezone } =
-    params
+  const {
+    table,
+    workspaceId,
+    userId,
+    fileStream,
+    fileName,
+    fallbackDelimiter,
+    mode,
+    timezone,
+    capabilityGovernedUserId,
+  } = params
   const requestId = params.requestId ?? generateRequestId()
 
   if (table.archivedAt) return fail('Cannot import into an archived table', 'validation')
@@ -367,10 +384,11 @@ export async function performTableCsvImport(
         workspaceId,
         userId,
         requestId,
+        capabilityGovernedUserId,
       })
       // Fire trigger + scheduler AFTER the tx commits — both read through the
       // global db connection and would otherwise see no rows.
-      dispatchAfterBatchInsert(finalTable, inserted, requestId, userId)
+      dispatchAfterBatchInsert(finalTable, inserted, requestId, userId, capabilityGovernedUserId)
 
       logger.info(`[${requestId}] Append CSV imported`, {
         tableId: table.id,
@@ -418,6 +436,15 @@ export async function performTableCsvImport(
 export interface PerformCreateTableFromCsvParams {
   workspaceId: string
   userId: string
+  /**
+   * The person whose permission group gates any cell this import auto-fires,
+   * or `null` when no person is behind it. An import lands rows, and landing
+   * rows starts the table's workflow and enrichment cells. Threaded from the
+   * surface that holds the principal — the route has already gated the same
+   * subject. Required; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
+   */
+  capabilityGovernedUserId: string | null
+
   /** Multipart file stream. The caller still owns destroying it. */
   fileStream: Readable
   fileName: string
@@ -461,8 +488,16 @@ export interface PerformCreateTableFromCsvResult {
 export async function performCreateTableFromCsv(
   params: PerformCreateTableFromCsvParams
 ): Promise<PerformCreateTableFromCsvResult> {
-  const { workspaceId, userId, fileStream, fileName, fallbackDelimiter, folderId, timezone } =
-    params
+  const {
+    workspaceId,
+    userId,
+    fileStream,
+    fileName,
+    fallbackDelimiter,
+    folderId,
+    timezone,
+    capabilityGovernedUserId,
+  } = params
   const requestId = params.requestId ?? generateRequestId()
 
   const { delimiter, stream } = await sniffCsvDelimiterFromStream(fileStream, fallbackDelimiter)
@@ -507,6 +542,7 @@ export async function performCreateTableFromCsv(
         rows: coerced as RowData[],
         workspaceId,
         userId,
+        capabilityGovernedUserId,
         secretProvenance: coerced.map(createExactEmptyTableRowSecretProvenance),
       },
       // The created table's rowCount is frozen at 0; pass the running total so the

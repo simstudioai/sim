@@ -1,35 +1,20 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
-import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { permissionGroupConfigSchema } from '@/lib/permission-groups/types'
+import {
+  permissionGroupConfigSchema,
+  permissionGroupReadShape,
+} from '@/lib/permission-groups/fields'
 
-export const permissionGroupFullConfigSchema = z.object({
-  allowedIntegrations: z.array(z.string()).nullable(),
-  allowedModelProviders: z.array(z.string()).nullable(),
-  deniedModels: z.array(z.string()).default([]),
-  deniedTools: z.array(z.string()).default([]),
-  hideTraceSpans: z.boolean(),
-  hideKnowledgeBaseTab: z.boolean(),
-  hideTablesTab: z.boolean(),
-  hideCopilot: z.boolean(),
-  hideIntegrationsTab: z.boolean(),
-  hideSecretsTab: z.boolean(),
-  hideApiKeysTab: z.boolean(),
-  hideInboxTab: z.boolean(),
-  hideFilesTab: z.boolean(),
-  disableMcpTools: z.boolean(),
-  disableCustomTools: z.boolean(),
-  disableSkills: z.boolean(),
-  disableInvitations: z.boolean(),
-  disablePublicApi: z.boolean(),
-  disablePublicFileSharing: z.boolean(),
-  allowedFileShareAuthTypes: z.array(shareAuthTypeSchema).nullable(),
-  hideDeployApi: z.boolean(),
-  hideDeployMcp: z.boolean(),
-  hideDeployChatbot: z.boolean(),
-  allowedChatDeployAuthTypes: z.array(shareAuthTypeSchema).nullable(),
-})
+/**
+ * The wire shape of a resolved config: every key present, in registry order.
+ *
+ * Built from the same field registry as the write schema and the tolerant
+ * parser, because the group editor's dirty check compares stringified configs —
+ * a key this schema omitted, or ordered differently, would read as an unsaved
+ * change forever.
+ */
+export const permissionGroupFullConfigSchema = z.object(permissionGroupReadShape)
 
 export const addPermissionGroupMemberBodySchema = z.object({
   userId: z.string().min(1),
@@ -39,12 +24,14 @@ export const addPermissionGroupMemberBodySchema = z.object({
 export const permissionGroupParamsSchema = z.object({
   id: organizationIdSchema,
 })
+export type PermissionGroupParams = z.input<typeof permissionGroupParamsSchema>
 
 /** Route params for a single permission group (`id` = organizationId, `groupId` = permission group id). */
 export const permissionGroupDetailParamsSchema = z.object({
   id: organizationIdSchema,
   groupId: z.string().min(1),
 })
+export type PermissionGroupDetailParams = z.input<typeof permissionGroupDetailParamsSchema>
 
 /** A workspace a permission group targets (id + display name). */
 export const permissionGroupWorkspaceRefSchema = z.object({
@@ -154,6 +141,7 @@ export const createPermissionGroupBodySchema = z
     workspaceIds: workspaceIdsSchema.optional(),
   })
   .superRefine(refineWorkspaceScope)
+export type CreatePermissionGroupBody = z.input<typeof createPermissionGroupBodySchema>
 
 export const updatePermissionGroupBodySchema = z
   .object({
@@ -164,15 +152,22 @@ export const updatePermissionGroupBodySchema = z
     workspaceIds: workspaceIdsSchema.optional(),
   })
   .superRefine(refineWorkspaceScope)
+export type UpdatePermissionGroupBody = z.input<typeof updatePermissionGroupBodySchema>
 
 export const removePermissionGroupMemberQuerySchema = z.object({
   memberId: z.string().min(1),
 })
+export type RemovePermissionGroupMemberQuery = z.input<
+  typeof removePermissionGroupMemberQuerySchema
+>
 
 export const bulkAddPermissionGroupMembersBodySchema = z.object({
   userIds: z.array(z.string()).optional(),
   addAllOrganizationMembers: z.boolean().optional(),
 })
+export type BulkAddPermissionGroupMembersBody = z.input<
+  typeof bulkAddPermissionGroupMembersBodySchema
+>
 
 const successResponseSchema = z.object({
   success: z.literal(true),

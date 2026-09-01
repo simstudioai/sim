@@ -10,8 +10,10 @@ import { defineOperation } from '@/lib/core/application'
  * than hand-rolled inside the use case.
  */
 export const v2MetaOperations = {
+  // permission-group-exempt: the resource is the API key the caller already proved it holds, and reporting what that key can do withholds nothing a group could
   read: defineOperation({
     id: 'meta.capabilities.read',
+    capability: 'none',
     principalKinds: ['personal_api_key', 'workspace_api_key'],
   }),
 } as const

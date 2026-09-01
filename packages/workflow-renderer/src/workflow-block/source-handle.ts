@@ -3,7 +3,7 @@ import {
   type WorkflowCardSide,
   type WorkflowConnectionSide,
 } from '@sim/workflow-types/workflow'
-import { Position } from 'reactflow'
+import { Position } from '@xyflow/react'
 
 export const CURSOR_SOURCE_HANDLE_ID = 'source-cursor'
 const CURSOR_BRANCH_SOURCE_HANDLE_PREFIX = `${CURSOR_SOURCE_HANDLE_ID}-branch-`

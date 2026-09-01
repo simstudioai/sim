@@ -29,172 +29,173 @@ export const dynamic = 'force-dynamic'
  * GET - List all registered MCP servers for the workspace
  */
 export const GET = withRouteHandler(
-  withMcpAuth('read')(
-    async (request: NextRequest, { userId, workspaceId, requestId, permission }) => {
-      try {
-        logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
+  withMcpAuth(
+    'read',
+    'mcp_tools.use'
+  )(async (request: NextRequest, { userId, workspaceId, requestId, permission }) => {
+    try {
+      logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
 
-        const rows = await db
-          .select()
-          .from(mcpServers)
-          .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
+      const rows = await db
+        .select()
+        .from(mcpServers)
+        .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
 
-        /**
-         * Header values are the upstream credential and are stored unencrypted, so
-         * they are withheld from anyone who cannot already rewrite them. Editors and
-         * admins still receive them because the settings form round-trips the
-         * existing values on save.
-         */
-        const includeHeaderValues = permissionSatisfies(permission, 'write')
-        const servers = rows.map((row) => projectInternalMcpServer(row, { includeHeaderValues }))
+      /**
+       * Header values are the upstream credential and are stored unencrypted, so
+       * they are withheld from anyone who cannot already rewrite them. Editors and
+       * admins still receive them because the settings form round-trips the
+       * existing values on save.
+       */
+      const includeHeaderValues = permissionSatisfies(permission, 'write')
+      const servers = rows.map((row) => projectInternalMcpServer(row, { includeHeaderValues }))
 
-        logger.info(
-          `[${requestId}] Listed ${servers.length} MCP servers for workspace ${workspaceId}`
-        )
-        return createMcpSuccessResponse({ servers })
-      } catch (error) {
-        logger.error(`[${requestId}] Error listing MCP servers:`, error)
-        return createMcpErrorResponse(toError(error), 'Failed to list MCP servers', 500)
-      }
+      logger.info(
+        `[${requestId}] Listed ${servers.length} MCP servers for workspace ${workspaceId}`
+      )
+      return createMcpSuccessResponse({ servers })
+    } catch (error) {
+      logger.error(`[${requestId}] Error listing MCP servers:`, error)
+      return createMcpErrorResponse(toError(error), 'Failed to list MCP servers', 500)
     }
-  )
+  })
 )
 
 /**
  * POST - Register a new MCP server for the workspace (requires write permission)
  */
 export const POST = withRouteHandler(
-  withMcpAuth('write')(
-    async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
-      try {
-        const rawBody = await readMcpJsonBodyWithLimit(request)
-        const parsedBody = createMcpServerBodySchema.safeParse(rawBody)
+  withMcpAuth(
+    'write',
+    'mcp_tools.use'
+  )(async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
+    try {
+      const rawBody = await readMcpJsonBodyWithLimit(request)
+      const parsedBody = createMcpServerBodySchema.safeParse(rawBody)
 
-        if (!parsedBody.success) {
-          return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
-        }
-
-        const body = parsedBody.data
-
-        logger.info(`[${requestId}] Registering MCP server:`, {
-          name: body.name,
-          transport: body.transport,
-          workspaceId,
-        })
-
-        const sourceParam = body.source as string | undefined
-        const source =
-          sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
-        if (!body.url) {
-          return createMcpErrorResponse(
-            new Error('url is required'),
-            'Missing required parameter',
-            400
-          )
-        }
-        const result = await performCreateMcpServer({
-          workspaceId,
-          userId,
-          actorName: userName,
-          actorEmail: userEmail,
-          name: body.name,
-          description: body.description,
-          transport: body.transport,
-          url: body.url,
-          headers: body.headers,
-          timeout: body.timeout,
-          retries: body.retries,
-          enabled: body.enabled,
-          source,
-          authType: body.authType,
-          oauthClientId: body.oauthClientId || null,
-          oauthClientIdProvided: body.oauthClientId !== undefined,
-          oauthClientSecret: body.oauthClientSecret,
-          oauthClientSecretProvided: body.oauthClientSecret !== undefined,
-          request,
-        })
-        if (!result.success || !result.serverId) {
-          return createMcpErrorResponse(
-            new Error(result.error || 'Failed to register MCP server'),
-            result.error || 'Failed to register MCP server',
-            mcpOrchestrationStatus(result.errorCode)
-          )
-        }
-
-        logger.info(
-          `[${requestId}] Successfully registered MCP server: ${body.name} (ID: ${result.serverId})`
-        )
-
-        return createMcpSuccessResponse(
-          result.updated
-            ? { serverId: result.serverId, updated: true, authType: result.authType }
-            : { serverId: result.serverId, authType: result.authType },
-          result.updated ? 200 : 201
-        )
-      } catch (error) {
-        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
-        if (bodyErrorResponse) return bodyErrorResponse
-        logger.error(`[${requestId}] Error registering MCP server:`, error)
-        return createMcpErrorResponse(toError(error), 'Failed to register MCP server', 500)
+      if (!parsedBody.success) {
+        return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
       }
+
+      const body = parsedBody.data
+
+      logger.info(`[${requestId}] Registering MCP server:`, {
+        name: body.name,
+        transport: body.transport,
+        workspaceId,
+      })
+
+      const sourceParam = body.source as string | undefined
+      const source =
+        sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
+      if (!body.url) {
+        return createMcpErrorResponse(
+          new Error('url is required'),
+          'Missing required parameter',
+          400
+        )
+      }
+      const result = await performCreateMcpServer({
+        workspaceId,
+        userId,
+        actorName: userName,
+        actorEmail: userEmail,
+        name: body.name,
+        description: body.description,
+        transport: body.transport,
+        url: body.url,
+        headers: body.headers,
+        timeout: body.timeout,
+        retries: body.retries,
+        enabled: body.enabled,
+        source,
+        authType: body.authType,
+        oauthClientId: body.oauthClientId || null,
+        oauthClientIdProvided: body.oauthClientId !== undefined,
+        oauthClientSecret: body.oauthClientSecret,
+        oauthClientSecretProvided: body.oauthClientSecret !== undefined,
+        request,
+      })
+      if (!result.success || !result.serverId) {
+        return createMcpErrorResponse(
+          new Error(result.error || 'Failed to register MCP server'),
+          result.error || 'Failed to register MCP server',
+          mcpOrchestrationStatus(result.errorCode)
+        )
+      }
+
+      logger.info(
+        `[${requestId}] Successfully registered MCP server: ${body.name} (ID: ${result.serverId})`
+      )
+
+      return createMcpSuccessResponse(
+        result.updated
+          ? { serverId: result.serverId, updated: true, authType: result.authType }
+          : { serverId: result.serverId, authType: result.authType },
+        result.updated ? 200 : 201
+      )
+    } catch (error) {
+      const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+      if (bodyErrorResponse) return bodyErrorResponse
+      logger.error(`[${requestId}] Error registering MCP server:`, error)
+      return createMcpErrorResponse(toError(error), 'Failed to register MCP server', 500)
     }
-  )
+  })
 )
 
 /**
  * DELETE - Delete an MCP server from the workspace (requires write permission)
  */
 export const DELETE = withRouteHandler(
-  withMcpAuth('write')(
-    async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
-      try {
-        const { searchParams } = new URL(request.url)
-        const queryValidation = deleteMcpServerByQuerySchema.safeParse(
-          Object.fromEntries(searchParams)
+  withMcpAuth(
+    'write',
+    'mcp_tools.use'
+  )(async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
+    try {
+      const { searchParams } = new URL(request.url)
+      const queryValidation = deleteMcpServerByQuerySchema.safeParse(
+        Object.fromEntries(searchParams)
+      )
+      if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
+      const query = queryValidation.data
+      const serverId = query.serverId
+      const sourceParam = query.source
+      const source =
+        sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
+
+      if (!serverId) {
+        return createMcpErrorResponse(
+          new Error('serverId parameter is required'),
+          'Missing required parameter',
+          400
         )
-        if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
-        const query = queryValidation.data
-        const serverId = query.serverId
-        const sourceParam = query.source
-        const source =
-          sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
-
-        if (!serverId) {
-          return createMcpErrorResponse(
-            new Error('serverId parameter is required'),
-            'Missing required parameter',
-            400
-          )
-        }
-
-        logger.info(
-          `[${requestId}] Deleting MCP server: ${serverId} from workspace: ${workspaceId}`
-        )
-
-        const result = await performDeleteMcpServer({
-          workspaceId,
-          userId,
-          actorName: userName,
-          actorEmail: userEmail,
-          serverId,
-          source,
-          request,
-        })
-        if (!result.success || !result.server) {
-          return createMcpErrorResponse(
-            new Error(result.error || 'Failed to delete MCP server'),
-            result.error || 'Failed to delete MCP server',
-            mcpOrchestrationStatus(result.errorCode)
-          )
-        }
-
-        logger.info(`[${requestId}] Successfully deleted MCP server: ${serverId}`)
-
-        return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
-      } catch (error) {
-        logger.error(`[${requestId}] Error deleting MCP server:`, error)
-        return createMcpErrorResponse(toError(error), 'Failed to delete MCP server', 500)
       }
+
+      logger.info(`[${requestId}] Deleting MCP server: ${serverId} from workspace: ${workspaceId}`)
+
+      const result = await performDeleteMcpServer({
+        workspaceId,
+        userId,
+        actorName: userName,
+        actorEmail: userEmail,
+        serverId,
+        source,
+        request,
+      })
+      if (!result.success || !result.server) {
+        return createMcpErrorResponse(
+          new Error(result.error || 'Failed to delete MCP server'),
+          result.error || 'Failed to delete MCP server',
+          mcpOrchestrationStatus(result.errorCode)
+        )
+      }
+
+      logger.info(`[${requestId}] Successfully deleted MCP server: ${serverId}`)
+
+      return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
+    } catch (error) {
+      logger.error(`[${requestId}] Error deleting MCP server:`, error)
+      return createMcpErrorResponse(toError(error), 'Failed to delete MCP server', 500)
     }
-  )
+  })
 )

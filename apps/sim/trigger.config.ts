@@ -125,10 +125,9 @@ export default defineConfig({
       }),
       additionalPackages({
         packages: [
-          'unpdf',
           'isolated-vm',
           'react-dom',
-          '@react-email/render',
+          'react-email',
           '@earendil-works/pi-ai',
           '@earendil-works/pi-coding-agent',
           '@e2b/code-interpreter',
