@@ -6,8 +6,22 @@
 -- Without the subject on the marker that drain runs someone else's request under its own subject.
 -- Additive and nullable; NULL means "no acting person, no per-tool gate", which is exactly what a
 -- marker written before this column existed was already doing.
-ALTER TABLE "table_row_executions" ADD COLUMN "capability_governed_user_id" text;--> statement-breakpoint
-ALTER TABLE "table_row_executions" ADD CONSTRAINT "table_row_executions_capability_governed_user_id_user_id_fk" FOREIGN KEY ("capability_governed_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action NOT VALID;--> statement-breakpoint
+-- Replay-safe: this file ends in post-COMMIT CONCURRENTLY steps, and a failed concurrent build
+-- replays the whole file from the top (see packages/db/scripts/migrate.ts). Every statement before
+-- the COMMIT therefore has to survive being run twice.
+ALTER TABLE "table_row_executions" ADD COLUMN IF NOT EXISTS "capability_governed_user_id" text;--> statement-breakpoint
+-- Postgres has no ADD CONSTRAINT IF NOT EXISTS, so the replay guard is an explicit pg_constraint
+-- lookup. Scoped to conrelid so an identically named constraint on another table cannot mask it.
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM "pg_constraint"
+    WHERE "conname" = 'table_row_executions_capability_governed_user_id_user_id_fk'
+      AND "conrelid" = '"table_row_executions"'::regclass
+  ) THEN
+    ALTER TABLE "table_row_executions" ADD CONSTRAINT "table_row_executions_capability_governed_user_id_user_id_fk" FOREIGN KEY ("capability_governed_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action NOT VALID;
+  END IF;
+END $$;--> statement-breakpoint
+-- VALIDATE on an already-validated constraint is a no-op, so this needs no guard of its own.
 ALTER TABLE "table_row_executions" VALIDATE CONSTRAINT "table_row_executions_capability_governed_user_id_user_id_fk";--> statement-breakpoint
 -- Repeat of 0315's backfill, deliberately.
 --
