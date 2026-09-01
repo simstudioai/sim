@@ -23,6 +23,7 @@
     }
   },
   "scripts": {
+    "db:generate": "bunx drizzle-kit generate --config=./drizzle.config.ts",
     "db:push": "bunx drizzle-kit push --config=./drizzle.config.ts && bun --env-file=.env run ./scripts/reconcile-credential-group-resource-policies.ts",
     "db:migrate": "bun --env-file=.env run ./scripts/migrate.ts",
     "db:apply-dev-workspace-file-size-cutover": "bun --env-file=.env run ./scripts/apply-dev-workspace-file-size-cutover.ts",

@@ -104,6 +104,8 @@ describe('audio FFmpeg execution', () => {
     })
     const conversion = calls.find((call) => call.executable.includes('ffmpeg'))
     expect(conversion?.args).toEqual([
+      '-y',
+      '-nostdin',
       '-i',
       expect.stringMatching(/input\.mp4$/),
       '-f',

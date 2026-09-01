@@ -3,6 +3,14 @@ import { toError } from '@sim/utils/errors'
 
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024
 
+/**
+ * Base flags for every ffmpeg invocation. `-y`/`-nostdin` replace
+ * fluent-ffmpeg's implicit overwrite flag: without them an existing output
+ * makes ffmpeg prompt on an unread stdin pipe and hang until the timeout
+ * kills it.
+ */
+export const FFMPEG_BASE_ARGS = ['-y', '-nostdin'] as const
+
 export interface ExecutableOptions {
   cwd?: string
   maxOutputBytes?: number

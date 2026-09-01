@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { FFMPEG_LIMITS } from '@/lib/media/ffmpeg-limits'
-import { resolveExecutable, runExecutable } from '@/lib/media/ffmpeg-process'
+import { FFMPEG_BASE_ARGS, resolveExecutable, runExecutable } from '@/lib/media/ffmpeg-process'
 
 const logger = createLogger('MediaFfmpeg')
 
@@ -283,7 +283,7 @@ async function runCommand(
 
   ensureFfmpeg()
   try {
-    await runExecutable(ffmpegPath as string, [...args, outputPath], {
+    await runExecutable(ffmpegPath as string, [...FFMPEG_BASE_ARGS, ...args, outputPath], {
       cwd,
       maxOutputBytes: PROBE_MAX_OUTPUT_BYTES,
       signal: ctx.signal,
@@ -582,7 +582,9 @@ async function trim(
   const ext = extFromMime(input.mimeType)
   const outputPath = path.join(dir, `out.${ext}`)
   const start = options.start ?? 0
-  const args = ['-ss', String(start), '-i', inputPath]
+  // Output-side -ss (after -i) preserves fluent-ffmpeg's setStartTime
+  // semantics: frame-accurate trim starts instead of keyframe-snapped ones.
+  const args = ['-i', inputPath, '-ss', String(start)]
   if (options.end !== undefined) {
     args.push('-t', String(Math.max(0, options.end - start)))
   }

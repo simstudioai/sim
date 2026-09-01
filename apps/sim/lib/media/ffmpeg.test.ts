@@ -286,6 +286,8 @@ describe('runFfmpegOperation argument vectors', () => {
     await runFfmpegOperation('overlay_audio', [videoInput, videoInput], { loopToVideo: true })
 
     expect(capturedArgs[0]).toEqual([
+      '-y',
+      '-nostdin',
       '-i',
       expect.stringMatching(/in-0\.mp4$/),
       '-stream_loop',
@@ -309,10 +311,12 @@ describe('runFfmpegOperation argument vectors', () => {
     await runFfmpegOperation('trim', [videoInput], { end: 5.5, start: 1.25 })
 
     expect(capturedArgs[0]).toEqual([
-      '-ss',
-      '1.25',
+      '-y',
+      '-nostdin',
       '-i',
       expect.stringMatching(/in-0\.mp4$/),
+      '-ss',
+      '1.25',
       '-t',
       '4.25',
       expect.stringMatching(/out\.mp4$/),
@@ -323,6 +327,8 @@ describe('runFfmpegOperation argument vectors', () => {
     await runFfmpegOperation('thumbnail', [videoInput], { start: 3 })
 
     expect(capturedArgs[0]).toEqual([
+      '-y',
+      '-nostdin',
       '-ss',
       '3',
       '-i',

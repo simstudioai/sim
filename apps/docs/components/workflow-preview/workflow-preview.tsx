@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Expand, X } from '@sim/emcn/icons'
+import { CANVAS_Z_INDEX_MODE } from '@sim/workflow-renderer'
 import {
   applyEdgeChanges,
   applyNodeChanges,
@@ -20,6 +21,7 @@ import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-dis
 import { BlockInspector } from '@/components/workflow-preview/block-inspector'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
 import { DocsContainerNode } from '@/components/workflow-preview/docs-container-node'
+import { usePreviewColorMode } from '@/components/workflow-preview/use-preview-color-mode'
 import {
   EASE_OUT,
   type PreviewBlock,
@@ -177,6 +179,7 @@ function PreviewFlow({
     [workflow, animate, highlightBlock, highlightEdge, selectedBlock]
   )
 
+  const colorMode = usePreviewColorMode()
   const [nodes, setNodes] = useState<PreviewNode[]>(initialNodes)
   const [edges, setEdges] = useState<PreviewFlowEdge[]>(initialEdges)
 
@@ -206,6 +209,8 @@ function PreviewFlow({
 
   return (
     <ReactFlow<PreviewNode, PreviewFlowEdge>
+      colorMode={colorMode}
+      zIndexMode={CANVAS_Z_INDEX_MODE}
       nodes={nodes}
       edges={edges}
       onNodesChange={onNodesChange}

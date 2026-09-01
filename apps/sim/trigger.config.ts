@@ -132,6 +132,9 @@ export default defineConfig({
           '@earendil-works/pi-coding-agent',
           '@e2b/code-interpreter',
           '@daytona/sdk',
+          // pdf.js resolves its worker via a runtime-relative dynamic import;
+          // it must load from node_modules, not the worker bundle.
+          'pdfjs-dist',
         ],
       }),
     ],

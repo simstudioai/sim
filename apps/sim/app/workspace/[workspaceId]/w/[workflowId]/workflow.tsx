@@ -23,6 +23,7 @@ import type { SubflowNodeData } from '@sim/workflow-renderer'
 import {
   BLOCK_DIMENSIONS,
   BLOCK_Z_BASE,
+  CANVAS_Z_INDEX_MODE,
   CONNECTION_PICKER_Z,
   CONTAINER_CHILD_Z_BASE,
   CONTAINER_DIMENSIONS,
@@ -102,6 +103,7 @@ import {
   reconcileCanvasEdges,
   reconcileCanvasNodes,
   resolveSelectionConflicts,
+  SUBFLOW_CHILD_NODE_CLASS,
   SUBFLOW_DROP_TARGET_CLASS,
   shouldHighlightContainerDropTarget,
   validateTriggerPaste,
@@ -136,6 +138,7 @@ import {
   isFolderOrAncestorLocked,
 } from '@/hooks/queries/utils/folder-tree'
 import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
+import { useCanvasColorMode } from '@/hooks/use-canvas-color-mode'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
@@ -342,6 +345,7 @@ const WorkflowContent = React.memo(
 
     const params = useParams()
     const router = useRouter()
+    const colorMode = useCanvasColorMode()
     const reactFlowInstance = useReactFlow()
     const { screenToFlowPosition, getNodes, setNodes } = reactFlowInstance
     const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance, {
@@ -2869,6 +2873,7 @@ const WorkflowContent = React.memo(
             type: 'subflowNode',
             position: block.position,
             parentId: block.data?.parentId,
+            className: block.data?.parentId ? SUBFLOW_CHILD_NODE_CLASS : undefined,
             extent: block.data?.extent || undefined,
             dragHandle: '.workflow-drag-handle',
             draggable: !workflowReadOnly && !isBlockProtected(block.id, blocks),
@@ -2907,20 +2912,21 @@ const WorkflowContent = React.memo(
         // level as a subflow container and below the edge band. A card inside a
         // container starts higher still, so it clears the parent's interactive
         // body area (which needs pointer-events for click-to-select).
-        const cardZIndex = block.data?.parentId ? CONTAINER_CHILD_Z_BASE : BLOCK_Z_BASE
+        const parentId = block.data?.parentId as string | undefined
+        const cardZIndex = parentId ? CONTAINER_CHILD_Z_BASE : BLOCK_Z_BASE
 
         // Create stable node object - React Flow will handle shallow comparison
         nodeArray.push({
           id: block.id,
           type: nodeType,
           position,
-          parentId: block.data?.parentId,
+          parentId,
+          className: parentId ? SUBFLOW_CHILD_NODE_CLASS : undefined,
           dragHandle,
           draggable: !workflowReadOnly && !isBlockProtected(block.id, blocks),
           zIndex: cardZIndex,
           extent: (() => {
             // Clamp children to subflow body (exclude header)
-            const parentId = block.data?.parentId as string | undefined
             if (!parentId) return block.data?.extent || undefined
 
             // Constrain the top and left to the container's own gutter, the same
@@ -2949,11 +2955,13 @@ const WorkflowContent = React.memo(
             onSetErrorOutputEnabled: collaborativeSetBlockErrorEnabled,
             onRemoveEdges: collaborativeBatchRemoveEdges,
           },
-          // Include dynamic dimensions for container resizing calculations (must match rendered size)
-          // Both note and workflow blocks calculate dimensions deterministically via useBlockDimensions
-          // Use estimated dimensions for blocks without measured height to ensure selection bounds are correct
-          width: getRegularBlockWidth(block.type),
-          height: block.height
+          // Seed dimensions so selection bounds and container-resize math are
+          // valid before the first measurement. These must stay `initial*`: in
+          // React Flow v12 top-level `width`/`height` become fixed inline
+          // styles that clamp the node, while `initialWidth`/`initialHeight`
+          // only stand in until the rendered content is measured.
+          initialWidth: getRegularBlockWidth(block.type),
+          initialHeight: block.height
             ? block.type === 'note'
               ? block.height
               : Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT)
@@ -3003,12 +3011,12 @@ const WorkflowContent = React.memo(
         clearPendingSelection()
 
         // Apply pending selection and resolve parent-child conflicts
-        const withSelection = derivedNodes.map((node) => ({
-          ...node,
-          selected: pendingSet.has(node.id),
-        }))
-        const resolved = resolveSelectionConflicts(withSelection, blocks)
-        setDisplayNodes(resolved)
+        setDisplayNodes((currentNodes) =>
+          resolveSelectionConflicts(
+            reconcileCanvasNodes(currentNodes, derivedNodes, pendingSet),
+            blocks
+          )
+        )
         return
       }
 
@@ -5120,6 +5128,8 @@ const WorkflowContent = React.memo(
             {isWorkflowReady && (
               <>
                 <ReactFlow
+                  colorMode={colorMode}
+                  zIndexMode={CANVAS_Z_INDEX_MODE}
                   nodes={nodesForRender}
                   edges={edgesForRender}
                   onNodesChange={onNodesChange}
@@ -5197,7 +5207,6 @@ const WorkflowContent = React.memo(
                   draggable={false}
                   noWheelClassName='allow-scroll'
                   edgesFocusable={!embedded}
-                  edgesReconnectable={!embedded && effectivePermissions.canEdit}
                   className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${canvasOpacityClass} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
                   onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
                   onNodeDragStop={
