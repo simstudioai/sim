@@ -24,6 +24,8 @@ vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
 import { ConfluenceOperationError } from '@/lib/internal/confluence/errors'
 import {
   executeConfluenceListLabels,
+  executeConfluenceListPagesInSpace,
+  executeConfluenceSearchInSpace,
   executeConfluenceUploadAttachment,
 } from '@/lib/internal/confluence/operations'
 
@@ -81,6 +83,63 @@ describe('Confluence operations', () => {
       expect.objectContaining({ signal: controller.signal })
     )
     expect(response.bodyUsed).toBe(true)
+  })
+
+  it.each([
+    { selectedValue: 'ENG', expectedCalls: 2 },
+    { selectedValue: '12345', expectedCalls: 1 },
+  ])(
+    'uses numeric space IDs for V2 requests when the selected value is $selectedValue',
+    async ({ selectedValue, expectedCalls }) => {
+      const fetchMock = vi.fn(async (request: string | URL | Request) => {
+        const url = String(request)
+        if (url.includes('/spaces?')) {
+          return Response.json({
+            results: [{ id: '12345', key: 'ENG', name: 'Engineering', status: 'current' }],
+          })
+        }
+        return Response.json({ results: [] })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        executeConfluenceListPagesInSpace(
+          { ...CONNECTION, spaceId: selectedValue, limit: 25 },
+          { headers: new Headers(), requestId: 'request-1' }
+        )
+      ).resolves.toEqual({ pages: [], nextCursor: null })
+
+      expect(fetchMock).toHaveBeenCalledTimes(expectedCalls)
+      const urls = fetchMock.mock.calls.map(([request]) => String(request))
+      expect(urls.at(-1)).toContain('/spaces/12345/pages?limit=25')
+      if (selectedValue === 'ENG') {
+        expect(urls[0]).toContain('/spaces?keys=ENG&limit=1&status=current')
+      }
+    }
+  )
+
+  it('resolves a legacy numeric space value before constructing key-based CQL', async () => {
+    const fetchMock = vi.fn(async (request: string | URL | Request) => {
+      const url = String(request)
+      if (url.includes('/api/v2/spaces/12345')) {
+        return Response.json({ id: '12345', key: 'ENG', name: 'Engineering' })
+      }
+      return Response.json({ results: [], totalSize: 0 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      executeConfluenceSearchInSpace(
+        { ...CONNECTION, spaceKey: '12345', query: 'release notes', limit: 25 },
+        { headers: new Headers(), requestId: 'request-1' }
+      )
+    ).resolves.toEqual({ results: [], spaceKey: 'ENG', totalSize: 0 })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const searchUrl = String(fetchMock.mock.calls[1][0])
+    expect(new URL(searchUrl).searchParams.get('cql')).toBe(
+      'space = "ENG" AND text ~ "release notes"'
+    )
   })
 
   it('fails closed before downloading a stored file without an acting user', async () => {

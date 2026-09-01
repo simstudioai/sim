@@ -16,6 +16,9 @@ const PAGE_FIELD = ['pageId', 'manualPageId'] as const
  */
 const SPACE_FIELD = ['spaceSelector', 'spaceId'] as const
 
+/** Canonical basic/advanced pair for V1 operations that require a space key. */
+const SPACE_KEY_FIELD = ['spaceKeySelector', 'manualSpaceKey'] as const
+
 /** Canonical upload/reference pair for an attachment's file. V2 only. */
 const ATTACHMENT_FILE_FIELD = ['attachmentFileUpload', 'attachmentFileReference'] as const
 
@@ -485,7 +488,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           { text: ', up to', field: 'limit', after: 'results' },
         ],
         search_in_space: [
-          { text: 'Search', field: SPACE_FIELD, core: true },
+          { text: 'Search', field: SPACE_KEY_FIELD, core: true },
           { text: 'for', field: 'query' },
         ],
         list_blogposts: ['List blog posts', { text: ', up to', field: 'limit', after: 'results' }],
@@ -834,7 +837,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'update_space',
           'delete_space',
           'list_pages_in_space',
-          'search_in_space',
           'create_blogpost',
           'list_blogposts_in_space',
           'list_space_labels',
@@ -861,7 +863,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'update_space',
           'delete_space',
           'list_pages_in_space',
-          'search_in_space',
           'create_blogpost',
           'list_blogposts_in_space',
           'list_space_labels',
@@ -871,6 +872,29 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           'delete_space_property',
         ],
       },
+    },
+    {
+      id: 'spaceKeySelector',
+      title: 'Space',
+      type: 'project-selector',
+      canonicalParamId: 'selectedSpaceKey',
+      serviceId: 'confluence',
+      selectorKey: 'confluence.spaces',
+      placeholder: 'Select Confluence space',
+      dependsOn: ['credential', 'domain'],
+      mode: 'basic',
+      required: true,
+      condition: { field: 'operation', value: 'search_in_space' },
+    },
+    {
+      id: 'manualSpaceKey',
+      title: 'Space Key',
+      type: 'short-input',
+      canonicalParamId: 'selectedSpaceKey',
+      placeholder: 'Enter Confluence space key',
+      mode: 'advanced',
+      required: true,
+      condition: { field: 'operation', value: 'search_in_space' },
     },
     {
       id: 'blogPostId',
@@ -1461,6 +1485,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           taskAssignedTo,
           spaceName,
           spaceKey,
+          selectedSpaceKey,
           spaceDescription,
           spacePropertyKey,
           spacePropertyValue,
@@ -1626,6 +1651,15 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           }
         }
 
+        if (operation === 'search_in_space') {
+          return {
+            credential: oauthCredential,
+            operation,
+            spaceKey: selectedSpaceKey,
+            ...rest,
+          }
+        }
+
         if (operation === 'update_space') {
           return {
             credential: oauthCredential,
@@ -1730,6 +1764,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     oauthCredential: { type: 'string', description: 'Confluence access token' },
     pageId: { type: 'string', description: 'Page identifier' },
     spaceId: { type: 'string', description: 'Space identifier' },
+    selectedSpaceKey: { type: 'string', description: 'Selected space key' },
     blogPostId: { type: 'string', description: 'Blog post identifier' },
     versionNumber: { type: 'number', description: 'Page version number' },
     accountId: { type: 'string', description: 'Atlassian account ID' },
@@ -1758,7 +1793,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     taskStatus: { type: 'string', description: 'Task status (complete or incomplete)' },
     taskAssignedTo: { type: 'string', description: 'Filter tasks by assignee account ID' },
     spaceName: { type: 'string', description: 'Space name for create/update' },
-    spaceKey: { type: 'string', description: 'Space key for create' },
+    spaceKey: { type: 'string', description: 'Space key for create or scoped search' },
     spaceDescription: { type: 'string', description: 'Space description' },
     spacePropertyKey: { type: 'string', description: 'Space property key' },
     spacePropertyValue: { type: 'json', description: 'Space property value' },
