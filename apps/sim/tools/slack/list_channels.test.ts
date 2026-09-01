@@ -48,6 +48,15 @@ describe('Slack list channels', () => {
     )
   })
 
+  it('uses the default limit for unresolved optional workflow values', () => {
+    expect(requestUrl({ ...BASE_PARAMS, limit: null as never }).searchParams.get('limit')).toBe(
+      '100'
+    )
+    expect(requestUrl({ ...BASE_PARAMS, limit: ' ' as never }).searchParams.get('limit')).toBe(
+      '100'
+    )
+  })
+
   it('preserves the documented type and participant fields for mixed conversations', async () => {
     const result = await slackListChannelsTool.transformResponse!(
       Response.json({

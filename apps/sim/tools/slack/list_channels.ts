@@ -70,7 +70,9 @@ function resolveBooleanParam(value: unknown, label: string, defaultValue: boolea
 }
 
 function resolveConversationLimit(value: unknown): number {
-  if (value === undefined) return 100
+  if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
+    return 100
+  }
   const limit = Number(value)
   if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
     throw new Error('Channel limit must be an integer between 1 and 200')
