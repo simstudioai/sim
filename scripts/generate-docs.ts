@@ -42,6 +42,34 @@ const LANDING_INTEGRATIONS_DATA_PATH = path.join(
   'apps/sim/app/(landing)/integrations/data'
 )
 const TRIGGERS_PATH = path.join(rootDir, 'apps/sim/triggers')
+const sourceFileCache = new Map<string, string>()
+const sourceGlobCache = new Map<string, Promise<string[]>>()
+const blockConfigCache = new Map<string, ReturnType<typeof extractAllBlockConfigs>>()
+
+function readSourceFile(filePath: string): string {
+  const cached = sourceFileCache.get(filePath)
+  if (cached !== undefined) return cached
+  const source = fs.readFileSync(filePath, 'utf-8')
+  sourceFileCache.set(filePath, source)
+  return source
+}
+
+async function sourceGlob(pattern: string): Promise<string[]> {
+  let pending = sourceGlobCache.get(pattern)
+  if (!pending) {
+    pending = glob(pattern)
+    sourceGlobCache.set(pattern, pending)
+  }
+  return [...(await pending)]
+}
+
+function blockConfigsForFile(filePath: string): ReturnType<typeof extractAllBlockConfigs> {
+  const cached = blockConfigCache.get(filePath)
+  if (cached) return cached
+  const configs = extractAllBlockConfigs(readSourceFile(filePath))
+  blockConfigCache.set(filePath, configs)
+  return configs
+}
 // Integration triggers are merged into the same per-service page as the service's
 // actions (one block per integration: actions + an optional Trigger).
 const TRIGGER_DOCS_OUTPUT_PATH = DOCS_OUTPUT_PATH
@@ -473,7 +501,7 @@ function copyIconsFile(): void {
       return
     }
 
-    const iconsContent = fs.readFileSync(ICONS_PATH, 'utf-8')
+    const iconsContent = readSourceFile(ICONS_PATH)
     emitGeneratedFile(DOCS_ICONS_PATH, iconsContent)
 
     if (!CHECK_ONLY) console.log('✓ Icons successfully copied to docs app')
@@ -489,12 +517,16 @@ function copyIconsFile(): void {
  * instead of the two-letter fallback. Never overwrites a block-derived entry —
  * the block is the canonical icon source when one exists.
  */
-async function addTriggerProviderIcons(iconMapping: Record<string, IconRef>): Promise<void> {
-  const triggerFiles = (await glob(`${TRIGGERS_PATH}/**/*.ts`)).filter((f) => !f.includes('.test.'))
+async function addTriggerProviderIcons(
+  iconMappings: readonly Record<string, IconRef>[]
+): Promise<void> {
+  const triggerFiles = (await sourceGlob(`${TRIGGERS_PATH}/**/*.ts`)).filter(
+    (f) => !f.includes('.test.')
+  )
   const previewOnly = await collectPreviewOnlyTriggerIds()
 
   for (const file of triggerFiles) {
-    const fileContent = fs.readFileSync(file, 'utf-8')
+    const fileContent = readSourceFile(file)
     const source = stripSourceComments(fileContent)
 
     // Pair each trigger's `id` with the `provider` that follows it in the same
@@ -505,7 +537,7 @@ async function addTriggerProviderIcons(iconMapping: Record<string, IconRef>): Pr
 
     for (const match of source.matchAll(configRegex)) {
       const [, triggerId, provider] = match
-      if (iconMapping[provider]) continue
+      if (iconMappings.every((iconMapping) => iconMapping[provider])) continue
 
       // Preview-only triggers get no page, so they need no provider icon.
       if (previewOnly.has(triggerId)) continue
@@ -513,7 +545,10 @@ async function addTriggerProviderIcons(iconMapping: Record<string, IconRef>): Pr
       const iconName = extractIconNameFromContent(source.slice(match.index))
       if (!iconName) continue
 
-      iconMapping[provider] = { name: iconName, source: resolveIconSource(fileContent, iconName) }
+      const iconRef = { name: iconName, source: resolveIconSource(fileContent, iconName) }
+      for (const iconMapping of iconMappings) {
+        if (!iconMapping[provider]) iconMapping[provider] = iconRef
+      }
     }
   }
 }
@@ -523,17 +558,19 @@ async function addTriggerProviderIcons(iconMapping: Record<string, IconRef>): Pr
  * Docs need hidden historical version keys so old BlockInfoCard references and
  * versioned docs links still render icons, while landing only needs visible blocks.
  */
-async function generateIconMapping(options: {
-  includeHidden: boolean
-}): Promise<Record<string, IconRef>> {
+async function generateIconMappings(): Promise<{
+  docs: Record<string, IconRef>
+  visible: Record<string, IconRef>
+}> {
   try {
     console.log('Generating icon mapping from block definitions...')
 
-    const iconMapping: Record<string, IconRef> = {}
-    const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+    const docs: Record<string, IconRef> = {}
+    const visible: Record<string, IconRef> = {}
+    const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()
 
     for (const blockFile of blockFiles) {
-      const fileContent = fs.readFileSync(blockFile, 'utf-8')
+      const fileContent = readSourceFile(blockFile)
 
       // For icon mapping, we need ALL blocks including hidden ones
       // because V2 blocks inherit icons from legacy blocks via spread
@@ -603,26 +640,30 @@ async function generateIconMapping(options: {
            * hidden versioned block. Without this it renders as a text tile.
            */
           const isSunsetBlockType = /sunset\s*:\s*\{/.test(stripSourceComments(blockContent))
-          if (
-            !hideFromToolbar ||
-            (options.includeHidden && (isVersionedBlockType || isSunsetBlockType))
-          ) {
-            iconMapping[blockType] = {
-              name: iconName,
-              source: resolveIconSource(fileContent, iconName),
-            }
+          const iconRef = {
+            name: iconName,
+            source: resolveIconSource(fileContent, iconName),
+          }
+          if (!hideFromToolbar) {
+            docs[blockType] = iconRef
+            visible[blockType] = iconRef
+          } else if (isVersionedBlockType || isSunsetBlockType) {
+            docs[blockType] = iconRef
           }
         }
       }
     }
 
-    await addTriggerProviderIcons(iconMapping)
+    await addTriggerProviderIcons([docs, visible])
 
-    console.log(`✓ Generated icon mapping for ${Object.keys(iconMapping).length} blocks`)
-    return iconMapping
+    console.log(
+      `✓ Generated icon mappings for ${Object.keys(docs).length} docs blocks and ` +
+        `${Object.keys(visible).length} visible blocks`
+    )
+    return { docs, visible }
   } catch (error) {
     console.error('Error generating icon mapping:', error)
-    return {}
+    return { docs: {}, visible: {} }
   }
 }
 
@@ -1227,11 +1268,11 @@ async function buildToolDescriptionMap(): Promise<ToolMaps> {
   const desc = new Map<string, string>()
   const name = new Map<string, string>()
   try {
-    const toolFiles = await glob(`${toolsDir}/**/*.ts`)
+    const toolFiles = await sourceGlob(`${toolsDir}/**/*.ts`)
     for (const file of toolFiles) {
       const basename = path.basename(file)
       if (basename === 'index.ts' || basename === 'types.ts') continue
-      const content = fs.readFileSync(file, 'utf-8')
+      const content = readSourceFile(file)
 
       // Find every `id: 'tool_id'` occurrence in the file. For each, search
       // the next ~600 characters for `name:` and `description:` fields, cutting
@@ -1690,13 +1731,13 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
   const registry = new Map<string, TriggerInfo>()
   const SKIP = new Set(['index.ts', 'registry.ts', 'types.ts', 'constants.ts', 'utils.ts'])
 
-  const triggerFiles = (await glob(`${TRIGGERS_PATH}/**/*.ts`)).filter(
+  const triggerFiles = (await sourceGlob(`${TRIGGERS_PATH}/**/*.ts`)).filter(
     (f) => !SKIP.has(path.basename(f)) && !f.includes('.test.')
   )
 
   for (const file of triggerFiles) {
     try {
-      const content = fs.readFileSync(file, 'utf-8')
+      const content = readSourceFile(file)
 
       // A file may export multiple TriggerConfig objects (e.g. v1 + v2 in
       // the same file). Extract all exported configs by splitting on the
@@ -1810,12 +1851,12 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
 
     const integrations: IntegrationEntry[] = []
     const seenBaseTypes = new Set<string>()
-    const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+    const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()
 
     for (const blockFile of blockFiles) {
-      const fileContent = fs.readFileSync(blockFile, 'utf-8')
+      const fileContent = readSourceFile(blockFile)
       const switchCaseMap = extractSwitchCaseToolMapping(fileContent)
-      const configs = extractAllBlockConfigs(fileContent)
+      const configs = blockConfigsForFile(blockFile)
 
       for (const config of configs) {
         const blockType = config.type
@@ -2545,7 +2586,7 @@ function resolveConstReference(
     return null
   }
 
-  const typesContent = fs.readFileSync(typesFilePath, 'utf-8')
+  const typesContent = readSourceFile(typesFilePath)
 
   // Find the const definition
   // Pattern: export const CONST_NAME = { ... } as const
@@ -2936,7 +2977,7 @@ function resolveFactorySource(fileContent: string, toolFilePath: string, rootDir
     : path.resolve(path.dirname(toolFilePath), specifier)
 
   for (const candidate of [`${resolved}.ts`, path.join(resolved, 'index.ts')]) {
-    if (fs.existsSync(candidate)) return fs.readFileSync(candidate, 'utf-8')
+    if (fs.existsSync(candidate)) return readSourceFile(candidate)
   }
   return ''
 }
@@ -2966,7 +3007,7 @@ function readImportedModuleSource(
   if (!resolved) return ''
 
   for (const candidate of [`${resolved}.ts`, path.join(resolved, 'index.ts')]) {
-    if (fs.existsSync(candidate)) return fs.readFileSync(candidate, 'utf-8')
+    if (fs.existsSync(candidate)) return readSourceFile(candidate)
   }
   return ''
 }
@@ -3875,7 +3916,7 @@ export async function getToolInfo(
 
     for (const location of possibleLocations) {
       if (fs.existsSync(location.path)) {
-        const content = fs.readFileSync(location.path, 'utf-8')
+        const content = readSourceFile(location.path)
 
         const toolIdRegex = new RegExp(`id:\\s*['"]${toolName}['"]`)
         if (toolIdRegex.test(content)) {
@@ -3900,11 +3941,11 @@ export async function getToolInfo(
     if (!foundExactId) {
       const prefixDir = path.join(rootDir, `apps/sim/tools/${toolPrefix}`)
       if (fs.existsSync(prefixDir)) {
-        const dirFiles = await glob(`${prefixDir}/**/*.ts`)
+        const dirFiles = await sourceGlob(`${prefixDir}/**/*.ts`)
         const toolIdRegex = new RegExp(`id:\\s*['"]${toolName}['"]`)
         for (const dirFile of dirFiles) {
           if (dirFile.endsWith('.test.ts')) continue
-          const content = fs.readFileSync(dirFile, 'utf-8')
+          const content = readSourceFile(dirFile)
           if (toolIdRegex.test(content)) {
             toolFileContent = content
             foundFile = dirFile
@@ -3919,7 +3960,7 @@ export async function getToolInfo(
     if (!toolFileContent) {
       for (const location of possibleLocations) {
         if (fs.existsSync(location.path)) {
-          toolFileContent = fs.readFileSync(location.path, 'utf-8')
+          toolFileContent = readSourceFile(location.path)
           foundFile = location.path
           break
         }
@@ -4046,10 +4087,10 @@ async function generateBlockDoc(blockPath: string) {
       return
     }
 
-    const fileContent = fs.readFileSync(blockPath, 'utf-8')
+    const fileContent = readSourceFile(blockPath)
 
     // Extract ALL block configs from the file (already filters out hideFromToolbar: true)
-    const blockConfigs = extractAllBlockConfigs(fileContent)
+    const blockConfigs = blockConfigsForFile(blockPath)
 
     if (blockConfigs.length === 0) {
       console.warn(`Skipping ${blockFileName} - no valid block configs found`)
@@ -4287,11 +4328,10 @@ ${toolsSection}
  */
 async function getCanonicalToolDocNames(): Promise<Set<string>> {
   const validToolDocs = new Set<string>()
-  const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+  const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()
 
   for (const blockFile of blockFiles) {
-    const fileContent = fs.readFileSync(blockFile, 'utf-8')
-    const configs = extractAllBlockConfigs(fileContent)
+    const configs = blockConfigsForFile(blockFile)
 
     for (const config of configs) {
       // Match the writer filter: integration blocks, the documented
@@ -4571,14 +4611,14 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
   const registry = new Map<string, TriggerFullInfo>()
   const SKIP = new Set(['index.ts', 'registry.ts', 'types.ts', 'constants.ts', 'utils.ts'])
 
-  const triggerFiles = (await glob(`${TRIGGERS_PATH}/**/*.ts`)).filter(
+  const triggerFiles = (await sourceGlob(`${TRIGGERS_PATH}/**/*.ts`)).filter(
     (f) => !SKIP.has(path.basename(f)) && !f.includes('.test.')
   )
   const registryTriggers = await loadTriggerRegistry()
 
   for (const file of triggerFiles) {
     try {
-      const content = fs.readFileSync(file, 'utf-8')
+      const content = readSourceFile(file)
 
       const exportRegex = /export\s+const\s+\w+\s*:\s*TriggerConfig\s*=\s*\{/g
       let exportMatch: RegExpExecArray | null
@@ -4780,11 +4820,10 @@ ${buildTriggersSection(triggers)}`
  */
 async function buildProviderColorMap(): Promise<Map<string, string>> {
   const colorMap = new Map<string, string>()
-  const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+  const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()
 
   for (const blockFile of blockFiles) {
-    const fileContent = fs.readFileSync(blockFile, 'utf-8')
-    const configs = extractAllBlockConfigs(fileContent)
+    const configs = blockConfigsForFile(blockFile)
     for (const config of configs) {
       if (config.bgColor && config.type) {
         const baseType = stripVersionSuffix(config.type)
@@ -4812,9 +4851,9 @@ async function collectPreviewOnlyTriggerIds(): Promise<Set<string>> {
   const listedByReleased = new Set<string>()
   const listedByPreview = new Set<string>()
 
-  const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+  const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()
   for (const blockFile of blockFiles) {
-    const fileContent = fs.readFileSync(blockFile, 'utf-8')
+    const fileContent = readSourceFile(blockFile)
     const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
     let match: RegExpExecArray | null
 
@@ -4921,12 +4960,11 @@ async function generateAllTriggerDocs(): Promise<void> {
 
 async function generateAllBlockDocs() {
   try {
-    const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+    const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()
 
     copyIconsFile()
 
-    const docsIconMapping = await generateIconMapping({ includeHidden: true })
-    const visibleIconMapping = await generateIconMapping({ includeHidden: false })
+    const { docs: docsIconMapping, visible: visibleIconMapping } = await generateIconMappings()
     writeIconMapping(docsIconMapping)
 
     await writeIntegrationsJson(visibleIconMapping)

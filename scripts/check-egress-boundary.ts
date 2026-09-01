@@ -27,9 +27,10 @@
 import type { Dirent } from 'node:fs'
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import ts from '@typescript/typescript6'
 
-const ROOT = path.resolve(import.meta.dir, '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 const SCAN_DIRS = [
   'apps/sim/app',
@@ -141,7 +142,7 @@ function isElidedExport(node: ts.ExportDeclaration): boolean {
  * skipped: it has no runtime presence and cannot open anything.
  */
 function findTransportLoads(file: string, source: string): Array<Omit<Violation, 'file'>> {
-  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, false)
   const found: Array<Omit<Violation, 'file'>> = []
 
   const record = (node: ts.Node, specifier: string, kind: string) => {
@@ -177,6 +178,25 @@ function findTransportLoads(file: string, source: string): Array<Omit<Violation,
   return found
 }
 
+export function mayLoadTransport(source: string): boolean {
+  const scanner = ts.createScanner(
+    ts.ScriptTarget.Latest,
+    true,
+    ts.LanguageVariant.Standard,
+    source
+  )
+  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
+    if (
+      (token === ts.SyntaxKind.StringLiteral ||
+        token === ts.SyntaxKind.NoSubstitutionTemplateLiteral) &&
+      TRANSPORTS.has(scanner.getTokenValue())
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
 function main() {
   const violations: Violation[] = []
   let scanned = 0
@@ -186,7 +206,9 @@ function main() {
       const rel = path.relative(ROOT, file).split(path.sep).join('/')
       if (ALLOWED.has(rel)) continue
       scanned++
-      for (const load of findTransportLoads(rel, readFileSync(file, 'utf8'))) {
+      const source = readFileSync(file, 'utf8')
+      if (!mayLoadTransport(source)) continue
+      for (const load of findTransportLoads(rel, source)) {
         violations.push({ file: rel, ...load })
       }
     }
@@ -212,4 +234,4 @@ function main() {
   process.exit(1)
 }
 
-main()
+if (import.meta.main) main()

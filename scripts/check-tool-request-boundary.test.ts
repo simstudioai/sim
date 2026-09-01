@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { auditToolSelfHops } from './check-tool-request-boundary'
+import { auditToolSelfHops, mayAccessToolRequest } from './check-tool-request-boundary'
 
 const ENCODED_ID_TEMPLATE = '$' + '{encodeURIComponent(params.id)}'
 const GET_BASE_URL_TEMPLATE = '$' + '{getBaseUrl()}'
@@ -1083,5 +1083,19 @@ describe('tool self-hop audit', () => {
         reason: 'unresolved-request-policy',
       }),
     ])
+  })
+})
+
+describe('tool request access candidate scan', () => {
+  it('finds direct request member access', () => {
+    expect(mayAccessToolRequest('const url = tool.request.url')).toBe(true)
+  })
+
+  it('decodes escaped identifiers and property strings', () => {
+    expect(mayAccessToolRequest(String.raw`const url = tool.req\u0075est['\u0075rl']`)).toBe(true)
+  })
+
+  it('ignores request objects that are never executed directly', () => {
+    expect(mayAccessToolRequest("const request = { endpoint: '/v1/items' }")).toBe(false)
   })
 })

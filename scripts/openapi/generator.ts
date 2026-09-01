@@ -10,6 +10,7 @@ import type {
 } from '@/lib/api/openapi/types'
 
 type JsonObject = Record<string, unknown>
+type SchemaIo = 'input' | 'output'
 
 const HTTP_SUCCESS_MIN = 200
 const HTTP_SUCCESS_MAX = 299
@@ -41,6 +42,12 @@ const outputExampleValidator = new Ajv2020({
   allErrors: true,
   validateFormats: false,
 })
+const comparableSchemaCache = new WeakMap<ApiSchema, Map<SchemaIo, unknown>>()
+const generatedSchemaCache = new WeakMap<ApiSchema, Map<SchemaIo, JsonObject>>()
+const outputValidatorCache = new WeakMap<
+  ApiSchema,
+  ReturnType<typeof outputExampleValidator.compile>
+>()
 
 function invariant(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -98,8 +105,11 @@ function stripLegacySchemaIds(value: unknown): unknown {
   )
 }
 
-function comparableSchema(schema: ApiSchema, io: 'input' | 'output'): unknown {
-  return stripSchemaDocumentation(
+function comparableSchema(schema: ApiSchema, io: SchemaIo): unknown {
+  const cached = comparableSchemaCache.get(schema)?.get(io)
+  if (cached) return cached
+
+  const comparable = stripSchemaDocumentation(
     sanitizeSchema(
       z.toJSONSchema(schema, {
         io,
@@ -110,6 +120,10 @@ function comparableSchema(schema: ApiSchema, io: 'input' | 'output'): unknown {
       })
     )
   )
+  const byIo = comparableSchemaCache.get(schema) ?? new Map<SchemaIo, unknown>()
+  byIo.set(io, comparable)
+  comparableSchemaCache.set(schema, byIo)
+  return comparable
 }
 
 function addComponent(
@@ -178,28 +192,35 @@ function validateNoSilentOpaqueSchemas(schema: JsonObject, label: string, path =
 
 function generateSchema(
   schema: ApiSchema,
-  io: 'input' | 'output',
+  io: SchemaIo,
   components: JsonObject,
   label: string,
   includeRootComponent = true
 ): { name: string; schema: JsonObject; metadata: z.core.GlobalMeta } {
   const metadata = schemaMetadata(schema, label)
-  const { $defs: definitions, ...generated } = z.toJSONSchema(schema, {
-    io,
-    target: 'draft-2020-12',
-    unrepresentable: 'any',
-    cycles: 'ref',
-    reused: 'inline',
-    override: ({ zodSchema, path }) => {
-      const current = zodSchema as ApiSchema
-      validateExamples(
-        current,
-        z.globalRegistry.get(current)?.examples,
-        io,
-        `${label} at ${path.join('.') || '<root>'}`
-      )
-    },
-  }) as JsonObject
+  let generatedWithDefinitions = generatedSchemaCache.get(schema)?.get(io)
+  if (!generatedWithDefinitions) {
+    generatedWithDefinitions = z.toJSONSchema(schema, {
+      io,
+      target: 'draft-2020-12',
+      unrepresentable: 'any',
+      cycles: 'ref',
+      reused: 'inline',
+      override: ({ zodSchema, path }) => {
+        const current = zodSchema as ApiSchema
+        validateExamples(
+          current,
+          z.globalRegistry.get(current)?.examples,
+          io,
+          `${label} at ${path.join('.') || '<root>'}`
+        )
+      },
+    }) as JsonObject
+    const byIo = generatedSchemaCache.get(schema) ?? new Map<SchemaIo, JsonObject>()
+    byIo.set(io, generatedWithDefinitions)
+    generatedSchemaCache.set(schema, byIo)
+  }
+  const { $defs: definitions, ...generated } = generatedWithDefinitions
 
   if (definitions !== undefined) {
     invariant(
@@ -377,12 +398,7 @@ function statusSuccessContent(
   return content
 }
 
-function validateExamples(
-  schema: ApiSchema,
-  examples: unknown,
-  io: 'input' | 'output',
-  label: string
-): void {
+function validateExamples(schema: ApiSchema, examples: unknown, io: SchemaIo, label: string): void {
   if (examples === undefined) return
   invariant(
     Array.isArray(examples) && examples.length > 0,
@@ -397,14 +413,18 @@ function validateExamples(
       )
       continue
     }
-    const outputSchema = z.toJSONSchema(schema, {
-      io: 'output',
-      target: 'draft-2020-12',
-      unrepresentable: 'any',
-      cycles: 'ref',
-      reused: 'inline',
-    })
-    const validate = outputExampleValidator.compile(stripLegacySchemaIds(outputSchema))
+    let validate = outputValidatorCache.get(schema)
+    if (!validate) {
+      const outputSchema = z.toJSONSchema(schema, {
+        io: 'output',
+        target: 'draft-2020-12',
+        unrepresentable: 'any',
+        cycles: 'ref',
+        reused: 'inline',
+      })
+      validate = outputExampleValidator.compile(stripLegacySchemaIds(outputSchema))
+      outputValidatorCache.set(schema, validate)
+    }
     invariant(
       validate(example),
       `${label} example ${index + 1} is invalid for the output schema: ${outputExampleValidator.errorsText(validate.errors)}`
@@ -494,8 +514,9 @@ function operationFor(
     if (!contractSchema) continue
     invariant(documentedSchema, `${label} is missing its documented ${name} schema`)
     invariant(
-      JSON.stringify(comparableSchema(contractSchema, io)) ===
-        JSON.stringify(comparableSchema(documentedSchema, io)),
+      contractSchema === documentedSchema ||
+        JSON.stringify(comparableSchema(contractSchema, io)) ===
+          JSON.stringify(comparableSchema(documentedSchema, io)),
       `${label} documented ${name} schema does not match the contract schema`
     )
   }
@@ -529,8 +550,9 @@ function operationFor(
     }
     for (const status of expectedStatuses) {
       invariant(
-        JSON.stringify(comparableSchema(contractStatusSchemas[status], 'output')) ===
-          JSON.stringify(comparableSchema(schemas.responses[status], 'output')),
+        contractStatusSchemas[status] === schemas.responses[status] ||
+          JSON.stringify(comparableSchema(contractStatusSchemas[status], 'output')) ===
+            JSON.stringify(comparableSchema(schemas.responses[status], 'output')),
         `${label} documented schema for status ${status} does not match the contract schema`
       )
     }

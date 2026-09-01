@@ -69,6 +69,15 @@ function isServerSurface(rel: string): boolean {
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx']
 const ALLOW_DIRECTIVE = 'client-boundary-allow'
+const sourceCache = new Map<string, string>()
+
+async function readSource(file: string): Promise<string> {
+  const cached = sourceCache.get(file)
+  if (cached !== undefined) return cached
+  const source = await readFile(file, 'utf8')
+  sourceCache.set(file, source)
+  return source
+}
 
 async function listFiles(dir: string): Promise<string[]> {
   const out: string[] = []
@@ -125,7 +134,7 @@ async function isUseClientModule(absFile: string): Promise<boolean> {
   if (cached !== undefined) return cached
   let isClient = false
   try {
-    isClient = leadingDirective(await readFile(absFile, 'utf8')) === 'use client'
+    isClient = leadingDirective(await readSource(absFile)) === 'use client'
   } catch {}
   useClientCache.set(absFile, isClient)
   return isClient
@@ -135,16 +144,14 @@ async function isUseClientModule(absFile: string): Promise<boolean> {
  * Locations declaring `'use server'` — module prologue or inline in a function
  * body. Either form registers Server Actions app-wide.
  */
-async function findUseServerDirectives(): Promise<string[]> {
+async function findUseServerDirectives(files: readonly string[]): Promise<string[]> {
   const found: string[] = []
-  for (const dir of DIRECTIVE_SCAN_DIRS) {
-    for (const absFile of await listFiles(dir)) {
-      const lines = (await readFile(absFile, 'utf8')).split('\n')
-      for (let i = 0; i < lines.length; i++) {
-        const match = DIRECTIVE_STATEMENT.exec(stripTrailingComment(lines[i].trim()))
-        if (match?.[2] === 'use server') {
-          found.push(`${path.relative(ROOT, absFile)}:${i + 1}`)
-        }
+  for (const absFile of files) {
+    const lines = (await readSource(absFile)).split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      const match = DIRECTIVE_STATEMENT.exec(stripTrailingComment(lines[i].trim()))
+      if (match?.[2] === 'use server') {
+        found.push(`${path.relative(ROOT, absFile)}:${i + 1}`)
       }
     }
   }
@@ -152,7 +159,11 @@ async function findUseServerDirectives(): Promise<string[]> {
 }
 
 /** Resolve an import specifier to an absolute source file, or null if external/unresolved. */
-async function resolveSpecifier(spec: string, fromFile: string): Promise<string | null> {
+function resolveSpecifier(
+  spec: string,
+  fromFile: string,
+  sourceFiles: ReadonlySet<string>
+): string | null {
   let base: string
   if (spec.startsWith('@/')) {
     base = path.join(APP_DIR, spec.slice(2))
@@ -168,10 +179,7 @@ async function resolveSpecifier(spec: string, fromFile: string): Promise<string 
   ]
   for (const candidate of candidates) {
     if (!SOURCE_EXTENSIONS.includes(path.extname(candidate))) continue
-    try {
-      await readFile(candidate, 'utf8')
-      return candidate
-    } catch {}
+    if (sourceFiles.has(candidate)) return candidate
   }
   return null
 }
@@ -246,7 +254,12 @@ async function main() {
   const checkMode = process.argv.includes('--check')
   let failed = false
 
-  const serverDirectives = await findUseServerDirectives()
+  const allFiles: string[] = []
+  for (const dir of DIRECTIVE_SCAN_DIRS) {
+    allFiles.push(...(await listFiles(dir)))
+  }
+  const sourceFiles = new Set(allFiles)
+  const serverDirectives = await findUseServerDirectives(allFiles)
   if (serverDirectives.length === 0) {
     console.log("✓ No 'use server' directives (Server Actions stay disabled).")
   } else {
@@ -260,19 +273,19 @@ async function main() {
     for (const location of serverDirectives) console.error(`  ${location}`)
   }
 
-  const allFiles = await listFiles(APP_DIR)
   const violations: Violation[] = []
 
   for (const absFile of allFiles) {
+    if (!absFile.startsWith(`${APP_DIR}${path.sep}`)) continue
     const rel = path.relative(APP_DIR, absFile)
     if (!isServerSurface(rel)) continue
     // A server file that is itself `'use client'` is a client component — out of scope.
     if (await isUseClientModule(absFile)) continue
 
-    const content = await readFile(absFile, 'utf8')
+    const content = await readSource(absFile)
     for (const imp of parseImports(content)) {
       if (!importsAValue(imp.clause)) continue
-      const resolved = await resolveSpecifier(imp.specifier, absFile)
+      const resolved = resolveSpecifier(imp.specifier, absFile, sourceFiles)
       if (!resolved) continue
       if (!(await isUseClientModule(resolved))) continue
       if (hasAllowDirective(content, imp.line)) continue

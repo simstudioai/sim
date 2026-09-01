@@ -171,22 +171,32 @@ async function main() {
     if (ALLOWLISTED_FILES.has(rel)) continue
 
     const content = await readFile(file, 'utf8')
-    const lines = content.split('\n')
-    const lineStarts = buildLineStarts(content)
+    const matches: Array<{
+      index: number
+      description: string
+      suggestion: string
+    }> = []
 
     for (const { pattern, description, suggestion } of BANNED_PATTERNS) {
       pattern.lastIndex = 0
       for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
-        const line = lineAt(lineStarts, match.index)
-        if (hasAllow(lines, line)) continue
-        violations.push({
-          file: rel,
-          line,
-          description,
-          suggestion,
-          snippet: (lines[line - 1] ?? '').trim(),
-        })
+        matches.push({ index: match.index, description, suggestion })
       }
+    }
+    if (matches.length === 0) continue
+
+    const lines = content.split('\n')
+    const lineStarts = buildLineStarts(content)
+    for (const match of matches) {
+      const line = lineAt(lineStarts, match.index)
+      if (hasAllow(lines, line)) continue
+      violations.push({
+        file: rel,
+        line,
+        description: match.description,
+        suggestion: match.suggestion,
+        snippet: (lines[line - 1] ?? '').trim(),
+      })
     }
   }
 
