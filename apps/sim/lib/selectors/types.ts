@@ -119,6 +119,7 @@ export type SelectorExecutionResult =
       kind: 'list'
       items: SafeSelectorOption[]
       nextCursor?: string
+      truncated?: boolean
     }
   | {
       kind: 'detail'

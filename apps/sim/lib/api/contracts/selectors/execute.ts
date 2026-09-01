@@ -120,6 +120,7 @@ export const executeSelectorResponseSchema = z.discriminatedUnion('kind', [
         .min(1)
         .max(16 * 1024)
         .optional(),
+      truncated: z.boolean().optional(),
     })
     .strict(),
   z
