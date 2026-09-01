@@ -11,6 +11,7 @@ import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[wor
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
+import { type JsonSchemaProperty, subBlockTypeForJsonSchema } from '@/tools/param-shape'
 import { formatParameterLabel } from '@/tools/params'
 
 const logger = createLogger('McpDynamicArgs')
@@ -215,24 +216,17 @@ export function McpDynamicArgs({
     [currentArgs, setToolArgs, disabled]
   )
 
-  const getInputType = (paramSchema: any) => {
-    if (Array.isArray(paramSchema.enum)) {
-      return isPrimitiveEnum(paramSchema.enum) ? 'dropdown' : 'long-input'
-    }
-    if (paramSchema.type === 'boolean') return 'switch'
-    if (paramSchema.type === 'number' || paramSchema.type === 'integer') {
-      if (paramSchema.minimum !== undefined && paramSchema.maximum !== undefined) {
-        return 'slider'
-      }
-      return 'short-input'
-    }
-    if (paramSchema.type === 'string') {
-      if (paramSchema.format === 'date-time') return 'short-input'
-      if (paramSchema.maxLength && paramSchema.maxLength > 100) return 'long-input'
-      return 'short-input'
-    }
-    if (paramSchema.type === 'array' || paramSchema.type === 'object') return 'long-input'
-    return 'short-input'
+  /**
+   * Which control collects a schema property, decided by the shared map so an MCP tool
+   * renders the same way here as it does in an agent block's tool row.
+   *
+   * `code` maps onto this surface's `long-input`: that branch carries JSON-draft
+   * handling built for storing every argument in one object, which a plain code editor
+   * would not preserve. The control differs; the decision does not.
+   */
+  const getInputType = (paramSchema: JsonSchemaProperty) => {
+    const type = subBlockTypeForJsonSchema(paramSchema)
+    return type === 'code' ? 'long-input' : type
   }
 
   const renderParameterInput = (paramName: string, paramSchema: any) => {

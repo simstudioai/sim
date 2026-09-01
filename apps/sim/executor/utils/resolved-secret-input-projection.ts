@@ -138,23 +138,35 @@ function projectFileReferenceLeaves(
 }
 
 /**
- * Makes only schema-declared structured inputs parseable on a private placeholder projection.
+ * Makes only structured inputs parseable on a private placeholder projection.
  * Raw execution inputs are never passed to or changed by this helper.
+ *
+ * A key qualifies either by declaring `json`/`array` in the block's `inputs`, or by
+ * appearing in `additionalStructuredKeys` — the params an agent tool's
+ * `paramsTransform` decodes from a JSON string. Both end up as an object on the real
+ * execution params, so both must keep the projected copy in the same shape.
  */
 export function prepareResolvedSecretProjectedInputs(
   inputs: Record<string, unknown>,
   inputSchemas: Record<string, unknown> | undefined,
   rawInputs?: Record<string, unknown>,
-  options: { preserveFileDescriptorGrammar?: boolean } = {}
+  options: {
+    preserveFileDescriptorGrammar?: boolean
+    additionalStructuredKeys?: readonly string[]
+  } = {}
 ): Record<string, unknown> {
-  if (!inputSchemas) return inputs
-  const prepared = { ...inputs }
-  for (const [key, inputSchema] of Object.entries(inputSchemas)) {
+  const structuredKeys = new Set<string>(options.additionalStructuredKeys ?? [])
+  for (const [key, inputSchema] of Object.entries(inputSchemas ?? {})) {
     const inputType =
       inputSchema && typeof inputSchema === 'object'
         ? (inputSchema as { type?: unknown }).type
         : inputSchema
-    if (inputType !== 'json' && inputType !== 'array') continue
+    if (inputType === 'json' || inputType === 'array') structuredKeys.add(key)
+  }
+
+  if (structuredKeys.size === 0) return inputs
+  const prepared = { ...inputs }
+  for (const key of structuredKeys) {
     const value = prepared[key]
     if (typeof value === 'string') {
       const placeholder = canonicalPlaceholder(value)

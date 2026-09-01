@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkflowInputField } from '@/lib/workflows/input-format'
 import {
+  assembleCustomBlockInputMapping,
   buildCustomBlockConfig,
   CUSTOM_BLOCK_TILE_COLOR,
   type CustomBlockRow,
@@ -176,5 +177,45 @@ describe('sourceWorkspaceName', () => {
     expect(
       buildCustomBlockConfig({ ...row, workspaceName: null }, [], { icon }).sourceWorkspaceName
     ).toBeUndefined()
+  })
+})
+
+describe('assembleCustomBlockInputMapping', () => {
+  const fieldSubBlocks = [
+    { id: 'flag', title: 'Flag', type: 'switch' as const },
+    { id: 'payload', title: 'Payload', type: 'code' as const, language: 'json' as const },
+    { id: 'name', title: 'Name', type: 'short-input' as const },
+  ]
+
+  it("decodes a tool row's stringified boolean before handing it to the child", () => {
+    expect(JSON.parse(assembleCustomBlockInputMapping({ flag: 'false' }, fieldSubBlocks))).toEqual({
+      flag: false,
+    })
+    expect(JSON.parse(assembleCustomBlockInputMapping({ flag: 'true' }, fieldSubBlocks))).toEqual({
+      flag: true,
+    })
+  })
+
+  it('leaves a text field alone even when it holds a boolean-looking string', () => {
+    expect(JSON.parse(assembleCustomBlockInputMapping({ name: 'false' }, fieldSubBlocks))).toEqual({
+      name: 'false',
+    })
+  })
+
+  it('still drops reserved keys and untouched fields', () => {
+    expect(
+      JSON.parse(
+        assembleCustomBlockInputMapping(
+          { flag: '', name: '', workflowId: 'wf_1', inputMapping: '{}' },
+          fieldSubBlocks
+        )
+      )
+    ).toEqual({})
+  })
+
+  it('keeps a canvas value that is already typed', () => {
+    expect(JSON.parse(assembleCustomBlockInputMapping({ flag: false }, fieldSubBlocks))).toEqual({
+      flag: false,
+    })
   })
 })

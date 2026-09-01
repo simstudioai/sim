@@ -147,7 +147,7 @@ import { HarmonicBlock, HarmonicBlockMeta } from '@/blocks/blocks/harmonic'
 import { HexBlock, HexBlockMeta } from '@/blocks/blocks/hex'
 import { HubSpotBlock, HubSpotBlockMeta } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock, HuggingFaceBlockMeta } from '@/blocks/blocks/huggingface'
-import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
+import { HumanInTheLoopBlock, HumanInTheLoopV2Block } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock, HunterBlockMeta } from '@/blocks/blocks/hunter'
 import { IAMBlock, IAMBlockMeta } from '@/blocks/blocks/iam'
 import { IcypeasBlock, IcypeasBlockMeta } from '@/blocks/blocks/icypeas'
@@ -515,6 +515,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
+  human_in_the_loop_v2: HumanInTheLoopV2Block,
   hunter: HunterBlock,
   iam: IAMBlock,
   icypeas: IcypeasBlock,

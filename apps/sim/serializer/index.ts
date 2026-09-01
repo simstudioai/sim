@@ -22,6 +22,7 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { getToolParams } from '@/tools/metadata'
+import { expandSubBlockValueToParams } from '@/tools/param-shape'
 
 const logger = createLogger('Serializer')
 
@@ -564,7 +565,17 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
         isLegacyAgentField ||
         isCustomBlockInputField)
     ) {
-      params[id] = subBlock.value
+      // A checkbox-list groups several boolean params behind one field, so it projects
+      // onto its option ids rather than its own id — which no tool declares.
+      const expanded = matchingConfigs.reduce<Record<string, boolean> | null>(
+        (found, config) => found ?? expandSubBlockValueToParams(config, subBlock.value),
+        null
+      )
+      if (expanded) {
+        Object.assign(params, expanded)
+      } else {
+        params[id] = subBlock.value
+      }
     }
   })
 

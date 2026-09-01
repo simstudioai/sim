@@ -1,6 +1,10 @@
-import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { WorkflowInputField } from '@/lib/workflows/input-format'
 import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
+import {
+  buildToolParamShapes,
+  decodeToolParams,
+  subBlockTypeForValueType,
+} from '@/tools/param-shape'
 
 /**
  * The block-type prefix that identifies a custom (deploy-as-block) block. Shared
@@ -97,35 +101,25 @@ export function isReservedOutputName(name: string): boolean {
  * stable id. Shared by the hidden `inputMapping` sub-block (canvas serialization)
  * and the agent-tool transform, so both paths assemble the mapping identically.
  */
-export function assembleCustomBlockInputMapping(params: Record<string, unknown>): string {
+export function assembleCustomBlockInputMapping(
+  params: Record<string, unknown>,
+  fieldSubBlocks: readonly SubBlockConfig[] = []
+): string {
+  // A tool row stringifies every value, so a `boolean` field toggled off arrives as the
+  // string 'false' and would be handed to the child workflow as a truthy string. The
+  // field sub-blocks are what encoded it, so they are what decodes it.
+  const decoded = decodeToolParams(
+    params,
+    buildToolParamShapes(fieldSubBlocks, undefined),
+    fieldSubBlocks
+  )
   const mapping: Record<string, unknown> = {}
-  for (const [key, val] of Object.entries(params)) {
+  for (const [key, val] of Object.entries(decoded)) {
     if (RESERVED_PARAMS.has(key)) continue
     if (val === undefined || val === '') continue
     mapping[key] = val
   }
   return JSON.stringify(mapping)
-}
-
-/** Map a Start input field type to the editor sub-block type used to collect it. */
-/**
- * The sub-block a Start input field becomes on the canvas. Exported so any surface that has to
- * render or reason about a custom block's inputs derives the field's KIND from here instead of
- * re-deriving it — the fork sync modal renders its own controls but must agree with this about
- * what each field is.
- */
-export function subBlockTypeForField(fieldType: string): SubBlockType {
-  switch (fieldType) {
-    case 'boolean':
-      return 'switch'
-    case 'object':
-    case 'array':
-      return 'code'
-    case 'file[]':
-      return 'file-upload'
-    default:
-      return 'short-input'
-  }
 }
 
 /**
@@ -153,7 +147,7 @@ export function buildCustomBlockConfig(
   opts: { icon: BlockIcon; bgColor?: string; hideFromToolbar?: boolean }
 ): BlockConfig {
   const fieldSubBlocks: SubBlockConfig[] = inputFields.map((field) => {
-    const type = subBlockTypeForField(field.type)
+    const type = subBlockTypeForValueType(field.type)
     const sub: SubBlockConfig = {
       id: field.id ?? field.name,
       title: field.name,

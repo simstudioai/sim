@@ -139,6 +139,17 @@ export interface ProviderToolConfig {
   modelBlockedParams?: string[]
   /** Block-level params transformer — converts SubBlock values to tool-ready params */
   paramsTransform?: (params: Record<string, any>) => Record<string, any>
+  /**
+   * Params {@link ProviderToolConfig.paramsTransform} decodes from a JSON string into
+   * an object or array.
+   *
+   * The resolved-secret projection must give these keys the same treatment it gives a
+   * `json`/`array` block input: a projected copy holds `{{NAME}}` placeholders that are
+   * not valid JSON, so without this the real params parse to an object while the
+   * projected ones stay a string, and the shape divergence silently marks the
+   * provenance registry incomplete.
+   */
+  jsonShapedParamKeys?: readonly string[]
 }
 
 export interface Message {

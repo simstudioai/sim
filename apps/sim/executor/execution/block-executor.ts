@@ -23,6 +23,7 @@ import {
   CHILD_TRACE_DISABLED_OUTPUT_KEY,
   DEFAULTS,
   EDGE,
+  isHumanInTheLoopBlock,
   isSentinelBlockType,
   isWorkflowBlockType,
 } from '@/executor/constants'
@@ -180,7 +181,7 @@ export class BlockExecutor {
     }
     let cleanupSelfReference: (() => void) | undefined
 
-    if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
+    if (isHumanInTheLoopBlock(block.metadata?.id)) {
       cleanupSelfReference = this.preparePauseResumeSelfReference(
         blockCtx,
         node,

@@ -12,6 +12,7 @@ import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { decodeToolParamValue, getSubBlockValueShape } from '@/tools/param-shape'
 
 interface ToolSubBlockRendererProps {
   blockId: string
@@ -32,23 +33,6 @@ interface ToolSubBlockRendererProps {
 }
 
 /**
- * SubBlock types whose store values are objects/arrays/non-strings.
- * tool.params stores strings (via JSON.stringify), so when syncing
- * back to the store we parse them to restore the native shape.
- */
-const OBJECT_SUBBLOCK_TYPES = new Set(['file-upload', 'table', 'grouped-checkbox-list'])
-
-/**
- * Whether this subblock's store value is a non-string. Covers the always-object
- * types above plus any `multiSelect` control, whose value is an array — without
- * this a multi-select's JSON string is rendered as a single literal chip and the
- * next edit persists a nested-encoded value.
- */
-function holdsObjectValue(subBlock: { type: string; multiSelect?: boolean }): boolean {
-  return OBJECT_SUBBLOCK_TYPES.has(subBlock.type) || Boolean(subBlock.multiSelect)
-}
-
-/**
  * Bridges the subblock store with StoredTool.params via a synthetic store key,
  * then delegates all rendering to SubBlock for full parity.
  */
@@ -66,27 +50,29 @@ export function ToolSubBlockRenderer({
 }: ToolSubBlockRendererProps) {
   const syntheticId = buildToolSubBlockId(subBlockId, toolIndex, effectiveParamId)
   const toolParamValue = toolParams?.[effectiveParamId] ?? ''
-  const isObjectType = holdsObjectValue(subBlock)
+  const valueShape = getSubBlockValueShape(subBlock)
 
   const syncedRef = useRef<string | null>(null)
   const onParamChangeRef = useRef(onParamChange)
   onParamChangeRef.current = onParamChange
 
+  /**
+   * Hydrates the sub-block store from the stringified `tool.params` value, decoding it
+   * back to the shape this sub-block writes.
+   *
+   * `syncedRef` holds the ENCODED form, so the store subscription below compares like
+   * with like and treats a hydrate as a no-op rather than an edit. Without the decode a
+   * `switch` set to off hydrated the literal `'false'`, and `checked={Boolean(value)}`
+   * rendered it back on after every remount.
+   */
   const pushParamValueToStore = useCallback(
     (rawValue: string) => {
       syncedRef.current = rawValue
-      if (isObjectType && rawValue) {
-        try {
-          const parsed = JSON.parse(rawValue)
-          if (typeof parsed === 'object' && parsed !== null) {
-            useSubBlockStore.getState().setValue(blockId, syntheticId, parsed)
-            return
-          }
-        } catch {}
-      }
-      useSubBlockStore.getState().setValue(blockId, syntheticId, rawValue)
+      useSubBlockStore
+        .getState()
+        .setValue(blockId, syntheticId, decodeToolParamValue(rawValue, valueShape))
     },
-    [blockId, syntheticId, isObjectType]
+    [blockId, syntheticId, valueShape]
   )
 
   const pushParamValueToStoreRef = useRef(pushParamValueToStore)
