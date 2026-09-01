@@ -6,6 +6,7 @@ import {
 } from '@/lib/catalog/application/catalog-context'
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import { type CatalogBlockDetail, projectBlockDetail } from '@/lib/catalog/projection/block-detail'
+import { getContainerBlockDetail } from '@/lib/catalog/projection/container-blocks'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -43,6 +44,10 @@ export const getCatalogBlock = defineAuthorizedWorkspaceUseCase({
     const gate = await resolveCatalogGate(principal, context)
 
     const detail = await withCatalogBlockScope(gate, async () => {
+      // Containers (loop/parallel) are authorable types outside the registry;
+      // the catalog answers for the same vocabulary add_block accepts.
+      const container = getContainerBlockDetail(input.blockId)
+      if (container) return container
       const block = getLatestBlockForViewer(input.blockId)
       if (!block || !isBlockVisibleToCaller(block, gate)) return null
       return projectBlockDetail(block, { deployment: { hostedKeys: isHosted } })
