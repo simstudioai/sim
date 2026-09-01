@@ -489,15 +489,7 @@ export function buildRequest(
   workspaceId: string | null
 ): BuiltRequest {
   const commandSpec: CommandSpec = CLI_CONTRACT[operation] ?? {}
-  const spec = V2_OPERATIONS[operation] as {
-    method: string
-    path: string
-    pathParams: readonly string[]
-    query?: Record<string, FieldSpec>
-    body?: Record<string, FieldSpec>
-    headers?: Record<string, FieldSpec>
-    opaqueBody?: boolean
-  }
+  const spec: OperationSpec = V2_OPERATIONS[operation]
 
   let path = spec.path
   let positionalIndex = 0

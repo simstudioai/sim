@@ -12,17 +12,22 @@ import {
   TOOL_EFFECT_PHASE,
   type ToolCallEffect,
   type ToolEffectPhase,
-<<<<<<< HEAD:apps/sim/lib/copilot/tools/handlers/workflow/mutations.ts
-} from '@/lib/copilot/tool-executor/types'
-import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
-import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import { PlatformEvents } from '@/lib/core/telemetry'
-import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
-=======
 } from '@/lib/mothership/tool-executor/types'
+import type {
+  CreateWorkflowParams,
+  GenerateApiKeyParams,
+  MoveWorkflowParams,
+  RenameWorkflowParams,
+  RunBlockParams,
+  RunFromBlockParams,
+  RunWorkflowParams,
+  RunWorkflowUntilBlockParams,
+  SetBlockEnabledParams,
+  SetGlobalWorkflowVariablesParams,
+  VariableOperation,
+} from '@/lib/mothership/tools/handlers/param-types'
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
->>>>>>> 2ff9a4fa01 (feat: sim side of the mothership revamp):apps/sim/lib/mothership/tools/handlers/workflow/mutations.ts
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { moveWorkflowsBulk } from '@/lib/workflows/application/move-workflows-bulk'
 import {
@@ -39,6 +44,8 @@ import {
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+
+const logger = createLogger('WorkflowMutations')
 
 function stripBinaryFields(value: unknown): unknown {
   if (value === null || value === undefined) return value
@@ -178,23 +185,6 @@ function copilotRunLifecycle(context: ExecutionContext) {
   }
 }
 
-import type {
-  CancelWorkflowRunParams,
-  CreateWorkflowParams,
-  GenerateApiKeyParams,
-  MoveWorkflowParams,
-  RenameWorkflowParams,
-  RunBlockParams,
-  RunFromBlockParams,
-  RunWorkflowParams,
-  RunWorkflowUntilBlockParams,
-  SetBlockEnabledParams,
-  SetGlobalWorkflowVariablesParams,
-  VariableOperation,
-} from '../param-types'
-
-const logger = createLogger('WorkflowMutations')
-
 function assertWorkflowMutationNotAborted(
   context: ExecutionContext,
   message = 'Request aborted before workflow mutation could be applied.'
@@ -288,45 +278,6 @@ export async function executeRunWorkflow(
     return buildExecutionOutput(result, settledPhase(result.status))
   } catch (error) {
     return buildExecutionError(error)
-  }
-}
-
-export async function executeCancelWorkflowRun(
-  params: CancelWorkflowRunParams,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const executionId = resolveInputFromExecutionId(params.executionId)
-    if (!executionId) {
-      return { success: false, error: 'executionId is required' }
-    }
-
-    assertWorkflowMutationNotAborted(
-      context,
-      'Request aborted before workflow run cancellation could be applied.'
-    )
-    const result = await executeCopilotWorkflowUseCase(context, cancelWorkflowRun, {
-      runId: executionId,
-      ...(context.abortSignal ? { abortSignal: context.abortSignal } : {}),
-    })
-
-    return {
-      success: result.success,
-      output: {
-        workflowId: result.workflowId,
-        executionId: result.executionId,
-        durablyRecorded: result.durablyRecorded,
-        locallyAborted: result.locallyAborted,
-        pausedCancelled: result.pausedCancelled,
-        reason: result.reason,
-      },
-      error: result.success ? undefined : 'Workflow run cancellation could not be completed',
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: messageForCopilotWorkflowError(error, 'Failed to cancel workflow run'),
-    }
   }
 }
 

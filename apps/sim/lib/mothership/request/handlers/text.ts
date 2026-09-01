@@ -20,7 +20,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
     }
 
     if (scope === 'subagent') {
-      const parentToolCallId = getScopedParentToolCallId(event, context)
+      const parentToolCallId = getScopedParentToolCallId(event)
       if (!parentToolCallId) return
       const spanIdentity = getScopedSpanIdentity(event)
       if (event.payload.channel === MothershipStreamV1TextChannel.thinking) {

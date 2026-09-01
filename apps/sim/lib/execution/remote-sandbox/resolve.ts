@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { LRUCache } from 'lru-cache'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { classifyInstallOutput, tailBuildLog } from '@/lib/execution/remote-sandbox/build-errors'
 import {
@@ -109,21 +110,13 @@ interface CachedImage {
   errorMessage: string | null
 }
 
-interface CacheEntry {
-  expiresAt: number
-  value: CachedImage
-}
-
 /**
- * Both maps are process-lifetime and keyed by an unbounded space (every spec
- * hash ever executed), so each drops its oldest entry rather than growing for
- * the life of the worker.
+ * Both caches are keyed by an unbounded space (every spec hash ever executed):
+ * `max` is the memory backstop, `ttl` the freshness policy — lru-cache owns
+ * expiry/eviction/ceiling per the caching rule (never hand-roll TTL arithmetic).
  */
-const IMAGE_CACHE_LIMIT = 1000
-const LAST_USED_CACHE_LIMIT = 1000
-
-const imageCache = new Map<string, CacheEntry>()
-const lastUsedWrites = new Map<string, number>()
+const imageCache = new LRUCache<string, CachedImage>({ max: 1000, ttl: IMAGE_TTL_MS })
+const lastUsedWrites = new LRUCache<string, number>({ max: 1000, ttl: LAST_USED_DEBOUNCE_MS })
 
 /**
  * JavaScript packages live outside the default resolution roots, so Node needs
@@ -150,11 +143,9 @@ function envsFor(
  */
 function touchImage(specHash: string, provider: string): void {
   const key = `${provider}:${specHash}`
-  const now = Date.now()
-  const written = lastUsedWrites.get(key)
-  if (written && now - written < LAST_USED_DEBOUNCE_MS) return
-  if (lastUsedWrites.size >= LAST_USED_CACHE_LIMIT) lastUsedWrites.clear()
-  lastUsedWrites.set(key, now)
+  // The TTL IS the debounce: a still-fresh entry means we wrote recently.
+  if (lastUsedWrites.get(key) !== undefined) return
+  lastUsedWrites.set(key, Date.now())
   void sandboxDb()
     .then(({ db, sandboxImage, and, eq }) =>
       db
@@ -351,10 +342,7 @@ async function readImage(
 ): Promise<CachedImage | undefined> {
   const cacheKey = `${providerId}:${specHash}:${materializationGeneration}:${materializationRefPrefix}`
   const cached = imageCache.get(cacheKey)
-  if (cached) {
-    if (cached.expiresAt > Date.now()) return cached.value
-    imageCache.delete(cacheKey)
-  }
+  if (cached !== undefined) return cached
 
   const { db, sandboxImage, and, eq } = await sandboxDb()
   const [image] = await db
@@ -369,13 +357,7 @@ async function readImage(
     .where(and(eq(sandboxImage.provider, providerId), eq(sandboxImage.specHash, specHash)))
     .limit(1)
 
-  if (image?.status === 'ready') {
-    if (imageCache.size >= IMAGE_CACHE_LIMIT) {
-      const oldest = imageCache.keys().next()
-      if (!oldest.done) imageCache.delete(oldest.value)
-    }
-    imageCache.set(cacheKey, { expiresAt: Date.now() + IMAGE_TTL_MS, value: image })
-  }
+  if (image?.status === 'ready') imageCache.set(cacheKey, image)
   return image
 }
 

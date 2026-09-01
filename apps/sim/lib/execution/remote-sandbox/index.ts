@@ -911,10 +911,11 @@ async function provisionWithinBudget(
 }
 
 async function executeInSandboxWithinBudget(
-  req: SandboxExecutionRequest
+  // The budget wrapper always injects the signal; the required-signal type states that
+  // invariant instead of a cast hiding it.
+  req: SandboxExecutionRequest & { signal: AbortSignal }
 ): Promise<SandboxExecutionResult> {
-  const { code, language } = req
-  const signal = req.signal as AbortSignal
+  const { code, language, signal } = req
   const kind = req.sandboxKind ?? 'code'
   throwIfAborted(signal)
 
@@ -1084,10 +1085,9 @@ export function executeInSandbox(req: SandboxExecutionRequest): Promise<SandboxE
 }
 
 async function executeShellInSandboxWithinBudget(
-  req: SandboxShellExecutionRequest
+  req: SandboxShellExecutionRequest & { signal: AbortSignal }
 ): Promise<SandboxExecutionResult> {
-  const { code, envs } = req
-  const signal = req.signal as AbortSignal
+  const { code, envs, signal } = req
   const kind = req.sandboxKind ?? 'shell'
   throwIfAborted(signal)
 

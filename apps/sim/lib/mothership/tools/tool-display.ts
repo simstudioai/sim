@@ -69,7 +69,7 @@ function nestedStringArg(args: ToolArgs, parentKey: string, ...keys: string[]): 
 
 function recordArg(args: ToolArgs, key: string): Record<string, unknown> | undefined {
   const value = args?.[key]
-  return isRecordLike(value) ? (value as Record<string, unknown>) : undefined
+  return isRecordLike(value) ? value : undefined
 }
 
 function stringOrNumberArg(args: ToolArgs, key: string): string {
@@ -177,13 +177,8 @@ function displayUrl(raw: string): string {
  * snake_case stem (`slack_v2` -> `Slack`, `google_sheets_v2` -> `Google Sheets`).
  */
 export function blockDisplayName(blockType: string): string {
-  const stem = stripVersionSuffix(blockType.trim())
-  if (!stem) return blockType
-  return stem
-    .split('_')
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+  const stem = blockType.trim()
+  return stem ? humanizeDisplayIdentifier(stem) : blockType
 }
 
 /** Ellipsizes the middle so both ends of a value stay recognizable. */
@@ -707,9 +702,8 @@ function waitTitle(args: ToolArgs): string {
  * ("digest-workflow-build-4"); recover the human name for titles.
  */
 function humanizeAgentId(id: string): string {
-  const words = id.replace(/-\d+$/, '').split('-').filter(Boolean)
-  if (words.length === 0) return id
-  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  const stem = id.replace(/-\d+$/, '')
+  return stem ? humanizeDisplayIdentifier(stem) : id
 }
 
 /** Title for a wait_agents sleep, naming the agents and honoring mode "any". */
@@ -759,11 +753,7 @@ const MAX_QUOTED_TITLE_VALUE_LENGTH = 32
 function runningCommandTitle(rawCommand: string): string {
   const command = rawCommand.replace(/\s+/g, ' ')
   if (!command) return 'Running command'
-  const shortened =
-    command.length > MAX_COMMAND_TITLE_LENGTH
-      ? `${command.slice(0, MAX_COMMAND_TITLE_LENGTH - 1)}…`
-      : command
-  return `Running ${shortened}`
+  return `Running ${truncate(command, MAX_COMMAND_TITLE_LENGTH - 1, '…')}`
 }
 
 const TERMINAL_OPERATION_TITLES: Record<string, string> = {
@@ -786,7 +776,7 @@ const TERMINAL_OPERATION_TITLES: Record<string, string> = {
 function terminalTitle(args: ToolArgs): string {
   const operation = stringArg(args, 'operation')
   const nested = args?.args
-  const inner: ToolArgs = isRecordLike(nested) ? (nested as Record<string, unknown>) : undefined
+  const inner: ToolArgs = isRecordLike(nested) ? nested : undefined
   if (operation === 'run') return runningCommandTitle(stringArg(inner, 'command'))
   if (operation === 'handoff') {
     // Matches the browser takeover row: the reason is the whole point of the

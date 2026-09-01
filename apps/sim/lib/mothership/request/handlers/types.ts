@@ -101,10 +101,7 @@ export function flushSubagentThinkingBlock(
  * event is guaranteed to carry parentToolCallId (Go stamps it), so a missing one
  * is a real contract violation — callers warn and drop rather than guess.
  */
-export function getScopedParentToolCallId(
-  event: StreamEvent,
-  _context: StreamingContext
-): string | undefined {
+export function getScopedParentToolCallId(event: StreamEvent): string | undefined {
   return event.scope?.parentToolCallId
 }
 

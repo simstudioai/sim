@@ -2,7 +2,7 @@ import type { Context } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
-import { interruptibleSleep, sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
 import {
@@ -131,13 +131,6 @@ async function omitUnsafeInitialCopilotAttachments(
       safeAttachments.length > 0 ? { ...projected, [key]: safeAttachments } : omit(projected, [key])
   }
   return projected
-}
-
-async function filterInitialCopilotAttachmentsForModel(
-  payload: Record<string, unknown>,
-  workspaceId?: string
-): Promise<Record<string, unknown>> {
-  return omitUnsafeInitialCopilotAttachments(payload, workspaceId)
 }
 
 async function ensureModelEgressRegistry(
@@ -337,7 +330,7 @@ export async function runCopilotLifecycle(
       await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
     } else {
       await ensureModelEgressRegistry(execContext, lifecycleOptions)
-      const modelSafeRequestPayload = await filterInitialCopilotAttachmentsForModel(
+      const modelSafeRequestPayload = await omitUnsafeInitialCopilotAttachments(
         requestPayload,
         lifecycleOptions.workspaceId
       )
@@ -673,7 +666,7 @@ async function runResumeLegWithRetry(
           backoffMs: backoff,
           error: toError(error).message,
         })
-        await sleepWithAbort(backoff, options.abortSignal)
+        await interruptibleSleep(backoff, options.abortSignal)
         continue
       }
       throw error
@@ -998,7 +991,7 @@ async function runCheckpointLoop(
             error: toError(streamError).message,
           }
         )
-        await sleepWithAbort(backoff, options.abortSignal)
+        await interruptibleSleep(backoff, options.abortSignal)
         continue
       }
       throw streamError
@@ -1148,7 +1141,9 @@ async function runCheckpointLoop(
         }
 
         const activeWatchdogs = Array.from(pendingWatchdogs.entries())
-        if (activeWatchdogs.length === 0) continue
+        // Every pending promise re-adds its watchdog above, so this cannot be empty; a
+        // bare `continue` here would busy-spin the event loop if that ever broke.
+        if (activeWatchdogs.length === 0) break
         const nextDeadlineAt = Math.min(
           ...activeWatchdogs.map(([, watchdog]) => watchdog.deadlineAt)
         )
@@ -1486,25 +1481,4 @@ function isRetryableInitialStreamError(error: unknown): boolean {
     return error.status !== undefined && error.status >= 500
   }
   return error instanceof TypeError
-}
-
-function sleepWithAbort(ms: number, abortSignal?: AbortSignal): Promise<void> {
-  if (!abortSignal) {
-    return sleep(ms)
-  }
-  if (abortSignal.aborted) {
-    return Promise.resolve()
-  }
-  return new Promise((resolve) => {
-    const timeoutId = setTimeout(() => {
-      abortSignal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    const onAbort = () => {
-      clearTimeout(timeoutId)
-      abortSignal.removeEventListener('abort', onAbort)
-      resolve()
-    }
-    abortSignal.addEventListener('abort', onAbort, { once: true })
-  })
 }

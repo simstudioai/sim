@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
-import { cleanedWorkflowStateSchema } from '@/lib/api/contracts/workflows'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
@@ -43,8 +42,6 @@ export const submitCopilotFeedbackBodySchema = z.object({
 })
 
 export type SubmitCopilotFeedbackBody = z.input<typeof submitCopilotFeedbackBodySchema>
-
-export const copilotCredentialsQuerySchema = z.object({})
 
 export const copilotConfirmBodySchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
@@ -91,12 +88,6 @@ export const createWorkflowCopilotChatBodySchema = z.object({
 })
 export type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilotChatBodySchema>
 
-export const renameCopilotChatBodySchema = z.object({
-  chatId: z.string().min(1),
-  title: z.string().min(1).max(200),
-})
-export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
-
 const copilotResourceTypeSchema = z.enum(PERSISTED_RESOURCE_TYPES)
 
 export const addCopilotChatResourceBodySchema = z.object({
@@ -128,11 +119,6 @@ export const reorderCopilotChatResourcesBodySchema = z.object({
   ),
 })
 export type ReorderCopilotChatResourcesBody = z.input<typeof reorderCopilotChatResourcesBodySchema>
-
-export const revertCopilotCheckpointBodySchema = z.object({
-  checkpointId: z.string().min(1),
-})
-export type RevertCopilotCheckpointBody = z.input<typeof revertCopilotCheckpointBodySchema>
 
 export const copilotChatAbortBodySchema = z.object({
   streamId: z.string().optional(),
@@ -169,21 +155,6 @@ export const copilotChatGetQuerySchema = z
     chatId: z.string().optional(),
   })
   .passthrough()
-
-export const copilotModelsQuerySchema = z.object({})
-
-export const createCopilotCheckpointBodySchema = z.object({
-  workflowId: z.string(),
-  chatId: z.string(),
-  messageId: z.string().optional(),
-  workflowState: z.string(),
-})
-export type CreateCopilotCheckpointBody = z.input<typeof createCopilotCheckpointBodySchema>
-
-export const listCopilotCheckpointsQuerySchema = z.object({
-  chatId: z.string({ error: 'chatId is required' }).min(1, 'chatId is required'),
-})
-export type ListCopilotCheckpointsQuery = z.input<typeof listCopilotCheckpointsQuerySchema>
 
 export const copilotChatStreamQuerySchema = z.object({
   streamId: z.string().optional().default(''),
@@ -278,19 +249,6 @@ const copilotPersistedMessageSchema = z
     errorType: z.string().optional(),
   })
   .passthrough()
-
-export const updateCopilotMessagesBodySchema = z.object({
-  chatId: z.string(),
-  messages: z.array(copilotPersistedMessageSchema),
-  config: z
-    .object({
-      mode: z.string().optional(),
-      model: z.string().optional(),
-    })
-    .nullable()
-    .optional(),
-})
-export type UpdateCopilotMessagesBody = z.input<typeof updateCopilotMessagesBodySchema>
 
 export const validateCopilotApiKeyHeadersSchema = z.object({
   [COPILOT_BILLING_PROTOCOL_HEADER]: z.enum(COPILOT_BILLING_PROTOCOL_VALUES).optional(),
@@ -414,16 +372,6 @@ export type SubmitCopilotFeedbackResult = ContractJsonResponse<typeof submitCopi
 
 const successFlagSchema = z.object({ success: z.literal(true) })
 
-const copilotCheckpointSchema = z.object({
-  id: z.string(),
-  userId: z.string(),
-  workflowId: z.string(),
-  chatId: z.string(),
-  messageId: z.string().nullable().optional(),
-  createdAt: z.string().nullable(),
-  updatedAt: z.string().nullable(),
-})
-
 const copilotChatResourceSchema = z.object({
   type: copilotResourceTypeSchema,
   id: z.string(),
@@ -482,39 +430,6 @@ const copilotNotConnectedServiceSchema = z.object({
   name: z.string(),
   description: z.string(),
   baseProvider: z.string(),
-})
-
-const copilotCredentialsResultSchema = z.object({
-  oauth: z.object({
-    connected: z.object({
-      credentials: z.array(copilotConnectedCredentialSchema),
-      total: z.number(),
-    }),
-    notConnected: z.object({
-      services: z.array(copilotNotConnectedServiceSchema),
-      total: z.number(),
-    }),
-  }),
-  environment: z.object({
-    variableNames: z.array(z.string()),
-    count: z.number(),
-    personalVariables: z.array(z.string()),
-    workspaceVariables: z.array(z.string()),
-    conflicts: z.array(z.string()),
-  }),
-})
-
-export const copilotCredentialsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/copilot/credentials',
-  query: copilotCredentialsQuerySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      result: copilotCredentialsResultSchema,
-    }),
-  },
 })
 
 export const validateCopilotApiKeyContract = defineRouteContract({
@@ -612,32 +527,6 @@ export const createWorkflowCopilotChatContract = defineRouteContract({
   },
 })
 
-export const createCopilotCheckpointContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/checkpoints',
-  body: createCopilotCheckpointBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      checkpoint: copilotCheckpointSchema,
-    }),
-  },
-})
-
-export const listCopilotCheckpointsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/copilot/checkpoints',
-  query: listCopilotCheckpointsQuerySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      checkpoints: z.array(copilotCheckpointSchema),
-    }),
-  },
-})
-
 export const copilotConfirmContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/confirm',
@@ -670,19 +559,6 @@ export const copilotToolPermissionContract = defineRouteContract({
           applied: z.boolean(),
         })
       ),
-    }),
-  },
-})
-
-export const copilotModelsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/copilot/models',
-  query: copilotModelsQuerySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      models: z.array(copilotAvailableModelSchema),
     }),
   },
 })
@@ -726,32 +602,6 @@ export const removeCopilotChatResourceContract = defineRouteContract({
   },
 })
 
-export const renameCopilotChatContract = defineRouteContract({
-  method: 'PATCH',
-  path: '/api/copilot/chat/rename',
-  body: renameCopilotChatBodySchema,
-  response: { mode: 'json', schema: successFlagSchema },
-})
-
-export const revertCopilotCheckpointContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/checkpoints/revert',
-  body: revertCopilotCheckpointBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      workflowId: z.string(),
-      checkpointId: z.string(),
-      revertedAt: z.string(),
-      checkpoint: z.object({
-        id: z.string(),
-        workflowState: cleanedWorkflowStateSchema,
-      }),
-    }),
-  },
-})
-
 export const copilotChatStreamContract = defineRouteContract({
   method: 'GET',
   path: '/api/copilot/chat/stream',
@@ -766,41 +616,9 @@ export const copilotChatStopContract = defineRouteContract({
   response: { mode: 'json', schema: successFlagSchema },
 })
 
-export const copilotChatGetContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/copilot/chat',
-  query: copilotChatGetQuerySchema,
-  response: {
-    mode: 'json',
-    schema: z.union([
-      z.object({
-        success: z.literal(true),
-        chat: copilotChatGetChatSchema,
-      }),
-      z.object({
-        success: z.literal(true),
-        chats: z.array(copilotChatGetListItemSchema),
-      }),
-    ]),
-  },
-})
-
 export const deleteCopilotChatContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/copilot/chat/delete',
   body: deleteCopilotChatBodySchema,
   response: { mode: 'json', schema: successFlagSchema },
-})
-
-export const updateCopilotMessagesContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/chat/update-messages',
-  body: updateCopilotMessagesBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      messageCount: z.number(),
-    }),
-  },
 })

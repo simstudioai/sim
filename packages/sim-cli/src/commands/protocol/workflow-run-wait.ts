@@ -3,6 +3,7 @@ import { type Command, Option } from 'commander'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
 import type { CommandSpec } from '../../contract/types'
+import { setSoftExitCode } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { sleep } from '../../helpers'
 import { resolvePath, SimApiError } from '../../http/client'
@@ -256,7 +257,7 @@ export function attachWorkflowRunWait(runs: Command): void {
               renderResult('getWorkflowRun', profile.output, raw, runSpec())
               const message = explain(outcome, runId, options.workflow, snapshot)
               if (message) console.error(chalk.red(message))
-              process.exitCode = WAIT_EXIT_CODES[outcome]
+              setSoftExitCode(WAIT_EXIT_CODES[outcome])
               return
             }
 
@@ -271,7 +272,7 @@ export function attachWorkflowRunWait(runs: Command): void {
                   }). Raise ${WAIT_TIMEOUT_FLAG}, or set it to 0 to wait indefinitely.`
                 )
               )
-              process.exitCode = WAIT_EXIT_CODES.timeout
+              setSoftExitCode(WAIT_EXIT_CODES.timeout)
               return
             }
 

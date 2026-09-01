@@ -548,15 +548,14 @@ export async function runStreamLoop(
         context.wasAborted = true
         endedOn = CopilotSseCloseReason.Aborted
       } else {
-        const streamPath = new URL(fetchUrl).pathname
         context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
         logger.error('Copilot backend stream ended before a terminal event', {
-          path: streamPath,
+          path: pathname,
           requestId: context.requestId,
           messageId: context.messageId,
         })
         endedOn = CopilotSseCloseReason.ClosedNoTerminal
-        throw new StreamEndedWithoutTerminalError(streamPath)
+        throw new StreamEndedWithoutTerminalError(pathname)
       }
     }
   } catch (error) {

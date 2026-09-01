@@ -30,6 +30,7 @@ import {
 } from '../config/index'
 import { ProfileOverrideError, redact } from '../config/profile'
 import { clientFrom, globalsOf, profileFrom } from '../context'
+import { setSoftExitCode } from '../embed-context'
 import {
   type GetMetaResponse,
   type GetWorkspaceResponse,
@@ -650,7 +651,7 @@ export function whoamiCommand(): Command {
       // Set rather than thrown: the resolved settings above are the answer the
       // user came for, and a thrown error would replace them with one red line.
       const exitCode = WHOAMI_EXIT_CODES[verification.status]
-      if (exitCode !== 0) process.exitCode = exitCode
+      if (exitCode !== 0) setSoftExitCode(exitCode)
     })
 }
 

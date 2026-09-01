@@ -489,9 +489,12 @@ async function doExecuteRunTool(
     return
   }
 
+  const asString = (value: unknown): string | undefined =>
+    typeof value === 'string' && value.length > 0 ? value : undefined
+
   const stopAfterBlockId = (() => {
-    if (toolName === RunWorkflowUntilBlock.id) return params.stopAfterBlockId as string | undefined
-    if (toolName === RunBlock.id) return params.blockId as string | undefined
+    if (toolName === RunWorkflowUntilBlock.id) return asString(params.stopAfterBlockId)
+    if (toolName === RunBlock.id) return asString(params.blockId)
     return undefined
   })()
 
@@ -501,17 +504,19 @@ async function doExecuteRunTool(
     const variableInputs = isPlainRecord(params.variableInputs)
       ? (params.variableInputs as Record<string, unknown>)
       : undefined
-    if (toolName === RunFromBlock.id && params.startBlockId) {
+    const startBlockId = asString(params.startBlockId)
+    const blockId = asString(params.blockId)
+    if (toolName === RunFromBlock.id && startBlockId) {
       return {
-        startBlockId: params.startBlockId as string,
-        executionId: (params.executionId as string | undefined) || 'latest',
+        startBlockId,
+        executionId: asString(params.executionId) ?? 'latest',
         ...(variableInputs ? { variableInputs } : {}),
       }
     }
-    if (toolName === RunBlock.id && params.blockId) {
+    if (toolName === RunBlock.id && blockId) {
       return {
-        startBlockId: params.blockId as string,
-        executionId: (params.executionId as string | undefined) || 'latest',
+        startBlockId: blockId,
+        executionId: asString(params.executionId) ?? 'latest',
         ...(variableInputs ? { variableInputs } : {}),
       }
     }

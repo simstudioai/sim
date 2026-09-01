@@ -215,11 +215,13 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               executionId,
               chatId,
               userId,
-              workflowId: (requestPayload.workflowId as string | undefined) || null,
+              workflowId:
+                typeof requestPayload.workflowId === 'string' ? requestPayload.workflowId : null,
               workspaceId,
               streamId,
-              model: (requestPayload.model as string | undefined) || null,
-              provider: (requestPayload.provider as string | undefined) || null,
+              model: typeof requestPayload.model === 'string' ? requestPayload.model : null,
+              provider:
+                typeof requestPayload.provider === 'string' ? requestPayload.provider : null,
               requestContext: { requestId },
             }).catch((error) => {
               logger.warn(`[${requestId}] Failed to create copilot run segment`, {

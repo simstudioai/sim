@@ -227,6 +227,19 @@ interface CanonicalTableInput {
   sandboxPath?: string
 }
 
+/**
+ * Model-authored refs arrive as a bare string or a canonical-input record; every read is
+ * typeof-guarded here once instead of per-site casts (three sites had drifted copies).
+ */
+function refField(ref: unknown, key: 'path' | 'tableId' | 'sandboxPath'): string | undefined {
+  if (typeof ref === 'string') return key === 'sandboxPath' ? undefined : ref
+  if (ref && typeof ref === 'object') {
+    const value = (ref as Record<string, unknown>)[key]
+    return typeof value === 'string' && value.length > 0 ? value : undefined
+  }
+  return undefined
+}
+
 function tableNameFromVfsPath(tableRef: string): string | null {
   if (!tableRef.startsWith('tables/')) return null
   const segments = decodeVfsPathSegments(tableRef)
@@ -272,12 +285,7 @@ export async function resolveInputFiles(
       input: { workspaceId, scope: 'active' },
     })
     for (const fileRef of inputFiles) {
-      const filePath =
-        typeof fileRef === 'string'
-          ? fileRef
-          : fileRef && typeof fileRef === 'object'
-            ? (fileRef as CanonicalFileInput).path
-            : undefined
+      const filePath = refField(fileRef, 'path')
       if (!filePath) continue
       const record = findWorkspaceFileRecord(allFiles, filePath)
       if (!record) {
@@ -289,11 +297,7 @@ export async function resolveInputFiles(
           `Input file not found: "${filePath}". Pass the exact canonical VFS path copied from glob/read (e.g. "files/Reports/data.csv").`
         )
       }
-      const explicitSandboxPath =
-        typeof fileRef === 'object' && fileRef !== null
-          ? (fileRef as CanonicalFileInput).sandboxPath
-          : undefined
-      const mountPath = explicitSandboxPath || getSandboxWorkspaceFilePath(record)
+      const mountPath = refField(fileRef, 'sandboxPath') ?? getSandboxWorkspaceFilePath(record)
       await pushWorkspaceFileMount(
         sandboxFiles,
         record,
@@ -319,12 +323,7 @@ export async function resolveInputFiles(
       input: { workspaceId, scope: 'active' },
     })
     for (const dirRef of inputDirectories) {
-      const dirPath =
-        typeof dirRef === 'string'
-          ? dirRef
-          : dirRef && typeof dirRef === 'object'
-            ? (dirRef as CanonicalDirectoryInput).path
-            : undefined
+      const dirPath = refField(dirRef, 'path')
       if (!dirPath) continue
       const folderSegments = decodeVfsPathSegments(dirPath.replace(/^\/?files\/?/, ''))
       const folderDisplayPath = buildWorkspaceFileFolderDisplayPath(folderSegments)
@@ -338,11 +337,8 @@ export async function resolveInputFiles(
         )
       }
       const mountRoot =
-        typeof dirRef === 'object' &&
-        dirRef !== null &&
-        (dirRef as CanonicalDirectoryInput).sandboxPath
-          ? (dirRef as CanonicalDirectoryInput).sandboxPath!
-          : `/home/user/files/${encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folder.path))}`
+        refField(dirRef, 'sandboxPath') ??
+        `/home/user/files/${encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folder.path))}`
       const descendants = allFiles.filter((file) => {
         if (!file.folderPath) return false
         return file.folderPath === folder.path || file.folderPath.startsWith(`${folder.path}/`)
@@ -396,25 +392,16 @@ export async function resolveInputFiles(
   }
 
   if (inputTables?.length) {
-    const hasTablePathRefs = inputTables.some((tableRef) => {
-      const tableId =
-        typeof tableRef === 'string'
-          ? tableRef
-          : tableRef && typeof tableRef === 'object'
-            ? (tableRef as CanonicalTableInput).tableId || (tableRef as CanonicalTableInput).path
-            : undefined
-      return typeof tableId === 'string' && tableId.startsWith('tables/')
-    })
+    const tableRefId = (tableRef: unknown): string | undefined =>
+      refField(tableRef, 'tableId') ?? refField(tableRef, 'path')
+    const hasTablePathRefs = inputTables.some((tableRef) =>
+      tableRefId(tableRef)?.startsWith('tables/')
+    )
     const tablePathLookup = hasTablePathRefs
       ? new Map((await listTables(workspaceId)).map((table) => [table.name, table]))
       : undefined
     for (const tableRef of inputTables) {
-      const tableId =
-        typeof tableRef === 'string'
-          ? tableRef
-          : tableRef && typeof tableRef === 'object'
-            ? (tableRef as CanonicalTableInput).tableId || (tableRef as CanonicalTableInput).path
-            : undefined
+      const tableId = tableRefId(tableRef)
       if (!tableId) continue
       const table = await resolveTableRef(tableId, tablePathLookup)
       if (!table || table.workspaceId !== workspaceId) {
@@ -422,11 +409,7 @@ export async function resolveInputFiles(
           `Input table not found: "${tableId}". Pass the table id (tbl_...) from tables/{name}/meta.json, or a tables/{name}/meta.json path.`
         )
       }
-      const sandboxPath =
-        typeof tableRef === 'object' && tableRef !== null
-          ? (tableRef as CanonicalTableInput).sandboxPath
-          : undefined
-      const mountPath = sandboxPath || `/home/user/tables/${table.id}.csv`
+      const mountPath = refField(tableRef, 'sandboxPath') ?? `/home/user/tables/${table.id}.csv`
 
       const snapshot = await getOrCreateTableSnapshot(table, 'copilot-fn-exec')
       if (!resolvedSecretTraceRegistry) {

@@ -272,10 +272,24 @@ export interface OutputFileDeclaration {
 export function getOutputFileDeclarations(
   params: Record<string, unknown> | undefined
 ): OutputFileDeclaration[] {
-  const args = params?.args as Record<string, unknown> | undefined
+  // Model-authored wire params: every read is typeof-guarded — a truthy non-string
+  // outputPath must never become a file path.
+  const stringParam = (key: string): string | undefined => {
+    const direct = params?.[key]
+    if (typeof direct === 'string' && direct.length > 0) return direct
+    const nested = args?.[key]
+    return typeof nested === 'string' && nested.length > 0 ? nested : undefined
+  }
+  const rawArgs = params?.args
+  const args =
+    rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)
+      ? (rawArgs as Record<string, unknown>)
+      : undefined
+  const rawOutputs = params?.outputs ?? args?.outputs
   const outputs =
-    (params?.outputs as { files?: unknown[] } | undefined) ??
-    (args?.outputs as { files?: unknown[] } | undefined)
+    rawOutputs && typeof rawOutputs === 'object' && !Array.isArray(rawOutputs)
+      ? (rawOutputs as { files?: unknown[] })
+      : undefined
 
   if (Array.isArray(outputs?.files)) {
     return outputs.files.flatMap((item): OutputFileDeclaration[] => {
@@ -294,24 +308,17 @@ export function getOutputFileDeclarations(
     })
   }
 
-  const outputPath =
-    (params?.outputPath as string | undefined) ?? (args?.outputPath as string | undefined)
+  const outputPath = stringParam('outputPath')
   if (!outputPath) return []
-  const overwriteFileId =
-    (params?.overwriteFileId as string | undefined) ?? (args?.overwriteFileId as string | undefined)
+  const overwriteFileId = stringParam('overwriteFileId')
   return [
     {
-      path: overwriteFileId || outputPath,
+      path: overwriteFileId ?? outputPath,
       mode: overwriteFileId ? 'overwrite' : 'create',
       formatPath: outputPath,
-      format: ((params?.outputFormat as string | undefined) ??
-        (args?.outputFormat as string | undefined)) as OutputFormat | undefined,
-      mimeType:
-        (params?.outputMimeType as string | undefined) ??
-        (args?.outputMimeType as string | undefined),
-      sandboxPath:
-        (params?.outputSandboxPath as string | undefined) ??
-        (args?.outputSandboxPath as string | undefined),
+      format: stringParam('outputFormat') as OutputFormat | undefined,
+      mimeType: stringParam('outputMimeType'),
+      sandboxPath: stringParam('outputSandboxPath'),
     },
   ]
 }
