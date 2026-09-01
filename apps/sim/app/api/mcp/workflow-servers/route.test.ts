@@ -1,17 +1,17 @@
 /**
  * @vitest-environment node
+ *
+ * The `deploy.mcp` gate this route used to carry inline now lives on
+ * `withMcpAuth`, where its twelve siblings inherit it — see
+ * `lib/mcp/middleware.test.ts` for the gate itself and
+ * `app/api/mcp/capability-declarations.test.ts` for what each route declares.
+ * What is left here is the handler's own behavior with the gate passed.
  */
-import {
-  permissionGroupScopeMock,
-  permissionGroupScopeMockFns,
-  resetDbChainMock,
-} from '@sim/testing'
+import { resetDbChainMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockPerformCreate } = vi.hoisted(() => ({ mockPerformCreate: vi.fn() }))
-
-const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@/lib/mcp/middleware', () => ({
   readMcpJsonBodyWithLimit: (request: NextRequest) => request.json(),
@@ -44,9 +44,6 @@ vi.mock('@/lib/mcp/orchestration', () => ({
   performCreateWorkflowMcpServer: mockPerformCreate,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
-
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/mcp/workflow-servers/route'
 
 function createRequest() {
@@ -57,7 +54,7 @@ function createRequest() {
   }) as NextRequest
 }
 
-describe('workflow MCP servers POST route — deploy.mcp capability gate', () => {
+describe('workflow MCP servers POST route', () => {
   afterAll(() => {
     resetDbChainMock()
   })
@@ -72,39 +69,12 @@ describe('workflow MCP servers POST route — deploy.mcp capability gate', () =>
     })
   })
 
-  it('refuses to create a workflow MCP server when the group withholds deploy.mcp', async () => {
-    resolveGroupConfigMock.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      hideDeployMcp: true,
-    })
-
-    const response = await POST(createRequest(), { params: Promise.resolve({}) })
-
-    expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toMatchObject({
-      error: "MCP server deployment is not available under your organization's permission group",
-    })
-    expect(mockPerformCreate).not.toHaveBeenCalled()
-  })
-
-  it('creates the server when a group governs the user but withholds nothing', async () => {
-    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-
+  it('creates the server through the orchestration helper', async () => {
     const response = await POST(createRequest(), { params: Promise.resolve({}) })
 
     expect(response.status).toBe(201)
     expect(mockPerformCreate).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: 'workspace-1', name: 'Deploy bot' })
     )
-  })
-
-  /** A personal workspace, or any non-enterprise organization, is governed by no group. */
-  it('creates the server when no permission group governs the user', async () => {
-    resolveGroupConfigMock.mockResolvedValue(null)
-
-    const response = await POST(createRequest(), { params: Promise.resolve({}) })
-
-    expect(response.status).toBe(201)
-    expect(mockPerformCreate).toHaveBeenCalledTimes(1)
   })
 })

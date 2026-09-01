@@ -17,10 +17,6 @@ import {
   createMcpSuccessResponse,
   mcpOrchestrationStatus,
 } from '@/lib/mcp/utils'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
 
 const logger = createLogger('WorkflowMcpServersAPI')
 
@@ -30,7 +26,10 @@ export const dynamic = 'force-dynamic'
  * GET - List all workflow MCP servers for the workspace
  */
 export const GET = withRouteHandler(
-  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  withMcpAuth(
+    'read',
+    'deploy.mcp'
+  )(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       logger.info(`[${requestId}] Listing workflow MCP servers for workspace ${workspaceId}`)
 
@@ -101,68 +100,57 @@ export const GET = withRouteHandler(
  * POST - Create a new workflow MCP server
  */
 export const POST = withRouteHandler(
-  withMcpAuth('write')(
-    async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
-      try {
-        const rawBody = await readMcpJsonBodyWithLimit(request)
-        const parsedBody = createWorkflowMcpServerBodySchema.safeParse(rawBody)
+  withMcpAuth(
+    'write',
+    'deploy.mcp'
+  )(async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
+    try {
+      const rawBody = await readMcpJsonBodyWithLimit(request)
+      const parsedBody = createWorkflowMcpServerBodySchema.safeParse(rawBody)
 
-        if (!parsedBody.success) {
-          return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
-        }
-
-        const body = parsedBody.data
-
-        /**
-         * permission-group-enforced: deploy.mcp — this route calls the
-         * orchestration helper directly instead of the application use case, so
-         * the capability declared on `createWorkflowDeploymentServer` never
-         * fires here. Gating both is what keeps the two doors agreeing; the
-         * alternative is migrating this handler to the use case, which is worth
-         * doing and is not a reason to leave the second door open meanwhile.
-         */
-        if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'deploy.mcp')) {
-          return createMcpErrorResponse(null, capabilityRefusal('deploy.mcp'), 403)
-        }
-
-        logger.info(`[${requestId}] Creating workflow MCP server:`, {
-          name: body.name,
-          workspaceId,
-          workflowIds: body.workflowIds,
-        })
-
-        const result = await performCreateWorkflowMcpServer({
-          workspaceId,
-          userId,
-          actorName: userName,
-          actorEmail: userEmail,
-          name: body.name,
-          description: body.description,
-          isPublic: body.isPublic,
-          workflowIds: body.workflowIds,
-        })
-        if (!result.success || !result.server) {
-          return createMcpErrorResponse(
-            new Error(result.error || 'Failed to create workflow MCP server'),
-            result.error || 'Failed to create workflow MCP server',
-            mcpOrchestrationStatus(result.errorCode)
-          )
-        }
-
-        const { server } = result
-        const addedTools = result.addedTools || []
-
-        logger.info(
-          `[${requestId}] Successfully created workflow MCP server: ${body.name} (ID: ${server.id})`
-        )
-
-        return createMcpSuccessResponse({ server, addedTools }, 201)
-      } catch (error) {
-        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
-        if (bodyErrorResponse) return bodyErrorResponse
-        logger.error(`[${requestId}] Error creating workflow MCP server:`, error)
-        return createMcpErrorResponse(toError(error), 'Failed to create workflow MCP server', 500)
+      if (!parsedBody.success) {
+        return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
       }
+
+      const body = parsedBody.data
+
+      logger.info(`[${requestId}] Creating workflow MCP server:`, {
+        name: body.name,
+        workspaceId,
+        workflowIds: body.workflowIds,
+      })
+
+      const result = await performCreateWorkflowMcpServer({
+        workspaceId,
+        userId,
+        actorName: userName,
+        actorEmail: userEmail,
+        name: body.name,
+        description: body.description,
+        isPublic: body.isPublic,
+        workflowIds: body.workflowIds,
+      })
+      if (!result.success || !result.server) {
+        return createMcpErrorResponse(
+          new Error(result.error || 'Failed to create workflow MCP server'),
+          result.error || 'Failed to create workflow MCP server',
+          mcpOrchestrationStatus(result.errorCode)
+        )
+      }
+
+      const { server } = result
+      const addedTools = result.addedTools || []
+
+      logger.info(
+        `[${requestId}] Successfully created workflow MCP server: ${body.name} (ID: ${server.id})`
+      )
+
+      return createMcpSuccessResponse({ server, addedTools }, 201)
+    } catch (error) {
+      const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+      if (bodyErrorResponse) return bodyErrorResponse
+      logger.error(`[${requestId}] Error creating workflow MCP server:`, error)
+      return createMcpErrorResponse(toError(error), 'Failed to create workflow MCP server', 500)
     }
-  )
+  })
 )

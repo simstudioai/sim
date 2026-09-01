@@ -34,59 +34,63 @@ interface RouteParams {
  * GET - Get a specific tool
  */
 export const GET = withRouteHandler(
-  withMcpAuth<RouteParams>('read')(
-    async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
-      try {
-        const { id: serverId, toolId } = workflowMcpToolParamsSchema.parse(await params)
+  withMcpAuth<RouteParams>(
+    'read',
+    'deploy.mcp'
+  )(async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+    try {
+      const { id: serverId, toolId } = workflowMcpToolParamsSchema.parse(await params)
 
-        logger.info(`[${requestId}] Getting tool ${toolId} from server ${serverId}`)
+      logger.info(`[${requestId}] Getting tool ${toolId} from server ${serverId}`)
 
-        const [server] = await db
-          .select({ id: workflowMcpServer.id })
-          .from(workflowMcpServer)
-          .where(
-            and(
-              eq(workflowMcpServer.id, serverId),
-              eq(workflowMcpServer.workspaceId, workspaceId),
-              isNull(workflowMcpServer.deletedAt)
-            )
+      const [server] = await db
+        .select({ id: workflowMcpServer.id })
+        .from(workflowMcpServer)
+        .where(
+          and(
+            eq(workflowMcpServer.id, serverId),
+            eq(workflowMcpServer.workspaceId, workspaceId),
+            isNull(workflowMcpServer.deletedAt)
           )
-          .limit(1)
+        )
+        .limit(1)
 
-        if (!server) {
-          return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
-        }
-
-        const [tool] = await db
-          .select()
-          .from(workflowMcpTool)
-          .where(
-            and(
-              eq(workflowMcpTool.id, toolId),
-              eq(workflowMcpTool.serverId, serverId),
-              isNull(workflowMcpTool.archivedAt)
-            )
-          )
-          .limit(1)
-
-        if (!tool) {
-          return createMcpErrorResponse(new Error('Tool not found'), 'Tool not found', 404)
-        }
-
-        return createMcpSuccessResponse({ tool })
-      } catch (error) {
-        logger.error(`[${requestId}] Error getting tool:`, error)
-        return createMcpErrorResponse(toError(error), 'Failed to get tool', 500)
+      if (!server) {
+        return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
       }
+
+      const [tool] = await db
+        .select()
+        .from(workflowMcpTool)
+        .where(
+          and(
+            eq(workflowMcpTool.id, toolId),
+            eq(workflowMcpTool.serverId, serverId),
+            isNull(workflowMcpTool.archivedAt)
+          )
+        )
+        .limit(1)
+
+      if (!tool) {
+        return createMcpErrorResponse(new Error('Tool not found'), 'Tool not found', 404)
+      }
+
+      return createMcpSuccessResponse({ tool })
+    } catch (error) {
+      logger.error(`[${requestId}] Error getting tool:`, error)
+      return createMcpErrorResponse(toError(error), 'Failed to get tool', 500)
     }
-  )
+  })
 )
 
 /**
  * PATCH - Update a tool's configuration
  */
 export const PATCH = withRouteHandler(
-  withMcpAuth<RouteParams>('write')(
+  withMcpAuth<RouteParams>(
+    'write',
+    'deploy.mcp'
+  )(
     async (
       request: NextRequest,
       { userId, userName, userEmail, workspaceId, requestId },
@@ -144,7 +148,10 @@ export const PATCH = withRouteHandler(
  * DELETE - Remove a tool from an MCP server
  */
 export const DELETE = withRouteHandler(
-  withMcpAuth<RouteParams>('write')(
+  withMcpAuth<RouteParams>(
+    'write',
+    'deploy.mcp'
+  )(
     async (
       request: NextRequest,
       { userId, userName, userEmail, workspaceId, requestId },
