@@ -15,9 +15,9 @@ import {
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
 import {
+  intersectAccessControlAllowlists,
   isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
-  toAccessControlAllowlist,
 } from '@/lib/permission-groups/block-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
@@ -103,13 +103,14 @@ export function usePermissionConfig(): PermissionConfigResult {
    * to nothing textually — hiding an integration both policies allow. Resolving
    * first puts them in one vocabulary, and the intersection is then exact.
    */
-  const allowedAccessControlTypes = useMemo(() => {
-    const groupAllowlist = toAccessControlAllowlist(config.allowedIntegrations)
-    const envAllowlist = toAccessControlAllowlist(envAllowlistData?.allowedIntegrations ?? null)
-    if (groupAllowlist === null) return envAllowlist
-    if (envAllowlist === null) return groupAllowlist
-    return new Set([...groupAllowlist].filter((type) => envAllowlist.has(type)))
-  }, [config.allowedIntegrations, envAllowlistData])
+  const allowedAccessControlTypes = useMemo(
+    () =>
+      intersectAccessControlAllowlists(
+        config.allowedIntegrations,
+        envAllowlistData?.allowedIntegrations ?? null
+      ),
+    [config.allowedIntegrations, envAllowlistData]
+  )
 
   const integrationAvailability = useMemo(() => {
     const visibility = overlayVisibility()
