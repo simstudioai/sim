@@ -18,6 +18,7 @@ const {
   mockGetUserEntityPermissions,
   mockGetWorkspaceEnvKeyAdminAccess,
   mockRecordAudit,
+  mockGetActivelyBannedUserIds,
 } = vi.hoisted(() => ({
   mockCreateWorkspaceEnvCredentials: vi.fn(),
   mockCheckWorkspaceAccess: vi.fn(),
@@ -25,6 +26,7 @@ const {
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
   mockRecordAudit: vi.fn(),
+  mockGetActivelyBannedUserIds: vi.fn().mockResolvedValue([]),
 }))
 
 // vitest.setup.ts mocks this module globally; this suite tests the real one.
@@ -41,6 +43,9 @@ vi.mock('@/lib/credentials/environment', () => ({
   getAccessibleEnvCredentials: mockGetAccessibleEnvCredentials,
   getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser: vi.fn(),
+}))
+vi.mock('@/lib/auth/ban', () => ({
+  getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
@@ -444,6 +449,7 @@ describe('getExecutionEnvironment', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockGetAccessibleEnvCredentials.mockResolvedValue([])
+    mockGetActivelyBannedUserIds.mockResolvedValue([])
     encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
       decrypted: `plain:${encryptedValue}`,
     }))
@@ -613,6 +619,39 @@ describe('getExecutionEnvironment', () => {
     // No credential grant, and the actor is not an admin, so the workspace
     // secret stays filtered out rather than falling through unfiltered.
     expect(snapshot.workspaceDecrypted).toEqual({})
+  })
+
+  /**
+   * Admission deliberately stops blocking runs on the personal-variable
+   * identity, so that a suspended member does not take down their teammates'
+   * schedules and webhooks. That must not become a way for a suspended account's
+   * own credentials to keep running — the run continues, their namespace does not.
+   */
+  it('resolves workspace variables only when the personal identity is suspended', async () => {
+    grantAdminTo('actor-1')
+    mockGetActivelyBannedUserIds.mockResolvedValue(['suspended-owner'])
+    queueTableRows(environment, [{ variables: { OWNER_KEY: 'owner-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('suspended-owner', 'actor-1', 'workspace-1')
+
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['suspended-owner'])
+    expect(snapshot.personalDecrypted).toEqual({})
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  /** The actor is cleared by admission, so only the personal identity is looked up. */
+  it('does not re-check the execution actor for a ban', async () => {
+    grantAdminTo('actor-1')
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [{ variables: {} }])
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [{ variables: {} }])
+
+    await getExecutionEnvironment('owner-1', 'actor-1', 'workspace-1')
+
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledOnce()
+    expect(mockGetActivelyBannedUserIds.mock.calls[0][0]).not.toContain('actor-1')
   })
 
   /** With no reachable identity there is nobody to authorize the workspace slice against. */

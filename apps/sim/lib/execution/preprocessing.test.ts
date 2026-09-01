@@ -500,12 +500,29 @@ describe('preprocessExecution ban gate', () => {
     expect(mockCheckRateLimit).toHaveBeenCalledTimes(1)
   })
 
-  it('checks the actor and the caller-provided userId in one call', async () => {
-    const result = await preprocessExecution(baseOptions)
+  /** An authenticated caller becomes the actor, so one candidate covers them. */
+  it('checks the authenticated caller as the actor', async () => {
+    const result = await preprocessExecution({ ...baseOptions, useAuthenticatedUserAsActor: true })
 
     expect(result.success).toBe(true)
     expect(mockGetActivelyBannedUserIds).toHaveBeenCalledTimes(1)
-    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1', 'owner-1'])
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['owner-1'])
+  })
+
+  /**
+   * The one shape where the two genuinely differ: an upstream boundary captured
+   * the attribution, so the actor comes from there while `userId` still names
+   * the authenticated caller. Both are identities the run acts as.
+   */
+  it('checks both when a captured attribution names a different actor', async () => {
+    const result = await preprocessExecution({
+      ...baseOptions,
+      useAuthenticatedUserAsActor: true,
+      billingAttribution: { ...ORGANIZATION_ATTRIBUTION, actorUserId: 'delegated-actor-1' } as any,
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['delegated-actor-1', 'owner-1'])
   })
 
   it('excludes the "unknown" sentinel userId', async () => {
@@ -516,21 +533,34 @@ describe('preprocessExecution ban gate', () => {
   })
 
   /**
-   * Banning one member must not take down the schedules, webhooks, and deployed
-   * chats their teammates depend on. Those runs act as the workspace billing
-   * account; the owner's name on the workflow row is a personal-variable
-   * fallback, and member removal reassigns it anyway.
+   * Callers overload `userId`: an authenticated caller on a manual run, but a
+   * stored pointer on a system-triggered one — the workflow owner from
+   * `checkWebhookPreprocessing`, the chat's creator from the deployed-chat
+   * route. Without `useAuthenticatedUserAsActor` gating it, the same ban
+   * suspended a webhook while the schedule beside it kept running.
+   */
+  it('ignores a stored-pointer userId when it is not the authenticated caller', async () => {
+    const result = await preprocessExecution({ ...baseOptions, userId: 'creator-1' })
+
+    expect(result.success).toBe(true)
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1'])
+    expect(mockGetActivelyBannedUserIds.mock.calls[0][0]).not.toContain('creator-1')
+  })
+
+  /**
+   * The webhook shape specifically: `checkWebhookPreprocessing` passes the
+   * workflow owner as `userId` with no `useAuthenticatedUserAsActor`, so a
+   * banned owner must not take the webhook down.
    */
   it('does not block a system-triggered run because the workflow owner is banned', async () => {
     mockGetActivelyBannedUserIds.mockImplementation(async (ids: string[]) =>
       ids.filter((id) => id === 'creator-1')
     )
 
-    const result = await preprocessExecution({ ...baseOptions, userId: 'unknown' })
+    const result = await preprocessExecution({ ...baseOptions, userId: 'creator-1' })
 
     expect(result.success).toBe(true)
     expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1'])
-    expect(mockGetActivelyBannedUserIds.mock.calls[0][0]).not.toContain('creator-1')
   })
 
   it('fails closed with 500 when the ban check errors', async () => {

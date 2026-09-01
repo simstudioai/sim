@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
+import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { lockPersonalEnvMap, lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
 import {
@@ -493,9 +494,10 @@ export async function getExecutionEnvironment(
     return getPersonalAndWorkspaceEnv(personalUserId, workspaceId)
   }
 
-  const [actorAccess, personalAccess] = await Promise.all([
+  const [actorAccess, personalAccess, suspendedPersonalIds] = await Promise.all([
     checkWorkspaceAccess(workspaceId, workspaceUserId),
     checkWorkspaceAccess(workspaceId, personalUserId),
+    getActivelyBannedUserIds([personalUserId]),
   ])
 
   /**
@@ -507,7 +509,23 @@ export async function getExecutionEnvironment(
     throw new Error(`Workspace ${workspaceId} does not exist`)
   }
 
-  if (!personalAccess.hasAccess) {
+  /**
+   * A suspended account lends nothing, even when the run itself may continue.
+   *
+   * Admission blocks on the identities a run acts as and deliberately not on the
+   * personal-variable fallback, so that suspending one member does not take down
+   * the schedules, webhooks, and deployed chats their teammates depend on. But
+   * "this run may continue" and "that person's private credentials may still be
+   * used" are different questions, and a ban revokes neither workspace
+   * membership nor the pointer naming them — so without this the run proceeds on
+   * a suspended account's own keys.
+   *
+   * Only the personal identity is checked here; admission already cleared the
+   * actor before execution reached this point.
+   */
+  const personalIdentitySuspended = suspendedPersonalIds.length > 0
+
+  if (!personalAccess.hasAccess || personalIdentitySuspended) {
     if (!actorAccess.hasAccess) {
       logger.error('Neither execution identity can reach the workspace', {
         personalUserId,
@@ -518,7 +536,9 @@ export async function getExecutionEnvironment(
     }
 
     logger.error(
-      'Personal-environment identity cannot reach the workspace; resolving workspace variables only',
+      personalIdentitySuspended
+        ? 'Personal-environment identity is suspended; resolving workspace variables only'
+        : 'Personal-environment identity cannot reach the workspace; resolving workspace variables only',
       { personalUserId, workspaceUserId, workspaceId }
     )
     return toWorkspaceOnlySnapshot(

@@ -449,19 +449,26 @@ export async function preprocessExecution(
 
   const banCheck = (async (): Promise<GateFailure | null> => {
     /**
-     * Blocks when the resolved actor or the caller-provided user has an active
-     * ban or blocked email domain — the identities this run actually acts as.
+     * Blocks when an identity this run actually acts as has an active ban or
+     * blocked email domain.
      *
-     * The workflow owner is deliberately NOT a candidate. A system-triggered run
-     * acts as the workspace billing account, and that account is already the
-     * actor here; the owner is only the personal-variable fallback and is a
-     * stored pointer that member removal reassigns. Banning one member of a
-     * workspace should suspend the work they do, not silently take down every
-     * schedule, webhook, and deployed chat their teammates still depend on
-     * because their name happens to sit on the workflow row.
+     * `userId` is only such an identity when `useAuthenticatedUserAsActor` says
+     * so. Callers overload that parameter: it is an authenticated caller on a
+     * manual or personal-key run, but a stored pointer everywhere else — the
+     * workflow owner from `checkWebhookPreprocessing`, the chat's creator from
+     * the deployed-chat route, the literal `'unknown'` from a schedule. Reading
+     * it unconditionally made the same ban suspend a webhook while leaving the
+     * schedule beside it running, for no reason a workspace could observe.
+     * `workflow-column-execution` toggles the two together and is the clearest
+     * statement of the rule.
+     *
+     * A stored pointer being banned must not take down work their teammates
+     * still depend on — but it must not lend that person's credentials either,
+     * which is why the executor drops a banned identity's personal namespace
+     * rather than this gate blocking the whole run.
      */
     const banCandidateIds = [actorUserId]
-    if (userId && userId !== 'unknown' && userId !== actorUserId) {
+    if (useAuthenticatedUserAsActor && userId && userId !== 'unknown' && userId !== actorUserId) {
       banCandidateIds.push(userId)
     }
     try {

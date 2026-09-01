@@ -312,18 +312,18 @@ export async function getCustomBlockManageContext(id: string): Promise<{
  * cascade-deletes the workflow → the custom_block row, so there is never an
  * orphaned block. `null` when no enabled block matches the type.
  *
- * `ownerUserId` is the child run's whole identity — both environment slices, the
- * billing actor, and the subject of its delegated tool calls. That is NOT what a
- * deployed API/schedule/webhook run does: those act as the workspace billing
- * account and fall back to the owner only for personal variables. A custom block
- * needs the stronger form because it publishes a fixed behavior to consumers who
- * can see none of its internals, and the publisher's own integrations and personal
- * keys are part of that behavior.
+ * `ownerUserId` carries further than the owner does on any other trigger. It is
+ * the child run's actor, the personal-variable identity, and the subject of its
+ * delegated tool calls, because a custom block publishes a fixed behavior to
+ * consumers who can see none of its internals and the publisher's own
+ * integrations and personal keys are part of that behavior.
  *
- * The cost is that the owner is load-bearing rather than a fallback: an owner who
- * leaves the source workspace takes the block's environment resolution down with
- * them, where a schedule on the same workflow keeps running. Any repair belongs
- * here or in the member-removal reassignment, not at the call site.
+ * It is NOT the identity for the two things a workspace owns. Workspace
+ * variables authorize against the source workspace's billing account, and that
+ * account is the payer, exactly as they would for a schedule on the same
+ * workflow — see the environment resolution in `workflow-handler`. Reading those
+ * as the owner too gave a published block a narrower workspace-secret selection
+ * than the workflow got on every other trigger, which no consumer could see.
  */
 export async function getCustomBlockAuthority(
   type: string,
