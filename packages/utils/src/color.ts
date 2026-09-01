@@ -20,6 +20,36 @@
  */
 export function perceivedBrightness(color: string): number | null {
   const value = color.trim().replace(/['"]/g, '').toLowerCase()
+  return parseSolidBrightness(value)
+}
+
+/**
+ * Perceived brightness of a solid color or static CSS gradient background.
+ * Gradient brightness is the average of supported hex/black/white color stops,
+ * a small deterministic heuristic for choosing readable tile foregrounds
+ * without a browser color parser. Unsupported backgrounds return `null`.
+ */
+export function perceivedBackgroundBrightness(background: string): number | null {
+  const value = background.trim().replace(/['"]/g, '').toLowerCase()
+  const solidBrightness = parseSolidBrightness(value)
+  if (solidBrightness !== null) return solidBrightness
+
+  if (!/^(?:repeating-)?(?:linear|radial|conic)-gradient\(/.test(value)) return null
+
+  const colorStops = value.match(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b|\b(?:white|black)\b/g)
+  if (!colorStops || colorStops.length < 2) return null
+
+  let totalBrightness = 0
+  for (const colorStop of colorStops) {
+    const brightness = parseSolidBrightness(colorStop)
+    if (brightness === null) return null
+    totalBrightness += brightness
+  }
+
+  return totalBrightness / colorStops.length
+}
+
+function parseSolidBrightness(value: string): number | null {
   if (value === 'white') return 1
   if (value === 'black') return 0
   const hex = value.replace('#', '')
