@@ -48,6 +48,7 @@ describe('GET /api/table/[tableId]/export/download', () => {
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
+      authType: 'session',
     })
     mockCheckAccess.mockResolvedValue({ ok: true, table })
     mockGetUserPermissionConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
@@ -79,5 +80,29 @@ describe('GET /api/table/[tableId]/export/download', () => {
     })
     expect(mockGetTableJob).not.toHaveBeenCalled()
     expect(mockPresign).not.toHaveBeenCalled()
+  })
+
+  /**
+   * An internal executor JWT presents the run's actor, not somebody asking for
+   * a file: reading it bare would apply that person's group to a delegation the
+   * executor exemption passes ungated, and refuse the download of an export the
+   * same run was allowed to start and to list.
+   */
+  it('hands the executor its export without consulting the actor’s group', async () => {
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'internal_jwt',
+    })
+    mockGetUserPermissionConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableTableExport: true,
+    })
+
+    const response = await makeRequest()
+
+    expect(response.status).toBe(200)
+    expect(mockGetUserPermissionConfig).not.toHaveBeenCalled()
+    expect(mockPresign).toHaveBeenCalled()
   })
 })
