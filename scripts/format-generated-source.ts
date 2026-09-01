@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process'
+import { localBin } from './local-bin'
 
 export function formatGeneratedSource(source: string, stdinFilePath: string, cwd: string): string {
-  const result = spawnSync('bunx', ['biome', 'format', '--stdin-file-path', stdinFilePath], {
+  const result = spawnSync(localBin('biome'), ['format', '--stdin-file-path', stdinFilePath], {
     cwd,
     encoding: 'utf8',
     input: source,

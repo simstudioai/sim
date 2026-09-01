@@ -21,6 +21,18 @@ import {
 } from './generator'
 
 type JsonObject = Record<string, unknown>
+type OpenApiDocument = Parameters<typeof generateOpenApiDocument>[0]
+
+const generatedDocuments = new Map<OpenApiDocument, JsonObject>()
+
+function generatedDocument(document: OpenApiDocument): JsonObject {
+  const cached = generatedDocuments.get(document)
+  if (cached) return cached
+
+  const generated = generateOpenApiDocument(document)
+  generatedDocuments.set(document, generated)
+  return generated
+}
 
 const ERROR_SCHEMA = z
   .object({
@@ -578,7 +590,7 @@ describe('OpenAPI generator', () => {
   })
 
   it('documents nullable file share metadata from the response schema', () => {
-    const spec = generateOpenApiDocument(filesAuditOpenApiDocument)
+    const spec = generatedDocument(filesAuditOpenApiDocument)
     const schemas = (spec.components as JsonObject).schemas as JsonObject
     const metadata = schemas.V2FileMetadata as JsonObject
     const properties = metadata.properties as JsonObject
@@ -588,7 +600,7 @@ describe('OpenAPI generator', () => {
   })
 
   it('documents v2 billing storage coverage from the response schema', () => {
-    const spec = generateOpenApiDocument(billingOpenApiDocument)
+    const spec = generatedDocument(billingOpenApiDocument)
     const paths = spec.paths as JsonObject
     const schemas = (spec.components as JsonObject).schemas as JsonObject
     const response = schemas.V2BillingStatusResponse as JsonObject
@@ -626,7 +638,7 @@ describe('OpenAPI generator', () => {
    * is why it stays and is pinned here instead.
    */
   it('uses string wire values for a stringbool query param', () => {
-    const spec = generateOpenApiDocument(filesAuditOpenApiDocument)
+    const spec = generatedDocument(filesAuditOpenApiDocument)
     const deleteFolder = getOperation(spec, '/api/v2/files/folders', 'delete')
     const deleteFolderParameters = deleteFolder.parameters as JsonObject[]
     const recursive = deleteFolderParameters.find((parameter) => parameter.name === 'recursive')
@@ -641,14 +653,14 @@ describe('OpenAPI generator', () => {
    * callers to send a string for what four sibling params took as a boolean.
    */
   it('documents boolean query flags as booleans', () => {
-    const auditSpec = generateOpenApiDocument(filesAuditOpenApiDocument)
+    const auditSpec = generatedDocument(filesAuditOpenApiDocument)
     const listAuditLogParameters = getOperation(auditSpec, '/api/v2/audit-logs', 'get')
       .parameters as JsonObject[]
     const includeDeparted = listAuditLogParameters.find(
       (parameter) => parameter.name === 'includeDeparted'
     )
 
-    const workflowSpec = generateOpenApiDocument(workflowsOpenApiDocument)
+    const workflowSpec = generatedDocument(workflowsOpenApiDocument)
     const getRunParameters = getOperation(
       workflowSpec,
       '/api/v2/workflows/{workflowId}/runs/{runId}',
@@ -661,7 +673,7 @@ describe('OpenAPI generator', () => {
   })
 
   it('documents binary download response headers', () => {
-    const spec = generateOpenApiDocument(filesAuditOpenApiDocument)
+    const spec = generatedDocument(filesAuditOpenApiDocument)
     const operation = getOperation(spec, '/api/v2/files/{fileId}', 'get')
     const response = (operation.responses as JsonObject)['200'] as JsonObject
 
@@ -717,7 +729,7 @@ describe('OpenAPI generator', () => {
   })
 
   it('publishes a distinct example under every documented error status', () => {
-    const spec = generateOpenApiDocument(workflowsOpenApiDocument)
+    const spec = generatedDocument(workflowsOpenApiDocument)
     const responses = (spec.components as JsonObject).responses as JsonObject
     const byStatus = new Map<number, Set<string>>()
 
