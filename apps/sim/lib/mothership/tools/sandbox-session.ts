@@ -8,6 +8,15 @@ import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 const logger = createLogger('MothershipSandboxSession')
 
 /**
+ * The per-chat sandbox identity. One constructor: the key doubles as the E2B lease key
+ * AND the workbench file-bridge scope, so two hand-built copies drifting apart would
+ * silently split a chat across two machines.
+ */
+export function chatSandboxSessionKey(chatId: string): string {
+  return `mothership-chat:${chatId}`
+}
+
+/**
  * Installed once per fresh session sandbox until the mothership images bake the
  * CLI in. `command -v` keeps the install one-time: a sandbox that already has
  * the binary skips straight through.
