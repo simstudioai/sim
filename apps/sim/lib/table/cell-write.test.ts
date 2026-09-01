@@ -157,6 +157,8 @@ describe('writeWorkflowGroupState', () => {
         workspaceId: TABLE.workspaceId,
         executionsPatch: { [GROUP.id]: RUNNING_STATE },
         cancellationGuard: { groupId: GROUP.id, executionId: CONTEXT.executionId },
+        /** A cell result carries no acting person down to the write layer. */
+        capabilityGovernedUserId: null,
         secretProvenance,
       },
       TABLE,
