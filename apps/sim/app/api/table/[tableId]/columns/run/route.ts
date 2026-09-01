@@ -2,8 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { runColumnContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
+import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { TableQueryValidationError } from '@/lib/table/errors'
@@ -65,13 +64,16 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       requestId,
       triggeredByUserId: auth.userId,
       /**
-       * The gate's subject, not the meter's. An internal JWT resolves to the
-       * executor principal, which carries a role but no capabilities, so it
-       * governs nothing — only a session caller does.
+       * Whose group governs the cells this dispatch STARTS, not who is billed
+       * and not who was gated above — the second of the two questions on
+       * `capabilityGovernedUserId` in `@/app/api/table/utils`.
+       *
+       * Derived from the auth type rather than from the gated principal:
+       * `checkSessionOrInternalAuth` admits exactly a session and an internal
+       * JWT here, and the JWT carries the run's actor, whom
+       * `checkAccess` above may gate on but no dispatch may run as.
        */
-      capabilityGovernedUserId: auth.principal
-        ? capabilityGovernedPrincipalUserId(auth.principal)
-        : null,
+      capabilityGovernedUserId: capabilityGovernedAuthUserId(auth),
     })
 
     // Starting a run clears the target group's cells to pending (`bulkClearWorkflowGroupCells`) — a DB

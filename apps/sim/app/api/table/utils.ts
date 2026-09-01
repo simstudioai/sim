@@ -236,9 +236,11 @@ interface ApiErrorResponse {
  * A discriminated union rather than a user id, because the two kinds are
  * indistinguishable as strings and the gate must treat them differently:
  *
- * - `user` — a session, an internal JWT acting as the person, or a personal API
- *   key. There is a real person behind the request, so their permission group
- *   governs it and `tables.use` applies.
+ * - `user` — a session, a personal API key, or an internal JWT carrying the
+ *   run's actor. The id is answerable for the request, so the workspace role
+ *   check runs against it and this surface's `tables.use` gate applies. See
+ *   {@link capabilityGovernedUserId} for why the JWT case belongs here and
+ *   nonetheless must not be reused to attribute dispatched work.
  * - `workspace_api_key` — a shared credential that authorizes as the workspace
  *   itself. It has no user, so there is no group to resolve.
  *   `keyCreatorUserId` is the id `authenticateApiKeyFromHeader` reports: the
@@ -264,14 +266,34 @@ function roleSubjectUserId(principal: TableAccessPrincipal): string {
 }
 
 /**
- * The id whose permission group governs the request, or `null` when no group
+ * The id whose permission group governs THIS REQUEST, or `null` when no group
  * does. Only a `user` principal has one — see {@link TableAccessPrincipal}.
  *
- * Exported because the gate is not the only thing that needs the subject: a
- * write that lands rows auto-fires the table's workflow and enrichment cells,
- * and those cells must run under the same person this check just gated, not
- * under whatever id the surface had nearest. One statement of the rule, so a
- * route cannot gate one subject and dispatch another.
+ * ## Two questions, two subjects
+ *
+ * A table route asks the permission group two things, and they take different
+ * answers for the same caller. Conflating them is how a run either stops working
+ * or gains grants it was never given:
+ *
+ *  1. MAY THIS REQUEST PROCEED — the role check and the `tables.use` gate in
+ *     {@link checkAccess}. Answered with the id the credential presents, this
+ *     function. An internal JWT presents the run's actor, and applying that
+ *     person's group here is deliberate: the answer can only withhold the table
+ *     from a run whose actor lost Tables, never open one. Failing closed on a
+ *     bystander's group is a conservative read of an id we already trust for the
+ *     role.
+ *  2. UNDER WHOSE GROUP DOES WORK THIS REQUEST STARTS RUN — the workflow and
+ *     enrichment cells a landed row auto-fires. Answered by
+ *     `capabilityGovernedAuthUserId` in `@/lib/auth/hybrid`, off the auth TYPE,
+ *     which names NOBODY for an internal JWT. Here the actor's group would run
+ *     the other way: it would grant a bystander's tools to an executor call, and
+ *     the executor's own withholding in `tableOperations` is what governs that
+ *     path instead.
+ *
+ * So: gate with this, dispatch with `capabilityGovernedAuthUserId`. Exported
+ * because both the gate and the callers that hand a subject to a batch write
+ * need question 1 answered the same way — a route must not gate one subject and
+ * check another.
  */
 export function capabilityGovernedUserId(principal: TableAccessPrincipal): string | null {
   return principal.kind === 'user' ? principal.userId : null
@@ -296,10 +318,14 @@ export function capabilityGovernedUserId(principal: TableAccessPrincipal): strin
  * for why `/api/v1/tables/**`, which shares this helper under an API key, must
  * reach the table ungated on a workspace key.
  *
- * Nothing here exempts the executor. A workflow run reaches tables through
- * `tableOperations`, where the delegated-principal branch already withholds
- * capabilities from an executor subject; these HTTP routes are UI surfaces, and
- * the internal-JWT branch of `checkSessionOrInternalAuth` acts as the person.
+ * Nothing here exempts the executor, and that is question 1 of the two in
+ * {@link capabilityGovernedUserId}: an internal JWT presents the run's actor, so
+ * this gate runs against the actor's group and can only refuse more. A workflow
+ * run that reaches tables through `tableOperations` instead is governed by that
+ * funnel's delegated-principal branch, which withholds capabilities from an
+ * executor subject outright. Neither answer is the one question 2 takes —
+ * a route dispatching cells off this request derives its subject from the auth
+ * type, not from the principal gated here.
  */
 export async function checkAccess(
   tableId: string,
