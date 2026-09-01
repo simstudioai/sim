@@ -48,8 +48,8 @@ Confirm the assertions at the bottom of `fields.ts` still name a field of this k
 ## Step 3: Admin UI (`ee/access-control/components/group-detail.tsx`)
 
 - **Boolean:** appears automatically via `PLATFORM_FEATURES`. Confirm its `category` is in `PLATFORM_CATEGORY_ORDER`; an unlisted one renders after every ordered section.
-- **Allowlist / denylist:** renders **nothing** unless it is in the `featureExtras` map — keyed by the *parent boolean's feature id*, not the config key. No picker and no bespoke section means no admin can ever set it. Report it.
-- For a picker, check both behaviors: refuses an empty selection (`if (values.length === 0) return`) and collapses a full one back to `null` (otherwise the allowlist freezes at today's members).
+- **Nested allowlist / denylist** (one that qualifies a platform-feature boolean): renders **nothing** unless it is in the `featureExtras` map — keyed by the *parent boolean's feature id*, not the config key. No picker there means no admin can ever set it. Report it. Top-level lists — `allowedIntegrations`, `allowedModelProviders`, `deniedModels`, `deniedTools` — are not in `featureExtras` and must not be reported for it; they render from the dedicated Providers and Blocks sections, so check them there.
+- For an **allowlist** picker, check both behaviors: refuses an empty selection (`if (values.length === 0) return`) and collapses a full one back to `null` (otherwise the allowlist freezes at today's members). A **denylist** picker must do neither: clearing every entry is how an admin denies nothing, and a full selection is a real state that denies everything.
 - Check the parent is the right one (`allowedKnowledgeConnectors` under `hide-knowledge-base`, not `disable-knowledge-base-creation`).
 
 ## Step 4: Capability rule
