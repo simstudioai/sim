@@ -80,6 +80,20 @@ describe('GET /api/logs/stats', () => {
     expect(mocks.readLogStatsBounds).toHaveBeenCalled()
   })
 
+  /**
+   * The refusal needs both conditions, so an unfiltered read can never be
+   * refused and the config lookup — which re-reads workspace and
+   * organization/group state — is pure cost on the dashboard's common path.
+   */
+  it('does not consult the group for an unfiltered read', async () => {
+    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(200)
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
+  })
+
   it('answers the same cost-filtered read when no group withholds spend', async () => {
     const response = await GET(makeRequest('&costOperator=%3E&costValue=0.5'))
 
