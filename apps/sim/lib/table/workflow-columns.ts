@@ -450,9 +450,8 @@ export interface WorkflowGroupCellPayload {
    *  billed account. */
   triggeredByUserId?: string
   /** Person whose permission group gates this cell's tools. Null/absent means
-   *  no acting person, so no per-tool gate applies. Not `triggeredByUserId`:
-   *  that is an attribution and names the workspace billed account when the
-   *  credential names no human, which would run a bystander's denylist. */
+   *  no acting person, so no per-tool gate applies. Not `triggeredByUserId`;
+   *  see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`. */
   capabilityGovernedUserId?: string | null
 }
 
@@ -873,11 +872,8 @@ export async function runWorkflowColumn(opts: {
    *  account at billing time. */
   triggeredByUserId?: string | null
   /** Person whose permission group gates the run's cells; `null` when the run
-   *  has no acting person (workspace key, schedule, auto-fire). Required with
-   *  an explicit `null` — never defaulted from `triggeredByUserId`, which is an
-   *  attribution and names the workspace billed account when the credential
-   *  names no human. Producers that sit below the principal take it from the
-   *  surface that holds one rather than re-deriving it here. */
+   *  has no acting person (workspace key, schedule, auto-fire). Required, and
+   *  never defaulted from `triggeredByUserId`; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`. */
   capabilityGovernedUserId: string | null
 }): Promise<{ dispatchId: string | null; shouldSignalRowsChanged: boolean }> {
   const {
