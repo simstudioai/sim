@@ -16,9 +16,12 @@ import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-
 import { hubspotSelectorAttachments } from '@/lib/selectors/server/providers/hubspot'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
-function args(request: ExecuteServerSelectorArgs['request']): ExecuteServerSelectorArgs {
+function args(
+  request: ExecuteServerSelectorArgs['request'],
+  selectorKey: ExecuteServerSelectorArgs['selectorKey'] = 'hubspot.lists'
+): ExecuteServerSelectorArgs {
   return {
-    selectorKey: 'hubspot.lists',
+    selectorKey,
     context: { oauthCredential: 'credential-1' },
     request,
     scope: { kind: 'workspace', workspaceId: 'workspace-1' },
@@ -111,6 +114,69 @@ describe('HubSpot server selector adapter', () => {
       item: { id: '123', label: 'Revenue prospects' },
     })
     expect(String(mockFetch.mock.calls[0]?.[0])).toBe('https://api.hubapi.com/crm/v3/lists/123')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('paginates active owners through the HubSpot continuation cursor on demand', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            results: [
+              { id: '100', firstName: 'Former', lastName: 'Owner', archived: true },
+              { id: '101', firstName: 'Ada', lastName: 'Lovelace', archived: false },
+            ],
+            paging: { next: { after: 'owner-page-2' } },
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ results: [{ id: '102', email: 'grace@example.com' }] }), {
+          status: 200,
+        })
+      )
+
+    const first = await hubspotSelectorAttachments['hubspot.owners'].execute(
+      args({ kind: 'list' }, 'hubspot.owners')
+    )
+    const second = await hubspotSelectorAttachments['hubspot.owners'].execute(
+      args({ kind: 'list', cursor: 'owner-page-2' }, 'hubspot.owners')
+    )
+
+    expect(first).toEqual({
+      kind: 'list',
+      items: [{ id: '101', label: 'Ada Lovelace' }],
+      nextCursor: 'owner-page-2',
+    })
+    expect(second).toEqual({
+      kind: 'list',
+      items: [{ id: '102', label: 'grace@example.com' }],
+    })
+    const firstUrl = new URL(String(mockFetch.mock.calls[0]?.[0]))
+    const secondUrl = new URL(String(mockFetch.mock.calls[1]?.[0]))
+    expect(firstUrl.searchParams.get('limit')).toBe('100')
+    expect(firstUrl.searchParams.has('after')).toBe(false)
+    expect(secondUrl.searchParams.get('after')).toBe('owner-page-2')
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('hydrates a selected owner directly by id', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: '777', firstName: 'Katherine', lastName: 'Johnson' }), {
+        status: 200,
+      })
+    )
+
+    await expect(
+      hubspotSelectorAttachments['hubspot.owners'].execute(
+        args({ kind: 'detail', id: '777' }, 'hubspot.owners')
+      )
+    ).resolves.toEqual({
+      kind: 'detail',
+      item: { id: '777', label: 'Katherine Johnson' },
+    })
+    expect(String(mockFetch.mock.calls[0]?.[0])).toBe('https://api.hubapi.com/crm/v3/owners/777')
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })
