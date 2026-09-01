@@ -853,7 +853,7 @@ export class AgentBlockHandler implements BlockHandler {
         ...formattedParams,
         inputMapping: assembleCustomBlockInputMapping(
           projectedParams,
-          getBlock(tool.type)?.subBlocks
+          formattedTool.customBlockInputFields
         ),
       }
     }

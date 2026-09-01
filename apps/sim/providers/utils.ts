@@ -808,7 +808,11 @@ export async function transformBlockTool(
       logger.warn('deployed_block_executor tool not registered')
       return null
     }
-    const inputMapping = assembleCustomBlockInputMapping(block.params || {}, blockDef.subBlocks)
+    // From the BINDING, not `blockDef.subBlocks`: the server overlay builds custom-block
+    // configs with `inputFields: []`, so on the execution path the block config carries no
+    // field sub-blocks and the decode would silently no-op, handing the child workflow the
+    // string 'false' for a boolean input.
+    const inputMapping = assembleCustomBlockInputMapping(block.params || {}, binding.inputFields)
     // A `file[]` field is omitted from the model schema (the model can't synthesize
     // upload descriptors). If such a field is REQUIRED and the user hasn't
     // pre-filled it on the block, no invocation could ever satisfy the child's
@@ -834,6 +838,9 @@ export async function transformBlockTool(
         blockType: block.type,
         inputMapping,
       },
+      // The projection has to assemble its copy from the same fields, or the two mappings
+      // decode differently and the provenance comparison reads that as a shape divergence.
+      customBlockInputFields: binding.inputFields,
       parameters: buildCustomBlockInputMappingSchema(
         blockDef.name,
         binding.inputFields,

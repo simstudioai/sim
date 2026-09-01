@@ -401,9 +401,26 @@ export function subBlockTypeForJsonSchema(property: JsonSchemaProperty): SubBloc
   return 'short-input'
 }
 
-/** The value shape a JSON Schema property's control writes, for MCP and custom tools. */
+/**
+ * The value shape a JSON Schema property's control writes, for MCP and custom tools.
+ *
+ * Read from the schema, NOT from the control {@link subBlockTypeForJsonSchema} picks: an
+ * `object` renders in a code editor, whose store value is the raw JSON text, so asking
+ * the control would answer `'string'` and the argument would reach the MCP server
+ * undecoded. The same holds for a non-primitive enum, which renders as free text.
+ */
 function getJsonSchemaValueShape(property: JsonSchemaProperty): ToolParamValueShape {
-  return getSubBlockValueShape({ type: subBlockTypeForJsonSchema(property) })
+  if (Array.isArray(property.enum)) {
+    return property.enum.every((option) => option === null || typeof option !== 'object')
+      ? 'string'
+      : 'json'
+  }
+
+  const type = jsonSchemaType(property)
+  if (type === 'boolean') return 'boolean'
+  if (type === 'number' || type === 'integer') return 'number'
+  if (type === 'object' || type === 'array') return 'json'
+  return 'string'
 }
 
 /** The value shape of every argument an MCP or custom tool's schema declares. */
@@ -460,8 +477,14 @@ function jsonSchemaRequired(schema: JsonSchemaObject | undefined): Set<string> {
   return new Set(required.filter((entry): entry is string => typeof entry === 'string'))
 }
 
-/** The declared type, tolerating a union such as `['string', 'null']`. */
-function jsonSchemaType(property: JsonSchemaProperty): string | undefined {
+/**
+ * The declared type, tolerating a union such as `['string', 'null']`.
+ *
+ * Exported so every reader of a schema property normalizes it the same way — a control
+ * chosen from the normalized type but a value handled from the raw one is how a nullable
+ * object ends up in a JSON editor that persists it as raw text.
+ */
+export function jsonSchemaType(property: JsonSchemaProperty): string | undefined {
   const { type } = property
   if (typeof type === 'string') return type
   if (Array.isArray(type)) {

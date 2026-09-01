@@ -369,16 +369,24 @@ describe('buildSubBlocksFromJsonSchema', () => {
     expect(buildSubBlocksFromJsonSchema({}, identity)).toEqual([])
   })
 
-  it('agrees with the shapes used to decode the same schema', () => {
+  it('decodes a scalar as its control stores it, and a structured value as JSON', () => {
     const schema = {
       properties: { flag: { type: 'boolean' }, body: { type: 'object' }, name: { type: 'string' } },
     }
     const shapes = buildJsonSchemaParamShapes(schema)
     const byId = new Map(buildSubBlocksFromJsonSchema(schema, identity).map((sb) => [sb.id, sb]))
 
-    for (const [paramId, shape] of shapes) {
-      expect(getSubBlockValueShape(byId.get(paramId)!)).toBe(shape)
+    // A scalar control writes its own type, so the two agree.
+    for (const paramId of ['flag', 'name']) {
+      expect(getSubBlockValueShape(byId.get(paramId)!)).toBe(shapes.get(paramId))
     }
+
+    // A structured value deliberately does NOT: it renders in a code editor, whose store
+    // value is the raw JSON text, but the tool needs it parsed. Deriving the shape from
+    // the control here is what left MCP object args undecoded.
+    expect(byId.get('body')!.type).toBe('code')
+    expect(getSubBlockValueShape(byId.get('body')!)).toBe('string')
+    expect(shapes.get('body')).toBe('json')
   })
 })
 
@@ -459,5 +467,57 @@ describe('decodeToolParams with a checkbox-list', () => {
       checkboxSubBlock,
     ])
     expect(result).not.toHaveProperty('readUrlOptions')
+  })
+})
+
+describe('buildJsonSchemaParamShapes', () => {
+  it('reads the shape from the schema, not the control it renders as', () => {
+    // An `object` renders in a code editor whose store value is raw JSON text, so
+    // asking the control would answer 'string' and the MCP server would be handed
+    // undecoded text.
+    const shapes = buildJsonSchemaParamShapes({
+      properties: {
+        obj: { type: 'object' },
+        arr: { type: 'array' },
+        flag: { type: 'boolean' },
+        count: { type: 'integer' },
+        name: { type: 'string' },
+      },
+    })
+
+    expect(Object.fromEntries(shapes)).toEqual({
+      obj: 'json',
+      arr: 'json',
+      flag: 'boolean',
+      count: 'number',
+      name: 'string',
+    })
+  })
+
+  it('normalizes a nullable union the same way the control does', () => {
+    const schema = {
+      properties: {
+        nullableObj: { type: ['object', 'null'] },
+        nullableInt: { type: ['integer', 'null'], minimum: 1, maximum: 10 },
+      },
+    }
+    const shapes = buildJsonSchemaParamShapes(schema)
+    const controls = new Map(
+      buildSubBlocksFromJsonSchema(schema, (id) => id).map((sb) => [sb.id, sb.type])
+    )
+
+    expect(shapes.get('nullableObj')).toBe('json')
+    expect(controls.get('nullableObj')).toBe('code')
+    expect(shapes.get('nullableInt')).toBe('number')
+    expect(controls.get('nullableInt')).toBe('slider')
+  })
+
+  it('treats a structured enum as JSON and a primitive one as text', () => {
+    const shapes = buildJsonSchemaParamShapes({
+      properties: { structured: { enum: [{ a: 1 }] }, primitive: { enum: ['x', 'y'] } },
+    })
+
+    expect(shapes.get('structured')).toBe('json')
+    expect(shapes.get('primitive')).toBe('string')
   })
 })

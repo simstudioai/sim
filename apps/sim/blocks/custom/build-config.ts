@@ -1,8 +1,8 @@
 import type { WorkflowInputField } from '@/lib/workflows/input-format'
 import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
 import {
-  buildToolParamShapes,
   decodeToolParams,
+  getToolParamValueShape,
   subBlockTypeForValueType,
 } from '@/tools/param-shape'
 
@@ -103,16 +103,17 @@ export function isReservedOutputName(name: string): boolean {
  */
 export function assembleCustomBlockInputMapping(
   params: Record<string, unknown>,
-  fieldSubBlocks: readonly SubBlockConfig[] = []
+  inputFields: readonly CustomBlockInputFieldType[] | undefined = []
 ): string {
   // A tool row stringifies every value, so a `boolean` field toggled off arrives as the
-  // string 'false' and would be handed to the child workflow as a truthy string. The
-  // field sub-blocks are what encoded it, so they are what decodes it.
-  const decoded = decodeToolParams(
-    params,
-    buildToolParamShapes(fieldSubBlocks, undefined),
-    fieldSubBlocks
+  // string 'false' and would reach the child workflow as a truthy string. Keyed on the
+  // field's DECLARED type rather than the control it renders as: a `number` collects in
+  // a text field and an `object` in a code editor, both of which store strings, so asking
+  // the control would answer `'string'` and decode nothing.
+  const shapes = new Map(
+    inputFields.map((field) => [field.id ?? field.name, getToolParamValueShape(field.type)])
   )
+  const decoded = decodeToolParams(params, shapes)
   const mapping: Record<string, unknown> = {}
   for (const [key, val] of Object.entries(decoded)) {
     if (RESERVED_PARAMS.has(key)) continue
@@ -123,30 +124,28 @@ export function assembleCustomBlockInputMapping(
 }
 
 /**
- * Synthesize a `BlockConfig` for a published custom block from its DB row and the
- * live-derived Start input fields. Shared by the client (real icon + per-field
- * editors) and the server (placeholder icon + `inputFields: []`, since the
- * `inputMapping` wiring is schema-agnostic).
+ * The editable field sub-blocks a custom block exposes, one per Start input.
  *
- * Execution reuses the `workflow_executor` tool: the bound `workflowId` and the
- * assembled `inputMapping` are hidden, baked sub-blocks; each Start input becomes
- * its own editable sub-block whose value is collected into `inputMapping`.
- * `<refs>` inside those values resolve at execution exactly like the
- * `workflow_input` block.
+ * Split out because the server overlay builds its configs with `inputFields: []` (the
+ * live derivation is not free), so on the execution path `blockDef.subBlocks` carries
+ * none of them. The agent-tool transform has the authoritative fields from the block's
+ * binding and rebuilds them here rather than trusting the overlay.
  *
  * The sub-block id is the field's stable id (`field.id`), NOT its display name, so
  * renaming a Start input in the source workflow and redeploying never orphans a
- * consumer's placed value. The name is shown as the sub-block title and is what
- * the child workflow ultimately receives — the id→name remap happens at execution
- * in `WorkflowBlockHandler` against the loaded child's current field names. Legacy
- * fields without an id fall back to keying on the name.
+ * consumer's placed value. Legacy fields without an id fall back to keying on the name.
  */
-export function buildCustomBlockConfig(
-  row: CustomBlockRow,
-  inputFields: WorkflowInputField[],
-  opts: { icon: BlockIcon; bgColor?: string; hideFromToolbar?: boolean }
-): BlockConfig {
-  const fieldSubBlocks: SubBlockConfig[] = inputFields.map((field) => {
+/** The parts of a Start input field that decide how its stored value decodes. */
+export interface CustomBlockInputFieldType {
+  id?: string
+  name: string
+  type: string
+}
+
+function buildCustomBlockFieldSubBlocks(
+  inputFields: readonly WorkflowInputField[]
+): SubBlockConfig[] {
+  return inputFields.map((field) => {
     const type = subBlockTypeForValueType(field.type)
     const sub: SubBlockConfig = {
       id: field.id ?? field.name,
@@ -162,6 +161,28 @@ export function buildCustomBlockConfig(
     if (field.type === 'file[]') sub.multiple = true
     return sub
   })
+}
+
+/**
+ * Synthesize a `BlockConfig` for a published custom block from its DB row and the
+ * live-derived Start input fields. Shared by the client (real icon + per-field
+ * editors) and the server (placeholder icon + `inputFields: []`, since the
+ * `inputMapping` wiring is schema-agnostic).
+ *
+ * Execution reuses the `workflow_executor` tool: the bound `workflowId` and the
+ * assembled `inputMapping` are hidden, baked sub-blocks; each Start input becomes
+ * its own editable sub-block whose value is collected into `inputMapping`.
+ * `<refs>` inside those values resolve at execution exactly like the
+ * `workflow_input` block. The name is shown as the sub-block title and is what the
+ * child workflow ultimately receives — the id→name remap happens at execution in
+ * `WorkflowBlockHandler` against the loaded child's current field names.
+ */
+export function buildCustomBlockConfig(
+  row: CustomBlockRow,
+  inputFields: WorkflowInputField[],
+  opts: { icon: BlockIcon; bgColor?: string; hideFromToolbar?: boolean }
+): BlockConfig {
+  const fieldSubBlocks = buildCustomBlockFieldSubBlocks(inputFields)
 
   return {
     type: row.type,
@@ -193,7 +214,7 @@ export function buildCustomBlockConfig(
         type: 'code',
         language: 'json',
         hidden: true,
-        value: (params) => assembleCustomBlockInputMapping(params),
+        value: (params) => assembleCustomBlockInputMapping(params, inputFields),
       },
       ...fieldSubBlocks,
     ],

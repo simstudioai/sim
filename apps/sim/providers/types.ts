@@ -1,4 +1,5 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { CustomBlockInputFieldType } from '@/blocks/custom/build-config'
 import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 
 export type ProviderId =
@@ -150,6 +151,14 @@ export interface ProviderToolConfig {
    * provenance registry incomplete.
    */
   jsonShapedParamKeys?: readonly string[]
+  /**
+   * A custom (deploy-as-block) block's Start input fields, resolved from its binding
+   * rather than the block config — the server overlay builds those with `inputFields: []`.
+   *
+   * The resolved-secret projection reassembles `inputMapping` and must decode it against
+   * the identical fields, or its shape diverges from the executed copy.
+   */
+  customBlockInputFields?: readonly CustomBlockInputFieldType[]
 }
 
 export interface Message {

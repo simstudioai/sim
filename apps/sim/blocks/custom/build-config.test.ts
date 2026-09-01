@@ -182,9 +182,9 @@ describe('sourceWorkspaceName', () => {
 
 describe('assembleCustomBlockInputMapping', () => {
   const fieldSubBlocks = [
-    { id: 'flag', title: 'Flag', type: 'switch' as const },
-    { id: 'payload', title: 'Payload', type: 'code' as const, language: 'json' as const },
-    { id: 'name', title: 'Name', type: 'short-input' as const },
+    { id: 'flag', name: 'flag', type: 'boolean' },
+    { id: 'payload', name: 'payload', type: 'object' },
+    { id: 'name', name: 'name', type: 'string' },
   ]
 
   it("decodes a tool row's stringified boolean before handing it to the child", () => {
@@ -216,6 +216,40 @@ describe('assembleCustomBlockInputMapping', () => {
   it('keeps a canvas value that is already typed', () => {
     expect(JSON.parse(assembleCustomBlockInputMapping({ flag: false }, fieldSubBlocks))).toEqual({
       flag: false,
+    })
+  })
+})
+
+describe('assembleCustomBlockInputMapping field decoding', () => {
+  const inputFields = [
+    { id: 'flag', name: 'flag', type: 'boolean' },
+    { id: 'count', name: 'count', type: 'number' },
+    { id: 'body', name: 'body', type: 'object' },
+    { id: 'note', name: 'note', type: 'string' },
+  ]
+
+  it('decodes on the DECLARED field type, not the control it renders as', () => {
+    // `number` collects in a text field and `object` in a code editor — both store
+    // strings, so keying on the control would decode neither.
+    expect(
+      JSON.parse(
+        assembleCustomBlockInputMapping(
+          { flag: 'false', count: '3', body: '{"a":1}', note: 'false' },
+          inputFields
+        )
+      )
+    ).toEqual({ flag: false, count: 3, body: { a: 1 }, note: 'false' })
+  })
+
+  it('leaves canvas values, which are already typed, untouched', () => {
+    expect(
+      JSON.parse(assembleCustomBlockInputMapping({ flag: false, count: 3 }, inputFields))
+    ).toEqual({ flag: false, count: 3 })
+  })
+
+  it('passes values through when no fields are known', () => {
+    expect(JSON.parse(assembleCustomBlockInputMapping({ flag: 'false' }))).toEqual({
+      flag: 'false',
     })
   })
 })

@@ -895,6 +895,13 @@ export function getSubBlocksForToolInput(
       filtered.push({ ...sb, paramVisibility: visibility })
     }
 
+    // A handful of sub-blocks declare no `title` (`function.language`, `router.routes`,
+    // …). On the canvas that is deliberate, but a tool row labels every field, so fall
+    // back to the formatted param id — the label the old renderer produced.
+    for (const [index, sb] of filtered.entries()) {
+      if (!sb.title) filtered[index] = { ...sb, title: formatParameterLabel(sb.id) }
+    }
+
     const claimedParamIds = buildClaimedParamIds(allSubBlocks, canonicalIndex)
 
     for (const [paramId, param] of Object.entries(toolConfig.params || {})) {

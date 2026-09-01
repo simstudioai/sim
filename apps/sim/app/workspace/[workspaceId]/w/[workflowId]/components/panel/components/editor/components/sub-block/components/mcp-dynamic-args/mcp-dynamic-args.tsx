@@ -11,7 +11,11 @@ import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[wor
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
-import { type JsonSchemaProperty, subBlockTypeForJsonSchema } from '@/tools/param-shape'
+import {
+  type JsonSchemaProperty,
+  jsonSchemaType,
+  subBlockTypeForJsonSchema,
+} from '@/tools/param-shape'
 import { formatParameterLabel } from '@/tools/params'
 
 const logger = createLogger('McpDynamicArgs')
@@ -37,8 +41,8 @@ function isPrimitiveEnum(
  */
 function requiresJsonValue(paramSchema: any): boolean {
   return (
-    paramSchema.type === 'object' ||
-    paramSchema.type === 'array' ||
+    jsonSchemaType(paramSchema) === 'object' ||
+    jsonSchemaType(paramSchema) === 'array' ||
     (Array.isArray(paramSchema.enum) && !isPrimitiveEnum(paramSchema.enum))
   )
 }
@@ -82,7 +86,7 @@ function createParamConfig(
   inputType: 'long-input' | 'short-input'
 ): SubBlockConfig {
   const placeholder =
-    paramSchema.type === 'array'
+    jsonSchemaType(paramSchema) === 'array'
       ? `Enter JSON array, e.g. ["item1", "item2"] or comma-separated values`
       : paramSchema.description || `Enter ${formatParameterLabel(paramName).toLowerCase()}`
 
@@ -309,11 +313,11 @@ export function McpDynamicArgs({
               value={[currentValue]}
               min={minValue}
               max={maxValue}
-              step={paramSchema.type === 'integer' ? 1 : 0.1}
+              step={jsonSchemaType(paramSchema) === 'integer' ? 1 : 0.1}
               onValueChange={(newValue) =>
                 updateParameter(
                   paramName,
-                  paramSchema.type === 'integer' ? Math.round(newValue[0]) : newValue[0]
+                  jsonSchemaType(paramSchema) === 'integer' ? Math.round(newValue[0]) : newValue[0]
                 )
               }
               disabled={disabled}
@@ -327,7 +331,7 @@ export function McpDynamicArgs({
                 top: '24px',
               }}
             >
-              {paramSchema.type === 'integer'
+              {jsonSchemaType(paramSchema) === 'integer'
                 ? Math.round(currentValue).toString()
                 : Number(currentValue).toFixed(1)}
             </div>
@@ -377,7 +381,7 @@ export function McpDynamicArgs({
                 updateParameter(paramName, JSON.parse(newValue))
                 clearDraft()
               } catch {
-                if (paramSchema.type === 'array' && !looksLikeJsonLiteral(newValue)) {
+                if (jsonSchemaType(paramSchema) === 'array' && !looksLikeJsonLiteral(newValue)) {
                   updateParameter(paramName, newValue)
                   clearDraft()
                   return
@@ -400,7 +404,8 @@ export function McpDynamicArgs({
           paramSchema.format === 'password' ||
           paramName.toLowerCase().includes('password') ||
           paramName.toLowerCase().includes('token')
-        const isNumeric = paramSchema.type === 'number' || paramSchema.type === 'integer'
+        const numericType = jsonSchemaType(paramSchema)
+        const isNumeric = numericType === 'number' || numericType === 'integer'
         const config = createParamConfig(paramName, paramSchema, 'short-input')
 
         return (
@@ -418,7 +423,7 @@ export function McpDynamicArgs({
 
               if (isNumeric && processedValue !== '' && !hasTag) {
                 processedValue =
-                  paramSchema.type === 'integer'
+                  jsonSchemaType(paramSchema) === 'integer'
                     ? Number.parseInt(processedValue)
                     : Number.parseFloat(processedValue)
 

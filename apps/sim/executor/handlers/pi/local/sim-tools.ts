@@ -171,9 +171,23 @@ function buildSimToolSpec(
           projectedTool.params || {},
           args as Record<string, unknown>
         )
-        const projectedParams = transformApplied
-          ? applyParamsTransform(mergedProjectedParams)
-          : mergedProjectedParams
+
+        // The projected copy has to go through the SAME transform, or its shape diverges
+        // from the executed params and the comparison below reads that as a provenance
+        // failure. If the transform succeeded for the real params but throws here, fail
+        // closed rather than pairing transformed params with untransformed projected ones
+        // — mirrors `prepareToolExecution`'s `tool-params-transform-failed`.
+        let projectedParams = mergedProjectedParams
+        if (transformApplied && provider.paramsTransform) {
+          try {
+            projectedParams = provider.paramsTransform(mergedProjectedParams)
+          } catch (error) {
+            logger.warn('paramsTransform failed for the Pi local tool projection', { error })
+            toolCallRegistry.markIncomplete('tool-params-transform-failed')
+            return unavailableToolResult()
+          }
+        }
+
         toolCallRegistry.recordTransformedInputProjection(params, projectedParams)
         if (!toolCallRegistry.isComplete()) return unavailableToolResult()
       }
