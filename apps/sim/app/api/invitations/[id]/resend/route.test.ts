@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   MockInvitationsNotAllowedError,
   mockGetInvitationById,
+  mockResolveInvitationAdmissionOrganizationId,
   mockIsOrganizationOwnerOrAdmin,
   mockHasWorkspaceAdminAccess,
   mockGetWorkspaceWithOwner,
@@ -24,6 +25,7 @@ const {
     }
   },
   mockGetInvitationById: vi.fn(),
+  mockResolveInvitationAdmissionOrganizationId: vi.fn(),
   mockIsOrganizationOwnerOrAdmin: vi.fn(),
   mockHasWorkspaceAdminAccess: vi.fn(),
   mockGetWorkspaceWithOwner: vi.fn(),
@@ -46,7 +48,10 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   validateInvitationsAllowed: mockValidateInvitationsAllowed,
 }))
 
-vi.mock('@/lib/invitations/core', () => ({ getInvitationById: mockGetInvitationById }))
+vi.mock('@/lib/invitations/core', () => ({
+  getInvitationById: mockGetInvitationById,
+  resolveInvitationAdmissionOrganizationId: mockResolveInvitationAdmissionOrganizationId,
+}))
 vi.mock('@/lib/invitations/send', () => ({
   sendInvitationEmail: mockSendInvitationEmail,
   prepareInvitationResend: mockPrepareInvitationResend,
@@ -90,7 +95,7 @@ const workspaceInvitation = {
   role: 'member',
   token: 'token-1',
   organizationId: 'organization-1',
-  membershipIntent: 'member',
+  membershipIntent: 'internal',
   grants: [{ workspaceId: 'workspace-1', permission: 'read' }],
 }
 
@@ -104,6 +109,7 @@ describe('POST /api/invitations/[id]/resend', () => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1', email: 'admin@example.com' } })
     mockGetInvitationById.mockResolvedValue(workspaceInvitation)
+    mockResolveInvitationAdmissionOrganizationId.mockResolvedValue('organization-1')
     mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
     mockHasWorkspaceAdminAccess.mockResolvedValue(true)
     mockGetWorkspaceWithOwner.mockResolvedValue({
@@ -131,12 +137,21 @@ describe('POST /api/invitations/[id]/resend', () => {
     expect(mockSendInvitationEmail).toHaveBeenCalled()
   })
 
-  it('refuses the resend when the group withholds invitations', async () => {
+  /**
+   * The refusal carries the shared capability contract — the same sentence and
+   * `details.code` every other withheld capability answers with — so a client
+   * can tell a permission group apart from a role failure without parsing prose.
+   */
+  it('refuses the resend with the shared capability refusal when the group withholds invitations', async () => {
     mockValidateInvitationsAllowed.mockRejectedValue(new MockInvitationsNotAllowedError())
 
     const response = await callResend()
 
     expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: "Sending invitations is not available under your organization's permission group",
+      details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+    })
     expect(mockSendInvitationEmail).not.toHaveBeenCalled()
     expect(mockPersistInvitationResend).not.toHaveBeenCalled()
   })
@@ -192,10 +207,49 @@ describe('POST /api/invitations/[id]/resend', () => {
   })
 
   /**
-   * A workspace-kind invitation admits nobody to the organization by itself, so
-   * its grants remain the whole scope.
+   * The scope follows what acceptance would DO, not the invitation's kind. A
+   * workspace-kind invitation whose granted workspace belongs to an organization
+   * joins the invitee to that organization exactly as an organization-kind one
+   * does, so keying the organization check on `kind === 'organization'` left
+   * every organization-backed workspace invitation performing an ungated
+   * organization admission.
    */
-  it('leaves a granted workspace invitation checked per workspace only', async () => {
+  it('checks the organization an organization-backed workspace invitation admits to', async () => {
+    const response = await callResend()
+
+    expect(response.status).toBe(200)
+    expect(mockResolveInvitationAdmissionOrganizationId).toHaveBeenCalledWith(workspaceInvitation)
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
+      organizationId: 'organization-1',
+    })
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
+      workspaceId: 'workspace-1',
+    })
+  })
+
+  it('refuses a workspace invitation whose admitting organization withholds invitations', async () => {
+    mockValidateInvitationsAllowed.mockImplementation(
+      async (_userId: string, scope: { organizationId?: string }) => {
+        if (scope.organizationId) throw new MockInvitationsNotAllowedError()
+      }
+    )
+
+    const response = await callResend()
+
+    expect(response.status).toBe(403)
+    expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+    expect(mockPersistInvitationResend).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Nothing to gate at the organization scope when acceptance creates no member
+   * row there — an external invitation, or a personal workspace's — so the
+   * grants stay the whole scope rather than borrowing a stamped organization the
+   * invitee will never join.
+   */
+  it('checks the grants alone when the invitation admits to no organization', async () => {
+    mockResolveInvitationAdmissionOrganizationId.mockResolvedValue(null)
+
     const response = await callResend()
 
     expect(response.status).toBe(200)
@@ -211,6 +265,7 @@ describe('POST /api/invitations/[id]/resend', () => {
       kind: 'organization',
       grants: [],
     })
+    mockResolveInvitationAdmissionOrganizationId.mockResolvedValue('organization-1')
     mockGetOrganizationSubscription.mockResolvedValue({ status: 'active', plan: 'team' })
 
     const response = await callResend()

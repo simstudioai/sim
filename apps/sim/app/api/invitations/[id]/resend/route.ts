@@ -12,12 +12,13 @@ import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getInvitationById } from '@/lib/invitations/core'
+import { getInvitationById, resolveInvitationAdmissionOrganizationId } from '@/lib/invitations/core'
 import {
   persistInvitationResend,
   prepareInvitationResend,
   sendInvitationEmail,
 } from '@/lib/invitations/send'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getWorkspaceWithOwner, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
 import {
@@ -81,27 +82,30 @@ export const POST = withRouteHandler(
        * reachability already exists and the edit only adjusts it.
        *
        * Each granted workspace resolves the group governing the caller there,
-       * exactly as creation does. The organization scope is checked *as well*
-       * for an organization-kind invitation, not instead: that kind always
-       * admits the invitee to its stamped organization (`lib/invitations/core.ts`
-       * documents it on `resolveInvitationJoinTarget`), so the resend performs an
-       * organization-level admission whichever workspaces it also grants. Gating
-       * only the grants would let an explicit workspace group that permits
-       * invitations carry a member into an organization whose default group
-       * withholds them — and would leave the organization-level act ungated the
-       * moment such an invitation carried any grant at all. A workspace-kind
-       * invitation admits nobody to the organization by itself, so it keeps the
-       * per-grant check, falling back to the organization when it has no grants.
+       * exactly as creation does. The organization scope is checked *as well*,
+       * not instead, whenever the invitation ADMITS TO an organization — which
+       * is not the same question as its `kind`. A workspace-kind invitation
+       * whose granted workspace belongs to an organization joins the invitee to
+       * that organization exactly as an organization-kind one does, so keying
+       * this on the kind left every organization-backed workspace invitation
+       * performing an ungated organization admission. `resolveInvitationAdmission-
+       * OrganizationId` answers it from acceptance's own derivation: the live
+       * organization of the granted workspace for a workspace-kind invitation,
+       * the stamped one otherwise, and nobody at all when the intent is external
+       * or the stamped organization refuses the escalation — the three cases
+       * where acceptance creates no member row. Gating only the grants would let
+       * an explicit workspace group that permits invitations carry a member into
+       * an organization whose default group withholds them.
        *
        * Run after the admin check above, for the reason
        * `resolveWorkspaceInvitationContext` records — the refusal names an
        * organization setting, so it must not reach someone with no admin reach.
        */
       try {
-        const organizationScoped = inv.kind === 'organization' || inv.grants.length === 0
-        if (organizationScoped && inv.organizationId) {
+        const admissionOrganizationId = await resolveInvitationAdmissionOrganizationId(inv)
+        if (admissionOrganizationId) {
           await validateInvitationsAllowed(session.user.id, {
-            organizationId: inv.organizationId,
+            organizationId: admissionOrganizationId,
           })
         }
         for (const grant of inv.grants) {
@@ -110,7 +114,7 @@ export const POST = withRouteHandler(
       } catch (error) {
         if (error instanceof InvitationsNotAllowedError) {
           logger.warn('Invitation resend blocked by permission group', { invitationId: id })
-          return NextResponse.json({ error: error.message }, { status: 403 })
+          return capabilityRefusalResponse('invitations.send')
         }
         throw error
       }
