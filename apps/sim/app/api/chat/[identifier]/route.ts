@@ -273,7 +273,16 @@ export const POST = withRouteHandler(
 
         const workflowForExecution = {
           id: deployment.workflowId,
-          userId: deployment.userId,
+          /**
+           * The workflow owner, not the chat's creator: `executeWorkflow` reads this
+           * one field to set `workflowUserId`, the personal-environment fallback for
+           * runs with no identifiable caller. `chat.userId` records who deployed the
+           * chat and is never maintained as an execution identity — member removal
+           * reassigns `workflow.userId` to keep it an active workspace identity and
+           * has no equivalent for the chat row — so reading it here made deployed
+           * chat resolve a pointer that every other trigger had already repaired.
+           */
+          userId: workflowRecord.userId,
           workspaceId,
           isDeployed: workflowRecord?.isDeployed ?? false,
           variables: (workflowRecord?.variables as Record<string, unknown>) ?? undefined,

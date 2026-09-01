@@ -1,10 +1,47 @@
 import { isRecordLike } from '@sim/utils/object'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getEffectiveDecryptedEnv, getExecutionEnvironment } from '@/lib/environment/utils'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
 export interface WebhookEnvResolutionOptions {
   envVars?: Record<string, string>
   onResolved?: (name: string, value: string) => void
+}
+
+/**
+ * Resolves the env a webhook config is read against when there is no caller to
+ * speak of — an inbound delivery or a provider's URL-validation challenge.
+ *
+ * Splits the two identities the same way the executor does: personal variables
+ * stay with the workflow owner who authored the config, and workspace variables
+ * authorize against the workspace's billing account, which is the identity such
+ * a run acts as. Reading both slices as the owner made a webhook stop resolving
+ * its own signing secret the moment that person left the workspace — silently,
+ * because every caller here treats an unresolvable secret as a rejected request
+ * rather than an error.
+ *
+ * Falls back to owner-as-both when the workspace has no billing account or no
+ * workspace is involved at all, which is exactly the previous behavior.
+ */
+export async function resolveBackgroundWebhookEnv(
+  workflowOwnerUserId: string,
+  workspaceId?: string
+): Promise<Record<string, string>> {
+  if (!workspaceId) {
+    return getEffectiveDecryptedEnv(workflowOwnerUserId)
+  }
+
+  const { getWorkspaceBilledAccountUserId } = await import('@/lib/billing/core/billing-attribution')
+  const billedAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
+  if (!billedAccountUserId) {
+    return getEffectiveDecryptedEnv(workflowOwnerUserId, workspaceId)
+  }
+
+  const snapshot = await getExecutionEnvironment(
+    workflowOwnerUserId,
+    billedAccountUserId,
+    workspaceId
+  )
+  return { ...snapshot.personalDecrypted, ...snapshot.workspaceDecrypted }
 }
 
 /**

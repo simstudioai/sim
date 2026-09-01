@@ -408,6 +408,30 @@ export async function getPersonalAndWorkspaceEnv(
 }
 
 /**
+ * Keeps only the workspace slice of a snapshot resolved for a single identity.
+ *
+ * Used wherever a run has no personal namespace to lend, so the identity that
+ * authorized the workspace variables cannot leak its own personal ones in
+ * alongside them. `conflicts` is empty by construction once the personal slice
+ * is, and a decryption failure is only carried over when it belongs to the slice
+ * being kept.
+ */
+function toWorkspaceOnlySnapshot(
+  snapshot: EnvironmentResolutionSnapshot
+): EnvironmentResolutionSnapshot {
+  return {
+    ...snapshot,
+    personalEncrypted: {},
+    personalDecrypted: {},
+    personalOwners: {},
+    conflicts: [],
+    decryptionFailures: snapshot.decryptionFailures.filter(
+      (key) => key in snapshot.workspaceEncrypted
+    ),
+  }
+}
+
+/**
  * Resolves one execution's environment from two independent identities.
  *
  * Workspace variables authorize against the execution actor, so the
@@ -424,15 +448,34 @@ export async function getPersonalAndWorkspaceEnv(
  * A run whose two identities coincide, which is every interactive run, resolves
  * exactly as before through a single query.
  *
- * When the actor has no access to the workspace at all, the personal identity is
- * reused for both slices and the fault is reported rather than raised.
- * `workspace.billedAccountUserId` is a stored column rather than a derivation,
- * so an organization ownership transfer can leave it pointing at a user with no
- * remaining access; failing here would take down every background execution in
- * that workspace for a misconfiguration the run itself did not cause. The error
- * line is what makes that state visible while it is repaired.
+ * Neither identity is a permission the run holds — both are stored pointers that
+ * outlive the access that made them valid, so a stale one is reported rather than
+ * raised. `workspace.billedAccountUserId` is a stored column rather than a
+ * derivation, so an ownership transfer can leave the actor pointing at a user with
+ * no remaining access; `workflow.userId` is likewise a stored pointer that
+ * member-removal repairs on the paths it knows about. Failing on either would take
+ * down every background execution in the workspace for a misconfiguration the run
+ * itself did not cause. The error lines are what make that state visible while it
+ * is repaired.
  *
- * That fallback is gated on the access decision alone, never on a failed query.
+ * The two stale cases degrade differently because the identities mean different
+ * things. An actor that cannot reach the workspace leaves the owner as the only
+ * identity to authorize the workspace slice against, so the run falls back to
+ * resolving both slices as the owner. A personal identity that cannot reach the
+ * workspace is no longer someone whose private namespace it is reasonable to lend
+ * — the same judgment already applied to an anonymous public-API call — so the run
+ * keeps the actor's workspace slice and resolves no personal variables at all.
+ * Continuing to lend a removed member's personal secrets to their former
+ * organization's background runs is the outcome to avoid, not the one to preserve.
+ * A reference to a variable that is no longer resolvable survives as its literal
+ * `{{NAME}}` and fails at the block that needs it, which names the missing
+ * variable instead of failing the run before any block has started.
+ *
+ * With no reachable identity on either side there is nobody to authorize the
+ * workspace slice against, and a filtered selection cannot be computed, so that
+ * case still raises.
+ *
+ * These fallbacks are gated on the access decision alone, never on a failed query.
  * Widening to a `catch` would let a transient database fault silently promote the
  * run to the owner's broader secret selection, which is the opposite of what an
  * infrastructure error should do — those propagate and fail the run.
@@ -443,35 +486,61 @@ export async function getExecutionEnvironment(
   workspaceId?: string
 ): Promise<EnvironmentResolutionSnapshot> {
   if (personalUserId === undefined) {
-    const workspaceOnly = await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId)
-    return {
-      ...workspaceOnly,
-      personalEncrypted: {},
-      personalDecrypted: {},
-      personalOwners: {},
-      conflicts: [],
-      decryptionFailures: workspaceOnly.decryptionFailures.filter(
-        (key) => key in workspaceOnly.workspaceEncrypted
-      ),
-    }
+    return toWorkspaceOnlySnapshot(await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId))
   }
 
   if (!workspaceId || workspaceUserId === personalUserId) {
     return getPersonalAndWorkspaceEnv(personalUserId, workspaceId)
   }
 
-  const actorAccess = await checkWorkspaceAccess(workspaceId, workspaceUserId)
+  const [actorAccess, personalAccess] = await Promise.all([
+    checkWorkspaceAccess(workspaceId, workspaceUserId),
+    checkWorkspaceAccess(workspaceId, personalUserId),
+  ])
+
+  /**
+   * A workspace that no longer exists and one an identity may not read are
+   * different facts, exactly as in {@link getPersonalAndWorkspaceEnv}. Only the
+   * second is a stale pointer worth degrading for.
+   */
+  if (!personalAccess.exists) {
+    throw new Error(`Workspace ${workspaceId} does not exist`)
+  }
+
+  if (!personalAccess.hasAccess) {
+    if (!actorAccess.hasAccess) {
+      logger.error('Neither execution identity can reach the workspace', {
+        personalUserId,
+        workspaceUserId,
+        workspaceId,
+      })
+      throw new Error(`Access denied to workspace ${workspaceId}`)
+    }
+
+    logger.error(
+      'Personal-environment identity cannot reach the workspace; resolving workspace variables only',
+      { personalUserId, workspaceUserId, workspaceId }
+    )
+    return toWorkspaceOnlySnapshot(
+      await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId, {
+        workspaceAccess: actorAccess,
+      })
+    )
+  }
+
   if (!actorAccess.hasAccess) {
     logger.error('Execution actor cannot reach the workspace; falling back to the owner', {
       personalUserId,
       workspaceUserId,
       workspaceId,
     })
-    return getPersonalAndWorkspaceEnv(personalUserId, workspaceId)
+    return getPersonalAndWorkspaceEnv(personalUserId, workspaceId, {
+      workspaceAccess: personalAccess,
+    })
   }
 
   const [personal, actor] = await Promise.all([
-    getPersonalAndWorkspaceEnv(personalUserId, workspaceId),
+    getPersonalAndWorkspaceEnv(personalUserId, workspaceId, { workspaceAccess: personalAccess }),
     getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId, { workspaceAccess: actorAccess }),
   ])
 

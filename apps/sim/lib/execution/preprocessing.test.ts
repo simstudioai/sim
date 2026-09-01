@@ -500,23 +500,37 @@ describe('preprocessExecution ban gate', () => {
     expect(mockCheckRateLimit).toHaveBeenCalledTimes(1)
   })
 
-  it('checks the actor, caller-provided userId, and workflow owner in one call', async () => {
+  it('checks the actor and the caller-provided userId in one call', async () => {
     const result = await preprocessExecution(baseOptions)
 
     expect(result.success).toBe(true)
     expect(mockGetActivelyBannedUserIds).toHaveBeenCalledTimes(1)
-    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith([
-      'billed-account-1',
-      'owner-1',
-      'creator-1',
-    ])
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1', 'owner-1'])
   })
 
-  it('excludes the "unknown" sentinel userId but still checks the workflow owner', async () => {
+  it('excludes the "unknown" sentinel userId', async () => {
     const result = await preprocessExecution({ ...baseOptions, userId: 'unknown' })
 
     expect(result.success).toBe(true)
-    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1', 'creator-1'])
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1'])
+  })
+
+  /**
+   * Banning one member must not take down the schedules, webhooks, and deployed
+   * chats their teammates depend on. Those runs act as the workspace billing
+   * account; the owner's name on the workflow row is a personal-variable
+   * fallback, and member removal reassigns it anyway.
+   */
+  it('does not block a system-triggered run because the workflow owner is banned', async () => {
+    mockGetActivelyBannedUserIds.mockImplementation(async (ids: string[]) =>
+      ids.filter((id) => id === 'creator-1')
+    )
+
+    const result = await preprocessExecution({ ...baseOptions, userId: 'unknown' })
+
+    expect(result.success).toBe(true)
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1'])
+    expect(mockGetActivelyBannedUserIds.mock.calls[0][0]).not.toContain('creator-1')
   })
 
   it('fails closed with 500 when the ban check errors', async () => {

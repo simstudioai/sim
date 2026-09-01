@@ -449,16 +449,20 @@ export async function preprocessExecution(
 
   const banCheck = (async (): Promise<GateFailure | null> => {
     /**
-     * Blocks when the resolved actor, workflow owner, or caller-provided user
-     * has an active ban or blocked email domain. Including the workflow owner
-     * covers system-triggered executions.
+     * Blocks when the resolved actor or the caller-provided user has an active
+     * ban or blocked email domain — the identities this run actually acts as.
+     *
+     * The workflow owner is deliberately NOT a candidate. A system-triggered run
+     * acts as the workspace billing account, and that account is already the
+     * actor here; the owner is only the personal-variable fallback and is a
+     * stored pointer that member removal reassigns. Banning one member of a
+     * workspace should suspend the work they do, not silently take down every
+     * schedule, webhook, and deployed chat their teammates still depend on
+     * because their name happens to sit on the workflow row.
      */
     const banCandidateIds = [actorUserId]
     if (userId && userId !== 'unknown' && userId !== actorUserId) {
       banCandidateIds.push(userId)
-    }
-    if (workflowRecord.userId && !banCandidateIds.includes(workflowRecord.userId)) {
-      banCandidateIds.push(workflowRecord.userId)
     }
     try {
       const bannedUserIds = await getActivelyBannedUserIds(banCandidateIds)

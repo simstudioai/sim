@@ -63,6 +63,13 @@ const LOG_DETAIL_EXAMPLE = {
     endedAt: '2026-01-15T10:30:01.250Z',
     totalDurationMs: 1250,
     files: null,
+    /**
+     * Deliberately a different address from `workflow.ownerEmail` below. This is
+     * an `api` run, so it executed as the workspace billing account while the
+     * workflow still belongs to the person who built it — the distinction the
+     * deprecated field cannot express.
+     */
+    executedByEmail: 'billing@example.com',
     workflow: {
       id: WORKFLOW_ID,
       name: 'Customer Support Agent',

@@ -6,7 +6,7 @@ import type { Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { readWorkflowDefinitionAsExecutor } from '@/lib/internal/workflows/read-definition'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -230,10 +230,18 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     // Custom (deploy-as-block) blocks are an invocation boundary: resolve the bound
     // workflow + authority from the DB (never trust the serialized value) and run the
-    // source workflow's LATEST deployment under its OWNER's authority — the same
-    // identity a normal deployed API/schedule/webhook run uses — so a cross-workspace
-    // consumer needs no permission on the source workflow. Owner deletion cascade-
-    // deletes the workflow → the custom_block row, so the block never orphans.
+    // source workflow's LATEST deployment under its OWNER's authority, so a cross-
+    // workspace consumer needs no permission on the source workflow. Owner deletion
+    // cascade-deletes the workflow → the custom_block row, so the block never orphans.
+    //
+    // This is a STRONGER use of the owner than any other trigger makes, and the
+    // difference is deliberate. A deployed API/schedule/webhook run acts as the
+    // workspace billing account and reads the owner only as its personal-variable
+    // fallback. A custom block instead runs wholly as the owner — both environment
+    // slices, the billing actor, and the subject of its delegated tool calls —
+    // because the contract it publishes is "this block behaves exactly as its
+    // publisher built it", and the publisher's own integrations and personal keys
+    // are part of that behavior for a consumer who can see none of them.
     // Unique ID per invocation — used to correlate child block events with this specific
     // workflow block execution, preventing cross-iteration child mixing in loop contexts.
     // Generated up front so the pre-`try` boundary failures below can carry it too.
@@ -521,7 +529,38 @@ export class WorkflowBlockHandler implements BlockHandler {
         const sourceWorkspaceId = childWorkflow.workspaceId
         childUserId = loadUserId
         childWorkspaceId = sourceWorkspaceId
-        const ownerEnv = await getPersonalAndWorkspaceEnv(loadUserId, sourceWorkspaceId)
+        // Custom-block children authenticate internal tool calls as the source
+        // owner in the source workspace, so the consumer's snapshot would fail
+        // the internal routes' actor/workspace scope match. Resolve the
+        // source-scoped payer instead — the same decision those routes made
+        // themselves before attribution headers became required.
+        //
+        // Resolved before the environment because its `billedAccountUserId` is
+        // the identity that environment resolution authorizes the workspace
+        // slice against, and reading it from here costs no extra query.
+        childBillingAttribution = await resolveBillingAttribution({
+          actorUserId: loadUserId,
+          workspaceId: sourceWorkspaceId,
+        })
+        /**
+         * Two identities, exactly as a deployed run of this same workflow
+         * resolves them: personal variables stay with the source owner, because
+         * "behaves as published" includes the publisher's own keys, while
+         * workspace variables authorize against the source workspace's billing
+         * account — the identity a schedule or webhook on this workflow already
+         * uses.
+         *
+         * Reading both slices as the owner made a custom block resolve a
+         * narrower workspace selection than the very same workflow got on a
+         * schedule, and fail outright once the owner left the source workspace.
+         * Neither difference was visible to the consumer, who cannot see the
+         * source workflow at all.
+         */
+        const ownerEnv = await getExecutionEnvironment(
+          loadUserId,
+          childBillingAttribution.billedAccountUserId,
+          sourceWorkspaceId
+        )
         childEnvVarValues = { ...ownerEnv.personalDecrypted, ...ownerEnv.workspaceDecrypted }
         childEnvVariablesForLogging = {
           ...ownerEnv.personalEncrypted,
@@ -548,15 +587,6 @@ export class WorkflowBlockHandler implements BlockHandler {
             origin: 'workflowHandler.childCrossing',
           })
         }
-        // Custom-block children authenticate internal tool calls as the source
-        // owner in the source workspace, so the consumer's snapshot would fail
-        // the internal routes' actor/workspace scope match. Resolve the
-        // source-scoped payer instead — the same decision those routes made
-        // themselves before attribution headers became required.
-        childBillingAttribution = await resolveBillingAttribution({
-          actorUserId: loadUserId,
-          workspaceId: childWorkflow.workspaceId,
-        })
         // Admit against the source payer before any spend. No reservation — see
         // `admitCustomBlockChildExecution`.
         await admitCustomBlockChildExecution(childBillingAttribution)
