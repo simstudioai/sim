@@ -65,10 +65,20 @@ vi.mock('@/lib/logs/execution/trace-store', () => ({
 vi.mock('@/lib/logs/snapshot-sanitizer', () => ({
   sanitizeExecutionSnapshotState: (state: unknown) => state,
 }))
-vi.mock('@/app/api/v1/logs/meta', () => ({
-  getUserLimits: vi.fn(async () => ({})),
-  createApiResponse: (body: unknown) => ({ body, headers: {} }),
-}))
+vi.mock('@/app/api/v1/logs/meta', async () => {
+  const { projectUserLimits } =
+    await vi.importActual<typeof import('@/app/api/v1/logs/meta')>('@/app/api/v1/logs/meta')
+  return {
+    getUserLimits: vi.fn(async () => ({
+      usage: { currentPeriodCost: 4.25, limit: 50, plan: 'pro', isExceeded: false },
+    })),
+    projectUserLimits,
+    createApiResponse: (body: unknown, limits: unknown) => ({
+      body: { ...(body as object), limits },
+      headers: {},
+    }),
+  }
+})
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET as getLogDetail } from '@/app/api/v1/logs/[id]/route'
@@ -203,6 +213,63 @@ describe('GET /api/v1/logs?details=full', () => {
     expect(log.cost).toEqual({ total: 0.75 })
     expect(log.traceSpans[0].cost).toEqual({ total: 0.5 })
     expect(log.finalOutput).toEqual(EXECUTION_DATA.finalOutput)
+  })
+
+  /**
+   * `withheldExecutionData` strips `traceSpans` and `finalOutput` alike, so
+   * under `hideTraceSpans` neither opt-in field survives — reading every row's
+   * blob out of the trace store to delete it is pure cost.
+   */
+  it('neither selects nor materializes execution data it is going to withhold', async () => {
+    governedBy({ hideTraceSpans: true })
+
+    await listFull()
+
+    expect(mockListPublicWorkflowLogs).toHaveBeenCalledWith(
+      expect.objectContaining({ includeExecutionData: false })
+    )
+    expect(mockMaterialize).not.toHaveBeenCalled()
+  })
+
+  it('still materializes for a group that withholds only spend', async () => {
+    governedBy({ hideCostInfo: true })
+
+    await listFull()
+
+    expect(mockListPublicWorkflowLogs).toHaveBeenCalledWith(
+      expect.objectContaining({ includeExecutionData: true })
+    )
+    expect(mockMaterialize).toHaveBeenCalled()
+  })
+
+  /**
+   * On a personal key the keyholder IS the governed member, so blanking every
+   * run's cost while the envelope reports what those runs added up to this
+   * period withholds nothing. `limit`, `plan` and `isExceeded` stay: they are
+   * the caller's entitlement and eligibility, not a spend figure.
+   */
+  it('withholds the period spend in the limits envelope alongside the run totals', async () => {
+    governedBy({ hideCostInfo: true })
+
+    const body = await (await listFull()).json()
+
+    expect(body.limits.usage.currentPeriodCost).toBeNull()
+    expect(body.limits.usage).toMatchObject({ limit: 50, plan: 'pro', isExceeded: false })
+  })
+
+  it('reports the period spend when no group withholds it', async () => {
+    const body = await (await listFull()).json()
+
+    expect(body.limits.usage.currentPeriodCost).toBe(4.25)
+  })
+
+  it('reports the period spend to a workspace API key, which resolves no group', async () => {
+    mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
+    governedBy({ hideCostInfo: true })
+
+    const body = await (await listFull()).json()
+
+    expect(body.limits.usage.currentPeriodCost).toBe(4.25)
   })
 
   it('withholds nothing from a workspace API key, whose creator has no say', async () => {
@@ -367,5 +434,47 @@ describe('GET /api/v1/logs/executions/[executionId]', () => {
     const body = await (await readExecution()).json()
 
     expect(body.executionMetadata.cost).toEqual({ total: 0.75 })
+  })
+})
+
+/**
+ * The log surfaces answer "not found" for a workspace the caller cannot reach,
+ * so a stranger cannot probe which ones exist. A permission-group refusal is
+ * the one failure with nothing left to conceal: it runs only after the role
+ * check passed, so the caller is already a known member being told how their
+ * own organization configured their cohort.
+ */
+describe('v1 log surfaces and the personal-key group refusal', () => {
+  beforeEach(() => {
+    governedBy({ disablePersonalApiKeys: true })
+  })
+
+  it.each([
+    ['GET /api/v1/logs/[id]', () => readDetail()],
+    ['GET /api/v1/logs/executions/[executionId]', () => readExecution()],
+  ])('%s keeps the structured detail rather than flattening it to 404', async (_name, call) => {
+    const response = await call()
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: expect.any(String),
+      details: { code: 'PERSONAL_API_KEYS_DISABLED' },
+    })
+  })
+
+  it.each([
+    ['GET /api/v1/logs/[id]', () => readDetail(), 'Log not found'],
+    [
+      'GET /api/v1/logs/executions/[executionId]',
+      () => readExecution(),
+      'Workflow execution not found',
+    ],
+  ])('%s still conceals a caller with no workspace role', async (_name, call, message) => {
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+
+    const response = await call()
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: message })
   })
 })

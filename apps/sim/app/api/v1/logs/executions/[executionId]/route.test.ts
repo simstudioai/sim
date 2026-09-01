@@ -1,12 +1,13 @@
 /**
  * @vitest-environment node
  */
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
-  validateWorkspaceAccess: vi.fn(),
+  resolveWorkspaceAccess: vi.fn(),
   getPublicWorkflowLog: vi.fn(),
   getUserLimits: vi.fn(),
 }))
@@ -20,18 +21,36 @@ vi.mock('@/app/api/v1/middleware', () => ({
   capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
     rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null,
   checkRateLimit: mocks.checkRateLimit,
+  /** Mirrors the real helper: only a post-role group refusal carries `details`. */
+  concealedWorkspaceAccessResponse: (
+    failure: { status: number; message: string; details?: unknown },
+    notFoundMessage: string
+  ) =>
+    failure.details
+      ? NextResponse.json(
+          { error: failure.message, details: failure.details },
+          { status: failure.status }
+        )
+      : NextResponse.json({ error: notFoundMessage }, { status: 404 }),
   createRateLimitResponse: () => NextResponse.json({ error: 'Rate limit' }, { status: 429 }),
-  validateWorkspaceAccess: mocks.validateWorkspaceAccess,
+  resolveWorkspaceAccess: mocks.resolveWorkspaceAccess,
 }))
+
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@/lib/logs/public-queries', () => ({
   getPublicWorkflowLog: mocks.getPublicWorkflowLog,
 }))
 
-vi.mock('@/app/api/v1/logs/meta', () => ({
-  getUserLimits: mocks.getUserLimits,
-  createApiResponse: <T, L>(data: T, limits: L) => ({ body: { ...data, limits }, headers: {} }),
-}))
+vi.mock('@/app/api/v1/logs/meta', async () => {
+  const { projectUserLimits } =
+    await vi.importActual<typeof import('@/app/api/v1/logs/meta')>('@/app/api/v1/logs/meta')
+  return {
+    getUserLimits: mocks.getUserLimits,
+    projectUserLimits,
+    createApiResponse: <T, L>(data: T, limits: L) => ({ body: { ...data, limits }, headers: {} }),
+  }
+})
 
 /**
  * Overrides the global stub, whose empty `subBlocks` would let the sanitizer
@@ -54,6 +73,7 @@ vi.mock('@/blocks/registry', () => ({
   getBlockByToolName: vi.fn(() => undefined),
 }))
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/v1/logs/executions/[executionId]/route'
 
 const rateLimit = {
@@ -93,8 +113,11 @@ describe('GET /api/v1/logs/executions/[executionId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.checkRateLimit.mockResolvedValue(rateLimit)
-    mocks.validateWorkspaceAccess.mockResolvedValue(null)
-    mocks.getUserLimits.mockResolvedValue({ usage: { plan: 'free' } })
+    mocks.resolveWorkspaceAccess.mockResolvedValue(null)
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(null)
+    mocks.getUserLimits.mockResolvedValue({
+      usage: { plan: 'free', currentPeriodCost: 12.5, limit: 50, isExceeded: false },
+    })
     mocks.getPublicWorkflowLog.mockResolvedValue({
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
@@ -137,8 +160,60 @@ describe('GET /api/v1/logs/executions/[executionId]', () => {
         totalDurationMs: 1000,
         cost: { total: 0.01 },
       },
-      limits: { usage: { plan: 'free' } },
+      limits: { usage: { plan: 'free', currentPeriodCost: 12.5 } },
     })
+  })
+
+  it("conceals an ordinary access failure behind the surface's not-found", async () => {
+    mocks.resolveWorkspaceAccess.mockResolvedValueOnce({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'Access denied',
+    })
+
+    const { request, context } = requestFor('execution-1')
+    const response = await GET(request, context)
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'Workflow execution not found' })
+  })
+
+  /**
+   * Both group keys answer only after the caller's workspace role verified, so
+   * the caller is already known to be a member: the refusal names their own
+   * organization's setting and conceals nothing a 404 would protect.
+   */
+  it('preserves the structured detail of a post-role permission-group refusal', async () => {
+    mocks.resolveWorkspaceAccess.mockResolvedValueOnce({
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'Personal API keys are disabled for this workspace',
+      details: { code: 'PERSONAL_API_KEYS_DISABLED' },
+    })
+
+    const { request, context } = requestFor('execution-1')
+    const response = await GET(request, context)
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: 'Personal API keys are disabled for this workspace',
+      details: { code: 'PERSONAL_API_KEYS_DISABLED' },
+    })
+  })
+
+  it('withholds period spend alongside the run total when the group withholds logs.cost', async () => {
+    mocks.checkRateLimit.mockResolvedValue({ ...rateLimit, keyType: 'personal' })
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideCostInfo: true,
+    })
+
+    const { request, context } = requestFor('execution-1')
+    const body = await (await GET(request, context)).json()
+
+    expect(body.executionMetadata.cost).toBeNull()
+    expect(body.limits.usage.currentPeriodCost).toBeNull()
+    expect(body.limits.usage).toMatchObject({ plan: 'free', limit: 50, isExceeded: false })
   })
 
   it('reports a missing snapshot as not found', async () => {
