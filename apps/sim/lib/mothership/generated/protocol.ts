@@ -96,6 +96,11 @@ export interface TitleRequest {
   message: string;
   /** Enterprise BYOK: the title call reads user content, so it pins the same key (S27). */
   byokApiKey?: string | undefined;
+  /** Metering identity (Go metered title spend into request analytics): optional so
+   * older sim builds keep validating; absent values degrade to synthetic ids. */
+  chatId?: string | undefined;
+  workspaceId?: string | undefined;
+  userId?: string | undefined;
 }
 
 /** The 409 body for a duplicate send while a sibling instance streams (S32). */
