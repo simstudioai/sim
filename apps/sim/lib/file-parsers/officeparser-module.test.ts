@@ -20,6 +20,10 @@ describe('resolveParseOfficeAsync', () => {
     expect(resolveParseOfficeAsync({ default: { parseOfficeAsync: parse } })).toBe(parse)
   })
 
+  it('resolves a callable default export', () => {
+    expect(resolveParseOfficeAsync({ default: parse })).toBe(parse)
+  })
+
   it('throws when the entry point is absent', () => {
     expect(() => resolveParseOfficeAsync({})).toThrow('did not expose parseOfficeAsync')
   })

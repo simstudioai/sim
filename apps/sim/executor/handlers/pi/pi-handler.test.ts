@@ -267,6 +267,19 @@ describe('PiBlockHandler', () => {
     expect(mockResolveKey).not.toHaveBeenCalled()
   })
 
+  it('passes a persisted catalog model to the backend', async () => {
+    mockGetProviderFromModel.mockReturnValue('cerebras')
+    mockResolvePiModelId.mockReturnValue('zai-glm-4.7')
+
+    await handler.execute(ctx(), block, localInputs({ model: 'cerebras/zai-glm-4.7' }))
+
+    expect(mockRunLocal.mock.calls[0][0]).toMatchObject({
+      model: 'cerebras/zai-glm-4.7',
+      piModel: 'zai-glm-4.7',
+      providerId: 'cerebras',
+    })
+  })
+
   it('routes Local Dev to the local backend with SSH params', async () => {
     const output = await handler.execute(ctx(), block, localInputs())
     expect(mockRunLocal).toHaveBeenCalledTimes(1)

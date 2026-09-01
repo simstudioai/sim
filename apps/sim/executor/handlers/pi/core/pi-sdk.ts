@@ -90,9 +90,7 @@ export function createSealedPiResourceLoader(sdk: PiSdk, systemPrompt: string): 
     getThemes: () => ({ themes: [], diagnostics: [] }),
     getAgentsFiles: () => ({ agentsFiles: [] }),
     getSystemPrompt: () => systemPrompt,
-    getSystemPromptSource: () => undefined,
     getAppendSystemPrompt: () => [],
-    getAppendSystemPromptSources: () => [],
     extendResources: () => {},
     reload: async () => {},
   }

@@ -130,7 +130,7 @@ export default defineConfig({
         packages: [
           'isolated-vm',
           'react-dom',
-          'react-email',
+          '@react-email/render',
           '@earendil-works/pi-ai',
           '@earendil-works/pi-coding-agent',
           '@e2b/code-interpreter',

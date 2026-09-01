@@ -1,4 +1,4 @@
-import { Link, Text } from 'react-email'
+import { Link, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { getBaseUrl } from '@/lib/core/utils/urls'

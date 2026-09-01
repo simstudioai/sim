@@ -1,4 +1,4 @@
-import { Text } from 'react-email'
+import { Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { ProFeaturesBox } from '@/components/emails/billing/pro-features-box'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'

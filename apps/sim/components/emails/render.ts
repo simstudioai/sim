@@ -1,4 +1,4 @@
-import { render } from 'react-email'
+import { render } from '@react-email/render'
 import { InboxErrorEmail, InboxResponseEmail } from '@/components/emails/agent/inbox-response-email'
 import {
   ExistingAccountEmail,

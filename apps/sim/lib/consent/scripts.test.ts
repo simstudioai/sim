@@ -1,11 +1,15 @@
 /**
  * @vitest-environment jsdom
  */
-import type { ScriptCallbackInfo } from 'c15t'
 import { afterEach, describe, expect, it } from 'vitest'
-import { GLOBAL_CONSENT_SCRIPTS, HUBSPOT_SCRIPT, X_PIXEL_SCRIPT } from '@/lib/consent/scripts'
+import {
+  type ConsentScriptCallbackInfo,
+  GLOBAL_CONSENT_SCRIPTS,
+  HUBSPOT_SCRIPT,
+  X_PIXEL_SCRIPT,
+} from '@/lib/consent/scripts'
 
-const CALLBACK_INFO: ScriptCallbackInfo = {
+const CALLBACK_INFO: ConsentScriptCallbackInfo = {
   id: 'test-script',
   elementId: 'test-script',
   hasConsent: false,

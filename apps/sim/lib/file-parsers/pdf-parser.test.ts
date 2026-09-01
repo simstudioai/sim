@@ -4,6 +4,7 @@
 import { deflateSync } from 'zlib'
 import { describe, expect, it } from 'vitest'
 import { MAX_PDF_TEXT_CHARS, PdfParser } from '@/lib/file-parsers/pdf-parser'
+import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 
 /**
  * Builds a single-page PDF that draws 64 characters per repeat from a
@@ -98,6 +99,27 @@ function assemblePdf(objects: Buffer[], trailerEntries = ''): Buffer {
 }
 
 describe('PdfParser', () => {
+  it('preloads the server worker instead of relying on a runtime-relative worker path', async () => {
+    const previousWorker: unknown = Reflect.get(globalThis, 'pdfjsWorker')
+    Reflect.deleteProperty(globalThis, 'pdfjsWorker')
+
+    const pdf = await openPdfDocument(new Uint8Array(buildTextFreePdf(1)))
+
+    try {
+      expect(Reflect.get(globalThis, 'pdfjsWorker')).toEqual({
+        WorkerMessageHandler: expect.anything(),
+      })
+      expect(pdf.numPages).toBe(1)
+    } finally {
+      await pdf.destroy()
+      if (previousWorker === undefined) {
+        Reflect.deleteProperty(globalThis, 'pdfjsWorker')
+      } else {
+        Reflect.set(globalThis, 'pdfjsWorker', previousWorker)
+      }
+    }
+  })
+
   it('bounds extracted text from a compression-bomb PDF instead of exhausting the heap', async () => {
     const bomb = buildTextBombPdf(200_000)
     expect(bomb.length).toBeLessThan(200 * 1024)

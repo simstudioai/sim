@@ -45,6 +45,7 @@ vi.mock('@/lib/audio/extractor', () => ({
   extractAudioFromVideo: vi.fn(),
 }))
 
+import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { executeSttTool } from '@/lib/internal/stt/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
@@ -159,6 +160,31 @@ describe('executeSttTool', () => {
     expect(response.status).toBe(200)
     const data = (await response.json()) as { transcript: string }
     expect(data.transcript).toBe('hello world')
+  })
+
+  it('forwards tool cancellation through video audio extraction', async () => {
+    const controller = new AbortController()
+    vi.mocked(isVideoFile).mockReturnValueOnce(true)
+    vi.mocked(extractAudioFromVideo).mockResolvedValueOnce({
+      buffer: Buffer.from('converted-audio'),
+      duration: 1,
+      format: 'mp3',
+      size: 15,
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      mockSecureFetchResponse({ contentType: 'video/mp4' })
+    )
+
+    const response = await executeSttTool(
+      createVerifiedSttRequest(baseBody, { signal: controller.signal })
+    )
+
+    expect(response.status).toBe(200)
+    expect(extractAudioFromVideo).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'video/mp4',
+      expect.objectContaining({ signal: controller.signal })
+    )
   })
 
   it('rejects an authenticated but incomplete private provenance envelope before downloading', async () => {

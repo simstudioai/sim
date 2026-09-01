@@ -1,126 +1,100 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
+import Cal, { getCalApi } from '@calcom/embed-react'
 import { trackGoogleEvent } from '@/lib/analytics/google'
 import { X_DEMO_BOOKED_EVENT_ID } from '@/lib/consent/scripts'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import type { DemoLead } from '@/app/(landing)/demo/components/demo-form'
-import {
-  CAL_ORIGIN,
-  createConfiguredCalUrl,
-} from '@/app/(landing)/demo/components/demo-scheduler/cal-config'
 
 const CAL_NAMESPACE = 'demo'
+const DEFAULT_CAL_ORIGIN = 'https://app.cal.com'
+const DEFAULT_CAL_LINK = 'team/sim/demo'
 
-/** Sim's brand color, matching the `--brand-agent` token. */
+interface CalEmbedConfig {
+  calLink: string
+  calOrigin: string
+  embedJsUrl: string
+}
+
+function parseCalEmbedConfig(link: string): CalEmbedConfig {
+  const url = new URL(link.replace(/^\/+/, ''), `${DEFAULT_CAL_ORIGIN}/`)
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+    throw new Error('Cal link must use HTTP(S) without embedded credentials')
+  }
+
+  const calLink = `${url.pathname.replace(/^\/+/, '')}${url.search}`
+  if (!calLink) throw new Error('Cal link must include an event path')
+
+  return {
+    calLink,
+    calOrigin: url.origin,
+    embedJsUrl: `${url.origin}/embed/embed.js`,
+  }
+}
+
+/** Resolves the configured booker, falling back safely when the environment value is invalid. */
+export function resolveCalEmbedConfig(configuredLink?: string): CalEmbedConfig {
+  try {
+    return parseCalEmbedConfig(configuredLink?.trim() || DEFAULT_CAL_LINK)
+  } catch {
+    return parseCalEmbedConfig(DEFAULT_CAL_LINK)
+  }
+}
+
+const CAL_EMBED = resolveCalEmbedConfig(process.env.NEXT_PUBLIC_CAL_LINK)
+
+/**
+ * Sim's brand color, matching the `--brand-agent` token. The embed renders in a
+ * cross-origin iframe, so it can't read our CSS vars - it needs the literal hex.
+ */
 const CAL_BRAND_COLOR = '#6f3dfa'
-
-const CAL_IFRAME_READY_EVENT = `CAL:${CAL_NAMESPACE}:__iframeReady`
-const CAL_BOOKING_SUCCESS_EVENT = `CAL:${CAL_NAMESPACE}:bookingSuccessfulV2`
 
 interface DemoSchedulerProps {
   /** The captured lead used to prefill the Cal.com booking. */
   lead: DemoLead
 }
 
-interface CalMessage {
-  fullType: string
-}
-
-let calPreloadFrame: HTMLIFrameElement | null = null
-
-function isCalMessage(data: unknown): data is CalMessage {
-  if (!data || typeof data !== 'object') return false
-  return typeof Reflect.get(data, 'fullType') === 'string'
-}
+let calEmbedPreloaded = false
 
 /**
- * Creates the same hosted booker URL the former Cal React wrapper generated.
- * Query parameters keep the lead prefill and light, month-view presentation.
- */
-export function createCalEmbedUrl(lead: DemoLead): string {
-  const url = createConfiguredCalUrl()
-  const normalizedPath = url.pathname.replace(/\/+$/, '')
-  url.pathname = normalizedPath.endsWith('/embed') ? normalizedPath : `${normalizedPath}/embed`
-  url.searchParams.set('embed', CAL_NAMESPACE)
-  url.searchParams.set('name', lead.name)
-  url.searchParams.set('email', lead.email)
-  url.searchParams.set('notes', lead.notes)
-  url.searchParams.set('theme', 'light')
-  url.searchParams.set('ui.color-scheme', 'light')
-  url.searchParams.set('layout', 'month_view')
-  url.searchParams.set('useSlotsViewOnSmallScreen', 'true')
-  return url.toString()
-}
-
-function createCalPreloadUrl(): string {
-  const url = createConfiguredCalUrl()
-  url.searchParams.set('preload', 'true')
-  return url.toString()
-}
-
-/**
- * Warms Cal.com's booker in a hidden hosted iframe on first form focus. The
- * frame remains mounted so its browser cache and connection stay available to
- * the visible scheduler. Repeat calls are idempotent; a failed navigation can
- * be retried by a later focus.
+ * Warm the Cal.com embed before the scheduler mounts. Loads `embed.js` and
+ * issues the embed's `preload` instruction, which fetches the booker in a
+ * hidden `?preload=true` iframe so its assets are already cached when the real
+ * embed renders on submit. Without this, nothing Cal.com-related starts
+ * downloading until the visitor presses Continue, which is why the calendar
+ * used to take several seconds to appear. Idempotent — repeat calls no-op
+ * while a warm-up is in flight or done, but a failed embed.js load resets the
+ * flag so a later focus can retry.
  */
 export function preloadCalEmbed(): void {
-  if (typeof document === 'undefined' || !document.body || calPreloadFrame?.isConnected) return
-
-  const frame = document.createElement('iframe')
-  calPreloadFrame = frame
-  frame.src = createCalPreloadUrl()
-  frame.hidden = true
-  frame.tabIndex = -1
-  frame.setAttribute('aria-hidden', 'true')
-  frame.addEventListener(
-    'error',
-    () => {
-      frame.remove()
-      if (calPreloadFrame === frame) calPreloadFrame = null
-    },
-    { once: true }
-  )
-  document.body.append(frame)
+  if (calEmbedPreloaded) return
+  calEmbedPreloaded = true
+  getCalApi({ namespace: CAL_NAMESPACE, embedJsUrl: CAL_EMBED.embedJsUrl })
+    .then((cal) => {
+      cal('preload', { calLink: CAL_EMBED.calLink })
+    })
+    .catch(() => {
+      calEmbedPreloaded = false
+    })
 }
 
 /**
- * Step 2 of the booking card - the hosted Cal.com scheduler, prefilled from the
- * form's {@link DemoLead}. It uses Cal's public iframe protocol directly, which
- * keeps the same booker while avoiding a client SDK in the landing bundle.
+ * Step 2 of the booking card - the Cal.com scheduler, prefilled from the form's
+ * {@link DemoLead}. Rendered inside the card chrome owned by {@link DemoBooking}
+ * and lazy-loaded, so the embed script never touches the initial landing bundle.
  *
- * The ready handshake applies the prior light theme, hidden event details, and
- * brand color. Booking-success messages are accepted only from this iframe and
- * Cal's expected origin before consent-aware analytics fire.
+ * The embed is pinned to the page's light theme and Sim's brand color, and the
+ * captured name/email/notes prefill the booking so the visitor never retypes. It
+ * fills the panel (`flex-1`), which the parent sizes to the form's height, so the
+ * card stays the same height across the form→calendar transition.
  */
 export function DemoScheduler({ lead }: DemoSchedulerProps) {
   const { marketing, measurement } = useTrackingConsent()
-  const frameRef = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent<unknown>) => {
-      const frameWindow = frameRef.current?.contentWindow
-      if (event.origin !== CAL_ORIGIN || !frameWindow || event.source !== frameWindow) return
-      if (!isCalMessage(event.data)) return
-
-      if (event.data.fullType === CAL_IFRAME_READY_EVENT) {
-        frameWindow.postMessage({ originator: 'CAL', method: 'parentKnowsIframeReady' }, CAL_ORIGIN)
-        frameWindow.postMessage(
-          {
-            originator: 'CAL',
-            method: 'ui',
-            arg: {
-              hideEventTypeDetails: true,
-              styles: { branding: { brandColor: CAL_BRAND_COLOR } },
-            },
-          },
-          CAL_ORIGIN
-        )
-        return
-      }
-
-      if (event.data.fullType !== CAL_BOOKING_SUCCESS_EVENT) return
+    let cancelled = false
+    const trackDemoBooked = () => {
       if (measurement) {
         trackGoogleEvent('get_a_demo', {
           page_path: '/demo',
@@ -130,9 +104,26 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
       }
       if (marketing) window.twq?.('event', X_DEMO_BOOKED_EVENT_ID, {})
     }
-
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
+    const api = getCalApi({ namespace: CAL_NAMESPACE, embedJsUrl: CAL_EMBED.embedJsUrl })
+    api
+      .then((cal) => {
+        if (cancelled) return
+        cal('ui', {
+          hideEventTypeDetails: true,
+          styles: { branding: { brandColor: CAL_BRAND_COLOR } },
+        })
+        if (measurement || marketing) {
+          cal('on', { action: 'bookingSuccessfulV2', callback: trackDemoBooked })
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      if (!measurement && !marketing) return
+      api
+        .then((cal) => cal('off', { action: 'bookingSuccessfulV2', callback: trackDemoBooked }))
+        .catch(() => {})
+    }
   }, [marketing, measurement])
 
   return (
@@ -144,12 +135,21 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
         Choose a slot that works for your team and we'll send a calendar invite.
       </p>
       <div className='mt-5 min-h-0 flex-1'>
-        <iframe
-          ref={frameRef}
-          className='size-full border-0'
-          src={createCalEmbedUrl(lead)}
-          name={`cal-embed=${CAL_NAMESPACE}`}
-          title='Book a demo'
+        <Cal
+          namespace={CAL_NAMESPACE}
+          calLink={CAL_EMBED.calLink}
+          calOrigin={CAL_EMBED.calOrigin}
+          embedJsUrl={CAL_EMBED.embedJsUrl}
+          className='size-full overflow-auto'
+          config={{
+            name: lead.name,
+            email: lead.email,
+            notes: lead.notes,
+            theme: 'light',
+            'ui.color-scheme': 'light',
+            layout: 'month_view',
+            useSlotsViewOnSmallScreen: 'true',
+          }}
         />
       </div>
     </div>

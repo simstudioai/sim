@@ -1,13 +1,13 @@
 'use client'
 
 import { useMemo } from 'react'
-import { CANVAS_Z_INDEX_MODE } from '@sim/workflow-renderer'
+import { CANVAS_Z_INDEX_MODE, useCanvasColorMode } from '@sim/workflow-renderer'
 import { type NodeTypes, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { domAnimation, LazyMotion } from 'framer-motion'
 import '@xyflow/react/dist/style.css'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
-import { usePreviewColorMode } from '@/components/workflow-preview/use-preview-color-mode'
+import { FitViewAfterInit } from '@/components/workflow-preview/fit-view-after-init'
 import { toReactFlowElements } from '@/components/workflow-preview/workflow-data'
 
 /** The hero mounts the same node type the canvas uses, so it can never drift. */
@@ -30,7 +30,7 @@ interface BlockPreviewProps {
  * `block-display-workflows.ts`.
  */
 export function BlockPreview({ type }: BlockPreviewProps) {
-  const colorMode = usePreviewColorMode()
+  const colorMode = useCanvasColorMode()
   const workflow = BLOCK_DISPLAY_WORKFLOWS[type]
 
   const elements = useMemo(() => (workflow ? toReactFlowElements(workflow) : null), [workflow])
@@ -51,8 +51,6 @@ export function BlockPreview({ type }: BlockPreviewProps) {
             edges={elements.edges}
             nodeTypes={NODE_TYPES}
             proOptions={PRO_OPTIONS}
-            fitView
-            fitViewOptions={FIT_VIEW_OPTIONS}
             minZoom={0.2}
             maxZoom={1.3}
             nodesDraggable={false}
@@ -64,8 +62,9 @@ export function BlockPreview({ type }: BlockPreviewProps) {
             panOnDrag={false}
             panOnScroll={false}
             preventScrolling={false}
-            className='h-full w-full'
+            className='h-full w-full [--xy-background-color:var(--bg)]'
           />
+          <FitViewAfterInit options={FIT_VIEW_OPTIONS} />
         </ReactFlowProvider>
       </LazyMotion>
     </div>

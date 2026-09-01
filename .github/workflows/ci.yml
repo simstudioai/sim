@@ -266,7 +266,7 @@ jobs:
             echo "ERROR: DEV_TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
             exit 1
           fi
-          bunx trigger.dev@4.5.7 deploy --env preview --branch dev-sim
+          bunx trigger.dev@4.5.12 deploy --env preview --branch dev-sim
 
   # Main/staging: build AMD64 images and push sha-tagged images to ECR + GHCR.
   # Runs in parallel with tests — only immutable sha tags are pushed here, and

@@ -32,7 +32,9 @@ Dockerfile*
 
 # Build artifacts and caches
 .next
+**/.next
 .turbo
+**/.turbo
 .cache
 dist
 build
