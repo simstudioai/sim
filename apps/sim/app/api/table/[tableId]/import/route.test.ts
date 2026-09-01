@@ -41,6 +41,9 @@ vi.mock('@/app/api/table/utils', async () => {
     /** Mirrors the real helper: only a `user` principal names a governed subject. */
     capabilityGovernedUserId: (principal: { kind: string; userId?: string }) =>
       principal.kind === 'user' ? (principal.userId ?? null) : null,
+    /** Mirrors the real helper: only a session (or personal key) names one. */
+    capabilityGovernedAuthUserId: (auth: { authType?: string; userId?: string }) =>
+      auth.authType === 'session' ? (auth.userId ?? null) : null,
     accessError: (result: { status: number }) => {
       const message = result.status === 404 ? 'Table not found' : 'Access denied'
       return NextResponse.json({ error: message }, { status: result.status })
@@ -298,6 +301,30 @@ describe('POST /api/table/[tableId]/import', () => {
       expect.anything(),
       'user-1',
       'user-1'
+    )
+  })
+
+  /**
+   * `checkSessionOrInternalAuth` also accepts an internal JWT, whose user id is
+   * the run's actor — potentially the workspace billing owner. Dispatching the
+   * auto-fired cells under it would run them with that bystander's permission
+   * group; an executor call must dispatch under nobody.
+   */
+  it('dispatches an internal-JWT import under nobody, not the run actor', async () => {
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'billing-owner',
+      authType: 'internal_jwt',
+    })
+
+    await callPost(createFormData(createCsvFile('name,age\nAlice,30'), { mode: 'append' }))
+
+    expect(mockDispatchAfterBatchInsert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      'billing-owner',
+      null
     )
   })
 

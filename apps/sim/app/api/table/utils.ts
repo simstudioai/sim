@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import { type AuthResult, AuthType } from '@/lib/auth/hybrid'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   asOrchestrationError,
@@ -277,6 +278,30 @@ function roleSubjectUserId(principal: TableAccessPrincipal): string {
  */
 export function capabilityGovernedUserId(principal: TableAccessPrincipal): string | null {
   return principal.kind === 'user' ? principal.userId : null
+}
+
+/**
+ * The id whose permission group governs a request authenticated by
+ * `checkSessionOrInternalAuth`, or `null` when none does.
+ *
+ * `auth.userId` is populated for both credentials that helper accepts, and for
+ * an internal JWT it is the subject the executor embedded — the run's actor,
+ * which may be the workspace billing owner or the member who merely triggered
+ * the run. Keying on the presence of a user id therefore hands an executor call
+ * that bystander's capabilities, which is the substitution the governed subject
+ * exists to remove; the executor is exempt from capabilities by the same rule
+ * `capabilityGovernedPrincipalUserId` applies to a delegated executor
+ * principal. `authType` is the authoritative signal, and `apiKeyType` covers
+ * the personal-key case for a caller that later shares this helper.
+ *
+ * Distinct from {@link capabilityGovernedUserId}, which answers the same
+ * question for a {@link TableAccessPrincipal} — a union that has no way to
+ * spell "internal JWT" and reports one as a person.
+ */
+export function capabilityGovernedAuthUserId(auth: AuthResult): string | null {
+  if (!auth.userId) return null
+  if (auth.authType === AuthType.SESSION) return auth.userId
+  return auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal' ? auth.userId : null
 }
 
 /**

@@ -41,6 +41,9 @@ vi.mock('@/app/api/table/utils', async () => {
   const { asOrchestrationError, messageForOrchestrationError, statusForOrchestrationError } =
     await import('@/lib/core/orchestration/types')
   return {
+    /** Mirrors the real helper: only a session (or personal key) names one. */
+    capabilityGovernedAuthUserId: (auth: { authType?: string; userId?: string }) =>
+      auth.authType === 'session' ? (auth.userId ?? null) : null,
     csvProxyBodyCapResponse: () => null,
     multipartErrorResponse: (error: { code: string; message: string }) =>
       NextResponse.json(
@@ -288,6 +291,45 @@ describe('POST /api/table/import-csv', () => {
 
     expect(response.status).toBe(403)
     expect(mockCreateTable).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `checkSessionOrInternalAuth` also accepts an internal JWT, whose user id is
+   * the run's actor rather than someone asking for a table. Gating on it would
+   * refuse an executor call for a bystander's group, and dispatching under it
+   * would run the table's cells with that bystander's capabilities.
+   */
+  it('leaves an internal-JWT import ungoverned rather than gating on the run actor', async () => {
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'billing-owner',
+      authType: 'internal_jwt',
+    })
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableTableCreation: true,
+    })
+
+    const response = await POST(makeRequest(uploadParts(csvWithRows(3))))
+
+    expect(response.status).toBe(200)
+    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
+    expect(mockBatchInsertRows).toHaveBeenCalledWith(
+      expect.objectContaining({ capabilityGovernedUserId: null }),
+      expect.anything(),
+      expect.any(String)
+    )
+  })
+
+  it('dispatches a session import under the person it gated', async () => {
+    const response = await POST(makeRequest(uploadParts(csvWithRows(3))))
+
+    expect(response.status).toBe(200)
+    expect(mockBatchInsertRows).toHaveBeenCalledWith(
+      expect.objectContaining({ capabilityGovernedUserId: 'user-1' }),
+      expect.anything(),
+      expect.any(String)
+    )
   })
 
   it('lets the import through when the group withholds something else', async () => {

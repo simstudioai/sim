@@ -21,7 +21,7 @@ import { performTableCsvImport } from '@/lib/table/orchestration'
 import { getUserSettings } from '@/lib/users/queries'
 import {
   accessError,
-  capabilityGovernedUserId,
+  capabilityGovernedAuthUserId,
   checkAccess,
   csvProxyBodyCapResponse,
   multipartErrorResponse,
@@ -161,11 +161,16 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       requestId,
       /**
        * An append starts the table's workflow columns on every row it lands, so
-       * those cells are governed by the same person `checkAccess` just gated —
-       * not left ungoverned, which would let an import run tools this member's
+       * those cells are governed by the person behind the request — not left
+       * ungoverned, which would let an import run tools this member's
        * permission group withholds.
+       *
+       * Derived from the auth type rather than from `principal`: this route
+       * also accepts an internal JWT, whose user id is the run's actor, and
+       * `TableAccessPrincipal` reports one as an ordinary person. An executor
+       * call must dispatch under nobody.
        */
-      capabilityGovernedUserId: capabilityGovernedUserId(principal),
+      capabilityGovernedUserId: capabilityGovernedAuthUserId(authResult),
     })
 
     if (!outcome.success) {

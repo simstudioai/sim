@@ -16,6 +16,7 @@ import { performCreateTableFromCsv } from '@/lib/table/orchestration'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
+  capabilityGovernedAuthUserId,
   csvProxyBodyCapResponse,
   multipartErrorResponse,
   orchestrationOutcomeErrorResponse,
@@ -37,6 +38,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
     const userId = authResult.userId
+    /**
+     * The person whose permission group governs this import, or `null` for the
+     * internal-JWT caller this route also accepts — an executor's embedded
+     * subject is the run's actor, not a person asking for a table. One
+     * derivation for both the gate below and the dispatch subject, so the id
+     * this route refuses on is the id its writes run under.
+     */
+    const governedUserId = capabilityGovernedAuthUserId(authResult)
 
     const oversize = csvProxyBodyCapResponse(request)
     if (oversize) return oversize
@@ -78,9 +87,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * and predates the operation boundary. An import always ends in a new table,
      * so it is creation, not ordinary use. `tables.create` subsumes `tables.use`:
      * its rule is denied by `disableTableCreation` OR `hideTablesTab`, so gating
-     * on it still refuses a group that hides Tables entirely.
+     * on it still refuses a group that hides Tables entirely. Keyed to the
+     * governed subject, which names nobody for an executor call — the same rule
+     * `createTableImportUseCase` applies on the async import path.
      */
-    if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'tables.create')) {
+    if (
+      governedUserId &&
+      (await isWorkspaceCapabilityWithheld(governedUserId, workspaceId, 'tables.create'))
+    ) {
       return capabilityRefusalResponse('tables.create')
     }
 
@@ -132,13 +146,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       timezone,
       requestId,
       /**
-       * The session or internal-JWT person this route already gated
-       * `tables.create` against. A table created here has no workflow columns
-       * yet, so nothing auto-fires today; naming the subject anyway keeps the
-       * rule "the id the surface gated is the id the write dispatches under"
-       * with no producer-specific exception to re-argue.
+       * The person this route already gated `tables.create` against. A table
+       * created here has no workflow columns yet, so nothing auto-fires today;
+       * naming the subject anyway keeps the rule "the id the surface gated is
+       * the id the write dispatches under" with no producer-specific exception
+       * to re-argue.
        */
-      capabilityGovernedUserId: userId,
+      capabilityGovernedUserId: governedUserId,
     })
 
     if (!outcome.success) {
