@@ -9,7 +9,11 @@ import { logDelegationAuthorization } from '@/lib/logs/application/authorization
 import { logOperations } from '@/lib/logs/application/operations'
 import { buildCostLedger } from '@/lib/logs/cost-ledger'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
-import { projectExecutionData, resolveLogFieldProjection } from '@/lib/logs/log-projection'
+import {
+  logProjectionSubjectUserId,
+  projectExecutionData,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
 import { getPublicWorkflowLog, getPublicWorkflowLogScope } from '@/lib/logs/public-queries'
 import { sanitizeExecutionSnapshotState } from '@/lib/logs/snapshot-sanitizer'
 import {
@@ -107,7 +111,7 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
      * member whose group withholds both everywhere else.
      */
     const projection = await resolveLogFieldProjection(
-      viewerUserId,
+      logProjectionSubjectUserId(principal),
       context.workspaceId,
       context.workspaceOrganizationId
     )

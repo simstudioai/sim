@@ -143,12 +143,34 @@ describe('readLogDetailUseCase', () => {
     resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
 
     await readLogDetailUseCase.execute({
-      principal: HUMAN_PRINCIPAL,
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       input: { workspaceId: WORKSPACE_ID, lookupColumn: 'executionId', lookupValue: EXECUTION_ID },
     })
 
     expect(mocks.readLogDetail).toHaveBeenCalledWith(
       expect.objectContaining({ hideCostInfo: true })
+    )
+  })
+
+  /**
+   * The same person's group, reached through the run they triggered rather than
+   * through their own session. The delegation carries their role and none of
+   * their capabilities — `authorizeWorkspaceOperation` already passed it
+   * ungated — so projecting on it would withhold from a run on a group the
+   * funnel declined to apply. Attribution still names them.
+   */
+  it('leaves spend in place for a run delegated by that same person', async () => {
+    queueLogRow()
+    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
+
+    await readLogDetailUseCase.execute({
+      principal: HUMAN_PRINCIPAL,
+      input: { workspaceId: WORKSPACE_ID, lookupColumn: 'executionId', lookupValue: EXECUTION_ID },
+    })
+
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
+    expect(mocks.readLogDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ viewerUserId: 'user-1', hideCostInfo: false })
     )
   })
 

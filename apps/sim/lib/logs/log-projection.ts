@@ -1,3 +1,5 @@
+import type { Principal } from '@sim/auth/principal'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { withheldExecutionData, withheldSpendData } from '@/lib/logs/fetch-log-detail'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
@@ -24,12 +26,36 @@ export const NO_LOG_FIELD_PROJECTION: LogFieldProjection = {
 }
 
 /**
+ * The person a log projection is decided about.
+ *
+ * Deliberately NOT the attribution id a use case carries alongside it. An
+ * executor delegation names the run's actor for attribution and for authorizing
+ * the objects the run may materialize, but it carries that person's role and
+ * none of their capabilities — the exemption
+ * {@link capabilityGovernedPrincipalUserId} states and
+ * `authorizeWorkspaceOperation` already applied by the time a use case runs.
+ * Projecting on the actor would withhold fields from a run on a group the
+ * funnel declined to apply, and {@link assertLogCostQueryAllowed} would refuse
+ * the read outright — a refusal, not a projection, which is the thing the
+ * executor exemption exists to prevent.
+ *
+ * Every log surface holding a `Principal` derives its subject here, so the rule
+ * is stated once rather than re-decided per projection.
+ */
+export function logProjectionSubjectUserId(principal: Principal): string | null {
+  return capabilityGovernedPrincipalUserId(principal)
+}
+
+/**
  * The projection a viewer's permission group imposes on a workspace's logs.
  *
  * `viewerUserId` is `null` when no group governs the request — an actorless run
  * (a schedule, or a webhook with no external subject) reading its own
- * workspace's logs, and a workspace API key, which authorizes as the workspace
- * and whose reported user id is only the key's creator. Both read whole.
+ * workspace's logs, a workspace API key, which authorizes as the workspace and
+ * whose reported user id is only the key's creator, and an executor delegation,
+ * which carries a role and no capabilities. All read whole. Callers holding a
+ * `Principal` derive this through {@link logProjectionSubjectUserId} rather
+ * than passing whichever user id is nearest.
  *
  * The one place the two capabilities are read, so the internal/v2 detail path
  * and the v1 public API cannot drift: two copies of a redaction rule is how one

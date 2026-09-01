@@ -1,10 +1,10 @@
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { isValidUuid } from '@sim/utils/id'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,
   FunctionalOutputsUnavailableError,
 } from '@/lib/logs/execution/functional-outputs'
+import { logProjectionSubjectUserId } from '@/lib/logs/log-projection'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowRunApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -75,7 +75,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         selectedOutputs: input.selectedOutputs,
         workspaceId: context.workspaceId,
         workspaceOrganizationId: context.workspaceOrganizationId,
-        viewerUserId: resolvePrincipalSubjectUserId(principal),
+        viewerUserId: logProjectionSubjectUserId(principal),
       })
       if (!projected) throw new OrchestrationError('not_found', 'Run not found')
       const { status, projection } = projected

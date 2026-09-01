@@ -12,7 +12,11 @@ import {
 import { logOperations } from '@/lib/logs/application/operations'
 import { hydrateChildTraces } from '@/lib/logs/execution/hydrate-child-traces'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
-import { projectCostTotal, resolveLogFieldProjection } from '@/lib/logs/log-projection'
+import {
+  logProjectionSubjectUserId,
+  projectCostTotal,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   type ActiveWorkspaceApplicationContext,
@@ -150,7 +154,7 @@ const authorizedReadExecutionSnapshotUseCase = defineAuthorizedWorkspaceUseCase(
      * permission-group-enforced: logs.cost
      */
     const projection = await resolveLogFieldProjection(
-      resolvePrincipalSubjectUserId(principal),
+      logProjectionSubjectUserId(principal),
       context.workspaceId,
       context.workspaceOrganizationId
     )

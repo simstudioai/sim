@@ -1,5 +1,4 @@
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
-import { resolveLogFieldProjection } from '@/lib/logs/log-projection'
+import { logProjectionSubjectUserId, resolveLogFieldProjection } from '@/lib/logs/log-projection'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -22,13 +21,14 @@ export const listWorkflowRuns = defineAuthorizedWorkflowUseCase({
      * withholds on every other log surface, so it is projected here rather than
      * in the presenter — the withholding travels with the read.
      *
-     * `resolvePrincipalSubjectUserId` returns `undefined` for a workspace API
-     * key, which represents no user and therefore no group; the key's creator is
-     * never substituted. This listing publishes no cost sort or filter, so there
-     * is no query surface to refuse alongside the value.
+     * {@link logProjectionSubjectUserId} names nobody for a workspace API key,
+     * which represents no user and therefore no group — the key's creator is
+     * never substituted — nor for an executor delegation, which carries a role
+     * and no capabilities. This listing publishes no cost sort or filter, so
+     * there is no query surface to refuse alongside the value.
      */
     const projection = await resolveLogFieldProjection(
-      resolvePrincipalSubjectUserId(principal),
+      logProjectionSubjectUserId(principal),
       context.workspaceId,
       context.workspaceOrganizationId
     )
