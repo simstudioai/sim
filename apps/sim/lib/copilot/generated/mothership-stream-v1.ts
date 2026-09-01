@@ -279,6 +279,7 @@ export interface MothershipStreamV1ResourceUpsertPayload {
   resource: MothershipStreamV1ResourceDescriptor
 }
 export interface MothershipStreamV1ResourceDescriptor {
+  clearViewId?: boolean
   id: string
   title?: string
   type: string

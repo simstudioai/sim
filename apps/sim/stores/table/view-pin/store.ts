@@ -14,6 +14,8 @@ interface TableViewPinState {
   nextSeq: number
   /** Asks the table to open on `viewId`; replaces any pin still pending for it. */
   pin: (tableId: string, viewId: string) => void
+  /** Clears any pending pin after the referenced view is deleted. */
+  clear: (tableId: string) => void
   /** Clears a pin the table has applied. A newer pin (higher seq) issued meanwhile is kept. */
   consume: (tableId: string, seq: number) => void
   reset: () => void
@@ -41,6 +43,12 @@ export const useTableViewPinStore = create<TableViewPinState>()(
           pins: { ...state.pins, [tableId]: { viewId, seq: state.nextSeq } },
           nextSeq: state.nextSeq + 1,
         })),
+      clear: (tableId) =>
+        set((state) => {
+          if (!state.pins[tableId]) return state
+          const { [tableId]: _cleared, ...pins } = state.pins
+          return { pins }
+        }),
       consume: (tableId, seq) =>
         set((state) => {
           const pending = state.pins[tableId]

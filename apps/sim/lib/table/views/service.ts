@@ -482,7 +482,7 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
     if (data.isDefault === true && existingTotal > 0) {
       await trx
         .update(tableViews)
-        .set({ isDefault: false })
+        .set({ isDefault: false, updatedAt: new Date() })
         .where(
           and(
             eq(tableViews.tableId, data.tableId),

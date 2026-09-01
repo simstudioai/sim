@@ -30,6 +30,12 @@ export interface MothershipResource {
   executionId?: string
 }
 
+/** A resource upsert may explicitly clear metadata that omission preserves. */
+export interface MothershipResourceUpdate extends MothershipResource {
+  /** Removes a table's saved-view pin instead of preserving it. */
+  clearViewId?: true
+}
+
 /**
  * What a chip in an assistant message knows about the resource it points at,
  * before it has been resolved. The agent writes these tags as text, so a file
@@ -223,13 +229,18 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
  */
 export function mergeChatResource(
   prev: MothershipResource | undefined,
-  next: MothershipResource
+  next: MothershipResourceUpdate
 ): MothershipResource {
-  if (!prev) return next
+  if (!prev) {
+    if (next.clearViewId !== true) return next
+    const { clearViewId: _clearViewId, ...resource } = next
+    return resource
+  }
+  const { viewId: _previousViewId, ...prevWithoutViewId } = prev
   const merged: MothershipResource = {
-    ...prev,
+    ...(next.clearViewId === true ? prevWithoutViewId : prev),
     ...(next.path !== undefined ? { path: next.path } : {}),
-    ...(next.viewId !== undefined ? { viewId: next.viewId } : {}),
+    ...(next.clearViewId !== true && next.viewId !== undefined ? { viewId: next.viewId } : {}),
     ...(next.executionId !== undefined ? { executionId: next.executionId } : {}),
     title:
       GENERIC_RESOURCE_TITLES.has(prev.title) && !GENERIC_RESOURCE_TITLES.has(next.title)

@@ -17,6 +17,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import type { ChatResource } from '@/lib/copilot/resources/persistence'
+import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
 import {
   canonicalizeDesktopSessionResource,
   mergeChatResource,
@@ -43,8 +44,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
     )
     if (!parsed.success) return parsed.response
-    const { chatId, resource: requestedResource } = parsed.data.body
+    const { chatId, resource: requestedResource, clearViewId } = parsed.data.body
     const resource = canonicalizeDesktopSessionResource(requestedResource)
+    const resourceUpdate: MothershipResourceUpdate =
+      clearViewId === true ? { ...resource, clearViewId: true } : resource
 
     // Ephemeral UI tab (client does not POST this; guard for old clients / bugs).
     if (resource.id === 'streaming-file') {
@@ -74,8 +77,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const prev = existing.find((r) => `${r.type}:${r.id}` === key)
 
     const merged: ChatResource[] = prev
-      ? existing.map((r) => (`${r.type}:${r.id}` === key ? mergeChatResource(r, resource) : r))
-      : [...existing, resource]
+      ? existing.map((r) =>
+          `${r.type}:${r.id}` === key ? mergeChatResource(r, resourceUpdate) : r
+        )
+      : [...existing, mergeChatResource(undefined, resourceUpdate)]
 
     await db
       .update(copilotChats)

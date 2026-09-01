@@ -108,7 +108,11 @@ describe('handleResourceEvent removal', () => {
   })
 })
 
-function tableUpsertEvent(id: string, viewId?: string): PersistedStreamEventEnvelope {
+function tableUpsertEvent(
+  id: string,
+  viewId?: string,
+  clearViewId?: true
+): PersistedStreamEventEnvelope {
   return {
     type: 'resource',
     v: 1,
@@ -117,7 +121,13 @@ function tableUpsertEvent(id: string, viewId?: string): PersistedStreamEventEnve
     stream: { streamId: 's', cursor: '1' },
     payload: {
       op: 'upsert',
-      resource: { type: 'table', id, title: 'Invoices', ...(viewId ? { viewId } : {}) },
+      resource: {
+        type: 'table',
+        id,
+        title: 'Invoices',
+        ...(viewId ? { viewId } : {}),
+        ...(clearViewId ? { clearViewId } : {}),
+      },
     },
   } as PersistedStreamEventEnvelope
 }
@@ -186,6 +196,35 @@ describe('handleResourceEvent saved-view pins', () => {
     handleResourceEvent(ctx, tableUpsertEvent('tbl-1'))
 
     expect(deps.setResources).not.toHaveBeenCalled()
+    expect(useTableViewPinStore.getState().pins['tbl-1']).toBeUndefined()
+  })
+
+  it('clears the stored and pending pin when the agent deletes a saved view', () => {
+    const open: MothershipResource = {
+      type: 'table',
+      id: 'tbl-1',
+      title: 'Invoices',
+      viewId: 'view-1',
+    }
+    useTableViewPinStore.getState().pin('tbl-1', 'view-1')
+    const deps = makeStreamLoopDeps({
+      addResource: vi.fn(() => false),
+      resourcesRef: { current: [open] },
+    })
+    const ctx = { deps } as StreamLoopContext
+
+    handleResourceEvent(ctx, tableUpsertEvent('tbl-1', undefined, true))
+
+    expect(deps.addResource).toHaveBeenCalledWith({
+      type: 'table',
+      id: 'tbl-1',
+      title: 'Invoices',
+      clearViewId: true,
+    })
+    const updater = (deps.setResources as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      current: MothershipResource[]
+    ) => MothershipResource[]
+    expect(updater([open])).toEqual([{ type: 'table', id: 'tbl-1', title: 'Invoices' }])
     expect(useTableViewPinStore.getState().pins['tbl-1']).toBeUndefined()
   })
 })

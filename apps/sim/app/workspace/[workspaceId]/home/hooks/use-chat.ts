@@ -70,6 +70,8 @@ import {
   BROWSER_SESSION_RESOURCE_ID,
   isAddressableResource,
   isEphemeralResource,
+  type MothershipResourceUpdate,
+  mergeChatResource,
   sanitizeChatResources,
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
@@ -211,7 +213,7 @@ export interface UseChatReturn {
   resources: MothershipResource[]
   activeResourceId: string | null
   setActiveResourceId: (id: string | null) => void
-  addResource: (resource: MothershipResource) => boolean
+  addResource: (resource: MothershipResourceUpdate) => boolean
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
   reorderResources: (resources: MothershipResource[]) => void
   messageQueue: QueuedMessage[]
@@ -1383,6 +1385,7 @@ export function useChat(
    */
   const undisplayableResourcesRef = useRef<MothershipResource[]>([])
   const pendingPersistResourceKeysRef = useRef<Set<string>>(new Set())
+  const pendingClearViewIdKeysRef = useRef<Set<string>>(new Set())
   const inFlightResourceAddsRef = useRef<Map<string, Promise<unknown>>>(new Map())
   const reorderNeededAfterFlushRef = useRef(false)
 
@@ -1642,6 +1645,7 @@ export function useChat(
     useTableViewPinStore.getState().reset()
     undisplayableResourcesRef.current = []
     pendingPersistResourceKeysRef.current.clear()
+    pendingClearViewIdKeysRef.current.clear()
     inFlightResourceAddsRef.current.clear()
     reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
@@ -1679,9 +1683,18 @@ export function useChat(
       const key = `${resource.type}:${resource.id}`
       if (!pendingKeys.has(key)) continue
       pendingKeys.delete(key)
+      const shouldClearViewId = pendingClearViewIdKeysRef.current.has(key)
       const promise = requestJson(addMothershipChatResourceContract, {
-        body: { chatId, resource },
+        body: {
+          chatId,
+          resource,
+          ...(shouldClearViewId ? { clearViewId: true as const } : {}),
+        },
       })
+        .then((result) => {
+          if (shouldClearViewId) pendingClearViewIdKeysRef.current.delete(key)
+          return result
+        })
         .catch((err) => {
           pendingPersistResourceKeysRef.current.add(key)
           logger.warn('Failed to flush pending resource; will retry on next hydration', err)
@@ -1798,20 +1811,30 @@ export function useChat(
     const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
   }, [chatHistory, pendingMessages])
-  const addResource = useCallback((resource: MothershipResource): boolean => {
+  const addResource = useCallback((resourceUpdate: MothershipResourceUpdate): boolean => {
     // The single fan-in for tab creation, so the invariant lives here.
-    if (!isAddressableResource(resource)) {
-      logger.warn('Ignored a resource with no id', { type: resource.type, title: resource.title })
+    if (!isAddressableResource(resourceUpdate)) {
+      logger.warn('Ignored a resource with no id', {
+        type: resourceUpdate.type,
+        title: resourceUpdate.title,
+      })
       return false
     }
-    if (resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)) {
+    const existing = resourcesRef.current.find(
+      (r) => r.type === resourceUpdate.type && r.id === resourceUpdate.id
+    )
+    const resource = mergeChatResource(existing, resourceUpdate)
+    if (existing && resource === existing) {
       return false
     }
 
     setResources((prev) => {
-      const exists = prev.some((r) => r.type === resource.type && r.id === resource.id)
-      if (exists) return prev
-      return [...prev, resource]
+      const current = prev.find((r) => r.type === resource.type && r.id === resource.id)
+      if (!current) return [...prev, resource]
+      const merged = mergeChatResource(current, resourceUpdate)
+      return merged === current
+        ? prev
+        : prev.map((r) => (r.type === resource.type && r.id === resource.id ? merged : r))
     })
     // Synthetic result/preview panels are in-memory only. The browser tab
     // metadata is persisted even though its live page remains desktop-owned.
@@ -1821,6 +1844,12 @@ export function useChat(
 
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
     const key = `${resource.type}:${resource.id}`
+    const shouldClearViewId = resourceUpdate.clearViewId === true
+    if (shouldClearViewId) {
+      pendingClearViewIdKeysRef.current.add(key)
+    } else if (resourceUpdate.viewId !== undefined) {
+      pendingClearViewIdKeysRef.current.delete(key)
+    }
     // `resourcesRef` is written during render, so adds of the same resource in
     // one tick all read the pre-render list and all pass the check above. State
     // converges (the updater is idempotent) but each fired its own POST — 5-6
@@ -1828,12 +1857,21 @@ export function useChat(
     const alreadyPersisting =
       inFlightResourceAddsRef.current.has(key) || pendingPersistResourceKeysRef.current.has(key)
     if (alreadyPersisting) {
-      return true
+      pendingPersistResourceKeysRef.current.add(key)
+      return existing === undefined
     }
     if (persistChatId) {
       const promise = requestJson(addMothershipChatResourceContract, {
-        body: { chatId: persistChatId, resource },
+        body: {
+          chatId: persistChatId,
+          resource,
+          ...(shouldClearViewId ? { clearViewId: true as const } : {}),
+        },
       })
+        .then((result) => {
+          if (shouldClearViewId) pendingClearViewIdKeysRef.current.delete(key)
+          return result
+        })
         .catch((err) => {
           pendingPersistResourceKeysRef.current.add(key)
           logger.warn('Failed to persist resource; will retry on next hydration', err)
@@ -1845,7 +1883,7 @@ export function useChat(
     } else {
       pendingPersistResourceKeysRef.current.add(key)
     }
-    return true
+    return existing === undefined
   }, [])
 
   const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {
@@ -1856,6 +1894,7 @@ export function useChat(
     if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
 
     const key = `${resourceType}:${resourceId}`
+    pendingClearViewIdKeysRef.current.delete(key)
     const wasPending = pendingPersistResourceKeysRef.current.delete(key)
     const inFlightAdd = inFlightResourceAddsRef.current.get(key)
     if (wasPending && !inFlightAdd) return
@@ -2344,6 +2383,7 @@ export function useChat(
     setActiveResourceId(null)
     useTableViewPinStore.getState().reset()
     pendingPersistResourceKeysRef.current.clear()
+    pendingClearViewIdKeysRef.current.clear()
     inFlightResourceAddsRef.current.clear()
     reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()

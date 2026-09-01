@@ -120,6 +120,7 @@ export async function handleResourceSideEffects(
                   : {}),
                 // An id, never secret material — read from the raw result.
                 ...(resource.viewId !== undefined ? { viewId: resource.viewId } : {}),
+                ...(resource.clearViewId === true ? { clearViewId: true as const } : {}),
               }))
             : []
 
@@ -148,6 +149,7 @@ export async function handleResourceSideEffects(
                   id: resource.id,
                   title: resource.title,
                   ...(resource.viewId !== undefined ? { viewId: resource.viewId } : {}),
+                  ...(resource.clearViewId === true ? { clearViewId: true } : {}),
                 },
               },
             })

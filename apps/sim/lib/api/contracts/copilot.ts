@@ -100,10 +100,29 @@ const copilotChatResourceItemSchema = z.object({
   viewId: z.string().min(1).optional(),
 })
 
-export const addCopilotChatResourceBodySchema = z.object({
-  chatId: z.string(),
-  resource: copilotChatResourceItemSchema,
-})
+export const addCopilotChatResourceBodySchema = z
+  .object({
+    chatId: z.string(),
+    resource: copilotChatResourceItemSchema,
+    clearViewId: z.literal(true).optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.clearViewId !== true) return
+    if (body.resource.type !== 'table') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['clearViewId'],
+        message: 'clearViewId is only valid for table resources',
+      })
+    }
+    if (body.resource.viewId !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['resource', 'viewId'],
+        message: 'viewId must be omitted when clearViewId is true',
+      })
+    }
+  })
 export type AddCopilotChatResourceBody = z.input<typeof addCopilotChatResourceBodySchema>
 
 export const removeCopilotChatResourceBodySchema = z.object({

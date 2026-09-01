@@ -363,6 +363,9 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
     MothershipStreamV1ResourceDescriptor: {
       additionalProperties: false,
       properties: {
+        clearViewId: {
+          type: 'boolean',
+        },
         id: {
           type: 'string',
         },

@@ -3,7 +3,12 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
-import { type MothershipResource, mergeChatResource, sanitizeChatResources } from './types'
+import {
+  type MothershipResource,
+  type MothershipResourceUpdate,
+  mergeChatResource,
+  sanitizeChatResources,
+} from './types'
 
 export {
   extractDeletedResourcesFromToolResult,
@@ -26,7 +31,7 @@ type ChatResource = MothershipResource
  */
 export async function persistChatResources(
   chatId: string,
-  newResources: ChatResource[]
+  newResources: MothershipResourceUpdate[]
 ): Promise<void> {
   const toMerge = newResources.filter((r) => r.id !== 'streaming-file')
   if (toMerge.length === 0) return

@@ -276,7 +276,8 @@ function isValidResourcePayload(payload: JsonRecord): boolean {
   return (
     hasAddressableId(resource.id) &&
     typeof resource.type === 'string' &&
-    (resource.viewId === undefined || typeof resource.viewId === 'string')
+    (resource.viewId === undefined || typeof resource.viewId === 'string') &&
+    (resource.clearViewId === undefined || typeof resource.clearViewId === 'boolean')
   )
 }
 

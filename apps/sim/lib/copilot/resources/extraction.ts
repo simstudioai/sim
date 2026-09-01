@@ -16,9 +16,9 @@ import {
   TableViews,
   UserTable,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { MothershipResource, MothershipResourceType } from './types'
+import type { MothershipResourceType, MothershipResourceUpdate } from './types'
 
-type ChatResource = MothershipResource
+type ChatResource = MothershipResourceUpdate
 type ResourceType = MothershipResourceType
 
 const RESOURCE_TOOL_NAMES: Set<string> = new Set([
@@ -203,7 +203,8 @@ export function extractResourcesFromToolResult(
     // create/update/set-default — the view, so the panel opens the table pinned
     // to that view; a delete opens the table unpinned. Reads open nothing.
     case TableViews.id: {
-      if (READ_ONLY_VIEW_OPS.has(getOperation(params) ?? '')) return []
+      const operation = getOperation(params) ?? ''
+      if (READ_ONLY_VIEW_OPS.has(operation)) return []
       const args = toRecord(params?.args)
       const tableId = (data.tableId as string) ?? (args.tableId as string)
       if (!tableId) return []
@@ -214,6 +215,7 @@ export function extractResourcesFromToolResult(
           id: tableId,
           title: (data.tableName as string) || 'Table',
           ...(typeof viewId === 'string' && viewId ? { viewId } : {}),
+          ...(operation === 'delete_view' ? { clearViewId: true as const } : {}),
         },
       ]
     }

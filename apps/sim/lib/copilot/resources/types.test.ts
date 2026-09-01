@@ -111,6 +111,30 @@ describe('client and server agree on what can be persisted', () => {
     }
   })
 
+  it('accepts an explicit table pin clear and rejects ambiguous or non-table clears', () => {
+    expect(
+      addCopilotChatResourceBodySchema.safeParse({
+        chatId: 'chat-1',
+        resource: { type: 'table', id: 'tbl-1', title: 'Invoices' },
+        clearViewId: true,
+      }).success
+    ).toBe(true)
+    expect(
+      addCopilotChatResourceBodySchema.safeParse({
+        chatId: 'chat-1',
+        resource: { type: 'table', id: 'tbl-1', title: 'Invoices', viewId: 'view-1' },
+        clearViewId: true,
+      }).success
+    ).toBe(false)
+    expect(
+      addCopilotChatResourceBodySchema.safeParse({
+        chatId: 'chat-1',
+        resource: { type: 'file', id: 'file-1', title: 'report.csv' },
+        clearViewId: true,
+      }).success
+    ).toBe(false)
+  })
+
   it('covers every resource type, so a new one has to make the choice explicitly', () => {
     const all = Object.values(MothershipResourceType)
     const ephemeral = all.filter((type) => isEphemeralResource(resource({ type })))
@@ -181,6 +205,13 @@ describe('mergeChatResource', () => {
 
     // A row edit re-adds the table without a view — the tab stays on view-b.
     expect(mergeChatResource(pinnedB, stored)).toBe(pinnedB)
+  })
+
+  it('clears a pin only when the update carries the explicit clear directive', () => {
+    const pinned = { ...stored, viewId: 'view-a' }
+
+    expect(mergeChatResource(pinned, { ...stored, clearViewId: true })).toEqual(stored)
+    expect(mergeChatResource(undefined, { ...stored, clearViewId: true })).toEqual(stored)
   })
 })
 

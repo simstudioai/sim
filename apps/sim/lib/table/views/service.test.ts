@@ -192,7 +192,10 @@ describe('table-view mutations signal collaborators', () => {
       isDefault: true,
     })
 
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ isDefault: false })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      isDefault: false,
+      updatedAt: expect.any(Date),
+    })
     expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ isDefault: true }))
   })
 

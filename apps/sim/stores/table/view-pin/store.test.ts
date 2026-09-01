@@ -49,4 +49,15 @@ describe('useTableViewPinStore', () => {
     useTableViewPinStore.getState().consume('tbl-none', 1)
     expect(useTableViewPinStore.getState().pins).toBe(before)
   })
+
+  it('clear removes a pending pin and leaves other tables alone', () => {
+    const { pin, clear } = useTableViewPinStore.getState()
+    pin('tbl-1', 'view-a')
+    pin('tbl-2', 'view-b')
+
+    clear('tbl-1')
+
+    expect(useTableViewPinStore.getState().pins['tbl-1']).toBeUndefined()
+    expect(useTableViewPinStore.getState().pins['tbl-2'].viewId).toBe('view-b')
+  })
 })

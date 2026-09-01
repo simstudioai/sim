@@ -255,4 +255,24 @@ describe('resource event view pins', () => {
 
     expect(isContractStreamEventEnvelope(event)).toBe(false)
   })
+
+  it('accepts an explicit pin clear and rejects a non-boolean directive', () => {
+    const event = {
+      ...BASE_ENVELOPE,
+      type: 'resource' as const,
+      payload: {
+        op: 'upsert' as const,
+        resource: { id: 'tbl-1', type: 'table', title: 'Invoices', clearViewId: true },
+      },
+    }
+
+    expect(isContractStreamEventEnvelope(event)).toBe(true)
+    expect(parsePersistedStreamEventEnvelope(event).ok).toBe(true)
+    expect(
+      isContractStreamEventEnvelope({
+        ...event,
+        payload: { ...event.payload, resource: { ...event.payload.resource, clearViewId: 'yes' } },
+      })
+    ).toBe(false)
+  })
 })

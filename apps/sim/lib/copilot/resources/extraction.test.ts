@@ -220,7 +220,7 @@ describe('extractResourcesFromToolResult for table_views', () => {
     }
   )
 
-  it('a delete opens the table without a pin', () => {
+  it('a delete opens the table and explicitly clears its saved pin', () => {
     expect(
       extractResourcesFromToolResult(
         'table_views',
@@ -231,7 +231,7 @@ describe('extractResourcesFromToolResult for table_views', () => {
           data: { tableId: 'tbl_1', tableName: 'Invoices' },
         }
       )
-    ).toEqual([{ type: 'table', id: 'tbl_1', title: 'Invoices' }])
+    ).toEqual([{ type: 'table', id: 'tbl_1', title: 'Invoices', clearViewId: true }])
   })
 
   it.each(['list_views', 'get_view'])('%s opens nothing', (operation) => {
