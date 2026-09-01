@@ -138,17 +138,6 @@ const ENTRY_SOURCES: readonly EntrySource[] = [
     matches: isSourceModule,
     reason: 'the shared catalog projection, which every catalog surface imports',
   },
-  {
-    /**
-     * The Copilot block-metadata tool: the reason the shared projection exists.
-     * Cutting its registry edge took it from ~6,756 modules to ~1,321, and
-     * nothing was holding that win — the tool appeared in no guarded subtree, so
-     * a single `getTool` import could have spent all of it silently.
-     */
-    root: 'lib/mothership/tools/server/blocks',
-    matches: (filename) => filename === 'get-blocks-metadata-tool.ts',
-    reason: 'the Copilot block-metadata tool, which reads block and tool metadata only',
-  },
 ]
 
 function collectEntries(

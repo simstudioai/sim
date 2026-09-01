@@ -1,5 +1,5 @@
 {
-  "generatedFrom": "module graphs of every entry under: app/workspace, app/api/v2/blocks, app/api/v2/tools, app/api/v2/connector-types, lib/catalog/projection, lib/mothership/tools/server/blocks",
+  "generatedFrom": "module graphs of every entry under: app/workspace, app/api/v2/blocks, app/api/v2/tools, app/api/v2/connector-types, lib/catalog/projection",
   "tolerance": {
     "modules": 25,
     "percent": 2
@@ -692,24 +692,6 @@
     "lib/catalog/projection/tool.ts": {
       "modules": 8,
       "gateways": {}
-    },
-<<<<<<< HEAD
-    "lib/copilot/tools/server/blocks/get-blocks-metadata-tool.ts": {
-      "modules": 1164,
-=======
-    "lib/mothership/tools/server/blocks/get-blocks-metadata-tool.ts": {
-      "modules": 1257,
->>>>>>> 2ff9a4fa01 (feat: sim side of the mothership revamp)
-      "gateways": {
-        "apps/sim/triggers/index.ts": 510,
-        "apps/sim/triggers/registry.ts": 508,
-        "apps/sim/blocks/registry.ts": 460,
-        "apps/sim/blocks/registry-maps.ts": 458,
-        "apps/sim/ee/access-control/utils/permission-check.ts": 114,
-        "apps/sim/lib/billing/index.ts": 109,
-        "apps/sim/blocks/blocks/credential-group.ts": 108,
-        "apps/sim/stores/workflows/registry/store.ts": 83
-      }
     }
   }
 }

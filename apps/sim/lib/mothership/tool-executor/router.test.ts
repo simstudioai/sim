@@ -3,13 +3,13 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { hasHandler } from '@/lib/copilot/tool-executor/executor'
-import { ensureHandlersRegistered } from '@/lib/copilot/tool-executor/register-handlers'
+import { hasHandler } from '@/lib/mothership/tool-executor/executor'
+import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
 import {
   getToolEntry,
   isSimExecuted,
   toolRequiresApproval,
-} from '@/lib/copilot/tool-executor/router'
+} from '@/lib/mothership/tool-executor/router'
 
 describe('workflow-run cancellation tool routing', () => {
   it('routes cancellation through Sim with write permission and explicit approval', () => {

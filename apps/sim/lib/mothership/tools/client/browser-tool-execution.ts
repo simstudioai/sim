@@ -27,14 +27,9 @@ import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncCompletionData,
   type AsyncConfirmationStatus,
-<<<<<<< HEAD:apps/sim/lib/copilot/tools/client/browser-tool-execution.ts
-} from '@/lib/copilot/async-runs/lifecycle'
-import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
-import { BrowserToolReplayLedger } from '@/lib/copilot/tools/client/browser-tool-replay-ledger'
-=======
 } from '@/lib/mothership/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/mothership/constants'
->>>>>>> 2ff9a4fa01 (feat: sim side of the mothership revamp):apps/sim/lib/mothership/tools/client/browser-tool-execution.ts
+import { BrowserToolReplayLedger } from '@/lib/mothership/tools/client/browser-tool-replay-ledger'
 import {
   reportClientToolCompletion,
   reportClientToolCompletionOnPageExit,

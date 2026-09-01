@@ -14,6 +14,7 @@ import {
   type ToolEffectPhase,
 } from '@/lib/mothership/tool-executor/types'
 import type {
+  CancelWorkflowRunParams,
   CreateWorkflowParams,
   GenerateApiKeyParams,
   MoveWorkflowParams,
@@ -28,6 +29,7 @@ import type {
 } from '@/lib/mothership/tools/handlers/param-types'
 import { requireCopilotWorkspace } from '@/lib/mothership/tools/server/workspace-scope'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
+import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { moveWorkflowsBulk } from '@/lib/workflows/application/move-workflows-bulk'
 import {
@@ -278,6 +280,45 @@ export async function executeRunWorkflow(
     return buildExecutionOutput(result, settledPhase(result.status))
   } catch (error) {
     return buildExecutionError(error)
+  }
+}
+
+export async function executeCancelWorkflowRun(
+  params: CancelWorkflowRunParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const executionId = resolveInputFromExecutionId(params.executionId)
+    if (!executionId) {
+      return { success: false, error: 'executionId is required' }
+    }
+
+    assertWorkflowMutationNotAborted(
+      context,
+      'Request aborted before workflow run cancellation could be applied.'
+    )
+    const result = await executeCopilotWorkflowUseCase(context, cancelWorkflowRun, {
+      runId: executionId,
+      ...(context.abortSignal ? { abortSignal: context.abortSignal } : {}),
+    })
+
+    return {
+      success: result.success,
+      output: {
+        workflowId: result.workflowId,
+        executionId: result.executionId,
+        durablyRecorded: result.durablyRecorded,
+        locallyAborted: result.locallyAborted,
+        pausedCancelled: result.pausedCancelled,
+        reason: result.reason,
+      },
+      error: result.success ? undefined : 'Workflow run cancellation could not be completed',
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to cancel workflow run'),
+    }
   }
 }
 

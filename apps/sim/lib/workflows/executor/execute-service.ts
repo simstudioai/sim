@@ -2,7 +2,7 @@ import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { generateId, isValidUuid } from '@sim/utils/id'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -679,7 +679,7 @@ export async function executeWorkflowService(
           aborted: 'timeout',
           output: compactTimeoutOutput,
           blockOutputs: await compactServiceOutput(
-            pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
+            await pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
             compactionContext
           ),
           error: { message: timeoutErrorMessage, code: 'TIMEOUT' },
@@ -710,7 +710,7 @@ export async function executeWorkflowService(
 
       const compactOutput = await compactServiceOutput(outputWithBase64, compactionContext)
       const blockOutputs = await compactServiceOutput(
-        pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
+        await pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
         compactionContext
       )
 
@@ -783,7 +783,7 @@ export async function executeWorkflowService(
         try {
           compactErrorOutput = await compactServiceOutput(executionResult.output, compactionContext)
           compactErrorBlockOutputs = await compactServiceOutput(
-            pickRunBlockOutputs(selectedOutputs, workflowBlocks, executionResult.logs),
+            await pickRunBlockOutputs(selectedOutputs, workflowBlocks, executionResult.logs),
             compactionContext
           )
         } catch (compactError) {
@@ -895,11 +895,11 @@ function resolveOutputPath(value: unknown, path: string[]): unknown {
  * follow. The last log per block wins, so a block inside a loop reports its
  * final iteration's output.
  */
-export function pickRunBlockOutputs(
+export async function pickRunBlockOutputs(
   selectedOutputs: string[] | undefined,
   blocks: Record<string, unknown>,
   logs: BlockLog[] | undefined
-): Record<string, unknown> | null {
+): Promise<Record<string, unknown> | null> {
   if (!selectedOutputs || selectedOutputs.length === 0) return null
 
   const outputByBlockId = new Map<string, unknown>()
@@ -907,7 +907,7 @@ export function pickRunBlockOutputs(
     if (log.output !== undefined) outputByBlockId.set(log.blockId, log.output)
   }
 
-  const resolved = resolveOutputIds(selectedOutputs, blocks) ?? []
+  const resolved = (await resolveOutputIds(selectedOutputs, blocks)) ?? []
   const picked: Record<string, unknown> = {}
   for (let i = 0; i < selectedOutputs.length; i++) {
     const selector = selectedOutputs[i]

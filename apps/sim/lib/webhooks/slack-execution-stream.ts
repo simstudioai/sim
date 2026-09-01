@@ -1,8 +1,8 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import { pluckByPath } from '@/lib/table/pluck'
 import {

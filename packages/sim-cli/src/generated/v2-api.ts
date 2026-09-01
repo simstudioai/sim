@@ -1023,6 +1023,9 @@ type CancelWorkflowRunResponseRef0 = {
     | 'redis_write_failed'
     | 'paused_event_publish_failed'
     | 'paused_database_cancel_failed'
+    | 'queue_cancelled'
+    | 'active_resume_signal_failed'
+    | 'cancellation_not_finalized'
 }
 
 export type CancelWorkflowRunResponse = {
@@ -4040,6 +4043,7 @@ type GetLogResponseRef2 = {
   endedAt: string | null
   totalDurationMs: number | null
   files: Array<GetLogResponseRef0> | null
+  executedByEmail: string | null
   workflow: {
     id: string | null
     name: string
@@ -4606,6 +4610,7 @@ type GetWorkflowChatDeploymentResponseRef0 = {
 }
 
 type GetWorkflowChatDeploymentResponseRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -5135,6 +5140,7 @@ type ListChatDeploymentsResponseRef0 = {
 }
 
 type ListChatDeploymentsResponseRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -6873,6 +6879,7 @@ type ReplaceWorkflowChatDeploymentBodyRef0 = {
 }
 
 type ReplaceWorkflowChatDeploymentBodyRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -6897,6 +6904,7 @@ type ReplaceWorkflowChatDeploymentResponseRef0 = {
 }
 
 type ReplaceWorkflowChatDeploymentResponseRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -10747,7 +10755,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in the response, as `blockId`, `blockId.path`, or `BlockName.path` (resolved against the workflow state being run). On a sync request the named outputs come back in `blockOutputs`, keyed by these selector strings; on a stream they shape the streamed envelope. Selectors that resolve to no block or no value are omitted. Rejected when `async` is true — a queued run has produced nothing to select; narrow the finished run via the run resource instead.',
+          'Block output references to include in the response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names, and selecting a child workflow applies to every invocation of it. On a sync request the named outputs come back in `blockOutputs`, keyed by these selector strings; on a stream they shape the streamed envelope. Selectors that resolve to no block or no value are omitted. Rejected when `async` is true — a queued run has produced nothing to select; narrow the finished run via the run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',
