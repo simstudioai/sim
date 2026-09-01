@@ -25,6 +25,7 @@ import type {
   ToolExecutionContext,
   ToolExecutionResult,
 } from '@/lib/mothership/tool-executor/types'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session'
 import {
   CopilotCodeSecretAccessError,
   type MaterializedCopilotCodeSecrets,
@@ -515,7 +516,7 @@ export async function executeFunctionExecute(
   // bootstrapped into it. Chat-less executions (one-shot, headless) stay
   // ephemeral.
   if (context.chatId) {
-    enrichedParams.sandboxSessionKey = `mothership-chat:${context.chatId}`
+    enrichedParams.sandboxSessionKey = chatSandboxSessionKey(context.chatId)
   }
   // The copilot tool doc promises `timeout` in SECONDS ("Sim converts to
   // milliseconds", default 10, cap 300); the underlying function tool takes

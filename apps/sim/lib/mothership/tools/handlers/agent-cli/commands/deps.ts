@@ -5,7 +5,11 @@ import {
   agentCliOk,
 } from '@/lib/mothership/tools/handlers/agent-cli/types'
 import { normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
-import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
+import {
+  collectStringLeaves,
+  createEnvVarPattern,
+  createReferencePattern,
+} from '@/executor/utils/reference-validation'
 
 /**
  * `workflow deps <workflowId> <blockId>` — everything one block consumes, so the
@@ -27,13 +31,6 @@ interface DepView {
   blockId?: string
   blockName?: string
   paths?: string[]
-}
-
-function stringLeaves(value: unknown, out: string[]): void {
-  if (typeof value === 'string') out.push(value)
-  else if (Array.isArray(value)) for (const item of value) stringLeaves(item, out)
-  else if (typeof value === 'object' && value !== null)
-    for (const item of Object.values(value)) stringLeaves(item, out)
 }
 
 export const workflowDepsCommand: AgentCliCommand = {
@@ -61,7 +58,7 @@ export const workflowDepsCommand: AgentCliCommand = {
     }
 
     const leaves: string[] = []
-    stringLeaves(block.subBlocks ?? block, leaves)
+    collectStringLeaves(block.subBlocks ?? block, leaves)
 
     const byToken = new Map<string, DepView>()
     const envs = new Set<string>()

@@ -144,3 +144,14 @@ export function createCombinedPattern(): RegExp {
     'g'
   )
 }
+
+/**
+ * Collects every string leaf in a nested value — the shared walk for reference/env-token
+ * audits over block inputs (lint, deps, and the agent-cli mirrors each carried a copy).
+ */
+export function collectStringLeaves(value: unknown, out: string[]): void {
+  if (typeof value === 'string') out.push(value)
+  else if (Array.isArray(value)) for (const item of value) collectStringLeaves(item, out)
+  else if (typeof value === 'object' && value !== null)
+    for (const item of Object.values(value)) collectStringLeaves(item, out)
+}
