@@ -311,7 +311,9 @@ export const selectorManifest = {
   }),
   'webflow.items': providerSelector(['collectionId'], {
     readiness: { all: ['oauthCredential', 'collectionId'] },
+    listMode: 'paginated',
     search: true,
+    detail: true,
     staleTime: SEARCH_SELECTOR_STALE_TIME,
   }),
   'cloudwatch.logGroups': rawProviderSelector(
