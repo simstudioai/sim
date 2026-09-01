@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { chatAuthTypeSchema, chatDeploymentPasswordSchema } from '@/lib/api/contracts/chats'
 import {
@@ -14,6 +15,7 @@ import {
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
 import { v2WorkflowIdParamsSchema } from '@/lib/api/contracts/v2/workflows'
+import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 
 /**
  * v2 chat-deployment contracts.
@@ -120,6 +122,13 @@ export const v2ChatDeploymentOutputConfigSchema = z
       .describe('Path within that block output.'),
   })
   .strict()
+  .superRefine((config, ctx) => {
+    try {
+      formatInternalOutputSelector(config.blockId, config.path)
+    } catch (error) {
+      ctx.addIssue({ code: 'custom', message: getErrorMessage(error, 'Invalid output config') })
+    }
+  })
   .meta({
     id: 'ChatDeploymentOutputConfig',
     title: 'Chat deployment output config',

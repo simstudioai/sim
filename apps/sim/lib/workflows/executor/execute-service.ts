@@ -35,7 +35,7 @@ import {
 import { shouldEmitAgentStreamEvents } from '@/lib/workflows/streaming/agent-stream-protocol'
 import {
   formatOutputSelector,
-  parseOutputSelector,
+  parsePublicOutputSelector,
 } from '@/lib/workflows/streaming/output-selector'
 import {
   agentStreamProtocolResponseHeaders,
@@ -476,7 +476,17 @@ export async function executeWorkflowService(
     }
 
     if (mode === 'stream') {
-      const resolvedSelectedOutputs = resolveOutputIds(selectedOutputs, workflowBlocks)
+      let resolvedSelectedOutputs: string[] | undefined
+      try {
+        resolvedSelectedOutputs = resolveOutputIds(selectedOutputs, workflowBlocks)
+      } catch (error) {
+        await releaseExecutionSlot(executionId)
+        return failure({
+          kind: 'input',
+          message: `Invalid selectedOutputs: ${getErrorMessage(error)}`,
+          statusCode: 400,
+        })
+      }
       const streamWorkflow = {
         id: workflow.id,
         /**
@@ -847,7 +857,7 @@ export function resolveOutputIds(
 
   return selectedOutputs.map((outputId) => {
     if (outputId.includes('/')) {
-      const parsed = parseOutputSelector(outputId)
+      const parsed = parsePublicOutputSelector(outputId)
       return formatOutputSelector(parsed.blockId, parsed.path)
     }
 

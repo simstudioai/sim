@@ -579,6 +579,32 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     )
   })
 
+  it('maps malformed nested output selectors to an input failure', async () => {
+    const result = await executeWorkflowService({
+      workflowId: 'workflow-1',
+      principal: { kind: 'personal_api_key', userId: 'actor-1', keyId: 'key-1' },
+      userId: 'actor-1',
+      input: {},
+      triggerType: 'api',
+      requestId: 'request-1',
+      workflowRecord,
+      selectedOutputs: ['workflow//agent.content'],
+      mode: 'stream',
+      requestHeaders: new Headers(),
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      failure: {
+        kind: 'input',
+        message:
+          'Invalid selectedOutputs: Invalid scoped output selector block ID: workflow//agent',
+        statusCode: 400,
+      },
+    })
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-123')
+  })
+
   it('rejects async manual execution and conflicting mock input before dispatch', async () => {
     authenticatePersonalKey()
 

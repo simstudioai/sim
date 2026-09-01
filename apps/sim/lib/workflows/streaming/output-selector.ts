@@ -1,3 +1,5 @@
+import { isValidUuid } from '@sim/utils/id'
+
 export const OUTPUT_SCOPE_SEPARATOR = '/'
 const INTERNAL_OUTPUT_PATH_SEPARATOR = '_'
 const PUBLIC_OUTPUT_PATH_SEPARATOR = '.'
@@ -19,6 +21,17 @@ function assertValidScopedBlockId(blockId: string): void {
   }
 }
 
+function assertValidOutputPath(path: string): void {
+  if (
+    path.trim() !== path ||
+    path
+      .split(PUBLIC_OUTPUT_PATH_SEPARATOR)
+      .some((segment) => !segment || segment.trim() !== segment)
+  ) {
+    throw new Error(`Invalid output selector path: ${path}`)
+  }
+}
+
 function parseOutputSelectorWithSeparator(
   selector: string,
   separator: typeof INTERNAL_OUTPUT_PATH_SEPARATOR | typeof PUBLIC_OUTPUT_PATH_SEPARATOR
@@ -35,6 +48,7 @@ function parseOutputSelectorWithSeparator(
   if (separatorIndex === 0 || (separatorIndex > 0 && !path)) {
     throw new Error(`Invalid output selector: ${selector}`)
   }
+  if (path) assertValidOutputPath(path)
 
   return { blockId, path }
 }
@@ -56,9 +70,15 @@ export function parseInternalOutputSelector(selector: string): ParsedOutputSelec
 export function parseStoredOutputSelector(selector: string): ParsedOutputSelector {
   const underscoreIndex = selector.indexOf(INTERNAL_OUTPUT_PATH_SEPARATOR)
   const dotIndex = selector.indexOf(PUBLIC_OUTPUT_PATH_SEPARATOR)
-  return underscoreIndex > 0 && (dotIndex < 0 || underscoreIndex < dotIndex)
-    ? parseInternalOutputSelector(selector)
-    : parsePublicOutputSelector(selector)
+  const internalBlockId = underscoreIndex > 0 ? selector.slice(0, underscoreIndex) : ''
+  const hasCanonicalInternalBlockId =
+    internalBlockId.length > 0 &&
+    internalBlockId.split(OUTPUT_SCOPE_SEPARATOR).every((segment) => isValidUuid(segment))
+
+  if (hasCanonicalInternalBlockId || (underscoreIndex > 0 && dotIndex < 0)) {
+    return parseInternalOutputSelector(selector)
+  }
+  return parsePublicOutputSelector(selector)
 }
 
 function formatOutputSelectorWithSeparator(
@@ -67,9 +87,7 @@ function formatOutputSelectorWithSeparator(
   separator: typeof INTERNAL_OUTPUT_PATH_SEPARATOR | typeof PUBLIC_OUTPUT_PATH_SEPARATOR
 ): string {
   assertValidScopedBlockId(blockId)
-  if (path.trim() !== path || path.startsWith('.') || path.endsWith('.')) {
-    throw new Error(`Invalid output selector path: ${path}`)
-  }
+  if (path) assertValidOutputPath(path)
   return path ? `${blockId}${separator}${path}` : blockId
 }
 
@@ -82,9 +100,6 @@ export function formatPublicOutputSelector(blockId: string, path = ''): string {
 export function formatInternalOutputSelector(blockId: string, path = ''): string {
   return formatOutputSelectorWithSeparator(blockId, path, INTERNAL_OUTPUT_PATH_SEPARATOR)
 }
-
-/** Parses persisted authoring selectors in both the legacy internal and public forms. */
-export const parseOutputSelector = parseStoredOutputSelector
 
 /** Formats selectors for the executor's legacy internal contract. */
 export const formatOutputSelector = formatInternalOutputSelector

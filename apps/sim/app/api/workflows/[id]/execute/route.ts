@@ -143,7 +143,7 @@ import {
 } from '@/lib/workflows/streaming/forward-agent-stream-events'
 import {
   formatOutputSelector,
-  parseOutputSelector,
+  parseStoredOutputSelector,
 } from '@/lib/workflows/streaming/output-selector'
 import {
   agentStreamProtocolResponseHeaders,
@@ -312,7 +312,7 @@ function resolveOutputIds(
 
   return selectedOutputs.map((outputId) => {
     if (outputId.includes('/')) {
-      const parsed = parseOutputSelector(outputId)
+      const parsed = parseStoredOutputSelector(outputId)
       return formatOutputSelector(parsed.blockId, parsed.path)
     }
 

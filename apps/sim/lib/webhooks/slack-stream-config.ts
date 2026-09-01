@@ -1,5 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import { parseOutputSelector } from '@/lib/workflows/streaming/output-selector'
+import { parseInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 
 export const SLACK_STREAM_RESPONSE_EVENTS = [
   'message',
@@ -24,7 +24,7 @@ export interface SlackStreamResponseConfig {
 const SLACK_TASK_TITLE_LIMIT = 256
 
 function parseSlackOutputSelector(selector: string): SlackStreamOutputConfig {
-  const parsed = parseOutputSelector(selector)
+  const parsed = parseInternalOutputSelector(selector)
   if (!parsed.path) {
     throw new Error(`Invalid Slack stream output selector: ${selector}`)
   }
