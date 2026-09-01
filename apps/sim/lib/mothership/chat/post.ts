@@ -305,6 +305,7 @@ const ChatMessageSchema = z
     contexts: z.array(ChatContextSchema).optional(),
     commands: z.array(z.string()).optional(),
     userTimezone: z.string().optional(),
+    effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
     clientCapabilities: z.array(z.string()).optional(),
     desktopCapabilities: z
       .object({
@@ -372,6 +373,7 @@ type UnifiedChatBranch =
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
+        effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
         workflowId: string
         workflowName?: string
         workspaceId?: string
@@ -421,6 +423,7 @@ type UnifiedChatBranch =
         assistantSearch?: WorkspaceSearchFilters
         workspaceContext?: string
         vfs?: VfsSnapshotV1
+        effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
@@ -1000,6 +1003,7 @@ async function resolveBranch(params: {
             implicitFeedback: payloadParams.implicitFeedback,
             userPermission: payloadParams.userPermission,
             userTimezone: payloadParams.userTimezone,
+            effort: payloadParams.effort,
             desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
             browser: payloadParams.browser,
             terminalCapable: payloadParams.terminalCapable,
@@ -1059,6 +1063,7 @@ async function resolveBranch(params: {
           chatId: payloadParams.chatId,
           userPermission: payloadParams.userPermission,
           userTimezone: payloadParams.userTimezone,
+          effort: payloadParams.effort,
           desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
           browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
@@ -1579,6 +1584,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 fileAttachments,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
+                effort: body.effort,
                 workflowId: branch.workflowId,
                 workflowName: branch.workflowName,
                 workspaceId: branch.workspaceId,
@@ -1605,6 +1611,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 assistantImages: assistantImages?.content,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
+                effort: body.effort,
                 desktopLocalFilesystem: body.desktopCapabilities?.localFilesystem === true,
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
