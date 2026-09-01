@@ -2515,7 +2515,7 @@ const v2WorkflowLintSchema = z
             .union([z.string(), z.array(z.string())])
             .describe('The reference, or references, that did not resolve.'),
           kind: z
-            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill'])
+            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill', 'block-output'])
             .describe('What kind of entity the reference was expected to name.'),
           reason: z.string().describe('Why the reference does not resolve.'),
         })
