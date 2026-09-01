@@ -23,6 +23,7 @@ import type {
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { isSoleOwnerOfPaidOrganization } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { cancelPendingMarkersForGovernedSubject } from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import {
@@ -628,6 +629,16 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
           inArray(tableRunDispatches.status, ['pending', 'dispatching'])
         )
       )
+
+    /**
+     * The dispatch cancel alone leaves the cells it already pre-stamped. Those
+     * markers are drained by whoever holds the row's cascade lock, and that
+     * worker's guard reads its own dispatch — so an unrelated active dispatch
+     * runs the departing account's marker, whose nulled subject then reads as
+     * "actorless, no gate". Same transaction as the dispatch cancel: both are
+     * the same stop.
+     */
+    await cancelPendingMarkersForGovernedSubject(tx, userId)
 
     await tx.delete(user).where(eq(user.id, userId))
   })

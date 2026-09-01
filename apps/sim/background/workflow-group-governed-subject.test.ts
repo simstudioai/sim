@@ -233,4 +233,33 @@ describe('the workflow half of a table cell', () => {
       })
     )
   }, 20_000)
+
+  /**
+   * Account deletion terminalizes the departing person's still-unstarted
+   * markers with the canonical cancel. This is the guard that makes that stick:
+   * the sibling dispatch that would otherwise drain the marker ungated reads
+   * the cell's own state before running anything.
+   */
+  it('refuses a marker another path terminalized before pickup', async () => {
+    mocks.getRowById.mockResolvedValue({
+      id: 'row-1',
+      data: {},
+      updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+      executions: {
+        'group-1': {
+          status: 'cancelled',
+          executionId: null,
+          jobId: null,
+          workflowId: 'workflow-1',
+          error: 'Cancelled',
+          cancelledAt: '2026-08-28T00:00:00.000Z',
+        },
+      },
+    })
+
+    await runRowCascadeLoop(PAYLOAD)
+
+    expect(mocks.executeWorkflow).not.toHaveBeenCalled()
+    expect(mocks.markWorkflowGroupPickedUp).not.toHaveBeenCalled()
+  }, 20_000)
 })
