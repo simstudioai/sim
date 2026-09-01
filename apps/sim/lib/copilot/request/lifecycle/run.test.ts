@@ -1093,6 +1093,29 @@ describe('runCopilotLifecycle', () => {
       expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
     })
 
+    /**
+     * A failed lookup is the endpoint's reading — withheld — not a rejection.
+     * Letting it throw would abort the turn before any card is drawn, over a
+     * database hiccup, on the one surface that has a human to ask.
+     */
+    it('reads a failed capability lookup as withheld instead of aborting the turn', async () => {
+      setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+      mockGetUserPermissionConfig.mockRejectedValue(new Error('permission group lookup failed'))
+      mockGetAutoAllowedTools.mockResolvedValue(new Set(['terminal_run']))
+      let captured: StreamingContext | undefined
+      mockRunStreamLoop.mockImplementation(async (_u, _o, context: StreamingContext) => {
+        captured = context
+      })
+
+      await runMothershipTurn()
+
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+      expect(captured?.toolPermissions.enabled).toBe(true)
+      expect(captured?.toolPermissions.autoAllowPermitted).toBe(false)
+      expect(captured?.toolPermissions.autoAllowed.size).toBe(0)
+      expect(mockGetAutoAllowedTools).not.toHaveBeenCalled()
+    })
+
     it('stays off for the workflow-scoped copilot even with the flag on', async () => {
       // That panel has no permission card, so gating there would hang the turn
       // on a prompt nothing draws.

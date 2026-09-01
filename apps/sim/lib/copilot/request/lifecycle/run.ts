@@ -1,7 +1,7 @@
 import type { Context } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
@@ -215,6 +215,13 @@ async function resolveToolPermissions(
    * "always allow" before the key was set would otherwise keep the prompt
    * silenced forever, so the stored list is not even loaded once the group
    * withholds the capability.
+   *
+   * A failed lookup reads as withheld, matching the decision endpoint: letting
+   * it reject would abort the whole turn here, before any card is drawn, over a
+   * database hiccup — the turn is interactive by construction at this point, so
+   * there is a human to ask. Withholding keeps the capability fail-closed
+   * without wedging the turn: no stored always-allow is loaded, nothing durable
+   * is remembered, and every gated call still asks its one-time question.
    */
   const withheld =
     options.userId && options.workspaceId
@@ -222,7 +229,13 @@ async function resolveToolPermissions(
           options.userId,
           options.workspaceId,
           'copilot.tool_auto_approval'
-        )
+        ).catch((error) => {
+          logger.warn('Could not resolve the tool auto-approval capability; prompting every time', {
+            workspaceId: options.workspaceId,
+            error: getErrorMessage(error),
+          })
+          return true
+        })
       : false
   if (withheld) {
     return { enabled: true, autoAllowed: new Set(), autoAllowPermitted: false }
