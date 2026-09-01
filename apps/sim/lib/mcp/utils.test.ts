@@ -436,7 +436,7 @@ describe('parseMcpToolId', () => {
 
 describe('parseMcpToolTarget', () => {
   it('preserves a managed connection ID even when its random segment contains hyphens', () => {
-    const credentialId = generateManagedMcpConnectionId()
+    const credentialId = 'mcp-cg-abcd-efghijklmnopqrst'
     const result = parseMcpToolTarget(`${credentialId}-fireflies-search-transcripts`)
 
     expect(result).toEqual({

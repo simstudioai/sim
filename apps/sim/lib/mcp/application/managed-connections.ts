@@ -9,9 +9,15 @@ import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import type { McpToolSchema } from '@/lib/mcp/types'
 
 const MAX_MANAGED_MCP_CONNECTIONS = 500
+const MAX_MANAGED_MCP_CATALOG_BYTES = 5 * 1024 * 1024
 
-function requireMcpToolSchema(inputSchema: Record<string, unknown>): McpToolSchema {
-  if (inputSchema.type !== 'object') {
+function requireMcpToolSchema(inputSchema: unknown): McpToolSchema {
+  if (
+    !inputSchema ||
+    typeof inputSchema !== 'object' ||
+    !('type' in inputSchema) ||
+    inputSchema.type !== 'object'
+  ) {
     throw new Error('Managed MCP tool snapshot must have an object input schema')
   }
   return inputSchema as McpToolSchema
@@ -27,14 +33,28 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
     if (!(await isCredentialGroupsAvailable({ workspaceId: context.workspaceId, ownerBilling }))) {
       return { servers: [], tools: [] }
     }
-    const rows = await db
+    const managedCatalogScope = () =>
+      and(
+        eq(credential.workspaceId, context.workspaceId),
+        eq(credential.type, 'managed_mcp'),
+        eq(credential.managedOauthStatus, 'active'),
+        eq(credentialGroup.status, 'active'),
+        inArray(credentialGroupEnrollment.status, ['in_progress', 'completed']),
+        eq(mcpServers.workspaceId, context.workspaceId),
+        eq(mcpServers.authType, 'oauth'),
+        eq(mcpServers.enabled, true),
+        isNull(mcpServers.deletedAt),
+        sql`${mcpServers.credentialGroupId} = ${credentialGroup.id}`
+      )
+    const metadataRows = await db
       .select({
         id: credential.id,
         serverId: mcpServers.id,
         serverName: mcpServers.name,
         serverDescription: mcpServers.description,
         email: credentialGroupEnrollment.email,
-        tools: credential.mcpTools,
+        toolSnapshotBytes:
+          sql<number>`COALESCE(octet_length(${credential.mcpTools}::text), 0)`.mapWith(Number),
         createdAt: credential.createdAt,
         updatedAt: credential.updatedAt,
       })
@@ -48,28 +68,54 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
         eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId)
       )
       .innerJoin(mcpServers, eq(mcpServers.id, credential.mcpServerId))
-      .where(
-        and(
-          eq(credential.workspaceId, context.workspaceId),
-          eq(credential.type, 'managed_mcp'),
-          eq(credential.managedOauthStatus, 'active'),
-          eq(credentialGroup.status, 'active'),
-          inArray(credentialGroupEnrollment.status, ['in_progress', 'completed']),
-          eq(mcpServers.workspaceId, context.workspaceId),
-          eq(mcpServers.authType, 'oauth'),
-          eq(mcpServers.enabled, true),
-          isNull(mcpServers.deletedAt),
-          sql`${mcpServers.credentialGroupId} = ${credentialGroup.id}`
-        )
-      )
+      .where(managedCatalogScope())
       .orderBy(asc(mcpServers.name), asc(credentialGroupEnrollment.email), asc(credential.id))
       .limit(MAX_MANAGED_MCP_CONNECTIONS + 1)
 
-    if (rows.length > MAX_MANAGED_MCP_CONNECTIONS) {
+    if (metadataRows.length > MAX_MANAGED_MCP_CONNECTIONS) {
       throw new Error(
         `Managed MCP catalog exceeds the ${MAX_MANAGED_MCP_CONNECTIONS}-connection limit`
       )
     }
+    const catalogBytes = metadataRows.reduce((total, row) => total + row.toolSnapshotBytes, 0)
+    if (catalogBytes > MAX_MANAGED_MCP_CATALOG_BYTES) {
+      throw new Error(
+        `Managed MCP catalog exceeds the ${MAX_MANAGED_MCP_CATALOG_BYTES}-byte metadata limit`
+      )
+    }
+
+    const toolRows =
+      metadataRows.length === 0
+        ? []
+        : await db
+            .select({ id: credential.id, tools: credential.mcpTools })
+            .from(credential)
+            .innerJoin(
+              credentialGroupEnrollment,
+              eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
+            )
+            .innerJoin(
+              credentialGroup,
+              eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId)
+            )
+            .innerJoin(mcpServers, eq(mcpServers.id, credential.mcpServerId))
+            .where(
+              and(
+                managedCatalogScope(),
+                inArray(
+                  credential.id,
+                  metadataRows.map((row) => row.id)
+                )
+              )
+            )
+    const toolsByConnectionId = new Map(toolRows.map((row) => [row.id, row.tools]))
+    const rows = metadataRows.map((row) => {
+      const tools = toolsByConnectionId.get(row.id)
+      if (!tools) {
+        throw new Error(`Managed MCP connection ${row.id} changed while loading its tool snapshot`)
+      }
+      return { ...row, tools }
+    })
 
     return {
       servers: rows.map((row) => ({
@@ -81,12 +127,11 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
         authType: 'oauth' as const,
         enabled: true,
         connectionStatus: 'connected' as const,
-        toolCount: row.tools?.length ?? 0,
+        toolCount: row.tools.length,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
       })),
       tools: rows.flatMap((row) => {
-        if (!row.tools) throw new Error(`Managed MCP connection ${row.id} has no tool snapshot`)
         return row.tools.map((tool) => ({
           name: tool.name,
           description: tool.description,

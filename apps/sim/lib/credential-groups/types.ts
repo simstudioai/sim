@@ -35,6 +35,8 @@ export interface CredentialGroupMcpServer {
   id: string
   name: string
   description: string | null
+  authType: string
+  enabled: boolean
 }
 
 interface CredentialGroupOptionBase {

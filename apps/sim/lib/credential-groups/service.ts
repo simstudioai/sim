@@ -55,7 +55,13 @@ async function listLinkedMcpServers(
   executor: DbOrTx = db
 ): Promise<CredentialGroupMcpServer[]> {
   return executor
-    .select({ id: mcpServers.id, name: mcpServers.name, description: mcpServers.description })
+    .select({
+      id: mcpServers.id,
+      name: mcpServers.name,
+      description: mcpServers.description,
+      authType: mcpServers.authType,
+      enabled: mcpServers.enabled,
+    })
     .from(mcpServers)
     .where(and(eq(mcpServers.credentialGroupId, credentialGroupId), isNull(mcpServers.deletedAt)))
     .orderBy(asc(mcpServers.name), asc(mcpServers.id))
@@ -304,6 +310,8 @@ export async function listCredentialGroups(workspaceId: string): Promise<Credent
         id: mcpServers.id,
         name: mcpServers.name,
         description: mcpServers.description,
+        authType: mcpServers.authType,
+        enabled: mcpServers.enabled,
         credentialGroupId: mcpServers.credentialGroupId,
       })
       .from(mcpServers)
@@ -313,7 +321,13 @@ export async function listCredentialGroups(workspaceId: string): Promise<Credent
   const serversByGroupId = new Map<string, CredentialGroupMcpServer[]>()
   for (const server of serverRows) {
     if (!server.credentialGroupId) continue
-    const summary = { id: server.id, name: server.name, description: server.description }
+    const summary = {
+      id: server.id,
+      name: server.name,
+      description: server.description,
+      authType: server.authType,
+      enabled: server.enabled,
+    }
     const current = serversByGroupId.get(server.credentialGroupId)
     if (current) current.push(summary)
     else serversByGroupId.set(server.credentialGroupId, [summary])

@@ -81,6 +81,16 @@ describe('executeManagedMcpToolUseCase', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(context)
+    mocks.loadRuntime.mockResolvedValue({
+      credentialId: context.credentialId,
+      mcpServerId: context.mcpServerId,
+      mcpServerName: context.mcpServerName,
+      workspaceId: context.workspaceId,
+      tokenVersion: 'encrypted-token-version-1',
+      tokens: { access_token: 'access-token' },
+      tools: [],
+    })
+    mocks.requireCredentialAccess.mockResolvedValue(undefined)
     mocks.resolvePermission.mockResolvedValue('read')
   })
 
@@ -110,6 +120,35 @@ describe('executeManagedMcpToolUseCase', () => {
       action: 'credential_groups.credentials.use',
     })
     expect(mocks.loadRuntime).not.toHaveBeenCalled()
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
+  it('fails fast when a persisted tool schema is null', async () => {
+    mocks.loadRuntime.mockResolvedValueOnce({
+      credentialId: context.credentialId,
+      mcpServerId: context.mcpServerId,
+      mcpServerName: context.mcpServerName,
+      workspaceId: context.workspaceId,
+      tokenVersion: 'encrypted-token-version-1',
+      tokens: { access_token: 'access-token' },
+      tools: [{ name: 'search_transcripts', inputSchema: null }],
+    })
+
+    await expect(
+      executeManagedMcpToolUseCase.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          credentialId: context.credentialId,
+          toolName: 'search_transcripts',
+          arguments: {},
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Managed MCP tool schema is invalid',
+    })
+
     expect(mocks.executeTool).not.toHaveBeenCalled()
   })
 })

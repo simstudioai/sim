@@ -8,6 +8,7 @@ import {
   loadPreregisteredClient,
   McpOauthRedirectRequired,
   mcpAuthGuarded,
+  withMcpOauthRefreshLock,
 } from '@/lib/mcp/oauth'
 import { ManagedMcpOauthProvider } from '@/lib/mcp/oauth/managed-provider'
 import { mcpService } from '@/lib/mcp/service'
@@ -17,37 +18,39 @@ export async function startCredentialGroupMcpOAuth(
   invitationToken: string
 ): Promise<string> {
   assertSafeOauthServerUrl(context.server.url)
-  const clientRow = await getOrCreateOauthRow({
-    mcpServerId: context.server.id,
-    workspaceId: context.workspaceId,
-  })
-  const preregistered = await loadPreregisteredClient(context.server.id)
-  const provider = new ManagedMcpOauthProvider({
-    clientRow,
-    preregistered,
-    async onSaveTokens() {
-      throw new Error('Managed MCP OAuth start cannot persist grant tokens')
-    },
-  })
-
-  try {
-    const result = await mcpAuthGuarded(provider, { serverUrl: context.server.url })
-    if (result === 'AUTHORIZED') {
-      throw new Error('Managed MCP OAuth unexpectedly authorized without an enrollment grant')
-    }
-    throw new Error('Managed MCP OAuth did not produce an authorization redirect')
-  } catch (error) {
-    if (!(error instanceof McpOauthRedirectRequired)) throw error
-    const attempt = provider.requireAuthorizationAttempt()
-    await createCredentialGroupMcpOAuthAttempt({
-      ...attempt,
-      enrollmentId: context.enrollmentId,
-      credentialGroupId: context.credentialGroupId,
+  return withMcpOauthRefreshLock(context.server.id, async () => {
+    const clientRow = await getOrCreateOauthRow({
       mcpServerId: context.server.id,
-      invitationToken,
+      workspaceId: context.workspaceId,
     })
-    return error.authorizationUrl
-  }
+    const preregistered = await loadPreregisteredClient(context.server.id)
+    const provider = new ManagedMcpOauthProvider({
+      clientRow,
+      preregistered,
+      async onSaveTokens() {
+        throw new Error('Managed MCP OAuth start cannot persist grant tokens')
+      },
+    })
+
+    try {
+      const result = await mcpAuthGuarded(provider, { serverUrl: context.server.url })
+      if (result === 'AUTHORIZED') {
+        throw new Error('Managed MCP OAuth unexpectedly authorized without an enrollment grant')
+      }
+      throw new Error('Managed MCP OAuth did not produce an authorization redirect')
+    } catch (error) {
+      if (!(error instanceof McpOauthRedirectRequired)) throw error
+      const attempt = provider.requireAuthorizationAttempt()
+      await createCredentialGroupMcpOAuthAttempt({
+        ...attempt,
+        enrollmentId: context.enrollmentId,
+        credentialGroupId: context.credentialGroupId,
+        mcpServerId: context.server.id,
+        invitationToken,
+      })
+      return error.authorizationUrl
+    }
+  })
 }
 
 export async function completeCredentialGroupMcpOAuth(

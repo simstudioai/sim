@@ -11,12 +11,15 @@ import {
   enforceCredentialGroupEnrollmentOAuthRateLimit,
   enforcePublicCredentialGroupOAuthStartIpRateLimit,
 } from '@/lib/credential-groups/rate-limit'
+import { makeTimedStep } from '@/lib/mcp/oauth'
 import { createCredentialGroupEnrollmentRedirect } from '@/app/api/credential-groups/enrollment-redirect'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const logger = createLogger('CredentialGroupMcpOAuthStartAPI')
+const timedStep = makeTimedStep(logger)
+const MANAGED_MCP_OAUTH_START_TIMEOUT_MS = 26_000
 
 export const GET = withRouteHandler(
   async (
@@ -41,11 +44,16 @@ export const GET = withRouteHandler(
     }
 
     try {
-      const { authorizationUrl } = await startPublicCredentialGroupMcpOAuth.execute({
-        principal,
-        input: { invitationToken: token, mcpServerId },
-        request,
-      })
+      const { authorizationUrl } = await timedStep(
+        'startPublicCredentialGroupMcpOAuth',
+        MANAGED_MCP_OAUTH_START_TIMEOUT_MS,
+        () =>
+          startPublicCredentialGroupMcpOAuth.execute({
+            principal,
+            input: { invitationToken: token, mcpServerId },
+            request,
+          })
+      )
       const response = NextResponse.redirect(authorizationUrl)
       response.headers.set('Cache-Control', 'no-store')
       response.headers.set('Referrer-Policy', 'no-referrer')

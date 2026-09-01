@@ -193,6 +193,24 @@ describe('useMcpToolsQuery', () => {
     hook.unmount()
   })
 
+  it('surfaces a shared server-list failure when the managed catalog is empty', async () => {
+    const serverListError = new Error('server list failed')
+    mockRequestJson.mockImplementation(async (contract) => {
+      if (contract === listMcpServersContract) throw serverListError
+      if (contract === listManagedMcpCatalogContract) return { servers: [], tools: [] }
+      throw new Error('Unexpected MCP request')
+    })
+
+    const hook = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
+    await flush()
+
+    expect(hook.getResult().data).toEqual([])
+    expect(hook.getResult().error).toBe(serverListError)
+    expect(hook.getResult().isLoading).toBe(false)
+
+    hook.unmount()
+  })
+
   it('defers detail and form metadata queries while their surfaces are closed', async () => {
     mockRequestJson.mockImplementation(async (contract) => {
       if (contract === listStoredMcpToolsContract || contract === getAllowedMcpDomainsContract) {

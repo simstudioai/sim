@@ -15,6 +15,7 @@ import {
   consumeCredentialGroupMcpOAuthAttempt,
   isCredentialGroupMcpOAuthState,
 } from '@/lib/credential-groups/mcp-oauth-state'
+import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import {
   assertSafeOauthServerUrl,
   clearState,
@@ -125,6 +126,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const { state, code, error: errorParam } = parsed.data.query
 
   if (state && isCredentialGroupMcpOAuthState(state)) {
+    const limited = await enforcePublicCredentialGroupIpRateLimit(request, 'oauth-callback')
+    if (limited) return limited
     return completeManagedMcpCallback({ request, state, code, error: errorParam })
   }
 

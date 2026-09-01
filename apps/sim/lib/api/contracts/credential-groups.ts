@@ -74,8 +74,10 @@ export const credentialGroupOptionUpdateInputSchema = z.discriminatedUnion('prov
 
 export const credentialGroupMcpServerSchema = z.object({
   id: z.string().min(1).max(128),
-  name: z.string().min(1).max(255),
+  name: z.string().min(1),
   description: z.string().nullable(),
+  authType: z.string().min(1),
+  enabled: z.boolean(),
 })
 
 export const credentialGroupSchema = z.object({

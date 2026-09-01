@@ -8,7 +8,7 @@ import {
   mcpServers,
 } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -39,6 +39,7 @@ export interface ManagedMcpRuntimeCredential {
   mcpServerId: string
   mcpServerName: string
   workspaceId: string
+  tokenVersion: string
   tokens: OAuthTokens
   tools: ManagedMcpToolSnapshot[]
 }
@@ -186,6 +187,7 @@ export async function loadManagedMcpRuntimeCredential(
     workspaceId: row.workspaceId,
     mcpServerId: row.mcpServerId,
     mcpServerName: row.mcpServerName,
+    tokenVersion: row.encryptedTokens,
     tokens: await decryptManagedMcpTokens(row.encryptedTokens),
     tools: row.tools,
   }
@@ -313,38 +315,53 @@ export async function persistManagedMcpCredential(params: {
 
 export async function saveManagedMcpRuntimeTokens(
   credentialId: string,
-  tokens: OAuthTokens | null
-): Promise<void> {
+  tokens: OAuthTokens | null,
+  expectedTokenVersion: string
+): Promise<string | null> {
   const now = new Date()
-  const updated = await db
-    .update(credential)
-    .set(
-      tokens
-        ? {
-            encryptedOauthTokenSet: await encryptManagedMcpTokens(tokens),
-            managedOauthStatus: 'active',
-            accessTokenExpiresAt:
-              typeof tokens.expires_in === 'number'
-                ? new Date(now.getTime() + tokens.expires_in * 1000)
-                : null,
-            updatedAt: now,
-          }
-        : {
-            encryptedOauthTokenSet: null,
-            managedOauthStatus: 'needs_reauth',
-            accessTokenExpiresAt: null,
-            updatedAt: now,
-          }
-    )
-    .where(
-      and(
-        eq(credential.id, credentialId),
-        eq(credential.type, 'managed_mcp'),
-        inArray(credential.managedOauthStatus, ['active', 'needs_reauth'])
+  const encryptedOauthTokenSet = tokens ? await encryptManagedMcpTokens(tokens) : null
+  return db.transaction(async (tx) => {
+    const [source] = await tx
+      .select({ enrollmentId: credential.credentialGroupEnrollmentId })
+      .from(credential)
+      .where(and(eq(credential.id, credentialId), eq(credential.type, 'managed_mcp')))
+      .limit(1)
+    if (!source?.enrollmentId) {
+      throw new ManagedMcpCredentialError('Managed MCP credential is no longer active', 401)
+    }
+    await lockCredentialGroupEnrollmentLifecycle(tx, source.enrollmentId)
+    const updated = await tx
+      .update(credential)
+      .set(
+        tokens
+          ? {
+              encryptedOauthTokenSet,
+              managedOauthStatus: 'active',
+              accessTokenExpiresAt:
+                typeof tokens.expires_in === 'number'
+                  ? new Date(now.getTime() + tokens.expires_in * 1000)
+                  : null,
+              updatedAt: now,
+            }
+          : {
+              encryptedOauthTokenSet: null,
+              managedOauthStatus: 'needs_reauth',
+              accessTokenExpiresAt: null,
+              updatedAt: now,
+            }
       )
-    )
-    .returning({ id: credential.id })
-  if (updated.length !== 1) {
-    throw new ManagedMcpCredentialError('Managed MCP credential is no longer active', 401)
-  }
+      .where(
+        and(
+          eq(credential.id, credentialId),
+          eq(credential.type, 'managed_mcp'),
+          eq(credential.managedOauthStatus, 'active'),
+          eq(credential.encryptedOauthTokenSet, expectedTokenVersion)
+        )
+      )
+      .returning({ id: credential.id })
+    if (updated.length !== 1) {
+      throw new ManagedMcpCredentialError('Managed MCP credential grant changed', 401)
+    }
+    return encryptedOauthTokenSet
+  })
 }

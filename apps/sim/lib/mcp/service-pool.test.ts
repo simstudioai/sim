@@ -112,7 +112,7 @@ vi.mock('@/lib/mcp/oauth', () => ({
   getOrCreateOauthRow: vi.fn(),
   loadPreregisteredClient: vi.fn(),
   SimMcpOauthProvider: vi.fn(),
-  withMcpOauthRefreshLock: vi.fn(),
+  withMcpOauthRefreshLock: vi.fn((_id: string, fn: () => Promise<unknown>) => fn()),
 }))
 vi.mock('@/lib/mcp/resolve-config', () => ({
   resolveMcpConfigEnvVars: (...args: unknown[]) => mockResolveEnvVars(...args),

@@ -190,7 +190,11 @@ function isServerEligibleForDiscovery(server: McpServer, workspaceId: string): b
  */
 export function useMcpToolsQuery(workspaceId: string) {
   const queryClient = useQueryClient()
-  const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
+  const {
+    data: servers,
+    isLoading: serversLoading,
+    error: serversError,
+  } = useMcpServers(workspaceId)
   const managedCatalog = useManagedMcpCatalog(workspaceId)
   // Push is intrinsic to consuming the tools query: every surface that reads tools (settings,
   // tool picker, dynamic args, tool selector, canvas block) gets real-time `list_changed`
@@ -236,10 +240,14 @@ export function useMcpToolsQuery(workspaceId: string) {
 
   return useMemo(() => {
     const tools: McpTool[] = [...(managedCatalog.data?.tools ?? [])]
-    let hasData = Boolean(managedCatalog.data)
+    let hasData = Boolean(managedCatalog.data?.tools.length)
     let anyServerLoading = false
     let firstError: Error | null =
-      managedCatalog.error instanceof Error ? managedCatalog.error : null
+      managedCatalog.error instanceof Error
+        ? managedCatalog.error
+        : serversError instanceof Error
+          ? serversError
+          : null
     const statusById = new Map(
       [...(servers ?? []), ...(managedCatalog.data?.servers ?? [])].map((server) => [
         server.id,
@@ -282,7 +290,7 @@ export function useMcpToolsQuery(workspaceId: string) {
       error: hasData ? null : firstError,
       toolsStateByServer,
     }
-  }, [results, serversLoading, serverIds, servers, managedCatalog])
+  }, [results, serversLoading, serversError, serverIds, servers, managedCatalog])
 }
 
 export function useForceRefreshMcpTools() {

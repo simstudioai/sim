@@ -31,8 +31,8 @@ export interface ExecuteManagedMcpToolInput {
   signal?: AbortSignal
 }
 
-function requireToolSchema(value: Record<string, unknown>): McpToolSchema {
-  if (value.type !== 'object') {
+function requireToolSchema(value: unknown): McpToolSchema {
+  if (!value || typeof value !== 'object' || !('type' in value) || value.type !== 'object') {
     throw new OrchestrationError('validation', 'Managed MCP tool schema is invalid')
   }
   return value as McpToolSchema
@@ -91,11 +91,21 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
           workspaceId: current.workspaceId,
         })
         const preregistered = await loadPreregisteredClient(current.mcpServerId)
+        let tokenVersion: string | null = current.tokenVersion
         return new ManagedMcpOauthProvider({
           clientRow,
           preregistered,
           tokens: current.tokens,
-          onSaveTokens: (tokens) => saveManagedMcpRuntimeTokens(current.credentialId, tokens),
+          async onSaveTokens(tokens) {
+            if (!tokenVersion) {
+              throw new Error('Managed MCP credential grant is no longer active')
+            }
+            tokenVersion = await saveManagedMcpRuntimeTokens(
+              current.credentialId,
+              tokens,
+              tokenVersion
+            )
+          },
         })
       },
     })

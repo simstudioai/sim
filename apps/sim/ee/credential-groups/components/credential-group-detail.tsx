@@ -137,7 +137,11 @@ export function CredentialGroupDetail({
     : null
   const configurationReady =
     Boolean(
-      credentialGroup && (credentialGroup.options.length || credentialGroup.mcpServers.length)
+      credentialGroup &&
+        (credentialGroup.options.length ||
+          credentialGroup.mcpServers.some(
+            (server) => server.enabled && server.authType === 'oauth'
+          ))
     ) &&
     credentialGroup?.options.every(
       (option) =>

@@ -520,25 +520,21 @@ class McpService {
     const effectiveConfig = params.extraHeaders
       ? { ...config, headers: { ...config.headers, ...params.extraHeaders } }
       : config
-    return this.withServerClient(
-      {
-        key: this.poolKey(params.connectionId, params.workspaceId, params.connectionId),
-        serverId: params.connectionId,
-        allowPool: !params.extraHeaders,
-      },
-      () =>
-        withMcpOauthRefreshLock(params.connectionId, async () =>
+    return withMcpOauthRefreshLock(params.connectionId, () =>
+      this.withServerClient(
+        { key: '', serverId: params.serverId, allowPool: false },
+        async () =>
           this.createManagedOauthClient(
             effectiveConfig,
             await params.loadAuthProvider(),
             params.signal
-          )
-        ),
-      (client) =>
-        client.callTool(params.toolCall, {
-          signal: params.signal,
-          timeoutMs: params.timeoutMs,
-        })
+          ),
+        (client) =>
+          client.callTool(params.toolCall, {
+            signal: params.signal,
+            timeoutMs: params.timeoutMs,
+          })
+      )
     )
   }
 
