@@ -98,13 +98,15 @@ export function requireRateLimitUserId(rateLimit: RateLimitResult): string {
  * The user whose permission group governs this request, or `null` when none
  * does.
  *
- * `rateLimit.userId` is present for BOTH key kinds, and for a workspace key it
- * is the key's *creator* — a bystander who may not be the caller. Any gate keyed
- * on the presence of a user id therefore applies that bystander's group to every
- * caller of a shared credential. `keyType` is the authoritative signal, and this
- * is the one place v1 reads it for that purpose, so
- * {@link resolveCapabilityRefusal}, {@link tableAccessPrincipal} and the log
+ * The v1 reading of the rule `capabilityGovernedPrincipalUserId` states in
+ * `@/lib/core/application`: `rateLimit.userId` is present for BOTH key kinds,
+ * and for a workspace key it is the key's creator. `keyType` is the
+ * authoritative signal, and this is the one place v1 reads it for that purpose,
+ * so {@link resolveCapabilityRefusal}, {@link tableAccessPrincipal} and the log
  * field projection cannot drift.
+ *
+ * `scripts/check-capability-subject.ts` is written in terms of this name and
+ * asserts every v1 capability subject came from it; rename them together.
  */
 export function capabilityGovernedUserId(rateLimit: RateLimitResult): string | null {
   return rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null
