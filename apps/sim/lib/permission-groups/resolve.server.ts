@@ -202,7 +202,15 @@ async function resolveUserAccessControlContextForOrganization(
 ): Promise<UserAccessControlContext> {
   if (!organizationId) return inactiveUserAccessControlContext(null)
 
-  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId)
+  /**
+   * `'throw'` because an unentitled organization resolves to `config: null`,
+   * and `null` is not a smaller permission set — it is *no* permission group at
+   * all: every capability allowed, every allowlist off. Under the lenient
+   * default a single subscription-read failure would be indistinguishable from
+   * a genuine plan lapse and would turn the whole regime off for the request.
+   * Throwing surfaces the outage as an error instead.
+   */
+  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId, 'throw')
   if (!isEnterprise) {
     return inactiveUserAccessControlContext(organizationId)
   }
@@ -277,7 +285,8 @@ export async function getUserPermissionConfigForOrganization(
     return mergeEnvAllowlist(null)
   }
 
-  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId)
+  /** `'throw'` for the same reason as in {@link resolveUserAccessControlContextForOrganization}. */
+  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId, 'throw')
   if (!isEnterprise) {
     return mergeEnvAllowlist(null)
   }
