@@ -5077,7 +5077,15 @@ export const tableRunDispatches = pgTable(
      *  human — right for a meter, wrong for a gate, since it would run a
      *  bystander's tool denylist against an actorless request. Null when the
      *  run has no acting person (workspace API key, schedule, auto-fire), which
-     *  means no per-tool gate applies. */
+     *  means no per-tool gate applies. Producers set it explicitly, `null`
+     *  included: it is required on every dispatch input precisely so a new one
+     *  cannot inherit the attribution by omission.
+     *
+     *  `set null` on delete, paired with a cancel of this account's non-terminal
+     *  dispatches inside `deleteUserAccount`. Nulling alone would be a silent
+     *  un-gate — the worker cannot tell a subject erased by deletion from one
+     *  that was never there — and `restrict` would block account deletion behind
+     *  background work. Going terminal first makes the nulled row unreachable. */
     capabilityGovernedUserId: text('capability_governed_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),

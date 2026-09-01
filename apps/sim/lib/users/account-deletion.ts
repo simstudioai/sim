@@ -6,6 +6,7 @@ import {
   member,
   organization,
   permissions,
+  tableRunDispatches,
   user,
   workspaceFile,
   workspaceFiles,
@@ -603,6 +604,30 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
         },
       ])
     }
+
+    /**
+     * Cancel every table run this account still governs before the `user` row
+     * goes away.
+     *
+     * `capability_governed_user_id` is `ON DELETE SET NULL`, and a nulled
+     * subject is indistinguishable from a legitimately actorless run — the
+     * worker would read the surviving dispatch as "no acting person, no
+     * per-tool gate" and keep executing its remaining windows ungated, for as
+     * long as the scope takes (the in-process dispatcher has no time ceiling).
+     * `RESTRICT` would trade that for blocking account deletion behind
+     * background work, which is the failure mode the billed-account foreign key
+     * already demonstrates. Going terminal instead is the honest reading: a
+     * deleted person's runs should stop, not silently lose their gate.
+     */
+    await tx
+      .update(tableRunDispatches)
+      .set({ status: 'cancelled', cancelledAt: new Date() })
+      .where(
+        and(
+          eq(tableRunDispatches.capabilityGovernedUserId, userId),
+          inArray(tableRunDispatches.status, ['pending', 'dispatching'])
+        )
+      )
 
     await tx.delete(user).where(eq(user.id, userId))
   })
