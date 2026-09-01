@@ -28,6 +28,7 @@ vi.mock('@/lib/consent/tracking-consent', () => ({
 import {
   DemoScheduler,
   preloadCalEmbed,
+  resolveCalEmbedConfig,
 } from '@/app/(landing)/demo/components/demo-scheduler/demo-scheduler'
 
 const LEAD = {
@@ -70,7 +71,9 @@ describe('DemoScheduler', () => {
       expect.objectContaining({
         namespace: 'demo',
         calLink: 'team/sim/demo',
-        style: { width: '100%', height: '100%', overflow: 'auto' },
+        calOrigin: 'https://app.cal.com',
+        embedJsUrl: 'https://app.cal.com/embed/embed.js',
+        className: 'size-full overflow-auto',
         config: {
           name: LEAD.name,
           email: LEAD.email,
@@ -146,8 +149,26 @@ describe('DemoScheduler', () => {
     })
 
     expect(mockGetCalApi).toHaveBeenCalledOnce()
-    expect(mockGetCalApi).toHaveBeenCalledWith({ namespace: 'demo' })
+    expect(mockGetCalApi).toHaveBeenCalledWith({
+      namespace: 'demo',
+      embedJsUrl: 'https://app.cal.com/embed/embed.js',
+    })
     expect(mockCal).toHaveBeenCalledOnce()
     expect(mockCal).toHaveBeenCalledWith('preload', { calLink: 'team/sim/demo' })
+  })
+
+  it('falls back from malformed Cal configuration and preserves valid custom origins', () => {
+    expect(resolveCalEmbedConfig('javascript:alert(1)')).toEqual({
+      calLink: 'team/sim/demo',
+      calOrigin: 'https://app.cal.com',
+      embedJsUrl: 'https://app.cal.com/embed/embed.js',
+    })
+    expect(resolveCalEmbedConfig('https://book.example.com/team/demo?theme=light#ignored')).toEqual(
+      {
+        calLink: 'team/demo?theme=light',
+        calOrigin: 'https://book.example.com',
+        embedJsUrl: 'https://book.example.com/embed/embed.js',
+      }
+    )
   })
 })
