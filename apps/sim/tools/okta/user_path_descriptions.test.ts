@@ -1,15 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
-import { tools as toolRegistry } from '@/tools/registry'
+import { describe, expect, it } from 'vitest'
+import * as oktaTools from '@/tools/okta'
 import type { ToolConfig } from '@/tools/types'
-
-/**
- * Uses the real tool registry: these assertions are about registered Okta tool
- * params, which the global `@/tools/registry` mock in vitest.setup.ts empties.
- */
-vi.unmock('@/tools/registry')
 
 /**
  * Okta's Management API spec (`okta/okta-management-openapi-spec`,
@@ -68,7 +62,7 @@ function builtUrl(tool: ToolConfig): string {
   return build(sentinelParams(tool) as never)
 }
 
-const oktaUserTools: OktaUserTool[] = Object.values(toolRegistry)
+const oktaUserTools: OktaUserTool[] = Object.values(oktaTools)
   .filter((tool): tool is ToolConfig => Boolean(tool?.id?.startsWith('okta_')))
   .filter((tool) => Boolean(tool.params?.userId))
   .map((tool) => ({

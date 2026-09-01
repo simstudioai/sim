@@ -37,6 +37,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
+      "env": ["SIM_TEST_SHARD"],
       "outputs": []
     },
     "lint": {

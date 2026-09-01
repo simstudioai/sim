@@ -608,7 +608,7 @@ async function executeToolAndReportInner(
   }
 
   try {
-    ensureHandlersRegistered()
+    await ensureHandlersRegistered()
     let result = await executeToolWithWatchdog(toolCall, toolExecutionContext)
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
       endToolSpanFromTerminalState()

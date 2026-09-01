@@ -4,9 +4,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-
-vi.unmock('@/tools/registry')
-
 import { executeNetsuiteTool } from '@/lib/internal/netsuite/execute-tool'
 import { executeNetsuiteAttachRecordOperation } from '@/lib/internal/netsuite/operations/attach-record'
 import { executeNetsuiteGetSelectOptionsOperation } from '@/lib/internal/netsuite/operations/get-select-options'
@@ -47,7 +44,7 @@ import {
 } from '@/tools/netsuite'
 import type { NetSuiteAuthParams } from '@/tools/netsuite/types'
 import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
-import { tools } from '@/tools/registry'
+import { hasToolId } from '@/tools/tool-ids'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 const ORIGIN = 'https://1234567.suitetalk.api.netsuite.com'
@@ -875,7 +872,7 @@ describe('NetSuite operation contracts', () => {
 
     for (const id of matrixIds) {
       expect(NetSuiteBlock.tools.config.tool({ operation: id }), `${id} mapping`).toBe(id)
-      expect(tools[id]?.id, `${id} registry`).toBe(id)
+      expect(hasToolId(id), `${id} registry`).toBe(true)
       expect(toolMetadata[id]?.id, `${id} generated metadata`).toBe(id)
     }
   })

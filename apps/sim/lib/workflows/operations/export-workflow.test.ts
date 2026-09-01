@@ -32,6 +32,13 @@ vi.mock('@/blocks/registry', () => ({
 
 import { buildWorkflowExportPayload } from '@/lib/workflows/operations/export-workflow'
 
+/**
+ * Asserts real tool params and outputs, which the global `@/tools/metadata`
+ * and `@/tools/metadata-outputs` mocks in vitest.setup.ts empty.
+ */
+vi.unmock('@/tools/metadata')
+vi.unmock('@/tools/metadata-outputs')
+
 describe('buildWorkflowExportPayload', () => {
   beforeEach(() => {
     vi.clearAllMocks()

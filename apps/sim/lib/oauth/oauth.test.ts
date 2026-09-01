@@ -78,6 +78,9 @@ import {
 } from '@/lib/oauth'
 import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 
+/** Compares real icon components by identity; the global `@/components/icons` stub in vitest.setup.ts would make that vacuous. */
+vi.unmock('@/components/icons')
+
 /**
  * Default OAuth token response for successful requests.
  */
