@@ -1,6 +1,7 @@
 import type { AshbyApplication } from '@/tools/ashby/types'
 import {
   APPLICATION_OUTPUTS,
+  ASHBY_ON_BEHALF_OF_PARAM,
   ashbyAuthHeaders,
   ashbyErrorMessage,
   mapApplication,
@@ -9,9 +10,11 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyChangeApplicationStageParams {
   apiKey: string
+  onBehalfOfUserId?: string
   applicationId: string
   interviewStageId: string
   archiveReasonId?: string
+  archiveEmail?: boolean
 }
 
 interface AshbyChangeApplicationStageResponse extends ToolResponse {
@@ -35,6 +38,7 @@ export const changeApplicationStageTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    ...ASHBY_ON_BEHALF_OF_PARAM,
     applicationId: {
       type: 'string',
       required: true,
@@ -54,18 +58,25 @@ export const changeApplicationStageTool: ToolConfig<
       description:
         'Archive reason UUID. Required when moving to an Archived stage, ignored otherwise',
     },
+    archiveEmail: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Send Ashby archive email automation when archiving',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/application.changeStage',
     method: 'POST',
-    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    headers: (params) => ashbyAuthHeaders(params.apiKey, params.onBehalfOfUserId),
     body: (params) => {
       const body: Record<string, unknown> = {
         applicationId: params.applicationId.trim(),
         interviewStageId: params.interviewStageId.trim(),
       }
       if (params.archiveReasonId) body.archiveReasonId = params.archiveReasonId.trim()
+      if (params.archiveEmail !== undefined) body.archiveEmail = params.archiveEmail
       return body
     },
   },

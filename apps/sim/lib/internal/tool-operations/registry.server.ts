@@ -1240,6 +1240,8 @@ const DISCORD_TOOL_IDS = ['discord_send_message'] as const
 
 const LINQ_TOOL_IDS = ['linq_create_attachment'] as const
 
+const ASHBY_TOOL_IDS = ['ashby_upload_candidate_file', 'ashby_upload_resume'] as const
+
 const MICROSOFT_DATAVERSE_TOOL_IDS = ['microsoft_dataverse_upload_file'] as const
 
 const SERVICENOW_TOOL_IDS = ['servicenow_upload_attachment'] as const
@@ -1270,6 +1272,10 @@ function registerFamily(
 }
 
 const handlerLoaders = new Map<string, InternalToolOperationHandlerLoader>()
+
+registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/ashby/execute-tool')).executeAshbyTool
+})
 
 registerFamily(handlerLoaders, STS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/sts/execute-tool')).executeStsTool

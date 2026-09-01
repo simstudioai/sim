@@ -1392,7 +1392,7 @@
       "slug": "ashby",
       "name": "Ashby",
       "description": "Manage candidates, jobs, and applications in Ashby",
-      "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag, anonymize), applications (list, get, create, delete, change stage, change source), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), custom field values (set one or many), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
+      "longDescription": "Integrate Ashby into the workflow. Manage and search candidates, applications, jobs, users, and openings; transfer applications; upload resumes and candidate files; read application history and interview feedback; manage offers, notes, tags, stages, sources, and custom fields; and react to hiring lifecycle webhooks.",
       "bgColor": "#5D4ED6",
       "iconName": "AshbyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/ashby",
@@ -1528,14 +1528,63 @@
         {
           "name": "List Interviews",
           "description": "Lists interview schedules in Ashby, optionally filtered by application or interview stage."
+        },
+        {
+          "name": "List Interview Plans",
+          "description": "Lists Ashby interview plans, including optional archived plans and incremental changes."
+        },
+        {
+          "name": "List Interview Stages",
+          "description": "Lists the ordered stages in an Ashby interview plan."
+        },
+        {
+          "name": "List Application Feedback",
+          "description": "Lists submitted interview feedback, optionally for one application, with pagination and incremental sync."
+        },
+        {
+          "name": "List Application History",
+          "description": "Lists the full stage history and allowed actions for an application."
+        },
+        {
+          "name": "Search Jobs",
+          "description": "Searches Ashby jobs by title and/or requisition ID."
+        },
+        {
+          "name": "Search Users",
+          "description": "Searches Ashby users by exact email address."
+        },
+        {
+          "name": "Get Opening",
+          "description": "Retrieves one Ashby headcount opening by UUID."
+        },
+        {
+          "name": "Search Openings",
+          "description": "Searches Ashby headcount openings by human-readable identifier."
+        },
+        {
+          "name": "Transfer Application",
+          "description": "Transfers an application to another job, interview plan, and stage."
+        },
+        {
+          "name": "Upload Resume",
+          "description": "Securely uploads a resume and sets it as the Ashby candidate resume."
+        },
+        {
+          "name": "Upload Candidate File",
+          "description": "Securely uploads a file and attaches it to an Ashby candidate."
         }
       ],
-      "operationCount": 33,
+      "operationCount": 44,
       "triggers": [
         {
           "id": "ashby_application_submit",
           "name": "Ashby Application Submitted",
           "description": "Trigger workflow when a new application is submitted"
+        },
+        {
+          "id": "ashby_application_update",
+          "name": "Ashby Application Updated",
+          "description": "Trigger workflow when an application is updated"
         },
         {
           "id": "ashby_candidate_stage_change",
@@ -1553,17 +1602,67 @@
           "description": "Trigger workflow when a candidate is deleted"
         },
         {
+          "id": "ashby_candidate_merge",
+          "name": "Ashby Candidate Merged",
+          "description": "Trigger workflow when two candidate records are merged"
+        },
+        {
+          "id": "ashby_interview_schedule_create",
+          "name": "Ashby Interview Schedule Created",
+          "description": "Trigger workflow when an interview schedule is created"
+        },
+        {
+          "id": "ashby_interview_schedule_update",
+          "name": "Ashby Interview Schedule Updated",
+          "description": "Trigger workflow when an interview schedule is updated"
+        },
+        {
           "id": "ashby_job_create",
           "name": "Ashby Job Created",
           "description": "Trigger workflow when a new job is created"
         },
         {
+          "id": "ashby_job_update",
+          "name": "Ashby Job Updated",
+          "description": "Trigger workflow when a job is updated"
+        },
+        {
+          "id": "ashby_job_posting_update",
+          "name": "Ashby Job Posting Updated",
+          "description": "Trigger workflow when a job posting is updated"
+        },
+        {
+          "id": "ashby_job_posting_delete",
+          "name": "Ashby Job Posting Deleted",
+          "description": "Trigger workflow when a job posting is deleted"
+        },
+        {
           "id": "ashby_offer_create",
           "name": "Ashby Offer Created",
           "description": "Trigger workflow when a new offer is created"
+        },
+        {
+          "id": "ashby_offer_update",
+          "name": "Ashby Offer Updated",
+          "description": "Trigger workflow when an offer is updated"
+        },
+        {
+          "id": "ashby_offer_delete",
+          "name": "Ashby Offer Deleted",
+          "description": "Trigger workflow when an offer is deleted"
+        },
+        {
+          "id": "ashby_opening_create",
+          "name": "Ashby Opening Created",
+          "description": "Trigger workflow when a headcount opening is created"
+        },
+        {
+          "id": "ashby_signature_request_update",
+          "name": "Ashby Signature Request Updated",
+          "description": "Trigger workflow when an e-signature request changes state"
         }
       ],
-      "triggerCount": 6,
+      "triggerCount": 17,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "hr",

@@ -324,6 +324,31 @@ describe('AshbyBlock', () => {
       const condition = syncToken?.condition as { value: string[] }
       expect(condition.value).toContain('list_jobs')
     })
+
+    it('maps the shared draft-posting switch to the endpoint-specific parameter', () => {
+      const listParams = AshbyBlock.tools.config.params!(
+        buildParams('list_jobs', { includeUnpublishedJobPostingIds: true })
+      )
+      expect(listParams.includeUnpublishedJobPostingsIds).toBe(true)
+      expect(listParams.includeUnpublishedJobPostingIds).toBeUndefined()
+
+      const infoParams = AshbyBlock.tools.config.params!(
+        buildParams('get_job', { includeUnpublishedJobPostingIds: true })
+      )
+      expect(infoParams.includeUnpublishedJobPostingIds).toBe(true)
+      expect(infoParams.includeUnpublishedJobPostingsIds).toBeUndefined()
+    })
+  })
+
+  describe('alternate lookup identifiers', () => {
+    it('does not require the Ashby UUID when an alternate lookup is supported', () => {
+      const candidateId = AshbyBlock.subBlocks.find((s) => s.id === 'candidateId')
+      const applicationId = AshbyBlock.subBlocks.find((s) => s.id === 'applicationId')
+      const candidateRequired = candidateId?.required as { value?: string[] }
+      const applicationRequired = applicationId?.required as { value?: string[] }
+      expect(candidateRequired.value).not.toContain('get_candidate')
+      expect(applicationRequired.value).not.toContain('get_application')
+    })
   })
 
   describe('list_applications candidateId filter', () => {

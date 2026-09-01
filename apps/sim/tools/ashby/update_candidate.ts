@@ -1,5 +1,6 @@
 import type { AshbyGetCandidateResponse } from '@/tools/ashby/types'
 import {
+  ASHBY_ON_BEHALF_OF_PARAM,
   ashbyAuthHeaders,
   ashbyErrorMessage,
   CANDIDATE_OUTPUTS,
@@ -9,6 +10,7 @@ import type { ToolConfig } from '@/tools/types'
 
 interface AshbyUpdateCandidateParams {
   apiKey: string
+  onBehalfOfUserId?: string
   candidateId: string
   name?: string
   email?: string
@@ -19,6 +21,9 @@ interface AshbyUpdateCandidateParams {
   alternateEmail?: string
   sourceId?: string
   creditedToUserId?: string
+  clearSource?: boolean
+  clearCreditedToUser?: boolean
+  location?: { city?: string | null; region?: string | null; country?: string | null }
   createdAt?: string
   sendNotifications?: boolean
   socialLinks?: Array<{ type: string; url: string }>
@@ -40,6 +45,7 @@ export const updateCandidateTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    ...ASHBY_ON_BEHALF_OF_PARAM,
     candidateId: {
       type: 'string',
       required: true,
@@ -100,6 +106,26 @@ export const updateCandidateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'UUID of the Ashby user to credit with sourcing this candidate',
     },
+    clearSource: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Explicitly clear the candidate source; mutually exclusive with sourceId',
+    },
+    clearCreditedToUser: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Explicitly clear the credited Ashby user; mutually exclusive with creditedToUserId',
+    },
+    location: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Candidate location object with optional city, region, and country; pass null fields to clear parts',
+    },
     createdAt: {
       type: 'string',
       required: false,
@@ -125,7 +151,7 @@ export const updateCandidateTool: ToolConfig<
   request: {
     url: 'https://api.ashbyhq.com/candidate.update',
     method: 'POST',
-    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    headers: (params) => ashbyAuthHeaders(params.apiKey, params.onBehalfOfUserId),
     body: (params) => {
       const body: Record<string, unknown> = {
         candidateId: params.candidateId.trim(),
@@ -137,8 +163,15 @@ export const updateCandidateTool: ToolConfig<
       if (params.githubUrl) body.githubUrl = params.githubUrl
       if (params.websiteUrl) body.websiteUrl = params.websiteUrl
       if (params.alternateEmail) body.alternateEmail = params.alternateEmail
-      if (params.sourceId) body.sourceId = params.sourceId.trim()
-      if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId.trim()
+      if (params.clearSource && params.sourceId)
+        throw new Error('sourceId and clearSource are mutually exclusive.')
+      if (params.clearCreditedToUser && params.creditedToUserId)
+        throw new Error('creditedToUserId and clearCreditedToUser are mutually exclusive.')
+      if (params.clearSource) body.sourceId = null
+      else if (params.sourceId) body.sourceId = params.sourceId.trim()
+      if (params.clearCreditedToUser) body.creditedToUserId = null
+      else if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId.trim()
+      if (params.location && typeof params.location === 'object') body.location = params.location
       if (params.createdAt) body.createdAt = params.createdAt
       if (params.sendNotifications !== undefined) body.sendNotifications = params.sendNotifications
       if (Array.isArray(params.socialLinks) && params.socialLinks.length > 0)

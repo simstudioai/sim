@@ -7,6 +7,7 @@ export const ashbyConnectorMeta: ConnectorMeta = {
   description: 'Sync candidate notes and interview feedback from Ashby',
   version: '1.0.0',
   icon: AshbyIcon,
+  rehydrateOnFullSync: true,
 
   auth: {
     mode: 'apiKey',

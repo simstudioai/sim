@@ -6,11 +6,22 @@ import type { TriggerOutput } from '@/triggers/types'
  */
 export const ashbyTriggerOptions = [
   { label: 'Application Submitted', id: 'ashby_application_submit' },
+  { label: 'Application Updated', id: 'ashby_application_update' },
   { label: 'Candidate Stage Change', id: 'ashby_candidate_stage_change' },
   { label: 'Candidate Hired', id: 'ashby_candidate_hire' },
   { label: 'Candidate Deleted', id: 'ashby_candidate_delete' },
+  { label: 'Candidate Merged', id: 'ashby_candidate_merge' },
+  { label: 'Interview Schedule Created', id: 'ashby_interview_schedule_create' },
+  { label: 'Interview Schedule Updated', id: 'ashby_interview_schedule_update' },
   { label: 'Job Created', id: 'ashby_job_create' },
+  { label: 'Job Updated', id: 'ashby_job_update' },
+  { label: 'Job Posting Updated', id: 'ashby_job_posting_update' },
+  { label: 'Job Posting Deleted', id: 'ashby_job_posting_delete' },
   { label: 'Offer Created', id: 'ashby_offer_create' },
+  { label: 'Offer Updated', id: 'ashby_offer_update' },
+  { label: 'Offer Deleted', id: 'ashby_offer_delete' },
+  { label: 'Opening Created', id: 'ashby_opening_create' },
+  { label: 'Signature Request Updated', id: 'ashby_signature_request_update' },
 ]
 
 /**
@@ -19,11 +30,22 @@ export const ashbyTriggerOptions = [
  */
 export const ASHBY_TRIGGER_ACTION_MAP: Record<string, string> = {
   ashby_application_submit: 'applicationSubmit',
+  ashby_application_update: 'applicationUpdate',
   ashby_candidate_stage_change: 'candidateStageChange',
   ashby_candidate_hire: 'candidateHire',
   ashby_candidate_delete: 'candidateDelete',
+  ashby_candidate_merge: 'candidateMerge',
+  ashby_interview_schedule_create: 'interviewScheduleCreate',
+  ashby_interview_schedule_update: 'interviewScheduleUpdate',
   ashby_job_create: 'jobCreate',
+  ashby_job_update: 'jobUpdate',
+  ashby_job_posting_update: 'jobPostingUpdate',
+  ashby_job_posting_delete: 'jobPostingDelete',
   ashby_offer_create: 'offerCreate',
+  ashby_offer_update: 'offerUpdate',
+  ashby_offer_delete: 'offerDelete',
+  ashby_opening_create: 'openingCreate',
+  ashby_signature_request_update: 'signatureRequestUpdate',
 }
 
 /**
@@ -309,6 +331,115 @@ export function buildOfferCreateOutputs(): Record<string, TriggerOutput> {
       latestVersion: {
         id: { type: 'string', description: 'Latest offer version UUID' },
       },
+    },
+  } as Record<string, TriggerOutput>
+}
+
+export const buildApplicationUpdateOutputs = buildApplicationSubmitOutputs
+export const buildJobUpdateOutputs = buildJobCreateOutputs
+export const buildOfferUpdateOutputs = buildOfferCreateOutputs
+
+export function buildCandidateMergeOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    deletedCandidate: { id: { type: 'string', description: 'Deleted candidate UUID' } },
+    mergedCandidate: { id: { type: 'string', description: 'Final merged candidate UUID' } },
+  } as Record<string, TriggerOutput>
+}
+
+function buildInterviewScheduleOutputs(includeCandidateId: boolean): Record<string, TriggerOutput> {
+  const candidateOutput = includeCandidateId
+    ? { candidateId: { type: 'string', description: 'Candidate UUID' } }
+    : {}
+
+  return {
+    ...coreOutputs,
+    interviewSchedule: {
+      id: { type: 'string', description: 'Interview schedule UUID' },
+      status: { type: 'string', description: 'Interview schedule status' },
+      applicationId: { type: 'string', description: 'Application UUID' },
+      interviewStageId: { type: 'string', description: 'Interview stage UUID' },
+      ...candidateOutput,
+      scheduledBy: { type: 'json', description: 'Scheduling user' },
+      createdAt: { type: 'string', description: 'Creation timestamp' },
+      updatedAt: { type: 'string', description: 'Last update timestamp' },
+      interviewEvents: { type: 'json', description: 'Scheduled interview events' },
+    },
+  } as Record<string, TriggerOutput>
+}
+
+export function buildInterviewScheduleCreateOutputs(): Record<string, TriggerOutput> {
+  return buildInterviewScheduleOutputs(false)
+}
+
+export function buildInterviewScheduleUpdateOutputs(): Record<string, TriggerOutput> {
+  return buildInterviewScheduleOutputs(true)
+}
+
+export function buildJobPostingUpdateOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    jobPosting: {
+      id: { type: 'string', description: 'Job posting UUID' },
+      title: { type: 'string', description: 'Job posting title' },
+      jobId: { type: 'string', description: 'Associated job UUID' },
+      departmentName: { type: 'string', description: 'Department name' },
+      teamName: { type: 'string', description: 'Team name' },
+      teamNameHierarchy: { type: 'json', description: 'Department-to-team name hierarchy' },
+      locationName: { type: 'string', description: 'Location name' },
+      isListed: { type: 'boolean', description: 'Whether publicly listed' },
+      publishedDate: { type: 'string', description: 'Publication timestamp' },
+      updatedAt: { type: 'string', description: 'Last update timestamp' },
+    },
+  } as Record<string, TriggerOutput>
+}
+
+export function buildJobPostingDeleteOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    jobPosting: {
+      id: { type: 'string', description: 'Deleted job posting UUID' },
+      jobId: { type: 'string', description: 'Associated job UUID' },
+    },
+  } as Record<string, TriggerOutput>
+}
+
+export function buildOfferDeleteOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    offer: {
+      id: { type: 'string', description: 'Deleted offer UUID' },
+      applicationId: { type: 'string', description: 'Associated application UUID' },
+    },
+  } as Record<string, TriggerOutput>
+}
+
+export function buildOpeningCreateOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    opening: {
+      id: { type: 'string', description: 'Opening UUID' },
+      openedAt: { type: 'string', description: 'Open timestamp' },
+      closedAt: { type: 'string', description: 'Close timestamp' },
+      isArchived: { type: 'boolean', description: 'Whether archived' },
+      archivedAt: { type: 'string', description: 'Archive timestamp' },
+      closeReasonId: { type: 'string', description: 'Close reason UUID' },
+      openingState: { type: 'string', description: 'Opening state' },
+      latestVersion: { type: 'json', description: 'Latest opening version' },
+    },
+  } as Record<string, TriggerOutput>
+}
+
+export function buildSignatureRequestUpdateOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...coreOutputs,
+    relatedEntityType: { type: 'string', description: 'Related entity type: application or offer' },
+    applicationId: { type: 'string', description: 'Related application UUID' },
+    offerId: { type: 'string', description: 'Related offer UUID' },
+    offerVersionId: { type: 'string', description: 'Related offer version UUID' },
+    eventType: {
+      type: 'string',
+      description: 'Signature request event: sent, cancelled, completed, or deleted',
     },
   } as Record<string, TriggerOutput>
 }

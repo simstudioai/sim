@@ -6,10 +6,22 @@ import { isSensitiveKey } from '@/lib/core/security/redaction'
 import { anonymizeCandidateTool } from '@/tools/ashby/anonymize_candidate'
 import { changeApplicationSourceTool } from '@/tools/ashby/change_application_source'
 import { deleteApplicationTool } from '@/tools/ashby/delete_application'
+import { getApplicationTool } from '@/tools/ashby/get_application'
+import { getCandidateTool } from '@/tools/ashby/get_candidate'
+import { getJobPostingTool } from '@/tools/ashby/get_job_posting'
+import { listApplicationsTool } from '@/tools/ashby/list_applications'
+import { listCandidatesTool } from '@/tools/ashby/list_candidates'
+import { listInterviewPlansTool } from '@/tools/ashby/list_interview_plans'
 import { listJobPostingsTool } from '@/tools/ashby/list_job_postings'
 import { listJobsTool } from '@/tools/ashby/list_jobs'
+import { listNotesTool } from '@/tools/ashby/list_notes'
+import { listOffersTool } from '@/tools/ashby/list_offers'
+import { searchJobsTool } from '@/tools/ashby/search_jobs'
 import { setCustomFieldValueTool } from '@/tools/ashby/set_custom_field_value'
 import { setCustomFieldValuesTool } from '@/tools/ashby/set_custom_field_values'
+import { transferApplicationTool } from '@/tools/ashby/transfer_application'
+import { updateCandidateTool } from '@/tools/ashby/update_candidate'
+import { ashbyAuthHeaders } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const respond = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
@@ -25,6 +37,122 @@ async function transform(tool: ToolConfig<never, never>, body: unknown) {
 }
 
 describe('ashby request bodies', () => {
+  it('adds X-On-Behalf-Of only when an acting user is supplied', () => {
+    expect(ashbyAuthHeaders('k', ' user-1 ')['X-On-Behalf-Of']).toBe('user-1')
+    expect(ashbyAuthHeaders('k')).not.toHaveProperty('X-On-Behalf-Of')
+  })
+
+  it('validates dates and page sizes instead of silently dropping invalid values', () => {
+    expect(() => requestBody(listCandidatesTool, { apiKey: 'k', createdAfter: 'nope' })).toThrow(
+      /ISO 8601/
+    )
+    expect(() => requestBody(listCandidatesTool, { apiKey: 'k', perPage: 1.5 })).toThrow(
+      /integer from 1 to 100/
+    )
+  })
+
+  it('retrieves unpublished job postings only when explicitly requested', () => {
+    expect(
+      requestBody(getJobPostingTool, {
+        apiKey: 'k',
+        jobPostingId: 'p',
+        includeUnpublishedJobPostings: true,
+      })
+    ).toMatchObject({ jobPostingId: 'p', includeUnpublishedJobPostings: true })
+  })
+
+  it('requires a supported job search criterion', () => {
+    expect(() => requestBody(searchJobsTool, { apiKey: 'k' })).toThrow(/title or requisition ID/)
+    expect(requestBody(searchJobsTool, { apiKey: 'k', title: 'Engineer', limit: 25 })).toEqual({
+      title: 'Engineer',
+      limit: 25,
+    })
+  })
+
+  it('sends every required application transfer coordinate and attribution header', () => {
+    expect(
+      requestBody(transferApplicationTool, {
+        apiKey: 'k',
+        applicationId: ' a ',
+        jobId: ' j ',
+        interviewPlanId: ' p ',
+        interviewStageId: ' s ',
+        startAutomaticActivities: true,
+      })
+    ).toEqual({
+      applicationId: 'a',
+      jobId: 'j',
+      interviewPlanId: 'p',
+      interviewStageId: 's',
+      startAutomaticActivities: true,
+    })
+    expect(
+      transferApplicationTool.request?.headers?.({ apiKey: 'k', onBehalfOfUserId: 'u' } as never)
+    ).toHaveProperty('X-On-Behalf-Of', 'u')
+  })
+
+  it('supports alternate identifiers for candidate and application lookups', () => {
+    expect(
+      requestBody(getCandidateTool, { apiKey: 'k', externalMappingId: ' external-1 ' })
+    ).toEqual({ externalMappingId: 'external-1' })
+    expect(
+      requestBody(getApplicationTool, {
+        apiKey: 'k',
+        submittedFormInstanceId: ' form-1 ',
+        expand: ['candidate'],
+      })
+    ).toEqual({ submittedFormInstanceId: 'form-1', expand: ['candidate'] })
+  })
+
+  it('sends list status filters as arrays and exposes draft posting IDs for job lists', () => {
+    expect(requestBody(listApplicationsTool, { apiKey: 'k', status: 'Active' }).status).toEqual([
+      'Active',
+    ])
+    expect(
+      requestBody(listJobsTool, {
+        apiKey: 'k',
+        status: ['Open', 'Draft'],
+        includeUnpublishedJobPostingsIds: true,
+      })
+    ).toMatchObject({
+      status: ['Open', 'Draft'],
+      includeUnpublishedJobPostingsIds: true,
+    })
+  })
+
+  it('validates note page size and supports explicit candidate field clearing', () => {
+    expect(() => requestBody(listNotesTool, { candidateId: 'c', perPage: 101 })).toThrow(
+      /integer from 1 to 100/
+    )
+    expect(
+      requestBody(updateCandidateTool, {
+        candidateId: 'c',
+        clearSource: true,
+        clearCreditedToUser: true,
+        location: { city: 'Seattle', region: 'WA', country: 'US' },
+      })
+    ).toEqual({
+      candidateId: 'c',
+      sourceId: null,
+      creditedToUserId: null,
+      location: { city: 'Seattle', region: 'WA', country: 'US' },
+    })
+  })
+
+  it('forwards all documented offer list filters', () => {
+    expect(
+      requestBody(listOffersTool, {
+        apiKey: 'k',
+        offerStatus: ['Created'],
+        acceptanceStatus: ['Accepted'],
+        approvalStatus: ['Approved'],
+      })
+    ).toMatchObject({
+      offerStatus: ['Created'],
+      acceptanceStatus: ['Accepted'],
+      approvalStatus: ['Approved'],
+    })
+  })
   it('list_jobs forwards a sync token and omits the key when absent', () => {
     expect(requestBody(listJobsTool, { apiKey: 'k', syncToken: 'tok' }).syncToken).toBe('tok')
     expect(requestBody(listJobsTool, { apiKey: 'k' })).not.toHaveProperty('syncToken')
@@ -157,6 +285,20 @@ describe('ashby request bodies', () => {
 })
 
 describe('ashby response transforms', () => {
+  it('surfaces sync cursors consistently across candidate and interview-plan lists', async () => {
+    const candidates = await transform(listCandidatesTool, {
+      success: true,
+      results: [],
+      syncToken: 'candidate-sync',
+    })
+    const plans = await transform(listInterviewPlansTool, {
+      success: true,
+      results: [],
+      syncToken: 'plan-sync',
+    })
+    expect(candidates.output.nextSyncCursor).toBe('candidate-sync')
+    expect(plans.output.nextSyncCursor).toBe('plan-sync')
+  })
   it('exposes the sync cursor under a name redaction does not treat as a secret', async () => {
     // `syncToken` matches the /^.*token$/i deny-list, so surfacing it under that
     // name renders it [REDACTED] in block output - and an incremental sync is

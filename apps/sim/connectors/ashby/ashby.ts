@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
+import {
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { ashbyConnectorMeta } from '@/connectors/ashby/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -11,6 +16,13 @@ const ASHBY_API_BASE = 'https://api.ashbyhq.com'
 const CANDIDATES_PER_PAGE = 100
 const NOTES_PER_PAGE = 100
 const FEEDBACK_PER_PAGE = 100
+const MAX_ASHBY_RESPONSE_BYTES = 10 * 1024 * 1024
+const MAX_NOTES_PER_CANDIDATE = 200
+const MAX_FEEDBACK_PER_CANDIDATE = 500
+const MAX_FEEDBACK_FIELDS_PER_SUBMISSION = 100
+const MAX_TEXT_FIELD_CHARACTERS = 20_000
+const MAX_FEEDBACK_SUBMISSION_CHARACTERS = 100_000
+const MAX_DOCUMENT_CHARACTERS = 2_000_000
 
 /**
  * Hard cap on the number of applications whose interview feedback is fetched for a
@@ -24,7 +36,7 @@ const MAX_APPLICATIONS_FOR_FEEDBACK = 10
  * terminates them via `moreDataAvailable`, but a repeated cursor would otherwise spin
  * forever inside a single `getDocument` call.
  */
-const MAX_SUB_PAGES = 100
+const MAX_SUB_PAGES = 5
 
 type UnknownRecord = Record<string, unknown>
 
@@ -98,13 +110,19 @@ async function ashbyPost(
   )
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => '')
+    const errorText = await readResponseTextWithLimit(response, {
+      maxBytes: MAX_ASHBY_RESPONSE_BYTES,
+      label: `Ashby ${endpoint} error response`,
+    }).catch(() => '')
     throw new Error(
       `Ashby ${endpoint} HTTP error: ${response.status}${errorText ? ` — ${errorText.slice(0, 300)}` : ''}`
     )
   }
 
-  const data = (await response.json()) as AshbyEnvelope
+  const data = await readResponseJsonWithLimit<AshbyEnvelope>(response, {
+    maxBytes: MAX_ASHBY_RESPONSE_BYTES,
+    label: `Ashby ${endpoint} response`,
+  })
   if (!data.success) {
     throw new Error(ashbyErrorMessage(data, `Ashby ${endpoint} request failed`))
   }
@@ -224,8 +242,9 @@ function mapNote(raw: unknown): AshbyNote {
   const first = (author?.firstName as string) ?? ''
   const last = (author?.lastName as string) ?? ''
   const authorName = `${first} ${last}`.trim() || (author?.email as string) || null
+  const content = typeof n.content === 'string' ? n.content : null
   return {
-    content: (n.content as string) ?? null,
+    content: content ? truncate(content, MAX_TEXT_FIELD_CHARACTERS) : null,
     authorName,
     createdAt: (n.createdAt as string) ?? null,
   }
@@ -314,12 +333,22 @@ function mapFeedback(raw: unknown): AshbyFeedbackSummary {
 
   const submittedValues = (f.submittedValues as UnknownRecord | undefined) ?? {}
   const lines: string[] = []
+  let renderedCharacters = 0
   for (const [path, value] of Object.entries(submittedValues)) {
+    if (lines.length >= MAX_FEEDBACK_FIELDS_PER_SUBMISSION) break
     if (value == null) continue
     const field = fieldByPath.get(path)
     const label = field?.title ?? path
-    const rendered = renderFeedbackValue(value, field?.labelByValue)
-    if (rendered) lines.push(`${label}: ${rendered}`)
+    const rendered = truncate(
+      renderFeedbackValue(value, field?.labelByValue),
+      MAX_TEXT_FIELD_CHARACTERS
+    )
+    if (!rendered) continue
+    const line = `${label}: ${rendered}`
+    const remainingCharacters = MAX_FEEDBACK_SUBMISSION_CHARACTERS - renderedCharacters
+    if (remainingCharacters <= 0) break
+    lines.push(truncate(line, remainingCharacters))
+    renderedCharacters += Math.min(line.length, remainingCharacters)
   }
 
   const submittedAt =
@@ -435,9 +464,13 @@ async function fetchAllNotes(accessToken: string, candidateId: string): Promise<
     if (cursor) body.cursor = cursor
     const data = await ashbyPost(accessToken, 'candidate.listNotes', body)
     const results = Array.isArray(data.results) ? data.results : []
-    for (const raw of results) notes.push(mapNote(raw))
+    for (const raw of results) {
+      if (notes.length >= MAX_NOTES_PER_CANDIDATE) break
+      notes.push(mapNote(raw))
+    }
     cursor = data.nextCursor ?? undefined
-    hasMore = Boolean(data.moreDataAvailable) && Boolean(cursor)
+    hasMore =
+      notes.length < MAX_NOTES_PER_CANDIDATE && Boolean(data.moreDataAvailable) && Boolean(cursor)
   }
 
   if (hasMore) {
@@ -467,9 +500,15 @@ async function fetchFeedbackForApplication(
     if (cursor) body.cursor = cursor
     const data = await ashbyPost(accessToken, 'applicationFeedback.list', body)
     const results = Array.isArray(data.results) ? data.results : []
-    for (const raw of results) feedback.push(mapFeedback(raw))
+    for (const raw of results) {
+      if (feedback.length >= MAX_FEEDBACK_PER_CANDIDATE) break
+      feedback.push(mapFeedback(raw))
+    }
     cursor = data.nextCursor ?? undefined
-    hasMore = Boolean(data.moreDataAvailable) && Boolean(cursor)
+    hasMore =
+      feedback.length < MAX_FEEDBACK_PER_CANDIDATE &&
+      Boolean(data.moreDataAvailable) &&
+      Boolean(cursor)
   }
 
   if (hasMore) {
@@ -491,41 +530,68 @@ function formatCandidateContent(
   notes: AshbyNote[],
   feedback: AshbyFeedbackSummary[]
 ): string {
+  const truncationMarker = `[Content truncated at ${MAX_DOCUMENT_CHARACTERS.toLocaleString()} characters by the Ashby connector.]`
+  const contentBudget = MAX_DOCUMENT_CHARACTERS - truncationMarker.length - 2
   const parts: string[] = []
+  let contentLength = 0
+  let wasTruncated = false
 
-  parts.push(`Candidate: ${candidate.name || 'Unnamed Candidate'}`)
-  if (candidate.position) parts.push(`Current Role: ${candidate.position}`)
-  if (candidate.company) parts.push(`Current Company: ${candidate.company}`)
-  if (candidate.school) parts.push(`School: ${candidate.school}`)
-  if (candidate.location) parts.push(`Location: ${candidate.location}`)
-  if (candidate.source) parts.push(`Source: ${candidate.source}`)
-  if (candidate.createdAt) parts.push(`Created: ${candidate.createdAt}`)
-  if (candidate.updatedAt) parts.push(`Last Updated: ${candidate.updatedAt}`)
+  const append = (line: string): boolean => {
+    const separatorLength = parts.length > 0 ? 1 : 0
+    const remaining = contentBudget - contentLength - separatorLength
+    if (remaining <= 0) {
+      wasTruncated = true
+      return false
+    }
+    if (line.length > remaining) {
+      parts.push(line.slice(0, remaining))
+      contentLength += separatorLength + remaining
+      wasTruncated = true
+      return false
+    }
+    parts.push(line)
+    contentLength += separatorLength + line.length
+    return true
+  }
+
+  const finish = (): string => {
+    const content = parts.join('\n').trim()
+    return wasTruncated ? `${content}\n\n${truncationMarker}` : content
+  }
+
+  if (!append(`Candidate: ${candidate.name || 'Unnamed Candidate'}`)) return finish()
+  if (candidate.position && !append(`Current Role: ${candidate.position}`)) return finish()
+  if (candidate.company && !append(`Current Company: ${candidate.company}`)) return finish()
+  if (candidate.school && !append(`School: ${candidate.school}`)) return finish()
+  if (candidate.location && !append(`Location: ${candidate.location}`)) return finish()
+  if (candidate.source && !append(`Source: ${candidate.source}`)) return finish()
+  if (candidate.createdAt && !append(`Created: ${candidate.createdAt}`)) return finish()
+  if (candidate.updatedAt && !append(`Last Updated: ${candidate.updatedAt}`)) return finish()
 
   const nonEmptyNotes = notes.filter((n) => n.content?.trim())
   if (nonEmptyNotes.length > 0) {
-    parts.push('')
-    parts.push('--- Notes ---')
+    if (!append('') || !append('--- Notes ---')) return finish()
     for (const note of nonEmptyNotes) {
       const header = [note.authorName, note.createdAt].filter(Boolean).join(' — ')
-      if (header) parts.push(`[${header}]`)
-      parts.push((note.content ?? '').trim())
-      parts.push('')
+      if (header && !append(`[${header}]`)) return finish()
+      if (!append((note.content ?? '').trim()) || !append('')) return finish()
     }
   }
 
   const nonEmptyFeedback = feedback.filter((f) => f.lines.length > 0)
   if (nonEmptyFeedback.length > 0) {
-    parts.push('--- Interview Feedback ---')
+    if (!append('--- Interview Feedback ---')) return finish()
     for (const f of nonEmptyFeedback) {
       const header = [f.submittedByName, f.submittedAt].filter(Boolean).join(' — ')
-      if (header) parts.push(`[${header}]`)
-      for (const line of f.lines) parts.push(line)
-      parts.push('')
+      if (header && !append(`[${header}]`)) return finish()
+      for (const line of f.lines) {
+        if (!append(line)) return finish()
+      }
+      if (!append('')) return finish()
     }
   }
 
-  return parts.join('\n').trim()
+  return finish()
 }
 
 export const ashbyConnector: ConnectorConfig = {
@@ -541,8 +607,9 @@ export const ashbyConnector: ConnectorConfig = {
     const createdAfterMs = (() => {
       const raw = sourceConfig.createdAfter
       if (typeof raw !== 'string' || !raw.trim()) return undefined
-      const ms = new Date(raw.trim()).getTime()
-      return Number.isNaN(ms) ? undefined : ms
+      const ms = Date.parse(raw.trim())
+      if (!Number.isFinite(ms)) throw new Error('Created after must be a valid ISO 8601 date')
+      return ms
     })()
 
     const prevFetched = (syncContext?.totalCandidatesFetched as number) ?? 0
@@ -637,21 +704,20 @@ export const ashbyConnector: ConnectorConfig = {
       }
 
       /**
-       * Sequential on purpose. The sync engine already hydrates SYNC_BATCH_SIZE
-       * candidates concurrently, so fanning these out would multiply that into
-       * a burst of up to `MAX_APPLICATIONS_FOR_FEEDBACK` × the batch size
-       * simultaneous Ashby requests. A per-application catch keeps one failing
-       * application from losing the rest of the candidate's feedback.
+       * Sequential on purpose. The sync engine already hydrates candidates in
+       * batches, so per-candidate fan-out would multiply provider concurrency.
+       * A feedback failure aborts hydration so a partial document is retried
+       * instead of being stored under the candidate's unchanged content hash.
        */
       for (const applicationId of applicationIds) {
-        try {
-          feedback.push(...(await fetchFeedbackForApplication(accessToken, applicationId)))
-        } catch (error) {
-          logger.warn('Failed to fetch Ashby feedback for application', {
-            applicationId,
-            error: toError(error).message,
-          })
-        }
+        const remainingFeedback = MAX_FEEDBACK_PER_CANDIDATE - feedback.length
+        if (remainingFeedback <= 0) break
+        feedback.push(
+          ...(await fetchFeedbackForApplication(accessToken, applicationId)).slice(
+            0,
+            remainingFeedback
+          )
+        )
       }
 
       const content = formatCandidateContent(candidate, notes, feedback)
@@ -686,9 +752,20 @@ export const ashbyConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxCandidates = sourceConfig.maxCandidates as string | undefined
-    if (maxCandidates && (Number.isNaN(Number(maxCandidates)) || Number(maxCandidates) < 0)) {
-      return { valid: false, error: 'Max candidates must be a non-negative number' }
+    const maxCandidates = sourceConfig.maxCandidates
+    if (maxCandidates !== undefined && maxCandidates !== null && maxCandidates !== '') {
+      const parsed = Number(maxCandidates)
+      if (!Number.isSafeInteger(parsed) || parsed < 0) {
+        return { valid: false, error: 'Max candidates must be a non-negative safe integer' }
+      }
+    }
+    const createdAfter = sourceConfig.createdAfter
+    if (
+      typeof createdAfter === 'string' &&
+      createdAfter.trim() &&
+      !Number.isFinite(Date.parse(createdAfter.trim()))
+    ) {
+      return { valid: false, error: 'Created after must be a valid ISO 8601 date' }
     }
 
     try {

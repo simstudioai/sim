@@ -101,6 +101,27 @@ describe('ashbyHandler', () => {
       } as any)
       expect(matched).toBe(false)
     })
+
+    it('matches newly supported Ashby events', async () => {
+      const matched = await ashbyHandler.matchEvent!({
+        webhook: { id: 'w1' } as any,
+        body: { action: 'signatureRequestUpdate', data: {} },
+        requestId: 'r1',
+        providerConfig: { triggerId: 'ashby_signature_request_update' },
+      } as any)
+      expect(matched).toBe(true)
+    })
+  })
+
+  describe('extractIdempotencyId', () => {
+    it('uses Ashby webhookActionId across retries and related event deliveries', () => {
+      expect(
+        ashbyHandler.extractIdempotencyId!({
+          action: 'applicationUpdate',
+          data: { webhookActionId: 'action-1', application: { id: 'app-1' } },
+        })
+      ).toBe('ashby:webhook-action:action-1')
+    })
   })
 
   describe('formatInput', () => {

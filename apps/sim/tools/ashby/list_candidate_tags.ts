@@ -1,4 +1,4 @@
-import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ashbyAuthHeaders, ashbyErrorMessage, ashbyLimit } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListCandidateTagsParams {
@@ -20,7 +20,7 @@ interface AshbyListCandidateTagsResponse extends ToolResponse {
     tags: AshbyCandidateTag[]
     moreDataAvailable: boolean
     nextCursor: string | null
-    syncToken: string | null
+    nextSyncCursor: string | null
   }
 }
 
@@ -75,7 +75,8 @@ export const listCandidateTagsTool: ToolConfig<
       if (params.includeArchived !== undefined) body.includeArchived = params.includeArchived
       if (params.cursor) body.cursor = params.cursor
       if (params.syncToken) body.syncToken = params.syncToken
-      if (params.perPage) body.limit = params.perPage
+      const limit = ashbyLimit(params.perPage)
+      if (limit) body.limit = limit
       return body
     },
   },
@@ -97,7 +98,7 @@ export const listCandidateTagsTool: ToolConfig<
         })),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
-        syncToken: data.syncToken ?? null,
+        nextSyncCursor: data.syncToken ?? null,
       },
     }
   },
@@ -124,7 +125,7 @@ export const listCandidateTagsTool: ToolConfig<
       description: 'Opaque cursor for fetching the next page',
       optional: true,
     },
-    syncToken: {
+    nextSyncCursor: {
       type: 'string',
       description: 'Sync token to use for incremental updates in future requests',
       optional: true,

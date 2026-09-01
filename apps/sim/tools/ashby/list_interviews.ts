@@ -2,6 +2,8 @@ import type { AshbyUserSummary } from '@/tools/ashby/types'
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
+  ashbyLimit,
+  ashbyTimestamp,
   mapUserSummary,
   USER_SUMMARY_OUTPUT,
 } from '@/tools/ashby/utils'
@@ -14,6 +16,7 @@ interface AshbyListInterviewSchedulesParams {
   cursor?: string
   perPage?: number
   createdAfter?: string
+  syncToken?: string
 }
 
 interface AshbyInterviewEvent {
@@ -47,6 +50,7 @@ interface AshbyListInterviewSchedulesResponse extends ToolResponse {
     interviewSchedules: AshbyInterviewSchedule[]
     moreDataAvailable: boolean
     nextCursor: string | null
+    nextSyncCursor: string | null
   }
 }
 
@@ -139,6 +143,12 @@ export const listInterviewsTool: ToolConfig<
       description:
         'Only return interview schedules created after this ISO 8601 timestamp (e.g. 2024-01-01T00:00:00Z)',
     },
+    syncToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque token from a completed prior sync run',
+    },
   },
 
   request: {
@@ -150,11 +160,11 @@ export const listInterviewsTool: ToolConfig<
       if (params.applicationId) body.applicationId = params.applicationId.trim()
       if (params.interviewStageId) body.interviewStageId = params.interviewStageId.trim()
       if (params.cursor) body.cursor = params.cursor
-      if (params.perPage) body.limit = params.perPage
-      if (params.createdAfter) {
-        const ms = new Date(params.createdAfter).getTime()
-        if (!Number.isNaN(ms)) body.createdAfter = ms
-      }
+      const limit = ashbyLimit(params.perPage)
+      if (limit) body.limit = limit
+      if (params.createdAfter)
+        body.createdAfter = ashbyTimestamp(params.createdAfter, 'createdAfter')
+      if (params.syncToken) body.syncToken = params.syncToken
       return body
     },
   },
@@ -172,6 +182,7 @@ export const listInterviewsTool: ToolConfig<
         interviewSchedules: (data.results ?? []).map(mapInterviewSchedule),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
+        nextSyncCursor: data.syncToken ?? null,
       },
     }
   },
@@ -280,6 +291,11 @@ export const listInterviewsTool: ToolConfig<
     nextCursor: {
       type: 'string',
       description: 'Opaque cursor for fetching the next page',
+      optional: true,
+    },
+    nextSyncCursor: {
+      type: 'string',
+      description: 'Opaque token for the next incremental sync',
       optional: true,
     },
   },

@@ -17,16 +17,50 @@ import type { OutputProperty } from '@/tools/types'
 
 type Unknown = Record<string, unknown>
 
+export const ASHBY_ON_BEHALF_OF_PARAM = {
+  onBehalfOfUserId: {
+    type: 'string',
+    required: false,
+    visibility: 'user-or-llm',
+    description:
+      'Active Ashby user UUID to attribute this mutation to; the API key must permit on-behalf-of calls',
+  },
+} as const
+
 /**
  * Build the standard Ashby Authorization header. Ashby uses HTTP Basic auth
  * with the API key as the username and an empty password.
  */
-export function ashbyAuthHeaders(apiKey: string): Record<string, string> {
-  return {
+export function ashbyAuthHeaders(
+  apiKey: string,
+  onBehalfOfUserId?: string
+): Record<string, string> {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json; version=1',
     Authorization: `Basic ${btoa(`${apiKey}:`)}`,
   }
+  const actingUserId = onBehalfOfUserId?.trim()
+  if (actingUserId) headers['X-On-Behalf-Of'] = actingUserId
+  return headers
+}
+
+/** Convert an ISO 8601 input to Ashby's millisecond timestamp without silently dropping bad input. */
+export function ashbyTimestamp(value: string, parameter: string): number {
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) {
+    throw new Error(`Invalid ${parameter}: expected an ISO 8601 timestamp.`)
+  }
+  return timestamp
+}
+
+/** Validate Ashby's page/search size contract before sending a provider request. */
+export function ashbyLimit(value: number | undefined, parameter = 'perPage'): number | undefined {
+  if (value === undefined) return undefined
+  if (!Number.isSafeInteger(value) || value < 1 || value > 100) {
+    throw new Error(`Invalid ${parameter}: expected an integer from 1 to 100.`)
+  }
+  return value
 }
 
 /**
@@ -143,6 +177,7 @@ export function mapUserSummary(raw: unknown): AshbyUserSummary | null {
     isEnabled: (u.isEnabled as boolean) ?? false,
     updatedAt: (u.updatedAt as string) ?? null,
     managerId: (u.managerId as string) ?? null,
+    customFields: mapCustomFields(u.customFields),
   }
 }
 
@@ -480,6 +515,7 @@ export const USER_SUMMARY_OUTPUT = {
     isEnabled: { type: 'boolean', description: 'Whether enabled' },
     updatedAt: { type: 'string', description: 'Last update timestamp', optional: true },
     managerId: { type: 'string', description: "User ID of the user's manager", optional: true },
+    customFields: CUSTOM_FIELDS_OUTPUT,
   },
 } as const satisfies OutputProperty
 

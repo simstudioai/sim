@@ -117,10 +117,18 @@ export const ashbyHandler: WebhookProviderHandler = {
     const data = obj.data as Record<string, unknown> | undefined
     if (!action || !data) return null
 
+    if (typeof data.webhookActionId === 'string' && data.webhookActionId) {
+      return `ashby:webhook-action:${data.webhookActionId}`
+    }
+
     const application = data.application as Record<string, unknown> | undefined
     const candidate = data.candidate as Record<string, unknown> | undefined
     const job = data.job as Record<string, unknown> | undefined
     const offer = data.offer as Record<string, unknown> | undefined
+    const interviewSchedule = data.interviewSchedule as Record<string, unknown> | undefined
+    const jobPosting = data.jobPosting as Record<string, unknown> | undefined
+    const opening = data.opening as Record<string, unknown> | undefined
+    const mergedCandidate = data.mergedCandidate as Record<string, unknown> | undefined
 
     if (application?.id) {
       const discriminator = application.updatedAt ?? buildFallbackDeliveryFingerprint(data)
@@ -136,6 +144,16 @@ export const ashbyHandler: WebhookProviderHandler = {
     if (job?.id) {
       return `ashby:${action}:${job.id}`
     }
+    if (interviewSchedule?.id)
+      return `ashby:${action}:${interviewSchedule.id}:${interviewSchedule.updatedAt ?? buildFallbackDeliveryFingerprint(data)}`
+    if (jobPosting?.id)
+      return `ashby:${action}:${jobPosting.id}:${jobPosting.updatedAt ?? buildFallbackDeliveryFingerprint(data)}`
+    if (opening?.id) return `ashby:${action}:${opening.id}`
+    if (mergedCandidate?.id) return `ashby:${action}:${mergedCandidate.id}`
+    if (typeof data.applicationId === 'string')
+      return `ashby:${action}:${data.applicationId}:${data.eventType ?? buildFallbackDeliveryFingerprint(data)}`
+    if (typeof data.offerId === 'string')
+      return `ashby:${action}:${data.offerId}:${data.eventType ?? buildFallbackDeliveryFingerprint(data)}`
     return null
   },
 

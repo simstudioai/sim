@@ -2,6 +2,7 @@ import type { ToolResponse } from '@/tools/types'
 
 interface AshbyBaseParams {
   apiKey: string
+  onBehalfOfUserId?: string
 }
 
 export interface AshbyContactInfo {
@@ -44,6 +45,7 @@ export interface AshbyUserSummary {
   isEnabled: boolean
   updatedAt: string | null
   managerId: string | null
+  customFields: AshbyCustomField[]
 }
 
 export interface AshbySourceSummary {
@@ -95,10 +97,13 @@ export interface AshbyListCandidatesParams extends AshbyBaseParams {
   cursor?: string
   perPage?: number
   createdAfter?: string
+  createdBefore?: string
+  syncToken?: string
 }
 
 export interface AshbyGetCandidateParams extends AshbyBaseParams {
-  candidateId: string
+  candidateId?: string
+  externalMappingId?: string
 }
 
 export interface AshbyCreateCandidateParams extends AshbyBaseParams {
@@ -112,27 +117,31 @@ export interface AshbyCreateCandidateParams extends AshbyBaseParams {
   creditedToUserId?: string
   createdAt?: string
   alternateEmailAddresses?: string[]
+  location?: { city?: string | null; region?: string | null; country?: string | null }
 }
 
 export interface AshbySearchCandidatesParams extends AshbyBaseParams {
   name?: string
   email?: string
+  limit?: number
 }
 
 export interface AshbyListJobsParams extends AshbyBaseParams {
   cursor?: string
   perPage?: number
   syncToken?: string
-  status?: string
+  status?: string | string[]
   createdAfter?: string
   openedAfter?: string
   openedBefore?: string
   closedAfter?: string
   closedBefore?: string
+  includeUnpublishedJobPostingsIds?: boolean
 }
 
 export interface AshbyGetJobParams extends AshbyBaseParams {
   jobId: string
+  includeUnpublishedJobPostingIds?: boolean
 }
 
 export interface AshbyCreateNoteParams extends AshbyBaseParams {
@@ -147,9 +156,12 @@ export interface AshbyCreateNoteParams extends AshbyBaseParams {
 export interface AshbyListApplicationsParams extends AshbyBaseParams {
   cursor?: string
   perPage?: number
-  status?: string
+  status?: string | string[]
   jobId?: string
   createdAfter?: string
+  createdBefore?: string
+  syncToken?: string
+  expand?: string[]
 }
 
 export interface AshbyListCandidatesResponse extends ToolResponse {
@@ -157,6 +169,7 @@ export interface AshbyListCandidatesResponse extends ToolResponse {
     candidates: AshbyCandidate[]
     moreDataAvailable: boolean
     nextCursor: string | null
+    nextSyncCursor: string | null
   }
 }
 
@@ -357,6 +370,7 @@ export interface AshbyListApplicationsResponse extends ToolResponse {
     applications: AshbyApplication[]
     moreDataAvailable: boolean
     nextCursor: string | null
+    nextSyncCursor: string | null
   }
 }
 
