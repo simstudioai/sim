@@ -33,11 +33,38 @@ const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
  */
 type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only'
 
+/**
+ * Which group a key's capability is actually read from when it is enforced.
+ *
+ * - `workspace`: resolved from the group governing the caller in the workspace
+ *   the request names, so the group being edited is the group that applies.
+ * - `organization`: resolved from the organization's *default* group, because
+ *   the act names no workspace (creating one, reading the member directory).
+ *   Setting it on any other group changes nothing at all.
+ * - `workspace-or-organization`: both, on different paths — a workspace-scoped
+ *   act reads this group, and the same capability's account-level path
+ *   (minting a key, an organization-wide invitation) falls back to the default
+ *   group.
+ *
+ * Declared because the editor renders every key on every group, and two of them
+ * are read from one group no matter which is open. That was disclosed only in a
+ * hint an admin has to hover, so the checkbox looked like it did something on
+ * the group in front of them; `scope` is what lets the editor say so in the row
+ * itself. Required rather than optional so the next organization-scoped key
+ * ships marked instead of inheriting the majority answer by omission.
+ */
+export type PermissionGroupCapabilityScope =
+  | 'workspace'
+  | 'organization'
+  | 'workspace-or-organization'
+
 /** The admin-editor descriptor for a boolean key, rendered from the registry. */
 interface PlatformFeatureMeta {
   readonly id: string
   readonly label: string
   readonly category: string
+  /** See {@link PermissionGroupCapabilityScope}. */
+  readonly scope: PermissionGroupCapabilityScope
   /**
    * What the key withholds, in one or two short sentences. Read twice — as the
    * editor's hint and as the prose `getActivePermissionGroupRestrictions`
@@ -211,90 +238,105 @@ export const PERMISSION_GROUP_FIELDS = {
     'Integration tools listed in effectiveConfig.deniedTools are blocked.'
   ),
   hideTraceSpans: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-trace-spans',
     label: 'Trace Spans',
     category: 'Logs',
     hint: 'Withhold per-block trace spans from logs and from the API.',
   }),
   hideKnowledgeBaseTab: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-knowledge-base',
     label: 'Knowledge Base',
     category: 'Knowledge Base',
     hint: 'Revoke the Knowledge Base module. Members cannot open, search, or query any knowledge base.',
   }),
   hideTablesTab: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-tables',
     label: 'Tables',
     category: 'Tables',
     hint: 'Revoke the Tables module. Members cannot read or write any table.',
   }),
   hideCopilot: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-copilot',
     label: 'Chat',
     category: 'Modules',
     hint: 'Revoke Chat. Members cannot ask Sim to build or edit anything.',
   }),
   hideIntegrationsTab: booleanRestriction('capability', {
+    scope: 'workspace-or-organization',
     id: 'hide-integrations',
     label: 'Integrations',
     category: 'Credentials & Access',
     hint: 'Revoke integration connections. Members cannot view, add, or remove an OAuth connection.',
   }),
   hideSecretsTab: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-secrets',
     label: 'Secrets',
     category: 'Credentials & Access',
     hint: 'Revoke secrets. Members cannot read, add, or change a workspace environment variable.',
   }),
   hideApiKeysTab: booleanRestriction('capability', {
+    scope: 'workspace-or-organization',
     id: 'hide-api-keys',
     label: 'API Keys',
     category: 'Credentials & Access',
     hint: 'Revoke workspace API keys. Members cannot list, create, or revoke one.',
   }),
   hideInboxTab: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-inbox',
     label: 'Sim Mailer',
     category: 'Modules',
     hint: 'Revoke the Sim Mailer inbox. Members cannot read or send mail.',
   }),
   hideFilesTab: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-files',
     label: 'Files',
     category: 'Files',
     hint: 'Revoke the Files module. Members cannot list, upload, or download workspace files.',
   }),
   disableMcpTools: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-mcp',
     label: 'MCP Tools',
     category: 'Tools',
     hint: 'Block agents from calling MCP tools.',
   }),
   disableCustomTools: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-custom-tools',
     label: 'Custom Tools',
     category: 'Tools',
     hint: 'Block agents from calling user-defined custom tools.',
   }),
   disableSkills: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-skills',
     label: 'Skills',
     category: 'Tools',
     hint: 'Block agents from loading skills.',
   }),
   disableInvitations: booleanRestriction('capability', {
+    scope: 'workspace-or-organization',
     id: 'disable-invitations',
     label: 'Invitations',
     category: 'Collaboration',
     hint: 'Prevent inviting anyone to a workspace or to the organization.',
   }),
   disablePublicApi: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-public-api',
     label: 'Public API',
     category: 'Deployment',
     hint: 'Revoke public API access. Calls to a deployed workflow are refused.',
   }),
   disablePublicFileSharing: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-public-file-sharing',
     label: 'Public Sharing',
     category: 'Files',
@@ -306,18 +348,21 @@ export const PERMISSION_GROUP_FIELDS = {
     empty: 'No public file-share authentication modes are allowed.',
   }),
   hideDeployApi: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-deploy-api',
     label: 'API Deployment',
     category: 'Deployment',
     hint: 'Prevent deploying a workflow as an API endpoint.',
   }),
   hideDeployMcp: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-deploy-mcp',
     label: 'MCP Server',
     category: 'Deployment',
     hint: 'Prevent exposing a workflow as an MCP server.',
   }),
   hideDeployChatbot: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-deploy-chatbot',
     label: 'Chat Deployment',
     category: 'Deployment',
@@ -334,30 +379,35 @@ export const PERMISSION_GROUP_FIELDS = {
    * change in every open group editor.
    */
   disablePersonalApiKeys: booleanRestriction('capability', {
+    scope: 'workspace-or-organization',
     id: 'disable-personal-api-keys',
     label: 'Personal API Keys',
     category: 'Credentials & Access',
     hint: 'Prevent members from using a personal API key against this workspace.',
   }),
   disableLogExport: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-log-export',
     label: 'Log Export',
     category: 'Logs',
     hint: 'Prevent downloading execution logs as a CSV.',
   }),
   hideCostInfo: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'hide-cost-info',
     label: 'Execution Cost',
     category: 'Logs',
     hint: 'Withhold execution cost. Logs and exports omit cost and token spend.',
   }),
   disableKnowledgeBaseCreation: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-knowledge-base-creation',
     label: 'Knowledge Base Creation',
     category: 'Knowledge Base',
     hint: 'Prevent creating knowledge bases, leaving existing ones queryable.',
   }),
   disableKnowledgeBaseFileUpload: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-knowledge-base-upload',
     label: 'Knowledge Base Uploads',
     category: 'Knowledge Base',
@@ -368,54 +418,63 @@ export const PERMISSION_GROUP_FIELDS = {
     empty: 'No knowledge base connectors are allowed.',
   }),
   disableTableCreation: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-table-creation',
     label: 'Table Creation',
     category: 'Tables',
     hint: 'Prevent creating tables, leaving existing ones usable.',
   }),
   disableTableExport: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-table-export',
     label: 'Table Export',
     category: 'Tables',
     hint: 'Prevent downloading a whole table as CSV or JSON.',
   }),
   disableBulkFileDownload: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-bulk-file-download',
     label: 'Bulk Download',
     category: 'Files',
     hint: 'Prevent downloading folders as an archive.',
   }),
   disablePersonalCredentials: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-personal-credentials',
     label: 'Personal Credentials',
     category: 'Credentials & Access',
     hint: 'Prevent connecting personal credentials, leaving only workspace-shared ones.',
   }),
   disableWorkspaceCreation: booleanRestriction('capability', {
+    scope: 'organization',
     id: 'disable-workspace-creation',
     label: 'Workspace Creation',
     category: 'Collaboration',
     hint: "Prevent creating new workspaces, which no existing group would govern. Read from the organization's default group, because creating a workspace names none.",
   }),
   hideOrgMemberDirectory: booleanRestriction('capability', {
+    scope: 'organization',
     id: 'hide-org-member-directory',
     label: 'Member Directory',
     category: 'Collaboration',
     hint: "Withhold the member directory. Members cannot see the names or email addresses of other members. Read from the organization's default group, because the directory belongs to the organization and names no workspace.",
   }),
   disableCliAccess: booleanRestriction('capability', {
+    scope: 'workspace-or-organization',
     id: 'disable-cli-access',
     label: 'CLI Access',
     category: 'Credentials & Access',
     hint: "Prevent approving a CLI login, which mints a key for the public API. A login naming one of this group's workspaces is refused; an account-level login names none, so it is read from the organization's default group.",
   }),
   disableWebhookTriggers: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-webhook-triggers',
     label: 'Webhook Triggers',
     category: 'Deployment',
     hint: 'Prevent making a workflow reachable from an inbound webhook.',
   }),
   disableToolAutoApproval: booleanRestriction('capability', {
+    scope: 'workspace',
     id: 'disable-tool-auto-approval',
     label: 'Tool Auto-Approval',
     category: 'Tools',

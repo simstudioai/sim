@@ -1,5 +1,6 @@
 import {
   PERMISSION_GROUP_FIELDS,
+  type PermissionGroupCapabilityScope,
   type PermissionGroupConfig,
   type PermissionGroupConfigKey,
 } from '@/lib/permission-groups/fields'
@@ -14,6 +15,33 @@ export interface PermissionGroupPlatformFeature {
   category: string
   configKey: BooleanPermissionGroupConfigKey
   hint: string
+  /** See {@link PermissionGroupCapabilityScope}. */
+  scope: PermissionGroupCapabilityScope
+}
+
+/**
+ * The note a group editor shows beside an organization-scoped row.
+ *
+ * One sentence, in one place, so the editor and any other surface that has to
+ * explain the row say the same thing.
+ */
+export const ORGANIZATION_SCOPED_FEATURE_NOTE =
+  "Read from the organization's default group, so it applies organization-wide no matter which group sets it."
+
+/**
+ * Whether a group editor can decide this key at all.
+ *
+ * An `organization`-scoped key is read from the organization's default group, so
+ * on any other group the checkbox writes a value nothing will ever read. The
+ * editor renders those rows inert and every bulk action skips them, both from
+ * this one predicate — a second copy is how the row and the "Select All" it sits
+ * under would come to disagree.
+ */
+export function isFeatureInertForGroup(
+  feature: PermissionGroupPlatformFeature,
+  groupIsDefault: boolean
+): boolean {
+  return feature.scope === 'organization' && !groupIsDefault
 }
 
 export interface ActivePermissionGroupRestriction {
