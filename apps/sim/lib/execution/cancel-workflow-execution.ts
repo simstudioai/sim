@@ -292,6 +292,67 @@ async function completePausedCancellationWithRetry(
   return false
 }
 
+async function clearPausedCancellationIntentWithRetry(
+  executionId: string,
+  workflowId: string
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= PAUSED_CANCELLATION_DB_ATTEMPTS; attempt++) {
+    try {
+      await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId)
+      return true
+    } catch (error) {
+      logger.warn('Failed to clear paused cancellation intent', {
+        executionId,
+        attempt,
+        error: toError(error).message,
+      })
+      if (attempt < PAUSED_CANCELLATION_DB_ATTEMPTS) {
+        await sleep(PAUSED_CANCELLATION_DB_RETRY_MS)
+      }
+    }
+  }
+  return false
+}
+
+async function restorePausedCancellationAfterRejectedCommit(args: {
+  executionId: string
+  workflowId: string
+  effectivePausedCancellationPath: boolean
+  activeResumeEntryId: string | null
+}): Promise<boolean> {
+  if (!args.effectivePausedCancellationPath) return true
+
+  if (args.activeResumeEntryId) {
+    try {
+      const rolledBack = await PauseResumeManager.rollbackActiveResumeCancellation(
+        args.executionId,
+        args.workflowId,
+        args.activeResumeEntryId
+      )
+      if (rolledBack) return true
+      logger.warn('Active resume rollback was rejected; clearing paused cancellation intent', {
+        executionId: args.executionId,
+        activeResumeEntryId: args.activeResumeEntryId,
+      })
+    } catch (error) {
+      logger.warn('Active resume rollback failed; clearing paused cancellation intent', {
+        executionId: args.executionId,
+        activeResumeEntryId: args.activeResumeEntryId,
+        error: toError(error).message,
+      })
+    }
+  }
+
+  return clearPausedCancellationIntentWithRetry(args.executionId, args.workflowId)
+}
+
+function throwPausedCancellationRestoreFailed(): never {
+  throw new OrchestrationError(
+    'internal',
+    'Failed to restore paused execution after cancellation was rejected'
+  )
+}
+
 async function ensureCancellationEventPublished(
   executionId: string,
   workflowId: string,
@@ -681,6 +742,12 @@ export async function cancelWorkflowExecution({
     }
 
     if (execution.status !== 'running' && execution.status !== 'pending') {
+      const pausedCancellationRestored = await clearPausedCancellationIntentWithRetry(
+        executionId,
+        workflowId
+      )
+      if (!pausedCancellationRestored) throwPausedCancellationRestoreFailed()
+
       if (!isWorkflowGroupExecution && isWorkflowRunAlreadyTerminalStatus(execution.status)) {
         throw new WorkflowRunAlreadyTerminalError({
           executionId,
@@ -853,28 +920,13 @@ export async function cancelWorkflowExecution({
 
     if (workflowGroupNoLongerActive) {
       await clearStopSignalMarkers(stopSummary)
-      if (activeResumeEntryId) {
-        await PauseResumeManager.rollbackActiveResumeCancellation(
-          executionId,
-          workflowId,
-          activeResumeEntryId
-        ).catch((error) => {
-          logger.warn('Failed to roll back active resume after group target disappeared', {
-            executionId,
-            activeResumeEntryId,
-            error: toError(error).message,
-          })
-        })
-      } else if (effectivePausedCancellationPath) {
-        await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId).catch(
-          (error) => {
-            logger.warn('Failed to clear cancellation intent after group target disappeared', {
-              executionId,
-              error: toError(error).message,
-            })
-          }
-        )
-      }
+      const pausedCancellationRestored = await restorePausedCancellationAfterRejectedCommit({
+        executionId,
+        workflowId,
+        effectivePausedCancellationPath,
+        activeResumeEntryId,
+      })
+      if (!pausedCancellationRestored) throwPausedCancellationRestoreFailed()
       throw new OrchestrationError(
         'conflict',
         'Workflow group execution is no longer the active table execution'
@@ -883,28 +935,13 @@ export async function cancelWorkflowExecution({
 
     if (competingTerminalStatus) {
       await clearStopSignalMarkers(stopSummary)
-      if (activeResumeEntryId) {
-        await PauseResumeManager.rollbackActiveResumeCancellation(
-          executionId,
-          workflowId,
-          activeResumeEntryId
-        ).catch((error) => {
-          logger.warn('Failed to roll back active resume after terminal race', {
-            executionId,
-            activeResumeEntryId,
-            error: toError(error).message,
-          })
-        })
-      } else if (effectivePausedCancellationPath) {
-        await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId).catch(
-          (error) => {
-            logger.warn('Failed to clear cancellation intent after terminal race', {
-              executionId,
-              error: toError(error).message,
-            })
-          }
-        )
-      }
+      const pausedCancellationRestored = await restorePausedCancellationAfterRejectedCommit({
+        executionId,
+        workflowId,
+        effectivePausedCancellationPath,
+        activeResumeEntryId,
+      })
+      if (!pausedCancellationRestored) throwPausedCancellationRestoreFailed()
       if (
         !isWorkflowGroupExecution &&
         isWorkflowRunAlreadyTerminalStatus(competingTerminalStatus)

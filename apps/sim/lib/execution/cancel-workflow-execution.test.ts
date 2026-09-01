@@ -305,6 +305,36 @@ describe('cancelWorkflowExecution', () => {
     expect(mockCancelByExecution).not.toHaveBeenCalled()
   })
 
+  it('clears a staged pause when a vanished group target prevents active-resume rollback', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockStagePausedCancellation.mockResolvedValue({
+      kind: 'active_resume',
+      target: ACTIVE_RESUME_TARGET,
+    })
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockRollbackActiveResumeCancellation.mockResolvedValue(false)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Workflow group execution is no longer the active table execution',
+    })
+    expect(mockRollbackActiveResumeCancellation).toHaveBeenCalledWith(
+      'ex-1',
+      'wf-1',
+      'resume-entry-1'
+    )
+    expect(mockClearPausedCancellationIntent).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
   it('accepts an exact in-process group abort without cancelling its carrier', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
@@ -1616,6 +1646,28 @@ describe('cancelWorkflowExecution', () => {
     expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
     expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
     expect(mockClearPausedCancellationIntent).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
+  it('retries paused cancellation cleanup before returning a terminal-race conflict', async () => {
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    mockClearPausedCancellationIntent.mockRejectedValueOnce(new Error('database unavailable'))
+    const returning = vi.fn().mockResolvedValue([])
+    const where = vi.fn(() => ({ returning }))
+    databaseMock.db.update.mockReturnValueOnce({ set: vi.fn(() => ({ where })) })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { executionDeadlineAt: null, status: 'running', workspaceId: 'workspace-1' },
+      ])
+      .mockResolvedValueOnce([{ status: 'completed' }])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Execution cannot be cancelled while completed',
+    })
+    expect(mockClearPausedCancellationIntent).toHaveBeenCalledTimes(2)
+    expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
   })
 
   it('treats a concurrent cancellation as an idempotent success', async () => {
