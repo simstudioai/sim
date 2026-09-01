@@ -47,6 +47,13 @@ describe('AshbyBlock', () => {
       expect(result.socialLinks).toEqual([{ type: 'Twitter', url: 'https://twitter.com/jane' }])
     })
 
+    it('preserves an empty JSON array so users can clear all social links', () => {
+      const result = AshbyBlock.tools.config.params!(
+        buildParams('update_candidate', { socialLinks: '[]' })
+      )
+      expect(result.socialLinks).toEqual([])
+    })
+
     it('throws instead of silently dropping the field when the JSON is malformed', () => {
       // A silent [] here would let the Ashby update proceed without applying
       // the requested links and with no error shown to the workflow author.
@@ -63,6 +70,43 @@ describe('AshbyBlock', () => {
           buildParams('update_candidate', { socialLinks: '{"type":"Twitter"}' })
         )
       ).toThrow(/expected a JSON array/)
+    })
+  })
+
+  describe('nullable candidate updates', () => {
+    it('preserves nulls from dynamic references for aliased update fields', () => {
+      const result = AshbyBlock.tools.config.params!(
+        buildParams('update_candidate', {
+          updateName: null,
+          candidateLocation: null,
+          candidateCreatedAt: null,
+        })
+      )
+      expect(result.name).toBeNull()
+      expect(result.location).toBeNull()
+      expect(result.createdAt).toBeNull()
+    })
+  })
+
+  describe('archiveEmail parsing (change_application_stage)', () => {
+    it('parses the documented archive email object', () => {
+      const result = AshbyBlock.tools.config.params!(
+        buildParams('change_application_stage', {
+          archiveEmail: '{"communicationTemplateId":"template-1","sendAt":"2026-09-02T16:32:00Z"}',
+        })
+      )
+      expect(result.archiveEmail).toEqual({
+        communicationTemplateId: 'template-1',
+        sendAt: '2026-09-02T16:32:00Z',
+      })
+    })
+
+    it('rejects non-object archive email input', () => {
+      expect(() =>
+        AshbyBlock.tools.config.params!(
+          buildParams('change_application_stage', { archiveEmail: 'true' })
+        )
+      ).toThrow(/expected a JSON object/)
     })
   })
 

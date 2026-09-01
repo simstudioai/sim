@@ -249,7 +249,7 @@ Moves an application to a different interview stage. Requires an archive reason 
 | `applicationId` | string | Yes | The UUID of the application to update the stage of |
 | `interviewStageId` | string | Yes | The UUID of the interview stage to move the application to |
 | `archiveReasonId` | string | No | Archive reason UUID. Required when moving to an Archived stage, ignored otherwise |
-| `archiveEmail` | boolean | No | Send Ashby archive email automation when archiving |
+| `archiveEmail` | json | No | Archive email configuration with communicationTemplateId and optional sendAt ISO 8601 timestamp. Pass null or omit to send no archive email. |
 
 #### Output
 
@@ -306,7 +306,7 @@ Creates a new application for a candidate on a job. Optionally specify interview
 | `candidateId` | string | Yes | The UUID of the candidate to consider for the job |
 | `jobId` | string | Yes | The UUID of the job to consider the candidate for |
 | `interviewPlanId` | string | No | UUID of the interview plan to use \(defaults to the job default plan\) |
-| `interviewStageId` | string | No | UUID of the interview stage to place the application in \(defaults to first Lead stage\) |
+| `interviewStageId` | string | No | UUID of the interview stage to place the application in, or FirstPreInterviewScreen \(defaults to the first Lead stage\) |
 | `sourceId` | string | No | UUID of the source to set on the application |
 | `creditedToUserId` | string | No | UUID of the user the application is credited to |
 | `createdAt` | string | No | ISO 8601 timestamp to set as the application creation date \(defaults to now\) |
@@ -882,7 +882,7 @@ Lists all applications in an Ashby organization with pagination and optional fil
 | `apiKey` | string | Yes | Ashby API Key |
 | `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
 | `perPage` | number | No | Number of results per page \(default 100\) |
-| `status` | json | No | One application status or an array of statuses to include: Active, Hired, Archived, or Lead |
+| `status` | string | No | Application status to include: Active, Hired, Archived, or Lead |
 | `jobId` | string | No | Filter applications by a specific job UUID |
 | `createdAfter` | string | No | Filter to applications created after this ISO 8601 timestamp \(e.g. 2024-01-01T00:00:00Z\) |
 | `createdBefore` | string | No | Filter to applications created before this ISO 8601 timestamp |
@@ -1128,7 +1128,6 @@ Lists the ordered stages in an Ashby interview plan.
 |   ↳ `interviewPlanId` | string | Parent plan UUID |
 |   ↳ `orderInInterviewPlan` | number | Zero-based plan order |
 |   ↳ `interviewStageGroupId` | string | Stage group UUID |
-| `moreDataAvailable` | boolean | Whether more data is available |
 
 ### Ashby List Job Postings
 
@@ -1617,21 +1616,21 @@ Updates an existing candidate record in Ashby. Only provided fields are changed.
 | `apiKey` | string | Yes | Ashby API Key |
 | `onBehalfOfUserId` | string | No | Active Ashby user UUID to attribute this mutation to; the API key must permit on-behalf-of calls |
 | `candidateId` | string | Yes | The UUID of the candidate to update |
-| `name` | string | No | Updated full name |
-| `email` | string | No | Updated primary email address |
-| `phoneNumber` | string | No | Updated primary phone number |
-| `linkedInUrl` | string | No | LinkedIn profile URL |
-| `githubUrl` | string | No | GitHub profile URL |
-| `websiteUrl` | string | No | Personal website URL |
-| `alternateEmail` | string | No | An additional email address to add to the candidate |
+| `name` | string | No | Updated full name, or null |
+| `email` | string | No | Updated primary email address, or null |
+| `phoneNumber` | string | No | Updated primary phone number, or null |
+| `linkedInUrl` | string | No | LinkedIn profile URL, or null |
+| `githubUrl` | string | No | GitHub profile URL, or null |
+| `websiteUrl` | string | No | Personal website URL, or null |
+| `alternateEmail` | string | No | An additional email address to add to the candidate, or null |
 | `sourceId` | string | No | UUID of the source to attribute the candidate to |
 | `creditedToUserId` | string | No | UUID of the Ashby user to credit with sourcing this candidate |
 | `clearSource` | boolean | No | Explicitly clear the candidate source; mutually exclusive with sourceId |
 | `clearCreditedToUser` | boolean | No | Explicitly clear the credited Ashby user; mutually exclusive with creditedToUserId |
-| `location` | json | No | Candidate location object with optional city, region, and country; pass null fields to clear parts |
-| `createdAt` | string | No | Backdated creation timestamp in ISO 8601. Only updatable if originally backdated. |
-| `sendNotifications` | boolean | No | Whether to send a notification when the source is updated \(default true\) |
-| `socialLinks` | json | No | Array of social link objects to set on the candidate, e.g. \[\{"type":"LinkedIn","url":"https://..."\}\]. Replaces existing social links. |
+| `location` | json | No | Candidate location object with optional city, region, and country; the object and its fields accept null |
+| `createdAt` | string | No | Backdated creation timestamp in ISO 8601, or null. Only updatable if originally backdated. |
+| `sendNotifications` | boolean | No | Whether to send a notification when the source is updated \(default true\), or null |
+| `socialLinks` | json | No | Array of social link objects to set on the candidate, e.g. \[\{"type":"LinkedIn","url":"https://..."\}\]. Replaces existing links; pass \[\] to clear them. Null is also accepted. Mutually exclusive with linkedInUrl, githubUrl, and websiteUrl. |
 
 #### Output
 
@@ -1866,6 +1865,7 @@ Trigger workflow when a new application is submitted
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `application` | object | application output from the tool |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
@@ -1900,6 +1900,7 @@ Trigger workflow when an application is updated
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `application` | object | application output from the tool |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
@@ -1934,6 +1935,7 @@ Trigger workflow when a candidate is deleted
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `candidate` | object | candidate output from the tool |
 |   ↳ `id` | string | Deleted candidate UUID |
 
@@ -1955,6 +1957,7 @@ Trigger workflow when a candidate is hired
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `application` | object | application output from the tool |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
@@ -1997,6 +2000,7 @@ Trigger workflow when two candidate records are merged
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `deletedCandidate` | object | deletedCandidate output from the tool |
 |   ↳ `id` | string | Deleted candidate UUID |
 | `mergedCandidate` | object | mergedCandidate output from the tool |
@@ -2020,6 +2024,7 @@ Trigger workflow when a candidate changes interview stages
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `application` | object | application output from the tool |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
@@ -2054,6 +2059,7 @@ Trigger workflow when an interview schedule is created
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `interviewSchedule` | object | interviewSchedule output from the tool |
 |   ↳ `id` | string | Interview schedule UUID |
 |   ↳ `status` | string | Interview schedule status |
@@ -2082,6 +2088,7 @@ Trigger workflow when an interview schedule is updated
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `interviewSchedule` | object | interviewSchedule output from the tool |
 |   ↳ `id` | string | Interview schedule UUID |
 |   ↳ `status` | string | Interview schedule status |
@@ -2111,6 +2118,7 @@ Trigger workflow when a new job is created
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `job` | object | job output from the tool |
 |   ↳ `id` | string | Job UUID |
 |   ↳ `title` | string | Job title |
@@ -2136,6 +2144,7 @@ Trigger workflow when a job posting is deleted
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `jobPosting` | object | jobPosting output from the tool |
 |   ↳ `id` | string | Deleted job posting UUID |
 |   ↳ `jobId` | string | Associated job UUID |
@@ -2158,6 +2167,7 @@ Trigger workflow when a job posting is updated
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `jobPosting` | object | jobPosting output from the tool |
 |   ↳ `id` | string | Job posting UUID |
 |   ↳ `title` | string | Job posting title |
@@ -2188,6 +2198,7 @@ Trigger workflow when a job is updated
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `job` | object | job output from the tool |
 |   ↳ `id` | string | Job UUID |
 |   ↳ `title` | string | Job title |
@@ -2213,6 +2224,7 @@ Trigger workflow when a new offer is created
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `offer` | object | offer output from the tool |
 |   ↳ `id` | string | Offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
@@ -2240,6 +2252,7 @@ Trigger workflow when an offer is deleted
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `offer` | object | offer output from the tool |
 |   ↳ `id` | string | Deleted offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
@@ -2262,6 +2275,7 @@ Trigger workflow when an offer is updated
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `offer` | object | offer output from the tool |
 |   ↳ `id` | string | Offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
@@ -2289,6 +2303,7 @@ Trigger workflow when a headcount opening is created
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `opening` | object | opening output from the tool |
 |   ↳ `id` | string | Opening UUID |
 |   ↳ `openedAt` | string | Open timestamp |
@@ -2317,6 +2332,7 @@ Trigger workflow when an e-signature request changes state
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `webhookActionId` | string | Ashby delivery identifier, stable across retries |
 | `relatedEntityType` | string | Related entity type: application or offer |
 | `applicationId` | string | Related application UUID |
 | `offerId` | string | Related offer UUID |

@@ -45,13 +45,28 @@ export function ashbyAuthHeaders(
   return headers
 }
 
-/** Convert an ISO 8601 input to Ashby's millisecond timestamp without silently dropping bad input. */
-export function ashbyTimestamp(value: string, parameter: string): number {
+/** Validate an ISO 8601 date-time without changing the provider wire value. */
+export function ashbyIsoDateTime(value: string, parameter: string): string {
+  const isoDateTimePattern =
+    /^(\d{4})-(\d{2})-(\d{2})T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?$/
+  const match = isoDateTimePattern.exec(value)
+  const year = Number(match?.[1])
+  const month = Number(match?.[2])
+  const day = Number(match?.[3])
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  const maxDay = daysInMonth[month - 1] ?? 0
+  const validCalendarDate = month >= 1 && month <= 12 && day >= 1 && day <= maxDay
   const timestamp = Date.parse(value)
-  if (!Number.isFinite(timestamp)) {
+  if (!match || !validCalendarDate || !Number.isFinite(timestamp)) {
     throw new Error(`Invalid ${parameter}: expected an ISO 8601 timestamp.`)
   }
-  return timestamp
+  return value
+}
+
+/** Convert an ISO 8601 input to Ashby's millisecond timestamp without silently dropping bad input. */
+export function ashbyTimestamp(value: string, parameter: string): number {
+  return Date.parse(ashbyIsoDateTime(value, parameter))
 }
 
 /** Normalize optional block inputs and validate Ashby's page/search size contract. */

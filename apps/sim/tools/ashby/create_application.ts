@@ -66,7 +66,7 @@ export const createApplicationTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'UUID of the interview stage to place the application in (defaults to first Lead stage)',
+        'UUID of the interview stage to place the application in, or FirstPreInterviewScreen (defaults to the first Lead stage)',
     },
     sourceId: {
       type: 'string',

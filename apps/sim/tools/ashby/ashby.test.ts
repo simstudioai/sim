@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { isSensitiveKey } from '@/lib/core/security/redaction'
 import { anonymizeCandidateTool } from '@/tools/ashby/anonymize_candidate'
 import { changeApplicationSourceTool } from '@/tools/ashby/change_application_source'
+import { changeApplicationStageTool } from '@/tools/ashby/change_application_stage'
 import { deleteApplicationTool } from '@/tools/ashby/delete_application'
 import { getApplicationTool } from '@/tools/ashby/get_application'
 import { getCandidateTool } from '@/tools/ashby/get_candidate'
@@ -12,6 +13,7 @@ import { getJobPostingTool } from '@/tools/ashby/get_job_posting'
 import { listApplicationsTool } from '@/tools/ashby/list_applications'
 import { listCandidatesTool } from '@/tools/ashby/list_candidates'
 import { listInterviewPlansTool } from '@/tools/ashby/list_interview_plans'
+import { listInterviewStagesTool } from '@/tools/ashby/list_interview_stages'
 import { listJobPostingsTool } from '@/tools/ashby/list_job_postings'
 import { listJobsTool } from '@/tools/ashby/list_jobs'
 import { listNotesTool } from '@/tools/ashby/list_notes'
@@ -111,10 +113,10 @@ describe('ashby request bodies', () => {
     ).toThrow(/exactly one/)
   })
 
-  it('sends list status filters as arrays and exposes draft posting IDs for job lists', () => {
-    expect(requestBody(listApplicationsTool, { apiKey: 'k', status: 'Active' }).status).toEqual([
-      'Active',
-    ])
+  it('sends the application status as a scalar and exposes draft posting IDs for job lists', () => {
+    expect(requestBody(listApplicationsTool, { apiKey: 'k', status: ' Active ' }).status).toBe(
+      'Active'
+    )
     expect(
       requestBody(listJobsTool, {
         apiKey: 'k',
@@ -163,6 +165,75 @@ describe('ashby request bodies', () => {
       creditedToUserId: null,
       location: { city: 'Seattle', region: 'WA', country: 'US' },
     })
+  })
+
+  it('supports clearing all social links and rejects Ashby-ignored field combinations', () => {
+    expect(
+      requestBody(updateCandidateTool, { candidateId: 'c', socialLinks: [] }).socialLinks
+    ).toEqual([])
+    expect(
+      requestBody(updateCandidateTool, { candidateId: 'c', socialLinks: null }).socialLinks
+    ).toBeNull()
+    expect(() =>
+      requestBody(updateCandidateTool, {
+        candidateId: 'c',
+        socialLinks: [],
+        linkedInUrl: 'https://linkedin.com/in/example',
+      })
+    ).toThrow(/mutually exclusive/)
+  })
+
+  it('preserves documented nullable candidate update fields', () => {
+    expect(
+      requestBody(updateCandidateTool, {
+        candidateId: 'c',
+        name: null,
+        email: null,
+        phoneNumber: null,
+        linkedInUrl: null,
+        githubUrl: null,
+        websiteUrl: null,
+        alternateEmail: null,
+        location: null,
+        createdAt: null,
+        sendNotifications: null,
+      })
+    ).toEqual({
+      candidateId: 'c',
+      name: null,
+      email: null,
+      phoneNumber: null,
+      linkedInUrl: null,
+      githubUrl: null,
+      websiteUrl: null,
+      alternateEmail: null,
+      location: null,
+      createdAt: null,
+      sendNotifications: null,
+    })
+  })
+
+  it('sends Ashby archive email configuration as the documented object', () => {
+    expect(
+      requestBody(changeApplicationStageTool, {
+        applicationId: 'app-1',
+        interviewStageId: 'stage-1',
+        archiveEmail: {
+          communicationTemplateId: ' template-1 ',
+          sendAt: '2026-09-02T16:32:00Z',
+        },
+      }).archiveEmail
+    ).toEqual({
+      communicationTemplateId: 'template-1',
+      sendAt: '2026-09-02T16:32:00Z',
+    })
+    expect(() =>
+      requestBody(changeApplicationStageTool, {
+        applicationId: 'app-1',
+        interviewStageId: 'stage-1',
+        archiveEmail: { communicationTemplateId: 'template-1', sendAt: 'tomorrow-ish' },
+      })
+    ).toThrow(/ISO 8601/)
   })
 
   it('forwards all documented offer list filters', () => {
@@ -311,6 +382,16 @@ describe('ashby request bodies', () => {
 })
 
 describe('ashby response transforms', () => {
+  it('does not invent pagination metadata for interviewStage.list', async () => {
+    const result = await transform(listInterviewStagesTool, {
+      success: true,
+      results: [{ id: 'stage-1', title: 'Screen' }],
+      moreDataAvailable: true,
+    })
+    expect(result.output.interviewStages).toEqual([{ id: 'stage-1', title: 'Screen' }])
+    expect(result.output).not.toHaveProperty('moreDataAvailable')
+  })
+
   it('surfaces sync cursors consistently across candidate and interview-plan lists', async () => {
     const candidates = await transform(listCandidatesTool, {
       success: true,

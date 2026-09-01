@@ -138,6 +138,10 @@ const coreOutputs = {
     type: 'string',
     description: 'The webhook event type (e.g., applicationSubmit, candidateHire)',
   },
+  webhookActionId: {
+    type: 'string',
+    description: 'Ashby delivery identifier, stable across retries',
+  },
 } as const
 
 /**

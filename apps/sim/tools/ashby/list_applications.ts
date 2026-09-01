@@ -42,11 +42,10 @@ export const listApplicationsTool: ToolConfig<
       description: 'Number of results per page (default 100)',
     },
     status: {
-      type: 'json',
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'One application status or an array of statuses to include: Active, Hired, Archived, or Lead',
+      description: 'Application status to include: Active, Hired, Archived, or Lead',
     },
     jobId: {
       type: 'string',
@@ -90,9 +89,9 @@ export const listApplicationsTool: ToolConfig<
       if (params.cursor) body.cursor = params.cursor
       const limit = ashbyLimit(params.perPage)
       if (limit) body.limit = limit
-      if (Array.isArray(params.status) && params.status.length > 0) body.status = params.status
-      else if (typeof params.status === 'string' && params.status.trim())
-        body.status = [params.status.trim()]
+      if (typeof params.status === 'string' && params.status.trim()) {
+        body.status = params.status.trim()
+      }
       if (params.jobId) body.jobId = params.jobId.trim()
       if (params.syncToken) body.syncToken = params.syncToken
       if (params.createdAfter)

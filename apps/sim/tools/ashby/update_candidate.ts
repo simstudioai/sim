@@ -3,6 +3,7 @@ import {
   ASHBY_ON_BEHALF_OF_PARAM,
   ashbyAuthHeaders,
   ashbyErrorMessage,
+  ashbyIsoDateTime,
   CANDIDATE_OUTPUTS,
   mapCandidate,
 } from '@/tools/ashby/utils'
@@ -12,21 +13,21 @@ interface AshbyUpdateCandidateParams {
   apiKey: string
   onBehalfOfUserId?: string
   candidateId: string
-  name?: string
-  email?: string
-  phoneNumber?: string
-  linkedInUrl?: string
-  githubUrl?: string
-  websiteUrl?: string
-  alternateEmail?: string
+  name?: string | null
+  email?: string | null
+  phoneNumber?: string | null
+  linkedInUrl?: string | null
+  githubUrl?: string | null
+  websiteUrl?: string | null
+  alternateEmail?: string | null
   sourceId?: string
   creditedToUserId?: string
   clearSource?: boolean
   clearCreditedToUser?: boolean
-  location?: { city?: string | null; region?: string | null; country?: string | null }
-  createdAt?: string
-  sendNotifications?: boolean
-  socialLinks?: Array<{ type: string; url: string }>
+  location?: { city?: string | null; region?: string | null; country?: string | null } | null
+  createdAt?: string | null
+  sendNotifications?: boolean | null
+  socialLinks?: Array<{ type: string; url: string }> | null
 }
 
 export const updateCandidateTool: ToolConfig<
@@ -56,43 +57,43 @@ export const updateCandidateTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated full name',
+      description: 'Updated full name, or null',
     },
     email: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated primary email address',
+      description: 'Updated primary email address, or null',
     },
     phoneNumber: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated primary phone number',
+      description: 'Updated primary phone number, or null',
     },
     linkedInUrl: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'LinkedIn profile URL',
+      description: 'LinkedIn profile URL, or null',
     },
     githubUrl: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'GitHub profile URL',
+      description: 'GitHub profile URL, or null',
     },
     websiteUrl: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Personal website URL',
+      description: 'Personal website URL, or null',
     },
     alternateEmail: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'An additional email address to add to the candidate',
+      description: 'An additional email address to add to the candidate, or null',
     },
     sourceId: {
       type: 'string',
@@ -124,27 +125,28 @@ export const updateCandidateTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Candidate location object with optional city, region, and country; pass null fields to clear parts',
+        'Candidate location object with optional city, region, and country; the object and its fields accept null',
     },
     createdAt: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Backdated creation timestamp in ISO 8601. Only updatable if originally backdated.',
+        'Backdated creation timestamp in ISO 8601, or null. Only updatable if originally backdated.',
     },
     sendNotifications: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to send a notification when the source is updated (default true)',
+      description:
+        'Whether to send a notification when the source is updated (default true), or null',
     },
     socialLinks: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of social link objects to set on the candidate, e.g. [{"type":"LinkedIn","url":"https://..."}]. Replaces existing social links.',
+        'Array of social link objects to set on the candidate, e.g. [{"type":"LinkedIn","url":"https://..."}]. Replaces existing links; pass [] to clear them. Null is also accepted. Mutually exclusive with linkedInUrl, githubUrl, and websiteUrl.',
     },
   },
 
@@ -156,13 +158,22 @@ export const updateCandidateTool: ToolConfig<
       const body: Record<string, unknown> = {
         candidateId: params.candidateId.trim(),
       }
-      if (params.name) body.name = params.name
-      if (params.email) body.email = params.email
-      if (params.phoneNumber) body.phoneNumber = params.phoneNumber
-      if (params.linkedInUrl) body.linkedInUrl = params.linkedInUrl
-      if (params.githubUrl) body.githubUrl = params.githubUrl
-      if (params.websiteUrl) body.websiteUrl = params.websiteUrl
-      if (params.alternateEmail) body.alternateEmail = params.alternateEmail
+      if (params.name !== undefined) body.name = params.name
+      if (params.email !== undefined) body.email = params.email
+      if (params.phoneNumber !== undefined) body.phoneNumber = params.phoneNumber
+      const hasIndividualSocialLink =
+        params.linkedInUrl !== undefined ||
+        params.githubUrl !== undefined ||
+        params.websiteUrl !== undefined
+      if (params.socialLinks !== undefined && hasIndividualSocialLink) {
+        throw new Error(
+          'socialLinks is mutually exclusive with linkedInUrl, githubUrl, and websiteUrl because Ashby ignores the individual fields when socialLinks is provided.'
+        )
+      }
+      if (params.linkedInUrl !== undefined) body.linkedInUrl = params.linkedInUrl
+      if (params.githubUrl !== undefined) body.githubUrl = params.githubUrl
+      if (params.websiteUrl !== undefined) body.websiteUrl = params.websiteUrl
+      if (params.alternateEmail !== undefined) body.alternateEmail = params.alternateEmail
       if (params.clearSource && params.sourceId)
         throw new Error('sourceId and clearSource are mutually exclusive.')
       if (params.clearCreditedToUser && params.creditedToUserId)
@@ -171,11 +182,20 @@ export const updateCandidateTool: ToolConfig<
       else if (params.sourceId) body.sourceId = params.sourceId.trim()
       if (params.clearCreditedToUser) body.creditedToUserId = null
       else if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId.trim()
-      if (params.location && typeof params.location === 'object') body.location = params.location
-      if (params.createdAt) body.createdAt = params.createdAt
+      if (
+        params.location === null ||
+        (typeof params.location === 'object' && !Array.isArray(params.location))
+      ) {
+        body.location = params.location
+      }
+      if (params.createdAt === null) body.createdAt = null
+      else if (params.createdAt !== undefined) {
+        body.createdAt = ashbyIsoDateTime(params.createdAt, 'createdAt')
+      }
       if (params.sendNotifications !== undefined) body.sendNotifications = params.sendNotifications
-      if (Array.isArray(params.socialLinks) && params.socialLinks.length > 0)
+      if (params.socialLinks === null || Array.isArray(params.socialLinks)) {
         body.socialLinks = params.socialLinks
+      }
       return body
     },
   },

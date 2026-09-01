@@ -127,7 +127,8 @@ describe('ashbyHandler', () => {
       expect(
         ashbyHandler.extractIdempotencyId!({
           action: 'applicationUpdate',
-          data: { webhookActionId: 'action-1', application: { id: 'app-1' } },
+          webhookActionId: 'action-1',
+          data: { application: { id: 'app-1' } },
         })
       ).toBe('ashby:webhook-action:action-1')
     })
@@ -138,11 +139,13 @@ describe('ashbyHandler', () => {
       const result = await ashbyHandler.formatInput!(
         formatInputContext({
           action: 'applicationSubmit',
+          webhookActionId: 'action-1',
           data: { application: { id: 'app-1', status: 'Active' } },
         })
       )
       expect(result.input).toEqual({
         action: 'applicationSubmit',
+        webhookActionId: 'action-1',
         application: { id: 'app-1', status: 'Active' },
       })
     })
@@ -292,6 +295,21 @@ describe('ashbyHandler', () => {
     it('accepts a successful delete', async () => {
       respondWith({ success: true, results: { webhookId: 'ext-1' } })
       await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
+    })
+
+    it('rejects an oversized provider response before buffering it', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue(
+        new Response('{}', {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'content-length': String(Number.MAX_SAFE_INTEGER),
+          },
+        })
+      ) as never
+      await expect(ashbyHandler.deleteSubscription?.(ctx(true))).rejects.toThrow(
+        /exceeds maximum size/
+      )
     })
   })
 

@@ -607,7 +607,7 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       title: 'Interview Stage ID',
       type: 'short-input',
       required: { field: 'operation', value: ['change_application_stage', 'transfer_application'] },
-      placeholder: 'Interview stage UUID',
+      placeholder: 'Stage UUID, or FirstPreInterviewScreen when creating',
       condition: {
         field: 'operation',
         value: [
@@ -1251,9 +1251,10 @@ Output only the JSON array.`,
     },
     {
       id: 'archiveEmail',
-      title: 'Send Archive Email',
-      type: 'switch',
+      title: 'Archive Email',
+      type: 'code',
       mode: 'advanced',
+      placeholder: '{"communicationTemplateId":"<uuid>","sendAt":"2026-09-02T16:32:00Z"}',
       condition: { field: 'operation', value: 'change_application_stage' },
     },
     {
@@ -1453,8 +1454,11 @@ Output only the JSON array.`,
         if (params.expandJob === 'true' || params.expandJob === true) {
           result.expandJob = true
         }
-        if (params.archiveEmail === 'true' || params.archiveEmail === true) {
-          result.archiveEmail = true
+        if (params.archiveEmail) {
+          result.archiveEmail = parseJsonObjectInput(
+            params.archiveEmail,
+            'Ashby archive email configuration'
+          )
         }
         if (
           params.includeUnpublishedJobPostingIds === 'true' ||
@@ -1481,12 +1485,13 @@ Output only the JSON array.`,
         }
         if (
           (params.operation === 'create_candidate' || params.operation === 'update_candidate') &&
-          params.candidateLocation
+          params.candidateLocation !== undefined &&
+          params.candidateLocation !== ''
         ) {
-          result.location = parseJsonObjectInput(
-            params.candidateLocation,
-            'Ashby candidate location'
-          )
+          result.location =
+            params.candidateLocation === null
+              ? null
+              : parseJsonObjectInput(params.candidateLocation, 'Ashby candidate location')
         }
         if (params.clearCandidateSource === 'true' || params.clearCandidateSource === true) {
           result.clearSource = true
@@ -1516,14 +1521,17 @@ Output only the JSON array.`,
         }
         if (
           (params.operation === 'create_candidate' || params.operation === 'update_candidate') &&
-          params.candidateCreatedAt
+          params.candidateCreatedAt !== undefined &&
+          params.candidateCreatedAt !== ''
         ) {
           result.createdAt = params.candidateCreatedAt
         }
         if (params.operation === 'create_note' && params.noteCreatedAt) {
           result.createdAt = params.noteCreatedAt
         }
-        if (params.updateName) result.name = params.updateName
+        if (params.updateName !== undefined && params.updateName !== '') {
+          result.name = params.updateName
+        }
         if (params.website) result.website = params.website
         if (params.alternateEmail) result.alternateEmail = params.alternateEmail
         if (params.postingLocation) result.location = params.postingLocation
@@ -1542,9 +1550,12 @@ Output only the JSON array.`,
           if (alternateEmailAddresses.length > 0)
             result.alternateEmailAddresses = alternateEmailAddresses
         }
-        if (params.socialLinks) {
-          const socialLinks = parseSocialLinksInput(params.socialLinks)
-          if (socialLinks.length > 0) result.socialLinks = socialLinks
+        if (params.socialLinks !== undefined && params.socialLinks !== null) {
+          const socialLinksValue =
+            typeof params.socialLinks === 'string' ? params.socialLinks.trim() : params.socialLinks
+          if (socialLinksValue !== '') {
+            result.socialLinks = parseSocialLinksInput(socialLinksValue)
+          }
         }
         if (params.operation === 'set_custom_field_value') {
           result.fieldValue = parseCustomFieldValueInput(params.fieldValue)
@@ -1595,10 +1606,16 @@ Output only the JSON array.`,
     applicationId: { type: 'string', description: 'Application UUID' },
     submittedFormInstanceId: { type: 'string', description: 'Submitted form instance UUID' },
     applicationHistory: { type: 'json', description: 'Application history entries' },
-    archiveEmail: { type: 'boolean', description: 'Send the configured archive email' },
+    archiveEmail: {
+      type: 'json',
+      description: 'Archive email template UUID and optional scheduled send timestamp',
+    },
     appCandidateId: { type: 'string', description: 'Candidate UUID for application' },
     interviewPlanId: { type: 'string', description: 'Interview plan UUID' },
-    interviewStageId: { type: 'string', description: 'Interview stage UUID' },
+    interviewStageId: {
+      type: 'string',
+      description: 'Interview stage UUID or FirstPreInterviewScreen when creating an application',
+    },
     openingId: { type: 'string', description: 'Opening UUID' },
     openingIdentifier: { type: 'string', description: 'Opening identifier' },
     creditedToUserId: { type: 'string', description: 'User UUID credited to' },

@@ -156,7 +156,7 @@ export interface AshbyCreateNoteParams extends AshbyBaseParams {
 export interface AshbyListApplicationsParams extends AshbyBaseParams {
   cursor?: string
   perPage?: number
-  status?: string | string[]
+  status?: string
   jobId?: string
   createdAfter?: string
   createdBefore?: string

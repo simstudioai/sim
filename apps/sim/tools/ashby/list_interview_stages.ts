@@ -15,7 +15,6 @@ interface Response extends ToolResponse {
       orderInInterviewPlan: number
       interviewStageGroupId: string | null
     }>
-    moreDataAvailable: boolean
   }
 }
 
@@ -51,7 +50,6 @@ export const listInterviewStagesTool: ToolConfig<Params, Response> = {
       success: true,
       output: {
         interviewStages: data.results ?? [],
-        moreDataAvailable: data.moreDataAvailable ?? false,
       },
     }
   },
@@ -75,6 +73,5 @@ export const listInterviewStagesTool: ToolConfig<Params, Response> = {
         },
       },
     },
-    moreDataAvailable: { type: 'boolean', description: 'Whether more data is available' },
   },
 }
