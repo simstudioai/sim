@@ -17,6 +17,7 @@ import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { isExecCancelled } from '@/lib/table/deps'
 import type { RowExecutionMetadata } from '@/lib/table/types'
 import { classifyWorkflowCellTerminalResult } from '@/lib/table/workflow-cell-result'
+import type { CellResumeContext } from '@/lib/table/workflow-columns'
 import {
   createResumeAttemptTimeoutController,
   PauseResumeManager,
@@ -390,12 +391,10 @@ async function runResumeAndCellTerminal(
 }
 
 async function continueCascadeAfterResume(
-  cellContext: {
-    tableId: string
-    rowId: string
-    workspaceId: string
-    groupId: string
-  },
+  cellContext: Pick<
+    CellResumeContext,
+    'tableId' | 'rowId' | 'workspaceId' | 'groupId' | 'capabilityGovernedUserId'
+  >,
   billingAttribution: BillingAttributionSnapshot,
   signal?: AbortSignal
 ): Promise<void> {
@@ -420,6 +419,13 @@ async function continueCascadeAfterResume(
       workflowId: next.workflowId,
       executionId: generateId(),
       billingAttribution,
+      /**
+       * The person who asked for the run that paused still gates the groups it
+       * cascades into. Reconstructing this from the resume payload is not
+       * possible — `payload.userId` is the resumer/attribution, not the gate —
+       * so it rides the pause snapshot instead.
+       */
+      capabilityGovernedUserId: cellContext.capabilityGovernedUserId,
     },
     signal
   )

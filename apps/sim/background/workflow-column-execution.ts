@@ -377,7 +377,7 @@ export async function runRowCascadeLoop(
   // Fresh executionId per iteration: SQL guard rejects writes whose id ≠
   // row.executions[gid].executionId, so we need a new claim per group.
   let currentExecutionId = payload.executionId
-  let currentCapabilityGovernedUserId = payload.capabilityGovernedUserId ?? null
+  let currentCapabilityGovernedUserId = payload.capabilityGovernedUserId
 
   while (true) {
     if (signal?.aborted) {
@@ -1102,6 +1102,16 @@ async function runWorkflowAndWriteTerminal(
           actorUserId,
           {
             enabled: true,
+            /**
+             * The gate, which is not the actor above. `actorUserId` is an
+             * attribution: for a workspace-API-key run it names the workspace's
+             * billing owner, so gating the run's tools on it applies a
+             * bystander's denylist and skips the requester's. Declared
+             * explicitly — `null` is the actorless run, which the executor
+             * reads as "no per-tool gate", exactly as the enrichment half of
+             * this worker already does.
+             */
+            capabilityGovernedUserId: payload.capabilityGovernedUserId,
             principal: {
               kind: 'system',
               serviceId: 'table',
@@ -1151,6 +1161,12 @@ async function runWorkflowAndWriteTerminal(
             groupId,
             workflowId,
             workspaceId,
+            /**
+             * The gate has to survive the pause. Nothing downstream of a resume
+             * can re-derive it: the marker this cell was stamped with is long
+             * claimed, and the resume worker's own payload has no dispatch.
+             */
+            capabilityGovernedUserId: payload.capabilityGovernedUserId,
           })
           return 'paused'
         }

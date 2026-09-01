@@ -417,6 +417,49 @@ export async function readStampedCapabilitySubject(
 }
 
 /**
+ * Terminalizes every still-unstarted cell marker stamped with `userId`, in the
+ * caller's transaction.
+ *
+ * Cancelling the departing account's `table_run_dispatches` rows is not enough
+ * on its own. A pre-stamp on `table_row_executions` is drained by whichever
+ * worker holds the row's cascade lock, and that worker's dispatch-cancel guard
+ * consults ITS OWN dispatch — so an unrelated, still-active sibling dispatch
+ * happily drains the deleted person's marker. The subject reference is
+ * `ON DELETE SET NULL`, which by then makes the marker indistinguishable from a
+ * legitimately actorless request: the drain runs it with no per-tool gate at
+ * all. Going terminal here is the same honest reading the dispatch cancel takes
+ * — a deleted person's runs stop rather than silently lose their gate.
+ *
+ * Scoped to `pending`/`queued` because those are the states a marker sits in
+ * before a worker claims it; a claimed or terminal row carries no subject to
+ * match anyway. The written state is the canonical cancel
+ * (`buildCancelledExecution`), which every drain path's `isExecCancelled` check
+ * already refuses to run.
+ */
+export async function cancelPendingMarkersForGovernedSubject(
+  trx: DbOrTx,
+  userId: string
+): Promise<void> {
+  const now = new Date()
+  await trx
+    .update(tableRowExecutions)
+    .set({
+      status: 'cancelled',
+      jobId: null,
+      error: 'Cancelled',
+      runningBlockIds: [],
+      cancelledAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(tableRowExecutions.capabilityGovernedUserId, userId),
+        inArray(tableRowExecutions.status, ['pending', 'queued'])
+      )
+    )
+}
+
+/**
  * Strips the given workflow group ids from every row's executions on a table —
  * used by the column / group delete paths so stale running/queued exec records
  * don't linger and inflate counters after the group is gone. The caller wraps
