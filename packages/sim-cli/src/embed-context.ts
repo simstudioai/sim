@@ -17,6 +17,13 @@ export interface EmbedContext {
   identity: EmbeddedCliIdentity
   stdout: string[]
   stderr: string[]
+  /**
+   * Pre-read contents for `@path` file arguments, keyed by the path as written
+   * (without the `@`). The host resolves these from the caller's own file
+   * surface before the run; the in-process CLI never touches the server's
+   * filesystem.
+   */
+  fileArguments?: Record<string, string>
 }
 
 export const embedStore = new AsyncLocalStorage<EmbedContext>()
