@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { workflowDepsCommand } from '@/lib/mothership/tools/handlers/agent-cli/commands/deps'
 import { filesGrepCommand } from '@/lib/mothership/tools/handlers/agent-cli/commands/files-grep'
 import {
@@ -100,7 +101,7 @@ export async function executeAgentCliCommand(
   try {
     return await match.command.execute(match.rest, runtime, match.flags)
   } catch (error) {
-    return agentCliFail(error instanceof Error ? error.message : String(error))
+    return agentCliFail(getErrorMessage(error))
   }
 }
 

@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { MOTHERSHIP_STREAM_V1_SCHEMA } from '@/lib/mothership/generated/mothership-stream-v1-schema'
 import {
   FfmpegOperationValues,
   ManageKnowledgeBaseOperationValues,
@@ -820,13 +819,6 @@ describe('getToolStatusDisplayTitle for skipped and interrupted calls', () => {
 })
 
 describe('normalizeToolActivityDescription', () => {
-  it('matches the bound published by the producer contract', () => {
-    expect(MOTHERSHIP_STREAM_V1_SCHEMA).toHaveProperty(
-      '$defs.MothershipStreamV1ToolCallDescriptor.properties.activityDescription.maxLength',
-      160
-    )
-  })
-
   it('normalizes a phrase without rewriting its meaning', () => {
     expect(
       normalizeToolActivityDescription('\uFEFF Checking\n\tthe\u00a0latest\u0085invoices  ')

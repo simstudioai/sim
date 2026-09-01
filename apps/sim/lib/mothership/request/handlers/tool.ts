@@ -77,6 +77,15 @@ import {
   registerPendingToolPromise,
 } from './types'
 
+/** The standard error-completion literal, built in one place (it appeared five times). */
+function errorCompletion(message: string): {
+  status: typeof MothershipStreamV1ToolOutcome.error
+  message: string
+  data: { error: string }
+} {
+  return { status: MothershipStreamV1ToolOutcome.error, message, data: { error: message } }
+}
+
 const logger = createLogger('CopilotToolHandler')
 
 function applyToolDisplay(toolCall: ToolCallState | undefined): void {
@@ -330,7 +339,7 @@ export async function handleToolEvent(
   scope: ToolScope
 ): Promise<void> {
   const isSubagent = scope === 'subagent'
-  const parentToolCallId = isSubagent ? getScopedParentToolCallId(event, context) : undefined
+  const parentToolCallId = isSubagent ? getScopedParentToolCallId(event) : undefined
   const agentId = event.scope?.agentId ?? 'main'
 
   if (isSubagent && !parentToolCallId) return
@@ -755,19 +764,18 @@ async function dispatchToolExecution(
   const fireToolExecution = (
     execContextOverride?: ExecutionContext
   ): Promise<AsyncCompletionSignal> => {
-    return (async () => {
-      return executeToolAndReport(toolCallId, context, execContextOverride ?? execContext, options)
-    })().catch((err) => {
+    return executeToolAndReport(
+      toolCallId,
+      context,
+      execContextOverride ?? execContext,
+      options
+    ).catch((err) => {
       logger.error(`Parallel ${scopeLabel}tool execution failed`, {
         toolCallId,
         toolName,
         error: toError(err).message,
       })
-      return {
-        status: MothershipStreamV1ToolOutcome.error,
-        message: 'Tool execution failed',
-        data: { error: 'Tool execution failed' },
-      }
+      return errorCompletion('Tool execution failed')
     })
   }
 
@@ -791,17 +799,8 @@ async function dispatchToolExecution(
       error,
     })
     markToolResultSeen(context, toolCallId)
-    await emitSyntheticToolResult(
-      toolCallId,
-      toolCall.name,
-      {
-        status: MothershipStreamV1ToolOutcome.error,
-        message: error,
-        data: { error },
-      },
-      options
-    )
-    return { status: MothershipStreamV1ToolOutcome.error, message: error, data: { error } }
+    await emitSyntheticToolResult(toolCallId, toolCall.name, errorCompletion(error), options)
+    return errorCompletion(error)
   }
 
   // Returns the promise instead of registering it, so the permission gate can
@@ -911,13 +910,7 @@ async function dispatchToolExecution(
             if (race.signal) {
               span.setAttribute(TraceAttr.ToolOutcome, race.signal.status)
             }
-            return (
-              race.signal ?? {
-                status: MothershipStreamV1ToolOutcome.error,
-                message: 'Tool completion missing',
-                data: { error: 'Tool completion missing' },
-              }
-            )
+            return race.signal ?? errorCompletion('Tool completion missing')
           }
           completion = race.completion ?? null
         } else {
@@ -946,13 +939,7 @@ async function dispatchToolExecution(
           options,
           backgroundIsSuccess
         )
-        return (
-          completion ?? {
-            status: MothershipStreamV1ToolOutcome.error,
-            message: 'Tool completion missing',
-            data: { error: 'Tool completion missing' },
-          }
-        )
+        return completion ?? errorCompletion('Tool completion missing')
       }
     ).catch((err) => {
       logger.error(`Client-executable ${scopeLabel}tool wait failed`, {
@@ -960,11 +947,7 @@ async function dispatchToolExecution(
         toolName,
         error: toError(err).message,
       })
-      return {
-        status: MothershipStreamV1ToolOutcome.error,
-        message: 'Tool wait failed',
-        data: { error: 'Tool wait failed' },
-      }
+      return errorCompletion('Tool wait failed')
     })
   }
 }
