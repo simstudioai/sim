@@ -5,9 +5,14 @@ import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockListWorkflows = vi.hoisted(() => vi.fn())
+const mockFetchOpenRouterEmbeddingModelCatalog = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/workflows/application/list-workflows', () => ({
   listWorkflows: { execute: mockListWorkflows },
+}))
+
+vi.mock('@/lib/embeddings/openrouter-model-catalog.server', () => ({
+  fetchOpenRouterEmbeddingModelCatalog: mockFetchOpenRouterEmbeddingModelCatalog,
 }))
 
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
@@ -110,5 +115,38 @@ describe('sim.workflows selector', () => {
       internalSelectorAttachments['sim.workflows'].execute(workflowArgs())
     ).rejects.toBeInstanceOf(SelectorOptionsUnavailableError)
     expect(mockListWorkflows).toHaveBeenCalledTimes(40)
+  })
+})
+
+describe('providers.openrouterEmbeddingModels selector', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetEnvironmentUtilsMock()
+  })
+
+  it('passes the selector signal to the OpenRouter catalog fetch', async () => {
+    const controller = new AbortController()
+    mockFetchOpenRouterEmbeddingModelCatalog.mockResolvedValue([
+      { id: 'openai/text-embedding-3-small', maxInputTokens: 8_191 },
+    ])
+
+    await expect(
+      internalSelectorAttachments['providers.openrouterEmbeddingModels'].execute({
+        ...workflowArgs(),
+        selectorKey: 'providers.openrouterEmbeddingModels',
+        signal: controller.signal,
+      })
+    ).resolves.toEqual({
+      kind: 'list',
+      items: [
+        {
+          id: 'openai/text-embedding-3-small',
+          label: 'openai/text-embedding-3-small',
+        },
+      ],
+    })
+
+    expect(mockFetchOpenRouterEmbeddingModelCatalog).toHaveBeenCalledOnce()
+    expect(mockFetchOpenRouterEmbeddingModelCatalog).toHaveBeenCalledWith(controller.signal)
   })
 })

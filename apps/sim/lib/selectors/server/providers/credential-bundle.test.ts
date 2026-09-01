@@ -36,4 +36,38 @@ describe('selector credential bundles', () => {
     expect(protectedValues.contains('cloud-1')).toBe(true)
     expect(protectedValues.contains('prefix-cloud-1-suffix')).toBe(false)
   })
+
+  it('preserves a selector abort without canceling the shared resolution', async () => {
+    let resolveShared!: (value: { accessToken: string }) => void
+    const sharedResolution = new Promise<{ accessToken: string }>((resolve) => {
+      resolveShared = resolve
+    })
+    mockResolveCredentialAccessToken.mockReturnValue(sharedResolution)
+    const controller = new AbortController()
+    const protectedValues = createSelectorProtectedValues()
+    const pending = resolveSelectorCredentialBundle({
+      credential: {
+        suppliedId: 'credential-1',
+        access: { ok: true, credentialOwnerUserId: 'owner-1' },
+        signal: controller.signal,
+      },
+      protectedValues,
+    })
+    const abortReason = new DOMException('Selector request canceled', 'AbortError')
+
+    controller.abort(abortReason)
+    await expect(pending).rejects.toBe(abortReason)
+
+    resolveShared({ accessToken: 'shared-access-token' })
+    await Promise.resolve()
+    expect(protectedValues.contains('shared-access-token')).toBe(false)
+    expect(mockResolveCredentialAccessToken).toHaveBeenCalledWith(
+      'credential-1',
+      'owner-1',
+      'selector-execution',
+      undefined,
+      undefined,
+      { privacyMode: 'selector' }
+    )
+  })
 })

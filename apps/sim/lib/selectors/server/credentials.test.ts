@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   authorizeCredentialUse: vi.fn(),
   credentialProviderMatchesService: vi.fn(),
   getServiceConfig: vi.fn(),
+  resolveCredentialTokenBundle: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/credential-access', () => ({
@@ -17,7 +18,7 @@ vi.mock('@/lib/auth/credential-access', () => ({
 }))
 
 vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveCredentialTokenBundle: vi.fn(),
+  resolveCredentialTokenBundle: mocks.resolveCredentialTokenBundle,
 }))
 
 vi.mock('@/lib/oauth/utils', () => ({
@@ -25,7 +26,10 @@ vi.mock('@/lib/oauth/utils', () => ({
   getServiceConfigByServiceId: mocks.getServiceConfig,
 }))
 
-import { authorizeSelectorCredential } from '@/lib/selectors/server/credentials'
+import {
+  authorizeSelectorCredential,
+  resolveSelectorOAuthAccessToken,
+} from '@/lib/selectors/server/credentials'
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 
@@ -135,5 +139,91 @@ describe('authorizeSelectorCredential', () => {
     expect(mocks.credentialProviderMatchesService).toHaveBeenCalledWith('microsoft', {
       id: 'gmail',
     })
+  })
+})
+
+describe('resolveSelectorOAuthAccessToken', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('rejects only the canceled waiter while shared credential work serves another caller', async () => {
+    let resolveShared!: (value: { accessToken: string }) => void
+    const sharedResolution = new Promise<{ accessToken: string }>((resolve) => {
+      resolveShared = resolve
+    })
+    mocks.resolveCredentialTokenBundle.mockReturnValue(sharedResolution)
+    const canceledController = new AbortController()
+    const liveController = new AbortController()
+    const canceledProtectedValues = createSelectorProtectedValues()
+    const liveProtectedValues = createSelectorProtectedValues()
+    const canceledRecordUse = vi.fn()
+    const liveRecordUse = vi.fn()
+    const access = {
+      ok: true as const,
+      credentialOwnerUserId: 'owner-1',
+      resolvedCredentialId: 'credential-1',
+    }
+
+    const canceledWaiter = resolveSelectorOAuthAccessToken({
+      credential: {
+        suppliedId: 'credential-1',
+        access,
+        signal: canceledController.signal,
+      },
+      serviceId: 'gmail',
+      protectedValues: canceledProtectedValues,
+      recordCredentialUse: canceledRecordUse,
+    })
+    const liveWaiter = resolveSelectorOAuthAccessToken({
+      credential: {
+        suppliedId: 'credential-1',
+        access,
+        signal: liveController.signal,
+      },
+      serviceId: 'gmail',
+      protectedValues: liveProtectedValues,
+      recordCredentialUse: liveRecordUse,
+    })
+
+    const abortReason = new DOMException('Selector request canceled', 'AbortError')
+    canceledController.abort(abortReason)
+    await expect(canceledWaiter).rejects.toBe(abortReason)
+
+    resolveShared({ accessToken: 'shared-access-token' })
+    await expect(liveWaiter).resolves.toBe('shared-access-token')
+
+    expect(canceledRecordUse).not.toHaveBeenCalled()
+    expect(canceledProtectedValues.contains('shared-access-token')).toBe(false)
+    expect(liveRecordUse).toHaveBeenCalledOnce()
+    expect(liveProtectedValues.contains('shared-access-token')).toBe(true)
+    expect(mocks.resolveCredentialTokenBundle).toHaveBeenCalledTimes(2)
+    for (const call of mocks.resolveCredentialTokenBundle.mock.calls) {
+      expect(call[5]).toEqual({ privacyMode: 'selector' })
+      expect(call).not.toContain(canceledController.signal)
+      expect(call).not.toContain(liveController.signal)
+    }
+  })
+
+  it('does not start credential resolution for an already canceled selector', async () => {
+    const controller = new AbortController()
+    const abortReason = new DOMException('Selector request canceled', 'AbortError')
+    controller.abort(abortReason)
+
+    await expect(
+      resolveSelectorOAuthAccessToken({
+        credential: {
+          suppliedId: 'credential-1',
+          access: {
+            ok: true,
+            credentialOwnerUserId: 'owner-1',
+            resolvedCredentialId: 'credential-1',
+          },
+          signal: controller.signal,
+        },
+        serviceId: 'gmail',
+        protectedValues: createSelectorProtectedValues(),
+      })
+    ).rejects.toBe(abortReason)
+
+    expect(mocks.resolveCredentialTokenBundle).not.toHaveBeenCalled()
   })
 })
