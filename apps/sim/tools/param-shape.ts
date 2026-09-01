@@ -426,6 +426,8 @@ export function getJsonSchemaValueShape(property: JsonSchemaProperty): ToolParam
 
 /** The shape an enum's members share, for a property that declares no type. */
 function enumMemberShape(members: readonly unknown[]): ToolParamValueShape {
+  // `every` is vacuously true on an empty enum, which a third-party MCP schema may send.
+  if (members.length === 0) return 'string'
   if (members.some((member) => member !== null && typeof member === 'object')) return 'json'
   if (members.every((member) => typeof member === 'number')) return 'number'
   if (members.every((member) => typeof member === 'boolean')) return 'boolean'

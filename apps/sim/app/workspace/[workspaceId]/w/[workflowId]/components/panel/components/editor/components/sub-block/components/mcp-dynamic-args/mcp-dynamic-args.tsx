@@ -269,9 +269,11 @@ export function McpDynamicArgs({
           value: String(option),
         }))
         // Options are stringified members, so a decoded numeric/boolean enum value has to
-        // be stringified back to match one.
+        // be stringified back to match one. Label and value are the same string here, so
+        // the highlight overlay reads the same expression — a falsy member (`0`, `false`)
+        // is a real selection, not an empty one.
         const dropdownValue = value === undefined || value === null ? '' : String(value)
-        const selectedLabel = value ? String(value) : ''
+        const selectedLabel = dropdownValue
         const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
           activeSearchTarget,
           blockId,

@@ -537,6 +537,8 @@ describe('buildJsonSchemaParamShapes', () => {
         strs: { enum: ['x', 'y'] },
         structured: { enum: [{ a: 1 }] },
         mixed: { enum: [1, 'x'] },
+        // `every` is vacuously true on an empty enum — this must not read as numeric.
+        empty: { enum: [] },
       },
     })
 
@@ -545,6 +547,7 @@ describe('buildJsonSchemaParamShapes', () => {
     expect(shapes.get('strs')).toBe('string')
     expect(shapes.get('structured')).toBe('json')
     expect(shapes.get('mixed')).toBe('string')
+    expect(shapes.get('empty')).toBe('string')
   })
 
   it('round-trips a numeric enum through the dropdown it renders as', () => {
