@@ -6,7 +6,10 @@ import {
   isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
 } from '@/lib/permission-groups/block-access'
-import type { SelectorCredentialPolicy } from '@/lib/selectors/server/types'
+import type {
+  SelectorCredentialPolicy,
+  ServerSelectorAttachment,
+} from '@/lib/selectors/server/types'
 import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('SelectorIntegrationAccess')
@@ -33,6 +36,34 @@ export function selectorResourceServiceIds(policy: SelectorCredentialPolicy): re
 }
 
 /**
+ * The block types an allowlist decision about this selector is made against.
+ *
+ * Two independent sources, because the OAuth credential catalog cannot identify
+ * every selector that reaches a third-party API. A selector authenticated from
+ * raw context fields (CloudWatch's AWS keys, IMAP's host and password) carries
+ * no credential policy, and an API-key integration (Snowflake, NetSuite,
+ * Harmonic) owns no OAuth catalog entry, so its service id maps to no block
+ * type — both used to yield an empty list and pass the gate untested. They
+ * declare `integrationBlockTypes` instead, and it wins over the catalog when
+ * both are present.
+ *
+ * An empty result means "no integration identity", which is a pass. That is
+ * reserved for the internal selectors — workspace files, knowledge bases,
+ * tables — which read only Sim's own data;
+ * `selectorIntegrationCoverage` in the manifest test keeps every
+ * `provider-server` selector out of it.
+ */
+export function selectorIntegrationBlockTypes(
+  attachment: Pick<ServerSelectorAttachment, 'credential' | 'integrationBlockTypes'>
+): readonly string[] {
+  if (attachment.integrationBlockTypes?.length) return attachment.integrationBlockTypes
+  if (!attachment.credential) return []
+  return selectorResourceServiceIds(attachment.credential).flatMap((serviceId) =>
+    getIntegrationTypesForOAuthServiceId(serviceId)
+  )
+}
+
+/**
  * Refuses a selector execution whose integration the caller's permission group
  * does not permit.
  *
@@ -54,13 +85,12 @@ export function selectorResourceServiceIds(policy: SelectorCredentialPolicy): re
  * bound to `slack_v2` match.
  *
  * A `null` allowlist, a caller no group governs, and a selector with no
- * integration identity all pass through. The last covers two real shapes: an
- * internal selector (workspace files, knowledge bases) declares no credential
- * policy at all, and an API-key integration — Snowflake, NetSuite, Harmonic —
- * owns no OAuth entry in the deployment integration catalog and therefore maps
- * to no block type. Treating an unmapped service as allowed is deliberate and
- * is what the credential catalog already does; see
- * `isOAuthServiceAllowedByIntegrationTypes`.
+ * integration identity all pass through. The last is now reserved for the
+ * internal selectors — workspace files, knowledge bases, tables — which read
+ * only Sim's own data and are not an integration at all. Every selector that
+ * reaches a third party has an identity, either through the OAuth credential
+ * catalog or through the `integrationBlockTypes` a raw-context or API-key
+ * selector declares; see {@link selectorIntegrationBlockTypes}.
  *
  * One service can still map to several block types — the `google-drive` entry
  * authenticates both `google_drive` and `google_slides_v2` — and any of them
@@ -71,17 +101,13 @@ export function selectorResourceServiceIds(policy: SelectorCredentialPolicy): re
 export async function assertSelectorIntegrationAllowed(input: {
   principal: Principal
   workspaceId: string
-  serviceIds: readonly string[]
+  blockTypes: readonly string[]
 }): Promise<void> {
-  if (input.serviceIds.length === 0) return
+  const blockTypes = input.blockTypes
+  if (blockTypes.length === 0) return
 
   const allowlist = await allowedIntegrationTypes(input.principal, input.workspaceId)
   if (allowlist === null) return
-
-  const blockTypes = input.serviceIds.flatMap((serviceId) =>
-    getIntegrationTypesForOAuthServiceId(serviceId)
-  )
-  if (blockTypes.length === 0) return
 
   const allowed = blockTypes.some(
     (blockType) =>

@@ -30,7 +30,7 @@ import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
 import { PLATFORM_CATEGORY_ORDER, PLATFORM_FEATURES } from '@/lib/permission-groups/features'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
@@ -65,6 +65,11 @@ import {
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
 } from '@/ee/access-control/hooks/permission-groups'
+import {
+  allowlistRowsFromStored,
+  toggleAllowlistRow,
+  withAllowlistRows,
+} from '@/ee/access-control/utils/integration-allowlist-rows'
 import { SettingRow } from '@/ee/components/setting-row'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { useOrganizationRoster } from '@/hooks/queries/organization'
@@ -789,9 +794,15 @@ export function GroupDetail({
    * otherwise a null→partial transition by a non-revealed admin would silently
    * drop a preview block from the stored allowlist and deny it to revealed
    * users already running it.
+   *
+   * EXCLUDES superseded blocks. They are hidden and so are never rendered, but
+   * they used to be materialized into the allowlist all the same — so an admin
+   * narrowing a previously-unrestricted allowlist by unchecking `slack_v2` wrote
+   * `slack` into it, which the runtime resolves back to `slack_v2` and allows.
+   * A decision about a retired version is made on its successor's row.
    */
   const allBlocks = useMemo(() => {
-    const blocks = getAllBlocks().filter((b) => !isBlockTypeAccessControlExempt(b.type))
+    const blocks = getAllBlocks().filter((b) => isAccessControlAllowlistRow(b.type))
     return blocks.sort((a, b) => {
       const catA = BLOCK_CATEGORY_ORDER[a.category] ?? 3
       const catB = BLOCK_CATEGORY_ORDER[b.category] ?? 3
@@ -881,17 +892,16 @@ export function GroupDetail({
 
   const guard = useSettingsUnsavedGuard({ isDirty: hasChanges })
 
+  const allBlockTypes = useMemo(() => allBlocks.map((b) => b.type), [allBlocks])
+
   /**
    * `null` means "everything allowed". Indexing the allow-lists once keeps the
    * per-row membership checks O(1) — they run for every one of the ~200 block
    * rows on each render, and again in the section-wide `every(...)` scans.
    */
   const allowedIntegrationSet = useMemo(
-    () =>
-      editingConfig.allowedIntegrations === null
-        ? null
-        : new Set(editingConfig.allowedIntegrations),
-    [editingConfig.allowedIntegrations]
+    () => allowlistRowsFromStored(allBlockTypes, editingConfig.allowedIntegrations),
+    [allBlockTypes, editingConfig.allowedIntegrations]
   )
 
   const allowedProviderSet = useMemo(
@@ -994,17 +1004,7 @@ export function GroupDetail({
   const toggleIntegration = useCallback(
     (blockType: string) => {
       setEditingConfig((prev) => {
-        const current = prev.allowedIntegrations
-        let nextAllowed: string[] | null
-        if (current === null) {
-          nextAllowed = allBlocks.map((b) => b.type).filter((t) => t !== blockType)
-        } else if (current.includes(blockType)) {
-          const updated = current.filter((t) => t !== blockType)
-          nextAllowed = updated.length === allBlocks.length ? null : updated
-        } else {
-          const updated = [...current, blockType]
-          nextAllowed = updated.length === allBlocks.length ? null : updated
-        }
+        const nextAllowed = toggleAllowlistRow(allBlockTypes, prev.allowedIntegrations, blockType)
         return {
           ...prev,
           allowedIntegrations: nextAllowed,
@@ -1012,22 +1012,19 @@ export function GroupDetail({
         }
       })
     },
-    [allBlocks, pruneDeniedTools]
+    [allBlockTypes, pruneDeniedTools]
   )
 
   /** Allow or deny a whole section's blocks at once, respecting the active filter. */
   const setBlocksAllowed = useCallback(
     (blocks: BlockConfig[], allowed: boolean) => {
       setEditingConfig((prev) => {
-        const allTypes = allBlocks.map((b) => b.type)
-        const current =
-          prev.allowedIntegrations === null ? new Set(allTypes) : new Set(prev.allowedIntegrations)
-        for (const block of blocks) {
-          if (allowed) current.add(block.type)
-          else current.delete(block.type)
-        }
-        const nextArr = allTypes.filter((t) => current.has(t))
-        const nextAllowed = nextArr.length === allTypes.length ? null : nextArr
+        const nextAllowed = withAllowlistRows(
+          allBlockTypes,
+          prev.allowedIntegrations,
+          blocks.map((block) => block.type),
+          allowed
+        )
         return {
           ...prev,
           allowedIntegrations: nextAllowed,
@@ -1035,7 +1032,7 @@ export function GroupDetail({
         }
       })
     },
-    [allBlocks, pruneDeniedTools]
+    [allBlockTypes, pruneDeniedTools]
   )
 
   const isToolAllowed = useCallback(

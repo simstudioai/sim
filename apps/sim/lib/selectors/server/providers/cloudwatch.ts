@@ -53,8 +53,16 @@ async function executeCloudWatchListing<T>(
   }
 }
 
+/**
+ * The integration this selector reaches. Declared rather than derived: the selector authenticates from raw AWS keys in the request context and
+ * carries no stored connection, so the OAuth credential catalog can identify
+ * nothing to gate it on.
+ */
+const integrationBlockTypes = ['cloudwatch'] as const
+
 export const cloudWatchSelectorAttachments = {
   'cloudwatch.logGroups': {
+    integrationBlockTypes,
     destination: 'fixed',
     async execute(args) {
       const listingCredentials = credentials(args.context)
@@ -94,6 +102,7 @@ export const cloudWatchSelectorAttachments = {
     },
   },
   'cloudwatch.logStreams': {
+    integrationBlockTypes,
     destination: 'fixed',
     async execute(args) {
       const listingCredentials = credentials(args.context)

@@ -175,9 +175,16 @@ async function executeSavedSearches(args: ExecuteServerSelectorArgs) {
   )
 }
 
+/**
+ * The integration this selector reaches. Declared rather than derived: Harmonic is an API-key integration with no entry in the deployment OAuth
+ * catalog, so its service id maps to no block type.
+ */
+const integrationBlockTypes = ['harmonic'] as const
+
 export const harmonicSelectorAttachments = {
   'harmonic.savedSearches': {
     credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['harmonic'] },
+    integrationBlockTypes,
     destination: 'fixed',
     execute: executeSavedSearches,
   },
