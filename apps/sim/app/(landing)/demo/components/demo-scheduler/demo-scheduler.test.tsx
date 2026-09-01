@@ -16,6 +16,7 @@ vi.mock('@/lib/consent/tracking-consent', () => ({
   useTrackingConsent: () => mockConsent,
 }))
 
+import { resolveCalLink } from '@/app/(landing)/demo/components/demo-scheduler/cal-config'
 import {
   createCalEmbedUrl,
   DemoScheduler,
@@ -73,6 +74,22 @@ describe('DemoScheduler', () => {
       layout: 'month_view',
       useSlotsViewOnSmallScreen: 'true',
     })
+  })
+
+  it('derives the trusted origin from a self-hosted event URL', () => {
+    const url = resolveCalLink('https://calendar.example.com/team/sim/demo')
+
+    expect(url.origin).toBe('https://calendar.example.com')
+    expect(url.pathname).toBe('/team/sim/demo')
+  })
+
+  it('rejects unsafe Cal embed protocols and credential-bearing URLs', () => {
+    expect(() => resolveCalLink('javascript:alert(1)')).toThrow(
+      'NEXT_PUBLIC_CAL_LINK must be an HTTP(S) URL or a Cal.com event path'
+    )
+    expect(() => resolveCalLink('https://user:secret@calendar.example.com/demo')).toThrow(
+      'NEXT_PUBLIC_CAL_LINK must be an HTTP(S) URL or a Cal.com event path'
+    )
   })
 
   it('warms the hosted booker only once while the preload frame remains mounted', () => {

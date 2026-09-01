@@ -239,7 +239,12 @@ function getExtensionFromMimeType(mimeType: string): string {
     'audio/opus': 'opus',
   }
 
-  return mimeToExt[mimeType] || mimeType.split('/')[1] || 'dat'
+  const normalizedMimeType = mimeType.split(';', 1)[0].trim().toLowerCase()
+  const knownExtension = mimeToExt[normalizedMimeType]
+  if (knownExtension) return knownExtension
+
+  const subtype = normalizedMimeType.split('/')[1]
+  return subtype && /^[a-z0-9][a-z0-9.+_-]{0,63}$/.test(subtype) ? subtype : 'dat'
 }
 
 function getAudioCodec(format: string): string {

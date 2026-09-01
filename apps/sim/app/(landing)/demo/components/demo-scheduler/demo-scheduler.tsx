@@ -5,11 +5,12 @@ import { trackGoogleEvent } from '@/lib/analytics/google'
 import { X_DEMO_BOOKED_EVENT_ID } from '@/lib/consent/scripts'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import type { DemoLead } from '@/app/(landing)/demo/components/demo-form'
+import {
+  CAL_ORIGIN,
+  createConfiguredCalUrl,
+} from '@/app/(landing)/demo/components/demo-scheduler/cal-config'
 
-/** The Cal.com event the demo books - set `NEXT_PUBLIC_CAL_LINK` to override. */
-const CAL_ORIGIN = 'https://app.cal.com'
 const CAL_NAMESPACE = 'demo'
-const CAL_LINK = process.env.NEXT_PUBLIC_CAL_LINK ?? 'team/sim/demo'
 
 /** Sim's brand color, matching the `--brand-agent` token. */
 const CAL_BRAND_COLOR = '#6f3dfa'
@@ -38,9 +39,9 @@ function isCalMessage(data: unknown): data is CalMessage {
  * Query parameters keep the lead prefill and light, month-view presentation.
  */
 export function createCalEmbedUrl(lead: DemoLead): string {
-  const normalizedLink = CAL_LINK.replace(/^\/+|\/+$/g, '')
-  const path = normalizedLink.endsWith('/embed') ? normalizedLink : `${normalizedLink}/embed`
-  const url = new URL(path, `${CAL_ORIGIN}/`)
+  const url = createConfiguredCalUrl()
+  const normalizedPath = url.pathname.replace(/\/+$/, '')
+  url.pathname = normalizedPath.endsWith('/embed') ? normalizedPath : `${normalizedPath}/embed`
   url.searchParams.set('embed', CAL_NAMESPACE)
   url.searchParams.set('name', lead.name)
   url.searchParams.set('email', lead.email)
@@ -53,8 +54,7 @@ export function createCalEmbedUrl(lead: DemoLead): string {
 }
 
 function createCalPreloadUrl(): string {
-  const normalizedLink = CAL_LINK.replace(/^\/+|\/+$/g, '')
-  const url = new URL(normalizedLink, `${CAL_ORIGIN}/`)
+  const url = createConfiguredCalUrl()
   url.searchParams.set('preload', 'true')
   return url.toString()
 }

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import fs from 'node:fs'
+import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { calls, probe } = vi.hoisted(() => ({
@@ -70,6 +71,21 @@ describe('audio FFmpeg execution', () => {
       maxBuffer: 4 * 1024 * 1024,
       timeout: 30_000,
     })
+  })
+
+  it('keeps MIME-derived input filenames inside the temporary directory', async () => {
+    await getAudioMetadata(Buffer.from('audio'), 'audio/../../../../escaped')
+
+    const inputFile = calls[0].args.at(-1)
+    expect(inputFile).toBeDefined()
+    expect(path.basename(inputFile as string)).toBe('input.dat')
+    expect(inputFile).toMatch(/audio-ffprobe-[^/]+\/input\.dat$/)
+  })
+
+  it('normalizes MIME parameters before selecting a known extension', async () => {
+    await getAudioMetadata(Buffer.from('audio'), ' Audio/MPEG; codecs=mp3 ')
+
+    expect(calls[0].args.at(-1)).toMatch(/input\.mp3$/)
   })
 
   it('converts with a shell-free argument vector and preserves audio options', async () => {
