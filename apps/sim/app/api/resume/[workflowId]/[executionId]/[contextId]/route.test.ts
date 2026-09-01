@@ -106,6 +106,9 @@ function createPausedExecution(overrides: PausedExecutionOverrides = {}) {
     'billingAttribution' in overrides
       ? overrides.billingAttribution
       : structuredClone(PERSISTED_ATTRIBUTION)
+  const snapshotWorkflowId = overrides.snapshotWorkflowId ?? WORKFLOW_ID
+  const snapshotExecutionId = overrides.snapshotExecutionId ?? EXECUTION_ID
+  const snapshotActorUserId = overrides.snapshotActorUserId ?? PERSISTED_ACTOR_ID
 
   return {
     id: 'paused-execution-1',
@@ -113,19 +116,28 @@ function createPausedExecution(overrides: PausedExecutionOverrides = {}) {
     executionId: overrides.executionId ?? EXECUTION_ID,
     executionSnapshot: {
       snapshot: JSON.stringify({
-        version: 1,
+        version: 2,
         metadata: {
           requestId: 'request-original',
-          workflowId: overrides.snapshotWorkflowId ?? WORKFLOW_ID,
-          executionId: overrides.snapshotExecutionId ?? EXECUTION_ID,
+          workflowId: snapshotWorkflowId,
+          executionId: snapshotExecutionId,
           workspaceId: overrides.snapshotWorkspaceId ?? WORKSPACE_ID,
-          userId: overrides.snapshotActorUserId ?? PERSISTED_ACTOR_ID,
+          userId: snapshotActorUserId,
           principal: {
-            version: 1,
+            version: 2,
             principal: {
               kind: 'session',
-              userId: overrides.snapshotActorUserId ?? PERSISTED_ACTOR_ID,
+              userId: snapshotActorUserId,
               sessionId: 'session-original',
+            },
+            executionMetadata: {
+              executionId: snapshotExecutionId,
+              rootWorkflowId: snapshotWorkflowId,
+              currentWorkflow: {
+                workflowId: snapshotWorkflowId,
+                mode: 'deployment',
+                deploymentVersionId: 'deployment-version-1',
+              },
             },
           },
           billingAttribution,

@@ -5,7 +5,7 @@
  * things have to line up for that to work:
  *
  *  1. the tool must declare an in-process operation, and
- *  2. the operation's policy must admit the `executor` delegated service.
+ *  2. the operation's policy must admit a runtime workflow principal.
  */
 import { describe, expect, it } from 'vitest'
 import { tableOperations } from '@/lib/table/application/operations'
@@ -29,10 +29,9 @@ describe('executor access to the migrated table row routes', () => {
   })
 
   it.each(EXECUTOR_ROW_TOOLS)(
-    '%s runs under an operation that admits the executor',
+    '%s runs under an operation that admits workflow execution',
     (_name, _tool, operation) => {
-      expect(operation.delegatedServices).toContain('executor')
-      expect(operation.principalKinds).toContain('delegated')
+      expect(operation.workflowExecution).toBe('allow')
     }
   )
 })

@@ -1,10 +1,7 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  credentialGroupDelegationPolicy,
-  requireCredentialGroupWorkflowActor,
-} from '@/lib/credential-groups/application/authorization'
+import { requireCredentialGroupWorkflowActor } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
   resolveCredentialGroupContext,
@@ -36,7 +33,7 @@ export const listCredentialGroupPeople = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.listPeople,
   resolveContext: ({ input }: { input: ListCredentialGroupPeopleInput }) =>
     resolveCredentialGroupContext(input.credentialGroupId),
-  authorizationOptions: { delegation: credentialGroupDelegationPolicy },
+  authorizationOptions: {},
   authorizeResource({ principal }) {
     requireCredentialGroupWorkflowActor(principal)
   },

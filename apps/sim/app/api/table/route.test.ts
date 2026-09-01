@@ -4,16 +4,21 @@
 
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   authenticate: vi.fn(),
+  authenticateWithTransport: vi.fn(),
   createTable: vi.fn(),
   listTables: vi.fn(),
   capture: vi.fn(),
 }))
 
 vi.mock('@/lib/table/api', () => ({
-  internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate },
+  internalTableSessionOrExecutorAuth: {
+    authenticate: mocks.authenticate,
+    authenticateWithTransport: mocks.authenticateWithTransport,
+  },
 }))
 
 vi.mock('@/lib/table/application/tables', () => ({
@@ -47,45 +52,50 @@ const TABLE = {
 }
 
 function sessionPrincipal() {
-  mocks.authenticate.mockResolvedValue({
+  const principal = {
     kind: 'session',
     userId: 'user-1',
     sessionId: 'session-1',
-  })
+  } as const
+  mocks.authenticate.mockResolvedValue(principal)
+  mocks.authenticateWithTransport.mockResolvedValue({ principal, transport: 'session' })
 }
 
 function executorPrincipal() {
-  mocks.authenticate.mockResolvedValue({
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-canonical',
-    delegationId: 'delegation-1',
-    audience: 'sim:tables',
-    issuedAt: new Date('2026-01-01'),
-    expiresAt: new Date('2026-01-02'),
+  const principal = createTestRuntimePrincipal({
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    executionId: 'execution-1',
+    rootWorkflowId: 'parent-workflow',
+  })
+  mocks.authenticate.mockResolvedValue(principal)
+  mocks.authenticateWithTransport.mockResolvedValue({
+    principal,
+    transport: 'executor_jwt',
+    executionWorkspaceId: 'workspace-canonical',
   })
 }
 
 function actorlessExecutorPrincipal() {
-  mocks.authenticate.mockResolvedValue({
-    kind: 'delegated',
-    serviceId: 'executor',
-    workspaceId: 'workspace-canonical',
-    delegationId: 'delegation-1',
-    audience: 'sim:tables',
-    issuedAt: new Date('2026-01-01'),
-    expiresAt: new Date('2026-01-02'),
-    delegationContext: {
-      kind: 'workflow_execution',
+  const principal = createTestRuntimePrincipal({
+    principal: {
+      kind: 'system',
+      serviceId: 'schedule',
+      workspaceId: 'workspace-canonical',
       workflowId: 'parent-workflow',
-      principal: {
-        kind: 'system',
-        serviceId: 'internal',
-        workspaceId: 'workspace-canonical',
-        workflowId: 'parent-workflow',
-      },
     },
+    executionId: 'execution-1',
+    rootWorkflowId: 'parent-workflow',
+    currentWorkflow: {
+      workflowId: 'parent-workflow',
+      mode: 'deployment',
+      deploymentVersionId: 'deployment-version-1',
+    },
+  })
+  mocks.authenticate.mockResolvedValue(principal)
+  mocks.authenticateWithTransport.mockResolvedValue({
+    principal,
+    transport: 'executor_jwt',
+    executionWorkspaceId: 'workspace-canonical',
   })
 }
 
@@ -149,8 +159,8 @@ describe('/api/table application adapter', () => {
     expect(response.status).toBe(200)
     expect(mocks.createTable.mock.calls[0][0]).toMatchObject({
       principal: {
-        kind: 'delegated',
-        serviceId: 'executor',
+        kind: 'system',
+        serviceId: 'schedule',
         workspaceId: 'workspace-canonical',
       },
       input: { workspaceId: 'workspace-canonical' },

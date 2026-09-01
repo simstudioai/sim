@@ -3,12 +3,13 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { fileSearchTool } from '@/tools/file/search'
 
 describe('fileSearchTool', () => {
-  it('uses the shared protected read operation and admits executor delegation', () => {
+  it('uses the shared protected read operation and admits workflow execution', () => {
     expect(fileOperations.searchContent).toMatchObject({
       id: 'files.search_content',
       minimumRole: 'read',
       workspaceApiKey: 'allow',
-      delegatedServices: ['copilot', 'executor'],
+      delegatedServices: ['copilot'],
+      workflowExecution: 'allow',
     })
   })
 
