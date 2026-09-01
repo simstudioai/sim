@@ -62,13 +62,53 @@ export const INTEGRATION_SEO: Record<string, IntegrationSeoContent> = {
     tagline:
       'Build Slack workflow automation in Sim. Send, update, delete, and read messages; manage channels, users, canvases, and modals; and trigger AI agents from mentions, messages, and reactions in real time.',
     overview:
-      'Sim automates Slack workflows that depend on conversation context, including message routing, alerts, thread summaries, ticket updates, and incident response. Slack messages and events start agent workflows that interpret what was said and choose the next action in Slack or a connected tool, so routine coordination and time-sensitive operations keep moving without anyone relaying details by hand.',
+      'Sim automates Slack workflows that route messages, trigger alerts, summarize threads, update tickets, and manage incident response. Slack messages and events start agent workflows that interpret what was said and choose the next action in Slack or a connected tool, so routine coordination and time-sensitive operations keep moving without anyone relaying details by hand.',
     triggersIntro:
       'Sim supports one real-time Slack trigger. Select the Slack events you care about, such as mentions, messages, and reactions, and Sim starts the connected workflow the moment one arrives instead of waiting for a scheduled check. A monitoring alert posted in Slack can open an incident-response workflow, and a ticketing update posted in Slack can be summarised and passed to another connected tool.',
     templatesIntro:
       'Pre-built agent templates turn common Slack workflows into editable starting points: routing templates classify messages and send them to the right channel or owner, summarisation templates condense long threads into updates that preserve decisions and action items, and ticket sync and incident response templates update connected records and coordinate follow-up. Every template is editable, so you can adapt its channels, routing rules, data sources, and approval requirements.',
     toolsSubtitleSuffix:
       ' across messaging, channels, threads, users, reactions and files, and canvases and views. Combine multiple Slack actions in one workflow to summarise a message, route it, update a ticket, and post the ticket update back in Slack',
+    narrativeComparison: {
+      id: 'slack-automation-comparison',
+      heading: 'Slack automation with Sim vs. Zapier, Make, and n8n',
+      paragraphs: [
+        'Sim is built for Slack workflows that need to interpret conversation context before choosing an action. A Sim agent can summarize a thread and determine whether it describes an incident before using a configured Slack or ticketing action.',
+        'Zapier, Make, and n8n are useful substitutes for predefined trigger-action sequences with known conditions and branches. Choose that model when each event should produce a predictable result. For example, a simple rule that posts every new message from channel X to channel Y works well as a fixed chain because it does not require interpretation. Choose Sim when the next action depends on the meaning of a Slack conversation rather than fixed keywords or predetermined branches.',
+      ],
+    },
+    faqs: [
+      {
+        question: 'What Slack workflows can Sim automate?',
+        answer:
+          'Slack workflow automation uses messages and channel events to start work in connected tools. Sim can route Slack messages, trigger alerts, summarize threads, update tickets, and coordinate incident response. You can use Sim to turn Slack conversations into tracked work without manually copying details.',
+      },
+      {
+        question: 'How does routing and alerting work in Sim?',
+        answer:
+          'Routing and alerting send selected Slack messages to the people or channels responsible for responding. Sim uses Slack events and workflow logic to route a message or send an alert based on its content. This directs requests and incidents without requiring someone to monitor every channel.',
+      },
+      {
+        question: 'Can Sim summarize Slack threads?',
+        answer:
+          'Thread summarization condenses a Slack conversation into its main points and relevant context. Sim can read a Slack thread and send the resulting summary to another Slack channel or a workflow that uses connected tools.',
+      },
+      {
+        question: 'How does Sim update tickets from Slack?',
+        answer:
+          'A Slack-to-ticket workflow transfers conversation details into a connected ticketing tool. Sim can pass information from a Slack message or thread to the ticketing tool and update the matching record. You can use Sim to keep tickets current without entering the same information twice.',
+      },
+      {
+        question: 'Does Sim support incident response in Slack?',
+        answer:
+          'Incident response workflows use Slack events to start response steps and coordinate follow-up. Sim can trigger an incident workflow from Slack and pass relevant context to connected response tools. This keeps responders informed and incident records current as the conversation develops.',
+      },
+      {
+        question: 'What is the difference between Sim and Zapier for Slack?',
+        answer:
+          'Zapier supports trigger-action automation, while Sim centers Slack automation on workflows that can include AI agents. Sim workflows can interpret a Slack incident thread before routing the relevant information or updating a ticket. You can use Sim when the workflow needs to understand conversation context before taking action.',
+      },
+    ],
   },
   'twilio-sms': {
     tagline:
