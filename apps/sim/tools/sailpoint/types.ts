@@ -1,93 +1,44 @@
 import type { ToolResponse } from '@/tools/types'
 
-export type SailPointApiVersion = 'v2025' | 'v2024' | 'v3'
-
-/** Credentials shared by every SailPoint tool (a service-identity PAT + tenant + version). */
 export interface SailPointCredentials {
   clientId: string
   clientSecret: string
   tenant: string
-  apiVersion?: SailPointApiVersion
 }
 
-/** Envelope wrapping a paginated list of raw SailPoint documents plus the empty-result diagnostic. */
-export interface SailPointListOutput {
-  items: unknown[]
-  count: number
-  totalCount: number | null
-  complete: boolean
-  warnings: string[]
-}
-
-export interface SailPointListResponse extends ToolResponse {
-  output: SailPointListOutput
-}
-
-/** Search returns raw documents under `results` (index-dependent shape). */
-export interface SailPointSearchOutput {
-  results: unknown[]
-  count: number
-  totalCount: number | null
-  complete: boolean
-  warnings: string[]
-}
-
-export interface SailPointSearchResponse extends ToolResponse {
-  output: SailPointSearchOutput
-}
-
-export interface SailPointCountResponse extends ToolResponse {
-  output: { total: number }
-}
-
-export interface SailPointItemResponse extends ToolResponse {
-  output: { item: unknown }
-}
-
-/** Access-request create/cancel return 202 with an empty body. */
-export interface SailPointWriteResponse extends ToolResponse {
-  output: { accepted: boolean; status: number }
-}
-
-/** load-accounts / load-entitlements return a task object (LoadAccountsTask / LoadEntitlementTask). */
-export interface SailPointTaskResponse extends ToolResponse {
-  output: { task: unknown }
-}
-
-export interface SailPointSearchParams extends SailPointCredentials {
-  indices?: string[] | string
-  query?: string
-  sort?: string[] | string
-  searchAfter?: string[] | string
-  includeNested?: boolean
+export interface SailPointPaginationParams {
   limit?: number
   offset?: number
   count?: boolean
 }
 
-export interface SailPointSearchCountParams extends SailPointCredentials {
-  indices?: string[] | string
-  query?: string
-}
-
-export interface SailPointSearchAggregateParams extends SailPointCredentials {
-  indices?: string[] | string
-  query?: string
-  aggregationsDsl?: Record<string, unknown> | string
-  limit?: number
-  offset?: number
-}
-
-export interface SailPointListParams extends SailPointCredentials {
+export interface SailPointListParams extends SailPointCredentials, SailPointPaginationParams {
   filters?: string
   sorters?: string
-  limit?: number
-  offset?: number
-  count?: boolean
 }
 
 export interface SailPointGetByIdParams extends SailPointCredentials {
   id: string
+}
+
+export interface SailPointListOutput<T = Record<string, unknown>> {
+  items: T[]
+  count: number
+  totalCount: number | null
+}
+
+export interface SailPointListResponse<T = Record<string, unknown>> extends ToolResponse {
+  output: SailPointListOutput<T>
+}
+
+export interface SailPointResourceResponse<
+  T extends Record<string, unknown> = Record<string, unknown>,
+> extends ToolResponse {
+  output: T
+}
+
+export interface SailPointAcceptedResponse extends ToolResponse {
+  output: { accepted: boolean; status: number }
 }
 
 export interface SailPointListIdentitiesParams extends SailPointListParams {
@@ -99,8 +50,16 @@ export interface SailPointListAccountsParams extends SailPointListParams {
 }
 
 export interface SailPointListEntitlementsParams extends SailPointListParams {
-  accountId?: string
   segmentedForIdentity?: string
+  forSegmentIds?: string
+  includeUnsegmented?: boolean
+  searchAfter?: string
+}
+
+export interface SailPointSegmentedListParams extends SailPointListParams {
+  forSubadmin?: string
+  forSegmentIds?: string
+  includeUnsegmented?: boolean
 }
 
 export interface SailPointGetChildEntitlementsParams extends SailPointListParams {
@@ -122,8 +81,7 @@ export interface SailPointListCampaignsParams extends SailPointListParams {
   detail?: 'SLIM' | 'FULL'
 }
 
-export interface SailPointGetCampaignParams extends SailPointCredentials {
-  id: string
+export interface SailPointGetCampaignParams extends SailPointGetByIdParams {
   detail?: 'SLIM' | 'FULL'
 }
 
@@ -138,22 +96,153 @@ export interface SailPointListReviewItemsParams extends SailPointListParams {
   roles?: string
 }
 
+export type SailPointSearchIndex =
+  | 'accessprofiles'
+  | 'accountactivities'
+  | 'entitlements'
+  | 'events'
+  | 'identities'
+  | 'roles'
+  | '*'
+
+export interface SailPointSearchQuery {
+  query?: string
+  fields?: string
+  timeZone?: string
+  innerHit?: Record<string, unknown>
+}
+
+export interface SailPointTextQuery {
+  terms: string[]
+  fields: string[]
+  matchAny?: boolean
+  contains?: boolean
+}
+
+export interface SailPointTypeAheadQuery {
+  query: string
+  field: string
+  nestedType?: string
+  maxExpansions?: number
+  size?: number
+  sort?: string
+  sortByValue?: boolean
+}
+
+export interface SailPointQueryResultFilter {
+  includes?: string[]
+  excludes?: string[]
+}
+
+export interface SailPointSearchFilter {
+  type?: string
+  range?: Record<string, unknown>
+  terms?: string[]
+  exclude?: boolean
+}
+
+export interface SailPointSearchBodyParams extends SailPointCredentials {
+  indices?: SailPointSearchIndex[] | string
+  queryType?: 'DSL' | 'SAILPOINT' | 'TEXT' | 'TYPEAHEAD'
+  queryVersion?: string
+  query?: SailPointSearchQuery | string
+  queryDsl?: Record<string, unknown> | string
+  textQuery?: SailPointTextQuery | string
+  typeAheadQuery?: SailPointTypeAheadQuery | string
+  includeNested?: boolean
+  queryResultFilter?: SailPointQueryResultFilter | string
+  aggregationType?: 'DSL' | 'SAILPOINT'
+  aggregationsVersion?: string
+  aggregationsDsl?: Record<string, unknown> | string
+  aggregations?: Record<string, unknown> | string
+  sort?: string[] | string
+  searchAfter?: string[] | string
+  filters?: Record<string, SailPointSearchFilter> | string
+}
+
+export interface SailPointSearchParams
+  extends SailPointSearchBodyParams,
+    SailPointPaginationParams {}
+
+export interface SailPointSearchCountParams extends SailPointSearchBodyParams {}
+
+export interface SailPointSearchAggregateParams
+  extends SailPointSearchBodyParams,
+    SailPointPaginationParams {}
+
+export interface SailPointSearchResponse extends ToolResponse {
+  output: { results: Record<string, unknown>[]; count: number; totalCount: number | null }
+}
+
+export interface SailPointSearchCountResponse extends ToolResponse {
+  output: { total: number }
+}
+
+export interface SailPointSearchAggregateResponse extends ToolResponse {
+  output: {
+    aggregations: Record<string, unknown>
+    hits: Record<string, unknown>[]
+    totalCount: number | null
+  }
+}
+
+export type SailPointAccessRequestType = 'GRANT_ACCESS' | 'REVOKE_ACCESS' | 'MODIFY_ACCESS'
+export type SailPointRequestedItemType = 'ACCESS_PROFILE' | 'ROLE' | 'ENTITLEMENT'
+
 export interface SailPointRequestedItem {
-  type: 'ACCESS_PROFILE' | 'ROLE' | 'ENTITLEMENT'
+  type: SailPointRequestedItemType
   id: string
   comment?: string
-  removeDate?: string
-  startDate?: string
-  assignmentId?: string
-  nativeIdentity?: string
   clientMetadata?: Record<string, string>
+  startDate?: string
+  removeDate?: string
+  assignmentId?: string | null
+  nativeIdentity?: string | null
+  formInstanceId?: string | null
+}
+
+export interface SailPointNestedRequestedItem extends SailPointRequestedItem {
+  accountSelection?: SailPointSourceItemRef[] | null
+}
+
+export interface SailPointAccountItemRef {
+  accountUuid?: string | null
+  nativeIdentity?: string | null
+}
+
+export interface SailPointSourceItemRef {
+  sourceId?: string | null
+  accounts?: SailPointAccountItemRef[] | null
+}
+
+export interface SailPointRequestedForWithItems {
+  identityId: string
+  identityType?: 'HUMAN' | 'MACHINE'
+  requestedItems: SailPointNestedRequestedItem[]
 }
 
 export interface SailPointRequestAccessParams extends SailPointCredentials {
-  requestedFor: string[] | string
-  requestedItems: SailPointRequestedItem[] | string
-  requestType?: 'GRANT_ACCESS' | 'REVOKE_ACCESS' | 'MODIFY_ACCESS'
+  requestType?: SailPointAccessRequestType
+  requestedFor?: string[] | string
+  requestedItems?: SailPointRequestedItem[] | string
+  requestedForWithRequestedItems?: SailPointRequestedForWithItems[] | string
   clientMetadata?: Record<string, string> | string
+}
+
+export interface SailPointAccessRequestTracking {
+  requestedFor?: string
+  requestedItemsDetails?: Array<{ type?: SailPointRequestedItemType; id?: string }>
+  attributesHash?: number
+  accessRequestIds?: string[]
+}
+
+export interface SailPointAccessRequestResponse extends ToolResponse {
+  output: {
+    accepted: boolean
+    status: number
+    newRequests: SailPointAccessRequestTracking[]
+    existingRequests: SailPointAccessRequestTracking[]
+  }
 }
 
 export interface SailPointCancelAccessRequestParams extends SailPointCredentials {
@@ -161,17 +250,12 @@ export interface SailPointCancelAccessRequestParams extends SailPointCredentials
   comment: string
 }
 
-export interface SailPointAccessRequestStatusParams extends SailPointCredentials {
+export interface SailPointAccessRequestStatusParams extends SailPointListParams {
   requestedFor?: string
   requestedBy?: string
   regardingIdentity?: string
   assignedTo?: string
   requestState?: 'EXECUTING'
-  filters?: string
-  sorters?: string
-  limit?: number
-  offset?: number
-  count?: boolean
 }
 
 export interface SailPointLoadAccountsParams extends SailPointCredentials {
@@ -183,4 +267,67 @@ export interface SailPointLoadAccountsParams extends SailPointCredentials {
 export interface SailPointLoadEntitlementsParams extends SailPointCredentials {
   sourceId: string
   file?: unknown
+}
+
+export interface SailPointTask {
+  id?: string
+  type?: string
+  name?: string
+  uniqueName?: string
+  description?: string
+  launcher?: string
+  created?: string
+  launched?: string | null
+  completed?: string | null
+  completionStatus?: string | null
+  parentName?: string | null
+  messages?: Record<string, unknown>[]
+  progress?: string | null
+  percentComplete?: number
+  attributes?: Record<string, unknown>
+  returns?: Record<string, unknown>[]
+}
+
+export interface SailPointTaskResponse extends ToolResponse {
+  output: { task: SailPointTask }
+}
+
+export interface SailPointLoadAccountsResponse extends ToolResponse {
+  output: { success: boolean; task: SailPointTask }
+}
+
+export interface SailPointLoadEntitlementsResponse extends ToolResponse {
+  output: { task: SailPointTask }
+}
+
+export interface SailPointReviewRecommendation {
+  recommendation?: string | null
+  reasons?: string[]
+  timestamp?: string
+}
+
+export interface SailPointCertificationDecision {
+  id: string
+  decision: 'APPROVE' | 'REVOKE'
+  bulk: boolean
+  proposedEndDate?: string
+  recommendation?: SailPointReviewRecommendation | null
+  comments?: string
+}
+
+export interface SailPointDecideCertificationReviewItemsParams extends SailPointGetByIdParams {
+  decisions: SailPointCertificationDecision[] | string
+}
+
+export interface SailPointListPendingApprovalsParams extends SailPointListParams {
+  ownerId?: string
+}
+
+export interface SailPointApprovalDecisionParams extends SailPointCredentials {
+  approvalId: string
+  comment?: string
+}
+
+export interface SailPointRejectApprovalParams extends SailPointApprovalDecisionParams {
+  comment: string
 }

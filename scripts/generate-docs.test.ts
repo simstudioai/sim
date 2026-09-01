@@ -621,6 +621,25 @@ describe('an unreadable subBlocks array', () => {
     expect(readableConfig.userSettableParamIds).toEqual(['query'])
   })
 
+  it('reads action ids from tools.access when another access array appears earlier', () => {
+    const [config] = extractAllBlockConfigs(`
+      import type { BlockConfig } from '@/blocks/types'
+
+      export const GovernBlock: BlockConfig = {
+        type: 'govern',
+        name: 'Govern',
+        description: 'A synthetic block',
+        canvasPresentation: {
+          sentences: { byOperation: { govern_request: ['Request access'] } },
+        },
+        subBlocks: [{ id: 'operation' }],
+        tools: { access: ['govern_request', 'govern_review'] },
+      }
+    `)
+
+    expect(config.tools?.access).toEqual(['govern_request', 'govern_review'])
+  })
+
   /**
    * The whole point of the UNKNOWN state: `[]` asserts the block supplies nothing and strips
    * every hidden param, so the two must not be spelled the same way.

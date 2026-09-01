@@ -6,20 +6,69 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type { SailPointListResponse } from '@/tools/sailpoint/types'
 
-/** Single-entity operations that take a resource `id`. */
+const SAILPOINT_OPERATIONS = [
+  'sailpoint_approve_access_request',
+  'sailpoint_cancel_access_request',
+  'sailpoint_decide_certification_review_items',
+  'sailpoint_get_access_profile',
+  'sailpoint_get_access_profile_entitlements',
+  'sailpoint_get_access_request_status',
+  'sailpoint_get_account',
+  'sailpoint_get_account_activity',
+  'sailpoint_get_account_entitlements',
+  'sailpoint_get_campaign',
+  'sailpoint_get_certification',
+  'sailpoint_get_entitlement',
+  'sailpoint_get_identity',
+  'sailpoint_get_role',
+  'sailpoint_get_role_entitlements',
+  'sailpoint_get_source',
+  'sailpoint_get_task_status',
+  'sailpoint_list_access_profiles',
+  'sailpoint_list_account_activities',
+  'sailpoint_list_accounts',
+  'sailpoint_list_campaigns',
+  'sailpoint_list_certification_review_items',
+  'sailpoint_list_certifications',
+  'sailpoint_list_entitlements',
+  'sailpoint_list_identities',
+  'sailpoint_list_identity_entitlements',
+  'sailpoint_list_pending_access_request_approvals',
+  'sailpoint_list_roles',
+  'sailpoint_list_sources',
+  'sailpoint_load_accounts',
+  'sailpoint_load_entitlements',
+  'sailpoint_reject_access_request',
+  'sailpoint_request_access',
+  'sailpoint_search',
+  'sailpoint_search_aggregate',
+  'sailpoint_search_count',
+  'sailpoint_sign_off_certification',
+] as const
+
+type SailPointOperation = (typeof SAILPOINT_OPERATIONS)[number]
+
+const SAILPOINT_OPERATION_SET: ReadonlySet<string> = new Set(SAILPOINT_OPERATIONS)
+
 const ID_OPERATIONS = [
   'sailpoint_get_identity',
   'sailpoint_get_account',
   'sailpoint_get_account_entitlements',
   'sailpoint_get_entitlement',
+  'sailpoint_list_identity_entitlements',
+  'sailpoint_get_role',
   'sailpoint_get_role_entitlements',
+  'sailpoint_get_access_profile',
   'sailpoint_get_access_profile_entitlements',
   'sailpoint_get_source',
   'sailpoint_get_account_activity',
   'sailpoint_get_campaign',
+  'sailpoint_get_certification',
   'sailpoint_list_certification_review_items',
+  'sailpoint_decide_certification_review_items',
+  'sailpoint_sign_off_certification',
+  'sailpoint_get_task_status',
 ]
 
 const SEARCH_OPERATIONS = [
@@ -43,6 +92,7 @@ const FILTER_OPERATIONS = [
   'sailpoint_list_certifications',
   'sailpoint_list_certification_review_items',
   'sailpoint_get_access_request_status',
+  'sailpoint_list_pending_access_request_approvals',
 ]
 
 /** Operations that accept `limit`/`offset` pagination. */
@@ -51,6 +101,8 @@ const LIMIT_OPERATIONS = [
   'sailpoint_search',
   'sailpoint_search_aggregate',
   'sailpoint_get_account_entitlements',
+  'sailpoint_list_identity_entitlements',
+  'sailpoint_list_pending_access_request_approvals',
 ]
 
 /** Operations that scope by an identity (`requested-for` / `requested-by` / `regarding-identity`). */
@@ -59,19 +111,77 @@ const IDENTITY_SCOPE_OPERATIONS = [
   'sailpoint_get_access_request_status',
 ]
 
-export const SailPointBlock: BlockConfig<SailPointListResponse> = {
+const LIST_OUTPUT_OPERATIONS = [
+  ...FILTER_OPERATIONS,
+  'sailpoint_get_account_entitlements',
+  'sailpoint_list_identity_entitlements',
+]
+
+const ACCEPTED_OUTPUT_OPERATIONS = [
+  'sailpoint_request_access',
+  'sailpoint_cancel_access_request',
+  'sailpoint_approve_access_request',
+  'sailpoint_reject_access_request',
+]
+
+export const SailPointBlock: BlockConfig = {
   type: 'sailpoint',
   name: 'SailPoint',
   description: 'Govern identities and access in SailPoint Identity Security Cloud',
   longDescription:
-    'Read and act on identity governance data in SailPoint Identity Security Cloud (ISC): search identities, accounts, entitlements, roles, and access profiles; review account activities, campaigns, and certifications; and request, revoke, or cancel access. Authenticates with a Personal Access Token (PAT) using the OAuth2 client-credentials grant against your per-tenant host (https://{tenant}.api.identitynow.com). ' +
-    "IMPORTANT: generate the PAT from a dedicated ISC service *identity* (a real user with the required user level), NOT an API-Management client - identity, role, access-profile, and access-request endpoints are user-context only, and a client without user context returns empty result sets instead of an error. A PAT's effective rights are the intersection of its selected scopes AND the owner's ISC user level. Select these scopes when generating the PAT: sp:search:read (search), idn:identity:read (identities), idn:accounts:read (accounts), idn:entitlement:read (entitlements), idn:role-unchecked:read (roles), idn:access-profile:read (access profiles), idn:sources:read (sources), idn:access-request:manage or idn:access-request-self:manage (request/cancel access), idn:access-request-status:read (request status), idn:campaign:read (campaigns and certifications). Account activities are user-context gated and need no dedicated scope; sp:scopes:all covers everything for a pilot. Revoking access for anyone who is not a direct report requires ORG_ADMIN, and self-revoke is not permitted.",
+    "Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://{tenant}.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses the current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes are sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally require idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation, idn:campaign:manage for certification decisions and sign-off, idn:access-request:manage or idn:access-request-self:manage for access requests as permitted, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.",
   docsLink: 'https://docs.sim.ai/integrations/sailpoint',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#0033A1',
   icon: SailPointIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'SailPoint',
+    sentences: {
+      byOperation: {
+        sailpoint_search: ['Search SailPoint documents'],
+        sailpoint_search_count: ['Count matching SailPoint documents'],
+        sailpoint_search_aggregate: ['Aggregate SailPoint search results'],
+        sailpoint_list_identities: ['List SailPoint identities'],
+        sailpoint_get_identity: ['Read a SailPoint identity'],
+        sailpoint_list_accounts: ['List SailPoint accounts'],
+        sailpoint_get_account: ['Read a SailPoint account'],
+        sailpoint_get_account_entitlements: ['List entitlements on a SailPoint account'],
+        sailpoint_list_entitlements: ['List SailPoint entitlements'],
+        sailpoint_get_entitlement: ['Read a SailPoint entitlement'],
+        sailpoint_list_identity_entitlements: ['List entitlements held by an identity'],
+        sailpoint_list_roles: ['List SailPoint roles'],
+        sailpoint_get_role: ['Read a SailPoint role'],
+        sailpoint_get_role_entitlements: ['List entitlements granted by a role'],
+        sailpoint_list_access_profiles: ['List SailPoint access profiles'],
+        sailpoint_get_access_profile: ['Read a SailPoint access profile'],
+        sailpoint_get_access_profile_entitlements: [
+          'List entitlements granted by an access profile',
+        ],
+        sailpoint_list_sources: ['List SailPoint sources'],
+        sailpoint_get_source: ['Read a SailPoint source'],
+        sailpoint_list_account_activities: ['List SailPoint account activities'],
+        sailpoint_get_account_activity: ['Read a SailPoint account activity'],
+        sailpoint_list_campaigns: ['List SailPoint campaigns'],
+        sailpoint_get_campaign: ['Read a SailPoint campaign'],
+        sailpoint_list_certifications: ['List SailPoint certifications'],
+        sailpoint_get_certification: ['Read a SailPoint certification'],
+        sailpoint_list_certification_review_items: ['List certification review items'],
+        sailpoint_decide_certification_review_items: ['Decide certification review items'],
+        sailpoint_sign_off_certification: ['Sign off a SailPoint certification'],
+        sailpoint_request_access: ['Submit a SailPoint access request'],
+        sailpoint_cancel_access_request: ['Cancel a SailPoint access request'],
+        sailpoint_get_access_request_status: ['List SailPoint access-request status records'],
+        sailpoint_list_pending_access_request_approvals: ['List pending access-request approvals'],
+        sailpoint_approve_access_request: ['Approve a SailPoint access request'],
+        sailpoint_reject_access_request: ['Reject a SailPoint access request'],
+        sailpoint_load_accounts: ['Start a SailPoint account aggregation'],
+        sailpoint_load_entitlements: ['Start a SailPoint entitlement aggregation'],
+        sailpoint_get_task_status: ['Read a SailPoint task status'],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -89,9 +199,12 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
         { label: 'Get Account Entitlements', id: 'sailpoint_get_account_entitlements' },
         { label: 'List Entitlements', id: 'sailpoint_list_entitlements' },
         { label: 'Get Entitlement', id: 'sailpoint_get_entitlement' },
+        { label: 'List Identity Entitlements', id: 'sailpoint_list_identity_entitlements' },
         { label: 'List Roles', id: 'sailpoint_list_roles' },
+        { label: 'Get Role', id: 'sailpoint_get_role' },
         { label: 'Get Role Entitlements', id: 'sailpoint_get_role_entitlements' },
         { label: 'List Access Profiles', id: 'sailpoint_list_access_profiles' },
+        { label: 'Get Access Profile', id: 'sailpoint_get_access_profile' },
         {
           label: 'Get Access Profile Entitlements',
           id: 'sailpoint_get_access_profile_entitlements',
@@ -103,15 +216,28 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
         { label: 'List Campaigns', id: 'sailpoint_list_campaigns' },
         { label: 'Get Campaign', id: 'sailpoint_get_campaign' },
         { label: 'List Certifications', id: 'sailpoint_list_certifications' },
+        { label: 'Get Certification', id: 'sailpoint_get_certification' },
         {
           label: 'List Certification Review Items',
           id: 'sailpoint_list_certification_review_items',
         },
+        {
+          label: 'Decide Certification Review Items',
+          id: 'sailpoint_decide_certification_review_items',
+        },
+        { label: 'Sign Off Certification', id: 'sailpoint_sign_off_certification' },
         { label: 'Request Access', id: 'sailpoint_request_access' },
         { label: 'Cancel Access Request', id: 'sailpoint_cancel_access_request' },
         { label: 'Get Access Request Status', id: 'sailpoint_get_access_request_status' },
+        {
+          label: 'List Pending Access Request Approvals',
+          id: 'sailpoint_list_pending_access_request_approvals',
+        },
+        { label: 'Approve Access Request', id: 'sailpoint_approve_access_request' },
+        { label: 'Reject Access Request', id: 'sailpoint_reject_access_request' },
         { label: 'Load Accounts (CSV)', id: 'sailpoint_load_accounts' },
         { label: 'Load Entitlements (CSV)', id: 'sailpoint_load_entitlements' },
+        { label: 'Get Task Status', id: 'sailpoint_get_task_status' },
       ],
       value: () => 'sailpoint_search',
       required: true,
@@ -140,14 +266,9 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
     },
     {
       id: 'apiVersion',
-      title: 'API Version',
-      type: 'dropdown',
-      options: [
-        { label: 'v2025 (default)', id: 'v2025' },
-        { label: 'v2024', id: 'v2024' },
-        { label: 'v3', id: 'v3' },
-      ],
-      value: () => 'v2025',
+      title: 'Legacy API Version',
+      type: 'short-input',
+      condition: { field: 'operation', value: '__removed_api_version__' },
       mode: 'advanced',
     },
     {
@@ -161,65 +282,260 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
     {
       id: 'indices',
       title: 'Indices',
-      type: 'short-input',
-      placeholder: 'identities (comma-separated or JSON array)',
+      type: 'code',
+      language: 'json',
+      placeholder: '["identities", "roles"]',
       condition: { field: 'operation', value: SEARCH_OPERATIONS },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array containing only SailPoint search indices: accessprofiles, accountactivities, entitlements, events, identities, roles, or *. Omit the field to search all indices. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe which SailPoint indices to search...',
+      },
+    },
+    {
+      id: 'queryType',
+      title: 'Query Type',
+      type: 'dropdown',
+      options: [
+        { label: 'No query (Search Aggregate only)', id: '' },
+        { label: 'SailPoint query', id: 'SAILPOINT' },
+        { label: 'Elasticsearch DSL', id: 'DSL' },
+        { label: 'Text query', id: 'TEXT' },
+        { label: 'Type-ahead query', id: 'TYPEAHEAD' },
+      ],
+      value: (params) => (params.operation === 'sailpoint_search_aggregate' ? '' : 'SAILPOINT'),
+      condition: { field: 'operation', value: SEARCH_OPERATIONS },
+      required: {
+        field: 'operation',
+        value: ['sailpoint_search', 'sailpoint_search_count'],
+      },
     },
     {
       id: 'query',
       title: 'Query',
-      type: 'short-input',
-      placeholder: 'attributes.department:Engineering',
-      condition: { field: 'operation', value: SEARCH_OPERATIONS },
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '{ "query": "attributes.department:Engineering", "fields": "name,email", "timeZone": "America/Los_Angeles" }',
+      condition: {
+        field: 'operation',
+        value: SEARCH_OPERATIONS,
+        and: { field: 'queryType', value: 'SAILPOINT' },
+      },
+      required: { field: 'queryType', value: 'SAILPOINT' },
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a SailPoint Identity Security Cloud search query string using Elasticsearch query-string syntax (field:value, AND/OR, wildcards). Return ONLY the query string - no explanations.',
+          'Generate a SailPoint search query object with query and optional fields, timeZone, and innerHit. The query value uses SailPoint Elasticsearch query-string syntax. Return ONLY the JSON object - no explanations, no extra text.',
         placeholder:
           'Describe what to search for, e.g. "active identities in the Finance department"...',
+        generationType: 'json-object',
       },
+    },
+    {
+      id: 'queryDsl',
+      title: 'Query DSL',
+      type: 'code',
+      language: 'json',
+      placeholder: '{ "match": { "name": "john.doe" } }',
+      condition: {
+        field: 'operation',
+        value: SEARCH_OPERATIONS,
+        and: { field: 'queryType', value: 'DSL' },
+      },
+      required: { field: 'queryType', value: 'DSL' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an Elasticsearch Query DSL object supported by SailPoint Search. Return ONLY the JSON object - no explanations, no extra text.',
+        placeholder: 'Describe the Elasticsearch DSL query...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'textQuery',
+      title: 'Text Query',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '{ "terms": ["privileged access"], "fields": ["name", "description"], "matchAny": true, "contains": true }',
+      condition: {
+        field: 'operation',
+        value: SEARCH_OPERATIONS,
+        and: { field: 'queryType', value: 'TEXT' },
+      },
+      required: { field: 'queryType', value: 'TEXT' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a SailPoint textQuery object with required string arrays terms and fields and optional booleans matchAny and contains. Return ONLY the JSON object - no explanations, no extra text.',
+        placeholder: 'Describe the terms and fields for the text query...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'typeAheadQuery',
+      title: 'Type-Ahead Query',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '{ "query": "Work", "field": "source.name", "nestedType": "access", "maxExpansions": 10, "size": 100 }',
+      condition: {
+        field: 'operation',
+        value: SEARCH_OPERATIONS,
+        and: { field: 'queryType', value: 'TYPEAHEAD' },
+      },
+      required: { field: 'queryType', value: 'TYPEAHEAD' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a SailPoint typeAheadQuery object with required query and field and optional nestedType, maxExpansions, size, sort, and sortByValue. Return ONLY the JSON object - no explanations, no extra text.',
+        placeholder: 'Describe the prefix and field to search...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'queryVersion',
+      title: 'Query Version',
+      type: 'short-input',
+      placeholder: '5.2 (omit to use the service default)',
+      condition: { field: 'operation', value: SEARCH_OPERATIONS },
+      mode: 'advanced',
     },
     {
       id: 'includeNested',
       title: 'Include Nested Objects',
       type: 'dropdown',
       options: [
-        { label: 'Yes (default)', id: 'true' },
+        { label: 'Provider default (true)', id: '' },
+        { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
-      value: () => 'true',
-      condition: { field: 'operation', value: 'sailpoint_search' },
+      value: () => '',
+      condition: { field: 'operation', value: SEARCH_OPERATIONS },
       mode: 'advanced',
+    },
+    {
+      id: 'queryResultFilter',
+      title: 'Result Field Filter',
+      type: 'code',
+      language: 'json',
+      placeholder: '{ "includes": ["id", "name"], "excludes": ["stacktrace"] }',
+      condition: { field: 'operation', value: SEARCH_OPERATIONS },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a SailPoint queryResultFilter object with optional includes and excludes string arrays. Return ONLY the JSON object - no explanations, no extra text.',
+        placeholder: 'Describe which fields to include or exclude...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'searchFilters',
+      title: 'Structured Search Filters',
+      type: 'code',
+      language: 'json',
+      placeholder: '{ "attributes.department": { "type": "TERMS", "terms": ["Finance"] } }',
+      condition: { field: 'operation', value: SEARCH_OPERATIONS },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the SailPoint Search filters object keyed by searchable field, with each value using a documented filter structure. Return ONLY the JSON object - no explanations, no extra text.',
+        placeholder: 'Describe the structured filters...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'sort',
       title: 'Sort',
-      type: 'short-input',
-      placeholder: 'displayName,+id',
-      condition: { field: 'operation', value: 'sailpoint_search' },
+      type: 'code',
+      language: 'json',
+      placeholder: '["displayName", "+id"]',
+      condition: { field: 'operation', value: SEARCH_OPERATIONS },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of SailPoint Search sort fields. Prefix a field with + for ascending or - for descending. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe the desired sort order...',
+      },
     },
     {
       id: 'searchAfter',
       title: 'Search After',
+      type: 'code',
+      language: 'json',
+      placeholder: '["John Doe", "2c9180...id"]',
+      condition: { field: 'operation', value: SEARCH_OPERATIONS },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the JSON string array of last sort values used as a SailPoint Search searchAfter cursor. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Provide the last values from the previous sorted result...',
+      },
+    },
+    {
+      id: 'aggregationType',
+      title: 'Aggregation Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Elasticsearch DSL (default)', id: 'DSL' },
+        { label: 'SailPoint aggregation', id: 'SAILPOINT' },
+      ],
+      value: () => 'DSL',
+      condition: { field: 'operation', value: SEARCH_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
+      id: 'aggregationsVersion',
+      title: 'Aggregations Version',
       type: 'short-input',
-      placeholder: '["John Doe","2c9180...id"] (cursor from the last result to page past 10k)',
-      condition: { field: 'operation', value: 'sailpoint_search' },
+      placeholder: '5.2 (omit to use the service default)',
+      condition: { field: 'operation', value: SEARCH_OPERATIONS },
       mode: 'advanced',
     },
     {
       id: 'aggregationsDsl',
-      title: 'Aggregations',
+      title: 'Aggregations DSL',
       type: 'code',
       language: 'json',
       placeholder: '{ "department": { "terms": { "field": "attributes.department" } } }',
-      condition: { field: 'operation', value: 'sailpoint_search_aggregate' },
-      required: { field: 'operation', value: 'sailpoint_search_aggregate' },
+      condition: {
+        field: 'operation',
+        value: SEARCH_OPERATIONS,
+        and: { field: 'aggregationType', value: 'DSL' },
+      },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a SailPoint search aggregations DSL object (Elasticsearch aggregations syntax) defining the buckets or metrics to compute over the matched documents. Return ONLY valid JSON.',
+          'Generate an Elasticsearch aggregations DSL object supported by SailPoint Search. Return ONLY the JSON object - no explanations, no extra text.',
         placeholder: 'Describe the aggregation, e.g. "count identities grouped by department"...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'aggregations',
+      title: 'SailPoint Aggregation',
+      type: 'code',
+      language: 'json',
+      placeholder: '{ "name": "department", "type": "TERMS", "field": "attributes.department" }',
+      condition: {
+        field: 'operation',
+        value: SEARCH_OPERATIONS,
+        and: { field: 'aggregationType', value: 'SAILPOINT' },
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a SailPoint search aggregation specification object, including any supported subAggregation. Return ONLY the JSON object - no explanations, no extra text.',
+        placeholder: 'Describe the SailPoint aggregation grouping or calculation...',
         generationType: 'json-object',
       },
     },
@@ -233,7 +549,7 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a SailPoint ISC V3 filter expression (e.g. name sw "A", cloudStatus eq "ACTIVE", and/or). Use documented filterable fields and operators. Return ONLY the filter string.',
+          'Generate a SailPoint collection filter expression (e.g. name sw "A", cloudStatus eq "ACTIVE", and/or). Use only fields and operators supported by the selected operation. Return ONLY the filter string - no explanations, no extra text.',
         placeholder:
           'Describe the records to filter, e.g. "identities whose email ends with @acme.com"...',
       },
@@ -315,9 +631,21 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
     },
     {
       id: 'accountId',
-      title: 'Account ID',
+      title: 'Legacy Account ID',
       type: 'short-input',
-      placeholder: 'Filter entitlements to a specific account',
+      condition: { field: 'operation', value: '__removed_account_filter__' },
+      mode: 'advanced',
+    },
+    {
+      id: 'entitlementSegmentationMode',
+      title: 'Entitlement Segmentation',
+      type: 'dropdown',
+      options: [
+        { label: 'No segmentation filter', id: '' },
+        { label: 'Visible to an identity', id: 'identity' },
+        { label: 'Assigned to segment IDs', id: 'segments' },
+      ],
+      value: () => '',
       condition: { field: 'operation', value: 'sailpoint_list_entitlements' },
       mode: 'advanced',
     },
@@ -326,6 +654,91 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       title: 'Segmented For Identity',
       type: 'short-input',
       placeholder: 'Identity ID to apply entitlement segmentation for',
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_list_entitlements',
+        and: { field: 'entitlementSegmentationMode', value: 'identity' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'entitlementForSegmentIds',
+      title: 'For Segment IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated segment IDs',
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_list_entitlements',
+        and: { field: 'entitlementSegmentationMode', value: 'segments' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'entitlementIncludeUnsegmented',
+      title: 'Include Unsegmented',
+      type: 'dropdown',
+      options: [
+        { label: 'Provider default (true)', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_list_entitlements',
+        and: { field: 'entitlementSegmentationMode', value: ['identity', 'segments'] },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'accessModelSegmentationMode',
+      title: 'Access Model Segmentation',
+      type: 'dropdown',
+      options: [
+        { label: 'No segmentation filter', id: '' },
+        { label: 'Assigned to segment IDs', id: 'segments' },
+      ],
+      value: () => '',
+      condition: {
+        field: 'operation',
+        value: ['sailpoint_list_roles', 'sailpoint_list_access_profiles'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'forSegmentIds',
+      title: 'For Segment IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated segment IDs',
+      condition: {
+        field: 'operation',
+        value: ['sailpoint_list_roles', 'sailpoint_list_access_profiles'],
+        and: { field: 'accessModelSegmentationMode', value: 'segments' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeUnsegmented',
+      title: 'Include Unsegmented',
+      type: 'dropdown',
+      options: [
+        { label: 'Provider default (true)', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: {
+        field: 'operation',
+        value: ['sailpoint_list_roles', 'sailpoint_list_access_profiles'],
+        and: { field: 'accessModelSegmentationMode', value: 'segments' },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'entitlementSearchAfter',
+      title: 'Search After',
+      type: 'short-input',
+      placeholder: 'Account Payable,2c918083... (must match sorters)',
       condition: { field: 'operation', value: 'sailpoint_list_entitlements' },
       mode: 'advanced',
     },
@@ -333,8 +746,11 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       id: 'forSubadmin',
       title: 'For Subadmin',
       type: 'short-input',
-      placeholder: 'Subadmin identity ID',
-      condition: { field: 'operation', value: 'sailpoint_list_sources' },
+      placeholder: 'Subadmin identity ID or me',
+      condition: {
+        field: 'operation',
+        value: ['sailpoint_list_sources', 'sailpoint_list_roles', 'sailpoint_list_access_profiles'],
+      },
       mode: 'advanced',
     },
     {
@@ -350,18 +766,41 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'identityScopeType',
+      title: 'Identity Scope',
+      type: 'dropdown',
+      options: [
+        { label: 'No identity scope', id: '' },
+        { label: 'Requested for', id: 'requestedFor' },
+        { label: 'Requested by', id: 'requestedBy' },
+        { label: 'Requester or target', id: 'regardingIdentity' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: IDENTITY_SCOPE_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
       id: 'requestedForFilter',
       title: 'Requested For',
       type: 'short-input',
       placeholder: 'Identity ID or "me"',
-      condition: { field: 'operation', value: IDENTITY_SCOPE_OPERATIONS },
+      condition: {
+        field: 'operation',
+        value: IDENTITY_SCOPE_OPERATIONS,
+        and: { field: 'identityScopeType', value: 'requestedFor' },
+      },
+      mode: 'advanced',
     },
     {
       id: 'requestedBy',
       title: 'Requested By',
       type: 'short-input',
       placeholder: 'Identity ID or "me"',
-      condition: { field: 'operation', value: IDENTITY_SCOPE_OPERATIONS },
+      condition: {
+        field: 'operation',
+        value: IDENTITY_SCOPE_OPERATIONS,
+        and: { field: 'identityScopeType', value: 'requestedBy' },
+      },
       mode: 'advanced',
     },
     {
@@ -369,7 +808,11 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       title: 'Regarding Identity',
       type: 'short-input',
       placeholder: 'Identity ID (requester or target)',
-      condition: { field: 'operation', value: IDENTITY_SCOPE_OPERATIONS },
+      condition: {
+        field: 'operation',
+        value: IDENTITY_SCOPE_OPERATIONS,
+        and: { field: 'identityScopeType', value: 'regardingIdentity' },
+      },
       mode: 'advanced',
     },
     {
@@ -400,11 +843,29 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       condition: { field: 'operation', value: 'sailpoint_list_certifications' },
     },
     {
+      id: 'reviewItemFilterType',
+      title: 'Review Item Type Filter',
+      type: 'dropdown',
+      options: [
+        { label: 'All review items', id: '' },
+        { label: 'Entitlements', id: 'entitlements' },
+        { label: 'Access profiles', id: 'accessProfiles' },
+        { label: 'Roles', id: 'roles' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'sailpoint_list_certification_review_items' },
+      mode: 'advanced',
+    },
+    {
       id: 'entitlements',
       title: 'Entitlement IDs',
       type: 'short-input',
       placeholder: 'Comma-separated entitlement IDs to filter by',
-      condition: { field: 'operation', value: 'sailpoint_list_certification_review_items' },
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_list_certification_review_items',
+        and: { field: 'reviewItemFilterType', value: 'entitlements' },
+      },
       mode: 'advanced',
     },
     {
@@ -412,7 +873,11 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       title: 'Access Profile IDs',
       type: 'short-input',
       placeholder: 'Comma-separated access profile IDs to filter by',
-      condition: { field: 'operation', value: 'sailpoint_list_certification_review_items' },
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_list_certification_review_items',
+        and: { field: 'reviewItemFilterType', value: 'accessProfiles' },
+      },
       mode: 'advanced',
     },
     {
@@ -420,8 +885,45 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       title: 'Role IDs',
       type: 'short-input',
       placeholder: 'Comma-separated role IDs to filter by',
-      condition: { field: 'operation', value: 'sailpoint_list_certification_review_items' },
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_list_certification_review_items',
+        and: { field: 'reviewItemFilterType', value: 'roles' },
+      },
       mode: 'advanced',
+    },
+    {
+      id: 'decisions',
+      title: 'Review Decisions',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '[{ "id": "review-item-id", "decision": "APPROVE", "bulk": false, "comments": "Access is still required" }]',
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_decide_certification_review_items',
+      },
+      required: {
+        field: 'operation',
+        value: 'sailpoint_decide_certification_review_items',
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of 1 to 250 SailPoint certification review decisions. Each decision requires id, decision (APPROVE or REVOKE), and bulk; optional fields are proposedEndDate, recommendation, and comments. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe the review-item decisions to record...',
+      },
+    },
+    {
+      id: 'requestPayloadShape',
+      title: 'Recipient and Item Shape',
+      type: 'dropdown',
+      options: [
+        { label: 'Human identities (flat)', id: 'flat' },
+        { label: 'Per-identity items or machine identities', id: 'structured' },
+      ],
+      value: () => 'flat',
+      condition: { field: 'operation', value: 'sailpoint_request_access' },
     },
     {
       id: 'requestedIdentities',
@@ -429,8 +931,22 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       type: 'code',
       language: 'json',
       placeholder: '["2c9180857c1a...","2c9180857c1b..."]',
-      condition: { field: 'operation', value: 'sailpoint_request_access' },
-      required: { field: 'operation', value: 'sailpoint_request_access' },
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_request_access',
+        and: { field: 'requestPayloadShape', value: 'flat' },
+      },
+      required: {
+        field: 'operation',
+        value: 'sailpoint_request_access',
+        and: { field: 'requestPayloadShape', value: 'flat' },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of SailPoint human identity IDs. REVOKE_ACCESS permits exactly one human identity. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe or provide the human identity IDs...',
+      },
     },
     {
       id: 'requestedItems',
@@ -438,14 +954,45 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       type: 'code',
       language: 'json',
       placeholder: '[{ "type": "ENTITLEMENT", "id": "2c918...", "comment": "New hire" }]',
-      condition: { field: 'operation', value: 'sailpoint_request_access' },
-      required: { field: 'operation', value: 'sailpoint_request_access' },
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_request_access',
+        and: { field: 'requestPayloadShape', value: 'flat' },
+      },
+      required: {
+        field: 'operation',
+        value: 'sailpoint_request_access',
+        and: { field: 'requestPayloadShape', value: 'flat' },
+      },
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a SailPoint access-request requestedItems JSON array. Each item is { type: ACCESS_PROFILE|ROLE|ENTITLEMENT, id, comment?, removeDate?, startDate?, assignmentId?, nativeIdentity?, clientMetadata? }. For REVOKE_ACCESS exactly one item with a comment is allowed. Return ONLY valid JSON.',
+          'Generate a JSON array of SailPoint human access-request items. Each item requires type (ACCESS_PROFILE, ROLE, or ENTITLEMENT) and id; optional fields are comment, startDate, removeDate, assignmentId, nativeIdentity, formInstanceId, and clientMetadata. REVOKE_ACCESS requires a comment, forbids startDate, and permits only one item when revoking an entitlement; role and access-profile revocations are not subject to that entitlement-only limit. Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'Describe the access to request or revoke...',
-        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'requestedForWithRequestedItems',
+      title: 'Recipients With Requested Items',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '[{ "identityId": "2c918...", "identityType": "HUMAN", "requestedItems": [{ "type": "ENTITLEMENT", "id": "2c918...", "accountSelection": [] }] }]',
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_request_access',
+        and: { field: 'requestPayloadShape', value: 'structured' },
+      },
+      required: {
+        field: 'operation',
+        value: 'sailpoint_request_access',
+        and: { field: 'requestPayloadShape', value: 'structured' },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate the requestedForWithRequestedItems JSON array for SailPoint. Each entry requires identityId and requestedItems and may set identityType HUMAN or MACHINE. Machine requests must use MACHINE for every entry, support ENTITLEMENT items only, require accountSelection for grants or modifications, and use nativeIdentity without accountSelection for revokes. Human revoke requests must use the flat payload instead. Items may include comment, startDate, removeDate, accountSelection, nativeIdentity, formInstanceId, and clientMetadata where supported. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe recipients, items, and account selections...',
       },
     },
     {
@@ -468,6 +1015,13 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       placeholder: '{ "requestedByEmail": "manager@acme.com" }',
       condition: { field: 'operation', value: 'sailpoint_request_access' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON object whose values are strings for correlating a SailPoint access request with external context. Return ONLY the JSON object - no explanations, no extra text.',
+        placeholder: 'Describe the correlation metadata to attach...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'accountActivityId',
@@ -484,6 +1038,41 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       placeholder: 'Reason for cancellation',
       condition: { field: 'operation', value: 'sailpoint_cancel_access_request' },
       required: { field: 'operation', value: 'sailpoint_cancel_access_request' },
+    },
+    {
+      id: 'ownerId',
+      title: 'Approval Owner',
+      type: 'short-input',
+      placeholder: 'Approver identity ID or me; omit for all visible approvals',
+      condition: {
+        field: 'operation',
+        value: 'sailpoint_list_pending_access_request_approvals',
+      },
+    },
+    {
+      id: 'approvalId',
+      title: 'Approval ID',
+      type: 'short-input',
+      placeholder: 'Pending access-request approval ID',
+      condition: {
+        field: 'operation',
+        value: ['sailpoint_approve_access_request', 'sailpoint_reject_access_request'],
+      },
+      required: {
+        field: 'operation',
+        value: ['sailpoint_approve_access_request', 'sailpoint_reject_access_request'],
+      },
+    },
+    {
+      id: 'approvalComment',
+      title: 'Approval Comment',
+      type: 'long-input',
+      placeholder: 'Reason for the approval decision',
+      condition: {
+        field: 'operation',
+        value: ['sailpoint_approve_access_request', 'sailpoint_reject_access_request'],
+      },
+      required: { field: 'operation', value: 'sailpoint_reject_access_request' },
     },
     {
       id: 'sourceId',
@@ -557,17 +1146,23 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
 
   tools: {
     access: [
+      'sailpoint_approve_access_request',
       'sailpoint_cancel_access_request',
+      'sailpoint_decide_certification_review_items',
+      'sailpoint_get_access_profile',
       'sailpoint_get_access_profile_entitlements',
       'sailpoint_get_access_request_status',
       'sailpoint_get_account',
       'sailpoint_get_account_activity',
       'sailpoint_get_account_entitlements',
       'sailpoint_get_campaign',
+      'sailpoint_get_certification',
       'sailpoint_get_entitlement',
       'sailpoint_get_identity',
+      'sailpoint_get_role',
       'sailpoint_get_role_entitlements',
       'sailpoint_get_source',
+      'sailpoint_get_task_status',
       'sailpoint_list_access_profiles',
       'sailpoint_list_account_activities',
       'sailpoint_list_accounts',
@@ -576,25 +1171,32 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       'sailpoint_list_certifications',
       'sailpoint_list_entitlements',
       'sailpoint_list_identities',
+      'sailpoint_list_identity_entitlements',
+      'sailpoint_list_pending_access_request_approvals',
       'sailpoint_list_roles',
       'sailpoint_list_sources',
       'sailpoint_load_accounts',
       'sailpoint_load_entitlements',
+      'sailpoint_reject_access_request',
       'sailpoint_request_access',
       'sailpoint_search',
       'sailpoint_search_aggregate',
       'sailpoint_search_count',
+      'sailpoint_sign_off_certification',
     ],
     config: {
-      tool: (params) =>
-        typeof params.operation === 'string' ? params.operation : 'sailpoint_search',
+      tool: (params) => {
+        const operation = typeof params.operation === 'string' ? params.operation : ''
+        return SAILPOINT_OPERATION_SET.has(operation)
+          ? (operation as SailPointOperation)
+          : 'sailpoint_search'
+      },
       params: (params) => {
         const mapped: Record<string, unknown> = {
           clientId: params.clientId,
           clientSecret: params.clientSecret,
           tenant: params.tenant,
         }
-        if (params.apiVersion) mapped.apiVersion = params.apiVersion
 
         const setStr = (key: string, value: unknown) => {
           if (typeof value === 'string') {
@@ -608,41 +1210,67 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
           const parsed = parseOptionalNumberInput(value, key, { integer: true, min: 0 })
           if (parsed != null) mapped[key] = parsed
         }
+        const setBoolean = (key: string, value: unknown) => {
+          if (value === 'true' || value === true) mapped[key] = true
+          if (value === 'false' || value === false) mapped[key] = false
+        }
+        const setJson = (key: string, value: unknown, label = key) => {
+          const parsed = parseOptionalJsonInput(value, label)
+          if (parsed !== undefined) mapped[key] = parsed
+        }
         const applyPagination = () => {
           setNum('limit', params.limit)
           setNum('offset', params.offset)
-          if (params.count === 'true' || params.count === true) {
-            mapped.count = true
-          }
+          setBoolean('count', params.count)
         }
         const applyFilters = () => {
           setStr('filters', params.filters)
           setStr('sorters', params.sorters)
         }
+        const applyIdentityScope = () => {
+          switch (params.identityScopeType) {
+            case 'requestedFor':
+              setStr('requestedFor', params.requestedForFilter)
+              break
+            case 'requestedBy':
+              setStr('requestedBy', params.requestedBy)
+              break
+            case 'regardingIdentity':
+              setStr('regardingIdentity', params.regardingIdentity)
+              break
+          }
+        }
+        const applySearchBody = () => {
+          setJson('indices', params.indices)
+          setStr('queryType', params.queryType)
+          setStr('queryVersion', params.queryVersion)
+          setJson('query', params.query)
+          setJson('queryDsl', params.queryDsl)
+          setJson('textQuery', params.textQuery)
+          setJson('typeAheadQuery', params.typeAheadQuery)
+          setBoolean('includeNested', params.includeNested)
+          setJson('queryResultFilter', params.queryResultFilter)
+          setStr('aggregationType', params.aggregationType)
+          setStr('aggregationsVersion', params.aggregationsVersion)
+          setJson('aggregationsDsl', params.aggregationsDsl)
+          setJson('aggregations', params.aggregations)
+          setJson('sort', params.sort)
+          setJson('searchAfter', params.searchAfter)
+          setJson('filters', params.searchFilters, 'searchFilters')
+        }
 
         switch (params.operation) {
           case 'sailpoint_search':
-            setStr('indices', params.indices)
-            setStr('query', params.query)
-            setStr('sort', params.sort)
-            setStr('searchAfter', params.searchAfter)
-            if (params.includeNested === 'false' || params.includeNested === false) {
-              mapped.includeNested = false
-            }
+            applySearchBody()
             applyPagination()
             break
           case 'sailpoint_search_count':
-            setStr('indices', params.indices)
-            setStr('query', params.query)
+            applySearchBody()
             break
-          case 'sailpoint_search_aggregate': {
-            setStr('indices', params.indices)
-            setStr('query', params.query)
-            const aggregationsDsl = parseOptionalJsonInput(params.aggregationsDsl, 'aggregations')
-            if (aggregationsDsl !== undefined) mapped.aggregationsDsl = aggregationsDsl
+          case 'sailpoint_search_aggregate':
+            applySearchBody()
             applyPagination()
             break
-          }
           case 'sailpoint_list_identities':
             applyFilters()
             setStr('defaultFilter', params.defaultFilter)
@@ -655,13 +1283,29 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
             break
           case 'sailpoint_list_entitlements':
             applyFilters()
-            setStr('accountId', params.accountId)
-            setStr('segmentedForIdentity', params.segmentedForIdentity)
+            if (params.entitlementSegmentationMode === 'identity') {
+              setStr('segmentedForIdentity', params.segmentedForIdentity)
+            }
+            if (params.entitlementSegmentationMode === 'segments') {
+              setStr('forSegmentIds', params.entitlementForSegmentIds)
+            }
+            if (
+              params.entitlementSegmentationMode === 'identity' ||
+              params.entitlementSegmentationMode === 'segments'
+            ) {
+              setBoolean('includeUnsegmented', params.entitlementIncludeUnsegmented)
+            }
+            setStr('searchAfter', params.entitlementSearchAfter)
             applyPagination()
             break
           case 'sailpoint_list_roles':
           case 'sailpoint_list_access_profiles':
             applyFilters()
+            setStr('forSubadmin', params.forSubadmin)
+            if (params.accessModelSegmentationMode === 'segments') {
+              setStr('forSegmentIds', params.forSegmentIds)
+              setBoolean('includeUnsegmented', params.includeUnsegmented)
+            }
             applyPagination()
             break
           case 'sailpoint_get_role_entitlements':
@@ -671,21 +1315,18 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
             applyPagination()
             break
           case 'sailpoint_get_account_entitlements':
+          case 'sailpoint_list_identity_entitlements':
             setStr('id', params.id)
             applyPagination()
             break
           case 'sailpoint_list_sources':
             applyFilters()
             setStr('forSubadmin', params.forSubadmin)
-            if (params.includeIDNSource === 'true' || params.includeIDNSource === true) {
-              mapped.includeIDNSource = true
-            }
+            setBoolean('includeIDNSource', params.includeIDNSource)
             applyPagination()
             break
           case 'sailpoint_list_account_activities':
-            setStr('requestedFor', params.requestedForFilter)
-            setStr('requestedBy', params.requestedBy)
-            setStr('regardingIdentity', params.regardingIdentity)
+            applyIdentityScope()
             applyFilters()
             applyPagination()
             break
@@ -706,48 +1347,72 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
           case 'sailpoint_list_certification_review_items':
             setStr('id', params.id)
             applyFilters()
-            setStr('entitlements', params.entitlements)
-            setStr('accessProfiles', params.accessProfiles)
-            setStr('roles', params.roles)
+            if (params.reviewItemFilterType === 'entitlements') {
+              setStr('entitlements', params.entitlements)
+            }
+            if (params.reviewItemFilterType === 'accessProfiles') {
+              setStr('accessProfiles', params.accessProfiles)
+            }
+            if (params.reviewItemFilterType === 'roles') setStr('roles', params.roles)
             applyPagination()
             break
           case 'sailpoint_get_identity':
           case 'sailpoint_get_account':
           case 'sailpoint_get_entitlement':
+          case 'sailpoint_get_role':
+          case 'sailpoint_get_access_profile':
           case 'sailpoint_get_source':
           case 'sailpoint_get_account_activity':
+          case 'sailpoint_get_certification':
+          case 'sailpoint_sign_off_certification':
+          case 'sailpoint_get_task_status':
             setStr('id', params.id)
             break
+          case 'sailpoint_decide_certification_review_items':
+            setStr('id', params.id)
+            setJson('decisions', params.decisions)
+            break
           case 'sailpoint_get_access_request_status':
-            setStr('requestedFor', params.requestedForFilter)
-            setStr('requestedBy', params.requestedBy)
-            setStr('regardingIdentity', params.regardingIdentity)
+            applyIdentityScope()
             setStr('assignedTo', params.assignedTo)
             setStr('requestState', params.requestState)
             applyFilters()
             applyPagination()
             break
           case 'sailpoint_request_access': {
-            const requestedFor = parseOptionalJsonInput(params.requestedIdentities, 'requestedFor')
-            if (requestedFor !== undefined) mapped.requestedFor = requestedFor
-            const requestedItems = parseOptionalJsonInput(params.requestedItems, 'requestedItems')
-            if (requestedItems !== undefined) mapped.requestedItems = requestedItems
+            if (params.requestPayloadShape === 'structured') {
+              setJson(
+                'requestedForWithRequestedItems',
+                params.requestedForWithRequestedItems,
+                'requestedForWithRequestedItems'
+              )
+            } else {
+              setJson('requestedFor', params.requestedIdentities, 'requestedFor')
+              setJson('requestedItems', params.requestedItems, 'requestedItems')
+            }
             setStr('requestType', params.requestType)
-            const clientMetadata = parseOptionalJsonInput(params.clientMetadata, 'clientMetadata')
-            if (clientMetadata !== undefined) mapped.clientMetadata = clientMetadata
+            setJson('clientMetadata', params.clientMetadata)
             break
           }
           case 'sailpoint_cancel_access_request':
             setStr('accountActivityId', params.accountActivityId)
             setStr('comment', params.comment)
             break
+          case 'sailpoint_list_pending_access_request_approvals':
+            setStr('ownerId', params.ownerId)
+            applyFilters()
+            applyPagination()
+            break
+          case 'sailpoint_approve_access_request':
+          case 'sailpoint_reject_access_request':
+            setStr('approvalId', params.approvalId)
+            setStr('comment', params.approvalComment)
+            break
           case 'sailpoint_load_accounts': {
             setStr('sourceId', params.sourceId)
             const file = normalizeFileInput(params.accountsCsv, { single: true })
             if (file) mapped.file = file
-            if (params.disableOptimization === 'true' || params.disableOptimization === true) {
-              mapped.disableOptimization = true
-            }
+            setBoolean('disableOptimization', params.disableOptimization)
             break
           }
           case 'sailpoint_load_entitlements': {
@@ -768,35 +1433,94 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
     tenant: { type: 'string', description: 'SailPoint tenant subdomain' },
     clientId: { type: 'string', description: 'PAT client ID' },
     clientSecret: { type: 'string', description: 'PAT client secret' },
-    apiVersion: { type: 'string', description: 'API version path segment (v2025, v2024, v3)' },
     id: { type: 'string', description: 'Resource ID for single-entity operations' },
-    indices: { type: 'string', description: 'Search indices (comma-separated or JSON array)' },
-    query: { type: 'string', description: 'Elasticsearch query string' },
-    includeNested: { type: 'string', description: 'Include nested objects in search results' },
-    sort: { type: 'string', description: 'Search sort fields' },
-    searchAfter: { type: 'string', description: 'searchAfter cursor for deep search pagination' },
+    indices: { type: 'json', description: 'Search index names; omission searches all indices' },
+    queryType: { type: 'string', description: 'SAILPOINT, DSL, TEXT, or TYPEAHEAD' },
+    queryVersion: { type: 'string', description: 'Elasticsearch version for the query body' },
+    query: {
+      type: 'json',
+      description: 'SailPoint query object (query, fields, timeZone, innerHit)',
+    },
+    queryDsl: { type: 'json', description: 'Elasticsearch Query DSL object' },
+    textQuery: {
+      type: 'json',
+      description: 'Text query object (terms, fields, matchAny, contains)',
+    },
+    typeAheadQuery: {
+      type: 'json',
+      description:
+        'Type-ahead query object (query, field, nestedType, maxExpansions, size, sort, sortByValue)',
+    },
+    includeNested: { type: 'boolean', description: 'Include nested objects in search results' },
+    queryResultFilter: {
+      type: 'json',
+      description: 'Search result field includes and excludes',
+    },
+    searchFilters: { type: 'json', description: 'Structured Search filters keyed by field' },
+    sort: { type: 'json', description: 'Search sort field array' },
+    searchAfter: { type: 'json', description: 'Search-after cursor value array' },
+    aggregationType: { type: 'string', description: 'DSL or SAILPOINT aggregation syntax' },
+    aggregationsVersion: {
+      type: 'string',
+      description: 'Elasticsearch version for the aggregation body',
+    },
     aggregationsDsl: {
       type: 'json',
-      description: 'Elasticsearch aggregations DSL for search aggregate',
+      description: 'Elasticsearch aggregations DSL object',
     },
-    filters: { type: 'string', description: 'V3 filter expression' },
+    aggregations: { type: 'json', description: 'SailPoint aggregation specification' },
+    filters: { type: 'string', description: 'Service collection filter expression' },
     sorters: { type: 'string', description: 'Sort expression' },
     limit: { type: 'number', description: 'Maximum records to return' },
     offset: { type: 'number', description: 'Pagination offset' },
-    count: { type: 'string', description: 'Include the total matching record count' },
+    count: { type: 'boolean', description: 'Include the total matching record count' },
     defaultFilter: {
       type: 'string',
       description: 'Identity default filter (CORRELATED_ONLY or NONE)',
     },
     detailLevel: { type: 'string', description: 'Account detail level (SLIM or FULL)' },
     detail: { type: 'string', description: 'Campaign detail level (SLIM or FULL)' },
-    accountId: { type: 'string', description: 'Account ID to filter entitlements' },
+    entitlementSegmentationMode: {
+      type: 'string',
+      description: 'Entitlement segmentation by identity or explicit segment IDs',
+    },
     segmentedForIdentity: {
       type: 'string',
       description: 'Identity ID for entitlement segmentation',
     },
-    forSubadmin: { type: 'string', description: 'Subadmin identity ID for source scoping' },
-    includeIDNSource: { type: 'string', description: 'Include the IdentityNow source in results' },
+    entitlementForSegmentIds: {
+      type: 'string',
+      description: 'Comma-separated segment IDs for entitlement filtering',
+    },
+    entitlementIncludeUnsegmented: {
+      type: 'boolean',
+      description: 'Whether segmented entitlement results include unsegmented entitlements',
+    },
+    accessModelSegmentationMode: {
+      type: 'string',
+      description: 'Role/access-profile segmentation mode',
+    },
+    forSegmentIds: { type: 'string', description: 'Comma-separated segment IDs' },
+    includeUnsegmented: {
+      type: 'boolean',
+      description: 'Whether segmented list results include unsegmented access objects',
+    },
+    entitlementSearchAfter: {
+      type: 'string',
+      description: 'Comma-separated entitlement list search-after values matching sorters',
+    },
+    forSubadmin: {
+      type: 'string',
+      description: 'Subadmin identity ID or me for sources, roles, and access profiles',
+    },
+    includeIDNSource: {
+      type: 'boolean',
+      description: 'Include the IdentityNow source in results',
+    },
+    identityScopeType: {
+      type: 'string',
+      description: 'Identity scoping mode for activity and request-status lists',
+    },
     requestedForFilter: { type: 'string', description: 'Identity to scope activities/status by' },
     requestedBy: { type: 'string', description: 'Requester identity to scope by' },
     regardingIdentity: { type: 'string', description: 'Requester or target identity to scope by' },
@@ -809,36 +1533,176 @@ export const SailPointBlock: BlockConfig<SailPointListResponse> = {
       description: 'Certification review item access-profiles filter',
     },
     roles: { type: 'string', description: 'Certification review item roles filter' },
+    decisions: {
+      type: 'json',
+      description: 'Certification review decisions (id, decision, bulk, and optional details)',
+    },
+    requestPayloadShape: {
+      type: 'string',
+      description: 'Flat human request or structured per-identity request shape',
+    },
     requestedIdentities: { type: 'json', description: 'Identity IDs the access is requested for' },
     requestedItems: { type: 'json', description: 'Access items to request or revoke' },
+    requestedForWithRequestedItems: {
+      type: 'json',
+      description: 'Per-identity access items and optional human or machine identity type',
+    },
     requestType: { type: 'string', description: 'GRANT_ACCESS, REVOKE_ACCESS, or MODIFY_ACCESS' },
     clientMetadata: { type: 'json', description: 'Arbitrary key/value metadata for correlation' },
     accountActivityId: { type: 'string', description: 'identityRequestId to cancel' },
     comment: { type: 'string', description: 'Reason for cancellation' },
+    ownerId: { type: 'string', description: 'Pending-approval owner identity ID or me' },
+    approvalId: { type: 'string', description: 'Pending access-request approval ID' },
+    approvalComment: { type: 'string', description: 'Approval or rejection comment' },
     sourceId: { type: 'string', description: 'Source ID for aggregation' },
     accountsCsv: { type: 'json', description: 'Accounts CSV file to aggregate' },
     entitlementsCsv: { type: 'json', description: 'Entitlements CSV file to aggregate' },
     disableOptimization: {
-      type: 'string',
+      type: 'boolean',
       description: 'Reprocess every account during aggregation',
     },
   },
 
   outputs: {
-    items: { type: 'json', description: 'Raw SailPoint documents for list operations' },
-    results: { type: 'json', description: 'Raw SailPoint documents for search operations' },
-    item: { type: 'json', description: 'Raw SailPoint document for get operations' },
-    total: { type: 'number', description: 'Total matching documents (search count)' },
-    task: { type: 'json', description: 'Aggregation task for load operations' },
-    accepted: { type: 'boolean', description: 'Whether an access-request write was accepted' },
-    status: { type: 'number', description: 'HTTP status returned by SailPoint for writes' },
-    count: { type: 'number', description: 'Number of records returned in the page' },
-    totalCount: { type: 'number', description: 'Total matching records when count is requested' },
-    complete: {
-      type: 'boolean',
-      description: 'False when an empty result may indicate a permission gap',
+    items: {
+      type: 'json',
+      description: 'Operation-specific array of SailPoint resources for the returned page',
+      condition: { field: 'operation', value: LIST_OUTPUT_OPERATIONS },
     },
-    warnings: { type: 'json', description: 'Diagnostic warnings (e.g. empty-result guidance)' },
+    results: {
+      type: 'json',
+      description: 'Search documents from the requested SailPoint indices',
+      condition: { field: 'operation', value: 'sailpoint_search' },
+    },
+    identity: {
+      type: 'json',
+      description:
+        'Identity resource (id, name, alias, email, attributes, manager, access, accounts)',
+      condition: { field: 'operation', value: 'sailpoint_get_identity' },
+    },
+    account: {
+      type: 'json',
+      description:
+        'Account resource (id, name, nativeIdentity, sourceId, identityId, attributes, entitlements)',
+      condition: { field: 'operation', value: 'sailpoint_get_account' },
+    },
+    entitlement: {
+      type: 'json',
+      description:
+        'Entitlement resource (id, name, attribute, value, source, owner, requestable, privilegeLevel)',
+      condition: { field: 'operation', value: 'sailpoint_get_entitlement' },
+    },
+    role: {
+      type: 'json',
+      description:
+        'Role resource (id, name, description, owner, requestable, accessProfiles, membership)',
+      condition: { field: 'operation', value: 'sailpoint_get_role' },
+    },
+    accessProfile: {
+      type: 'json',
+      description:
+        'Access profile resource (id, name, description, owner, source, entitlements, requestConfig)',
+      condition: { field: 'operation', value: 'sailpoint_get_access_profile' },
+    },
+    source: {
+      type: 'json',
+      description:
+        'Source resource (id, name, description, owner, connector, status, authoritative, healthy)',
+      condition: { field: 'operation', value: 'sailpoint_get_source' },
+    },
+    accountActivity: {
+      type: 'json',
+      description:
+        'Account activity resource (id, name, type, created, modified, requester, target, stages)',
+      condition: { field: 'operation', value: 'sailpoint_get_account_activity' },
+    },
+    campaign: {
+      type: 'json',
+      description:
+        'Campaign resource (id, name, description, status, type, dates, owner, completion statistics)',
+      condition: { field: 'operation', value: 'sailpoint_get_campaign' },
+    },
+    certification: {
+      type: 'json',
+      description:
+        'Identity certification (id, name, status, reviewer, decisions, completed review items)',
+      condition: {
+        field: 'operation',
+        value: [
+          'sailpoint_get_certification',
+          'sailpoint_decide_certification_review_items',
+          'sailpoint_sign_off_certification',
+        ],
+      },
+    },
+    total: {
+      type: 'number',
+      description: 'Total documents matching the search body',
+      condition: { field: 'operation', value: 'sailpoint_search_count' },
+    },
+    aggregations: {
+      type: 'json',
+      description: 'Aggregation buckets and metrics returned by SailPoint Search',
+      condition: { field: 'operation', value: 'sailpoint_search_aggregate' },
+    },
+    hits: {
+      type: 'json',
+      description: 'Search hits included with the aggregation response',
+      condition: { field: 'operation', value: 'sailpoint_search_aggregate' },
+    },
+    task: {
+      type: 'json',
+      description:
+        'Task status (id, type, uniqueName, description, created, launched, completionStatus, progress, percentComplete, messages, returns)',
+      condition: {
+        field: 'operation',
+        value: [
+          'sailpoint_load_accounts',
+          'sailpoint_load_entitlements',
+          'sailpoint_get_task_status',
+        ],
+      },
+    },
+    success: {
+      type: 'boolean',
+      description: 'Whether the account aggregation request succeeded',
+      condition: { field: 'operation', value: 'sailpoint_load_accounts' },
+    },
+    accepted: {
+      type: 'boolean',
+      description: 'Whether SailPoint accepted the asynchronous write',
+      condition: { field: 'operation', value: ACCEPTED_OUTPUT_OPERATIONS },
+    },
+    status: {
+      type: 'number',
+      description: 'HTTP status returned by SailPoint for the write',
+      condition: { field: 'operation', value: ACCEPTED_OUTPUT_OPERATIONS },
+    },
+    newRequests: {
+      type: 'json',
+      description:
+        'New access requests (requestedFor, requestedItemsDetails, attributesHash, accessRequestIds)',
+      condition: { field: 'operation', value: 'sailpoint_request_access' },
+    },
+    existingRequests: {
+      type: 'json',
+      description:
+        'Existing matching access requests (requestedFor, requestedItemsDetails, attributesHash, accessRequestIds)',
+      condition: { field: 'operation', value: 'sailpoint_request_access' },
+    },
+    count: {
+      type: 'number',
+      description: 'Number of resources returned in this page',
+      condition: { field: 'operation', value: [...LIST_OUTPUT_OPERATIONS, 'sailpoint_search'] },
+    },
+    totalCount: {
+      type: 'number',
+      description: 'Total matching resources when count=true; otherwise null',
+      condition: {
+        field: 'operation',
+        value: [...LIST_OUTPUT_OPERATIONS, 'sailpoint_search', 'sailpoint_search_aggregate'],
+      },
+    },
   },
 }
 
@@ -870,7 +1734,7 @@ export const SailPointBlockMeta = {
       icon: SailPointIcon,
       title: 'SailPoint orphan account finder',
       prompt:
-        'Create a scheduled workflow that searches SailPoint accounts that are uncorrelated to any identity, writes the orphan list to a table, and opens a review task for the source owners.',
+        'Create a scheduled workflow that lists SailPoint accounts using the uncorrelated filter, groups the orphaned accounts by source, and writes the review-ready inventory to a table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'analysis'],
@@ -928,7 +1792,35 @@ export const SailPointBlockMeta = {
       description:
         'Submit a SailPoint access request and track it to completion via account activities and request status.',
       content:
-        '# Request and Track SailPoint Access\n\nDrive an access request from submission to fulfillment.\n\n## Steps\n1. Search entitlements, roles, or access profiles to resolve the exact item IDs.\n2. Submit an access request (GRANT_ACCESS) for the identities, adding a correlation note in client metadata.\n3. Poll access request status and account activities until the request completes, cancelling if needed.\n\n## Output\nA confirmation of the submitted request plus its current fulfillment status.',
+        '# Request and Track SailPoint Access\n\nDrive an access request from submission to fulfillment.\n\n## Steps\n1. Search entitlements, roles, or access profiles to resolve the exact item IDs and confirm the identity does not already hold the access.\n2. Submit a GRANT_ACCESS request using the flat human shape or the structured per-identity shape when account selection or a machine identity is required.\n3. Record accessRequestIds from newRequests and use access-request status plus account activities to follow fulfillment, cancelling only when authorized and necessary.\n\n## Output\nThe new or existing request IDs, requested items, and current fulfillment status.',
+    },
+    {
+      name: 'review-pending-access-requests',
+      description:
+        'Review pending SailPoint access-request approvals and approve or reject each item with an auditable comment.',
+      content:
+        '# Review Pending SailPoint Access Requests\n\nProcess the approval queue with the context needed for a defensible decision.\n\n## Steps\n1. List pending access-request approvals for the current approver or an authorized owner.\n2. Inspect the requester, target identity, requested object, dates, account selections, prior reviewer comments, and any separation-of-duties context.\n3. Approve justified requests; reject requests that should not proceed and include the required reason.\n\n## Output\nA decision log containing each approval ID, requested access, decision, comment, and provider acceptance status.',
+    },
+    {
+      name: 'complete-certification-review',
+      description:
+        'Review SailPoint certification items, record approve or revoke decisions, and sign off the completed certification.',
+      content:
+        '# Complete a SailPoint Certification Review\n\nWork through an assigned identity certification without losing review context.\n\n## Steps\n1. List certifications for the reviewer and open the target certification.\n2. Page through its access-review items, filtering by entitlement, access profile, or role when needed.\n3. Submit decisions in batches of no more than 250 review items, including comments and proposed end dates for revoke decisions where appropriate.\n4. Re-read the certification and sign it off only after every required item is complete.\n\n## Output\nThe certification status, decision summary, unresolved items, and final sign-off result.',
+    },
+    {
+      name: 'monitor-aggregation-task',
+      description:
+        'Start a SailPoint source aggregation and monitor its task status through completion.',
+      content:
+        '# Monitor a SailPoint Aggregation Task\n\nRun a source import and surface its terminal result.\n\n## Steps\n1. Start an account or entitlement aggregation for the intended source, attaching a CSV only for a compatible delimited-file source.\n2. Capture the returned task ID.\n3. Poll task status until completionStatus is populated, retaining progress, percentComplete, messages, and return values.\n4. Report warnings or errors without treating task submission as successful completion.\n\n## Output\nThe source and task IDs, progress history, completion status, messages, and returned task details.',
+    },
+    {
+      name: 'audit-orphan-accounts',
+      description:
+        'Find uncorrelated SailPoint accounts and prepare a source-grouped orphan-account inventory.',
+      content:
+        '# Audit SailPoint Orphan Accounts\n\nIdentify accounts that are not correlated to an identity.\n\n## Steps\n1. List accounts with the documented uncorrelated filter and request full detail when the audit needs source and attribute context.\n2. Page through all results using limit, offset, and totalCount when requested.\n3. Group accounts by source and preserve account ID, native identity, account name, source, creation and modification timestamps, and entitlement context.\n4. Write the normalized inventory to a table for governance follow-up.\n\n## Output\nA source-grouped orphan-account inventory with stable account identifiers and the evidence needed for review.',
     },
   ],
 } as const satisfies BlockMeta
