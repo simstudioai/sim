@@ -222,10 +222,21 @@ export const CLI_TOOL_TITLES: Record<string, string> = {
   cli_workspaces_get: 'Reading workspace',
   cli_workspaces_list: 'Listing workspaces',
   cli_workspaces_members: 'Listing workspace members',
+  // Agent-only CLI augmentations
+  cli_files_grep: 'Searching file contents',
+  cli_workflow_blocks: 'Listing workflow blocks',
+  cli_workflow_deps: 'Tracing block inputs',
+  cli_workflow_edges: 'Reading workflow wiring',
+  cli_workflow_grep: 'Searching workflow',
+  cli_workflow_lint: 'Validating workflow',
+  cli_workflow_trace: 'Analyzing run trace',
+  cli_workflows_grep: 'Searching workflows',
   // Non-CLI copilot worker tools
   cli_help: 'Checking CLI reference',
   sim_cli: 'Running CLI command',
   run_code: 'Running code',
   load_skill: 'Loading skill',
+  read_output: 'Reading full output',
+  remember: 'Updating memory',
   task: 'Delegating task',
 }
