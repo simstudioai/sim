@@ -80,21 +80,32 @@ export const POST = withRouteHandler(
        * which is why this is not the webhook active-config carve-out, where the
        * reachability already exists and the edit only adjusts it.
        *
-       * Scoped exactly as creation is: each granted workspace resolves the
-       * group governing the caller there, and an organization-only invitation
-       * with no grants falls back to the organization's default group. Run
-       * after the admin check above, for the reason
+       * Each granted workspace resolves the group governing the caller there,
+       * exactly as creation does. The organization scope is checked *as well*
+       * for an organization-kind invitation, not instead: that kind always
+       * admits the invitee to its stamped organization (`lib/invitations/core.ts`
+       * documents it on `resolveInvitationJoinTarget`), so the resend performs an
+       * organization-level admission whichever workspaces it also grants. Gating
+       * only the grants would let an explicit workspace group that permits
+       * invitations carry a member into an organization whose default group
+       * withholds them — and would leave the organization-level act ungated the
+       * moment such an invitation carried any grant at all. A workspace-kind
+       * invitation admits nobody to the organization by itself, so it keeps the
+       * per-grant check, falling back to the organization when it has no grants.
+       *
+       * Run after the admin check above, for the reason
        * `resolveWorkspaceInvitationContext` records — the refusal names an
        * organization setting, so it must not reach someone with no admin reach.
        */
       try {
-        for (const grant of inv.grants) {
-          await validateInvitationsAllowed(session.user.id, { workspaceId: grant.workspaceId })
-        }
-        if (inv.grants.length === 0 && inv.organizationId) {
+        const organizationScoped = inv.kind === 'organization' || inv.grants.length === 0
+        if (organizationScoped && inv.organizationId) {
           await validateInvitationsAllowed(session.user.id, {
             organizationId: inv.organizationId,
           })
+        }
+        for (const grant of inv.grants) {
+          await validateInvitationsAllowed(session.user.id, { workspaceId: grant.workspaceId })
         }
       } catch (error) {
         if (error instanceof InvitationsNotAllowedError) {

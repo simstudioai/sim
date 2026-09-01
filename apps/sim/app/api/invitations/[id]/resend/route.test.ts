@@ -155,6 +155,56 @@ describe('POST /api/invitations/[id]/resend', () => {
     expect(mockValidateInvitationsAllowed).not.toHaveBeenCalled()
   })
 
+  /**
+   * An organization-kind invitation always admits the invitee to its stamped
+   * organization, whichever workspaces it also grants — so the organization
+   * scope is checked as well as, not instead of, the grants. Gating only the
+   * grants would let an explicit workspace group that permits invitations carry
+   * a member into an organization whose default group withholds them.
+   */
+  it('checks the organization scope as well as the grants for an organization invitation', async () => {
+    mockGetInvitationById.mockResolvedValue({ ...workspaceInvitation, kind: 'organization' })
+
+    const response = await callResend()
+
+    expect(response.status).toBe(200)
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
+      organizationId: 'organization-1',
+    })
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
+      workspaceId: 'workspace-1',
+    })
+  })
+
+  it('refuses an organization invitation the organization default group withholds, even when its granted workspace allows', async () => {
+    mockGetInvitationById.mockResolvedValue({ ...workspaceInvitation, kind: 'organization' })
+    mockValidateInvitationsAllowed.mockImplementation(
+      async (_userId: string, scope: { organizationId?: string }) => {
+        if (scope.organizationId) throw new MockInvitationsNotAllowedError()
+      }
+    )
+
+    const response = await callResend()
+
+    expect(response.status).toBe(403)
+    expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+    expect(mockPersistInvitationResend).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A workspace-kind invitation admits nobody to the organization by itself, so
+   * its grants remain the whole scope.
+   */
+  it('leaves a granted workspace invitation checked per workspace only', async () => {
+    const response = await callResend()
+
+    expect(response.status).toBe(200)
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledTimes(1)
+    expect(mockValidateInvitationsAllowed).toHaveBeenCalledWith('user-1', {
+      workspaceId: 'workspace-1',
+    })
+  })
+
   it('resolves the organization default group for an invitation with no grants', async () => {
     mockGetInvitationById.mockResolvedValue({
       ...workspaceInvitation,
