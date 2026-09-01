@@ -34,8 +34,10 @@ function selectorResourceServiceIds(policy: SelectorCredentialPolicy): readonly 
  *
  * An empty result means "no integration identity", which is a pass. That is
  * reserved for the internal selectors — workspace files, knowledge bases,
- * tables — which read only Sim's own data; `selectorIntegrationCoverage` in the
- * manifest test keeps every `provider-server` selector out of it.
+ * tables — which read only Sim's own data. `integration-access.test.ts` keeps
+ * every provider selector out of it: "gives every provider selector an
+ * integration identity" walks the whole manifest and fails on the first
+ * provider-backed selector this function answers with an empty list.
  */
 export function selectorIntegrationBlockTypes(
   attachment: Pick<ServerSelectorAttachment, 'credential' | 'integrationBlockTypes'>
