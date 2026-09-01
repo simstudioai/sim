@@ -9,7 +9,7 @@
  *
  * The write path is column creation on purpose: a TTL column is the only column
  * configuration that causes rows to be deleted on a schedule, so a member of a
- * group denied Tables driving this route is the worst of the sixteen.
+ * group denied Tables driving this route is the worst of them.
  */
 import {
   hybridAuthMockFns,

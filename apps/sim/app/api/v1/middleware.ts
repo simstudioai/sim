@@ -313,12 +313,10 @@ export type V1RouteCapability = StaticPermissionGroupCapability | 'none'
  * to a non-member would confirm the workspace exists and disclose which modules
  * the organization withholds; the role failure conceals both.
  *
- * Takes no caller-supplied user id on purpose. It used to take the same `userId`
- * the role check uses, guard on {@link capabilityGovernedUserId} and then assert
- * against that *other* variable — the two agreed, but nothing made them agree,
- * and a caller passing the key creator's id past a guard that said "personal" is
- * the exact shape this bug has taken twice. The subject is now the guard's own
- * return value, so there is only one id and no way to assert against another.
+ * Takes no caller-supplied user id on purpose: the subject is the guard's own
+ * return value from {@link capabilityGovernedUserId}, so there is only one id —
+ * a caller cannot assert the withhold against a different one (the key
+ * creator's) than the one the guard said was personal.
  */
 export async function resolveCapabilityRefusal(
   rateLimit: RateLimitResult,
@@ -539,12 +537,9 @@ export async function resolveWorkspaceRequestActor(
  *
  * The resolver answers `null` for a real, reachable request: an authenticated
  * workspace key whose workspace has since been archived or deleted has no
- * billed account to stand in as its system actor. Every call site used to
- * `throw` on that, which the route's catch-all turned into a generic 500 — an
- * unreachable workspace reported as a server fault. It is the same condition
- * the routes already report as a 400 `Invalid workspace ID` when the addressed
- * table belongs to another workspace, so it is reported the same way, from one
- * place, rather than five copies of a throw.
+ * billed account to stand in as its system actor. That is the same condition
+ * the routes already report as a 400 `Invalid workspace ID` for a workspace
+ * mismatch, so it is reported the same way, from one place.
  */
 export async function requireWorkspaceRequestActor(
   rateLimit: RateLimitResult,

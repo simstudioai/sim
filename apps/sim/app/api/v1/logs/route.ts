@@ -60,12 +60,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (accessError) return accessError
 
-    /**
-     * `logs.trace_spans` and `logs.cost` are projections, not gates, which is
-     * why this route declares `'none'` above and still has to withhold fields
-     * here. Same helper the internal/v2 detail path uses — a hidden tab
-     * withholds nothing from a caller reading the public API directly.
-     */
+    /** `logs.trace_spans` and `logs.cost` are projections, not gates — see {@link resolveLogFieldProjection}. */
     const projection = await resolveLogFieldProjection(
       capabilityGovernedUserId(rateLimit),
       params.workspaceId
