@@ -23,9 +23,50 @@
  * into every route test, and the only symptom was an unrelated OTP-route test
  * failing on its own partial `zod` mock.
  *
- * Walks runtime `import`/`export … from` specifiers only. `import type` is
- * erased by the compiler and costs nothing at runtime, so a type-only edge into
- * a forbidden module is allowed and deliberately not reported.
+ * Walks `import`/`export … from` specifiers. `import type` is erased by the
+ * compiler and costs nothing at runtime, so a type-only edge into a forbidden
+ * module is allowed and deliberately not reported. A dynamic `import(…)` is
+ * reported when its own target is forbidden but is not walked through — see
+ * {@link DYNAMIC_IMPORT_PATTERN} for both halves of that rule.
+ *
+ * ## Exactly what is guarded, and what is not
+ *
+ * FIVE entry points, listed in {@link GUARDED_ROOTS}: `lib/core/application`,
+ * three permission-group modules (`capabilities`, `capability-assertions`,
+ * `config-scope.server`) and the route wrapper. It is NOT "all of
+ * `lib/permission-groups/`", and the difference is not a rounding error:
+ *
+ *  - `lib/permission-groups/model-access.ts` imports `providers/utils.ts`
+ *    directly, on purpose — deciding which models a group allows is the one
+ *    permission-group question that genuinely needs the provider registry. It is
+ *    unguardable by construction, and the graph test uses it as its proof that
+ *    the walker can still fail.
+ *  - `lib/permission-groups/user-scope.server.ts` — the user-global resolver —
+ *    reaches the workflow graph today, through
+ *    `lib/billing/organizations/membership.ts` -> `lib/billing/core/usage.ts` ->
+ *    `components/emails`. Guarding it is therefore not free: it would go red on
+ *    arrival. It is left unguarded rather than added with an exception, because
+ *    an exception list is how a root stops meaning anything. What holds it
+ *    instead is `check-capability-subject.ts`, which bans a v1 route from
+ *    importing it at all.
+ *
+ * The rule for adding a root is the one the two cases above illustrate: guard an
+ * entry point whose graph EVERY authorizing surface pays for, and only while the
+ * guard passes without exceptions. A module reached by one gate on one path is
+ * not that, however capability-shaped it looks.
+ *
+ * ## What this audit cannot see
+ *
+ *  - A specifier that is not a literal — `import(someVariable)`, or a require
+ *    built from a template string. There is no call graph here, only source
+ *    text.
+ *  - Weight that is not a forbidden prefix. A root can reach an arbitrarily
+ *    expensive module and stay green if that module is not under one of the
+ *    listed trees; the list is a record of what has actually gone wrong, not a
+ *    budget.
+ *  - Whether a deferred edge is hot or cold. A dynamic import on a per-request
+ *    path and one on a once-a-month webhook read identically, which is why the
+ *    deferred check stops at the edge's own target rather than walking past it.
  */
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
@@ -110,10 +151,35 @@ const IMPORT_PATTERN =
  * Matches a side-effect import — `import '…'`, with no clause and so no
  * `from`. It is the heaviest edge of all: the module is loaded purely to run,
  * and nothing in the importing file names it, so it is also the easiest one to
- * miss by eye. Dynamic `import(…)` is not matched: the quote must follow the
- * keyword directly, and a call opens a parenthesis first.
+ * miss by eye. It does not match a dynamic `import(…)`: the quote must follow
+ * the keyword directly, and a call opens a parenthesis first.
  */
 const SIDE_EFFECT_IMPORT_PATTERN = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g
+
+/**
+ * Matches a dynamic `import('…')`, which is CHECKED but not TRAVERSED.
+ *
+ * Checked, because "make it lazy" is the first thing anyone reaches for when
+ * this audit goes red, and on the hot path it moves nothing — a helper the
+ * funnel calls on every gated request still drags the provider registry in, one
+ * request later instead of one import earlier. The pattern is a real one in this
+ * repo (see `scripts/generate-block-successors.ts`, which defers the block
+ * registry so its unit test need not resolve it), so it is a form the walker has
+ * to know about rather than one it can assume absent.
+ *
+ * Not traversed, because a deferred module's own graph is deferred with it.
+ * `lib/billing/core/subscription.ts` — squarely inside the funnel's static graph
+ * — lazily loads `@/components/emails` on a plan-upgrade webhook, and that
+ * template statically imports the workflow graph. Walking through the deferred
+ * hop reports `lib/workflows/schedules/disable-reasons.ts` as an edge every
+ * authorization decision pays for, which it is not: nothing loads it until that
+ * webhook fires. The edge worth reporting is the deferred one itself, when its
+ * TARGET is forbidden.
+ *
+ * `typeof import('…')` is excluded: that is a type query the compiler erases,
+ * the same reason `import type` is dropped above.
+ */
+const DYNAMIC_IMPORT_PATTERN = /(?<!\btypeof\s{0,16})\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
 
 /** Resolves an `@/`- or relative specifier to a file under `apps/sim`, or null. */
 export function resolveSpecifier(specifier: string, fromFile: string): string | null {
@@ -130,11 +196,16 @@ export function resolveSpecifier(specifier: string, fromFile: string): string | 
   return null
 }
 
-/** The runtime specifiers `source` imports, in source order. */
+/** The specifiers `source` loads at module evaluation, in source order. */
 export function runtimeSpecifiers(source: string): string[] {
   return [...source.matchAll(IMPORT_PATTERN), ...source.matchAll(SIDE_EFFECT_IMPORT_PATTERN)]
     .sort((first, second) => (first.index ?? 0) - (second.index ?? 0))
     .map((match) => match[1])
+}
+
+/** The specifiers `source` loads on demand through a dynamic `import(…)` call. */
+export function deferredSpecifiers(source: string): string[] {
+  return [...source.matchAll(DYNAMIC_IMPORT_PATTERN)].map((match) => match[1])
 }
 
 export interface GraphViolation {
@@ -163,6 +234,26 @@ export function findViolations({ root, forbidden }: GuardedRoot): GraphViolation
       source = readFileSync(file, 'utf8')
     } catch {
       continue
+    }
+
+    /**
+     * A deferred edge is reported when its target is forbidden and then dropped:
+     * the module it names is not loaded until the call runs, so its own graph is
+     * not part of what the funnel costs. See {@link DYNAMIC_IMPORT_PATTERN}.
+     */
+    for (const specifier of deferredSpecifiers(source)) {
+      const next = resolveSpecifier(specifier, file)
+      if (next === null) continue
+      const rel = relative(APP_ROOT, next)
+      const prefix = Object.keys(forbidden).find((candidate) => rel.startsWith(candidate))
+      if (prefix === undefined || reported.has(prefix)) continue
+      reported.add(prefix)
+      violations.push({
+        root,
+        forbidden: rel,
+        reason: `${forbidden[prefix]} (reached by a deferred \`import()\`, which defers the load but not the dependency)`,
+        path: [...path, next].map((entry) => relative(APP_ROOT, entry)),
+      })
     }
 
     for (const specifier of runtimeSpecifiers(source)) {

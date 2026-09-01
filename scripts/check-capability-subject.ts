@@ -30,17 +30,48 @@
  *      under assertion C.
  *   C  every call to a capability sink passes a subject that came from
  *      `capabilityGovernedUserId` — the call expression inline, or a local bound
- *      to it. An id read off `rateLimit`/`auth` is the failure this exists for.
- *      Import aliases (`sink as local`) are folded in, and a local of the
- *      audit's own name is refused outright: either one turns a source-text
- *      match into a no-op that still passes.
+ *      to it — and passes it WITHOUT a fallback. An id read off
+ *      `rateLimit`/`auth` is the failure this exists for. Import aliases
+ *      (`sink as local`) are folded in, and a local of the audit's own name is
+ *      refused outright: either one turns a source-text match into a no-op that
+ *      still passes.
  *   D  at least one governed sink call was actually found. The assertions are
  *      source-text matches, so a refactor into a form the parser cannot follow
  *      would otherwise be indistinguishable from a clean tree.
  *
+ * The fallback half of C is the one evasion that survived the first version of
+ * this audit. `capabilityGovernedUserId(rateLimit) ?? rateLimit.userId` is what
+ * a reviewer writes when the governed subject's `null` reads as a gap to be
+ * filled — it satisfies the prefix match, it reintroduces the key-creator
+ * substitution verbatim, and it used to increment the liveness counter, so the
+ * audit reported itself MORE alive for the evasion. Both the inline form and the
+ * bound-local form (`const id = capabilityGovernedUserId(x) ?? x.userId`) are
+ * findings.
+ *
  * Scope is v1 on purpose. It is the one surface that authorizes in a middleware
  * of its own rather than through `authorizeWorkspaceOperation`, which decides
  * from a `Principal` that has no user to substitute in the first place.
+ *
+ * ## What this audit does not cover
+ *
+ * - Assertion B bans a fixed list of modules, and `@/lib/logs/log-projection` is
+ *   deliberately absent from it: three v1 logs routes import it by design,
+ *   because a log FIELD PROJECTION is not a gate the middleware can apply — the
+ *   route reads the whole log and blanks fields. `resolveLogFieldProjection` is
+ *   on the sink list instead, which is the stronger check of the two: B asks
+ *   only whether a module was imported, C asks what subject its sink was given.
+ *   A capability decider added under `lib/permission-groups/` belongs on B; one
+ *   whose call site is legitimately a route belongs on C.
+ * - The sink list is enumerated, not derived. A new helper that takes a user id
+ *   and resolves a capability is invisible until it is added to
+ *   `CAPABILITY_SINKS` — assertion D catches only the case where EVERY governed
+ *   call disappears, not the case where one new ungoverned sink appears beside
+ *   them.
+ * - `subject` is matched as source text. A subject laundered through a helper
+ *   (`subjectFor(rateLimit)`) reads as ungoverned and is reported, which is the
+ *   safe direction; a subject laundered through an object property
+ *   (`ctx.governed`, assigned from the governed call elsewhere) is also reported.
+ *   Neither is followed across files — this audit has no call graph.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -153,6 +184,43 @@ function callArguments(source: string, openIndex: number): string | null {
   return null
 }
 
+/**
+ * Whether an expression contains a top-level `??` or `||`.
+ *
+ * `capabilityGovernedUserId(rateLimit) ?? rateLimit.userId` is the natural fix
+ * for the null the governed subject returns on a workspace key, and it is the
+ * exact substitution this audit exists to stop: the prefix match sees the
+ * governed call, the fallback supplies the key creator, and the sink is asked
+ * about the creator on every workspace-key request. Nested groups and string
+ * bodies are skipped so a `??` inside an argument list is not mistaken for one
+ * applied to the subject.
+ */
+export function hasTopLevelFallback(expression: string): boolean {
+  let depth = 0
+  let quote: string | null = null
+  for (let index = 0; index < expression.length; index++) {
+    const char = expression[index]
+    if (quote) {
+      if (char === quote && expression[index - 1] !== '\\') quote = null
+      continue
+    }
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char
+      continue
+    }
+    if (char === '(' || char === '[' || char === '{') depth++
+    else if (char === ')' || char === ']' || char === '}') depth--
+    else if (
+      depth === 0 &&
+      ((char === '?' && expression[index + 1] === '?') ||
+        (char === '|' && expression[index + 1] === '|'))
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
 function lineOf(source: string, index: number): number {
   return source.slice(0, index).split('\n').length
 }
@@ -177,7 +245,15 @@ export function auditSource(file: string, source: string): { findings: Finding[]
     }
   }
 
-  /** Locals bound to the governed id, so a call may pass the variable rather than the call. */
+  /**
+   * Locals bound to the governed id, so a call may pass the variable rather than
+   * the call.
+   *
+   * A binding that falls back — `const id = capabilityGovernedUserId(x) ?? x.userId`
+   * — is refused rather than registered: the local then holds the key creator on
+   * exactly the requests the governed subject was written to exclude, and every
+   * sink taking it would be counted as governed.
+   */
   const governedLocals = new Set<string>()
   for (const match of source.matchAll(
     new RegExp(
@@ -185,6 +261,29 @@ export function auditSource(file: string, source: string): { findings: Finding[]
       'g'
     )
   )) {
+    const openIndex = match.index + match[0].length - 1
+    const argumentText = callArguments(source, openIndex)
+    const closeIndex = argumentText === null ? -1 : openIndex + 1 + argumentText.length
+    const statementEnd = source.slice(closeIndex + 1).search(/[;\n]/)
+    const trailing =
+      closeIndex === -1
+        ? ''
+        : source.slice(
+            closeIndex + 1,
+            statementEnd === -1 ? undefined : closeIndex + 1 + statementEnd
+          )
+    if (/^\s*(\?\?|\|\|)/.test(trailing)) {
+      findings.push({
+        file,
+        line: lineOf(source, match.index),
+        message:
+          `\`${match[1]}\` falls back when \`${GOVERNED}\` names nobody. That null is the ` +
+          'answer, not a gap: a workspace API key authorizes as the workspace and its reported ' +
+          "user id is the key's creator, so the fallback hands a bystander's permission group to " +
+          'every caller of a shared credential — the substitution this audit exists to stop.',
+      })
+      continue
+    }
     governedLocals.add(match[1])
   }
 
@@ -239,6 +338,24 @@ export function auditSource(file: string, source: string): { findings: Finding[]
         subject.startsWith(`await ${GOVERNED}(`) ||
         governedLocals.has(subject)
       if (governed) {
+        /**
+         * A governed call with a fallback welded to it is worse than an ungoverned
+         * one: it reads as the fix, it passes the prefix match, and it used to
+         * INCREMENT the liveness counter below — so the evasion made the audit
+         * look more alive, not less.
+         */
+        if (hasTopLevelFallback(subject)) {
+          findings.push({
+            file,
+            line: lineOf(source, match.index),
+            message:
+              `${sink}(...) is asked about \`${subject}\`, which falls back when ` +
+              `\`${GOVERNED}\` names nobody. The null is the answer: a workspace API key has no ` +
+              "governed person, and the fallback substitutes the key's creator. Refuse, project, " +
+              'or pass the null through — do not replace it.',
+          })
+          continue
+        }
         sinks++
         continue
       }
