@@ -155,4 +155,26 @@ describe('ResourcePersistenceQueue', () => {
     await vi.waitFor(() => expect(persist).toHaveBeenCalledTimes(2))
     expect(persist.mock.calls[1]).toEqual(['chat-1', { ...TABLE_RESOURCE, viewId: 'view-b' }])
   })
+
+  it('retries a failed deletion on the next flush', async () => {
+    const first = deferred<unknown>()
+    const persist = vi.fn<(chatId: string, update: MothershipResourceUpdate) => Promise<unknown>>()
+    const remove = vi
+      .fn<() => Promise<unknown>>()
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce({ success: true })
+    const queue = new ResourcePersistenceQueue({ persist, onError })
+
+    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id)
+    removal.scheduleDelete('chat-1', remove)
+    first.reject(new Error('offline'))
+    await Promise.allSettled(Array.from(queue.inFlight.values()))
+
+    expect(queue.pendingKeys.has(`${TABLE_RESOURCE.type}:${TABLE_RESOURCE.id}`)).toBe(true)
+    expect(onError).toHaveBeenCalledOnce()
+    await queue.flush('chat-1')
+
+    expect(remove).toHaveBeenCalledTimes(2)
+    expect(queue.pendingKeys.size).toBe(0)
+  })
 })

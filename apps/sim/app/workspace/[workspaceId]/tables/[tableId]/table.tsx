@@ -726,8 +726,8 @@ export function Table({
       viewPin.viewId,
       pendingCreatedViewIdRef.current
     )
-    if (!transition.nextViewId) return
     pendingCreatedViewIdRef.current = transition.pendingCreatedViewId
+    if (!transition.nextViewId) return
     preservedViewStateRef.current = null
     setTableParams({ view: transition.nextViewId })
   }, [embedded, viewPin, views, activeViewId, tableId, consumeViewPin, setTableParams])

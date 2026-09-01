@@ -1815,7 +1815,7 @@ export function useChat(
         (r) => r.type === resourceUpdate.type && r.id === resourceUpdate.id
       )
       const resource = mergeChatResource(existing, resourceUpdate)
-      if (existing && resource === existing) {
+      if (existing && resource === existing && resourceUpdate.clearViewId !== true) {
         return false
       }
 
@@ -1861,8 +1861,6 @@ export function useChat(
       scheduleDelete(persistChatId, () =>
         requestJson(removeMothershipChatResourceContract, {
           body: { chatId: persistChatId, resourceType, resourceId },
-        }).catch((err) => {
-          logger.warn('Failed to persist resource removal', err)
         })
       )
     },

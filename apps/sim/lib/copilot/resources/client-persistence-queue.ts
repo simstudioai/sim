@@ -25,6 +25,7 @@ export class ResourcePersistenceQueue {
 
   private readonly desiredUpdates = new Map<string, MothershipResourceUpdate>()
   private readonly failedKeys = new Set<string>()
+  private readonly pendingRemovals = new Map<string, () => Promise<unknown>>()
   private readonly persistedKeys = new Set<string>()
   private readonly removalTokens = new Map<string, symbol>()
   private readonly writeTokens = new Map<string, symbol>()
@@ -45,6 +46,7 @@ export class ResourcePersistenceQueue {
     const trackedLocally =
       this.desiredUpdates.has(key) || this.pendingKeys.has(key) || this.inFlight.has(key)
     if (base && !trackedLocally) this.persistedKeys.add(key)
+    this.pendingRemovals.delete(key)
     this.removalTokens.delete(key)
     const previous = this.desiredUpdates.get(key) ?? base
     this.desiredUpdates.set(key, mergePendingChatResourceUpdate(previous, update))
@@ -73,12 +75,14 @@ export class ResourcePersistenceQueue {
     const inFlight = this.inFlight.get(key)
     const wasPersisted = this.persistedKeys.delete(key)
     const removalToken = Symbol(key)
+    this.pendingRemovals.delete(key)
     this.removalTokens.set(key, removalToken)
     this.desiredUpdates.delete(key)
     this.failedKeys.delete(key)
     return {
       inFlight,
       scheduleDelete: (chatId, remove) => {
+        this.pendingRemovals.set(key, remove)
         const startRemoval = () => this.startRemoval(key, chatId, removalToken, remove)
         if (inFlight) {
           void inFlight.then(startRemoval, startRemoval)
@@ -103,6 +107,7 @@ export class ResourcePersistenceQueue {
     this.inFlight.clear()
     this.desiredUpdates.clear()
     this.failedKeys.clear()
+    this.pendingRemovals.clear()
     this.persistedKeys.clear()
     this.removalTokens.clear()
     this.writeTokens.clear()
@@ -110,7 +115,14 @@ export class ResourcePersistenceQueue {
 
   private startPending(chatId: string): void {
     for (const key of this.pendingKeys) {
-      if (!this.failedKeys.has(key) && !this.inFlight.has(key)) this.start(key, chatId)
+      if (this.failedKeys.has(key) || this.inFlight.has(key)) continue
+      const pendingRemoval = this.pendingRemovals.get(key)
+      const removalToken = this.removalTokens.get(key)
+      if (pendingRemoval && removalToken) {
+        this.startRemoval(key, chatId, removalToken, pendingRemoval)
+        continue
+      }
+      this.start(key, chatId)
     }
   }
 
@@ -122,22 +134,33 @@ export class ResourcePersistenceQueue {
   ): void {
     if (this.removalTokens.get(key) !== removalToken) return
 
+    this.pendingKeys.delete(key)
+    let succeeded = false
     const writeToken = Symbol(key)
     const tracked = Promise.resolve()
-      .then(() => {
+      .then(async () => {
         if (this.removalTokens.get(key) !== removalToken) return
-        return remove()
+        await remove()
+        succeeded = true
       })
-      .catch(this.onError)
+      .catch((error) => {
+        if (this.removalTokens.get(key) !== removalToken) return
+        this.pendingKeys.add(key)
+        this.failedKeys.add(key)
+        this.onError(error)
+      })
       .finally(() => {
         if (this.writeTokens.get(key) !== writeToken) return
         this.writeTokens.delete(key)
         this.inFlight.delete(key)
-        if (this.removalTokens.get(key) === removalToken) {
+        if (succeeded && this.removalTokens.get(key) === removalToken) {
+          this.pendingRemovals.delete(key)
           this.removalTokens.delete(key)
           this.persistedKeys.delete(key)
         }
-        if (this.pendingKeys.has(key)) this.start(key, chatId)
+        if (this.removalTokens.get(key) !== removalToken && this.pendingKeys.has(key)) {
+          this.start(key, chatId)
+        }
       })
     this.writeTokens.set(key, writeToken)
     this.inFlight.set(key, tracked)
