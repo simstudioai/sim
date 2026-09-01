@@ -320,7 +320,54 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
     if (workflowName || blockName) return getToolDisplayTitle(name, enriched)
   }
 
+  // CLI rows: name the resource. The command's first positional is the id;
+  // recover it by inverting the worker's name derivation (path tokens joined
+  // with '_'), then resolve through the live stores. "Editing workflow"
+  // becomes "Editing Onboarding"; "Updating table row" becomes "Updating
+  // Leads row". Only a successful name lookup changes anything.
+  if (name.startsWith('cli_workflow') || name.startsWith('cli_tables')) {
+    const positional = cliFirstPositional(name, args)
+    if (positional) {
+      const base = getToolDisplayTitle(name, args)
+      const resourceName = name.startsWith('cli_tables')
+        ? resolveTableNameForDisplay(positional)
+        : resolveWorkflowNameForDisplay(positional)
+      if (resourceName) {
+        const noun = name.startsWith('cli_tables') ? /\btable\b/ : /\bworkflow\b/
+        if (noun.test(base)) return base.replace(noun, resourceName)
+        return `${base}: ${resourceName}`
+      }
+    }
+  }
+
   return getToolDisplayTitle(name, args)
+}
+
+/**
+ * The first positional argument after a CLI command path — the resource id.
+ * Inverts the worker's `cli_<path tokens joined by _>` naming to find where the
+ * command path ends in argv, mirroring its flag handling exactly.
+ */
+function cliFirstPositional(name: string, args?: Record<string, unknown>): string | undefined {
+  const argv = Array.isArray(args?.args) ? (args.args as unknown[]) : undefined
+  if (!argv) return undefined
+  const tokens: string[] = []
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i]
+    if (typeof token !== 'string') break
+    if (token === '--output') {
+      i++
+      continue
+    }
+    if (token.startsWith('-')) break
+    tokens.push(token)
+  }
+  let joined = 'cli'
+  for (let i = 0; i < tokens.length; i++) {
+    joined += `_${(tokens[i] ?? '').replace(/-/g, '_')}`
+    if (joined === name) return tokens[i + 1]
+  }
+  return undefined
 }
 
 function decodeStreamingString(value: string): string {
@@ -368,6 +415,11 @@ export function resolveStreamingToolDisplayTitle(
 ): string | undefined {
   if (name === RunFunction.id) {
     return functionExecuteTitle(matchStreamingStringArg(streamingArgs, 'title'))
+  }
+
+  if (name === 'task') {
+    const title = matchStreamingStringArg(streamingArgs, 'title')
+    if (title) return `Delegating: ${title}`
   }
 
   if (name === PrepareFileEdit.id) {
