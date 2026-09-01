@@ -120,6 +120,7 @@ import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
   QueuedMothershipMessage,
@@ -3400,6 +3401,7 @@ export function useChat(
             // subagent) — the server gates the features on these flags.
             ...desktopChatCapabilities,
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            effort: useMothershipEffortStore.getState().effort,
           }),
           signal: abortController.signal,
         })

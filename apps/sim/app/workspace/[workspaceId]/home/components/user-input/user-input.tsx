@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, cn, Tooltip, toast } from '@sim/emcn'
+import { Button, Chip, ChipDropdown, cn, Tooltip, toast } from '@sim/emcn'
 import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
@@ -42,6 +42,11 @@ import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import {
+  MOTHERSHIP_EFFORT_OPTIONS,
+  type MothershipEffort,
+  useMothershipEffortStore,
+} from '@/stores/mothership-effort/store'
 import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
@@ -535,6 +540,9 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     editorRef.current.openResourceMenu({ left: rect.left, top: rect.top })
   }, [])
 
+  const effort = useMothershipEffortStore((state) => state.effort)
+  const setEffort = useMothershipEffortStore((state) => state.setEffort)
+
   const handleSlashTriggerClick = useCallback(() => {
     editorRef.current.insertSlashTrigger()
   }, [])
@@ -610,6 +618,12 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Skills</Tooltip.Content>
           </Tooltip.Root>
+          <ChipDropdown
+            options={MOTHERSHIP_EFFORT_OPTIONS}
+            value={effort}
+            placeholder='Effort'
+            onChange={(value) => setEffort(value as MothershipEffort)}
+          />
         </div>
         <div className='flex items-center gap-1.5'>
           {isSttSupported && (
