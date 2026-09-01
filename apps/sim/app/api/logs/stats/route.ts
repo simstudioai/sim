@@ -71,12 +71,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
        * workspace access check above has already passed, so the caller is a
        * member learning about their own group.
        */
-      const hideCostInfo = await isWorkspaceCapabilityWithheld(
-        userId,
-        params.workspaceId,
-        'logs.cost'
-      )
-      if (hideCostInfo && logQuerySelectsCost(params)) {
+      if (
+        logQuerySelectsCost(params) &&
+        (await isWorkspaceCapabilityWithheld(userId, params.workspaceId, 'logs.cost'))
+      ) {
         return capabilityRefusalResponse('logs.cost')
       }
 
