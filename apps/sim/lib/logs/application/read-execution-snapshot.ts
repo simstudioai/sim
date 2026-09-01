@@ -59,6 +59,7 @@ interface ExecutionSnapshotContext extends ActiveWorkspaceApplicationContext {
 
 export interface ReadExecutionSnapshotInput {
   executionId: string
+  assertedWorkspaceId?: string
   signal?: AbortSignal
 }
 
@@ -87,6 +88,12 @@ async function resolveExecutionSnapshotContext(
   input.signal?.throwIfAborted()
 
   if (workflowRecord) {
+    if (
+      input.assertedWorkspaceId !== undefined &&
+      workflowRecord.workspaceId !== input.assertedWorkspaceId
+    ) {
+      throw new OrchestrationError('not_found', 'Workflow execution not found')
+    }
     const workspace = await resolveActiveWorkspaceApplicationContext(workflowRecord.workspaceId)
     input.signal?.throwIfAborted()
     return {
@@ -113,6 +120,12 @@ async function resolveExecutionSnapshotContext(
   input.signal?.throwIfAborted()
 
   if (!jobRecord) throw new OrchestrationError('not_found', 'Workflow execution not found')
+  if (
+    input.assertedWorkspaceId !== undefined &&
+    jobRecord.workspaceId !== input.assertedWorkspaceId
+  ) {
+    throw new OrchestrationError('not_found', 'Workflow execution not found')
+  }
   const workspace = await resolveActiveWorkspaceApplicationContext(jobRecord.workspaceId)
   input.signal?.throwIfAborted()
   return { ...workspace, executionId, record: { kind: 'job', ...jobRecord } }

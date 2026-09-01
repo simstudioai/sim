@@ -1,8 +1,8 @@
 /**
  * @vitest-environment node
  */
-import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   activate: vi.fn(),
@@ -34,16 +34,7 @@ import {
   undeployWorkflowDeployment,
 } from '@/lib/internal/deployments/client'
 
-const principal: DelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:workflows',
-  issuedAt: new Date('2026-01-01T00:00:00Z'),
-  expiresAt: new Date('2026-01-01T00:05:00Z'),
-}
+const principal = createTestRuntimePrincipal()
 
 const context = { principal, requestId: 'request-1' }
 

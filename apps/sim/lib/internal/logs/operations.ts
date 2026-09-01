@@ -63,7 +63,11 @@ export async function executeLogsGetExecution(
 ) {
   const result = await readExecutionSnapshotUseCase.execute({
     principal: context.principal,
-    input: { executionId, signal: context.signal },
+    input: {
+      executionId,
+      assertedWorkspaceId: context.workspaceId,
+      signal: context.signal,
+    },
   })
   return complete(context, result)
 }

@@ -3,6 +3,7 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
@@ -70,12 +71,7 @@ function request(
 describe('executeDeploymentsTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.createPrincipal.mockResolvedValue({
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
+    mocks.createPrincipal.mockResolvedValue(createTestRuntimePrincipal())
     for (const operation of Object.values(DISPATCH)) {
       operation.mockResolvedValue({ success: true, output: { ok: true } })
     }

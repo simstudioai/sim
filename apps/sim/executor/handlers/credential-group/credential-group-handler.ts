@@ -98,11 +98,11 @@ export class CredentialGroupBlockHandler implements BlockHandler {
     _block: SerializedBlock,
     inputs: Record<string, unknown>
   ): Promise<BlockOutput> {
-    if (!ctx.workspaceId) throw new Error('workspaceId is required for Credential Group operations')
     const operation = parseOperation(inputs.operation)
     if (!ctx.principal?.executionMetadata) {
       throw new Error('Credential Group operations require an authenticated workflow execution')
     }
+    const executionWorkspaceId = requireExecutorWorkspaceId(ctx)
     const credentialGroupId =
       operation === 'list_groups'
         ? undefined
@@ -121,6 +121,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
           principal,
           input: {
             credentialGroupId: credentialGroupId!,
+            assertedWorkspaceId: executionWorkspaceId,
             limit: parseLimit(inputs.limit),
             cursor: parseOptionalString(inputs.cursor, 'Cursor'),
             email: parseOptionalString(inputs.email, 'Email'),
@@ -153,11 +154,12 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         return result
       }
       case 'send_invite': {
-        await enforceCredentialGroupInvitationExecutionRateLimit(requireExecutorWorkspaceId(ctx))
+        await enforceCredentialGroupInvitationExecutionRateLimit(executionWorkspaceId)
         const result = await sendCredentialGroupInvite.execute({
           principal,
           input: {
             credentialGroupId: credentialGroupId!,
+            assertedWorkspaceId: executionWorkspaceId,
             email: requireString(inputs.email, 'Email'),
           },
         })
@@ -174,11 +176,12 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         }
       }
       case 'get_invite_link': {
-        await enforceCredentialGroupInvitationExecutionRateLimit(requireExecutorWorkspaceId(ctx))
+        await enforceCredentialGroupInvitationExecutionRateLimit(executionWorkspaceId)
         const result = await createCredentialGroupInviteLink.execute({
           principal,
           input: {
             credentialGroupId: credentialGroupId!,
+            assertedWorkspaceId: executionWorkspaceId,
             email: requireString(inputs.email, 'Email'),
           },
         })
@@ -205,6 +208,7 @@ export class CredentialGroupBlockHandler implements BlockHandler {
           principal,
           input: {
             credentialGroupId: credentialGroupId!,
+            assertedWorkspaceId: executionWorkspaceId,
             limit: parseLimit(inputs.limit),
             cursor: parseOptionalString(inputs.cursor, 'Cursor'),
             email: parseOptionalString(inputs.email, 'Email'),
@@ -222,13 +226,13 @@ export class CredentialGroupBlockHandler implements BlockHandler {
         const result = await listCredentialGroupsForWorkflow.execute({
           principal,
           input: {
-            workspaceId: ctx.workspaceId,
+            workspaceId: executionWorkspaceId,
             limit: parseLimit(inputs.limit),
             cursor: parseOptionalString(inputs.cursor, 'Cursor'),
           },
         })
         logger.info('Listed Credential Groups', {
-          workspaceId: ctx.workspaceId,
+          workspaceId: executionWorkspaceId,
           count: result.count,
           hasMore: result.hasMore,
         })

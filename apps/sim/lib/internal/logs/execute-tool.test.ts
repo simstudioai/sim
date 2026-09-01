@@ -2,11 +2,9 @@
  * @vitest-environment node
  */
 
-import {
-  PrincipalSubjectUserRequiredError,
-  type WorkflowExecutionDelegatedPrincipal,
-} from '@sim/auth/principal'
+import { PrincipalSubjectUserRequiredError } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { ExecutionContext } from '@/executor/types'
 
 const mocks = vi.hoisted(() => ({
@@ -32,17 +30,7 @@ vi.mock('@/lib/internal/logs/operations', () => ({
 import { executeLogsTool } from '@/lib/internal/logs/execute-tool'
 import { WorkflowExecutionPrincipalRequiredError } from '@/lib/internal/tool-operations/identity-faults'
 
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-canonical',
-  delegationId: 'delegation-1',
-  audience: 'sim:logs',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2026-08-27T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
+const PRINCIPAL = createTestRuntimePrincipal()
 
 const CONTEXT = { userId: 'user-1', workflowId: 'workflow-1' } as ExecutionContext
 

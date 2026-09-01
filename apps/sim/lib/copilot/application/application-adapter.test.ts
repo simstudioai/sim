@@ -118,12 +118,12 @@ describe('Copilot application adapter', () => {
   })
 
   it('rejects an operation whose delegated identity policy excludes Copilot', () => {
-    const executorOperation = defineWorkspaceOperation({
-      id: 'files.executor_only',
+    const realtimeOperation = defineWorkspaceOperation({
+      id: 'files.realtime_only',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
-      delegatedServices: ['executor'],
+      delegatedServices: ['realtime'],
       capability: 'files.use',
     })
     const execute = vi.fn()
@@ -133,18 +133,18 @@ describe('Copilot application adapter', () => {
     >({
       domain: 'file',
       delegation,
-      operations: { executorOnly: executorOperation },
+      operations: { realtimeOnly: realtimeOperation },
       projectResourceScope: ({ fileId }) => ({ fileId }),
     })
 
     expect(() =>
       executeCopilotUseCase(
         trustedContext,
-        { operation: executorOperation, execute },
+        { operation: realtimeOperation, execute },
         {},
         { fileId: 'file-1' }
       )
-    ).toThrow('Delegated service copilot cannot perform operation files.executor_only')
+    ).toThrow('Delegated service copilot cannot perform operation files.realtime_only')
     expect(execute).not.toHaveBeenCalled()
   })
 

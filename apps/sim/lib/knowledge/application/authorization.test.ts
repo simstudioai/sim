@@ -52,10 +52,10 @@ describe('knowledge delegation policy', () => {
     expect(principal.audience).not.toBe(knowledgeDelegationPolicy.audience)
   })
 
-  it('accepts a correctly scoped executor delegation for executor-enabled operations', () => {
+  it('accepts a correctly scoped Copilot delegation', () => {
     const principal: DelegatedPrincipal = {
       kind: 'delegated',
-      serviceId: 'executor',
+      serviceId: 'copilot',
       subjectUserId: 'user-1',
       workspaceId: 'workspace-1',
       delegationId: 'execution-1',

@@ -6,6 +6,7 @@
  * the adapter must not load it. These pin the semantics that move with it.
  */
 import { describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: { scopeCompatible: vi.fn(() => true) },
@@ -33,32 +34,21 @@ const TABLE = {
 } as unknown as TableDefinition
 
 const SESSION = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
-const EXECUTOR = {
-  kind: 'delegated' as const,
-  serviceId: 'executor' as const,
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'table',
-  issuedAt: new Date('2026-01-01'),
-  expiresAt: new Date('2099-01-02'),
-  delegationContext: {
-    kind: 'workflow_execution' as const,
+const EXECUTOR = createTestRuntimePrincipal({
+  principal: {
+    kind: 'system',
+    serviceId: 'webhook',
+    workspaceId: 'workspace-1',
     workflowId: 'workflow-1',
-    currentWorkflow: {
-      workflowId: 'workflow-1',
-      mode: 'deployment' as const,
-      deploymentVersionId: 'deployment-1',
-    },
-    principal: {
-      kind: 'system' as const,
-      serviceId: 'webhook' as const,
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      webhookId: 'webhook-1',
-      provider: 'generic',
-    },
+    webhookId: 'webhook-1',
+    provider: 'generic',
   },
-}
+  currentWorkflow: {
+    workflowId: 'workflow-1',
+    mode: 'deployment',
+    deploymentVersionId: 'deployment-1',
+  },
+})
 
 /**
  * A provenance shape the real `isResolvedSecretTraceProvenanceV1` accepts.

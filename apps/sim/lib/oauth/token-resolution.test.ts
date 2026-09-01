@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const {
   mockAuthorizeCredentialUseForAuth,
@@ -365,12 +366,7 @@ const MANAGED_RESOLVED = {
   usedCredentialTable: true,
 } as const
 
-const EXECUTOR_PRINCIPAL = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'ws-1',
-} as never
+const EXECUTOR_PRINCIPAL = createTestRuntimePrincipal()
 
 describe('resolveCredentialAccessToken', () => {
   const authenticate = vi.fn()

@@ -40,6 +40,7 @@ import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-sco
  * capabilities.
  */
 export function capabilityGovernedPrincipalUserId(principal: Principal): string | null {
+  if (principal.executionMetadata !== undefined) return null
   switch (principal.kind) {
     case 'session':
     case 'personal_api_key':
@@ -211,7 +212,7 @@ async function authorizeWorkflowExecution<C extends WorkspaceAuthorizationContex
 
   const subject = resolvePrincipalSubject(principal)
   if (subject?.kind === 'sim_user') {
-    await requireCurrentHumanPermission(subject.userId, context, operation.minimumRole, options)
+    await requireCurrentHumanRole(subject.userId, context, operation.minimumRole, options)
     return
   }
   if (executionMetadata.currentWorkflow.mode !== 'deployment') {

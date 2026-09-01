@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import type { ExecutionContext } from '@/executor/types'
 
 const { mocks } = vi.hoisted(() => ({
@@ -31,21 +32,12 @@ import {
   readAvailableCustomToolByIdOrTitleAsExecutor,
 } from '@/lib/internal/custom-tools/read-available-by-id-or-title'
 
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'executor' as const,
-  subjectUserId: 'user-1',
-  workspaceId: 'canonical-workspace',
-  delegationId: 'delegation-1',
-  audience: 'sim:custom-tools',
-  issuedAt: new Date('2026-01-01T00:00:00Z'),
-  expiresAt: new Date('2027-01-01T00:00:00Z'),
-}
+const principal = createTestRuntimePrincipal()
 
 const tool = {
   id: 'tool-1',
-  workspaceId: principal.workspaceId,
-  userId: principal.subjectUserId,
+  workspaceId: 'canonical-workspace',
+  userId: 'user-1',
   title: 'lookup_order',
   schema: { type: 'function' },
   code: 'return 1',
@@ -78,7 +70,7 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
     mocks.executeCopilot.mockResolvedValue({ tool })
   })
 
-  it('constructs an executor principal and uses its canonical workspace', async () => {
+  it('constructs a runtime principal and uses its canonical workspace', async () => {
     const context = executionContext()
 
     await expect(
@@ -95,7 +87,7 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
     expect(mocks.readUseCase.execute).toHaveBeenCalledWith({
       principal,
       input: {
-        workspaceId: principal.workspaceId,
+        workspaceId: 'canonical-workspace',
         identifier: tool.id,
         lookup: 'id',
       },
@@ -104,18 +96,20 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
 
   it('forwards the principal-bound legacy execution actor for an actorless principal', async () => {
     const context = executionContext()
-    const actorlessPrincipal = {
-      ...principal,
-      subjectUserId: undefined,
-      delegationContext: {
-        kind: 'workflow_execution' as const,
+    const actorlessPrincipal = createTestRuntimePrincipal({
+      principal: {
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'canonical-workspace',
         workflowId: 'workflow-1',
-        compatibilityActor: {
-          kind: 'legacy_execution_user' as const,
-          userId: 'user-1',
-        },
       },
-    }
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-1',
+      },
+      compatibilityActorUserId: 'user-1',
+    })
     mocks.createPrincipal.mockResolvedValueOnce(actorlessPrincipal)
 
     await readAvailableCustomToolByIdOrTitleAsExecutor({
@@ -127,7 +121,7 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
     expect(mocks.readUseCase.execute).toHaveBeenCalledWith({
       principal: actorlessPrincipal,
       input: {
-        workspaceId: principal.workspaceId,
+        workspaceId: 'canonical-workspace',
         identifier: tool.id,
         lookup: 'id',
       },

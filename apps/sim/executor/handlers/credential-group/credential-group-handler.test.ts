@@ -111,6 +111,7 @@ describe('CredentialGroupBlockHandler', () => {
       principal,
       input: {
         credentialGroupId: 'group-1',
+        assertedWorkspaceId: 'workspace-1',
         email: 'person@example.com',
         credentialProviderIds: ['google-email'],
         limit: 25,
@@ -159,6 +160,7 @@ describe('CredentialGroupBlockHandler', () => {
       principal: actorlessPrincipal,
       input: {
         credentialGroupId: 'group-1',
+        assertedWorkspaceId: 'workspace-1',
         limit: 100,
         cursor: undefined,
         email: undefined,
@@ -242,7 +244,11 @@ describe('CredentialGroupBlockHandler', () => {
     )
     expect(mocks.sendInvite).toHaveBeenCalledWith({
       principal,
-      input: { credentialGroupId: 'group-1', email: 'person@example.com' },
+      input: {
+        credentialGroupId: 'group-1',
+        assertedWorkspaceId: 'workspace-1',
+        email: 'person@example.com',
+      },
     })
   })
 
@@ -273,7 +279,11 @@ describe('CredentialGroupBlockHandler', () => {
     )
     expect(mocks.createInviteLink).toHaveBeenCalledWith({
       principal,
-      input: { credentialGroupId: 'group-1', email: 'person@example.com' },
+      input: {
+        credentialGroupId: 'group-1',
+        assertedWorkspaceId: 'workspace-1',
+        email: 'person@example.com',
+      },
     })
     expect(mocks.sendInvite).not.toHaveBeenCalled()
     expect(result).toEqual({

@@ -3,6 +3,7 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   getPausedExecutionDetail: vi.fn(),
@@ -112,24 +113,15 @@ describe('readPausedWorkflowExecution', () => {
     expect(mocks.getPausedExecutionDetail).not.toHaveBeenCalled()
   })
 
-  it('rejects executor delegation before canonical lookup', async () => {
-    const principal: Principal = {
-      kind: 'delegated',
-      serviceId: 'executor',
-      workspaceId: 'workspace-1',
-      delegationId: 'execution-delegation-1',
-      audience: 'sim:workflows',
-      issuedAt: new Date('2026-01-01T00:00:00.000Z'),
-      expiresAt: new Date('2999-01-01T00:00:00.000Z'),
-      delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-    }
+  it('rejects workflow execution before canonical lookup', async () => {
+    const principal: Principal = createTestRuntimePrincipal()
 
     await expect(
       readPausedWorkflowExecution.execute({
         principal,
         input: { workflowId: 'workflow-1', executionId: 'execution-1' },
       })
-    ).rejects.toMatchObject({ name: 'DelegatedServiceAuthorizationError' })
+    ).rejects.toMatchObject({ name: 'PrincipalKindAuthorizationError' })
     expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
     expect(mocks.getPausedExecutionDetail).not.toHaveBeenCalled()
   })

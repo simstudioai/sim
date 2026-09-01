@@ -1,7 +1,6 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { credentialGroupDelegationPolicy } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
   resolveCredentialGroupContext,
@@ -33,7 +32,7 @@ export const listCredentialGroupMcpConnections = defineAuthorizedWorkspaceUseCas
   operation: credentialGroupOperations.listMcpConnections,
   resolveContext: ({ input }: { input: ListCredentialGroupMcpConnectionsInput }) =>
     resolveCredentialGroupContext(input.credentialGroupId),
-  authorizationOptions: { delegation: credentialGroupDelegationPolicy },
+  authorizationOptions: {},
   execute: async ({ input, context }): Promise<ListCredentialGroupMcpConnectionsResult> => {
     if (
       !Number.isInteger(input.limit) ||

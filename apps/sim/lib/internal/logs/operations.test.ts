@@ -86,7 +86,11 @@ describe('Logs direct operations', () => {
     await executeLogsGetExecution('execution-1', context())
     expect(mocks.snapshot).toHaveBeenCalledWith({
       principal: PRINCIPAL,
-      input: { executionId: 'execution-1', signal: undefined },
+      input: {
+        executionId: 'execution-1',
+        assertedWorkspaceId: 'workspace-canonical',
+        signal: undefined,
+      },
     })
   })
 })

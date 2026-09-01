@@ -807,7 +807,11 @@ describe('WorkflowBlockHandler', () => {
       const ctx = {
         ...mockContext,
         userId: 'consumer-1',
-        principal: { kind: 'session', userId: 'consumer-1', sessionId: 'session-consumer' },
+        principal: createTestRuntimePrincipal({
+          principal: { kind: 'session', userId: 'consumer-1', sessionId: 'session-consumer' },
+          executionId: 'exec-1',
+          rootWorkflowId: 'parent-workflow-id',
+        }),
         workspaceId: 'workspace-consumer',
         executionId: 'exec-1',
       } as ExecutionContext

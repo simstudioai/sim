@@ -10,6 +10,7 @@ import {
   resetDbChainMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { terminalExecutionLogFields } from '@/lib/logs/execution/cancellation'
@@ -31,6 +32,7 @@ vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
 }))
 
 import {
+  assertResumeExecutionPrincipalBinding,
   createResumeAttemptTimeoutController,
   extractResumeBillingAttributionFromSnapshot,
   PauseResumeManager,
@@ -39,6 +41,7 @@ import {
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import { AUTOMATIC_RESUME_WAITING_REASON_MAX_LENGTH } from '@/lib/workflows/executor/resume-policy'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { PausePoint, SerializedSnapshot } from '@/executor/types'
 
@@ -1876,6 +1879,37 @@ describe('PauseResumeManager resume log claims', () => {
 
   it('keeps draft resumes version-free', () => {
     expect(requireResumeDeploymentVersion(true, null)).toBeUndefined()
+  })
+
+  it('keeps the root run stable while resuming a regular child workflow', () => {
+    const principal = createTestRuntimePrincipal({
+      executionId: 'execution-1',
+      rootWorkflowId: 'root-workflow',
+      currentWorkflow: { workflowId: 'child-workflow', mode: 'draft' },
+    })
+    const snapshot = new ExecutionSnapshot(
+      {
+        requestId: 'request-1',
+        executionId: 'execution-1',
+        workflowId: 'child-workflow',
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        principal,
+        triggerType: 'manual',
+        useDraftState: true,
+        startTime: '2026-08-04T12:00:00.000Z',
+      },
+      {},
+      {},
+      {}
+    )
+
+    expect(() =>
+      assertResumeExecutionPrincipalBinding(snapshot, 'root-workflow', undefined)
+    ).not.toThrow()
+    expect(() =>
+      assertResumeExecutionPrincipalBinding(snapshot, 'child-workflow', undefined)
+    ).toThrowError(expect.objectContaining({ name: 'ResumeAdmissionError', statusCode: 409 }))
   })
 
   it.each([

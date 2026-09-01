@@ -37,7 +37,7 @@ export function createTestRuntimePrincipal(
       ? root
       : enterPrincipalWorkflowExecution(root, currentWorkflow)
 
-  return options.compatibilityActorUserId
+  return options.compatibilityActorUserId !== undefined
     ? withPrincipalExecutionActor(bound, options.compatibilityActorUserId)
     : bound
 }

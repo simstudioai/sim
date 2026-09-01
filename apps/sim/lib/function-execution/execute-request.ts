@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -16,6 +16,7 @@ import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
 } from '@/lib/copilot/vfs/resource-writer'
+import type { PrincipalForOperation } from '@/lib/core/application'
 import { isMothershipSandboxEnabled, isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
 import {
   createTimeoutAbortController,
@@ -90,6 +91,7 @@ import {
 } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { SandboxCollectedFile, SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import type { functionExecutionOperations } from '@/lib/function-execution/application/operations'
 import { planUserFileMounts, resolveUserFileMounts } from '@/lib/function-execution/sandbox-mounts'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
 import {
@@ -988,8 +990,10 @@ function serializeForShellEnv(value: unknown, nullValue = ''): string {
   }
 }
 
+type FunctionExecutionPrincipal = PrincipalForOperation<typeof functionExecutionOperations.execute>
+
 interface FunctionRouteExecutionContext {
-  principal: DelegatedPrincipal
+  principal: FunctionExecutionPrincipal
   workflowId?: string
   workspaceId?: string
   executionId?: string
@@ -1014,6 +1018,26 @@ interface FunctionRouteExecutionContext {
    */
   unredactedSecretNames: Set<string>
   mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
+}
+
+function bindFunctionWorkspaceFilePrincipal(
+  routeContext: FunctionRouteExecutionContext,
+  workspaceId: string
+): FunctionExecutionPrincipal {
+  if (routeContext.principal.executionMetadata) return routeContext.principal
+  if (routeContext.principal.kind !== 'delegated') {
+    throw new Error('Function execution requires workflow metadata or Copilot delegation')
+  }
+  const principal = rebindWorkspaceFileDelegatedPrincipal({
+    principal: routeContext.principal,
+    workspaceId,
+    delegationId: `function-execute:${routeContext.requestId}`,
+    executionId: routeContext.executionId,
+  })
+  if (principal.serviceId !== 'copilot') {
+    throw new Error('Function execution only accepts Copilot delegated principals')
+  }
+  return { ...principal, serviceId: principal.serviceId }
 }
 
 type ResolvedSecretNamesMetadataType =
@@ -1557,12 +1581,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
 
   const mode = outputMode ?? (overwriteFileId ? 'overwrite' : 'create')
   const targetPath = mode === 'create' ? outputPath : overwriteFileId || outputPath
-  const principal = rebindWorkspaceFileDelegatedPrincipal({
-    principal: routeContext.principal,
-    workspaceId: resolvedWorkspaceId,
-    delegationId: `function-execute:${routeContext.requestId}`,
-    executionId: routeContext.executionId,
-  })
+  const principal = bindFunctionWorkspaceFilePrincipal(routeContext, resolvedWorkspaceId)
 
   let previousSize: number | undefined
   let unchanged = false
@@ -1746,12 +1765,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     })
   }
 
-  const principal = rebindWorkspaceFileDelegatedPrincipal({
-    principal: args.routeContext.principal,
-    workspaceId: resolvedWorkspaceId,
-    delegationId: `function-execute:${args.routeContext.requestId}`,
-    executionId: args.routeContext.executionId,
-  })
+  const principal = bindFunctionWorkspaceFilePrincipal(args.routeContext, resolvedWorkspaceId)
   let validationPaths: string[]
   try {
     const validations = await Promise.all(
@@ -2068,7 +2082,7 @@ async function collectExecutionOutputFiles(args: {
 export interface TrustedFunctionExecutionAuth {
   attributedUserId: string
   fileAccessUserId?: string
-  principal: DelegatedPrincipal
+  principal: FunctionExecutionPrincipal
   sandboxProfile?: 'mothership'
 }
 

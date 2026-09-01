@@ -5,6 +5,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   readLogs: vi.fn(),
@@ -140,16 +141,7 @@ describe('listLogsUseCase', () => {
     resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
 
     await listLogsUseCase.execute({
-      principal: {
-        kind: 'delegated',
-        serviceId: 'executor',
-        subjectUserId: 'user-1',
-        workspaceId: WORKSPACE_ID,
-        delegationId: 'delegation-1',
-        audience: 'sim:logs',
-        issuedAt: new Date('2026-01-01T00:00:00Z'),
-        expiresAt: new Date('2999-01-01T00:00:00Z'),
-      } as Principal,
+      principal: createTestRuntimePrincipal({ principal: SESSION }),
       input: { ...(INPUT as object), sortBy: 'cost' } as never,
     })
 

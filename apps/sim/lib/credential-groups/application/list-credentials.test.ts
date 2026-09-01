@@ -166,6 +166,18 @@ describe('listCredentialGroupCredentials', () => {
     expect(mocks.listCredentials).toHaveBeenCalled()
   })
 
+  it('conceals a credential group outside the execution workspace assertion', async () => {
+    await expect(
+      listCredentialGroupCredentials.execute({
+        principal: executorPrincipal(),
+        input: { ...input, assertedWorkspaceId: 'workspace-2' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
+  })
+
   it('does not use the runtime subject to filter credential references', async () => {
     await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
 

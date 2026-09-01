@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   deploy: vi.fn(),
@@ -28,16 +29,7 @@ import {
 } from '@/lib/internal/deployments/operations'
 
 const context = {
-  principal: {
-    kind: 'delegated' as const,
-    serviceId: 'executor' as const,
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'delegation-1',
-    audience: 'sim:workflows',
-    issuedAt: new Date('2026-01-01T00:00:00Z'),
-    expiresAt: new Date('2026-01-01T00:05:00Z'),
-  },
+  principal: createTestRuntimePrincipal(),
   requestId: 'request-1',
 }
 

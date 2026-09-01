@@ -15,6 +15,7 @@ import {
 
 export interface CreateCredentialGroupInviteLinkInput {
   credentialGroupId: string
+  assertedWorkspaceId?: string
   email: string
 }
 
@@ -22,7 +23,7 @@ export interface CreateCredentialGroupInviteLinkInput {
 export const createCredentialGroupInviteLink = defineAuthorizedWorkspaceUseCase({
   operation: credentialGroupOperations.createInviteLink,
   resolveContext: ({ input }: { input: CreateCredentialGroupInviteLinkInput }) =>
-    resolveCredentialGroupContext(input.credentialGroupId),
+    resolveCredentialGroupContext(input.credentialGroupId, input.assertedWorkspaceId),
   authorizationOptions: {},
   execute: async ({ principal, input, context }) => {
     if (context.status !== 'active') {

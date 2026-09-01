@@ -9,6 +9,7 @@ import {
   defineInternalJsonRoute,
   type InternalAuthTransport,
   internalRateLimits,
+  resolveInternalAuthWorkspaceId,
 } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -65,9 +66,14 @@ export const GET = defineInternalJsonRoute({
   operation: knowledgeOperations.listChunks,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal chunk-list behavior' }),
   errorPolicy: internalKnowledgeErrorPolicies.chunkList,
-  mapInput: ({ params, query }) => ({
+  mapInput: ({ params, query }, { authTransport, executionWorkspaceId }) => ({
     knowledgeBaseId: params.id,
     documentId: params.documentId,
+    assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      undefined
+    ),
     ...query,
   }),
   useCase: listKnowledgeChunks,
@@ -105,9 +111,14 @@ export const POST = defineInternalJsonRoute({
     reason: 'Preserve existing internal chunk-create behavior',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.chunks,
-  mapInput: ({ params, body }, { principal, request, authTransport }) => ({
+  mapInput: ({ params, body }, { principal, request, authTransport, executionWorkspaceId }) => ({
     knowledgeBaseId: params.id,
     documentId: params.documentId,
+    assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      undefined
+    ),
     content: body.content,
     enabled: body.enabled,
     resolveContentProvenance: ({ workspaceId }: { workspaceId?: string }) =>
@@ -132,9 +143,14 @@ export const PATCH = defineInternalJsonRoute({
   operation: knowledgeOperations.bulkChunks,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal bulk-chunk behavior' }),
   errorPolicy: internalKnowledgeErrorPolicies.chunks,
-  mapInput: ({ params, body }) => ({
+  mapInput: ({ params, body }, { authTransport, executionWorkspaceId }) => ({
     knowledgeBaseId: params.id,
     documentId: params.documentId,
+    assertedWorkspaceId: resolveInternalAuthWorkspaceId(
+      authTransport,
+      executionWorkspaceId,
+      undefined
+    ),
     ...body,
   }),
   useCase: bulkUpdateKnowledgeChunks,

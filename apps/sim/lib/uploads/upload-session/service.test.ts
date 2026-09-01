@@ -550,6 +550,34 @@ describe('upload sessions', () => {
     ).toThrow('Upload session not found')
   })
 
+  it('compares persisted executor bindings independently of JSON object key order', () => {
+    const session = sessionRecord({
+      purpose: 'table_import',
+      storageContext: 'table-import',
+      metadata: {
+        authBinding: {
+          version: 2,
+          workspaceId: WORKSPACE_ID,
+          principal: {
+            executionMetadata: {
+              currentWorkflow: { mode: 'draft', workflowId: 'workflow-1' },
+              rootWorkflowId: 'workflow-1',
+              executionId: 'execution-1',
+            },
+            principal: {
+              sessionId: 'session-1',
+              userId: 'user-1',
+              kind: 'session',
+            },
+            version: 2,
+          },
+        },
+      },
+    })
+
+    expect(() => assertUploadSessionAuthBinding(session, executorPrincipal)).not.toThrow()
+  })
+
   it('does not admit workflow execution outside an explicit upload policy', () => {
     expect(() => createUploadSessionAuthBinding(executorPrincipal, WORKSPACE_ID)).toThrow(
       'Workflow execution cannot create this upload'

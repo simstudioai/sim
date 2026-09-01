@@ -6,35 +6,19 @@ import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/appli
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 
 describe('rebindWorkspaceFileDelegatedPrincipal', () => {
-  it('preserves actorless workflow identity and deployment authority', () => {
+  it('preserves the delegated actor identity', () => {
     const expiresAt = new Date(Date.now() + 60_000)
-    const delegationContext = {
-      kind: 'workflow_execution' as const,
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-      principal: {
-        kind: 'system' as const,
-        serviceId: 'schedule' as const,
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-      },
-      currentWorkflow: {
-        workflowId: 'workflow-1',
-        mode: 'deployment' as const,
-        deploymentVersionId: 'deployment-1',
-      },
-    }
 
     const rebound = rebindWorkspaceFileDelegatedPrincipal({
       principal: {
         kind: 'delegated',
-        serviceId: 'executor',
+        serviceId: 'copilot',
+        subjectUserId: 'user-1',
         workspaceId: 'workspace-1',
         delegationId: 'function-1',
         audience: 'sim:function-executions',
         issuedAt: new Date(Date.now() - 1_000),
         expiresAt,
-        delegationContext,
       },
       workspaceId: 'workspace-1',
       delegationId: 'file-1',
@@ -42,15 +26,14 @@ describe('rebindWorkspaceFileDelegatedPrincipal', () => {
     })
 
     expect(rebound).toMatchObject({
-      serviceId: 'executor',
+      serviceId: 'copilot',
+      subjectUserId: 'user-1',
       workspaceId: 'workspace-1',
       delegationId: 'file-1',
       audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
       resourceScope: { executionId: 'execution-1' },
-      delegationContext,
     })
     expect(rebound.expiresAt).toEqual(expiresAt)
-    expect(rebound).not.toHaveProperty('subjectUserId')
   })
 
   it('rejects a cross-workspace rebind', () => {

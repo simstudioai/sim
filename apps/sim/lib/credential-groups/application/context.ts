@@ -34,10 +34,14 @@ export async function resolveCredentialGroupWorkspaceContext(workspaceId: string
 }
 
 export async function resolveCredentialGroupContext(
-  credentialGroupId: string
+  credentialGroupId: string,
+  assertedWorkspaceId?: string
 ): Promise<CredentialGroupApplicationContext> {
   const group = await loadCredentialGroupCredentialListContext(credentialGroupId)
   if (!group) throw new OrchestrationError('not_found', 'Credential group not found')
+  if (assertedWorkspaceId !== undefined && group.workspaceId !== assertedWorkspaceId) {
+    throw new OrchestrationError('not_found', 'Credential group not found')
+  }
   return { ...(await resolveCredentialGroupWorkspaceContext(group.workspaceId)), ...group }
 }
 
@@ -45,9 +49,5 @@ export async function resolveCredentialGroupSettingsContext(
   credentialGroupId: string,
   assertedWorkspaceId: string
 ): Promise<CredentialGroupApplicationContext> {
-  const context = await resolveCredentialGroupContext(credentialGroupId)
-  if (context.workspaceId !== assertedWorkspaceId) {
-    throw new OrchestrationError('not_found', 'Credential group not found')
-  }
-  return context
+  return resolveCredentialGroupContext(credentialGroupId, assertedWorkspaceId)
 }

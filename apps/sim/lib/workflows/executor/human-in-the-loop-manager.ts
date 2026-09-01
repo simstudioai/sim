@@ -163,8 +163,10 @@ export function requireResumeDeploymentVersion(
   return deploymentVersionId
 }
 
-function bindResumeExecutionPrincipal(
+/** Verifies that a durable pause retained the run root and current workflow authority. */
+export function assertResumeExecutionPrincipalBinding(
   snapshot: ExecutionSnapshot,
+  rootWorkflowId: string,
   deploymentVersionId: string | undefined
 ): void {
   const { executionId, workflowId, principal } = snapshot.metadata
@@ -181,7 +183,7 @@ function bindResumeExecutionPrincipal(
           currentWorkflow.deploymentVersionId))
   if (
     executionMetadata.executionId !== executionId ||
-    executionMetadata.rootWorkflowId !== workflowId ||
+    executionMetadata.rootWorkflowId !== rootWorkflowId ||
     !matchesCurrentWorkflow
   ) {
     throw new ResumeAdmissionError(
@@ -1138,7 +1140,11 @@ export class PauseResumeManager {
       baseSnapshot.metadata.useDraftState,
       claimedExecution.deploymentVersionId
     )
-    bindResumeExecutionPrincipal(baseSnapshot, resumeDeploymentVersionId)
+    assertResumeExecutionPrincipalBinding(
+      baseSnapshot,
+      pausedExecution.workflowId,
+      resumeDeploymentVersionId
+    )
     const billingAttribution = assertBillingAttributionSnapshot(
       baseSnapshot.metadata.billingAttribution
     )

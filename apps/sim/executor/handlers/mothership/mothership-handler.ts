@@ -185,7 +185,7 @@ async function expandMothershipMcpTools(
           workspaceId,
           executionId: ctx.executionId,
           userId: ctx.userId,
-          executorDelegationOrigin: ctx.executorDelegationOrigin,
+          principal: ctx.principal,
         },
         serverId,
         signal: ctx.abortSignal,

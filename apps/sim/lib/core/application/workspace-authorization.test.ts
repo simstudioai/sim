@@ -3,13 +3,13 @@
  */
 import {
   bindPrincipalExecutionMetadata,
-  DelegatedPrincipal,
+  type DelegatedPrincipal,
   enterPrincipalWorkflowExecution,
-  PersonalApiKeyPrincipal,
-  SessionPrincipal,
-  WorkflowExecutionAuthority,
-  WorkflowExecutionPrincipal,
-  WorkspaceApiKeyPrincipal,
+  type PersonalApiKeyPrincipal,
+  type SessionPrincipal,
+  type WorkflowExecutionAuthority,
+  type WorkflowExecutionPrincipal,
+  type WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -276,8 +276,8 @@ const capabilityOperation = defineWorkspaceOperation({
   id: 'test.capability-read',
   minimumRole: 'read',
   workspaceApiKey: 'allow',
-  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-  delegatedServices: ['executor'],
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+  workflowExecution: 'allow',
   capability: 'tables.use',
 })
 
@@ -289,6 +289,24 @@ const copilotCapabilityOperation = defineWorkspaceOperation({
   delegatedServices: ['copilot'],
   capability: 'tables.use',
 })
+
+const copilotPrincipal: DelegatedPrincipal = {
+  kind: 'delegated',
+  serviceId: 'copilot',
+  subjectUserId: 'user-1',
+  workspaceId: 'workspace-1',
+  delegationId: 'delegation-1',
+  audience: 'sim:test',
+  issuedAt: new Date('2026-01-01T00:00:00.000Z'),
+  expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+}
+
+const copilotAuthorization = {
+  delegation: {
+    audience: 'sim:test',
+    isWithinScope: () => true,
+  },
+}
 
 const personalKeyPrincipal: PersonalApiKeyPrincipal = {
   kind: 'personal_api_key',
@@ -355,16 +373,12 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
 
     await expect(
       authorizeWorkspaceOperation(
-        {
-          ...executorPrincipal(
-            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            { workflowId: 'current-workflow-1', mode: 'draft' }
-          ),
-          subjectUserId: 'user-1',
-        },
+        executorPrincipal(
+          { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          { workflowId: 'current-workflow-1', mode: 'draft' }
+        ),
         capabilityOperation,
-        context,
-        executorAuthorization
+        context
       )
     ).resolves.toBeUndefined()
   })
@@ -374,16 +388,12 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
 
     await expect(
       authorizeWorkspaceOperation(
-        {
-          ...executorPrincipal(
-            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            { workflowId: 'current-workflow-1', mode: 'draft' }
-          ),
-          subjectUserId: 'user-1',
-        },
+        executorPrincipal(
+          { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          { workflowId: 'current-workflow-1', mode: 'draft' }
+        ),
         capabilityOperation,
-        context,
-        executorAuthorization
+        context
       )
     ).rejects.toBeInstanceOf(NoWorkspaceAccessError)
   })
@@ -396,17 +406,10 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
 
     await expect(
       authorizeWorkspaceOperation(
-        {
-          ...executorPrincipal(
-            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-            { workflowId: 'current-workflow-1', mode: 'draft' }
-          ),
-          serviceId: 'copilot',
-          subjectUserId: 'user-1',
-        },
+        copilotPrincipal,
         copilotCapabilityOperation,
         context,
-        executorAuthorization
+        copilotAuthorization
       )
     ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
   })
@@ -435,10 +438,21 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
 
     await expect(
       authorizeWorkspaceOperation(
-        executorPrincipal(undefined, { workflowId: 'current-workflow-1', mode: 'deployment' }),
+        executorPrincipal(
+          {
+            kind: 'system',
+            serviceId: 'schedule',
+            workspaceId: 'workspace-1',
+            workflowId: 'root-workflow-1',
+          },
+          {
+            workflowId: 'current-workflow-1',
+            mode: 'deployment',
+            deploymentVersionId: 'deployment-1',
+          }
+        ),
         capabilityOperation,
-        context,
-        executorAuthorization
+        context
       )
     ).resolves.toBeUndefined()
     expect(resolveGroupConfigMock).not.toHaveBeenCalled()
@@ -600,22 +614,36 @@ describe('capabilityGovernedPrincipalUserId', () => {
   })
 
   it('names nobody for an executor run, subject or not', () => {
-    expect(capabilityGovernedPrincipalUserId(executorPrincipal(undefined))).toBeNull()
     expect(
-      capabilityGovernedPrincipalUserId({
-        ...executorPrincipal(undefined),
-        subjectUserId: 'user-1',
-      })
+      capabilityGovernedPrincipalUserId(
+        executorPrincipal(
+          {
+            kind: 'system',
+            serviceId: 'schedule',
+            workspaceId: 'workspace-1',
+            workflowId: 'root-workflow-1',
+          },
+          {
+            workflowId: 'current-workflow-1',
+            mode: 'deployment',
+            deploymentVersionId: 'deployment-1',
+          }
+        )
+      )
+    ).toBeNull()
+    expect(
+      capabilityGovernedPrincipalUserId(
+        executorPrincipal(
+          { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          { workflowId: 'current-workflow-1', mode: 'draft' }
+        )
+      )
     ).toBeNull()
   })
 
   it('names the person a non-executor delegation acts as', () => {
     expect(
-      capabilityGovernedPrincipalUserId({
-        ...executorPrincipal(undefined),
-        serviceId: 'copilot',
-        subjectUserId: 'user-3',
-      })
+      capabilityGovernedPrincipalUserId({ ...copilotPrincipal, subjectUserId: 'user-3' })
     ).toBe('user-3')
   })
 })

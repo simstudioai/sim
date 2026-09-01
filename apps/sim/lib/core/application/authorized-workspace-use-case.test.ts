@@ -49,7 +49,7 @@ const delegatedOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   principalKinds: ['delegated'],
-  delegatedServices: ['executor'],
+  delegatedServices: ['realtime'],
   capability: 'none',
 })
 
@@ -339,7 +339,7 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
         canonicalContext,
       authorizationOptions: ({ principal }) => {
         expectTypeOf(principal).toMatchTypeOf<DelegatedPrincipal>()
-        expectTypeOf(principal.serviceId).toEqualTypeOf<'executor'>()
+        expectTypeOf(principal.serviceId).toEqualTypeOf<'realtime'>()
         return {
           delegation: {
             audience: 'test:files',
@@ -349,13 +349,13 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
       },
       async execute({ principal }) {
         expectTypeOf(principal).toMatchTypeOf<DelegatedPrincipal>()
-        expectTypeOf(principal.serviceId).toEqualTypeOf<'executor'>()
+        expectTypeOf(principal.serviceId).toEqualTypeOf<'realtime'>()
         return { ok: true as const }
       },
     })
     const principal: DelegatedPrincipal = {
       kind: 'delegated',
-      serviceId: 'executor',
+      serviceId: 'realtime',
       subjectUserId: 'user-1',
       workspaceId: 'workspace-1',
       delegationId: 'delegation-1',

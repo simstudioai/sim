@@ -12,11 +12,11 @@ describe('defineWorkspaceOperation delegated service policy', () => {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
-      delegatedServices: ['copilot', 'executor'],
+      delegatedServices: ['copilot', 'realtime'],
       capability: 'none',
     })
 
-    expect(operation.delegatedServices).toEqual(['copilot', 'executor'])
+    expect(operation.delegatedServices).toEqual(['copilot', 'realtime'])
     expect(Object.isFrozen(operation.delegatedServices)).toBe(true)
   })
 
@@ -64,7 +64,7 @@ describe('defineWorkspaceOperation delegated service policy', () => {
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
-      delegatedServices: ['executor'],
+      delegatedServices: ['copilot'],
       resourcePolicy: {
         resourceType: 'credential_group',
         action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
@@ -86,7 +86,7 @@ describe('defineWorkspaceOperation delegated service policy', () => {
         minimumRole: 'read',
         workspaceApiKey: 'deny',
         principalKinds: ['delegated'],
-        delegatedServices: ['executor'],
+        delegatedServices: ['copilot'],
         resourcePolicy: {
           resourceType: 'credential_group',
           action: 'credentials.invalid',

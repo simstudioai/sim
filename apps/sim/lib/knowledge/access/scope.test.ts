@@ -4,6 +4,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const { mockMemberAccessAvailable, mockCheckWorkspaceAccess } = vi.hoisted(() => ({
   mockMemberAccessAvailable: vi.fn(async () => true),
@@ -133,20 +134,16 @@ describe('resolveKnowledgeAccessScope', () => {
     ],
     [
       'an executor run whose trigger was a workspace key',
-      {
-        kind: 'delegated',
-        serviceId: 'executor',
-        workspaceId: 'ws-1',
-        delegationId: 'd-1',
-        audience: 'sim:knowledge',
-        issuedAt: 0,
-        expiresAt: 1,
-        delegationContext: {
-          principal: { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'key-1' },
-          compatibilityActor: { userId: 'deployer' },
-          currentWorkflow: { workflowId: 'wf-1', mode: 'deployment' },
+      createTestRuntimePrincipal({
+        principal: { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'key-1' },
+        rootWorkflowId: 'wf-1',
+        currentWorkflow: {
+          workflowId: 'wf-1',
+          mode: 'deployment',
+          deploymentVersionId: 'deployment-1',
         },
-      } as unknown as Principal,
+        compatibilityActorUserId: 'deployer',
+      }),
     ],
   ])('resolves %s to the workspace scope without a lookup', async (_label, principal) => {
     await expect(resolveKnowledgeAccessScope(principal, WORKSPACE)).resolves.toBe(
@@ -157,19 +154,10 @@ describe('resolveKnowledgeAccessScope', () => {
 
   it('follows an executor delegation back to the person who triggered it', async () => {
     queueSubjects([])
-    const executor = {
-      kind: 'delegated',
-      serviceId: 'executor',
-      workspaceId: 'ws-1',
-      delegationId: 'd-1',
-      audience: 'sim:knowledge',
-      issuedAt: 0,
-      expiresAt: 1,
-      delegationContext: {
-        principal: SESSION,
-        currentWorkflow: { workflowId: 'wf-1', mode: 'draft' },
-      },
-    } as unknown as Principal
+    const executor = createTestRuntimePrincipal({
+      principal: SESSION,
+      rootWorkflowId: 'wf-1',
+    })
 
     await expect(resolveKnowledgeAccessScope(executor, WORKSPACE)).resolves.toMatchObject({
       kind: 'user',

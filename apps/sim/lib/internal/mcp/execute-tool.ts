@@ -126,9 +126,9 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
 
   let provenance: ResolvedSecretTraceProvenanceAccumulator | undefined
   try {
-      const principal = await createExecutorPrincipalFromExecutionContext({
-        context: request.context,
-      })
+    const principal = await createExecutorPrincipalFromExecutionContext({
+      context: request.context,
+    })
     request.signal?.throwIfAborted()
     const subject = resolvePrincipalSubject(principal)
     provenance =

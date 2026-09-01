@@ -4,6 +4,7 @@
 
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestRuntimePrincipal } from '@/lib/auth/runtime-principal.test-support'
 
 const mocks = vi.hoisted(() => ({
   authenticate: vi.fn(),
@@ -70,16 +71,7 @@ function sessionPrincipal() {
 
 function executorPrincipal() {
   mocks.authenticate.mockResolvedValue({
-    principal: {
-      kind: 'delegated',
-      serviceId: 'executor',
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-canonical',
-      delegationId: 'delegation-1',
-      audience: 'sim:tables',
-      issuedAt: new Date('2026-01-01'),
-      expiresAt: new Date('2026-01-02'),
-    },
+    principal: createTestRuntimePrincipal(),
     transport: 'executor_jwt',
     executionWorkspaceId: 'workspace-canonical',
   })
