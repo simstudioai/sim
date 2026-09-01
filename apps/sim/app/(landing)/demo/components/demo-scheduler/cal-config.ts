@@ -20,7 +20,18 @@ export function resolveCalLink(configuredLink?: string): URL {
   return url
 }
 
-const calLinkUrl = resolveCalLink(process.env.NEXT_PUBLIC_CAL_LINK)
+/**
+ * Resolved at module scope on an eagerly-imported path, so a malformed
+ * NEXT_PUBLIC_CAL_LINK degrades to the default link instead of taking the
+ * whole /demo page down.
+ */
+const calLinkUrl = (() => {
+  try {
+    return resolveCalLink(process.env.NEXT_PUBLIC_CAL_LINK)
+  } catch {
+    return resolveCalLink(undefined)
+  }
+})()
 
 /** Exact origin used for iframe navigation, preconnect, and postMessage validation. */
 export const CAL_ORIGIN = calLinkUrl.origin

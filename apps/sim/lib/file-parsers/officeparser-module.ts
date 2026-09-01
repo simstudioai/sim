@@ -5,12 +5,18 @@ type ParseOfficeAsync = (input: Buffer) => Promise<string>
 
 interface OfficeParserModule {
   parseOfficeAsync?: ParseOfficeAsync
-  default?: { parseOfficeAsync?: ParseOfficeAsync }
+  default?: { parseOfficeAsync?: ParseOfficeAsync } | ParseOfficeAsync
 }
 
-/** Resolve the parser entry point across ESM and bundled CommonJS namespace shapes. */
+/**
+ * Resolve the parser entry point across ESM and bundled CommonJS namespace
+ * shapes, including the bundler shape where `module.exports` itself becomes
+ * the function on `default` — a mismatch here has silently degraded every
+ * `.pptx`/`.doc` parse in production before.
+ */
 export function resolveParseOfficeAsync(mod: OfficeParserModule): ParseOfficeAsync {
   if (typeof mod.parseOfficeAsync === 'function') return mod.parseOfficeAsync
+  if (typeof mod.default === 'function') return mod.default
   if (typeof mod.default?.parseOfficeAsync === 'function') return mod.default.parseOfficeAsync
 
   throw new Error('officeparser did not expose parseOfficeAsync')

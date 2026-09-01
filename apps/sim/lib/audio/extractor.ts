@@ -8,7 +8,7 @@ import type {
   AudioExtractionResult,
   AudioMetadata,
 } from '@/lib/audio/types'
-import { resolveExecutable, runExecutable } from '@/lib/media/ffmpeg-process'
+import { FFMPEG_BASE_ARGS, resolveExecutable, runExecutable } from '@/lib/media/ffmpeg-process'
 
 const logger = createLogger('AudioExtractor')
 
@@ -57,7 +57,7 @@ async function withTempDir<T>(prefix: string, fn: (dir: string) => Promise<T>): 
 
 async function runFfmpeg(args: string[]): Promise<void> {
   try {
-    await runExecutable(requireFfmpeg(), args, {
+    await runExecutable(requireFfmpeg(), [...FFMPEG_BASE_ARGS, ...args], {
       maxOutputBytes: MAX_PROCESS_OUTPUT_BYTES,
       timeoutMs: CONVERSION_TIMEOUT_MS,
     })

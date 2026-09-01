@@ -53,8 +53,10 @@ describe('every email goes through the shared layer', () => {
 
   it('no sender reaches for a split React Email package', () => {
     // Substring, not an import-statement match — senders here use `await import()` too.
+    // `react-email` re-exports `render`, so importing it directly from the
+    // meta-package must be caught the same as the split packages.
     const offenders = senderFiles.filter((f) =>
-      /@react-email\/(components|render)/.test(readFileSync(f, 'utf8'))
+      /@react-email\/(components|render)|['"]react-email['"]/.test(readFileSync(f, 'utf8'))
     )
     expect(offenders.map(rel)).toEqual([])
   })

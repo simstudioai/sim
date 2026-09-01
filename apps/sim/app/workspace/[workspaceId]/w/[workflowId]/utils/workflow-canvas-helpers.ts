@@ -7,6 +7,13 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'
 
+/**
+ * Marks canvas nodes nested inside a subflow container. React Flow v11 emitted
+ * `data-parent-node-id` for this; v12 emits no parent attribute, so the app
+ * stamps its own class for the handle z-lift in `globals.css`.
+ */
+export const SUBFLOW_CHILD_NODE_CLASS = 'subflow-child-node'
+
 export function getNodeDataDimension(
   node: Pick<Node, 'data'>,
   dimension: 'width' | 'height',
@@ -55,11 +62,10 @@ function reconcileById<T extends { id: string }>(
 }
 
 /**
- * Subset comparison, deliberately asymmetric: React Flow writes `width`,
- * `height`, `positionAbsolute` and `dragging` onto the node objects it owns, so
- * a symmetric `isEqual` against a freshly derived node would never match and no
- * node would ever be reused. Only the keys the derivation itself produces are
- * compared.
+ * Subset comparison, deliberately asymmetric: React Flow writes `measured` and
+ * `dragging` onto the node objects it owns, so a symmetric `isEqual` against a
+ * freshly derived node would never match and no node would ever be reused. Only
+ * the keys the derivation itself produces are compared.
  */
 function containsDerivedValues<T extends object>(current: T, derived: T): boolean {
   for (const key of Object.keys(derived) as (keyof T)[]) {
@@ -68,12 +74,28 @@ function containsDerivedValues<T extends object>(current: T, derived: T): boolea
   return true
 }
 
-/** Reuses unchanged React Flow node objects while carrying local selection forward. */
-export function reconcileCanvasNodes(currentNodes: Node[], derivedNodes: Node[]): Node[] {
+/**
+ * Reuses unchanged React Flow node objects while carrying local selection and
+ * measured dimensions forward. `measured` must survive re-derivation: React
+ * Flow resets a node's cached handle bounds and re-measures whenever a node
+ * object arrives without it, which snaps connected edges for a frame.
+ *
+ * @param selectedIds - When provided, overrides selection instead of carrying
+ * it forward (e.g. the pending selection applied after paste/duplicate)
+ */
+export function reconcileCanvasNodes(
+  currentNodes: Node[],
+  derivedNodes: Node[],
+  selectedIds?: ReadonlySet<string>
+): Node[] {
   return reconcileById(
     currentNodes,
     derivedNodes,
-    (derivedNode, currentNode) => ({ ...derivedNode, selected: currentNode?.selected ?? false }),
+    (derivedNode, currentNode) => ({
+      ...derivedNode,
+      measured: currentNode?.measured,
+      selected: selectedIds ? selectedIds.has(derivedNode.id) : (currentNode?.selected ?? false),
+    }),
     containsDerivedValues
   )
 }
