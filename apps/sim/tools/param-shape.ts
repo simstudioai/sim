@@ -434,6 +434,35 @@ function enumMemberShape(members: readonly unknown[]): ToolParamValueShape {
   return 'string'
 }
 
+/**
+ * The enum member a dropdown's stored option id came from, or `undefined` for a value
+ * that is not one of the members.
+ *
+ * Options are encoded as `String(member)` ({@link buildSubBlocksFromJsonSchema}), and
+ * `String` is invertible only against the member list. A {@link ToolParamValueShape}
+ * cannot recover a mixed enum: `['a', null]` shapes as `'string'`, so the selected
+ * `null` reaches the server as the text `"null"`. Matching the stored text against the
+ * members IS the exact inverse of the encoding, so it takes precedence over the shape.
+ *
+ * A value that matches nothing — a variable reference, an untouched field — is left for
+ * the shape codec.
+ */
+export function jsonSchemaEnumMember(value: unknown, property: JsonSchemaProperty): unknown {
+  if (typeof value !== 'string' || !Array.isArray(property.enum)) return undefined
+  return property.enum.find((member) => String(member) === value)
+}
+
+/**
+ * Decode a value stored by the control {@link subBlockTypeForJsonSchema} picked for a
+ * JSON Schema property — the enum-aware counterpart of {@link decodeToolParamValue}.
+ */
+export function decodeJsonSchemaValue(value: unknown, property: JsonSchemaProperty): unknown {
+  const member = jsonSchemaEnumMember(value, property)
+  // Tested against `undefined`, never `??`: `null` is a legal member and must win.
+  if (member !== undefined) return member
+  return decodeToolParamValue(value, getJsonSchemaValueShape(property))
+}
+
 /** The value shape of every argument an MCP or custom tool's schema declares. */
 export function buildJsonSchemaParamShapes(
   schema: JsonSchemaObject | undefined

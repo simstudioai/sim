@@ -16,6 +16,7 @@ import {
   McpToolsNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
+import { type JsonSchemaProperty, jsonSchemaEnumMember } from '@/tools/param-shape'
 
 const logger = createLogger('McpToolExecution')
 
@@ -50,9 +51,19 @@ function coerceToolArguments(
   if (!tool.inputSchema?.properties) return result
 
   for (const [name, property] of Object.entries(tool.inputSchema.properties)) {
-    if (!hasType(property)) continue
     const value = result[name]
     if (value === undefined || value === null) continue
+
+    // An enum renders as a dropdown whose option ids are `String(member)`. Only the
+    // member list inverts that, and it has to run before the declared-type branches
+    // below, which never see an untyped property and cannot recover a `null` member.
+    const member = jsonSchemaEnumMember(value, property)
+    if (member !== undefined) {
+      result[name] = member
+      continue
+    }
+
+    if (!hasType(property)) continue
 
     if ((property.type === 'number' || property.type === 'integer') && typeof value === 'string') {
       const numberValue =
@@ -88,6 +99,11 @@ function coerceToolArguments(
   return result
 }
 
+/** Whether the schema explicitly lists this exact value as an allowed member. */
+function isDeclaredEnumMember(value: unknown, property: JsonSchemaProperty): boolean {
+  return Array.isArray(property.enum) && property.enum.includes(value)
+}
+
 function validateToolArguments(tool: McpTool, args: Record<string, unknown>): void {
   const schema = tool.inputSchema
   if (!schema) return
@@ -100,7 +116,12 @@ function validateToolArguments(tool: McpTool, args: Record<string, unknown>): vo
 
   for (const [name, property] of Object.entries(schema.properties ?? {})) {
     const value = args[name]
-    if (value === undefined || !hasType(property)) continue
+    if (value === undefined) continue
+    // `enum` is narrower than `type`, so a declared member is valid by definition. This
+    // has to precede the type branches: a `null` member satisfies none of them, and
+    // `coerceToolArguments` above has just recovered exactly that member.
+    if (isDeclaredEnumMember(value, property)) continue
+    if (!hasType(property)) continue
     const isValid =
       (property.type === 'string' && typeof value === 'string') ||
       (property.type === 'number' && typeof value === 'number') ||

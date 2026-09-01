@@ -160,6 +160,95 @@ describe('executeMcpToolUseCase', () => {
     expect(mocks.telemetry).toHaveBeenCalledOnce()
   })
 
+  it('recovers enum members a dropdown stored as their stringified form', async () => {
+    // The editor's dropdown option ids are `String(member)`, so an argument saved before
+    // that control persisted real members holds text. Only the member list inverts it —
+    // the declared-type branches cannot tell `'null'` the text from `null` the member.
+    mocks.discoverServerTools.mockResolvedValueOnce([
+      {
+        name: 'lookup',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            mode: { type: 'string', enum: ['fast', null] },
+            level: { enum: [1, 2, 3] },
+            verbose: { type: 'boolean', enum: [true, false] },
+          },
+        },
+      },
+    ])
+
+    await executeMcpToolUseCase.execute({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE.workspaceId,
+        serverId: SERVER.id,
+        toolName: 'lookup',
+        arguments: { mode: 'null', level: '2', verbose: 'false' },
+      },
+    })
+
+    expect(mocks.executeTool).toHaveBeenCalledWith(
+      'user-1',
+      SERVER.id,
+      { name: 'lookup', arguments: { mode: null, level: 2, verbose: false } },
+      WORKSPACE.workspaceId,
+      undefined,
+      undefined,
+      expect.anything()
+    )
+  })
+
+  it('accepts a declared enum member that satisfies no declared-type branch', async () => {
+    // `mode` declares `type: 'string'`, so a recovered `null` member would fail every
+    // type check. The enum is narrower than the type and decides on its own.
+    mocks.discoverServerTools.mockResolvedValueOnce([
+      {
+        name: 'lookup',
+        inputSchema: {
+          type: 'object',
+          properties: { mode: { type: 'string', enum: ['fast', null] } },
+        },
+      },
+    ])
+
+    await expect(
+      executeMcpToolUseCase.execute({
+        principal: PRINCIPAL,
+        input: {
+          workspaceId: WORKSPACE.workspaceId,
+          serverId: SERVER.id,
+          toolName: 'lookup',
+          arguments: { mode: null },
+        },
+      })
+    ).resolves.toMatchObject({ success: true })
+  })
+
+  it('still rejects a value the schema does not allow', async () => {
+    mocks.discoverServerTools.mockResolvedValueOnce([
+      {
+        name: 'lookup',
+        inputSchema: {
+          type: 'object',
+          properties: { mode: { type: 'string', enum: ['fast', null] } },
+        },
+      },
+    ])
+
+    await expect(
+      executeMcpToolUseCase.execute({
+        principal: PRINCIPAL,
+        input: {
+          workspaceId: WORKSPACE.workspaceId,
+          serverId: SERVER.id,
+          toolName: 'lookup',
+          arguments: { mode: 42 },
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+  })
+
   it('rejects foreign or missing servers before permission and provider work', async () => {
     mocks.getServer.mockResolvedValueOnce(null)
 

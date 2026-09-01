@@ -7,6 +7,7 @@ import {
   buildSubBlockForToolParam,
   buildSubBlocksFromJsonSchema,
   buildToolParamShapes,
+  decodeJsonSchemaValue,
   decodeToolParams,
   decodeToolParamValue,
   encodeToolParamValue,
@@ -557,6 +558,24 @@ describe('buildJsonSchemaParamShapes', () => {
     expect(subBlock.type).toBe('dropdown')
     // The dropdown stores the stringified member; the shape decodes it back.
     expect(decodeToolParamValue('2', getJsonSchemaValueShape(property))).toBe(2)
+  })
+
+  it('inverts the dropdown encoding against the enum members', () => {
+    // Options are `String(member)`, and a shape cannot tell `'null'` the text from
+    // `null` the member — only the member list can.
+    const mixed = { enum: ['a', null, 2, true] }
+
+    expect(decodeJsonSchemaValue('null', mixed)).toBe(null)
+    expect(decodeJsonSchemaValue('2', mixed)).toBe(2)
+    expect(decodeJsonSchemaValue('true', mixed)).toBe(true)
+    expect(decodeJsonSchemaValue('a', mixed)).toBe('a')
+  })
+
+  it('leaves a value that is not an enum member to the shape codec', () => {
+    // A variable reference must survive, and an untouched field stays the '' sentinel.
+    expect(decodeJsonSchemaValue('<start.choice>', { enum: ['a', null] })).toBe('<start.choice>')
+    expect(decodeJsonSchemaValue('', { enum: ['a', null] })).toBe('')
+    expect(decodeJsonSchemaValue('false', { type: 'boolean' })).toBe(false)
   })
 
   it('normalizes a legacy string left by a control that has since changed type', () => {
