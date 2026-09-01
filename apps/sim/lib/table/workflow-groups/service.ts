@@ -642,8 +642,12 @@ export async function addWorkflowGroupOutput(
      *  row writes. Not the gate: see `capabilityGovernedUserId`. */
     actorUserId?: string | null
     /** Person whose permission group gates any cell the backfill's writes
-     *  cascade into; null when the change has no acting person. */
-    capabilityGovernedUserId?: string | null
+     *  cascade into; `null` when the change has no acting person. Required with
+     *  an explicit `null` for the same reason the add/update group payloads
+     *  require it: an omitted subject and a deliberately actorless one read
+     *  identically at the call site, and the omitted form silently runs the
+     *  backfill's downstream cells with no gate at all. */
+    capabilityGovernedUserId: string | null
     resolvedOutput: {
       workflowId: string
       columnType: ColumnDefinition['type']

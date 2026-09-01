@@ -1087,6 +1087,9 @@ describe('workflow and enrichment Table application commands', () => {
 
     expect(mocks.addOutput).toHaveBeenCalledWith(
       expect.objectContaining({
+        // A copilot delegation stays governed, so the backfill's downstream
+        // cells run under the delegating person rather than ungated.
+        capabilityGovernedUserId: 'user-1',
         resolvedOutput: expect.objectContaining({
           workflowId: 'workflow-1',
           columnType: 'number',

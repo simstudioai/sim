@@ -161,6 +161,7 @@ describe('workflow group TTL availability', () => {
             groupId: 'group-1',
             blockId: 'block-1',
             path: 'expiresAt',
+            capabilityGovernedUserId: null,
             resolvedOutput: { workflowId: 'workflow-1', columnType: 'ttl', order: [] },
           },
           'request-1'
