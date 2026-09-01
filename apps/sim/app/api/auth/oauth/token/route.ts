@@ -132,12 +132,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       callerUserId,
       auditRequest: request,
       authenticate: () => checkSessionOrInternalAuth(request, { requireWorkflowId: false }),
-      ...(managedOAuthDelegation
-        ? {
-            resolveManagedPrincipal: (managedCredentialId: string) =>
-              authenticateManagedOAuthDelegation(managedOAuthDelegation, managedCredentialId),
-          }
-        : {}),
+      resolveManagedPrincipal: managedOAuthDelegation
+        ? (managedCredentialId: string) =>
+            authenticateManagedOAuthDelegation(managedOAuthDelegation, managedCredentialId)
+        : undefined,
     })
 
     if (!result.ok) {

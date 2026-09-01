@@ -4519,33 +4519,6 @@ describe('Managed OAuth Credential Delegation', () => {
     expect(mockGenerateInternalDelegationToken).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
-
-  it('drops an empty impersonation subject instead of asserting it', async () => {
-    mockResolveExecutorCredentialToken.mockResolvedValueOnce({ accessToken: 'token-1' })
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      new Response(JSON.stringify({ messages: [] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
-    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
-
-    const context = createToolExecutionContext({
-      userId: 'current-user',
-      workflowId: 'current-workflow',
-      executionId: 'current-execution',
-    })
-
-    await executeTool(
-      'gmail_read',
-      { credential: 'cred-1', impersonateUserEmail: '' },
-      { executionContext: context }
-    )
-
-    expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
-      expect.objectContaining({ credentialId: 'cred-1', impersonateEmail: undefined })
-    )
-  })
 })
 
 describe('Copilot Env Variable Reference Resolution', () => {

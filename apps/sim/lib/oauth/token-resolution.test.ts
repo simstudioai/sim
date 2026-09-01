@@ -92,7 +92,6 @@ const INTERNAL_AUTH = { success: true, userId: 'user-1', authType: 'internal_jwt
 describe('resolveCredentialToken', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockResolveOAuthAccountId.mockResolvedValue(null)
   })
 
   it('fails closed when the credential is not authorized', async () => {
@@ -103,6 +102,7 @@ describe('resolveCredentialToken', () => {
 
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
+      resolvedCredential: null,
       credentialId: 'cred-1',
     })
 
@@ -124,7 +124,7 @@ describe('resolveCredentialToken', () => {
 
     const result = await resolveCredentialToken(
       { success: true, authType: 'internal_jwt' },
-      { requestId: 'req-1', credentialId: 'cred-1' }
+      { requestId: 'req-1', credentialId: 'cred-1', resolvedCredential: null }
     )
 
     expect(result).toEqual({ ok: false, status: 403, error: 'Authentication required' })
@@ -147,6 +147,7 @@ describe('resolveCredentialToken', () => {
 
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
+      resolvedCredential: null,
       credentialId: 'cred-1',
       workflowId: 'wf-1',
     })
@@ -177,6 +178,7 @@ describe('resolveCredentialToken', () => {
 
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
+      resolvedCredential: null,
       credentialId: 'cred-1',
     })
 
@@ -201,6 +203,7 @@ describe('resolveCredentialToken', () => {
     await expect(
       resolveCredentialToken(INTERNAL_AUTH, {
         requestId: 'req-1',
+        resolvedCredential: null,
         credentialId: 'cred-1',
       })
     ).resolves.toEqual({
@@ -231,6 +234,7 @@ describe('resolveCredentialToken', () => {
     await expect(
       resolveCredentialToken(INTERNAL_AUTH, {
         requestId: 'req-1',
+        resolvedCredential: null,
         credentialId: 'cred-1',
       })
     ).resolves.toEqual({
@@ -251,6 +255,7 @@ describe('resolveCredentialToken', () => {
 
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
+      resolvedCredential: null,
       credentialId: 'cred-1',
     })
 
@@ -259,19 +264,19 @@ describe('resolveCredentialToken', () => {
   })
 
   it('authorizes service-account credentials before minting a token', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      credentialType: 'service_account',
-      credentialId: 'sa-1',
-      providerId: 'google',
-      workspaceId: 'ws-1',
-      accountId: '',
-      usedCredentialTable: true,
-    })
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({ ok: false, error: 'Unauthorized' })
 
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
       credentialId: 'cred-1',
+      resolvedCredential: {
+        credentialType: 'service_account',
+        credentialId: 'sa-1',
+        providerId: 'google',
+        workspaceId: 'ws-1',
+        accountId: '',
+        usedCredentialTable: true,
+      },
     })
 
     expect(result).toEqual({ ok: false, status: 403, error: 'Unauthorized' })
@@ -279,14 +284,6 @@ describe('resolveCredentialToken', () => {
   })
 
   it('surfaces the classified service-account failure code', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      credentialType: 'service_account',
-      credentialId: 'sa-1',
-      providerId: 'atlassian',
-      workspaceId: 'ws-1',
-      accountId: '',
-      usedCredentialTable: true,
-    })
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({ ok: true, requesterUserId: 'user-1' })
     mockResolveServiceAccountToken.mockRejectedValue(
       new TokenServiceAccountValidationError('invalid_credentials', 401)
@@ -295,6 +292,14 @@ describe('resolveCredentialToken', () => {
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
       credentialId: 'cred-1',
+      resolvedCredential: {
+        credentialType: 'service_account',
+        credentialId: 'sa-1',
+        providerId: 'atlassian',
+        workspaceId: 'ws-1',
+        accountId: '',
+        usedCredentialTable: true,
+      },
     })
 
     expect(result).toEqual({
@@ -308,6 +313,7 @@ describe('resolveCredentialToken', () => {
   it('rejects a malformed impersonation subject before touching the credential', async () => {
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
+      resolvedCredential: null,
       credentialId: 'cred-1',
       impersonateEmail: 'not-an-email',
     })
@@ -376,6 +382,27 @@ describe('resolveCredentialAccessToken', () => {
       workflowId: 'wf-1',
       callerUserId: 'user-1',
     })
+  })
+
+  it('treats an empty impersonation subject as absent', async () => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+      workspaceId: 'ws-1',
+      resolvedCredentialId: 'account-1',
+    })
+    mockGetCredential.mockResolvedValue({ providerId: 'google' })
+    mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'fresh', refreshed: false })
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      impersonateEmail: '',
+      authenticate,
+    })
+
+    expect(result).toEqual({ ok: true, token: { accessToken: 'fresh', idToken: undefined } })
   })
 
   it('rejects a managed credential when no delegation resolver is wired', async () => {

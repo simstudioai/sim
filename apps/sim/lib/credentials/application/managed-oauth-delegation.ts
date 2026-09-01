@@ -45,9 +45,8 @@ export async function authenticateManagedOAuthDelegation(
 /**
  * In-process sibling of {@link authenticateManagedOAuthDelegation}: binds the
  * executor's own delegation origin to one managed credential without minting and
- * re-verifying a delegation JWT. The binding still re-validates the workflow and
- * deployment context, so trust matches the wire path minus the signature check,
- * which proves nothing when the executor is the caller.
+ * re-verifying a delegation JWT — see {@link createExecutorPrincipalFromDelegationOrigin}
+ * for why that loses nothing.
  */
 export async function bindExecutorManagedOAuthDelegation(
   origin: ExecutorDelegationOrigin,

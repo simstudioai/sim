@@ -60,8 +60,8 @@ export interface ResolveCredentialTokenInput {
    */
   callerUserId?: string
   auditRequest?: CredentialAuditRequest
-  /** Reuses a credential lookup already performed by the route's managed-OAuth dispatch. */
-  resolvedCredential?: ResolvedCredential | null
+  /** Credential lookup already performed by {@link resolveCredentialAccessToken}'s dispatch. */
+  resolvedCredential: ResolvedCredential | null
 }
 
 export type ResolveCredentialTokenResult =
@@ -203,16 +203,12 @@ export async function resolveCredentialToken(
       return { ok: false, status: 400, error: 'impersonateEmail must be a valid email address' }
     }
 
-    /**
-     * Both branches below authorize with the same arguments, and neither read depends
-     * on the other, so they resolve together — this runs per credentialed tool call.
-     */
-    const [resolved, authz] = await Promise.all([
-      input.resolvedCredential === undefined
-        ? resolveOAuthAccountId(credentialId)
-        : input.resolvedCredential,
-      authorizeCredentialUseForAuth(auth, { credentialId, workflowId, callerUserId }),
-    ])
+    const resolved = input.resolvedCredential
+    const authz = await authorizeCredentialUseForAuth(auth, {
+      credentialId,
+      workflowId,
+      callerUserId,
+    })
 
     if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
       if (!authz.ok) {
@@ -320,23 +316,10 @@ export async function resolveCredentialToken(
   }
 }
 
-export interface ResolveCredentialAccessTokenInput {
-  /** Correlation id used by the credential service's own logging. */
-  requestId: string
-  credentialId?: string
-  workflowId?: string
+export interface ResolveCredentialAccessTokenInput
+  extends Omit<ResolveCredentialTokenInput, 'resolvedCredential'> {
   /** Tool consuming the token; required by the managed-OAuth scope policy. */
   toolId?: string
-  /** Canonical provider scopes, used only by service-account token minting. */
-  scopes?: string[]
-  /** Google domain-wide-delegation subject for service-account credentials. */
-  impersonateEmail?: string
-  /**
-   * Asserted acting user. When the caller authenticated with an internal JWT it
-   * must equal the token subject, so a forged assertion cannot widen access.
-   */
-  callerUserId?: string
-  auditRequest?: CredentialAuditRequest
   /**
    * Authenticates the caller for non-managed credentials. Invoked only when the
    * credential is not managed OAuth, which authenticates through delegation instead.
@@ -372,7 +355,12 @@ export async function resolveCredentialAccessToken(
       credentialId,
       workflowId: input.workflowId,
       scopes: input.scopes,
-      impersonateEmail: input.impersonateEmail,
+      /**
+       * In-process callers forward raw subblock state, where an untouched
+       * field is '' — treated as absent, matching what the wire contract
+       * (which rejects '') and the old truthy guards always produced.
+       */
+      impersonateEmail: input.impersonateEmail || undefined,
       callerUserId: input.callerUserId,
       auditRequest,
       resolvedCredential: resolved,
@@ -444,7 +432,7 @@ export async function resolveCredentialAccessToken(
         requiredScopes,
         toolId,
       },
-      ...(auditRequest ? { request: auditRequest } : {}),
+      request: auditRequest,
     })
 
     const subject = resolvePrincipalSubject(principal)
@@ -465,7 +453,7 @@ export async function resolveCredentialAccessToken(
       ok: true,
       token: {
         accessToken: result.accessToken,
-        ...(result.idToken ? { idToken: result.idToken } : {}),
+        idToken: result.idToken,
       },
     }
   } catch (error) {

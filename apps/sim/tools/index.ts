@@ -5,7 +5,10 @@ import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
 import type { FunctionExecuteBody } from '@/lib/api/contracts'
+import { oauthTokenPostContract } from '@/lib/api/contracts/oauth-connections'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import type { InternalSandboxProfile } from '@/lib/auth/internal'
 import {
@@ -92,7 +95,6 @@ import type {
   BYOKProviderId,
   ExecutableToolConfig,
   InternalToolConfig,
-  OAuthTokenPayload,
   ToolConfig,
   ToolDefinition,
   ToolHostingPricing,
@@ -1549,39 +1551,26 @@ async function fetchCredentialTokenFromRoute(params: {
 }): Promise<CredentialTokenPayload> {
   const { requestId, toolId, toolLabel, credentialId, workflowId } = params
 
-  const tokenPayload: OAuthTokenPayload = { credentialId, toolId }
-  if (workflowId) tokenPayload.workflowId = workflowId
-  if (params.impersonateEmail) tokenPayload.impersonateEmail = params.impersonateEmail
-  if (params.scopes) tokenPayload.scopes = params.scopes
-
-  const tokenUrlObj = new URL('/api/auth/oauth/token', getInternalApiBaseUrl())
-  if (workflowId) tokenUrlObj.searchParams.set('workflowId', workflowId)
-  if (params.callerUserId) tokenUrlObj.searchParams.set('userId', params.callerUserId)
-
-  // boundary-raw-fetch: same-origin token route, authenticated by the browser session cookie
-  const response = await fetch(tokenUrlObj.toString(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(tokenPayload),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
-      status: response.status,
-      error: errorText,
+  try {
+    return await requestJson(oauthTokenPostContract, {
+      query: { userId: params.callerUserId },
+      headers: {},
+      body: {
+        credentialId,
+        toolId,
+        ...(workflowId ? { workflowId } : {}),
+        ...(params.impersonateEmail ? { impersonateEmail: params.impersonateEmail } : {}),
+        ...(params.scopes ? { scopes: params.scopes } : {}),
+      },
     })
-    let parsedError = errorText
-    try {
-      const parsed = JSON.parse(errorText)
-      if (parsed.error) parsedError = parsed.error
-    } catch {
-      // Use raw text
-    }
-    throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
+  } catch (error: unknown) {
+    const status = error instanceof ApiClientError ? error.status : undefined
+    logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
+      status,
+      error: getErrorMessage(error),
+    })
+    throw new Error(`Failed to obtain credential for ${toolLabel}: ${getErrorMessage(error)}`)
   }
-
-  return (await response.json()) as CredentialTokenPayload
 }
 
 /**
@@ -1832,9 +1821,7 @@ async function executeToolImplementation(
         const userId = scope.userId
         const credentialId = contextParams.credential as string
         const toolLabel = tool?.name || toolId
-        const impersonateEmail = contextParams.impersonateUserEmail
-          ? (contextParams.impersonateUserEmail as string)
-          : undefined
+        const impersonateEmail = contextParams.impersonateUserEmail as string | undefined
 
         let providerScopes: string[] | undefined
         if (tool?.oauth?.provider) {
@@ -1855,9 +1842,11 @@ async function executeToolImplementation(
 
         let data: CredentialTokenPayload
         if (typeof window === 'undefined') {
-          // Dynamic import for the same client-bundle reason as the workflow_executor
-          // runner below: the resolver pulls the db/audit dependency graph, which must
-          // never enter the client-bundled tool registry.
+          /**
+           * Dynamic import for the same client-bundle reason as the workflow_executor
+           * runner below: the resolver pulls the db/audit dependency graph, which must
+           * never enter the client-bundled tool registry.
+           */
           const { resolveExecutorCredentialToken } = await import(
             '@/executor/utils/credential-token'
           )

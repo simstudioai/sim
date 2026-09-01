@@ -1028,7 +1028,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
  * Pipedrive's `x-api-token`. OAuth credentials resolve with `accessToken`
  * only.
  */
-export async function resolveCredentialAccessToken(
+export async function resolveCredentialTokenBundle(
   credentialId: string,
   userId: string,
   requestId: string,
@@ -1131,7 +1131,7 @@ export async function resolveCredentialAccessToken(
 /**
  * Refreshes an OAuth token if needed based on credential information.
  * Also handles service account credentials by generating a JWT-based token.
- * Thin string wrapper over {@link resolveCredentialAccessToken}.
+ * Thin string wrapper over {@link resolveCredentialTokenBundle}.
  * @param credentialId The ID of the credential to check and potentially refresh
  * @param userId The user ID who owns the credential (for security verification)
  * @param requestId Request ID for log correlation
@@ -1146,7 +1146,7 @@ export async function refreshAccessTokenIfNeeded(
   impersonateEmail?: string,
   options?: CredentialTokenResolutionOptions
 ): Promise<string | null> {
-  const result = await resolveCredentialAccessToken(
+  const result = await resolveCredentialTokenBundle(
     credentialId,
     userId,
     requestId,

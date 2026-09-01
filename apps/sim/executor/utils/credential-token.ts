@@ -53,22 +53,20 @@ export async function resolveExecutorCredentialToken(
     callerUserId: userId && params.enforceCredentialAccess ? userId : undefined,
     authenticate: () => ({
       success: true,
-      ...(userId ? { userId } : {}),
+      userId,
       authType: AuthType.INTERNAL_JWT,
     }),
-    ...(executorDelegationOrigin
-      ? {
-          resolveManagedPrincipal: (managedCredentialId: string) =>
-            bindExecutorManagedOAuthDelegation(executorDelegationOrigin, managedCredentialId),
-        }
-      : {}),
+    resolveManagedPrincipal: executorDelegationOrigin
+      ? (managedCredentialId: string) =>
+          bindExecutorManagedOAuthDelegation(executorDelegationOrigin, managedCredentialId)
+      : undefined,
   })
 
   if (!result.ok) {
     logger.error(`[${requestId}] Credential token resolution failed`, {
       status: result.status,
       credentialId,
-      ...(result.code ? { code: result.code } : {}),
+      code: result.code,
     })
     throw new Error(
       `Failed to obtain credential for ${params.toolLabel ?? credentialId}: ${result.error}`
