@@ -19,6 +19,16 @@ import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 const PROJECT_ID = 'selector-test'
 const DATASET_ID = 'analytics'
 
+interface DatasetFixture {
+  datasetReference: { projectId: string; datasetId: string }
+  friendlyName: string
+}
+
+interface TableFixture {
+  tableReference: { projectId: string; datasetId: string; tableId: string }
+  friendlyName: string
+}
+
 function args(
   selectorKey: 'bigquery.datasets' | 'bigquery.tables',
   request: ExecuteServerSelectorArgs['request']
@@ -41,14 +51,14 @@ function args(
   }
 }
 
-function dataset(datasetId: string, friendlyName: string) {
+function dataset(datasetId: string, friendlyName: string, projectId = PROJECT_ID): DatasetFixture {
   return {
-    datasetReference: { projectId: PROJECT_ID, datasetId },
+    datasetReference: { projectId, datasetId },
     friendlyName,
   }
 }
 
-function table(tableId: string, friendlyName: string) {
+function table(tableId: string, friendlyName: string): TableFixture {
   return {
     tableReference: { projectId: PROJECT_ID, datasetId: DATASET_ID, tableId },
     friendlyName,
@@ -150,22 +160,28 @@ describe('BigQuery server selector adapters', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
-  it('hydrates a selected dataset directly by id', async () => {
+  it('hydrates a selected dataset in a legacy domain-scoped project directly by id', async () => {
+    const projectId = 'example.com:selector-test'
     mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify(dataset('saved_dataset', 'Saved Dataset')), { status: 200 })
+      new Response(JSON.stringify(dataset('saved_dataset', 'Saved Dataset', projectId)), {
+        status: 200,
+      })
     )
 
+    const detailArgs = args('bigquery.datasets', { kind: 'detail', id: 'saved_dataset' })
+    detailArgs.context.projectId = projectId
+
     await expect(
-      bigQuerySelectorAttachments['bigquery.datasets'].execute(
-        args('bigquery.datasets', { kind: 'detail', id: 'saved_dataset' })
-      )
+      bigQuerySelectorAttachments['bigquery.datasets'].execute(detailArgs)
     ).resolves.toEqual({
       kind: 'detail',
       item: { id: 'saved_dataset', label: 'Saved Dataset' },
     })
 
     const url = new URL(String(mockFetch.mock.calls[0]?.[0]))
-    expect(url.pathname).toBe(`/bigquery/v2/projects/${PROJECT_ID}/datasets/saved_dataset`)
+    expect(url.pathname).toBe(
+      '/bigquery/v2/projects/example.com%3Aselector-test/datasets/saved_dataset'
+    )
     expect(url.searchParams.get('datasetView')).toBe('METADATA')
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })

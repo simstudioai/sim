@@ -17,6 +17,7 @@ import {
   listSelectorResult,
   requireListRequest,
   type ServerSelectorAttachmentMap,
+  type ServerSelectorExecutionResult,
 } from '@/lib/selectors/server/types'
 
 type BigQuerySelectorKey = Extract<ServerSelectorKey, 'bigquery.datasets' | 'bigquery.tables'>
@@ -24,7 +25,8 @@ type BigQuerySelectorKey = Extract<ServerSelectorKey, 'bigquery.datasets' | 'big
 const BIGQUERY_PAGE_SIZE = 200
 const BIGQUERY_CURSOR_MAX_LENGTH = 4_096
 const BIGQUERY_SCOPES = getScopesForService('google-bigquery')
-const PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
+/** Standard project IDs plus Google's legacy `domain.tld:project-id` form. */
+const PROJECT_ID_PATTERN = /^([a-z][a-z0-9.-]{0,61}[a-z0-9]:)?[a-z][a-z0-9-]{4,28}[a-z0-9]$/
 const DATASET_ID_PATTERN = /^[A-Za-z0-9_]{1,1024}$/
 const TABLE_ID_PATTERN = /^[\p{L}\p{M}\p{N}\p{Pc}\p{Pd}\p{Zs}]+$/u
 
@@ -67,7 +69,9 @@ const tablesPageSchema = z.object({
   nextPageToken: z.string().min(1).max(4_096).optional(),
 })
 
-function requireCredential(args: ExecuteServerSelectorArgs) {
+function requireCredential(
+  args: ExecuteServerSelectorArgs
+): NonNullable<ExecuteServerSelectorArgs['credential']> {
   if (!args.credential) throw new SelectorConnectionUnavailableError()
   return args.credential
 }
@@ -108,14 +112,16 @@ async function getAccessToken(args: ExecuteServerSelectorArgs): Promise<string> 
   })
 }
 
-function requestHeaders(accessToken: string) {
+function requestHeaders(accessToken: string): Record<string, string> {
   return {
     Authorization: `Bearer ${accessToken}`,
     Accept: 'application/json',
   }
 }
 
-async function listDatasets(args: ExecuteServerSelectorArgs) {
+async function listDatasets(
+  args: ExecuteServerSelectorArgs
+): Promise<ServerSelectorExecutionResult> {
   const request = requireListRequest(args.selectorKey, args.request)
   const projectId = requireProjectId(args.context.projectId)
   const cursor = requireCursor(request.cursor)
@@ -146,7 +152,7 @@ async function listDatasets(args: ExecuteServerSelectorArgs) {
   )
 }
 
-async function listTables(args: ExecuteServerSelectorArgs) {
+async function listTables(args: ExecuteServerSelectorArgs): Promise<ServerSelectorExecutionResult> {
   const request = requireListRequest(args.selectorKey, args.request)
   const projectId = requireProjectId(args.context.projectId)
   const datasetId = requireDatasetId(args.context.datasetId)
@@ -183,7 +189,7 @@ async function listTables(args: ExecuteServerSelectorArgs) {
   )
 }
 
-async function getDataset(args: ExecuteServerSelectorArgs) {
+async function getDataset(args: ExecuteServerSelectorArgs): Promise<ServerSelectorExecutionResult> {
   if (args.request.kind !== 'detail') throw new SelectorOptionsUnavailableError()
   const projectId = requireProjectId(args.context.projectId)
   const datasetId = requireDatasetId(args.request.id)
@@ -218,7 +224,7 @@ async function getDataset(args: ExecuteServerSelectorArgs) {
   })
 }
 
-async function getTable(args: ExecuteServerSelectorArgs) {
+async function getTable(args: ExecuteServerSelectorArgs): Promise<ServerSelectorExecutionResult> {
   if (args.request.kind !== 'detail') throw new SelectorOptionsUnavailableError()
   const projectId = requireProjectId(args.context.projectId)
   const datasetId = requireDatasetId(args.context.datasetId)
