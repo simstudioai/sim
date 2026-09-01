@@ -49,6 +49,7 @@ const log = {
   files: null,
   workflowName: 'Support Agent',
   workflowDescription: null,
+  executedByEmail: 'actor@example.com',
   workflowOwnerEmail: 'owner@example.com',
   workflowWorkspaceId: 'workspace-1',
   workflowCreatedAt: new Date('2026-01-01T00:00:00Z'),
@@ -86,8 +87,16 @@ describe('GET /api/v2/logs/[runId]', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
+    /**
+     * The two identities are deliberately different people here. `ownerEmail` is
+     * deprecated but still a required field of the published schema, so it must
+     * keep resolving from the workflow owner rather than quietly aliasing to the
+     * executing identity — dropping its own join would make both read the same
+     * and break every client still on it.
+     */
     expect(body.data).toMatchObject({
       runId: 'run-1',
+      executedByEmail: 'actor@example.com',
       workflow: { folderPath: '/agents', ownerEmail: 'owner@example.com' },
       finalOutput: { ok: true },
     })

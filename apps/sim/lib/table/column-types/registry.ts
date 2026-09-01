@@ -26,7 +26,9 @@ import { jsonColumnType } from '@/lib/table/column-types/json'
 import { numberColumnType } from '@/lib/table/column-types/number'
 import {
   MULTI_SELECT_OPERATORS,
+  MULTI_SELECT_OPS,
   SINGLE_SELECT_OPERATORS,
+  SINGLE_SELECT_OPS,
   selectColumnType,
 } from '@/lib/table/column-types/select'
 import { stringColumnType } from '@/lib/table/column-types/string'
@@ -36,7 +38,7 @@ import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-type
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 export { COLUMN_TYPES }
-export { MULTI_SELECT_OPERATORS, SINGLE_SELECT_OPERATORS }
+export { MULTI_SELECT_OPERATORS, MULTI_SELECT_OPS, SINGLE_SELECT_OPERATORS, SINGLE_SELECT_OPS }
 
 /**
  * Every column type, keyed by id. The annotation is the completeness gate —

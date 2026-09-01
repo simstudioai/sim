@@ -1,0 +1,897 @@
+---
+title: SailPoint
+description: Govern identities and access in SailPoint Identity Security Cloud
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sailpoint"
+  color="#0033A1"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+## MANUAL DESCRIPTION
+
+The SailPoint integration connects Sim workflows to SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT). Enter the tenant name from your ISC URL—or the full `*.api.identitynow.com` / `*.api.identitynowgov.com` host—plus the PAT client ID and client secret. Sim exchanges those credentials at the tenant's `/oauth/token` endpoint and calls SailPoint's current service-versioned endpoints, such as `/identities/v1`, `/access-requests/v1`, and `/certifications/v1`. There is no global API-version setting.
+
+Create the PAT with the least-privileged scopes required by the actions in your workflow. Common read scopes include `sp:search:read`, `idn:identity:read`, `idn:accounts:read`, `idn:entitlement:read`, `idn:role-unchecked:read` or `idn:role-checked:read`, `idn:access-profile:read`, `idn:sources:read`, `idn:campaign:read`, `idn:access-request-status:read`, `idn:task-management:read`, and `idn:access-request-approvals:read`. Write actions require their corresponding management scopes: `idn:access-request:manage` or `idn:access-request-self:manage` to submit access requests, `idn:access-request:manage` to cancel them, `idn:campaign:manage` to make certification decisions or sign off, `idn:access-request-approvals:manage` to approve or reject requests, `idn:sources:manage` to import accounts, and `idn:entitlement:manage` to import entitlements. Some identity-governance endpoints require a user-context PAT and an appropriate SailPoint user authority in addition to an OAuth scope.
+
+List actions return one bounded page. Standard collections accept up to 250 records per call; role collections accept up to 50; Search accepts up to 10,000. Use `offset`, `sorters`, or Search's `searchAfter` cursor to continue. Enable `count` only when you need the provider's `X-Total-Count` header. Omitting Search `indices` searches every index allowed by SailPoint; complex Search request fields are available as structured JSON inputs.
+
+Access requests are asynchronous. A successful submission returns SailPoint's `newRequests` and `existingRequests` tracking records, including the access-request IDs needed by the status tools. The standard request form applies the same requested items to every identity; use `requestedForWithRequestedItems` when identities need different items, dates, forms, or account selections. An entitlement revoke is limited to one entitlement per request, while entitlement grants are limited to 25 entitlements.
+
+Account and entitlement imports upload a CSV to a source and return a task that can be followed with **Get Task Status**. Sim caps each uploaded CSV at 25 MiB and does not automatically poll the task. The file must be available to the workflow owner, and the source must support the corresponding import operation.
+
+The actions cover five connected workflows: search and entity lookup; account, entitlement, role, access-profile, and source inventory; access request submission, cancellation, approval, rejection, and status; campaign and certification review, decision, and sign-off; and CSV import plus task monitoring. Provider-defined objects such as account attributes and Search documents remain JSON because their fields depend on the tenant, source, index, and field projection.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://TENANT.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses the current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes are sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally require idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation, idn:campaign:manage for certification decisions and sign-off, idn:access-request:manage or idn:access-request-self:manage for access requests as permitted, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.
+
+
+
+## Actions
+
+### SailPoint Approve Access Request
+
+Approve one pending access-request approval.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `approvalId` | string | Yes | Approval ID |
+| `comment` | string | No | Optional reviewer comment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Cancel Access Request
+
+Cancel an access request that has not passed approval.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `accountActivityId` | string | Yes | Account activity / identity request ID |
+| `comment` | string | Yes | Cancellation reason |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Decide Certification Review Items
+
+Approve or revoke 1-250 review items in an identity certification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Certification ID |
+| `decisions` | json | Yes | Array of \{id, decision: APPROVE\|REVOKE, bulk, proposedEndDate?, recommendation?, comments?\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Access Profile
+
+Get an access profile by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Access profile ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Access Profile Entitlements
+
+List entitlements in one access profile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Access profile ID |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Access Request Status
+
+List requested-item status records for access requests.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `requestedFor` | string | No | No description |
+| `requestedBy` | string | No | No description |
+| `regardingIdentity` | string | No | No description |
+| `assignedTo` | string | No | No description |
+| `requestState` | string | No | EXECUTING |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Account
+
+Get an account from the current /accounts/v1 service by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Account ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Account Activity
+
+Get an account activity by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Account activity ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Account Entitlements
+
+List entitlements granted to one account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Account ID |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Campaign
+
+Get a certification campaign by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Campaign ID |
+| `detail` | string | No | SLIM or FULL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Certification
+
+Get an identity certification by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Certification ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Entitlement
+
+Get an entitlement by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Entitlement ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Identity
+
+Get an identity from the current /identities/v1 service by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Identity ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Role
+
+Get a role by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Role ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Role Entitlements
+
+List entitlements in one role using the current non-experimental roles service.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Role ID |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum roles for this page \(0-50; default 50\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Source
+
+Get an identity source by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Source ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Get Task Status
+
+Get the current status of a SailPoint background task by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Task ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Access Profiles
+
+List access profiles with current visibility and segmentation controls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `forSubadmin` | string | No | Subadmin identity ID or 'me' whose visible resources should be returned |
+| `forSegmentIds` | string | No | Comma-separated segment IDs used to restrict the returned resources |
+| `includeUnsegmented` | boolean | No | Include resources not assigned to a segment \(default true\) |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Account Activities
+
+List provisioning activities with identity, filter, sort, and page controls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `requestedFor` | string | No | Target identity ID or 'me'; mutually exclusive with regardingIdentity |
+| `requestedBy` | string | No | Requester identity ID or 'me'; mutually exclusive with regardingIdentity |
+| `regardingIdentity` | string | No | Requester-or-target identity ID or 'me'; excludes requestedFor/requestedBy |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Accounts
+
+List accounts with documented filtering, sorting, detail, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `detailLevel` | string | No | SLIM or FULL \(default FULL\) |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Campaigns
+
+List certification campaigns with detail, filtering, sorting, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `detail` | string | No | SLIM \(default\) or FULL |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Certification Review Items
+
+List access-review items in one identity certification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Certification ID |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `entitlements` | string | No | Comma-separated entitlement IDs |
+| `accessProfiles` | string | No | Comma-separated access profile IDs |
+| `roles` | string | No | Comma-separated role IDs |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Certifications
+
+List identity certifications assigned to a reviewer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `reviewerIdentity` | string | No | Reviewer identity ID or 'me' |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Entitlements
+
+List entitlements with current segmentation, cursor, filter, and page controls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `segmentedForIdentity` | string | No | Identity ID whose visible segments restrict the results |
+| `forSegmentIds` | string | No | Comma-separated segment IDs used to restrict the returned resources |
+| `includeUnsegmented` | boolean | No | Include resources not assigned to a segment \(default true\) |
+| `searchAfter` | string | No | Opaque search-after cursor from the previous entitlement page |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Identities
+
+List identities with documented filtering, sorting, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `defaultFilter` | string | No | CORRELATED_ONLY \(default\) or NONE |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Identity Entitlements
+
+List tagged entitlement references held by one identity.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Identity ID |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Pending Access Request Approvals
+
+List pending access-request approvals visible to the caller.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `ownerId` | string | No | Approval owner identity ID or 'me'; admins may omit it for all approvals |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Roles
+
+List roles with current visibility, segmentation, filtering, and pagination controls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `forSubadmin` | string | No | Subadmin identity ID or 'me' whose visible resources should be returned |
+| `forSegmentIds` | string | No | Comma-separated segment IDs used to restrict the returned resources |
+| `includeUnsegmented` | boolean | No | Include resources not assigned to a segment \(default true\) |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum roles for this page \(0-50; default 50\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint List Sources
+
+List identity sources with visibility, filtering, sorting, and pagination controls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `forSubadmin` | string | No | Subadmin identity ID or 'me' whose visible resources should be returned |
+| `includeIDNSource` | boolean | No | Include the built-in IdentityNow source \(default false\) |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Load Accounts
+
+Start account aggregation for a source, optionally using a CSV file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `sourceId` | string | Yes | Source ID |
+| `file` | file | No | Delimited-file source account CSV |
+| `disableOptimization` | boolean | No | Reprocess every account instead of using optimized aggregation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Load Entitlements
+
+Start entitlement aggregation for a source, optionally using a CSV file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `sourceId` | string | Yes | Source ID |
+| `file` | file | No | Delimited-file source entitlement CSV |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Reject Access Request
+
+Reject one pending access-request approval with a reviewer comment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `approvalId` | string | Yes | Approval ID |
+| `comment` | string | Yes | Reviewer rejection comment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Request Access
+
+Submit a current human or machine identity access request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `requestType` | string | No | GRANT_ACCESS \(default\), REVOKE_ACCESS, or MODIFY_ACCESS |
+| `requestedFor` | json | No | Human identity IDs for the flat request shape |
+| `requestedItems` | json | No | Flat human request items |
+| `requestedForWithRequestedItems` | json | No | Per-identity request items for account selection and all machine identity requests |
+| `clientMetadata` | json | No | Arbitrary string-to-string metadata returned by related APIs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Search
+
+Search current SailPoint indices with every documented search query mode.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `indices` | json | No | Indices to search: accessprofiles, accountactivities, entitlements, events, identities, roles, or *. Omit to search all. |
+| `queryType` | string | No | SAILPOINT \(default\), DSL, TEXT, or TYPEAHEAD |
+| `queryVersion` | string | No | Elasticsearch query language version \(default 5.2\) |
+| `query` | json | No | SAILPOINT query object: \{query?, fields?, timeZone?, innerHit?\} |
+| `queryDsl` | json | No | Elasticsearch Query DSL object used with queryType=DSL |
+| `textQuery` | json | No | TEXT query object with required terms\[\] and fields\[\] |
+| `typeAheadQuery` | json | No | TYPEAHEAD query with query, field, optional nestedType, maxExpansions \(1-1000\), size, sort, and sortByValue |
+| `includeNested` | boolean | No | Include nested objects in search results \(default true\) |
+| `queryResultFilter` | json | No | Result projection object with includes\[\] and/or excludes\[\] |
+| `aggregationType` | string | No | Aggregation query language: DSL \(default\) or SAILPOINT |
+| `aggregationsVersion` | string | No | Elasticsearch aggregation language version \(default 5.2\) |
+| `aggregationsDsl` | json | No | Dynamic Elasticsearch aggregations DSL object |
+| `aggregations` | json | No | Typed SailPoint aggregation specification |
+| `sort` | json | No | Ordered search fields; prefix + or - for direction |
+| `searchAfter` | json | No | String values from the final sorted record of the previous search page |
+| `filters` | json | No | Map of result field names to filter objects |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Search Aggregate
+
+Run an Elasticsearch DSL or SailPoint aggregation over current search indices.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `indices` | json | No | Indices to search: accessprofiles, accountactivities, entitlements, events, identities, roles, or *. Omit to search all. |
+| `queryType` | string | No | SAILPOINT \(default\), DSL, TEXT, or TYPEAHEAD |
+| `queryVersion` | string | No | Elasticsearch query language version \(default 5.2\) |
+| `query` | json | No | SAILPOINT query object: \{query?, fields?, timeZone?, innerHit?\} |
+| `queryDsl` | json | No | Elasticsearch Query DSL object used with queryType=DSL |
+| `textQuery` | json | No | TEXT query object with required terms\[\] and fields\[\] |
+| `typeAheadQuery` | json | No | TYPEAHEAD query with query, field, optional nestedType, maxExpansions \(1-1000\), size, sort, and sortByValue |
+| `includeNested` | boolean | No | Include nested objects in search results \(default true\) |
+| `queryResultFilter` | json | No | Result projection object with includes\[\] and/or excludes\[\] |
+| `aggregationType` | string | No | Aggregation query language: DSL \(default\) or SAILPOINT |
+| `aggregationsVersion` | string | No | Elasticsearch aggregation language version \(default 5.2\) |
+| `aggregationsDsl` | json | No | Dynamic Elasticsearch aggregations DSL object |
+| `aggregations` | json | No | Typed SailPoint aggregation specification |
+| `sort` | json | No | Ordered search fields; prefix + or - for direction |
+| `searchAfter` | json | No | String values from the final sorted record of the previous search page |
+| `filters` | json | No | Map of result field names to filter objects |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Search Count
+
+Count documents matching a complete SailPoint search body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `indices` | json | No | Indices to search: accessprofiles, accountactivities, entitlements, events, identities, roles, or *. Omit to search all. |
+| `queryType` | string | No | SAILPOINT \(default\), DSL, TEXT, or TYPEAHEAD |
+| `queryVersion` | string | No | Elasticsearch query language version \(default 5.2\) |
+| `query` | json | No | SAILPOINT query object: \{query?, fields?, timeZone?, innerHit?\} |
+| `queryDsl` | json | No | Elasticsearch Query DSL object used with queryType=DSL |
+| `textQuery` | json | No | TEXT query object with required terms\[\] and fields\[\] |
+| `typeAheadQuery` | json | No | TYPEAHEAD query with query, field, optional nestedType, maxExpansions \(1-1000\), size, sort, and sortByValue |
+| `includeNested` | boolean | No | Include nested objects in search results \(default true\) |
+| `queryResultFilter` | json | No | Result projection object with includes\[\] and/or excludes\[\] |
+| `aggregationType` | string | No | Aggregation query language: DSL \(default\) or SAILPOINT |
+| `aggregationsVersion` | string | No | Elasticsearch aggregation language version \(default 5.2\) |
+| `aggregationsDsl` | json | No | Dynamic Elasticsearch aggregations DSL object |
+| `aggregations` | json | No | Typed SailPoint aggregation specification |
+| `sort` | json | No | Ordered search fields; prefix + or - for direction |
+| `searchAfter` | json | No | String values from the final sorted record of the previous search page |
+| `filters` | json | No | Map of result field names to filter objects |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Sign Off Certification
+
+Sign off a completed identity certification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Certification ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+

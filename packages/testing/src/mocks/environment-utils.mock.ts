@@ -1,20 +1,30 @@
 import { vi } from 'vitest'
 
+/**
+ * Every field of the real `EnvironmentResolutionSnapshot`, including the two a
+ * caller reads as arrays/records rather than testing for presence. Omitting them
+ * let a mocked snapshot reach production code as `undefined` and fail there
+ * instead of in the assertion, which is the opposite of what a default should do.
+ */
 function emptyPersonalAndWorkspaceEnv(): {
   personalEncrypted: Record<string, string>
   workspaceEncrypted: Record<string, string>
   personalDecrypted: Record<string, string>
   workspaceDecrypted: Record<string, string>
+  personalOwners: Record<string, string>
   conflicts: string[]
   decryptionFailures: string[]
+  workspaceUnredactedKeys: string[]
 } {
   return {
     personalEncrypted: {},
     workspaceEncrypted: {},
     personalDecrypted: {},
     workspaceDecrypted: {},
+    personalOwners: {},
     conflicts: [],
     decryptionFailures: [],
+    workspaceUnredactedKeys: [],
   }
 }
 
@@ -77,6 +87,10 @@ async function delegateExecutionEnvironment(
         ...(actor.decryptionFailures ?? []).filter((k: string) => k in workspaceEncrypted),
       ]),
     ],
+    // Belongs to the workspace slice, so it comes from the actor. Spreading
+    // `personal` alone carried the wrong identity's keys — and `undefined` when
+    // the stub omitted them.
+    workspaceUnredactedKeys: actor.workspaceUnredactedKeys,
   }
 }
 

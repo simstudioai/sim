@@ -76,6 +76,44 @@ describe('readTableSchemaAsExecutor', () => {
     })
   })
 
+  /**
+   * A select column's cardinality decides which filter operators it accepts, so
+   * LLM enrichment needs it to name the right subset. It is carried only for
+   * select columns, where it means something.
+   */
+  it('carries select cardinality through and omits it elsewhere', async () => {
+    mocks.readTable.mockResolvedValue({
+      table: {
+        name: 'Transactions',
+        schema: {
+          columns: [
+            { id: 'column-category', name: 'category', type: 'select' },
+            { id: 'column-tags', name: 'tags', type: 'select', multiple: true },
+            { id: 'column-amount', name: 'amount', type: 'number' },
+          ],
+        },
+      },
+    })
+
+    const result = await readTableSchemaAsExecutor({
+      tableId: 'table-1',
+      context: {
+        workflowId: 'workflow-1',
+        executorDelegationOrigin: {
+          subjectUserId: 'user-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        },
+      },
+    })
+
+    expect(result.columns).toEqual([
+      { name: 'category', type: 'select', multiple: false },
+      { name: 'tags', type: 'select', multiple: true },
+      { name: 'amount', type: 'number' },
+    ])
+  })
+
   it('fails closed when canonical schema metadata is malformed', async () => {
     mocks.readTable.mockResolvedValueOnce({
       table: { name: 'Customers', schema: { columns: [{ name: 'email', type: 'unknown' }] } },

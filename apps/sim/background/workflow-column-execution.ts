@@ -787,6 +787,8 @@ async function runWorkflowAndWriteTerminal(
               workflowRecord,
               userId: payload.triggeredByUserId ?? workflowRecord.userId,
               useAuthenticatedUserAsActor: Boolean(payload.triggeredByUserId),
+              // Falls back to the workflow owner when nobody triggered this.
+              userIdIsStoredReference: !payload.triggeredByUserId,
               triggerType: 'workflow',
               checkDeployment: false,
               checkRateLimit: false,

@@ -4038,6 +4038,7 @@ type GetLogResponseRef2 = {
   endedAt: string | null
   totalDurationMs: number | null
   files: Array<GetLogResponseRef0> | null
+  executedByEmail: string | null
   workflow: {
     id: string | null
     name: string
