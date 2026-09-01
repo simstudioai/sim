@@ -5831,6 +5831,14 @@ export const TableViews: ToolCatalogEntry = {
             type: ['array', 'null'],
             description:
               'Saved ordered sort spec, e.g. [{"field":"due","direction":"asc"}], column NAMES. On update_view, omit to keep the existing sort, pass null to clear it, or pass a sort spec to replace it. On create_view, omit or pass null for default ordering.',
+            items: {
+              type: 'object',
+              properties: {
+                direction: { type: 'string', enum: ['asc', 'desc'] },
+                field: { type: 'string' },
+              },
+              required: ['field', 'direction'],
+            },
           },
           tableId: { type: 'string', description: 'Table ID (required for every operation)' },
           viewId: {
