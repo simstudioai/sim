@@ -20,6 +20,10 @@ import {
 } from '@/lib/invitations/send'
 import { getWorkspaceWithOwner, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
+import {
+  InvitationsNotAllowedError,
+  validateInvitationsAllowed,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('InvitationResendAPI')
 
@@ -63,6 +67,41 @@ export const POST = withRouteHandler(
           { error: 'Only an organization or workspace admin can resend this invitation' },
           { status: 403 }
         )
+      }
+
+      /**
+       * permission-group-enforced: invitations.send — a resend is a send.
+       *
+       * It re-delivers a working link and pushes `expiresAt` forward, so an
+       * organization that has withheld invitations would otherwise still admit
+       * new people: every pending invitation stays revivable indefinitely by
+       * anyone who can reach this route, and each resend mints a fresh token.
+       * The invitee has not joined yet — resend is the step that gets them in —
+       * which is why this is not the webhook active-config carve-out, where the
+       * reachability already exists and the edit only adjusts it.
+       *
+       * Scoped exactly as creation is: each granted workspace resolves the
+       * group governing the caller there, and an organization-only invitation
+       * with no grants falls back to the organization's default group. Run
+       * after the admin check above, for the reason
+       * `resolveWorkspaceInvitationContext` records — the refusal names an
+       * organization setting, so it must not reach someone with no admin reach.
+       */
+      try {
+        for (const grant of inv.grants) {
+          await validateInvitationsAllowed(session.user.id, { workspaceId: grant.workspaceId })
+        }
+        if (inv.grants.length === 0 && inv.organizationId) {
+          await validateInvitationsAllowed(session.user.id, {
+            organizationId: inv.organizationId,
+          })
+        }
+      } catch (error) {
+        if (error instanceof InvitationsNotAllowedError) {
+          logger.warn('Invitation resend blocked by permission group', { invitationId: id })
+          return NextResponse.json({ error: error.message }, { status: 403 })
+        }
+        throw error
       }
 
       for (const grant of inv.grants) {
