@@ -16,7 +16,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 vi.mock('@/executor/utils/credential-token', () => ({
-  fetchCredentialAccessToken: vi.fn().mockResolvedValue('mock-access-token'),
+  resolveExecutorCredentialToken: vi.fn().mockResolvedValue({ accessToken: 'mock-access-token' }),
 }))
 
 vi.mock('@/lib/credentials/access', () => ({

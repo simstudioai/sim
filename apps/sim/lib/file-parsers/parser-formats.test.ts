@@ -260,7 +260,7 @@ describe('OpenDocumentParser', () => {
     zip.file('META-INF/manifest.xml', '<?xml version="1.0"?><manifest:manifest/>')
     zip.file(
       'content.xml',
-      `<?xml version="1.0"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body>${bodyXml}</office:body></office:document-content>`
+      `<?xml version="1.0"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"><office:body>${bodyXml}</office:body></office:document-content>`
     )
     return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }) as Promise<Buffer>
   }
@@ -280,7 +280,7 @@ describe('OpenDocumentParser', () => {
   it('extracts slide text from an odp', async () => {
     const buffer = await buildOdf(
       'application/vnd.oasis.opendocument.presentation',
-      '<office:presentation><text:p>OpenDocument slide</text:p></office:presentation>'
+      '<office:presentation><draw:page><draw:frame><draw:text-box><text:p>OpenDocument slide</text:p></draw:text-box></draw:frame></draw:page></office:presentation>'
     )
 
     const result = await new OpenDocumentParser().parseBuffer(buffer)

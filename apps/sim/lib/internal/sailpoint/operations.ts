@@ -11,7 +11,8 @@ import {
   sailpointFetch,
 } from '@/lib/internal/sailpoint/client'
 import type { SailPointInput } from '@/lib/internal/sailpoint/schema'
-import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
+import { parseRawFileInput } from '@/lib/uploads/utils/file-schemas'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
@@ -29,11 +30,14 @@ export interface SailPointOperationContext {
 type InputRecord = SailPointInput & Record<string, unknown>
 type ResourceKey =
   | 'accessProfile'
+  | 'accessRequestConfig'
   | 'account'
   | 'accountActivity'
+  | 'accountSelections'
   | 'campaign'
   | 'certification'
   | 'entitlement'
+  | 'entitlementRequestConfig'
   | 'identity'
   | 'role'
   | 'source'
@@ -49,11 +53,14 @@ type ResultKind =
 
 const RESOURCE_KEYS = new Set<ResultKind>([
   'accessProfile',
+  'accessRequestConfig',
   'account',
   'accountActivity',
+  'accountSelections',
   'campaign',
   'certification',
   'entitlement',
+  'entitlementRequestConfig',
   'identity',
   'role',
   'source',
@@ -125,6 +132,16 @@ function searchBody(input: InputRecord): Record<string, unknown> {
   })
 }
 
+function accessRequestBody(input: InputRecord): Record<string, unknown> {
+  return filterUndefined({
+    requestedFor: input.requestedFor,
+    requestedItems: input.requestedItems,
+    requestedForWithRequestedItems: input.requestedForWithRequestedItems,
+    requestType: input.requestType,
+    clientMetadata: input.clientMetadata,
+  })
+}
+
 function failureResponse(error: string, status: number): Response {
   return Response.json({ success: false, error }, { status })
 }
@@ -165,7 +182,16 @@ function outputForResult(result: SailPointFetchResult, kind: ResultKind): Respon
   }
 
   if (kind === 'aggregate') {
-    const aggregate = isRecordLike(result.data) ? result.data : {}
+    if (!isRecordLike(result.data)) {
+      return failureResponse('SailPoint returned an invalid aggregate response', 502)
+    }
+    const aggregate = result.data
+    if (aggregate.aggregations !== undefined && !isRecordLike(aggregate.aggregations)) {
+      return failureResponse('SailPoint returned invalid aggregation results', 502)
+    }
+    if (aggregate.hits !== undefined && !Array.isArray(aggregate.hits)) {
+      return failureResponse('SailPoint returned invalid aggregation hits', 502)
+    }
     return Response.json({
       success: true,
       output: {
@@ -177,19 +203,30 @@ function outputForResult(result: SailPointFetchResult, kind: ResultKind): Respon
   }
 
   if (RESOURCE_KEYS.has(kind)) {
-    return Response.json({ success: true, output: { [kind]: result.data ?? null } })
+    if (!isRecordLike(result.data)) {
+      return failureResponse('SailPoint returned an invalid resource response', 502)
+    }
+    return Response.json({ success: true, output: { [kind]: result.data } })
   }
 
   if (kind === 'request-access') {
-    const response = isRecordLike(result.data) ? result.data : null
+    if (!isRecordLike(result.data)) {
+      return failureResponse('SailPoint returned an invalid access-request response', 502)
+    }
+    const response = result.data
+    if (response.newRequests !== undefined && !Array.isArray(response.newRequests)) {
+      return failureResponse('SailPoint returned invalid new access-request records', 502)
+    }
+    if (response.existingRequests !== undefined && !Array.isArray(response.existingRequests)) {
+      return failureResponse('SailPoint returned invalid existing access-request records', 502)
+    }
     return Response.json({
       success: true,
       output: {
         accepted: true,
         status: result.status,
-        newRequests: response && Array.isArray(response.newRequests) ? response.newRequests : [],
-        existingRequests:
-          response && Array.isArray(response.existingRequests) ? response.existingRequests : [],
+        newRequests: Array.isArray(response.newRequests) ? response.newRequests : [],
+        existingRequests: Array.isArray(response.existingRequests) ? response.existingRequests : [],
       },
     })
   }
@@ -220,13 +257,11 @@ async function executeLoad(
   let fileName = 'aggregation.csv'
   let fileType = 'text/csv'
 
-  if (input.file && typeof input.file === 'object') {
+  if (input.file != null) {
     if (!context.userId) return failureResponse('Authentication required for stored files', 401)
-    const userFiles = processFilesToUserFiles(
-      [input.file as RawFileInput],
-      context.requestId,
-      logger
-    )
+    const parsedFile = parseRawFileInput(input.file)
+    if (!parsedFile) return failureResponse('Invalid file input', 400)
+    const userFiles = processFilesToUserFiles([parsedFile], context.requestId, logger)
     const userFile = userFiles[0]
     if (!userFile) return failureResponse('Invalid file input', 400)
 
@@ -273,7 +308,7 @@ async function executeLoad(
     credentials,
     (hosts) => {
       const form = new FormData()
-      if (fileBuffer) {
+      if (fileBuffer !== null) {
         form.append('file', new Blob([new Uint8Array(fileBuffer)], { type: fileType }), fileName)
       }
       if (isAccountLoad && input.disableOptimization === true) {
@@ -286,7 +321,7 @@ async function executeLoad(
   if (!result.ok) return providerFailure(result)
   if (isAccountLoad) {
     const body = isRecordLike(result.data) ? result.data : null
-    if (!body || !('task' in body)) {
+    if (!body || !isRecordLike(body.task)) {
       return failureResponse('SailPoint returned an invalid account-load task response', 502)
     }
     return Response.json({
@@ -422,6 +457,16 @@ export async function executeSailPointOperation(
           init: { method: 'GET' },
         }),
         'entitlement'
+      )
+    case 'sailpoint_get_entitlement_request_config':
+      return executeRequest(
+        credentials,
+        context,
+        (hosts) => ({
+          url: `${hosts.apiBaseUrl}/entitlements/v1/${encodeId(input.id)}/entitlement-request-config`,
+          init: { method: 'GET' },
+        }),
+        'entitlementRequestConfig'
       )
     case 'sailpoint_list_roles':
       return executeRequest(
@@ -599,17 +644,35 @@ export async function executeSailPointOperation(
         context,
         (hosts) => ({
           url: `${hosts.apiBaseUrl}/access-requests/v1`,
-          init: jsonRequest(
-            filterUndefined({
-              requestedFor: input.requestedFor,
-              requestedItems: input.requestedItems,
-              requestedForWithRequestedItems: input.requestedForWithRequestedItems,
-              requestType: input.requestType,
-              clientMetadata: input.clientMetadata,
-            })
-          ),
+          init: jsonRequest(accessRequestBody(input)),
         }),
         'request-access'
+      )
+    case 'sailpoint_get_account_selections':
+      return executeRequest(
+        credentials,
+        context,
+        (hosts) => ({
+          url: `${hosts.apiBaseUrl}/access-requests/v1/accounts-selection`,
+          init: {
+            ...jsonRequest(accessRequestBody(input)),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-SailPoint-Experimental': 'true',
+            },
+          },
+        }),
+        'accountSelections'
+      )
+    case 'sailpoint_get_access_request_config':
+      return executeRequest(
+        credentials,
+        context,
+        (hosts) => ({
+          url: `${hosts.apiBaseUrl}/access-request-config/v2`,
+          init: { method: 'GET' },
+        }),
+        'accessRequestConfig'
       )
     case 'sailpoint_cancel_access_request':
       return executeRequest(

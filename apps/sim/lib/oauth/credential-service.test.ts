@@ -64,7 +64,7 @@ vi.mock('@/lib/oauth/terminal-errors', () => ({
   markCredentialDead: vi.fn(),
 }))
 
-import { resolveCredentialAccessToken } from '@/lib/oauth/credential-service'
+import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 
 const RAW_CREDENTIAL_ID = 'credential-raw-secret-id'
 const RAW_ACCOUNT_ID = 'account-raw-secret-id'
@@ -127,7 +127,7 @@ async function observeRefresh(
   ])
 
   await expect(
-    resolveCredentialAccessToken(
+    resolveCredentialTokenBundle(
       RAW_CREDENTIAL_ID,
       RAW_USER_ID,
       'selector-execution',
@@ -149,7 +149,7 @@ async function observeRefresh(
   }
 }
 
-describe('resolveCredentialAccessToken selector privacy', () => {
+describe('resolveCredentialTokenBundle selector privacy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()

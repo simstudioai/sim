@@ -7,7 +7,7 @@ import {
   type CredentialAccessResult,
 } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
-import { resolveCredentialAccessToken } from '@/lib/oauth/credential-service'
+import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { credentialProviderMatchesService, getServiceConfigByServiceId } from '@/lib/oauth/utils'
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
 import type {
@@ -123,7 +123,7 @@ export async function resolveSelectorOAuthAccessToken(input: {
     throw new SelectorConnectionUnavailableError()
   }
 
-  const result = await resolveCredentialAccessToken(
+  const result = await resolveCredentialTokenBundle(
     input.credential.suppliedId,
     access.credentialOwnerUserId,
     'selector-execution',

@@ -16,10 +16,12 @@ import { getTrigger } from '@/triggers'
 const DESTINATION_SWITCH_OPERATIONS = ['send', 'read', 'schedule_message'] as const
 
 const SLACK_V2_AGENT_OPERATIONS = [
-  'set_suggested_prompts',
+  'set_agent_suggested_prompts',
   'set_agent_session_status',
   'rename_agent_session',
 ] as const
+
+const SLACK_V2_SESSION_OPERATIONS = ['set_agent_session_status', 'rename_agent_session'] as const
 
 const CHANNEL_FIELD = ['channel', 'manualChannel'] as const
 
@@ -2981,8 +2983,26 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
   if (sb.id === 'getThreadTimestamp') {
     return {
       ...sb,
-      condition: { field: 'operation', value: ['get_thread', 'get_thread_replies'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_thread',
+          'get_thread_replies',
+          'set_status',
+          'set_title',
+          'set_suggested_prompts',
+        ],
+      },
       required: true,
+    }
+  }
+  if (sb.id === 'suggestedPrompts' || sb.id === 'promptsTitle') {
+    return {
+      ...sb,
+      condition: {
+        field: 'operation',
+        value: ['set_suggested_prompts', 'set_agent_suggested_prompts'],
+      },
     }
   }
   if (dependsOn && !Array.isArray(dependsOn) && dependsOn.all?.includes('authMethod')) {
@@ -3048,10 +3068,7 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
       title: 'Thread Timestamp',
       type: 'short-input',
       placeholder: 'Thread timestamp (thread_ts)',
-      condition: {
-        field: 'operation',
-        value: ['set_suggested_prompts', 'set_agent_session_status', 'rename_agent_session'],
-      },
+      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS] },
       required: {
         field: 'operation',
         value: ['set_agent_session_status', 'rename_agent_session'],
@@ -3153,12 +3170,11 @@ export function getSlackV2OperationSentences() {
   if (!operationSentences) {
     throw new Error('Slack action sentences must be defined before building slack_v2')
   }
-  const { set_status: _setStatus, set_title: _setTitle, ...v2Sentences } = operationSentences
   return {
-    ...v2Sentences,
-    set_suggested_prompts: [
+    ...operationSentences,
+    set_agent_suggested_prompts: [
       {
-        text: 'Set suggested prompts in',
+        text: 'Set agent suggested prompts in',
         field: ['agentChannel', 'manualAgentChannel'],
         core: true,
       },
@@ -3239,7 +3255,10 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         { label: 'Get Thread Replies', id: 'get_thread_replies' },
         { label: 'Get Channel History', id: 'get_channel_history' },
         { label: 'Get Message Permalink', id: 'get_permalink' },
-        { label: 'Set Suggested Prompts', id: 'set_suggested_prompts' },
+        { label: 'Set Assistant Status', id: 'set_status' },
+        { label: 'Set Assistant Title', id: 'set_title' },
+        { label: 'Set Assistant Suggested Prompts', id: 'set_suggested_prompts' },
+        { label: 'Set Agent Suggested Prompts', id: 'set_agent_suggested_prompts' },
         { label: 'Set Agent Session Status', id: 'set_agent_session_status' },
         { label: 'Rename Agent Session', id: 'rename_agent_session' },
         { label: 'List Channels', id: 'list_channels' },
@@ -3290,6 +3309,8 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       'slack_get_thread_replies',
       'slack_get_channel_history',
       'slack_get_permalink',
+      'slack_set_status',
+      'slack_set_title',
       'slack_set_suggested_prompts',
       'slack_set_suggested_prompts_v2',
       'slack_set_agent_session_status_v2',
@@ -3329,9 +3350,9 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       tool: (params) => {
         switch (params.operation) {
           case 'set_suggested_prompts':
-            return params.agentCredentialId
-              ? 'slack_set_suggested_prompts_v2'
-              : 'slack_set_suggested_prompts'
+            return 'slack_set_suggested_prompts'
+          case 'set_agent_suggested_prompts':
+            return 'slack_set_suggested_prompts_v2'
           case 'set_agent_session_status':
             return 'slack_set_agent_session_status_v2'
           case 'rename_agent_session':
@@ -3348,9 +3369,6 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         if (!mapParams) throw new Error('Slack parameter mapper is required')
         const baseParams = mapParams(params)
         if (!SLACK_V2_AGENT_OPERATIONS.includes(params.operation as never)) return baseParams
-        if (params.operation === 'set_suggested_prompts' && !params.agentCredentialId) {
-          return baseParams
-        }
 
         return {
           ...baseParams,

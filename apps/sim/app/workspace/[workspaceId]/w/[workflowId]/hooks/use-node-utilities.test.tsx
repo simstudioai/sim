@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetNodes } = vi.hoisted(() => ({ mockGetNodes: vi.fn() }))
 
-vi.mock('reactflow', () => ({
+vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({ getNodes: mockGetNodes }),
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   Handle: () => null,

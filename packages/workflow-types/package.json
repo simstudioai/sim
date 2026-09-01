@@ -27,11 +27,11 @@
     "format:check": "biome format ."
   },
   "peerDependencies": {
-    "reactflow": "^11.11.4"
+    "@xyflow/react": "^12.11.3"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "reactflow": "^11.11.4",
+    "@xyflow/react": "12.11.3",
     "typescript": "^7.0.2"
   }
 }

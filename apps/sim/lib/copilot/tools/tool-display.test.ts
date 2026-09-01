@@ -646,6 +646,9 @@ describe('opaque id suppression', () => {
   it('falls back to the generic label instead of printing a workflow id', () => {
     expect(getToolDisplayTitle('run_workflow', { workflowName: uuid })).toBe('Running workflow')
     expect(getToolDisplayTitle('run_workflow', { name: uuid })).toBe('Running workflow')
+    expect(getToolDisplayTitle('cancel_workflow_run', { executionId: uuid })).toBe(
+      'Cancelling workflow run'
+    )
   })
 
   it('suppresses a bare-hex id too', () => {

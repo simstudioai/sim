@@ -572,7 +572,8 @@ async function handleExternalUrl(
         extension,
         fileType,
         url,
-        maxParsedOutputBytes
+        maxParsedOutputBytes,
+        signal
       )
     } else {
       parseResult = handleGenericBuffer(buffer, filename, extension, fileType, maxParsedOutputBytes)
@@ -764,7 +765,8 @@ async function handleCloudFile(
         extension,
         fileType,
         normalizedFilePath,
-        maxParsedOutputBytes
+        maxParsedOutputBytes,
+        signal
       )
     } else {
       parseResult = handleGenericBuffer(
@@ -1049,7 +1051,8 @@ async function handleGenericTextBuffer(
   extension: string,
   fileType?: string,
   originalPath?: string,
-  maxParsedOutputBytes?: number
+  maxParsedOutputBytes?: number,
+  signal?: AbortSignal
 ): Promise<ParseResult> {
   try {
     logger.info(`Parsing text file in memory: ${filename}`)
@@ -1058,7 +1061,7 @@ async function handleGenericTextBuffer(
       const { parseBuffer, isSupportedFileType } = await import('@/lib/file-parsers')
 
       if (isSupportedFileType(extension)) {
-        const result = await parseBuffer(fileBuffer, extension)
+        const result = await parseBuffer(fileBuffer, extension, { signal })
 
         return {
           success: true,
@@ -1073,6 +1076,7 @@ async function handleGenericTextBuffer(
         }
       }
     } catch (parserError) {
+      signal?.throwIfAborted()
       if (isPayloadSizeLimitError(parserError)) throw parserError
       if (isFileParserError(parserError) && parserError.code === 'complexity_limit') {
         throw parserError

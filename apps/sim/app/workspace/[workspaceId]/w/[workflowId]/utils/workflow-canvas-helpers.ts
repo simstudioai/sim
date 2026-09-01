@@ -1,11 +1,20 @@
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import type { Edge, Node } from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
-import type { Edge, Node } from 'reactflow'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'
+
+export function getNodeDataDimension(
+  node: Pick<Node, 'data'>,
+  dimension: 'width' | 'height',
+  fallback: number
+): number {
+  const value = node.data?.[dimension]
+  return typeof value === 'number' && value ? value : fallback
+}
 
 type ArrowNavigationEvent = Pick<
   KeyboardEvent,
@@ -236,8 +245,8 @@ export function getClampedPositionForNode(
   }
 
   const containerDimensions = {
-    width: parentNode.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-    height: parentNode.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+    width: getNodeDataDimension(parentNode, 'width', CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
+    height: getNodeDataDimension(parentNode, 'height', CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
   }
   const blockDimensions = {
     width:

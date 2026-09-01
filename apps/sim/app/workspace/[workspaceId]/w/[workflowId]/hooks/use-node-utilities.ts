@@ -2,12 +2,13 @@ import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
 import type { BlockState } from '@sim/workflow-types/workflow'
-import { useReactFlow } from 'reactflow'
+import { useReactFlow } from '@xyflow/react'
 import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'
 import {
   calculateContainerDimensions,
   clampPositionToContainer,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
+import { getNodeDataDimension } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('NodeUtilities')
@@ -231,8 +232,12 @@ export function useNodeUtilities(blocks: Record<string, BlockState>) {
 
       const parentNode = getNodes().find((n) => n.id === newParentId)
       const containerDimensions = {
-        width: parentNode?.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-        height: parentNode?.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+        width: parentNode
+          ? getNodeDataDimension(parentNode, 'width', CONTAINER_DIMENSIONS.DEFAULT_WIDTH)
+          : CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+        height: parentNode
+          ? getNodeDataDimension(parentNode, 'height', CONTAINER_DIMENSIONS.DEFAULT_HEIGHT)
+          : CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
       }
       const blockDimensions = getBlockDimensions(nodeId)
 
@@ -260,11 +265,13 @@ export function useNodeUtilities(blocks: Record<string, BlockState>) {
         .filter((n) => {
           // Use absolute coordinates for nested containers
           const absolutePos = getNodeAbsolutePosition(n.id)
+          const width = getNodeDataDimension(n, 'width', CONTAINER_DIMENSIONS.DEFAULT_WIDTH)
+          const height = getNodeDataDimension(n, 'height', CONTAINER_DIMENSIONS.DEFAULT_HEIGHT)
           const rect = {
             left: absolutePos.x,
-            right: absolutePos.x + (n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
+            right: absolutePos.x + width,
             top: absolutePos.y,
-            bottom: absolutePos.y + (n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
+            bottom: absolutePos.y + height,
           }
 
           return (
@@ -278,8 +285,8 @@ export function useNodeUtilities(blocks: Record<string, BlockState>) {
           loopId: n.id,
           loopPosition: getNodeAbsolutePosition(n.id),
           dimensions: {
-            width: n.data?.width || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-            height: n.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
+            width: getNodeDataDimension(n, 'width', CONTAINER_DIMENSIONS.DEFAULT_WIDTH),
+            height: getNodeDataDimension(n, 'height', CONTAINER_DIMENSIONS.DEFAULT_HEIGHT),
           },
         }))
 
@@ -428,16 +435,20 @@ export function useNodeUtilities(blocks: Record<string, BlockState>) {
         ? typeof node.data?.width === 'number'
           ? node.data.width
           : 500
-        : typeof node.width === 'number'
-          ? node.width
-          : 250
+        : typeof node.measured?.width === 'number'
+          ? node.measured.width
+          : typeof node.width === 'number'
+            ? node.width
+            : 250
       const height = isSubflow
         ? typeof node.data?.height === 'number'
           ? node.data.height
           : 300
-        : typeof node.height === 'number'
-          ? node.height
-          : 100
+        : typeof node.measured?.height === 'number'
+          ? node.measured.height
+          : typeof node.height === 'number'
+            ? node.height
+            : 100
 
       return {
         x: absPos.x + width,

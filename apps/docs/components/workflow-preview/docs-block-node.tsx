@@ -2,8 +2,8 @@
 
 import { type ComponentType, memo } from 'react'
 import { SubBlockRowView, WorkflowBlockView } from '@sim/workflow-renderer'
+import type { Node, NodeProps } from '@xyflow/react'
 import { m } from 'framer-motion'
-import type { NodeProps } from 'reactflow'
 import { resolveIcon } from '@/components/workflow-preview/block-icons'
 import {
   BLOCK_STAGGER,
@@ -16,7 +16,7 @@ const EMPTY_ICON: ComponentType<{ className?: string }> = () => null
 
 const RING_STYLES = 'ring-[1.75px] ring-[var(--brand-secondary)]'
 
-interface DocsBlockData {
+export interface DocsBlockData extends Record<string, unknown> {
   name: string
   blockType: string
   bgColor: string
@@ -30,6 +30,8 @@ interface DocsBlockData {
   isDimmed?: boolean
 }
 
+export type DocsBlockNodeType = Node<DocsBlockData, 'previewBlock'>
+
 /**
  * Docs adapter for workflow block nodes: maps the static preview data to the
  * shared {@link WorkflowBlockView}'s props. Carries no stores, hooks, or
@@ -38,7 +40,10 @@ interface DocsBlockData {
  * `WorkflowPreview` provides the `LazyMotion` feature set). The block's ring is
  * driven by `hasRing`/`ringStyles` inside the View.
  */
-export const DocsBlockNode = memo(function DocsBlockNode({ id, data }: NodeProps<DocsBlockData>) {
+export const DocsBlockNode = memo(function DocsBlockNode({
+  id,
+  data,
+}: NodeProps<DocsBlockNodeType>) {
   const {
     name,
     blockType,

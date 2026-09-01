@@ -10,7 +10,7 @@ import {
   WorkflowTypeTag,
 } from '@sim/workflow-renderer'
 import { WORKFLOW_SOURCE_HANDLE_ID, WORKFLOW_TARGET_HANDLE_ID } from '@sim/workflow-types/workflow'
-import { Handle, type NodeProps, Position } from 'reactflow'
+import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
 import {
   type CardSelector,
@@ -72,7 +72,7 @@ const ERROR_HANDLE_STYLE: CSSProperties = {
   transform: 'translateX(-50%)',
 }
 
-interface WorkflowPreviewBlockData {
+interface WorkflowPreviewBlockData extends Record<string, unknown> {
   type: string
   name: string
   workflowMap?: Record<string, WorkflowMetadata>
@@ -215,7 +215,9 @@ const SubBlockRow = memo(function SubBlockRow({
  * hooks, store subscriptions, or interactive features.
  * Matches the visual structure of WorkflowBlock exactly.
  */
-function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>) {
+type WorkflowPreviewBlockNode = Node<WorkflowPreviewBlockData, 'workflowBlock' | 'noteBlock'>
+
+function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>) {
   const {
     type,
     name,
@@ -681,8 +683,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
  * @returns True if render should be skipped (props are equal)
  */
 function shouldSkipPreviewBlockRender(
-  prevProps: NodeProps<WorkflowPreviewBlockData>,
-  nextProps: NodeProps<WorkflowPreviewBlockData>
+  prevProps: NodeProps<WorkflowPreviewBlockNode>,
+  nextProps: NodeProps<WorkflowPreviewBlockNode>
 ): boolean {
   if (
     prevProps.id !== nextProps.id ||

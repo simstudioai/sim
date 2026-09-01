@@ -6,6 +6,7 @@ import { isVersionedType, stripVersionSuffix } from '@sim/utils/string'
 import { glob } from 'glob'
 import type { BlockCategory } from '../apps/sim/blocks/types'
 import { IntegrationType } from '../apps/sim/blocks/types'
+import type { ToolOutputProperty } from '../apps/sim/tools/types'
 
 /**
  * Cache for resolved const definitions from types files.
@@ -333,6 +334,16 @@ async function loadToolMetadata(): Promise<Record<string, ToolMetadataEntry>> {
   const module = await import(path.join(rootDir, 'apps/sim/tools/generated/tool-metadata.ts'))
   toolMetadata = module.default as Record<string, ToolMetadataEntry>
   return toolMetadata
+}
+
+/** Evaluated tool output schemas, keyed by tool id and kept in sync with the registry by CI. */
+let toolOutputs: Record<string, Record<string, ToolOutputProperty>> | null = null
+
+async function loadToolOutputs(): Promise<Record<string, Record<string, ToolOutputProperty>>> {
+  if (toolOutputs) return toolOutputs
+  const module = await import(path.join(rootDir, 'apps/sim/tools/generated/tool-outputs.ts'))
+  toolOutputs = module.default as Record<string, Record<string, ToolOutputProperty>>
+  return toolOutputs
 }
 
 /** Human-facing tool names, keyed by tool id. Kept in sync with the registry by CI. */
@@ -3016,7 +3027,7 @@ export function extractToolInfo(
 ): {
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
-  outputs: Record<string, any>
+  outputs: Record<string, ToolOutputProperty>
 } | null {
   try {
     // First, try to find the specific tool definition by its ID
@@ -3796,6 +3807,7 @@ export async function getToolInfo(
 
   try {
     const metadata = (await loadToolMetadata())[toolName]
+    const generatedOutputs = (await loadToolOutputs())[toolName]
     const parts = toolName.split('_')
 
     let toolPrefix = ''
@@ -3956,7 +3968,10 @@ export async function getToolInfo(
     return {
       description: metadata.description ?? sourceInfo?.description ?? 'No description available',
       params,
-      outputs: sourceInfo?.outputs ?? {},
+      outputs:
+        toolPrefix === 'sailpoint'
+          ? (generatedOutputs ?? sourceInfo?.outputs ?? {})
+          : (sourceInfo?.outputs ?? generatedOutputs ?? {}),
     }
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)

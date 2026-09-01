@@ -1282,6 +1282,44 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
+  it('finalizes staged pause state without mutating a terminal parent log', async () => {
+    queueTableRows(workflowExecutionLogs, [{ status: 'completed' }])
+    queueTableRows(pausedExecutions, [{ id: 'paused-exec-1', status: 'cancelling' }])
+    queueTableRows(resumeQueue, [{ id: 'resume-entry-1' }])
+
+    await expect(
+      PauseResumeManager.finalizePausedCancellationForTerminalRun('execution-1', 'workflow-1', [
+        'resume-entry-1',
+      ])
+    ).resolves.toBe(true)
+
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
+      status: 'cancelled',
+      updatedAt: expect.any(Date),
+      nextResumeAt: null,
+    })
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
+      status: 'failed',
+      completedAt: expect.any(Date),
+      failureReason: 'Paused execution cancelled',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalledWith(workflowExecutionLogs)
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('resume-entry-1')
+  })
+
+  it('does not finalize or release an unconfirmed claimed resume', async () => {
+    queueTableRows(workflowExecutionLogs, [{ status: 'completed' }])
+    queueTableRows(pausedExecutions, [{ id: 'paused-exec-1', status: 'cancelling' }])
+    queueTableRows(resumeQueue, [{ id: 'resume-entry-1' }])
+
+    await expect(
+      PauseResumeManager.finalizePausedCancellationForTerminalRun('execution-1', 'workflow-1', [])
+    ).resolves.toBe(false)
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
   it('restores only cancellation-staged queue entries while the workflow remains active', async () => {
     queueTableRows(workflowExecutionLogs, [{ status: 'running' }])
     queueTableRows(pausedExecutions, [{ id: 'paused-exec-1' }])

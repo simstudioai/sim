@@ -6,8 +6,8 @@ import {
   isEncryptedOfficeParserError,
   toFileParserError,
 } from '@/lib/file-parsers/errors'
-import { loadParseOfficeAsync } from '@/lib/file-parsers/officeparser-module'
-import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import { parseOfficeText } from '@/lib/file-parsers/officeparser-module'
+import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
@@ -24,17 +24,18 @@ interface MammothResult {
 }
 
 export class DocxParser implements FileParser {
-  async parseFile(filePath: string): Promise<FileParseResult> {
+  async parseFile(filePath: string, options: FileParseOptions = {}): Promise<FileParseResult> {
     if (!filePath) {
       throw new Error('No file path provided')
     }
 
-    const buffer = await readFile(filePath)
-    return this.parseBuffer(buffer)
+    const buffer = await readFile(filePath, { signal: options.signal })
+    return this.parseBuffer(buffer, options)
   }
 
-  async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
+  async parseBuffer(buffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {
     try {
+      options.signal?.throwIfAborted()
       if (!buffer || buffer.length === 0) {
         throw new FileParserError('empty_input', 'Empty buffer provided')
       }
@@ -46,6 +47,7 @@ export class DocxParser implements FileParser {
 
       try {
         const result = await mammoth.extractRawText({ buffer })
+        options.signal?.throwIfAborted()
 
         if (result.value && result.value.trim().length > 0) {
           let htmlResult: MammothResult = { value: '', messages: [] }
@@ -54,6 +56,7 @@ export class DocxParser implements FileParser {
           } catch {
             // HTML conversion is optional
           }
+          options.signal?.throwIfAborted()
 
           return {
             content: sanitizeTextForUTF8(result.value),
@@ -66,14 +69,13 @@ export class DocxParser implements FileParser {
         }
         parserReturnedEmpty = true
       } catch (mammothError) {
+        options.signal?.throwIfAborted()
         logger.warn('mammoth failed, trying officeparser:', mammothError)
         extractionErrors.push(mammothError)
       }
 
-      const parseOfficeAsync = await loadParseOfficeAsync()
-
       try {
-        const result = await parseOfficeAsync(buffer)
+        const result = await parseOfficeText(buffer, options)
 
         if (result) {
           const resultString = typeof result === 'string' ? result : String(result)
@@ -91,6 +93,7 @@ export class DocxParser implements FileParser {
         }
         parserReturnedEmpty = true
       } catch (officeError) {
+        options.signal?.throwIfAborted()
         logger.warn('officeparser failed:', officeError)
         extractionErrors.push(officeError)
       }
@@ -132,6 +135,7 @@ export class DocxParser implements FileParser {
         new AggregateError(extractionErrors)
       )
     } catch (error) {
+      options.signal?.throwIfAborted()
       logger.error('DOCX parsing error:', error)
       throw toFileParserError(error, 'invalid_format', 'Failed to parse DOCX buffer')
     }

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockResolveCredentialAccessToken = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveCredentialAccessToken: mockResolveCredentialAccessToken,
+  resolveCredentialTokenBundle: mockResolveCredentialAccessToken,
 }))
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'

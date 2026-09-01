@@ -136,9 +136,9 @@ const requestedItemSchema = z.object({
   comment: optionalString(10_000),
   removeDate: z.string().datetime({ offset: true }).optional(),
   startDate: z.string().datetime({ offset: true }).optional(),
-  assignmentId: optionalString(MAX_ID_LENGTH),
-  nativeIdentity: optionalString(10_000),
-  formInstanceId: optionalString(MAX_ID_LENGTH),
+  assignmentId: optionalString(MAX_ID_LENGTH).nullable(),
+  nativeIdentity: optionalString(10_000).nullable(),
+  formInstanceId: optionalString(MAX_ID_LENGTH).nullable(),
   clientMetadata: metadataSchema.optional(),
 })
 
@@ -146,17 +146,27 @@ const sourceItemRefSchema = z.object({
   sourceId: z.string().max(MAX_ID_LENGTH).nullable().optional(),
   accounts: z
     .array(
-      z.object({
-        accountUuid: z.string().max(MAX_ID_LENGTH).nullable().optional(),
-        nativeIdentity: z.string().max(10_000).optional(),
-      })
+      z
+        .object({
+          accountUuid: z.string().trim().min(1).max(MAX_ID_LENGTH).nullable().optional(),
+          nativeIdentity: z.string().trim().min(1).max(10_000).optional(),
+        })
+        .superRefine((value, ctx) => {
+          if (!value.accountUuid && !value.nativeIdentity) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['accountUuid'],
+              message: 'accountUuid or nativeIdentity is required',
+            })
+          }
+        })
     )
     .max(100)
     .nullable()
     .optional(),
 })
 
-const nestedRequestedItemSchema = requestedItemSchema.extend({
+const nestedRequestedItemSchema = requestedItemSchema.omit({ assignmentId: true }).extend({
   accountSelection: z.array(sourceItemRefSchema).max(100).nullable().optional(),
 })
 
@@ -166,21 +176,31 @@ const requestedForWithItemsSchema = z.object({
   requestedItems: z.array(nestedRequestedItemSchema).min(1).max(250),
 })
 
-const reviewDecisionSchema = z.object({
-  id: requiredString('Review item ID'),
-  decision: z.enum(['APPROVE', 'REVOKE']),
-  proposedEndDate: z.string().datetime({ offset: true }).optional(),
-  bulk: z.boolean(),
-  recommendation: z
-    .object({
-      recommendation: z.string().nullable().optional(),
-      reasons: z.array(z.string().max(10_000)).max(100).optional(),
-      timestamp: z.string().datetime({ offset: true }).optional(),
-    })
-    .nullable()
-    .optional(),
-  comments: optionalString(10_000),
-})
+const reviewDecisionSchema = z
+  .object({
+    id: requiredString('Review item ID'),
+    decision: z.enum(['APPROVE', 'REVOKE']),
+    proposedEndDate: z.string().datetime({ offset: true }).optional(),
+    bulk: z.boolean(),
+    recommendation: z
+      .object({
+        recommendation: z.string().nullable().optional(),
+        reasons: z.array(z.string().max(10_000)).max(100).optional(),
+        timestamp: z.string().datetime({ offset: true }).optional(),
+      })
+      .nullable()
+      .optional(),
+    comments: optionalString(10_000),
+  })
+  .superRefine((value, ctx) => {
+    if (value.decision !== 'REVOKE' && value.proposedEndDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['proposedEndDate'],
+        message: 'proposedEndDate is only allowed for REVOKE decisions',
+      })
+    }
+  })
 
 function operationSchema<T extends string, S extends z.ZodRawShape>(operation: T, fields: S) {
   return z.object({ ...baseFields, operation: z.literal(operation), ...fields })
@@ -360,6 +380,187 @@ const schemas = {
   sailpoint_sign_off_certification: operationSchema('sailpoint_sign_off_certification', {
     id: requiredString('Certification ID'),
   }),
+  sailpoint_get_entitlement_request_config: operationSchema(
+    'sailpoint_get_entitlement_request_config',
+    { id: requiredString('Entitlement ID') }
+  ),
+  sailpoint_get_access_request_config: operationSchema('sailpoint_get_access_request_config', {}),
+  sailpoint_get_account_selections: operationSchema('sailpoint_get_account_selections', {
+    requestedFor: z
+      .preprocess(parseJson, z.array(requiredString('Identity ID')).max(250))
+      .optional(),
+    requestedItems: z.preprocess(parseJson, z.array(requestedItemSchema).min(1).max(25)).optional(),
+    requestedForWithRequestedItems: z
+      .preprocess(parseJson, z.array(requestedForWithItemsSchema).min(1).max(10))
+      .optional(),
+    requestType: z.enum(['GRANT_ACCESS', 'REVOKE_ACCESS', 'MODIFY_ACCESS']).optional(),
+    clientMetadata: z.preprocess(parseJson, metadataSchema).optional(),
+  }).superRefine((value, ctx) => {
+    const usesFlat = value.requestedFor !== undefined || value.requestedItems !== undefined
+    const usesNested = value.requestedForWithRequestedItems !== undefined
+    if (usesFlat === usesNested) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['requestedFor'],
+        message:
+          'Provide requestedFor with requestedItems, or requestedForWithRequestedItems, but not both',
+      })
+      return
+    }
+    if (usesFlat && (!value.requestedFor?.length || !value.requestedItems?.length)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['requestedItems'],
+        message: 'requestedFor and requestedItems must both be non-empty',
+      })
+    }
+    const requestType = value.requestType ?? 'GRANT_ACCESS'
+    if (requestType === 'REVOKE_ACCESS' && value.requestedFor) {
+      if (value.requestedFor.length !== 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['requestedFor'],
+          message: 'REVOKE_ACCESS supports exactly one identity',
+        })
+      }
+      const entitlementCount =
+        value.requestedItems?.filter((item) => item.type === 'ENTITLEMENT').length ?? 0
+      if (entitlementCount > 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['requestedItems'],
+          message: 'REVOKE_ACCESS supports at most one entitlement item',
+        })
+      }
+      value.requestedItems?.forEach((item, index) => {
+        if (!item.comment) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['requestedItems', index, 'comment'],
+            message: 'comment is required for REVOKE_ACCESS',
+          })
+        }
+        if (item.startDate) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['requestedItems', index, 'startDate'],
+            message: 'startDate is not allowed for REVOKE_ACCESS',
+          })
+        }
+      })
+    }
+    if (requestType !== 'REVOKE_ACCESS' && value.requestedItems) {
+      const entitlementCount = value.requestedItems.filter(
+        (item) => item.type === 'ENTITLEMENT'
+      ).length
+      if (entitlementCount > 0 && (value.requestedFor?.length ?? 0) > 10) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['requestedFor'],
+          message: 'Entitlement requests support at most 10 identities',
+        })
+      }
+    }
+    if (value.requestedForWithRequestedItems) {
+      const identityTypes = new Set(
+        value.requestedForWithRequestedItems.map((entry) => entry.identityType ?? 'HUMAN')
+      )
+      if (identityTypes.size > 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['requestedForWithRequestedItems'],
+          message: 'Human and machine identities cannot be mixed in one request',
+        })
+      }
+      if (requestType === 'REVOKE_ACCESS' && !identityTypes.has('MACHINE')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['requestedForWithRequestedItems'],
+          message: 'Human REVOKE_ACCESS must use requestedFor and requestedItems',
+        })
+      }
+      const entitlementCount = value.requestedForWithRequestedItems.reduce(
+        (total, entry) =>
+          total + entry.requestedItems.filter((item) => item.type === 'ENTITLEMENT').length,
+        0
+      )
+      if (requestType !== 'REVOKE_ACCESS' && entitlementCount > 25) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['requestedForWithRequestedItems'],
+          message: 'Entitlement requests support at most 25 entitlement items',
+        })
+      }
+      if (identityTypes.has('MACHINE')) {
+        if (requestType === 'REVOKE_ACCESS' && value.requestedForWithRequestedItems.length !== 1) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['requestedForWithRequestedItems'],
+            message: 'Machine REVOKE_ACCESS requires exactly one machine identity',
+          })
+        }
+        if (requestType === 'REVOKE_ACCESS' && entitlementCount > 1) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['requestedForWithRequestedItems'],
+            message: 'REVOKE_ACCESS supports at most one entitlement item',
+          })
+        }
+        value.requestedForWithRequestedItems.forEach((entry, entryIndex) => {
+          entry.requestedItems.forEach((item, itemIndex) => {
+            const itemPath = [
+              'requestedForWithRequestedItems',
+              entryIndex,
+              'requestedItems',
+              itemIndex,
+            ]
+            if (item.type !== 'ENTITLEMENT') {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [...itemPath, 'type'],
+                message: 'Machine identity requests support entitlement items only',
+              })
+            }
+            if (item.formInstanceId) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [...itemPath, 'formInstanceId'],
+                message: 'Machine identity requests do not support formInstanceId',
+              })
+            }
+            if (requestType === 'REVOKE_ACCESS' && item.accountSelection) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [...itemPath, 'accountSelection'],
+                message: 'Machine identity revoke requests cannot include accountSelection',
+              })
+            }
+            if (requestType === 'REVOKE_ACCESS' && !item.comment) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [...itemPath, 'comment'],
+                message: 'comment is required for REVOKE_ACCESS',
+              })
+            }
+            if (requestType === 'REVOKE_ACCESS' && item.startDate) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [...itemPath, 'startDate'],
+                message: 'startDate is not allowed for REVOKE_ACCESS',
+              })
+            }
+            if (requestType === 'MODIFY_ACCESS' && !item.startDate && !item.removeDate) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: itemPath,
+                message: 'Machine MODIFY_ACCESS requires startDate or removeDate',
+              })
+            }
+          })
+        })
+      }
+    }
+  }),
   sailpoint_request_access: operationSchema('sailpoint_request_access', {
     requestedFor: z
       .preprocess(parseJson, z.array(requiredString('Identity ID')).max(250))
@@ -425,7 +626,7 @@ const schemas = {
         })
       }
     }
-    if ((value.requestType ?? 'GRANT_ACCESS') === 'GRANT_ACCESS' && value.requestedItems) {
+    if ((value.requestType ?? 'GRANT_ACCESS') !== 'REVOKE_ACCESS' && value.requestedItems) {
       const entitlementCount = value.requestedItems.filter(
         (item) => item.type === 'ENTITLEMENT'
       ).length
@@ -433,14 +634,14 @@ const schemas = {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['requestedItems'],
-          message: 'GRANT_ACCESS supports at most 25 entitlement items',
+          message: 'Entitlement requests support at most 25 entitlement items',
         })
       }
       if (entitlementCount > 0 && (value.requestedFor?.length ?? 0) > 10) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['requestedFor'],
-          message: 'A grant with entitlements supports at most 10 identities',
+          message: 'Entitlement requests support at most 10 identities',
         })
       }
     }
@@ -455,8 +656,34 @@ const schemas = {
           message: 'Human and machine identities cannot be mixed in one request',
         })
       }
+      const requestType = value.requestType ?? 'GRANT_ACCESS'
+      const entitlementCount = value.requestedForWithRequestedItems.reduce(
+        (total, entry) =>
+          total + entry.requestedItems.filter((item) => item.type === 'ENTITLEMENT').length,
+        0
+      )
+      if (requestType !== 'REVOKE_ACCESS' && entitlementCount > 25) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['requestedForWithRequestedItems'],
+          message: 'Entitlement requests support at most 25 entitlement items',
+        })
+      }
       if (identityTypes.has('MACHINE')) {
-        const requestType = value.requestType ?? 'GRANT_ACCESS'
+        if (requestType === 'REVOKE_ACCESS' && value.requestedForWithRequestedItems.length !== 1) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['requestedForWithRequestedItems'],
+            message: 'Machine REVOKE_ACCESS requires exactly one machine identity',
+          })
+        }
+        if (requestType === 'REVOKE_ACCESS' && entitlementCount > 1) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['requestedForWithRequestedItems'],
+            message: 'REVOKE_ACCESS supports at most one entitlement item',
+          })
+        }
         value.requestedForWithRequestedItems.forEach((entry, entryIndex) => {
           entry.requestedItems.forEach((item, itemIndex) => {
             const path = ['requestedForWithRequestedItems', entryIndex, 'requestedItems', itemIndex]
@@ -467,11 +694,32 @@ const schemas = {
                 message: 'Machine identity requests support entitlement items only',
               })
             }
+            if (item.formInstanceId) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [...path, 'formInstanceId'],
+                message: 'Machine identity requests do not support formInstanceId',
+              })
+            }
             if (requestType === 'REVOKE_ACCESS' && item.accountSelection) {
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: [...path, 'accountSelection'],
                 message: 'Machine identity revoke requests cannot include accountSelection',
+              })
+            }
+            if (requestType === 'REVOKE_ACCESS' && !item.comment) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [...path, 'comment'],
+                message: 'comment is required for REVOKE_ACCESS',
+              })
+            }
+            if (requestType === 'REVOKE_ACCESS' && item.startDate) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [...path, 'startDate'],
+                message: 'startDate is not allowed for REVOKE_ACCESS',
               })
             }
             if (requestType !== 'REVOKE_ACCESS') {

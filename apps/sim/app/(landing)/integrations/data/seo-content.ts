@@ -62,13 +62,148 @@ export const INTEGRATION_SEO: Record<string, IntegrationSeoContent> = {
     tagline:
       'Build Slack workflow automation in Sim. Send, update, delete, and read messages; manage channels, users, canvases, and modals; and trigger AI agents from mentions, messages, and reactions in real time.',
     overview:
-      'Sim automates Slack workflows that depend on conversation context, including message routing, alerts, thread summaries, ticket updates, and incident response. Slack messages and events start agent workflows that interpret what was said and choose the next action in Slack or a connected tool, so routine coordination and time-sensitive operations keep moving without anyone relaying details by hand.',
+      'Sim automates Slack workflows that route messages, trigger alerts, summarize threads, update tickets, and manage incident response. Slack messages and events start agent workflows that interpret what was said and choose the next action in Slack or a connected tool, so routine coordination and time-sensitive operations keep moving without anyone relaying details by hand.',
     triggersIntro:
       'Sim supports one real-time Slack trigger. Select the Slack events you care about, such as mentions, messages, and reactions, and Sim starts the connected workflow the moment one arrives instead of waiting for a scheduled check. A monitoring alert posted in Slack can open an incident-response workflow, and a ticketing update posted in Slack can be summarised and passed to another connected tool.',
     templatesIntro:
       'Pre-built agent templates turn common Slack workflows into editable starting points: routing templates classify messages and send them to the right channel or owner, summarisation templates condense long threads into updates that preserve decisions and action items, and ticket sync and incident response templates update connected records and coordinate follow-up. Every template is editable, so you can adapt its channels, routing rules, data sources, and approval requirements.',
     toolsSubtitleSuffix:
       ' across messaging, channels, threads, users, reactions and files, and canvases and views. Combine multiple Slack actions in one workflow to summarise a message, route it, update a ticket, and post the ticket update back in Slack',
+    narrativeComparison: {
+      id: 'slack-automation-comparison',
+      heading: 'Slack automation with Sim vs. Zapier, Make, and n8n',
+      paragraphs: [
+        'Sim is built for Slack workflows that need to interpret conversation context before choosing an action. A Sim agent can summarize a thread and determine whether it describes an incident before using a configured Slack or ticketing action.',
+        'Zapier, Make, and n8n are useful substitutes for predefined trigger-action sequences with known conditions and branches. Choose that model when each event should produce a predictable result. For example, a simple rule that posts every new message from channel X to channel Y works well as a fixed chain because it does not require interpretation. Choose Sim when the next action depends on the meaning of a Slack conversation rather than fixed keywords or predetermined branches.',
+      ],
+    },
+    faqs: [
+      {
+        question: 'What Slack workflows can Sim automate?',
+        answer:
+          'Slack workflow automation uses messages and channel events to start work in connected tools. Sim can route Slack messages, trigger alerts, summarize threads, update tickets, and coordinate incident response. You can use Sim to turn Slack conversations into tracked work without manually copying details.',
+      },
+      {
+        question: 'How does routing and alerting work in Sim?',
+        answer:
+          'Routing and alerting send selected Slack messages to the people or channels responsible for responding. Sim uses Slack events and workflow logic to route a message or send an alert based on its content. This directs requests and incidents without requiring someone to monitor every channel.',
+      },
+      {
+        question: 'Can Sim summarize Slack threads?',
+        answer:
+          'Thread summarization condenses a Slack conversation into its main points and relevant context. Sim can read a Slack thread and send the resulting summary to another Slack channel or a workflow that uses connected tools.',
+      },
+      {
+        question: 'How does Sim update tickets from Slack?',
+        answer:
+          'A Slack-to-ticket workflow transfers conversation details into a connected ticketing tool. Sim can pass information from a Slack message or thread to the ticketing tool and update the matching record. You can use Sim to keep tickets current without entering the same information twice.',
+      },
+      {
+        question: 'Does Sim support incident response in Slack?',
+        answer:
+          'Incident response workflows use Slack events to start response steps and coordinate follow-up. Sim can trigger an incident workflow from Slack and pass relevant context to connected response tools. This keeps responders informed and incident records current as the conversation develops.',
+      },
+      {
+        question: 'What is the difference between Sim and Zapier for Slack?',
+        answer:
+          'Zapier supports trigger-action automation, while Sim centers Slack automation on workflows that can include AI agents. Sim workflows can interpret a Slack incident thread before routing the relevant information or updating a ticket. You can use Sim when the workflow needs to understand conversation context before taking action.',
+      },
+    ],
+  },
+  'twilio-sms': {
+    tagline:
+      'Sim connects to Twilio to let an AI agent send SMS updates when an order status changes. Connect Twilio SMS to Sim to send outbound messages and start AI workflows when Twilio reports an inbound SMS, inbound MMS, or message status change.',
+    overview:
+      'The Twilio SMS block sends outbound messages. Twilio SMS Received and Twilio Message Status triggers start Sim workflows from supported webhook events.',
+    comparison: {
+      id: 'twilio-sms-comparison',
+      heading: 'Sim vs. Zapier, Make, and n8n for Twilio SMS',
+      intro:
+        "Zapier, Make, and n8n provide Twilio integrations for general-purpose automation. Sim focuses on AI workflows that use Agent blocks to draft or transform messages with order or customer data before a Twilio SMS block sends them. Supported Twilio webhooks can start Sim workflows without scheduled polling. Zapier, Make, or n8n may suit a Twilio workflow that does not require Sim's Agent blocks.",
+      columns: ['Sim', 'Zapier', 'Make', 'n8n'],
+      rows: [
+        {
+          label: 'Trigger model',
+          values: [
+            { text: 'Real-time webhook' },
+            {
+              text: 'Polling for new SMS',
+              href: 'https://zapier.com/apps/twilio/integrations',
+            },
+            {
+              text: 'Instant webhook',
+              href: 'https://apps.make.com/twilio',
+            },
+            {
+              text: 'Webhook',
+              href: 'https://docs.n8n.io/integrations/builtin/trigger-nodes/n8n-nodes-base.twiliotrigger/',
+            },
+          ],
+        },
+        {
+          label: 'AI drafting before send',
+          values: [
+            { text: 'Agent block, built in' },
+            {
+              text: 'Requires a separate AI step or app',
+              href: 'https://zapier.com/apps/twilio/integrations/chatgpt',
+            },
+            {
+              text: 'Requires a separate AI step or app',
+              href: 'https://www.make.com/en/integrations/twilio/openai-gpt-3',
+            },
+            {
+              text: 'Requires a separate AI node',
+              href: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/',
+            },
+          ],
+        },
+        {
+          label: 'Free to start',
+          values: [
+            { text: 'Yes' },
+            {
+              text: 'Yes, with a limited free tier',
+              href: 'https://zapier.com/pricing',
+            },
+            {
+              text: 'Yes, with a limited free tier',
+              href: 'https://www.make.com/en/pricing',
+            },
+            {
+              text: 'Yes, when self-hosted',
+              href: 'https://docs.n8n.io/privacy-and-security/sustainable-use-license/',
+            },
+          ],
+        },
+      ],
+      conclusion:
+        'Choose Sim when the workflow needs an AI agent to read order or customer context and write the message, rather than relay a fixed template.',
+    },
+    triggersIntro:
+      'A supported Twilio SMS webhook starts a Sim workflow when Sim receives the corresponding event. Webhook delivery removes the need for scheduled polling, but Twilio processing and network conditions can affect when Sim receives an event.',
+    faqs: [
+      {
+        question: 'What can I do with the Twilio SMS integration?',
+        answer:
+          "Sim's Twilio SMS integration lets an AI agent send SMS messages and receive SMS or MMS messages inside a workflow. You can combine Twilio SMS with Agent blocks and integrations such as AgentPhone and Discord. Combining these blocks lets you generate messages and coordinate responses across supported tools in one workflow.",
+      },
+      {
+        question: 'How do I connect Twilio SMS to Sim?',
+        answer:
+          'A Twilio SMS connection authorizes Sim to use the Twilio actions and triggers you configure. Create an account at sim.ai, add a Twilio SMS block to a workflow, and enter the Twilio credentials requested in the connection settings. After you choose an action or trigger and test the workflow, you can deploy it to process supported Twilio events.',
+      },
+      {
+        question: 'How do Twilio SMS triggers work?',
+        answer:
+          'A Twilio SMS trigger starts a Sim workflow when its webhook receives a supported Twilio event. Add a trigger block to the workflow, then configure the generated webhook URL in the relevant Twilio settings for Twilio SMS Received or Twilio Message Status events. The configured webhooks start matching workflows without scheduled polling.',
+      },
+      {
+        question: 'What data does a Twilio SMS trigger provide?',
+        answer:
+          'A Twilio SMS trigger provides the fields in the webhook payload that Twilio sends to Sim. Twilio SMS Received events include data about an inbound SMS or MMS, which the workflow can pass to Agent blocks or later steps. Available fields vary by event and payload, so inspect a test event before mapping them.',
+      },
+    ],
   },
   airtable: {
     title: 'Airtable Automation with Sim',

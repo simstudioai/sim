@@ -1,15 +1,15 @@
 'use client'
 
 import { useMemo } from 'react'
+import { type NodeTypes, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { domAnimation, LazyMotion } from 'framer-motion'
-import ReactFlow, { type NodeTypes, ReactFlowProvider } from 'reactflow'
-import 'reactflow/dist/style.css'
+import '@xyflow/react/dist/style.css'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
 import { toReactFlowElements } from '@/components/workflow-preview/workflow-data'
 
 /** The hero mounts the same node type the canvas uses, so it can never drift. */
-const NODE_TYPES: NodeTypes = { previewBlock: DocsBlockNode }
+const NODE_TYPES = { previewBlock: DocsBlockNode } satisfies NodeTypes
 const PRO_OPTIONS = { hideAttribution: true }
 /** `maxZoom` mirrors the previous hand-rolled hero's 1.3 scale. */
 const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1.3 } as const
