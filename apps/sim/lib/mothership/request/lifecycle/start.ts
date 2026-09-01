@@ -592,6 +592,7 @@ export async function requestChatTitle(params: {
         ...(organizationId ? { organizationId, chatId } : {}),
         ...(userId ? { userId } : {}),
         ...(byokApiKey ? { byokApiKey } : {}),
+        ...(chatId ? { chatId } : {}),
       }),
       otelContext,
       spanName: 'sim → go /api/generate-chat-title',
