@@ -159,20 +159,6 @@ export const storageContextSchema = z.enum([
   'workspace-logos',
 ])
 
-export const fileDownloadBodySchema = z
-  .object({
-    key: z.string().optional(),
-    name: z.string().optional(),
-    url: z
-      .string()
-      .url()
-      .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
-        message: 'URL must use http or https',
-      })
-      .optional(),
-  })
-  .passthrough()
-
 export const fileParseBodySchema = z
   .object({
     filePath: z
@@ -311,13 +297,6 @@ export const sshWriteFileContentContract = defineRouteContract({
   response: { mode: 'json', schema: jsonResponseSchema },
 })
 
-export const fileDownloadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/files/download',
-  body: fileDownloadBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
 export const fileParseContract = defineRouteContract({
   method: 'POST',
   path: '/api/files/parse',
@@ -381,8 +360,6 @@ export type SshMoveRenameBody = ContractBodyInput<typeof sshMoveRenameContract>
 export type SshReadFileContentBody = ContractBodyInput<typeof sshReadFileContentContract>
 export type SshUploadFileBody = ContractBodyInput<typeof sshUploadFileContract>
 export type SshWriteFileContentBody = ContractBodyInput<typeof sshWriteFileContentContract>
-export type FileDownloadBody = ContractBodyInput<typeof fileDownloadContract>
-export type FileDownloadResponse = ContractJsonResponse<typeof fileDownloadContract>
 export type FileParseBody = ContractBodyInput<typeof fileParseContract>
 export type FileParseResponse = ContractJsonResponse<typeof fileParseContract>
 export type FileDeleteBody = ContractBodyInput<typeof fileDeleteContract>
