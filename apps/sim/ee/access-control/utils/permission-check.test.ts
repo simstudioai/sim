@@ -222,7 +222,7 @@ describe('access control context resolution', () => {
     await expect(getUserPermissionConfig('user-123', 'workspace-1')).resolves.toMatchObject({
       disableMcpTools: true,
     })
-    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-1')
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-1', 'throw')
   })
 
   it('returns the explicit governing group and its effective config', async () => {
@@ -306,7 +306,7 @@ describe('access control context resolution', () => {
     )
 
     expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
-    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-verified')
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-verified', 'throw')
     expect(context).toMatchObject({
       organizationId: 'org-verified',
       entitled: true,
